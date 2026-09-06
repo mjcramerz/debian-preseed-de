@@ -1,0 +1,1005 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/bin:/usr/bin:/bin
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+export PATH LANG LC_ALL
+
+MAX_RECORDS=128
+SYNC_TIMEOUT_SECONDS=120
+SYNC_KILL_AFTER_SECONDS=5
+UDISKS_TIMEOUT_SECONDS=120
+UDISKS_KILL_AFTER_SECONDS=5
+UNMOUNT_CONFIRM_ATTEMPTS=30
+UNMOUNT_CONFIRM_INTERVAL_SECONDS=1
+DEV_ROOT=/dev
+MOUNTINFO_FILE=/proc/self/mountinfo
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 ||
+    fatal "required external-drive command is not installed: $1"
+}
+
+notify_drive() {
+  urgency=$1
+  icon=$2
+  summary=$3
+  body=$4
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  notify-send \
+    -a "External Drives" \
+    -u "$urgency" \
+    -i "$icon" \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+settle_udev() {
+  command -v udevadm >/dev/null 2>&1 || return 0
+  udevadm settle --timeout=5 >/dev/null 2>&1 || true
+}
+
+collect_snapshot() {
+  settle_udev
+  lsblk \
+    --bytes \
+    --pairs \
+    --paths \
+    --output PATH,TYPE,FSTYPE,LABEL,MODEL,SIZE,TRAN,RM,HOTPLUG,MOUNTPOINTS,PKNAME,MAJ:MIN \
+    "$@"
+}
+
+build_inventory() {
+  snapshot_file=$1
+  map_file=$2
+
+  : >"$map_file"
+  awk \
+    -v dev_root="$DEV_ROOT" \
+    -v map_file="$map_file" \
+    -v maximum="$MAX_RECORDS" '
+      function decode(value) {
+        gsub(/\\x20/, " ", value)
+        gsub(/\\x09/, " ", value)
+        gsub(/\\x0a/, ", ", value)
+        gsub(/\\x22/, "\047", value)
+        gsub(/\\x5c/, "/", value)
+        gsub(/\\x[0123456789abcdefABCDEF][0123456789abcdefABCDEF]/, "?", value)
+        gsub(/[[:cntrl:]]/, " ", value)
+        gsub(/[[:space:]][[:space:]]+/, " ", value)
+        sub(/^[[:space:]]+/, "", value)
+        sub(/[[:space:]]+$/, "", value)
+        return value
+      }
+
+      function shorten(value, maximum_length) {
+        if (length(value) <= maximum_length) {
+          return value
+        }
+        return substr(value, 1, maximum_length - 3) "..."
+      }
+
+      function human_size(bytes, unit_index, units) {
+        split("B KiB MiB GiB TiB PiB", units, " ")
+        unit_index = 1
+        while (bytes >= 1024 && unit_index < 6) {
+          bytes /= 1024
+          unit_index++
+        }
+        if (unit_index == 1) {
+          return sprintf("%.0f %s", bytes, units[unit_index])
+        }
+        return sprintf("%.1f %s", bytes, units[unit_index])
+      }
+
+      {
+        split("", field)
+        for (field_index = 1; field_index <= NF; field_index++) {
+          equals_index = index($field_index, "=")
+          if (equals_index < 2) {
+            continue
+          }
+          key = substr($field_index, 1, equals_index - 1)
+          value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
+          field[key] = value
+        }
+
+        if (NR == FNR) {
+          if (field["TYPE"] == "disk" &&
+              field["TRAN"] == "usb" &&
+              field["PATH"] ~ ("^" dev_root "/[[:alnum:]_.+-]+$") &&
+              field["MAJ:MIN"] ~ /^[0123456789]+:[0123456789]+$/) {
+            disk_name = field["PATH"]
+            sub(/^.*\//, "", disk_name)
+            usb_disk[disk_name] = 1
+          }
+          next
+        }
+
+        if (field["TYPE"] == "disk" && field["TRAN"] != "usb") {
+          next
+        }
+        if (field["TYPE"] != "disk" && field["TYPE"] != "part") {
+          next
+        }
+        if (field["PATH"] !~ ("^" dev_root "/[[:alnum:]_.+-]+$")) {
+          next
+        }
+        if (field["MAJ:MIN"] !~ /^[0123456789]+:[0123456789]+$/) {
+          next
+        }
+
+        parent_device = field["PATH"]
+        if (field["TYPE"] == "part") {
+          if (field["PKNAME"] !~ /^[[:alnum:]_.+-]+$/ ||
+              !usb_disk[field["PKNAME"]] ||
+              (field["TRAN"] != "" && field["TRAN"] != "usb")) {
+            next
+          }
+          parent_device = dev_root "/" field["PKNAME"]
+        }
+
+        kind = "drive"
+        if (field["TYPE"] == "part" || field["FSTYPE"] != "") {
+          kind = "volume"
+        }
+
+        count++
+        identifier = sprintf("%03d", count)
+        print identifier "|" kind "|" field["PATH"] "|" parent_device "|" field["MAJ:MIN"] "|" field["TYPE"] "|" field["FSTYPE"] >>map_file
+
+        size_text = human_size(field["SIZE"] + 0)
+        if (kind == "drive") {
+          model = shorten(decode(field["MODEL"]), 42)
+          if (model == "") {
+            model = "External USB drive"
+          }
+          printf "%s  [Drive] %s - %s - %s\n", identifier, field["PATH"], model, size_text
+        } else {
+          label = shorten(decode(field["LABEL"]), 32)
+          if (label == "") {
+            label = field["PATH"]
+          }
+          filesystem = decode(field["FSTYPE"])
+          if (filesystem == "") {
+            filesystem = "no filesystem"
+          }
+          mountpoints = shorten(decode(field["MOUNTPOINTS"]), 72)
+          if (mountpoints == "") {
+            status = "[Not mounted]"
+            location = ""
+          } else {
+            status = "[Mounted]"
+            location = " - " mountpoints
+          }
+          printf "%s  %s %s - %s - %s%s\n", identifier, status, label, filesystem, size_text, location
+        }
+
+        if (count >= maximum) {
+          exit
+        }
+      }
+    ' "$snapshot_file" "$snapshot_file"
+}
+
+record_for_identifier() {
+  identifier=$1
+  map_file=$2
+
+  awk -F'|' -v wanted="$identifier" '
+    $1 == wanted {
+      print
+      found = 1
+      exit
+    }
+    END {
+      if (!found) {
+        exit 1
+      }
+    }
+  ' "$map_file"
+}
+
+validate_device_path() {
+  candidate_device=$1
+
+  case "$candidate_device" in
+    "$DEV_ROOT"/[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+      candidate_name=${candidate_device#"$DEV_ROOT"/}
+      case "$candidate_name" in
+        ''|*/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+          fatal "unsafe external-drive device path: ${candidate_device:-unset}"
+          ;;
+      esac
+      ;;
+    *)
+      fatal "unsafe external-drive device path: ${candidate_device:-unset}"
+      ;;
+  esac
+}
+
+current_device_identity() {
+  device=$1
+
+  lsblk \
+    --nodeps \
+    --pairs \
+    --paths \
+    --output MAJ:MIN,TYPE,TRAN,PKNAME \
+    -- "$device" 2>/dev/null |
+    awk '
+      {
+        split("", field)
+        for (field_index = 1; field_index <= NF; field_index++) {
+          equals_index = index($field_index, "=")
+          if (equals_index < 2) {
+            continue
+          }
+          key = substr($field_index, 1, equals_index - 1)
+          value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
+          field[key] = value
+        }
+        if (field["MAJ:MIN"] ~ /^[0123456789]+:[0123456789]+$/ &&
+            (field["TYPE"] == "disk" || field["TYPE"] == "part")) {
+          print field["MAJ:MIN"] "|" field["TYPE"] "|" field["TRAN"] "|" field["PKNAME"]
+          exit
+        }
+      }
+    '
+}
+
+validate_external_target() {
+  device=$1
+  expected_devnum=$2
+  expected_type=$3
+
+  validate_device_path "$device"
+  [ -b "$device" ] || fatal "external-drive device is no longer available: $device"
+
+  identity=$(current_device_identity "$device")
+  [ -n "$identity" ] || fatal "unable to identify external-drive device: $device"
+  IFS='|' read -r current_devnum current_type current_transport current_parent_name <<EOF
+$identity
+EOF
+  [ "$current_devnum" = "$expected_devnum" ] ||
+    fatal "external-drive device identity changed: $device"
+  [ "$current_type" = "$expected_type" ] ||
+    fatal "external-drive device type changed: $device"
+  case "$current_type" in
+    disk)
+      [ "$current_transport" = usb ] ||
+        fatal "device is not an external USB drive: $device"
+      ;;
+    part)
+      case "$current_parent_name" in
+        ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+          fatal "external-drive partition has an unsafe parent: $device"
+          ;;
+      esac
+      [ -z "$current_transport" ] || [ "$current_transport" = usb ] ||
+        fatal "external-drive partition transport conflicts with its USB parent: $device"
+      validate_external_disk "$DEV_ROOT/$current_parent_name"
+      ;;
+  esac
+}
+
+validate_external_disk() {
+  disk_device=$1
+  expected_disk_devnum=${2:-}
+
+  validate_device_path "$disk_device"
+  [ -b "$disk_device" ] ||
+    fatal "external drive is no longer available: $disk_device"
+
+  identity=$(current_device_identity "$disk_device")
+  [ -n "$identity" ] || fatal "unable to identify external drive: $disk_device"
+  IFS='|' read -r current_disk_devnum current_type current_transport _current_parent_name <<EOF
+$identity
+EOF
+  if [ -n "$expected_disk_devnum" ]; then
+    [ "$current_disk_devnum" = "$expected_disk_devnum" ] ||
+      fatal "external-drive disk identity changed: $disk_device"
+  fi
+  [ "$current_type" = disk ] ||
+    fatal "external-drive parent is not a disk: $disk_device"
+  [ "$current_transport" = usb ] ||
+    fatal "external-drive parent is not USB: $disk_device"
+  validated_disk_devnum=$current_disk_devnum
+}
+
+run_udisksctl() {
+  [ "$#" -eq 3 ] || fatal "invalid UDisks external-drive operation"
+
+  udisks_action=$1
+  udisks_option=$2
+  udisks_device=$3
+
+  case "$udisks_action" in
+    mount|unmount|power-off) ;;
+    *) fatal "unsupported UDisks external-drive operation: $udisks_action" ;;
+  esac
+  [ "$udisks_option" = --block-device ] ||
+    fatal "unsupported UDisks external-drive option: $udisks_option"
+  validate_device_path "$udisks_device"
+
+  timeout \
+    --foreground \
+    --signal=TERM \
+    --kill-after="${UDISKS_KILL_AFTER_SECONDS}s" \
+    "${UDISKS_TIMEOUT_SECONDS}s" \
+    udisksctl "$udisks_action" "$udisks_option" "$udisks_device"
+}
+
+volume_is_mounted() {
+  expected_devnum=$1
+
+  [ -r "$MOUNTINFO_FILE" ] || return 1
+  awk -v wanted="$expected_devnum" '
+    BEGIN {
+      status = 1
+    }
+    $3 == wanted {
+      status = 0
+      exit
+    }
+    END {
+      exit status
+    }
+  ' "$MOUNTINFO_FILE"
+}
+
+mountpoint_for_devnum() {
+  expected_devnum=$1
+
+  [ -r "$MOUNTINFO_FILE" ] || return 1
+  encoded_mountpoint=$(
+    awk -v wanted="$expected_devnum" '
+      $3 == wanted {
+        print $5
+        exit
+      }
+    ' "$MOUNTINFO_FILE"
+  )
+  [ -n "$encoded_mountpoint" ] || return 1
+
+  case "$encoded_mountpoint" in
+    *'\011'*|*'\012'*)
+      fatal "external-volume mount point contains unsupported control characters"
+      ;;
+  esac
+  mountpoint=$(printf '%b' "$encoded_mountpoint")
+  newline='
+'
+  tab=$(printf '\t')
+  carriage_return=$(printf '\r')
+  case "$mountpoint" in
+    /*) ;;
+    *)
+      fatal "external-volume mount point is not absolute"
+      ;;
+  esac
+  case "$mountpoint" in
+    *"$newline"*|*"$tab"*|*"$carriage_return"*)
+      fatal "external-volume mount point contains unsupported control characters"
+      ;;
+  esac
+  printf '%s\n' "$mountpoint"
+}
+
+current_mountpoint() {
+  device=$1
+
+  if mountpoint_escapes=$(
+      lsblk \
+        --bytes \
+        --pairs \
+        --paths \
+        --output PATH,TYPE,FSTYPE,LABEL,MODEL,SIZE,TRAN,RM,HOTPLUG,MOUNTPOINTS,PKNAME,MAJ:MIN \
+        -- "$device" 2>/dev/null |
+        awk -v wanted="$device" '
+          function hex_digit(character) {
+            if (character >= "0" && character <= "9") {
+              return character + 0
+            }
+            return index("abcdef", tolower(character)) + 9
+          }
+
+          function printf_escaped(value, output, character, pair, code) {
+            output = ""
+            while (length(value) > 0) {
+              if (substr(value, 1, 2) == "\\x") {
+                pair = substr(value, 3, 2)
+                if (pair !~ /^[0123456789abcdefABCDEF][0123456789abcdefABCDEF]$/) {
+                  invalid = 1
+                  exit 2
+                }
+                code = hex_digit(substr(pair, 1, 1)) * 16 + hex_digit(substr(pair, 2, 1))
+                value = substr(value, 5)
+                if (code == 10) {
+                  break
+                }
+                if (code < 32 || code == 127) {
+                  invalid = 1
+                  exit 2
+                }
+                output = output sprintf("\\0%03o", code)
+                continue
+              }
+
+              character = substr(value, 1, 1)
+              if (character == "\\" || character ~ /[[:cntrl:]]/) {
+                invalid = 1
+                exit 2
+              }
+              output = output character
+              value = substr(value, 2)
+            }
+            return output
+          }
+
+          {
+            split("", field)
+            for (field_index = 1; field_index <= NF; field_index++) {
+              equals_index = index($field_index, "=")
+              if (equals_index < 2) {
+                continue
+              }
+              key = substr($field_index, 1, equals_index - 1)
+              value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
+              field[key] = value
+            }
+
+            if (field["PATH"] == wanted && field["MOUNTPOINTS"] != "") {
+              found = 1
+              print printf_escaped(field["MOUNTPOINTS"])
+              exit
+            }
+          }
+
+          END {
+            if (invalid) {
+              exit 2
+            }
+            if (!found) {
+              exit 1
+            }
+          }
+        '
+    ); then
+    :
+  else
+    decoder_status=$?
+    [ "$decoder_status" -eq 1 ] && return 1
+    fatal "external-volume mount point encoding is invalid"
+  fi
+  [ -n "$mountpoint_escapes" ] || return 1
+
+  mountpoint=$(printf '%b' "$mountpoint_escapes")
+
+  newline='
+'
+  tab=$(printf '\t')
+  carriage_return=$(printf '\r')
+  case "$mountpoint" in
+    /*) ;;
+    *)
+      fatal "external-volume mount point is not absolute"
+      ;;
+  esac
+  case "$mountpoint" in
+    *"$newline"*|*"$tab"*|*"$carriage_return"*)
+      fatal "external-volume mount point contains unsupported control characters"
+      ;;
+  esac
+  printf '%s\n' "$mountpoint"
+}
+
+mountpoint_for_target() {
+  device=$1
+  expected_devnum=$2
+
+  mountpoint_for_devnum "$expected_devnum" ||
+    current_mountpoint "$device"
+}
+
+target_is_mounted() {
+  device=$1
+  expected_devnum=$2
+
+  volume_is_mounted "$expected_devnum" ||
+    current_mountpoint "$device" >/dev/null 2>&1
+}
+
+current_fstype() {
+  device=$1
+
+  lsblk \
+    --nodeps \
+    --noheadings \
+    --raw \
+    --output FSTYPE \
+    -- "$device" 2>/dev/null |
+    awk 'NF > 0 { print; exit }'
+}
+
+mount_supported() {
+  filesystem=$1
+
+  case "$filesystem" in
+    ''|crypto_LUKS|LVM2_member|linux_raid_member|swap)
+      return 1
+      ;;
+  esac
+  return 0
+}
+
+sync_volume_filesystem() {
+  device=$1
+  expected_devnum=$2
+  expected_type=$3
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  mountpoint=$(
+    mountpoint_for_target "$device" "$expected_devnum" || true
+  )
+  [ -n "$mountpoint" ] || return 0
+
+  notify_drive normal drive-removable-media \
+    "Writing external-drive data" \
+    "Please wait while pending writes to $device are committed."
+  if output=$(
+    timeout \
+      --foreground \
+      --signal=TERM \
+      --kill-after="${SYNC_KILL_AFTER_SECONDS}s" \
+      "${SYNC_TIMEOUT_SECONDS}s" \
+      sync --file-system -- "$mountpoint" 2>&1
+  ); then
+    [ -z "$output" ] || printf '%s\n' "$output"
+  else
+    action_status=$?
+    printf '%s\n' "$output" >&2
+    notify_drive critical dialog-error \
+      "Filesystem sync failed" \
+      "$device remains mounted and powered. Close files and try again."
+    return "$action_status"
+  fi
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  observed_mountpoint=$(
+    mountpoint_for_target "$device" "$expected_devnum" || true
+  )
+  if [ "$observed_mountpoint" != "$mountpoint" ]; then
+    printf 'external-volume mount point changed while syncing: %s\n' "$device" >&2
+    notify_drive critical dialog-error \
+      "External drive changed" \
+      "$device remains untouched because its mount point changed."
+    return 1
+  fi
+  return 0
+}
+
+wait_until_unmounted() {
+  device=$1
+  expected_devnum=$2
+  attempt=0
+
+  while target_is_mounted "$device" "$expected_devnum"; do
+    if [ "$attempt" -ge "$UNMOUNT_CONFIRM_ATTEMPTS" ]; then
+      printf 'timed out waiting for external volume to unmount: %s\n' "$device" >&2
+      return 1
+    fi
+    sleep "$UNMOUNT_CONFIRM_INTERVAL_SECONDS"
+    attempt=$((attempt + 1))
+  done
+}
+
+request_unmount_and_confirm() {
+  device=$1
+  expected_devnum=$2
+  expected_type=$3
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  target_is_mounted "$device" "$expected_devnum" || return 0
+
+  if output=$(run_udisksctl unmount --block-device "$device" 2>&1); then
+    printf '%s\n' "$output"
+  else
+    action_status=$?
+    printf '%s\n' "$output" >&2
+    return "$action_status"
+  fi
+
+  wait_until_unmounted "$device" "$expected_devnum"
+}
+
+mount_volume() {
+  device=$1
+  expected_devnum=$2
+  expected_type=$3
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  if output=$(run_udisksctl mount --block-device "$device" 2>&1); then
+    printf '%s\n' "$output"
+    notify_drive normal drive-removable-media \
+      "External volume mounted" \
+      "$device is ready to use."
+    return 0
+  else
+    action_status=$?
+  fi
+  printf '%s\n' "$output" >&2
+  notify_drive critical dialog-error \
+    "External volume mount failed" \
+    "$device could not be mounted."
+  return "$action_status"
+}
+
+unmount_volume() {
+  device=$1
+  expected_devnum=$2
+  expected_type=$3
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  if ! target_is_mounted "$device" "$expected_devnum"; then
+    notify_drive normal media-eject \
+      "External volume already unmounted" \
+      "$device is not mounted."
+    return 0
+  fi
+
+  sync_volume_filesystem \
+    "$device" \
+    "$expected_devnum" \
+    "$expected_type" || return 1
+  if request_unmount_and_confirm \
+    "$device" \
+    "$expected_devnum" \
+    "$expected_type"
+  then
+    notify_drive normal media-eject \
+      "External volume unmounted" \
+      "$device was unmounted cleanly."
+    return 0
+  else
+    action_status=$?
+  fi
+  notify_drive critical dialog-error \
+    "External volume is still mounted" \
+    "$device may be busy. Close files and applications, then try again."
+  return "$action_status"
+}
+
+mounted_records_for_disk() {
+  disk_device=$1
+  disk_name=${disk_device#"$DEV_ROOT"/}
+
+  collect_snapshot "$disk_device" |
+    awk -v disk_device="$disk_device" -v disk_name="$disk_name" '
+      {
+        split("", field)
+        for (field_index = 1; field_index <= NF; field_index++) {
+          equals_index = index($field_index, "=")
+          if (equals_index < 2) {
+            continue
+          }
+          key = substr($field_index, 1, equals_index - 1)
+          value = substr($field_index, equals_index + 2, length($field_index) - equals_index - 2)
+          field[key] = value
+        }
+        belongs_to_disk = field["PATH"] == disk_device ||
+          field["PKNAME"] == disk_name
+        transport_is_usb = field["TRAN"] == "usb" ||
+          (field["TYPE"] == "part" && field["TRAN"] == "")
+        if (belongs_to_disk &&
+            transport_is_usb &&
+            field["MOUNTPOINTS"] != "" &&
+            field["MAJ:MIN"] ~ /^[0123456789]+:[0123456789]+$/) {
+          print field["PATH"] "|" field["MAJ:MIN"] "|" field["TYPE"]
+        }
+      }
+    '
+}
+
+power_off_drive() {
+  disk_device=$1
+  expected_disk_devnum=$2
+
+  validate_external_disk "$disk_device" "$expected_disk_devnum"
+  confirmation=$(
+    choose_lines \
+      "Safely power off ${disk_device}" \
+      'Cancel' \
+      'Sync, unmount volumes, and power off'
+  )
+  [ "$confirmation" = 'Sync, unmount volumes, and power off' ] || return 0
+
+  mounted_records=$(mounted_records_for_disk "$disk_device" || true)
+  if [ -n "$mounted_records" ]; then
+    while IFS='|' read -r volume_device volume_devnum volume_type; do
+      [ -n "$volume_device" ] || continue
+      if ! sync_volume_filesystem \
+        "$volume_device" \
+        "$volume_devnum" \
+        "$volume_type"
+      then
+        notify_drive critical dialog-error \
+          "External drive remains connected" \
+          "$volume_device could not be synchronized and remains mounted."
+        return 1
+      fi
+    done <<EOF
+$mounted_records
+EOF
+
+    while IFS='|' read -r volume_device volume_devnum volume_type; do
+      [ -n "$volume_device" ] || continue
+      if request_unmount_and_confirm \
+        "$volume_device" \
+        "$volume_devnum" \
+        "$volume_type"
+      then
+        :
+      else
+        action_status=$?
+        notify_drive critical dialog-error \
+          "External drive remains connected" \
+          "$volume_device is busy and was not force-unmounted."
+        return "$action_status"
+      fi
+    done <<EOF
+$mounted_records
+EOF
+  fi
+
+  remaining_records=$(mounted_records_for_disk "$disk_device" || true)
+  if [ -n "$remaining_records" ]; then
+    printf 'external drive still has mounted volumes: %s\n' "$disk_device" >&2
+    notify_drive critical dialog-error \
+      "External drive remains connected" \
+      "$disk_device still has mounted volumes and was not powered off."
+    return 1
+  fi
+
+  validate_external_disk "$disk_device" "$expected_disk_devnum"
+  if output=$(run_udisksctl power-off --block-device "$disk_device" 2>&1); then
+    printf '%s\n' "$output"
+    notify_drive normal media-eject \
+      "External drive powered off" \
+      "$disk_device can now be disconnected."
+    return 0
+  else
+    action_status=$?
+  fi
+  printf '%s\n' "$output" >&2
+  notify_drive critical dialog-error \
+    "External drive power-off failed" \
+    "$disk_device remains connected."
+  return "$action_status"
+}
+
+manage_volume() {
+  device=$1
+  parent_device=$2
+  expected_devnum=$3
+  expected_type=$4
+
+  validate_external_target "$device" "$expected_devnum" "$expected_type"
+  validate_external_disk "$parent_device"
+  selected_disk_devnum=$validated_disk_devnum
+  mountpoint=$(
+    mountpoint_for_target "$device" "$expected_devnum" || true
+  )
+  filesystem=$(current_fstype "$device")
+
+  if [ -n "$mountpoint" ]; then
+    action=$(
+      choose_lines \
+        "$device is mounted" \
+        'Unmount Volume' \
+        'Safely Power Off Drive' \
+        '← Back'
+    )
+  elif mount_supported "$filesystem"; then
+    action=$(
+      choose_lines \
+        "$device is not mounted" \
+        'Mount Volume' \
+        'Safely Power Off Drive' \
+        '← Back'
+    )
+  else
+    action=$(
+      choose_lines \
+        "$device is not mountable" \
+        'Safely Power Off Drive' \
+        '← Back'
+    )
+  fi
+
+  case "$action" in
+    'Mount Volume')
+      mount_volume \
+        "$device" \
+        "$expected_devnum" \
+        "$expected_type" || true
+      ;;
+    'Unmount Volume')
+      unmount_volume \
+        "$device" \
+        "$expected_devnum" \
+        "$expected_type" || true
+      ;;
+    'Safely Power Off Drive')
+      power_off_drive \
+        "$parent_device" \
+        "$selected_disk_devnum" || true
+      ;;
+  esac
+}
+
+manage_drive() {
+  disk_device=$1
+  expected_disk_devnum=$2
+
+  validate_external_disk "$disk_device" "$expected_disk_devnum"
+  action=$(
+    choose_lines \
+      "$disk_device actions" \
+      'Safely Power Off Drive' \
+      '← Back'
+  )
+  [ "$action" = 'Safely Power Off Drive' ] &&
+    power_off_drive "$disk_device" "$expected_disk_devnum" || true
+}
+
+ensure_desktop_user() {
+  [ "$(id -u)" -ne 0 ] ||
+    fatal "labwc-external-drives must run as the logged-in desktop user"
+}
+
+ensure_desktop_user
+for required_command in awk flock id labwc-fuzzel lsblk mktemp sleep sync timeout udisksctl; do
+  require_command "$required_command"
+done
+[ -S /run/dbus/system_bus_socket ] ||
+  fatal "the system D-Bus socket required by UDisks is unavailable"
+
+umask 077
+runtime_root=${XDG_RUNTIME_DIR:-}
+use_operation_lock=1
+case "$runtime_root" in
+  /*) ;;
+  *) use_operation_lock=0 ;;
+esac
+if [ "$use_operation_lock" -eq 1 ]; then
+  if runtime_root=$(
+    CDPATH='' cd -- "$runtime_root" 2>/dev/null &&
+      pwd -P
+  ) && [ -w "$runtime_root" ]; then
+    :
+  else
+    use_operation_lock=0
+  fi
+fi
+
+if [ "$use_operation_lock" -eq 1 ]; then
+  lock_file="${runtime_root%/}/labwc-external-drives.lock"
+  exec 9>"$lock_file" ||
+    fatal "unable to open the external-drive operation lock"
+  if ! flock --exclusive --nonblock 9; then
+    notify_drive normal drive-removable-media \
+      "External-drive action already running" \
+      "Wait for the current sync, unmount, or power-off action to finish."
+    exit 0
+  fi
+else
+  runtime_root=${TMPDIR:-/tmp}
+  case "$runtime_root" in
+    /*) ;;
+    *) runtime_root=/tmp ;;
+  esac
+  if [ ! -d "$runtime_root" ] || [ ! -w "$runtime_root" ]; then
+    runtime_root=/tmp
+  fi
+fi
+
+temp_dir=$(mktemp -d "${runtime_root%/}/labwc-external-drives.XXXXXX") ||
+  fatal "unable to create external-drive runtime directory"
+snapshot_file="$temp_dir/lsblk.snapshot"
+map_file="$temp_dir/records.map"
+
+cleanup() {
+  rm -f -- "$snapshot_file" "$map_file"
+  rmdir -- "$temp_dir" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+while :; do
+  if ! collect_snapshot >"$snapshot_file"; then
+    notify_drive critical dialog-error \
+      "External drive inventory failed" \
+      "The block-device list could not be refreshed."
+    exit 1
+  fi
+  inventory=$(build_inventory "$snapshot_file" "$map_file")
+
+  selection=$(
+    {
+      printf '%s\n' '000  Refresh drive list'
+      [ -z "$inventory" ] ||
+        printf '%s\n' "$inventory"
+      printf '%s\n' '999  Close'
+    } |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "External drives" 2>/dev/null ||
+      true
+  )
+  [ -n "$selection" ] || exit 0
+
+  identifier=${selection%% *}
+  case "$identifier" in
+    000)
+      continue
+      ;;
+    999)
+      exit 0
+      ;;
+    *[!0123456789]*|'')
+      notify_drive critical dialog-error \
+        "External drive selection rejected" \
+        "The selected inventory record was malformed."
+      continue
+      ;;
+  esac
+
+  record=$(record_for_identifier "$identifier" "$map_file" || true)
+  if [ -z "$record" ]; then
+    notify_drive critical dialog-error \
+      "External drive changed" \
+      "Refresh the drive list and try again."
+    continue
+  fi
+  IFS='|' read -r _record_id record_kind device parent_device \
+    expected_devnum expected_type _record_fstype <<EOF
+$record
+EOF
+
+  case "$record_kind" in
+    drive)
+      manage_drive "$device" "$expected_devnum"
+      ;;
+    volume)
+      manage_volume \
+        "$device" \
+        "$parent_device" \
+        "$expected_devnum" \
+        "$expected_type"
+      ;;
+    *)
+      notify_drive critical dialog-error \
+        "External drive selection rejected" \
+        "The selected inventory record type was invalid."
+      ;;
+  esac
+done

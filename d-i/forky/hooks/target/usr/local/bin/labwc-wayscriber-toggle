@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] ||
+  fatal "Wayscriber toggle requires the managed Labwc desktop session"
+[ "${XDG_SESSION_TYPE:-}" = wayland ] ||
+  fatal "Wayscriber toggle requires a Wayland session"
+
+case "${XDG_RUNTIME_DIR:-}" in
+  /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
+    fatal "XDG_RUNTIME_DIR is unavailable or invalid"
+    ;;
+  /*) ;;
+  *) fatal "XDG_RUNTIME_DIR is unavailable or invalid" ;;
+esac
+case "${WAYLAND_DISPLAY:-}" in
+  ''|*/*|*..*) fatal "WAYLAND_DISPLAY is unavailable or invalid" ;;
+esac
+[ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] ||
+  fatal "the active Wayland socket is unavailable"
+[ -x /usr/bin/wayscriber ] ||
+  fatal "the Wayscriber package executable is unavailable"
+
+service=wayscriber.service
+if ! /usr/bin/systemctl --user --quiet is-active "$service"; then
+  /usr/bin/systemctl --user reset-failed "$service" >/dev/null 2>&1 || true
+  /usr/bin/systemctl --user start "$service" ||
+    fatal "unable to start the Wayscriber daemon"
+fi
+
+attempt=1
+while [ "$attempt" -le 20 ]; do
+  if /usr/bin/systemctl --user --quiet is-active "$service" &&
+     /usr/bin/wayscriber --daemon-toggle; then
+    exit 0
+  fi
+
+  if ! /usr/bin/systemctl --user --quiet is-active "$service"; then
+    /usr/bin/systemctl --user reset-failed "$service" >/dev/null 2>&1 || true
+    /usr/bin/systemctl --user start "$service" >/dev/null 2>&1 || true
+  fi
+  /usr/bin/sleep 0.1
+  attempt=$((attempt + 1))
+done
+
+fatal "Wayscriber daemon did not accept the toggle request"

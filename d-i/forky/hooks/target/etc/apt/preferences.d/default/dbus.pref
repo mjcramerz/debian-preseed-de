@@ -1,0 +1,6 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the headless/session baseline on dbus-broker, not the reference daemon
+# or the X11-specific D-Bus helper.
+Package: dbus dbus-daemon dbus-x11
+Pin: version *
+Pin-Priority: -1

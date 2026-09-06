@@ -1,0 +1,76 @@
+#!/bin/sh
+set -eu
+
+effective_ctype=${LC_ALL:-${LC_CTYPE:-${LANG:-}}}
+case "$effective_ctype" in
+  ''|C|POSIX)
+    LANG=C.UTF-8
+    LC_ALL=C.UTF-8
+    export LANG LC_ALL
+    ;;
+esac
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+# Accept xterm-style `-e` for callers, but normalize it before we reach Kitty.
+xterm_execute_mode=0
+case "${1:-}" in
+  -e|--execute)
+    xterm_execute_mode=1
+    exec_flag=$1
+    shift
+    [ "$#" -gt 0 ] || {
+      printf 'fatal: labwc-terminal requires a command after %s\n' "$exec_flag" >&2
+      exit 1
+    }
+    ;;
+esac
+
+seen_terminals=' '
+for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" footclient kitty x-terminal-emulator; do
+  [ -n "$terminal_cmd" ] || continue
+  case "$terminal_cmd" in
+    foot|footclient|*/foot|*/footclient)
+      terminal_exec=footclient
+      ;;
+    *)
+      terminal_exec=$terminal_cmd
+      ;;
+  esac
+  case "$seen_terminals" in
+    *" $terminal_exec "*) continue ;;
+  esac
+  seen_terminals="${seen_terminals}${terminal_exec} "
+  if command -v "$terminal_exec" >/dev/null 2>&1; then
+    case "$terminal_exec" in
+      footclient)
+        case "${XDG_RUNTIME_DIR:-}" in
+          /*)
+            foot_server_socket=${XDG_RUNTIME_DIR}/foot.sock
+            ;;
+          *)
+            printf 'fatal: labwc-terminal requires an absolute XDG_RUNTIME_DIR for Foot\n' >&2
+            exit 1
+            ;;
+        esac
+        if [ "$xterm_execute_mode" -eq 1 ]; then
+          exec "$terminal_exec" --server-socket="$foot_server_socket" -e "$@"
+        fi
+        exec "$terminal_exec" --server-socket="$foot_server_socket" "$@"
+        ;;
+      kitty)
+        exec "$terminal_exec" "$@"
+        ;;
+    esac
+    if [ "$xterm_execute_mode" -eq 1 ]; then
+      exec "$terminal_exec" -e "$@"
+    fi
+    exec "$terminal_exec" "$@"
+  fi
+done
+
+printf 'fatal: no supported terminal is installed\n' >&2
+exit 1

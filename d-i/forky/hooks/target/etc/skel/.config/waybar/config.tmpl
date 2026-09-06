@@ -1,0 +1,545 @@
+[
+{
+  "name": "internal",
+  "output": [__INSTALLER_LABWC_WAYBAR_INTERNAL_OUTPUTS__],
+  "layer": "top",
+  "position": "top",
+  "height": __INSTALLER_LABWC_WAYBAR_INTERNAL_HEIGHT__,
+  "spacing": 4,
+  "expand-left": true,
+  "margin-top": 8,
+  "margin-left": 12,
+  "margin-right": 12,
+  "modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__],
+  "modules-center": ["clock"],
+  "modules-right": [__INSTALLER_LABWC_WAYBAR_MODULES_RIGHT_INTERNAL__],
+  "ext/workspaces": {
+    "format": "{name}",
+    "sort-by-name": true,
+    "on-click": "activate",
+    "active-only": false,
+    "all-outputs": true
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "all-outputs": false,
+    "sort-by-app-id": true,
+    "expand": true,
+    "icon-size": __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE__,
+    "icon-theme": "Papirus-Dark",
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "close",
+    "on-click-right": "minimize-raise",
+    "app_ids-mapping": {
+      "footclient": "foot",
+      "org.xfce.Thunar": "thunar"
+    }
+  },
+  "custom/launcher": {
+    "format": "Menu",
+    "tooltip": false,
+    "on-click": "labwc-run"
+  },
+  "group/apps": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 250,
+      "transition-left-to-right": true,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/apps",
+      "custom/app-terminal",
+      "custom/app-files",
+      "custom/app-tuta",
+      "custom/app-notes",
+      "custom/app-sleek"
+    ]
+  },
+  "custom/wayscriber": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Wayscriber",
+    "on-click": "labwc-wayscriber-toggle"
+  },
+  "custom/apps": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Applications"
+  },
+  "custom/app-terminal": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Foot",
+    "on-click": "labwc-terminal"
+  },
+  "custom/app-files": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Thunar",
+    "on-click": "__INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+  },
+  "custom/app-tuta": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Tuta Mail",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+  },
+  "custom/app-notes": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "FeatherPad",
+    "on-click": "featherpad"
+  },
+  "custom/app-sleek": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Sleek",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+  },
+  "clock": {
+    "interval": 30,
+    "format": "{:%a %H:%M}",
+    "tooltip-format": "<span size='large'><tt>{calendar}</tt></span>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "right",
+      "format": {
+        "months": "<span color='#ecb860'><b>{}</b></span>",
+        "weekdays": "<span color='#6dc4ed'><b>{}</b></span>",
+        "weeks": "<span color='#94d2bd'>W{}</span>",
+        "today": "<span color='#ffb4a2'><b><u>{}</u></b></span>"
+      }
+    },
+    "on-click": "__INSTALLER_LABWC_CALENDAR_COMMAND__",
+    "on-click-middle": "labwc-calendar tasks",
+    "on-click-right": "labwc-calendar menu"
+  },
+  "group/quick-controls": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "custom/bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  },
+  "group/quick-controls-internal": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "custom/bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  },
+  "custom/system": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "System controls"
+  },
+  "network": {
+    "interval": 5,
+    "family": "ipv4",
+    "format-wifi": "📶",
+    "format-ethernet": "🖧",
+    "format-linked": "🔌",
+    "format-disconnected": "✖",
+    "format-disabled": "✖",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "on-click": "labwc-terminal -e nmtui",
+    "on-click-right": "labwc-network-control-menu"
+  },
+  "custom/bluetooth": {
+    "exec": "labwc-bluetooth status",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "labwc-bluetooth open",
+    "on-click-right": "labwc-bluetooth menu"
+  },
+  "custom/keyboard": {
+    "exec": "labwc-keyboard-layout status",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 7,
+    "tooltip": true,
+    "exec-on-event": true,
+    "on-click": "labwc-keyboard-layout waybar-toggle"
+  },
+  "custom/screenshot": {
+    "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 9,
+    "tooltip": true,
+    "on-click": "__INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+    "on-click-middle": "__INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right": "__INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+  },
+  "pulseaudio": {
+    "format": "🔊 {volume}% {format_source}",
+    "format-muted": "🔇 {volume}% {format_source}",
+    "format-source": "<span color='#6dc4ed'></span> {volume}%",
+    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
+    "tooltip-format": "{desc}",
+    "scroll-step": 5,
+    "max-volume": 120,
+    "on-click": "__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+    "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click-right": "__INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
+    "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+  },
+  "custom/backlight": {
+    "exec": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+    "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+    "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+  },
+  "battery": {
+    "interval": 5,
+    "format": "🔋 {capacity}%",
+    "format-charging": "⚡ {capacity}%",
+    "format-full": "🔋 {capacity}%",
+    "format-plugged": "🔌 {capacity}%",
+    "format-not-charging": "🔌 {capacity}%",
+    "format-warning": "⚠️ {capacity}%",
+    "format-critical": "🪫 {capacity}%",
+    "tooltip-format": "{timeTo}\nHealth {health}%  Cycles {cycles}",
+    "on-click": "__INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
+    "states": {
+      "warning": 30,
+      "critical": 15
+    }
+  },
+  "disk": {
+    "path": "/",
+    "interval": 30,
+    "format": "🖴 {percentage_used}%",
+    "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+    "on-click": "labwc-terminal -e ncdu /",
+    "states": {
+      "warning": 80,
+      "critical": 90
+    }
+  },
+  "cpu": {
+    "interval": 5,
+    "format": "⚙ {usage}%",
+    "on-click": "labwc-terminal -e btop",
+    "states": {
+      "warning": 70,
+      "critical": 90
+    }
+  },
+  "memory": {
+    "interval": 10,
+    "format": "🧠 {percentage}%",
+    "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+    "on-click": "labwc-terminal -e btop",
+    "states": {
+      "warning": 75,
+      "critical": 90
+    }
+  },
+  "tray": {
+    "icon-size": __INSTALLER_LABWC_WAYBAR_INTERNAL_TRAY_ICON_SIZE__,
+    "spacing": 3
+  },
+  "custom/lock": {
+    "format": "🔒",
+    "tooltip": false,
+    "on-click": "labwc-lock"
+  },
+  "custom/power": {
+    "format": "⏻",
+    "tooltip": false,
+    "on-click": "labwc-power-menu"
+  }
+},
+{
+  "name": "external",
+  "output": [__INSTALLER_LABWC_WAYBAR_EXTERNAL_OUTPUTS__],
+  "layer": "top",
+  "position": "top",
+  "height": __INSTALLER_LABWC_WAYBAR_HEIGHT__,
+  "spacing": 4,
+  "expand-left": true,
+  "margin-top": 8,
+  "margin-left": 12,
+  "margin-right": 12,
+  "modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__],
+  "modules-center": ["clock"],
+  "modules-right": [__INSTALLER_LABWC_WAYBAR_MODULES_RIGHT_EXTERNAL__],
+  "ext/workspaces": {
+    "format": "{name}",
+    "sort-by-name": true,
+    "on-click": "activate",
+    "active-only": false,
+    "all-outputs": true
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "all-outputs": false,
+    "sort-by-app-id": true,
+    "expand": true,
+    "icon-size": __INSTALLER_LABWC_WAYBAR_TASKBAR_ICON_SIZE__,
+    "icon-theme": "Papirus-Dark",
+    "tooltip": true,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "close",
+    "on-click-right": "minimize-raise",
+    "app_ids-mapping": {
+      "footclient": "foot",
+      "org.xfce.Thunar": "thunar"
+    }
+  },
+  "custom/launcher": {
+    "format": "Menu",
+    "tooltip": false,
+    "on-click": "labwc-run"
+  },
+  "group/apps": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 250,
+      "transition-left-to-right": true,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/apps",
+      "custom/app-terminal",
+      "custom/app-files",
+      "custom/app-tuta",
+      "custom/app-notes",
+      "custom/app-sleek"
+    ]
+  },
+  "custom/wayscriber": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Wayscriber",
+    "on-click": "labwc-wayscriber-toggle"
+  },
+  "custom/apps": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Applications"
+  },
+  "custom/app-terminal": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Foot",
+    "on-click": "labwc-terminal"
+  },
+  "custom/app-files": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Thunar",
+    "on-click": "__INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+  },
+  "custom/app-tuta": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Tuta Mail",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+  },
+  "custom/app-notes": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "FeatherPad",
+    "on-click": "featherpad"
+  },
+  "custom/app-sleek": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Sleek",
+    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+  },
+  "clock": {
+    "interval": 30,
+    "format": "{:%a %H:%M}",
+    "tooltip-format": "<span size='large'><tt>{calendar}</tt></span>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "right",
+      "format": {
+        "months": "<span color='#ecb860'><b>{}</b></span>",
+        "weekdays": "<span color='#6dc4ed'><b>{}</b></span>",
+        "weeks": "<span color='#94d2bd'>W{}</span>",
+        "today": "<span color='#ffb4a2'><b><u>{}</u></b></span>"
+      }
+    },
+    "on-click": "__INSTALLER_LABWC_CALENDAR_COMMAND__",
+    "on-click-middle": "labwc-calendar tasks",
+    "on-click-right": "labwc-calendar menu"
+  },
+  "group/quick-controls": {
+    "orientation": "inherit",
+    "drawer": {
+      "transition-duration": 300,
+      "transition-left-to-right": false,
+      "click-to-reveal": true
+    },
+    "modules": [
+      "custom/system",
+      "network",
+      "custom/bluetooth",
+      "custom/keyboard",
+      "custom/screenshot"
+    ]
+  },
+  "custom/system": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "System controls"
+  },
+  "network": {
+    "interval": 5,
+    "family": "ipv4",
+    "format-wifi": "📶",
+    "format-ethernet": "🖧",
+    "format-linked": "🔌",
+    "format-disconnected": "✖",
+    "format-disabled": "✖",
+    "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+    "on-click": "labwc-terminal -e nmtui",
+    "on-click-right": "labwc-network-control-menu"
+  },
+  "custom/bluetooth": {
+    "exec": "labwc-bluetooth status",
+    "return-type": "json",
+    "interval": 10,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "labwc-bluetooth open",
+    "on-click-right": "labwc-bluetooth menu"
+  },
+  "custom/keyboard": {
+    "exec": "labwc-keyboard-layout status",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 7,
+    "tooltip": true,
+    "exec-on-event": true,
+    "on-click": "labwc-keyboard-layout waybar-toggle"
+  },
+  "custom/screenshot": {
+    "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 9,
+    "tooltip": true,
+    "on-click": "__INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+    "on-click-middle": "__INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+    "on-click-right": "__INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+  },
+  "pulseaudio": {
+    "format": "🔊 {volume}% {format_source}",
+    "format-muted": "🔇 {volume}% {format_source}",
+    "format-source": "<span color='#6dc4ed'></span> {volume}%",
+    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
+    "tooltip-format": "{desc}",
+    "scroll-step": 5,
+    "max-volume": 120,
+    "on-click": "__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+    "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click-right": "__INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
+    "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+    "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+  },
+  "custom/backlight": {
+    "exec": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "return-type": "json",
+    "interval": 5,
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+    "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+    "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+  },
+  "battery": {
+    "interval": 5,
+    "format": "🔋 {capacity}%",
+    "format-charging": "⚡ {capacity}%",
+    "format-full": "🔋 {capacity}%",
+    "format-plugged": "🔌 {capacity}%",
+    "format-not-charging": "🔌 {capacity}%",
+    "format-warning": "⚠️ {capacity}%",
+    "format-critical": "🪫 {capacity}%",
+    "tooltip-format": "{timeTo}\nHealth {health}%  Cycles {cycles}",
+    "on-click": "__INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
+    "states": {
+      "warning": 30,
+      "critical": 15
+    }
+  },
+  "disk": {
+    "path": "/",
+    "interval": 30,
+    "format": "🖴 {percentage_used}%",
+    "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+    "on-click": "labwc-terminal -e ncdu /",
+    "states": {
+      "warning": 80,
+      "critical": 90
+    }
+  },
+  "cpu": {
+    "interval": 5,
+    "format": "⚙ {usage}%",
+    "on-click": "labwc-terminal -e btop",
+    "states": {
+      "warning": 70,
+      "critical": 90
+    }
+  },
+  "memory": {
+    "interval": 10,
+    "format": "🧠 {percentage}%",
+    "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+    "on-click": "labwc-terminal -e btop",
+    "states": {
+      "warning": 75,
+      "critical": 90
+    }
+  },
+  "tray": {
+    "icon-size": __INSTALLER_LABWC_WAYBAR_TRAY_ICON_SIZE__,
+    "spacing": 3
+  },
+  "custom/lock": {
+    "format": "🔒",
+    "tooltip": false,
+    "on-click": "labwc-lock"
+  },
+  "custom/power": {
+    "format": "⏻",
+    "tooltip": false,
+    "on-click": "labwc-power-menu"
+  }
+}
+]

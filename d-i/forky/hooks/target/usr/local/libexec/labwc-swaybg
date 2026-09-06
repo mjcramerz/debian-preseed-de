@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+case "${LABWC_ENABLE_SWAYBG:-true}" in
+  true|yes|1|on) ;;
+  *) exit 0 ;;
+esac
+
+wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}
+saved_wallpaper_path=$(
+  /usr/local/bin/labwc-wallpaper-save --current 2>/dev/null || true
+)
+if [ -n "$saved_wallpaper_path" ]; then
+  wallpaper_path=$saved_wallpaper_path
+fi
+
+wallpaper_path=$(readlink -e -- "$wallpaper_path") || {
+  printf 'fatal: the configured wallpaper does not exist\n' >&2
+  exit 1
+}
+case "$wallpaper_path" in
+  /usr/share/backgrounds/desktop/*) ;;
+  *) printf 'fatal: wallpaper escaped the managed directory\n' >&2; exit 1 ;;
+esac
+[ -f "$wallpaper_path" ] && [ -r "$wallpaper_path" ] || exit 1
+
+swaybg_cmd=$(command -v swaybg 2>/dev/null || true)
+[ -n "$swaybg_cmd" ] || { printf 'fatal: swaybg is unavailable\n' >&2; exit 1; }
+
+exec "$swaybg_cmd" -m fill -i "$wallpaper_path"

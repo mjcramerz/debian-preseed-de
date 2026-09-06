@@ -1,0 +1,89 @@
+{
+  "apparmor_compilation": [
+    {
+      "profile": "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-bin",
+      "returncode": 0,
+      "kernel_load": false,
+      "mode": "offline compile, -Q -K",
+      "log": "apparmor-vivaldi-bin.log"
+    },
+    {
+      "profile": "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-stable",
+      "returncode": 0,
+      "kernel_load": false,
+      "mode": "offline compile, -Q -K",
+      "log": "apparmor-vivaldi-stable.log"
+    }
+  ],
+  "profile_preservation": [
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+      "byte_identical_to_upload": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+      "byte_identical_to_upload": true
+    }
+  ],
+  "limits": [
+    "AppArmor profiles were not loaded into the kernel.",
+    "Chromium/Edge vendor parent profile compilation and runtime enforcement not performed."
+  ]
+}

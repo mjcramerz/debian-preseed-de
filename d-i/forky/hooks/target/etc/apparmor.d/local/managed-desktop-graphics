@@ -1,0 +1,10 @@
+# Managed by unattended-installer.
+#
+# NVIDIA-only extension for the shared desktop graphics abstraction. Common
+# CUDA and graphics device access is defined in the shared abstraction so
+# confined CUDA workloads have one stable policy. This selected-hardware
+# fragment retains module-parameter reads that are meaningful only when the
+# NVIDIA driver is installed and active.
+
+@{sys}/module/nvidia*/parameters/ r,
+@{sys}/module/nvidia*/parameters/* r,

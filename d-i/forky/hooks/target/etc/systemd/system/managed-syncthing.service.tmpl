@@ -1,0 +1,41 @@
+[Unit]
+Description=Managed Syncthing service for __INSTALLER_ACCOUNT_USERNAME__
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+ConditionPathExists=/etc/default/managed-syncthing
+ConditionPathExists=/usr/local/libexec/managed-syncthing-configure
+
+[Service]
+Type=exec
+TimeoutStartSec=60s
+TimeoutStopSec=30s
+KillMode=control-group
+User=__INSTALLER_ACCOUNT_USERNAME__
+Group=__INSTALLER_ACCOUNT_USERNAME__
+Environment=HOME=__INSTALLER_ACCOUNT_HOME__
+Environment=XDG_STATE_HOME=__INSTALLER_ACCOUNT_HOME__/.local/state
+EnvironmentFile=-/etc/default/managed-syncthing
+# Preparation uses the same unprivileged account as the daemon.
+ExecStartPre=/usr/local/libexec/managed-syncthing-configure --prepare
+ExecStart=/usr/bin/syncthing serve --no-browser --home=__INSTALLER_DIR_HOME_SYNCTHING_STATE__
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=full
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+ReadWritePaths=__INSTALLER_ACCOUNT_HOME__ __INSTALLER_DIR_HOME_SYNCTHING__ __INSTALLER_DIR_HOME_SYNCTHING_STATE__
+
+[Install]
+WantedBy=multi-user.target

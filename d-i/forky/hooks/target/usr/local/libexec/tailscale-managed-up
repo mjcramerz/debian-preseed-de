@@ -1,0 +1,422 @@
+#!/bin/sh
+set -eu
+umask 077
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+config_file=/etc/default/tailscale-managed
+[ -r "$config_file" ] || {
+  printf 'fatal: missing managed tailscale defaults: %s\n' "$config_file" >&2
+  exit 1
+}
+
+# shellcheck disable=SC1090
+. "$config_file"
+
+tailscale_log() {
+  printf '[tailscale-managed] %s\n' "$*" >&2
+}
+
+tailscale_fatal() {
+  tailscale_log "fatal: $*"
+  exit 1
+}
+
+tailscale_require_abs_path() {
+  case "${2:-}" in
+    /*) ;;
+    *) tailscale_fatal "${1} must be an absolute path" ;;
+  esac
+}
+
+tailscale_require_bool() {
+  case "${2:-}" in
+    true|false) ;;
+    *) tailscale_fatal "${1} must be true or false" ;;
+  esac
+}
+
+tailscale_require_token() {
+  case "${2:-}" in
+    ''|*[![:print:]]*|*[[:space:]]*)
+      tailscale_fatal "${1} must be a single printable token without whitespace"
+      ;;
+  esac
+}
+
+tailscale_require_port() {
+  case "${2:-}" in
+    ''|*[!0-9]*)
+      tailscale_fatal "${1} must be a numeric port"
+      ;;
+  esac
+  [ "$2" -ge 1 ] && [ "$2" -le 65535 ] || tailscale_fatal "${1} must be in range 1..65535"
+}
+
+tailscale_require_non_negative_integer() {
+  case "${2:-}" in
+    ''|*[!0-9]*)
+      tailscale_fatal "${1} must be a non-negative integer"
+      ;;
+  esac
+}
+
+tailscale_require_positive_integer() {
+  tailscale_require_non_negative_integer "$1" "$2"
+  [ "$2" -ge 1 ] || tailscale_fatal "${1} must be greater than zero"
+}
+
+tailscale_bool_is_true() {
+  [ "${1:-false}" = true ]
+}
+
+tailscale_require_iface_name() {
+  case "${2:-}" in
+    ''|.|..|lo|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-]*)
+      tailscale_fatal "${1} must be a non-loopback interface name"
+      ;;
+  esac
+  [ "${#2}" -le 15 ] || tailscale_fatal "${1} must be 15 characters or fewer"
+}
+
+tailscale_require_optional_token() {
+  [ -n "${2:-}" ] || return 0
+  tailscale_require_token "$1" "$2"
+}
+
+tailscale_normalize_token() {
+  token_value=$1
+
+  case "$token_value" in
+    \"*\")
+      token_value=${token_value#\"}
+      token_value=${token_value%\"}
+      ;;
+    \'*\')
+      token_value=${token_value#\'}
+      token_value=${token_value%\'}
+      ;;
+  esac
+
+  [ -n "$token_value" ] || tailscale_fatal "staged tailscale auth key must not be empty"
+  tailscale_require_token "staged tailscale auth key" "$token_value"
+  printf '%s\n' "$token_value"
+}
+
+tailscale_require_accept_risk() {
+  case "${2:-}" in
+    ''|lose-ssh|all) ;;
+    *) tailscale_fatal "${1} must be empty, lose-ssh, or all" ;;
+  esac
+}
+
+tailscale_require_netfilter_mode() {
+  case "${2:-}" in
+    off|nodivert) ;;
+    on)
+      tailscale_fatal "${1}=on is unsupported because this image manages nftables explicitly"
+      ;;
+    *)
+      tailscale_fatal "${1} must be off or nodivert"
+      ;;
+  esac
+}
+
+tailscale_require_csv_list_syntax() {
+  value=${2:-}
+  [ -n "$value" ] || return 0
+  case "$value" in
+    *[![:print:]]*|*[[:space:]]*|,*|*,|*,,*)
+      tailscale_fatal "${1} must be a comma-separated list without whitespace or empty entries"
+      ;;
+  esac
+}
+
+tailscale_require_tag_list() {
+  label=$1
+  value=${2:-}
+  [ -n "$value" ] || return 0
+  tailscale_require_csv_list_syntax "$label" "$value"
+
+  old_ifs=$IFS
+  IFS=,
+  # shellcheck disable=SC2086
+  set -- $value
+  IFS=$old_ifs
+  for tag in "$@"; do
+    tailscale_require_token "${label} entry" "$tag"
+    case "$tag" in
+      tag:*)
+        [ -n "${tag#tag:}" ] || tailscale_fatal "${label} entries must use tag:<name> syntax"
+        ;;
+      *)
+        tailscale_fatal "${label} entries must use tag:<name> syntax"
+        ;;
+    esac
+  done
+}
+
+tailscale_require_route_list() {
+  label=$1
+  value=${2:-}
+  [ -n "$value" ] || return 0
+  tailscale_require_csv_list_syntax "$label" "$value"
+  [ -x /usr/bin/python3 ] || tailscale_fatal "python3 is required to validate ${label}"
+  /usr/bin/python3 - "$label" "$value" <<'PY'
+import ipaddress
+import sys
+
+label, raw = sys.argv[1:3]
+for item in raw.split(","):
+    try:
+        ipaddress.ip_network(item, strict=False)
+    except ValueError as exc:
+        raise SystemExit(f"{label} contains an invalid CIDR '{item}': {exc}")
+PY
+}
+
+tailscale_require_operator_user() {
+  tailscale_require_token "$1" "$2"
+  id "$2" >/dev/null 2>&1 || tailscale_fatal "${1} must name an existing local account"
+}
+
+tailscale_validate_config() {
+  tailscale_require_abs_path TAILSCALE_AUTH_KEY_FILE "$TAILSCALE_AUTH_KEY_FILE"
+  tailscale_require_abs_path TAILSCALE_COMPLETE_FILE "$TAILSCALE_COMPLETE_FILE"
+  tailscale_require_abs_path TAILSCALE_STATUS_FILE "$TAILSCALE_STATUS_FILE"
+  tailscale_require_abs_path TAILSCALE_LOG_FILE "$TAILSCALE_LOG_FILE"
+  tailscale_require_token TAILSCALE_HOSTNAME "$TAILSCALE_HOSTNAME"
+  tailscale_require_iface_name TAILSCALE_INTERFACE "$TAILSCALE_INTERFACE"
+  tailscale_require_bool TAILSCALE_ACCEPT_DNS "$TAILSCALE_ACCEPT_DNS"
+  tailscale_require_bool TAILSCALE_ACCEPT_ROUTES "$TAILSCALE_ACCEPT_ROUTES"
+  tailscale_require_bool TAILSCALE_RUN_SSH_SERVER "$TAILSCALE_RUN_SSH_SERVER"
+  tailscale_require_netfilter_mode TAILSCALE_NETFILTER_MODE "$TAILSCALE_NETFILTER_MODE"
+  tailscale_require_port TAILSCALE_UDP_PORT "$TAILSCALE_UDP_PORT"
+  tailscale_require_operator_user TAILSCALE_OPERATOR_USER "$TAILSCALE_OPERATOR_USER"
+  tailscale_require_accept_risk TAILSCALE_ACCEPT_RISK "${TAILSCALE_ACCEPT_RISK:-}"
+  tailscale_require_tag_list TAILSCALE_ADVERTISE_TAGS "${TAILSCALE_ADVERTISE_TAGS:-}"
+  tailscale_require_route_list TAILSCALE_ADVERTISE_ROUTES "${TAILSCALE_ADVERTISE_ROUTES:-}"
+  tailscale_require_bool TAILSCALE_ADVERTISE_EXIT_NODE "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}"
+  tailscale_require_optional_token TAILSCALE_EXIT_NODE "${TAILSCALE_EXIT_NODE:-}"
+  tailscale_require_bool TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS "${TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS:-false}"
+  tailscale_require_bool TAILSCALE_SHIELDS_UP "${TAILSCALE_SHIELDS_UP:-false}"
+  tailscale_require_bool TAILSCALE_REPORT_POSTURE "${TAILSCALE_REPORT_POSTURE:-false}"
+  tailscale_require_bool TAILSCALE_SNAT_SUBNET_ROUTES "${TAILSCALE_SNAT_SUBNET_ROUTES:-true}"
+  tailscale_require_bool TAILSCALE_STATEFUL_FILTERING "${TAILSCALE_STATEFUL_FILTERING:-false}"
+  tailscale_require_bool TAILSCALE_AUTH_KEY_REQUIRED "${TAILSCALE_AUTH_KEY_REQUIRED:-true}"
+  tailscale_require_bool TAILSCALE_FORCE_REAUTH "${TAILSCALE_FORCE_REAUTH:-false}"
+  tailscale_require_token TAILSCALE_TIMEOUT "${TAILSCALE_TIMEOUT:-2m}"
+  tailscale_require_positive_integer TAILSCALE_DAEMON_WAIT_SECONDS "${TAILSCALE_DAEMON_WAIT_SECONDS:-60}"
+
+  if tailscale_bool_is_true "${TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS:-false}" &&
+     [ -z "${TAILSCALE_EXIT_NODE:-}" ]; then
+    tailscale_fatal "TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS requires TAILSCALE_EXIT_NODE"
+  fi
+  if tailscale_bool_is_true "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}" &&
+     [ -n "${TAILSCALE_EXIT_NODE:-}" ]; then
+    tailscale_fatal "TAILSCALE_ADVERTISE_EXIT_NODE cannot be combined with TAILSCALE_EXIT_NODE"
+  fi
+}
+
+tailscale_status_json() {
+  /usr/bin/tailscale status --json 2>/dev/null
+}
+
+tailscale_daemon_socket_ready() {
+  [ -S /run/tailscale/tailscaled.sock ] || [ -S /var/run/tailscale/tailscaled.sock ]
+}
+
+tailscale_daemon_ready() {
+  tailscale_daemon_socket_ready || return 1
+  tailscale_status_json >/dev/null 2>&1
+}
+
+tailscale_wait_for_daemon() {
+  wait_seconds=${TAILSCALE_DAEMON_WAIT_SECONDS:-60}
+  poll_seconds=2
+  deadline=$(( $(date +%s) + wait_seconds ))
+
+  while :; do
+    if tailscale_daemon_ready; then
+      return 0
+    fi
+    [ "$(date +%s)" -lt "$deadline" ] || break
+    tailscale_log "tailscaled is not ready yet; waiting up to ${wait_seconds}s for its local socket"
+    sleep "$poll_seconds"
+  done
+
+  tailscale_write_status false daemon-unavailable
+  tailscale_fatal "tailscaled did not become ready within ${wait_seconds}s"
+}
+
+tailscale_is_joined() {
+  tailscale_status_json | /usr/bin/python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+self = data.get("Self") or {}
+backend = data.get("BackendState") or ""
+ips = self.get("TailscaleIPs") or []
+raise SystemExit(0 if backend == "Running" and ips else 1)
+' >/dev/null 2>&1
+}
+
+tailscale_append_diagnostics() {
+  {
+    printf '\n[tailscale-managed] final bootstrap diagnostics\n'
+    printf '\n[tailscale-managed] version\n'
+    /usr/bin/tailscale version || true
+    printf '\n[tailscale-managed] status\n'
+    /usr/bin/tailscale status --json || true
+    if [ -x /usr/bin/timeout ]; then
+      printf '\n[tailscale-managed] netcheck\n'
+      /usr/bin/timeout --signal=TERM --kill-after=5s 30s /usr/bin/tailscale netcheck || true
+    fi
+    if command -v journalctl >/dev/null 2>&1; then
+      printf '\n[tailscale-managed] tailscaled journal\n'
+      journalctl --unit=tailscaled.service --boot --lines=80 --no-pager || true
+    fi
+  } >>"$TAILSCALE_LOG_FILE" 2>&1
+}
+
+tailscale_write_status() {
+  bootstrapped=$1
+  status=${2:-unknown}
+  install -d -m 0700 "$(dirname "$TAILSCALE_STATUS_FILE")"
+  {
+    printf 'TAILSCALE_BOOTSTRAPPED=%s\n' "$bootstrapped"
+    printf 'TAILSCALE_STATUS=%s\n' "$status"
+    printf 'TAILSCALE_LOG_FILE=%s\n' "$TAILSCALE_LOG_FILE"
+    printf 'TAILSCALE_OPERATOR_USER=%s\n' "$TAILSCALE_OPERATOR_USER"
+    printf 'TAILSCALE_ADVERTISE_TAGS=%s\n' "${TAILSCALE_ADVERTISE_TAGS:-}"
+    printf 'TAILSCALE_ADVERTISE_ROUTES=%s\n' "${TAILSCALE_ADVERTISE_ROUTES:-}"
+  } >"$TAILSCALE_STATUS_FILE"
+  chmod 0600 "$TAILSCALE_STATUS_FILE"
+}
+
+tailscale_remove_auth_key() {
+  [ -e "$TAILSCALE_AUTH_KEY_FILE" ] || return 0
+  if [ -f "$TAILSCALE_AUTH_KEY_FILE" ] && [ ! -L "$TAILSCALE_AUTH_KEY_FILE" ]; then
+    chmod 0600 "$TAILSCALE_AUTH_KEY_FILE" 2>/dev/null || true
+    : >"$TAILSCALE_AUTH_KEY_FILE" 2>/dev/null || true
+  fi
+  rm -f -- "$TAILSCALE_AUTH_KEY_FILE"
+}
+
+tailscale_normalize_auth_key_file() {
+  [ -f "$TAILSCALE_AUTH_KEY_FILE" ] && [ ! -L "$TAILSCALE_AUTH_KEY_FILE" ] ||
+    tailscale_fatal "staged tailscale auth key must be a regular non-symlink file"
+  [ -s "$TAILSCALE_AUTH_KEY_FILE" ] || return 1
+  IFS= read -r auth_key <"$TAILSCALE_AUTH_KEY_FILE" || auth_key=
+  auth_key=$(tailscale_normalize_token "$auth_key")
+  tmp_auth_key="${TAILSCALE_AUTH_KEY_FILE}.tmp.$$"
+  printf '%s\n' "$auth_key" >"$tmp_auth_key"
+  chmod 0600 "$tmp_auth_key" 2>/dev/null || true
+  mv -f "$tmp_auth_key" "$TAILSCALE_AUTH_KEY_FILE"
+}
+
+mode=${1:-}
+case "$mode" in
+  ''|--always|--if-auth-key-present|--validate-config) ;;
+  *) tailscale_fatal "unsupported mode: ${mode}" ;;
+esac
+
+tailscale_validate_config
+[ "$mode" = --validate-config ] && exit 0
+
+auth_key_arg=
+if [ -s "$TAILSCALE_AUTH_KEY_FILE" ]; then
+  tailscale_normalize_auth_key_file
+  auth_key_arg="--auth-key=file:${TAILSCALE_AUTH_KEY_FILE}"
+fi
+
+[ -x /usr/bin/tailscale ] || tailscale_fatal "tailscale CLI is unavailable"
+tailscale_wait_for_daemon
+if tailscale_is_joined && ! tailscale_bool_is_true "${TAILSCALE_FORCE_REAUTH:-false}"; then
+  touch "$TAILSCALE_COMPLETE_FILE"
+  chmod 0600 "$TAILSCALE_COMPLETE_FILE" 2>/dev/null || true
+  if [ -n "$auth_key_arg" ]; then
+    tailscale_remove_auth_key
+  fi
+  tailscale_write_status true already-joined
+  tailscale_log "tailscale is already joined; skipping bootstrap"
+  exit 0
+fi
+if [ -z "$auth_key_arg" ] && [ "$mode" = --if-auth-key-present ]; then
+  if tailscale_bool_is_true "${TAILSCALE_AUTH_KEY_REQUIRED:-true}"; then
+    tailscale_write_status false auth-key-required
+    tailscale_fatal "TAILSCALE_AUTH_KEY_REQUIRED=true but no staged auth key is available"
+  fi
+  tailscale_log "no staged tailscale auth key; leaving deferred bootstrap pending"
+  tailscale_write_status false manual-auth-required
+  exit 0
+fi
+if [ -n "${TAILSCALE_ADVERTISE_TAGS:-}" ]; then
+  tailscale_log "configured advertise-tags=${TAILSCALE_ADVERTISE_TAGS}; tailnet TagOwners or tagged auth keys must permit them"
+fi
+if [ -n "${TAILSCALE_ADVERTISE_ROUTES:-}" ] || tailscale_bool_is_true "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}"; then
+  tailscale_log "configured subnet or exit-node advertising may require tailnet admin approval before traffic flows"
+fi
+
+install -d -m 0700 "$(dirname "$TAILSCALE_COMPLETE_FILE")" "$(dirname "$TAILSCALE_LOG_FILE")"
+touch "$TAILSCALE_LOG_FILE"
+chmod 0600 "$TAILSCALE_LOG_FILE"
+
+set -- /usr/bin/tailscale up \
+  --timeout="${TAILSCALE_TIMEOUT:-2m}" \
+  --hostname="$TAILSCALE_HOSTNAME" \
+  --accept-dns="$TAILSCALE_ACCEPT_DNS" \
+  --accept-routes="$TAILSCALE_ACCEPT_ROUTES" \
+  --accept-risk="${TAILSCALE_ACCEPT_RISK:-}" \
+  --advertise-tags="${TAILSCALE_ADVERTISE_TAGS:-}" \
+  --advertise-routes="${TAILSCALE_ADVERTISE_ROUTES:-}" \
+  --exit-node="${TAILSCALE_EXIT_NODE:-}" \
+  --ssh="$TAILSCALE_RUN_SSH_SERVER" \
+  --netfilter-mode="$TAILSCALE_NETFILTER_MODE" \
+  --operator="$TAILSCALE_OPERATOR_USER"
+if tailscale_bool_is_true "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}"; then
+  set -- "$@" --advertise-exit-node
+fi
+if tailscale_bool_is_true "${TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS:-false}"; then
+  set -- "$@" --exit-node-allow-lan-access
+fi
+if tailscale_bool_is_true "${TAILSCALE_SHIELDS_UP:-false}"; then
+  set -- "$@" --shields-up
+fi
+if tailscale_bool_is_true "${TAILSCALE_REPORT_POSTURE:-false}"; then
+  set -- "$@" --report-posture
+fi
+if [ "${TAILSCALE_SNAT_SUBNET_ROUTES:-true}" = false ]; then
+  set -- "$@" --snat-subnet-routes=false
+fi
+if tailscale_bool_is_true "${TAILSCALE_STATEFUL_FILTERING:-false}"; then
+  set -- "$@" --stateful-filtering=true
+fi
+if tailscale_bool_is_true "${TAILSCALE_FORCE_REAUTH:-false}"; then
+  set -- "$@" --force-reauth
+fi
+if [ -n "$auth_key_arg" ]; then
+  set -- "$@" "$auth_key_arg"
+fi
+
+tailscale_log "running one bounded tailscale up; any later retry is scheduled by systemd"
+if "$@" >>"$TAILSCALE_LOG_FILE" 2>&1; then
+  tailscale_up_status=0
+else
+  tailscale_up_status=$?
+fi
+
+if tailscale_is_joined; then
+  touch "$TAILSCALE_COMPLETE_FILE"
+  chmod 0600 "$TAILSCALE_COMPLETE_FILE" 2>/dev/null || true
+  if [ -n "$auth_key_arg" ]; then
+    tailscale_remove_auth_key
+  fi
+  tailscale_write_status true bootstrap-succeeded
+  tailscale_log "tailscale bootstrap completed"
+  exit 0
+fi
+
+tailscale_append_diagnostics
+tailscale_write_status false tailscale-up-failed
+tailscale_fatal "tailscale up did not establish a joined state (status ${tailscale_up_status}); systemd will retry within its bounded policy; inspect ${TAILSCALE_LOG_FILE}"

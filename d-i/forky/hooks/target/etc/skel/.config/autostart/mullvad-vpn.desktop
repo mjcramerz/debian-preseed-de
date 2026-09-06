@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Mullvad VPN
+TryExec=/usr/local/bin/mullvad-vpn
+Exec=/usr/local/bin/mullvad-vpn
+Icon=mullvad-vpn
+Terminal=false
+Hidden=true
+NoDisplay=true
+X-GNOME-Autostart-enabled=false

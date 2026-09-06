@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Mullvad VPN
+GenericName=VPN Client
+Comment=Connect to Mullvad VPN
+TryExec=/usr/local/bin/mullvad-vpn
+Exec=/usr/local/bin/mullvad-vpn
+Icon=mullvad-vpn
+Terminal=false
+Categories=Network;
+Keywords=Mullvad;VPN;Privacy;Network;
+StartupNotify=true
+DBusActivatable=false

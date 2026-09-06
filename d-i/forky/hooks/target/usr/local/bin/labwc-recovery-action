@@ -1,0 +1,149 @@
+#!/bin/sh
+set -eu
+
+ROOT_HELPER=/usr/local/libexec/labwc-recovery-action-root
+SELF=/usr/local/bin/labwc-recovery-action
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  notify_action_result 1 requested-action
+  exit 1
+}
+
+notify_action_result() {
+  action_status=$1
+  action_name=$2
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+
+  if [ "$action_status" -eq 0 ]; then
+    urgency=normal
+    icon=dialog-information
+    timeout_ms=10000
+    summary="Recovery action completed"
+    body="The ${action_name} action completed successfully."
+  else
+    urgency=critical
+    icon=dialog-error
+    timeout_ms=0
+    summary="Recovery action failed"
+    body="The ${action_name} action failed with status ${action_status}."
+  fi
+
+  notify-send \
+    -a "Recovery" \
+    -u "$urgency" \
+    -i "$icon" \
+    -c x-labwc.maintenance \
+    -t "$timeout_ms" \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+validate_request_shape() {
+  requested_action=$1
+  shift
+
+  case "$requested_action" in
+    restart-waybar|restart-audio|restart-portals|refresh-displays)
+      [ "$#" -eq 0 ] || fatal "${requested_action} does not accept arguments"
+      ;;
+    reset-failed-units|restart-networkmanager|restart-bluetooth|restart-udisks|restart-polkit|refresh-package-index|repair-dpkg|repair-apt|rebuild-initramfs|refresh-grub|create-timeshift-snapshot|drop-page-cache|drop-dentries-inodes|drop-all-clean-caches|reset-zram-swap|aggressive-journal-vacuum|emergency-btrfs-reclaim)
+      [ "$#" -eq 1 ] || fatal "${requested_action} requires confirmation"
+      [ "$1" = confirmed-recovery-action ] ||
+        fatal "${requested_action} requires the managed recovery confirmation"
+      ;;
+    *)
+      fatal "unsupported recovery action: ${requested_action:-unset}"
+      ;;
+  esac
+}
+
+run_user_action() {
+  action=$1
+
+  case "$action" in
+    restart-waybar)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user restart waybar.service
+      ;;
+    restart-audio)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user restart wireplumber.service pipewire.service pipewire-pulse.service
+      ;;
+    restart-portals)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user restart \
+        xdg-desktop-portal.service \
+        xdg-desktop-portal-gtk.service \
+        xdg-desktop-portal-wlr.service \
+        xdg-desktop-portal-lxqt.service
+      ;;
+    refresh-displays)
+      [ -x /usr/local/libexec/labwc-output-watch ] ||
+        fatal "labwc-output-watch is not installed"
+      /usr/local/libexec/labwc-output-watch --refresh
+      ;;
+    *)
+      fatal "unsupported user recovery action: $action"
+      ;;
+  esac
+}
+
+run_root_action() {
+  action=$1
+  shift
+
+  command -v pkexec >/dev/null 2>&1 || fatal "pkexec is not installed"
+  [ -x "$ROOT_HELPER" ] || fatal "privileged recovery helper is unavailable: $ROOT_HELPER"
+  pkexec "$ROOT_HELPER" "$action" "$@"
+}
+
+run_in_terminal() {
+  action=$1
+  shift
+
+  printf '\n=== Recovery Maintenance: %s ===\n\n' "$action"
+  set +e
+  case "$action" in
+    restart-waybar|restart-audio|restart-portals|refresh-displays)
+      run_user_action "$action"
+      ;;
+    *)
+      run_root_action "$action" "$@"
+      ;;
+  esac
+  action_status=$?
+  set -e
+
+  printf '\n=== Action finished with status %s ===\n' "$action_status"
+  notify_action_result "$action_status" "$action"
+  if [ -t 0 ]; then
+    printf 'Press Enter to close this terminal...'
+    IFS= read -r _ || true
+  fi
+  exit "$action_status"
+}
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-recovery-action must run as the logged-in desktop user"
+
+case "${1:-}" in
+  --run)
+    shift
+    [ "$#" -gt 0 ] || fatal "missing recovery action after --run"
+    action=$1
+    shift
+    validate_request_shape "$action" "$@"
+    run_in_terminal "$action" "$@"
+    ;;
+esac
+
+[ "$#" -gt 0 ] || fatal "usage: labwc-recovery-action <action> [confirmation]"
+action=$1
+shift
+validate_request_shape "$action" "$@"
+
+command -v labwc-terminal >/dev/null 2>&1 || fatal "labwc-terminal is not installed"
+exec labwc-terminal -e "$SELF" --run "$action" "$@"

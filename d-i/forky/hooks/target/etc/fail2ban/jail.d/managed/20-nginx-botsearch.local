@@ -1,0 +1,7 @@
+# Managed by unattended-installer.
+# The web service role installs and enables Nginx with its standard error log.
+[nginx-botsearch]
+enabled = true
+backend = auto
+port = http,https
+logpath = /var/log/nginx/error.log

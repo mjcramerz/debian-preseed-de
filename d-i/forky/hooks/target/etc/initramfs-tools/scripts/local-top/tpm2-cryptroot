@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+PREREQ=""
+
+prereqs() {
+  printf '%s\n' "$PREREQ"
+}
+
+case "${1:-}" in
+  prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+[ -r /etc/tpm2-cryptroot.conf ] || exit 0
+
+# shellcheck disable=SC1091
+. /etc/tpm2-cryptroot.conf
+
+case "${TPM2_CRYPTROOT_NAME:-}" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.+-]*)
+    printf 'cryptsetup: invalid TPM2 root mapper name\n' >&2
+    exit 0
+    ;;
+esac
+printf '%s\n' "${TPM2_CRYPTROOT_UUID:-}" |
+  grep -Eq '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$' || {
+    printf 'cryptsetup: invalid TPM2 root LUKS UUID\n' >&2
+    exit 0
+  }
+
+mapper_path="/dev/mapper/${TPM2_CRYPTROOT_NAME}"
+[ -b "$mapper_path" ] && exit 0
+
+source_path="/dev/disk/by-uuid/${TPM2_CRYPTROOT_UUID}"
+attempt=1
+while [ "$attempt" -le 30 ] && [ ! -b "$source_path" ]; do
+  command -v udevadm >/dev/null 2>&1 && udevadm settle --timeout=1 >/dev/null 2>&1 || true
+  sleep 1
+  attempt=$((attempt + 1))
+done
+[ -b "$source_path" ] || exit 0
+
+if [ ! -c /dev/tpmrm0 ] && [ ! -c /dev/tpm0 ]; then
+  printf 'cryptsetup: TPM2 device unavailable; falling back to recovery passphrase\n' >&2
+  exit 0
+fi
+
+if cryptsetup open \
+  --type luks2 \
+  --token-only \
+  --token-type systemd-tpm2 \
+  --allow-discards \
+  --tries 3 \
+  "$source_path" \
+  "$TPM2_CRYPTROOT_NAME"
+then
+  printf 'cryptsetup: unlocked encrypted root with TPM2 token\n' >&2
+  exit 0
+fi
+
+printf 'cryptsetup: TPM2 unlock failed; falling back to recovery passphrase\n' >&2
+exit 0

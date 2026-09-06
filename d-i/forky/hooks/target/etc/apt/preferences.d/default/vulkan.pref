@@ -1,0 +1,14 @@
+# Managed by the installer apt-setup preferences generator.
+# The managed Wayland desktop keeps the Vulkan loader ABI available for package
+# dependencies, but does not install or select Vulkan ICDs, tools, development,
+# or validation packages.
+
+Package: mesa-vulkan-drivers vulkan-tools libvulkan-dev vulkan-validationlayers vulkan-validationlayers-dev vulkan-utility-libraries-dev vulkan-headers
+Pin: version *
+Pin-Priority: -1
+
+# Keep NVIDIA and Primus Vulkan ICD/wrapper packages out of the OpenGL-only
+# desktop as well.
+Package: nvidia-vulkan-icd nvidia-primus-vk-common nvidia-primus-vk-wrapper primus-vk libprimus-vk1
+Pin: version *
+Pin-Priority: -1

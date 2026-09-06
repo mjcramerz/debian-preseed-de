@@ -1,0 +1,39 @@
+[Unit]
+Description=Managed Codex app server (repository build)
+Documentation=https://developers.openai.com/codex/app-server
+ConditionFileIsExecutable=/data/codex/lib/codex
+ConditionFileIsExecutable=/data/codex/share/bin/codex
+ConditionPathIsDirectory=/data/codex/usr/home
+ConditionPathIsDirectory=/data/codex/sockets
+ConditionPathIsDirectory=/data/codex/usr/home/app-server-control
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/default/codex-app-server
+LoadCredential=codex-auth.json:/data/codex/credentials/auth.json
+LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
+EnvironmentFile=-%d/codex-mcp.env
+WorkingDirectory=%h/Workspace
+ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-control.sock
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=90s
+TimeoutStopSec=30s
+KillMode=mixed
+UMask=0077
+# Enter the caller-specific AppArmor bwrap child BEFORE no_new_privs is set.
+# bwrap sets no_new_privs itself and the payload verifies zero active caps.
+# User-manager seccomp knobs implicitly set NNP, so do not add them here.
+# Do not use ProtectProc/ProcSubset, PrivateUsers, RestrictNamespaces,
+# CapabilityBoundingSet, or ProtectKernelTunables: nested tool sandboxes need
+# their own PID/user/mount namespaces and a fresh private /proc.
+NoNewPrivileges=no
+LimitCORE=0
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=codex-app-server
+
+[Install]
+WantedBy=default.target

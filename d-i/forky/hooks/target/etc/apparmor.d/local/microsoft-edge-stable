@@ -1,0 +1,54 @@
+# Managed by unattended-installer.
+#
+# Enforced Microsoft Edge attachment with package-owned code read-only and
+# mutable browser state limited to the Edge profile and Downloads.
+
+#include <abstractions/managed-electron-application>
+#include <abstractions/managed-pipewire-audio>
+include if exists <abstractions/user-tmp>
+include if exists <abstractions/xdg-open>
+
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+network netlink raw,
+
+/dev/video* rw,
+/run/udev/data/c13:* r,
+@{PROC}/[0-9]*/statm r,
+@{sys}/devices/**/report_descriptor r,
+
+/opt/microsoft/msedge/ r,
+/opt/microsoft/msedge/** mrix,
+
+/etc/opt/edge/policies/ r,
+/etc/opt/edge/policies/** r,
+
+owner /run/media/*/ r,
+owner /run/media/*/** r,
+owner @{HOME}/.cache/Microsoft/ rw,
+owner @{HOME}/.cache/Microsoft/** rwkl,
+owner @{HOME}/.cache/microsoft-edge/ rw,
+owner @{HOME}/.cache/microsoft-edge/** rwk,
+owner @{HOME}/.config/microsoft-edge/ rw,
+owner @{HOME}/.config/microsoft-edge/** rwkl,
+owner @{HOME}/.config/microsoft-edge/NativeMessagingHosts/.bitwarden_desktop_proxy rix,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/ r,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/.app.bw.socket rw,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/.app.bw.bitwarden.log rwkl,
+owner "@{HOME}/.config/microsoft-edge/Domain Actions/" r,
+owner "@{HOME}/.config/microsoft-edge/Domain Actions/*/" r,
+owner "@{HOME}/.config/microsoft-edge/Domain Actions/*/*.so" mr,
+owner @{HOME}/.pki/nssdb/ rw,
+owner @{HOME}/.pki/nssdb/** rwk,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+
+# Opt-in developer profile used by /usr/local/bin/browser-devtools.
+owner @{HOME}/.local/ r,
+owner @{HOME}/.local/state/ r,
+owner @{HOME}/.local/state/browser-devtools/ r,
+owner @{HOME}/.local/state/browser-devtools/edge/ rw,
+owner @{HOME}/.local/state/browser-devtools/edge/** rwkl,

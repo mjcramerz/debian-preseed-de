@@ -1,0 +1,13 @@
+[net.sf.liferea]
+browse-inside-application=false
+browser-id='default'
+confirm-mark-all-read=true
+default-update-interval=60
+disable-javascript=true
+do-not-sell=true
+do-not-track=true
+enable-itp=true
+enable-plugins=false
+enable-reader-mode=true
+maxitemcount=500
+startup-feed-action=0

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=ChatGPT
+GenericName=AI assistant
+Comment=ChatGPT and Codex by OpenAI
+TryExec=/usr/local/bin/chatgpt
+Exec=/usr/local/bin/chatgpt auto %U
+Icon=/usr/share/pixmaps/chatgpt.png
+Terminal=false
+Categories=Development;
+MimeType=x-scheme-handler/codex;text/csv;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.presentationml.presentation;text/tab-separated-values;application/vnd.ms-excel;application/vnd.ms-excel.sheet.macroEnabled.12;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;
+StartupNotify=true
+StartupWMClass=ChatGPT
+Actions=IntelAccelerated;NvidiaAccelerated;
+
+[Desktop Action IntelAccelerated]
+Name=IntelAccelerated
+Exec=/usr/local/bin/chatgpt intel %U
+
+[Desktop Action NvidiaAccelerated]
+Name=NvidiaAccelerated
+Exec=/usr/local/bin/chatgpt nvidia %U

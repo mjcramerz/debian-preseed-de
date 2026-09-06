@@ -1,0 +1,25 @@
+BTRFS_LOG_OUTPUT="journal"
+
+# Integrity check all Btrfs filesystems monthly
+# btrfsmaintenance splits mountpoint lists on ':' in Debian.
+BTRFS_SCRUB_MOUNTPOINTS="/:/home:/opt"
+BTRFS_SCRUB_PERIOD="monthly"
+BTRFS_SCRUB_PRIORITY="idle"
+BTRFS_SCRUB_READ_ONLY="false"
+
+# Mild monthly balance only where churn is likely useful
+BTRFS_BALANCE_MOUNTPOINTS="/"
+BTRFS_BALANCE_PERIOD="monthly"
+BTRFS_BALANCE_DUSAGE="5 10"
+BTRFS_BALANCE_MUSAGE="5"
+
+# TRIM handled by fstrim.timer
+# Kept as the same managed mountpoint set, but disabled below.
+BTRFS_TRIM_MOUNTPOINTS="/:/home:/opt"
+BTRFS_TRIM_PERIOD="none"
+
+# Do not schedule broad defrag
+BTRFS_DEFRAG_PATHS=""
+BTRFS_DEFRAG_PERIOD="none"
+
+BTRFS_ALLOW_CONCURRENCY="false"

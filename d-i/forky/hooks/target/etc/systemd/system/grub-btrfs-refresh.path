@@ -1,0 +1,10 @@
+[Unit]
+Description=Fallback watcher for Timeshift runtime state and the GRUB snapshot menu
+ConditionPathExists=/usr/local/libexec/grub-btrfs-refresh
+
+[Path]
+PathExistsGlob=/run/timeshift/*/backup/timeshift-btrfs/snapshots
+Unit=grub-btrfs-refresh.service
+
+[Install]
+WantedBy=multi-user.target

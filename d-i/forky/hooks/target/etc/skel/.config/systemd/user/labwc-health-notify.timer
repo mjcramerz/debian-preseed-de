@@ -1,0 +1,23 @@
+[Unit]
+# Session triggers start after D-Bus, not before the user manager basic target.
+# Avoid the implicit paths.target/timers.target -> basic.target -> session cycle.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+BindsTo=labwc-compositor.service
+Description=Periodic Labwc desktop health notifications
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+
+[Timer]
+OnActiveSec=20s
+OnUnitInactiveSec=5m
+AccuracySec=1m
+Unit=labwc-health-notify.service
+
+[Install]
+WantedBy=labwc-session.target

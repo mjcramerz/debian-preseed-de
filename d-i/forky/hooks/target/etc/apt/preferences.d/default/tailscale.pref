@@ -1,0 +1,21 @@
+# Managed by the installer apt-setup preferences generator.
+# Tailscale packages come from pkgs.tailscale.com, not Debian's own archive.
+# Keep the official upstream feed visible, then prefer the upstream Debian
+# Forky suite while blocking the Trixie and Sid variants so mixed-suite
+# metadata cannot drift the managed package selection.
+
+Package: tailscale
+Pin: origin pkgs.tailscale.com
+Pin-Priority: 100
+
+Package: tailscale
+Pin: release o=Tailscale,n=forky,l=Tailscale
+Pin-Priority: 900
+
+Package: tailscale
+Pin: release n=trixie
+Pin-Priority: -1
+
+Package: tailscale
+Pin: release n=sid
+Pin-Priority: -1

@@ -1,0 +1,17 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use FindBin qw($Bin);
+use File::Spec ();
+use lib
+    File::Spec->catdir(
+        $Bin, '..', 'lib', 'perl5', 'site_perl', 'timeshift-managed'
+    ),
+    '/usr/local/lib/perl5/site_perl/timeshift-managed';
+
+use TimeshiftManaged::CLI;
+
+exit TimeshiftManaged::CLI->new(
+    program => 'timeshift-managed-snapshot',
+)->run(@ARGV);

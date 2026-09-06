@@ -1,0 +1,69 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: egress
+  description: Strict egress policy overlay. Enable after auditing required outbound traffic.
+  merge_priority: 50
+egress:
+  allow_dns: false
+  allow_ntp: false
+  allow_http_https: false
+  rules:
+    dns:
+      enabled: true
+      protocols:
+      - tcp
+      - udp
+      ports:
+      - 53
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+    ntp:
+      enabled: true
+      protocols:
+      - udp
+      ports:
+      - 123
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+    http_https:
+      enabled: true
+      protocols:
+      - tcp
+      ports:
+      - 80
+      - 443
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+    ssh:
+      enabled: false
+      protocols:
+      - tcp
+      ports:
+      - 22
+      allow_to:
+        ipv4:
+        - 10.8.0.0/24
+        ipv6:
+        - fd00:8::/64
+egress_mode_override:
+  mode: enforce
+  default_policy_when_enforced: drop
+logging:
+  drop:
+    enabled: true
+    chains:
+    - input
+    - forward
+    - output
+    limit: 5/minute burst 10 packets
+    prefix: nftables

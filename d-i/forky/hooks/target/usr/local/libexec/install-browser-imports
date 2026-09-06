@@ -1,0 +1,119 @@
+#!/usr/bin/python3
+"""Publish reviewed imports to an existing account's Downloads without clobbering.
+
+Run by late_command as root, inside the target. Does not run browsers, change
+extension databases, or grant permissions on behalf of the user.
+"""
+from __future__ import annotations
+import argparse
+import os
+from pathlib import Path
+import pwd
+import secrets
+import stat
+import sys
+
+SOURCE = Path('/usr/local/share/browser-imports')
+FILES = ('noscript_data.txt', 'my-ubol-settings.json',
+         'PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json',
+         'bookmark-coverage.json', 'BROWSER-IMPORTS.md')
+
+
+def read_regular(path: Path) -> bytes:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            raise ValueError(f'unsafe source asset: {path}')
+        if st.st_size > 8 * 1024 * 1024:
+            raise ValueError(f'oversized source asset: {path}')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            return stream.read()
+    finally:
+        os.close(fd)
+
+
+def publish(directory: int, name: str, data: bytes, uid: int, gid: int) -> str:
+    """No-follow, no-clobber publication using an atomic hard link."""
+    temporary = '.browser-import-' + secrets.token_hex(12)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600, dir_fd=directory)
+    try:
+        os.fchown(fd, uid, gid)
+        with os.fdopen(fd, 'wb', closefd=False) as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(fd)
+        for candidate in (name, name + '.install-update'):
+            try:
+                os.link(temporary, candidate, src_dir_fd=directory,
+                        dst_dir_fd=directory, follow_symlinks=False)
+                return candidate
+            except FileExistsError:
+                # Never open an existing FIFO/device or follow a user symlink.
+                st = os.stat(candidate, dir_fd=directory, follow_symlinks=False)
+                if not stat.S_ISREG(st.st_mode):
+                    raise ValueError(f'refusing non-regular destination: {candidate}')
+                old = os.open(candidate, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                try:
+                    if not stat.S_ISREG(os.fstat(old).st_mode):
+                        raise ValueError(f'destination changed type: {candidate}')
+                    with os.fdopen(old, 'rb', closefd=False) as stream:
+                        # The cap prevents reading an arbitrary huge user file.
+                        if stream.read(len(data) + 1) == data:
+                            return candidate
+                finally:
+                    os.close(old)
+        raise ValueError(f'{name} and its .install-update both contain different data; preserving both')
+    finally:
+        os.close(fd)
+        os.unlink(temporary, dir_fd=directory)
+
+
+def install(source: Path, home: Path, uid: int, gid: int) -> list[str]:
+    if uid == 0 or not home.is_absolute() or home.resolve(strict=True) != home:
+        raise ValueError('account home must be an existing, canonical, non-root home')
+    info = home.stat()
+    if info.st_uid != uid:
+        raise ValueError('account home owner does not match the selected account')
+    hfd = os.open(home, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        created = False
+        try:
+            os.mkdir('Downloads', 0o700, dir_fd=hfd)
+            created = True
+        except FileExistsError:
+            pass
+        dfd = os.open('Downloads', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=hfd)
+        try:
+            if created:
+                os.fchown(dfd, uid, gid)
+            elif os.fstat(dfd).st_uid != uid:
+                raise ValueError('Downloads is not owned by the account')
+            installed = [publish(dfd, name, read_regular(source / name), uid, gid) for name in FILES]
+            os.fsync(dfd)
+            return installed
+        finally:
+            os.close(dfd)
+    finally:
+        os.close(hfd)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--user', required=True)
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('must run as root inside the target system')
+    try:
+        account = pwd.getpwnam(args.user)
+        names = install(SOURCE, Path(account.pw_dir), account.pw_uid, account.pw_gid)
+        print(f'Browser imports published for {account.pw_name}: ' + ', '.join(names))
+        return 0
+    except (KeyError, OSError, ValueError) as exc:
+        print(f'install-browser-imports: {exc}', file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

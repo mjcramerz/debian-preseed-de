@@ -1,0 +1,28 @@
+[Unit]
+# dbus-broker-launch must inherit the listener from dbus.socket. Pull the socket
+# in even when another unit resolves the dbus.service activation alias name.
+Requires=dbus.socket
+After=dbus.socket
+
+[Service]
+# Preserve the vendor ExecStart and capability model. dbus-broker-launch needs
+# audit support and systemd activation access, so avoid capability filters and
+# network/address-family filters here. Keep mount namespace hardening aligned
+# with Debian's vendor unit and bound only resource/per-process attack surface.
+OOMScoreAdjust=-900
+TasksMax=__INSTALLER_DBUS_BROKER_TASKS_MAX__
+LimitNOFILE=__INSTALLER_DBUS_BROKER_LIMIT_NOFILE__
+ProtectSystem=full
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native

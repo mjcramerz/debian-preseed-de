@@ -1,0 +1,187 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+umask 077
+
+config_file=/etc/default/managed-syncthing
+[ -r "$config_file" ] || {
+  printf 'fatal: missing managed syncthing defaults: %s\n' "$config_file" >&2
+  exit 1
+}
+
+# shellcheck disable=SC1090
+. "$config_file"
+
+syncthing_fatal() {
+  printf '[managed-syncthing] fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+syncthing_require_abs_path() {
+  case "${2:-}" in
+    /*) ;;
+    *) syncthing_fatal "${1} must be an absolute path" ;;
+  esac
+}
+
+syncthing_require_port() {
+  case "${2:-}" in
+    ''|*[!0-9]*)
+      syncthing_fatal "${1} must be a numeric port"
+      ;;
+  esac
+  [ "$2" -ge 1 ] && [ "$2" -le 65535 ] || syncthing_fatal "${1} must be in range 1..65535"
+}
+
+mode=${1:-}
+case "$mode" in
+  --prepare|--validate-config) ;;
+  *) syncthing_fatal "unsupported mode: ${mode}" ;;
+esac
+
+syncthing_require_abs_path SYNCTHING_DATA_DIR "$SYNCTHING_DATA_DIR"
+syncthing_require_abs_path SYNCTHING_STATE_DIR "$SYNCTHING_STATE_DIR"
+syncthing_require_port SYNCTHING_TCP_PORT "$SYNCTHING_TCP_PORT"
+
+SYNCTHING_USER=${SYNCTHING_USER:-${USER:-}}
+[ -n "$SYNCTHING_USER" ] || syncthing_fatal "SYNCTHING_USER must not be empty"
+# Never traverse/chown a user-controlled tree with root privileges. Both the
+# installer and the unit invoke this helper with the account's credentials.
+[ "$(id -u)" -ne 0 ] || syncthing_fatal "run this helper as SYNCTHING_USER, not root"
+[ "$(id -un)" = "$SYNCTHING_USER" ] || syncthing_fatal "wrong account for managed Syncthing state"
+
+[ -x /usr/bin/syncthing ] || syncthing_fatal "syncthing binary is unavailable"
+[ -x /usr/bin/python3 ] || syncthing_fatal "python3 is unavailable for config rendering"
+
+[ ! -L "$SYNCTHING_STATE_DIR" ] && [ ! -L "$SYNCTHING_DATA_DIR" ] || syncthing_fatal "symlink state/data directory"
+if [ "$mode" = --prepare ]; then
+  install -d -m 0700 "$SYNCTHING_DATA_DIR" "$SYNCTHING_STATE_DIR"
+fi
+[ -d "$SYNCTHING_STATE_DIR" ] || syncthing_fatal "state directory is missing"
+[ ! -L "$SYNCTHING_STATE_DIR/.configure.lock" ] || syncthing_fatal "symlink configuration lock"
+# The inode remains in place after close; concurrent preparation fails visibly.
+exec 9>>"$SYNCTHING_STATE_DIR/.configure.lock"
+flock -n 9 || { printf '%s\n' 'managed-syncthing: configuration is busy' >&2; exit 75; }
+[ ! -L "$SYNCTHING_STATE_DIR/config.xml" ] || syncthing_fatal "symlink configuration"
+if [ ! -r "$SYNCTHING_STATE_DIR/config.xml" ] && [ "$mode" = --prepare ]; then
+  timeout --signal=TERM --kill-after=5s 45s syncthing generate --home="$SYNCTHING_STATE_DIR" 9>&- >/dev/null
+fi
+[ -f "$SYNCTHING_STATE_DIR/config.xml" ] || syncthing_fatal "managed Syncthing config is missing"
+
+python3 -I - "$SYNCTHING_STATE_DIR/config.xml" "$SYNCTHING_DATA_DIR" "$SYNCTHING_TCP_PORT" "$SYNCTHING_GUI_ENABLED" "$mode" <<'PY'
+import os
+import sys
+import signal
+import stat
+import tempfile
+import xml.etree.ElementTree as ET
+
+config_path, data_dir, tcp_port, gui_enabled, mode = sys.argv[1:6]
+fd = os.open(config_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+with os.fdopen(fd, "rb") as stream:
+    metadata = os.fstat(stream.fileno())
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+            or metadata.st_mode & 0o022 or metadata.st_nlink != 1):
+        raise RuntimeError("unsafe Syncthing configuration ownership/type")
+    content = stream.read(4_194_305)
+if len(content) > 4_194_304 or b"<!ENTITY" in content:
+    raise RuntimeError("invalid or oversized Syncthing configuration")
+root = ET.fromstring(content)
+if root.tag != "configuration":
+    raise RuntimeError("invalid Syncthing configuration root")
+tree = ET.ElementTree(root)
+if mode == "--validate-config":
+    options = root.find("options")
+    if options is None or [x.text for x in options.findall("listenAddress")] != [f"tcp://0.0.0.0:{tcp_port}"]:
+        raise RuntimeError("managed Syncthing listen policy differs")
+    for name in ("globalAnnounceEnabled", "localAnnounceEnabled", "relaysEnabled", "natEnabled", "announceLANAddresses", "startBrowser"):
+        if options.findtext(name) != "false":
+            raise RuntimeError(f"managed Syncthing option differs: {name}")
+    folder = root.find("folder")
+    if folder is None or folder.get("path") != data_dir:
+        raise RuntimeError("managed Syncthing data directory differs")
+    raise SystemExit(0)
+
+
+options = root.find("options")
+if options is None:
+    options = ET.SubElement(root, "options")
+
+def set_option(name: str, value: str) -> None:
+    elem = options.find(name)
+    if elem is None:
+        elem = ET.SubElement(options, name)
+    elem.text = value
+
+for elem in list(options.findall("listenAddress")):
+    options.remove(elem)
+listen = ET.SubElement(options, "listenAddress")
+listen.text = f"tcp://0.0.0.0:{tcp_port}"
+set_option("globalAnnounceEnabled", "false")
+set_option("localAnnounceEnabled", "false")
+set_option("relaysEnabled", "false")
+set_option("natEnabled", "false")
+set_option("announceLANAddresses", "false")
+set_option("startBrowser", "false")
+
+gui = root.find("gui")
+if gui is not None:
+    gui.set("enabled", "true" if gui_enabled == "true" else "false")
+    address = gui.find("address")
+    if address is not None:
+        address.text = "127.0.0.1:8384"
+
+devices = root.findall("device")
+device_id = devices[0].get("id") if devices else None
+folder = root.find("folder")
+if folder is None:
+    folder = ET.SubElement(
+        root,
+        "folder",
+        {
+            "id": "default",
+            "label": "Syncthing",
+            "path": data_dir,
+            "type": "sendreceive",
+            "fsWatcherEnabled": "true",
+            "rescanIntervalS": "3600",
+        },
+    )
+    if device_id:
+        ET.SubElement(folder, "device", {"id": device_id})
+else:
+    folder.set("label", "Syncthing")
+    folder.set("path", data_dir)
+    folder.set("type", folder.get("type") or "sendreceive")
+    if device_id and not any(child.get("id") == device_id for child in folder.findall("device")):
+        ET.SubElement(folder, "device", {"id": device_id})
+
+def stop(signum, _frame):
+    for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(watched, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
+
+for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+    signal.signal(watched, stop)
+
+fd, temporary = tempfile.mkstemp(prefix=".config.xml.", dir=os.path.dirname(config_path))
+try:
+    with os.fdopen(fd, "wb") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        tree.write(stream, encoding="utf-8", xml_declaration=True)
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temporary, config_path)
+    directory = os.open(os.path.dirname(config_path), os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+finally:
+    try:
+        os.unlink(temporary)
+    except FileNotFoundError:
+        pass
+PY

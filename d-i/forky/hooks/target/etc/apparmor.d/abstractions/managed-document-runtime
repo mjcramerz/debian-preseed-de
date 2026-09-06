@@ -1,0 +1,23 @@
+# GUI document applications: no namespaces, raw devices, or arbitrary execution.
+#include <abstractions/managed-desktop-application>
+#include <abstractions/managed-user-documents>
+include if exists <abstractions/user-tmp>
+include if exists <abstractions/cups-client>
+# Printing to CUPS/IPP can require a remote connection.
+network inet stream,
+network inet6 stream,
+/usr/share/{mime,icons,pixmaps,themes,locale,poppler,hunspell,myspell}/ r,
+/usr/share/{mime,icons,pixmaps,themes,locale,poppler,hunspell,myspell}/** r,
+/usr/lib/@{multiarch}/qt{5,6}/plugins/** mr,
+/usr/lib/@{multiarch}/gio/modules/*.so mr,
+/etc/{papersize,localtime} r,
+/etc/cups/ r,
+/etc/cups/** r,
+/dev/shm/ r,
+owner /dev/shm/** rwkl,
+owner /run/user/[0-9]*/{bus,wayland-*,qt*,app-*} rw,
+owner @{HOME}/.cache/ rw,
+owner @{HOME}/.cache/fontconfig/ rw,
+owner @{HOME}/.cache/fontconfig/** rwkl,
+owner @{HOME}/.config/{gtk-3.0,gtk-4.0,qt5ct,qt6ct}/** r,
+owner @{HOME}/.config/{kdeglobals,kdeglobals.lock,Trolltech.conf,QtProject.conf} rwkl,

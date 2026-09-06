@@ -1,0 +1,16 @@
+# Managed by the installer apt-setup preferences generator.
+# Proprietary NVIDIA drivers, CUDA runtimes, NVIDIA firmware packages, and
+# vendor userspace libraries are opt-in. This policy is staged only when no
+# NVIDIA class is both selected and backed by detected NVIDIA display hardware.
+
+Package: firmware-nvidia*:any nvidia*:any libnvidia*:any libcuda*:any libnvcuvid*:any libnvoptix*:any xserver-xorg-video-nvidia:any glx-alternative-nvidia:any
+Pin: version *
+Pin-Priority: -1
+
+Package: cuda*:any cudnn*:any libcudnn*:any libcublas*:any libcudart*:any libcufft*:any libcufile*:any libcuobjclient*:any libcupti*:any libcurand*:any libcusolver*:any libcusparse*:any libnpp*:any libnvblas*:any libnvjitlink*:any libnvfatbin*:any libnvjpeg*:any libnvrtc*:any libnvtoolsext*:any nccl*:any libnccl*:any nsight*:any gds-tools:any
+Pin: version *
+Pin-Priority: -1
+
+Package: src:nvidia-graphics-drivers*:any src:nvidia-cuda-toolkit*:any
+Pin: version *
+Pin-Priority: -1

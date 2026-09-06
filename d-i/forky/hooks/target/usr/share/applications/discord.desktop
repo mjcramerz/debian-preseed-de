@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Discord
+GenericName=Internet Messenger
+Comment=Voice, video, and text communication
+TryExec=/opt/discord/Discord
+Exec=/usr/local/bin/discord %U
+Icon=/opt/discord/discord.png
+Terminal=false
+Categories=Network;InstantMessaging;
+MimeType=x-scheme-handler/discord;
+StartupNotify=true
+StartupWMClass=discord
+X-GNOME-UsesNotifications=true

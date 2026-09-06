@@ -1,0 +1,250 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+EVENT_ROOT=/var/lib/labwc-notifications
+EVENT_DIR="${EVENT_ROOT}/system"
+EVENT_READER_GROUP=logreader
+EVENT_TMP=
+
+app_name='System Maintenance'
+urgency=normal
+icon=dialog-information
+category=x-labwc.maintenance
+timeout_ms=12000
+summary=
+body=
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+usage: labwc-notify --summary TEXT [--body TEXT] [--app-name NAME]
+                    [--urgency low|normal|critical] [--icon ICON]
+                    [--category CATEGORY] [--timeout-ms 0..600000]
+EOF
+  exit 64
+}
+
+field_length() {
+  field_value=$1
+  field_maximum=$2
+  field_length_value=$(
+    printf '%s' "$field_value" |
+      /usr/bin/wc -c |
+      /usr/bin/tr -d '[:space:]'
+  )
+  case "$field_length_value" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$field_length_value" -le "$field_maximum" ]
+}
+
+printable_field() {
+  field_value=$1
+  field_maximum=$2
+  field_required=$3
+
+  case "$field_value" in
+    *'|'*) return 1 ;;
+  esac
+  if [ "$field_required" = yes ] && [ -z "$field_value" ]; then
+    return 1
+  fi
+  field_length "$field_value" "$field_maximum" || return 1
+
+  line_break_count=$(
+    printf '%s' "$field_value" |
+      /usr/bin/tr -cd '\012\015' |
+      /usr/bin/wc -c |
+      /usr/bin/tr -d '[:space:]'
+  )
+  [ "$line_break_count" = 0 ] || return 1
+  [ -n "$field_value" ] || return 0
+  printf '%s\n' "$field_value" | /usr/bin/grep -Eq '^[ -~]+$'
+}
+
+validate_app_name() {
+  printable_field "$1" 64 yes || return 1
+  printf '%s\n' "$1" |
+    /usr/bin/grep -Eq '^[A-Za-z0-9][A-Za-z0-9 ._-]*$'
+}
+
+validate_token() {
+  token_value=$1
+  token_maximum=$2
+  printable_field "$token_value" "$token_maximum" yes || return 1
+  printf '%s\n' "$token_value" |
+    /usr/bin/grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+}
+
+validate_timeout() {
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  field_length "$1" 6 || return 1
+  [ "$1" -le 600000 ]
+}
+
+validate_queue() {
+  event_reader_gid=$(
+    /usr/bin/getent group "$EVENT_READER_GROUP" |
+      /usr/bin/cut -d: -f3
+  )
+  case "$event_reader_gid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+
+  [ -d "$EVENT_ROOT" ] && [ ! -L "$EVENT_ROOT" ] || return 1
+  [ -d "$EVENT_DIR" ] && [ ! -L "$EVENT_DIR" ] || return 1
+
+  trusted_root=$(
+    /usr/bin/find "$EVENT_ROOT" \
+      -maxdepth 0 \
+      -type d \
+      -uid 0 \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_root" = "$EVENT_ROOT" ] || return 1
+
+  trusted_event_dir=$(
+    /usr/bin/find "$EVENT_DIR" \
+      -maxdepth 0 \
+      -type d \
+      -uid 0 \
+      -gid "$event_reader_gid" \
+      -perm -2750 \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_event_dir" = "$EVENT_DIR" ] || return 1
+}
+
+cleanup() {
+  [ -n "$EVENT_TMP" ] || return 0
+  /usr/bin/rm -f -- "$EVENT_TMP" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+[ "$(/usr/bin/id -u)" -eq 0 ] ||
+  fatal 'labwc-notify requires root privileges; invoke it through sudo or a system service'
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --app-name)
+      [ "$#" -ge 2 ] || usage
+      app_name=$2
+      shift 2
+      ;;
+    --urgency)
+      [ "$#" -ge 2 ] || usage
+      urgency=$2
+      shift 2
+      ;;
+    --icon)
+      [ "$#" -ge 2 ] || usage
+      icon=$2
+      shift 2
+      ;;
+    --category)
+      [ "$#" -ge 2 ] || usage
+      category=$2
+      shift 2
+      ;;
+    --timeout-ms)
+      [ "$#" -ge 2 ] || usage
+      timeout_ms=$2
+      shift 2
+      ;;
+    --summary)
+      [ "$#" -ge 2 ] || usage
+      summary=$2
+      shift 2
+      ;;
+    --body)
+      [ "$#" -ge 2 ] || usage
+      body=$2
+      shift 2
+      ;;
+    --help)
+      usage
+      ;;
+    --)
+      shift
+      [ "$#" -eq 0 ] || usage
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+validate_app_name "$app_name" ||
+  fatal 'app name must contain only printable ASCII letters, digits, spaces, dots, underscores, and hyphens'
+case "$urgency" in
+  low|normal|critical) ;;
+  *) fatal 'urgency must be low, normal, or critical' ;;
+esac
+validate_token "$icon" 64 ||
+  fatal 'icon must contain only printable ASCII letters, digits, dots, underscores, and hyphens'
+validate_token "$category" 96 ||
+  fatal 'category must contain only printable ASCII letters, digits, dots, underscores, and hyphens'
+validate_timeout "$timeout_ms" ||
+  fatal 'timeout must be an integer between 0 and 600000 milliseconds'
+printable_field "$summary" 160 yes ||
+  fatal 'summary must be printable ASCII text up to 160 bytes without line breaks or pipe characters'
+printable_field "$body" 512 no ||
+  fatal 'body must be printable ASCII text up to 512 bytes without line breaks or pipe characters'
+validate_queue ||
+  fatal "Labwc notification queue is unavailable or unsafe: ${EVENT_DIR}"
+
+event_epoch=$(/usr/bin/date -u +%s)
+case "$event_epoch" in
+  ''|*[!0-9]*) fatal 'unable to determine event timestamp' ;;
+esac
+
+event_sequence=1
+while [ "$event_sequence" -le 9999 ]; do
+  event_name=$(printf '%010d-%010d-%04d.event' "$event_epoch" "$$" "$event_sequence")
+  event_path="${EVENT_DIR}/${event_name}"
+  if [ ! -e "$event_path" ] && [ ! -L "$event_path" ]; then
+    break
+  fi
+  event_sequence=$((event_sequence + 1))
+done
+[ "$event_sequence" -le 9999 ] ||
+  fatal 'unable to allocate a unique notification event name'
+
+EVENT_TMP=$(/usr/bin/mktemp "${EVENT_DIR}/.labwc-notify.XXXXXX") ||
+  fatal 'unable to allocate a notification queue record'
+printf '%s|%s|%s|%s|%s|%s|%s\n' \
+  "$app_name" \
+  "$urgency" \
+  "$icon" \
+  "$category" \
+  "$timeout_ms" \
+  "$summary" \
+  "$body" >"$EVENT_TMP"
+/usr/bin/chmod 0640 "$EVENT_TMP" ||
+  fatal 'unable to protect notification queue record'
+/usr/bin/mv -f -- "$EVENT_TMP" "$event_path" ||
+  fatal 'unable to publish notification queue record'
+EVENT_TMP=
+
+/usr/bin/find "$EVENT_DIR" \
+  -mindepth 1 \
+  -maxdepth 1 \
+  -type f \
+  -name '*.event' \
+  -mtime +90 \
+  -delete 2>/dev/null || true

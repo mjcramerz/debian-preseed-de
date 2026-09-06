@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+kernelver=${1:-}
+[ -n "$kernelver" ] || exit 0
+if ! "__INSTALLER_FILE_SECURE_BOOT_TOOL__" kernel-postinst "$kernelver"; then
+  status=$?
+  case "__INSTALLER_SECURE_BOOT_DEFER_HOOK_FAILURES__" in
+    1|true|yes)
+      printf 'warning: deferred Secure Boot kernel postinst failure for %s\n' "$kernelver" >&2
+      exit 0
+      ;;
+  esac
+  exit "$status"
+fi

@@ -1,0 +1,31 @@
+[Unit]
+Description=Remove completed installer bootstrap artifacts
+Documentation=man:systemd.service(5)
+After=local-fs.target firstboot.service crowdsec-firstboot.service tailscale-managed-bootstrap.service
+ConditionPathExists=/var/lib/installer-state/firstboot/complete
+ConditionPathExists=/usr/local/libexec/secondboot-cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/secondboot-cleanup
+TimeoutStartSec=5min
+TimeoutStopSec=30s
+KillMode=control-group
+User=root
+Group=root
+UMask=0077
+PrivateTmp=true
+# The cleanup profile performs explicit AppArmor transitions for systemctl and
+# update-initramfs. no_new_privs would reject those transitions and force the
+# entire initramfs toolchain to inherit managed-secondboot-cleanup.
+NoNewPrivileges=false
+ProtectClock=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,260 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+TZ=UTC
+export LANG LC_ALL PATH TZ
+
+CONFIG_FILE=/etc/default/incus-host-managed
+INCUS_ADMIN_SOCKET=/var/lib/incus/unix.socket
+INCUS_USER_SOCKET=/var/lib/incus/unix.socket.user
+MODE=${1:-}
+
+log() {
+  printf '[incus-host-managed] %s\n' "$*" >&2
+}
+
+fatal() {
+  log "fatal: $*"
+  exit 1
+}
+
+case "$MODE" in
+  ''|--prepare-install|--validate-config) ;;
+  *) fatal "unsupported mode: ${MODE}" ;;
+esac
+
+validate_abs_path() {
+  case "${2:-}" in
+    /*) ;;
+    *) fatal "$1 must be an absolute path: ${2:-unset}" ;;
+  esac
+  case "$2" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      fatal "$1 contains unsupported path syntax: $2"
+      ;;
+  esac
+}
+
+validate_simple_name() {
+  case "${2:-}" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      fatal "$1 contains unsupported characters: ${2:-unset}"
+      ;;
+  esac
+}
+
+validate_non_negative_integer() {
+  case "${2:-}" in
+    ''|*[!0-9]*) fatal "$1 must be a non-negative integer: ${2:-unset}" ;;
+  esac
+}
+
+validate_positive_integer() {
+  validate_non_negative_integer "$1" "$2"
+  [ "$2" -ge 1 ] || fatal "$1 must be greater than zero"
+}
+
+validate_root_owned_regular_file() {
+  label=$1
+  value=$2
+  expected_mode=$3
+  validate_abs_path "$label" "$value"
+  [ -f "$value" ] && [ ! -L "$value" ] && [ -r "$value" ] ||
+    fatal "$label is unavailable or indirect: $value"
+  value_real=$(readlink -f -- "$value") || fatal "cannot resolve $label: $value"
+  [ "$value_real" = "$value" ] || fatal "$label must not traverse symlinks: $value"
+  value_owner=$(stat -c '%u' -- "$value") || fatal "cannot inspect $label ownership"
+  value_mode=$(stat -c '%a' -- "$value") || fatal "cannot inspect $label mode"
+  [ "$value_owner:$value_mode" = "0:${expected_mode}" ] ||
+    fatal "$label must be root-owned mode ${expected_mode}: $value"
+}
+
+validate_static_contract() {
+  validate_root_owned_regular_file "managed Incus config" "$CONFIG_FILE" 644
+  validate_root_owned_regular_file \
+    "managed QEMU/Incus tmpfiles policy" \
+    /etc/tmpfiles.d/85-qemu-incus-storage.conf \
+    644
+  validate_root_owned_regular_file \
+    "managed Incus user activation drop-in" \
+    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf \
+    644
+  [ -x /usr/bin/incus ] || fatal "Incus client is missing"
+  [ -x /opt/incus/lib/systemd/incusd ] || fatal "Incus systemd wrapper is missing"
+  [ -r /opt/incus/ui/index.html ] || fatal "Incus Web UI payload is missing"
+  grep -Fq 'INCUS_UI=/opt/incus/ui/' /opt/incus/lib/systemd/incusd ||
+    fatal "Incus systemd wrapper does not export the packaged UI path"
+  for unit in \
+    incus.service incus.socket incus-user.service incus-user.socket \
+    incus-startup.service
+  do
+    [ -r "/usr/lib/systemd/system/${unit}" ] || fatal "Incus unit is missing: $unit"
+  done
+  for socket_unit in incus.socket incus-user.socket; do
+    grep -Eq '^[[:space:]]*SocketMode=0660[[:space:]]*$' \
+      "/usr/lib/systemd/system/${socket_unit}" ||
+      fatal "Incus socket must be group-only mode 0660: $socket_unit"
+  done
+  grep -Eq '^[[:space:]]*SocketGroup=incus-admin[[:space:]]*$' \
+    /usr/lib/systemd/system/incus.socket ||
+    fatal "incus.socket must remain restricted to incus-admin"
+  grep -Eq '^[[:space:]]*SocketGroup=incus[[:space:]]*$' \
+    /usr/lib/systemd/system/incus-user.socket ||
+    fatal "incus-user.socket must grant only the confined incus group"
+  grep -Eq '^[[:space:]]*ListenStream=/var/lib/incus/unix\.socket[[:space:]]*$' \
+    /usr/lib/systemd/system/incus.socket ||
+    fatal "incus.socket must listen only on the administrator socket"
+  grep -Eq '^[[:space:]]*ListenStream=/var/lib/incus/unix\.socket\.user[[:space:]]*$' \
+    /usr/lib/systemd/system/incus-user.socket ||
+    fatal "incus-user.socket must use a distinct user socket"
+  if grep -Eq '^[[:space:]]*Service=' /usr/lib/systemd/system/incus-user.socket; then
+    grep -Eq '^[[:space:]]*Service=incus-user\.service[[:space:]]*$' \
+      /usr/lib/systemd/system/incus-user.socket ||
+      fatal "incus-user.socket must activate only incus-user.service"
+  fi
+  grep -Fq 'ExecStart=/opt/incus/lib/systemd/incusd' /usr/lib/systemd/system/incus.service ||
+    fatal "incus.service does not execute the packaged UI-aware wrapper"
+  grep -Eq '^[[:space:]]*ExecStart=[^[:space:]]*/incus-user([[:space:]]|$)' \
+    /usr/lib/systemd/system/incus-user.service ||
+    fatal "incus-user.service does not execute the restricted user broker"
+  grep -Fxq 'Requires=incus-host-managed.service' \
+    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf ||
+    fatal "incus-user.service must require managed Incus bootstrap"
+  grep -Fxq 'After=incus-host-managed.service' \
+    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf ||
+    fatal "incus-user.service must wait for managed Incus bootstrap"
+}
+
+validate_live_socket() {
+  label=$1
+  socket_path=$2
+  expected_group=$3
+  [ -S "$socket_path" ] || fatal "$label is missing: $socket_path"
+  socket_metadata=$(stat -c '%u:%G:%a' -- "$socket_path") ||
+    fatal "cannot inspect $label: $socket_path"
+  [ "$socket_metadata" = "0:$expected_group:660" ] ||
+    fatal "$label must be root-owned $expected_group mode 0660, found $socket_metadata"
+}
+
+validate_live_sockets() {
+  validate_live_socket "Incus administrator socket" "$INCUS_ADMIN_SOCKET" incus-admin
+  validate_live_socket "Incus restricted user socket" "$INCUS_USER_SOCKET" incus
+}
+
+wait_for_incus() {
+  deadline=$(( $(date +%s) + INCUS_MANAGED_WAIT_SECONDS ))
+  while :; do
+    incus --force-local info >/dev/null 2>&1 && return 0
+    [ "$(date +%s)" -lt "$deadline" ] || break
+    sleep "$INCUS_MANAGED_RETRY_DELAY_SECONDS"
+  done
+  fatal "Incus did not become ready within ${INCUS_MANAGED_WAIT_SECONDS}s"
+}
+
+verify_managed_state() {
+  pool_source=$(incus --force-local storage get "$INCUS_MANAGED_POOL_NAME" source 2>/dev/null || true)
+  [ "$pool_source" = "$INCUS_MANAGED_POOL_PATH" ] ||
+    fatal "Incus pool source is ${pool_source:-unset}, expected ${INCUS_MANAGED_POOL_PATH}"
+  incus --force-local network show "$INCUS_MANAGED_BRIDGE_NAME" >/dev/null 2>&1 ||
+    fatal "Incus bridge is missing: ${INCUS_MANAGED_BRIDGE_NAME}"
+  incus --force-local profile show default | grep -F "network: ${INCUS_MANAGED_BRIDGE_NAME}" >/dev/null ||
+    fatal "Incus default profile does not use ${INCUS_MANAGED_BRIDGE_NAME}"
+  incus --force-local profile show default | grep -F "pool: ${INCUS_MANAGED_POOL_NAME}" >/dev/null ||
+    fatal "Incus default profile does not use ${INCUS_MANAGED_POOL_NAME}"
+  profile_privileged=$(
+    incus --force-local profile get default security.privileged 2>/dev/null || true
+  )
+  [ "$profile_privileged" = false ] ||
+    fatal "Incus default profile must set security.privileged=false"
+  current_https=$(incus --force-local config get core.https_address 2>/dev/null || true)
+  [ -z "$current_https" ] || fatal "Incus remote API unexpectedly listens on ${current_https}"
+}
+
+ensure_incus_initialized() {
+  if incus --force-local storage show "$INCUS_MANAGED_POOL_NAME" >/dev/null 2>&1; then
+    verify_managed_state
+    return 0
+  fi
+
+  seed_input_option=pre
+  seed_input_option="${seed_input_option}seed"
+  cat <<EOF | incus --force-local admin init "--${seed_input_option}" >/dev/null
+config: {}
+storage_pools:
+- name: ${INCUS_MANAGED_POOL_NAME}
+  driver: dir
+  config:
+    source: ${INCUS_MANAGED_POOL_PATH}
+networks:
+- name: ${INCUS_MANAGED_BRIDGE_NAME}
+  type: bridge
+  config:
+    ipv4.address: ${INCUS_MANAGED_BRIDGE_IPV4}
+    ipv6.address: ${INCUS_MANAGED_BRIDGE_IPV6}
+profiles:
+- name: default
+  description: Default Incus profile
+  config:
+    security.privileged: "false"
+  devices:
+    eth0:
+      name: eth0
+      network: ${INCUS_MANAGED_BRIDGE_NAME}
+      type: nic
+    root:
+      path: /
+      pool: ${INCUS_MANAGED_POOL_NAME}
+      type: disk
+EOF
+  verify_managed_state
+}
+
+verify_web_ui() {
+  ui_status=$(curl --silent --show-error --max-time 10 \
+    --unix-socket "$INCUS_ADMIN_SOCKET" \
+    --output /dev/null \
+    --write-out '%{http_code}' \
+    http://localhost/ui/) || fatal "Incus Web UI request over the local socket failed"
+  [ "$ui_status" = 200 ] || fatal "Incus Web UI returned HTTP ${ui_status} over the local socket"
+}
+
+validate_static_contract
+# shellcheck disable=SC1090,SC1091
+. "$CONFIG_FILE"
+
+: "${INCUS_MANAGED_POOL_NAME:?INCUS_MANAGED_POOL_NAME must be set}"
+: "${INCUS_MANAGED_POOL_PATH:?INCUS_MANAGED_POOL_PATH must be set}"
+: "${INCUS_MANAGED_BRIDGE_NAME:?INCUS_MANAGED_BRIDGE_NAME must be set}"
+: "${INCUS_MANAGED_BRIDGE_IPV4:?INCUS_MANAGED_BRIDGE_IPV4 must be set}"
+: "${INCUS_MANAGED_BRIDGE_IPV6:?INCUS_MANAGED_BRIDGE_IPV6 must be set}"
+: "${INCUS_MANAGED_WAIT_SECONDS:?INCUS_MANAGED_WAIT_SECONDS must be set}"
+: "${INCUS_MANAGED_RETRY_DELAY_SECONDS:?INCUS_MANAGED_RETRY_DELAY_SECONDS must be set}"
+
+validate_simple_name INCUS_MANAGED_POOL_NAME "$INCUS_MANAGED_POOL_NAME"
+validate_abs_path INCUS_MANAGED_POOL_PATH "$INCUS_MANAGED_POOL_PATH"
+validate_simple_name INCUS_MANAGED_BRIDGE_NAME "$INCUS_MANAGED_BRIDGE_NAME"
+validate_non_negative_integer INCUS_MANAGED_WAIT_SECONDS "$INCUS_MANAGED_WAIT_SECONDS"
+validate_positive_integer INCUS_MANAGED_RETRY_DELAY_SECONDS "$INCUS_MANAGED_RETRY_DELAY_SECONDS"
+case "$INCUS_MANAGED_BRIDGE_IPV4" in
+  auto|none|[0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) ;;
+  *) fatal "unsupported INCUS_MANAGED_BRIDGE_IPV4: $INCUS_MANAGED_BRIDGE_IPV4" ;;
+esac
+case "$INCUS_MANAGED_BRIDGE_IPV6" in
+  auto|none|[0-9a-fA-F:]*/*[0-9]*) ;;
+  *) fatal "unsupported INCUS_MANAGED_BRIDGE_IPV6: $INCUS_MANAGED_BRIDGE_IPV6" ;;
+esac
+
+systemd-tmpfiles --create /etc/tmpfiles.d/85-qemu-incus-storage.conf
+if [ "$MODE" = --prepare-install ]; then
+  log "prepared direct QEMU and Incus install-time storage"
+  exit 0
+fi
+
+wait_for_incus
+validate_live_sockets
+ensure_incus_initialized
+verify_web_ui
+log "validated confined local Incus storage, network, and Web UI"

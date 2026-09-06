@@ -1,0 +1,73 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: cups
+  description: CUPS printing overlay. Does not expose printer admin publicly.
+  merge_priority: 50
+services:
+  cups_ipp:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 631
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      - 10.8.0.0/24
+      ipv6:
+      - fc00::/7
+      - fe80::/10
+      - fd00:8::/64
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+      - wg0
+    sensitive: true
+    log: false
+  cups_browsing:
+    enabled: false
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - 631
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      ipv6:
+      - fc00::/7
+      - fe80::/10
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    log: false
+egress:
+  rules:
+    cups_dns_sd:
+      enabled: true
+      protocols:
+      - udp
+      ports:
+      - 5353
+      allow_to:
+        ipv4:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        ipv6:
+        - fc00::/7
+        - fe80::/10

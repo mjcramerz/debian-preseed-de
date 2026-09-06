@@ -1,0 +1,213 @@
+#!/bin/sh
+set -eu
+
+ROOT_HELPER=/usr/local/libexec/labwc-system-action-root
+SELF=/usr/local/bin/labwc-system-action
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  notify_action_result 1 requested-action
+  exit 1
+}
+
+notify_action_result() {
+  action_status=$1
+  action_name=$2
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  [ "$action_name" = test-mako-notification ] && return 0
+
+  if [ "$action_status" -eq 0 ]; then
+    urgency=normal
+    icon=dialog-information
+    timeout_ms=10000
+    summary="System maintenance completed"
+    body="The ${action_name} action completed successfully."
+  else
+    urgency=critical
+    icon=dialog-error
+    timeout_ms=0
+    summary="System maintenance failed"
+    body="The ${action_name} action failed with status ${action_status}."
+  fi
+
+  notify-send \
+    -a "System Maintenance" \
+    -u "$urgency" \
+    -i "$icon" \
+    -c x-labwc.maintenance \
+    -t "$timeout_ms" \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+ensure_desktop_user() {
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+    fatal "labwc-system-action must run in the managed desktop session"
+  }
+
+  runtime_root=${XDG_RUNTIME_DIR:-}
+  case "$runtime_root" in
+    /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
+    *) runtime_uid= ;;
+  esac
+  case "$runtime_uid" in
+    ''|0*|*[!0-9]*)
+      fatal "labwc-system-action requires a non-root desktop runtime directory"
+      ;;
+  esac
+}
+
+validate_request_shape() {
+  requested_action=$1
+  shift
+
+  case "$requested_action" in
+    system-overview|failed-services|boot-performance|recent-errors|kernel-warnings|storage-overview|memory-overview|network-overview|package-health|pending-upgrades|firmware-devices|refresh-firmware-metadata|firmware-updates|upgradeable-packages|btrfs-usage|btrfs-df|btrfs-scrub-status|journal-disk-usage|top-disk-root|top-disk-home|failed-system-units|failed-user-units|show-timers|pipewire-status|wireplumber-status|flush-dns-cache|reset-resolver-features|resolver-statistics|test-mako-notification|refresh-waybar-custom-module)
+      [ "$#" -eq 0 ] || fatal "${requested_action} does not accept arguments"
+      ;;
+    inspect-service|nvme-smart-health|nvme-firmware-slots|nvme-identify-data|nvme-smartctl)
+      [ "$#" -eq 1 ] || fatal "${requested_action} requires exactly one argument"
+      ;;
+    apply-firmware-updates|run-unattended-upgrades|restart-pipewire|restart-wireplumber)
+      [ "$#" -eq 1 ] || fatal "${requested_action} requires confirmation"
+      [ "$1" = confirmed-system-action ] ||
+        fatal "${requested_action} requires the managed system confirmation"
+      ;;
+    journal-vacuum-time)
+      [ "$#" -eq 2 ] || fatal "${requested_action} requires retention and confirmation"
+      case "$1" in
+        3d|7d|14d|30d) ;;
+        *) fatal "unsupported journal time retention: ${1:-unset}" ;;
+      esac
+      [ "$2" = confirmed-system-action ] ||
+        fatal "${requested_action} requires the managed system confirmation"
+      ;;
+    journal-vacuum-size)
+      [ "$#" -eq 2 ] || fatal "${requested_action} requires retention and confirmation"
+      case "$1" in
+        256M|512M|1G|2G) ;;
+        *) fatal "unsupported journal size retention: ${1:-unset}" ;;
+      esac
+      [ "$2" = confirmed-system-action ] ||
+        fatal "${requested_action} requires the managed system confirmation"
+      ;;
+    *)
+      fatal "unsupported system action: ${requested_action:-unset}"
+      ;;
+  esac
+}
+
+run_user_action() {
+  action=$1
+
+  case "$action" in
+    failed-user-units)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user --failed --no-pager
+      ;;
+    show-timers)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      printf '%s\n' '--- System timers ---'
+      systemctl list-timers --all --no-pager
+      printf '\n%s\n' '--- User timers ---'
+      systemctl --user list-timers --all --no-pager
+      ;;
+    pipewire-status)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      printf '%s\n' '--- PipeWire services ---'
+      systemctl --user status --no-pager --full pipewire.service pipewire-pulse.service || true
+      if command -v wpctl >/dev/null 2>&1; then
+        printf '\n%s\n' '--- PipeWire graph ---'
+        wpctl status || true
+      fi
+      ;;
+    wireplumber-status)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user status --no-pager --full wireplumber.service || true
+      ;;
+    restart-pipewire)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user restart pipewire.service pipewire-pulse.service
+      ;;
+    restart-wireplumber)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user restart wireplumber.service
+      ;;
+    test-mako-notification)
+      command -v notify-send >/dev/null 2>&1 || fatal "notify-send is not installed"
+      notify-send \
+        -a Maintenance \
+        -u normal \
+        -i dialog-information \
+        "Mako notification test" \
+        "The managed Labwc notification path is working."
+      ;;
+    refresh-waybar-custom-module)
+      command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+      systemctl --user --quiet is-active waybar.service ||
+        fatal "Waybar is not running for the current desktop user"
+      for waybar_signal in RTMIN+7 RTMIN+8 RTMIN+9; do
+        systemctl \
+          --user \
+          kill \
+          --kill-whom=main \
+          "--signal=${waybar_signal}" \
+          waybar.service
+      done
+      ;;
+    *)
+      fatal "unsupported user system action: $action"
+      ;;
+  esac
+}
+
+run_in_terminal() {
+  action=$1
+  shift
+
+  printf '\n=== System Maintenance: %s ===\n\n' "$action"
+  set +e
+  case "$action" in
+    failed-user-units|show-timers|pipewire-status|wireplumber-status|restart-pipewire|restart-wireplumber|test-mako-notification|refresh-waybar-custom-module)
+      run_user_action "$action"
+      ;;
+    *)
+      command -v pkexec >/dev/null 2>&1 || fatal "pkexec is not installed"
+      [ -x "$ROOT_HELPER" ] || fatal "privileged system helper is unavailable: $ROOT_HELPER"
+      pkexec "$ROOT_HELPER" "$action" "$@"
+      ;;
+  esac
+  action_status=$?
+  set -e
+
+  printf '\n=== Action finished with status %s ===\n' "$action_status"
+  notify_action_result "$action_status" "$action"
+  if [ -t 0 ]; then
+    printf 'Press Enter to close this terminal...'
+    IFS= read -r _ || true
+  fi
+  exit "$action_status"
+}
+
+ensure_desktop_user
+
+case "${1:-}" in
+  --run)
+    shift
+    [ "$#" -gt 0 ] || fatal "missing system action after --run"
+    action=$1
+    shift
+    validate_request_shape "$action" "$@"
+    run_in_terminal "$action" "$@"
+    ;;
+esac
+
+[ "$#" -gt 0 ] || fatal "usage: labwc-system-action <action> [argument]"
+action=$1
+shift
+validate_request_shape "$action" "$@"
+
+command -v labwc-terminal >/dev/null 2>&1 || fatal "labwc-terminal is not installed"
+exec labwc-terminal -e "$SELF" --run "$action" "$@"

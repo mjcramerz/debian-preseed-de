@@ -1,0 +1,23 @@
+#!/bin/sh
+set -u
+
+PREREQ=""
+
+prereqs() {
+  printf '%s\n' "$PREREQ"
+}
+
+case "${1:-}" in
+  prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+common_file=${INSTALLER_INITRAMFS_HEALTH_COMMON:-/scripts/installer-health-common}
+[ -r "$common_file" ] || exit 0
+
+# shellcheck disable=SC1090
+. "$common_file"
+installer_initramfs_health_run init-bottom "$@" || true
+exit 0

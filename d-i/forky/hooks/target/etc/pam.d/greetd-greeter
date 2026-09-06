@@ -1,0 +1,19 @@
+#%PAM-1.0
+#
+# Managed by unattended-installer. Keep the greeter as a Labwc display-manager
+# session so logind records the correct class and grants seat/device ACLs.
+# greetd also supplies XDG_SESSION_CLASS=greeter before pam_open_session; the
+# matching module option keeps direct PAM service use aligned with that class.
+# The greeter is a package-managed system account, not an interactive login;
+# normal authentication and account-expiry policy belongs to /etc/pam.d/greetd
+# when the real user logs in.
+
+auth       required   pam_permit.so
+account    required   pam_permit.so
+
+session    required   pam_loginuid.so
+session    required   pam_env.so readenv=1
+session    required   pam_env.so readenv=1 envfile=/etc/default/locale
+session    optional   pam_systemd.so class=greeter type=wayland desktop=labwc
+
+@include common-session-noninteractive

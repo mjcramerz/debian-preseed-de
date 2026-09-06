@@ -1,0 +1,58 @@
+[Unit]
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionEnvironment=WAYLAND_DISPLAY
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Description=Deliver Sleek plan and event notifications
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+KillMode=control-group
+Type=exec
+# The root-owned 0640 file contains outbound notification credentials. Let the
+# user manager copy it into the private per-unit credential directory before
+# parsing it; the service executable never opens the persistent source file.
+LoadCredential=labwc-plans.env:/etc/default/labwc-plans
+EnvironmentFile=%d/labwc-plans.env
+UnsetEnvironment=ALL_PROXY HTTPS_PROXY HTTP_PROXY NO_PROXY all_proxy https_proxy http_proxy no_proxy
+ExecStart=/usr/local/libexec/labwc-plans.pl
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+StateDirectory=labwc-plans
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=-%h/Syncthing/sleek
+ReadWritePaths=%S/labwc-plans
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+
+[Install]
+WantedBy=labwc-session.target

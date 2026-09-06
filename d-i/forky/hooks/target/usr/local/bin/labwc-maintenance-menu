@@ -1,0 +1,1245 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+run_security_action() {
+  command -v labwc-security-action >/dev/null 2>&1 ||
+    fatal "labwc-security-action is not installed"
+
+  if labwc-security-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: security action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+choose_apparmor_draft() {
+  command -v labwc-security-action >/dev/null 2>&1 ||
+    fatal "labwc-security-action is not installed"
+
+  draft_candidates=$(
+    labwc-security-action --list-apparmor-draft-candidates
+  ) || return 0
+  [ -n "$draft_candidates" ] || {
+    printf '%s\n' 'warning: no generated AppArmor drafts are available' >&2
+    return 0
+  }
+
+  printf '%s\n' "$draft_candidates" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "Select AppArmor draft" 2>/dev/null ||
+    true
+}
+
+run_firewall_menu() (
+  command -v labwc-firewall-menu >/dev/null 2>&1 ||
+    fatal "labwc-firewall-menu is not installed"
+
+  LABWC_FUZZEL_MENU_WIDTH_OVERRIDE=${LABWC_FUZZEL_FIREWALL_SECURITY_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH_OVERRIDE:-}}
+  LABWC_FUZZEL_MENU_LINES_OVERRIDE=${LABWC_FUZZEL_FIREWALL_SECURITY_LINES:-${LABWC_FUZZEL_MENU_LINES_OVERRIDE:-}}
+  LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE=${LABWC_FUZZEL_FIREWALL_SECURITY_FONT_SIZE:-${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}}
+  export \
+    LABWC_FUZZEL_MENU_WIDTH_OVERRIDE \
+    LABWC_FUZZEL_MENU_LINES_OVERRIDE \
+    LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE
+
+  if labwc-firewall-menu; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: firewall menu returned status %s\n' \
+    "$action_status" >&2
+  return 0
+)
+
+run_system_action() {
+  command -v labwc-system-action >/dev/null 2>&1 ||
+    fatal "labwc-system-action is not installed"
+
+  if labwc-system-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: system action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+run_external_drive_manager() {
+  command -v labwc-external-drives >/dev/null 2>&1 ||
+    fatal "labwc-external-drives is not installed"
+
+  if labwc-external-drives; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: external drive manager returned status %s\n' \
+    "$action_status" >&2
+  return 0
+}
+
+run_recovery_action() {
+  command -v labwc-recovery-action >/dev/null 2>&1 ||
+    fatal "labwc-recovery-action is not installed"
+
+  if labwc-recovery-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: recovery action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+run_confirmed_system_action() {
+  system_action=$1
+  confirmation_prompt=$2
+  shift 2
+
+  confirmation=$(
+    choose_lines \
+      "$confirmation_prompt" \
+      'Cancel' \
+      'Continue with authorized system action'
+  )
+  [ "$confirmation" = 'Continue with authorized system action' ] ||
+    return 0
+  run_system_action "$system_action" "$@" confirmed-system-action
+}
+
+run_confirmed_recovery_action() {
+  recovery_action=$1
+  confirmation_prompt=$2
+
+  confirmation=$(
+    choose_lines \
+      "$confirmation_prompt" \
+      'Cancel' \
+      'Continue with authorized recovery action'
+  )
+  [ "$confirmation" = 'Continue with authorized recovery action' ] ||
+    return 0
+  run_recovery_action "$recovery_action" confirmed-recovery-action
+}
+
+choose_nvme_controller() {
+  {
+    for nvme_sysfs in /sys/class/nvme/nvme*; do
+      [ -e "$nvme_sysfs" ] || continue
+      nvme_device="/dev/${nvme_sysfs##*/}"
+      [ -e "$nvme_device" ] && printf '%s\n' "$nvme_device"
+    done
+  } |
+    awk '!seen[$0]++' |
+    sort |
+    labwc-fuzzel menu --dmenu --prompt "NVMe controller" 2>/dev/null ||
+    true
+}
+
+choose_journal_vacuum_time() {
+  retention=$(
+    choose_lines \
+      "Journal retention" \
+      '3 days' \
+      '7 days' \
+      '14 days' \
+      '30 days'
+  )
+  case "$retention" in
+    '3 days') printf '%s\n' 3d ;;
+    '7 days') printf '%s\n' 7d ;;
+    '14 days') printf '%s\n' 14d ;;
+    '30 days') printf '%s\n' 30d ;;
+  esac
+}
+
+choose_journal_vacuum_size() {
+  retention=$(
+    choose_lines \
+      "Maximum journal size" \
+      '256 MiB' \
+      '512 MiB' \
+      '1 GiB' \
+      '2 GiB'
+  )
+  case "$retention" in
+    '256 MiB') printf '%s\n' 256M ;;
+    '512 MiB') printf '%s\n' 512M ;;
+    '1 GiB') printf '%s\n' 1G ;;
+    '2 GiB') printf '%s\n' 2G ;;
+  esac
+}
+
+choose_service() {
+  {
+    printf '%s\n' greetd.service ssh.service systemd-logind.service
+    systemctl list-unit-files --type=service --no-legend --no-pager 2>/dev/null |
+      awk 'NF > 0 { print $1 }'
+  } |
+    awk '!seen[$0]++' |
+    sort |
+    labwc-fuzzel menu --dmenu --prompt "Inspect service" 2>/dev/null ||
+    true
+}
+
+choose_security_folder() {
+  selection_prompt=$1
+  {
+    for candidate in \
+      "$HOME" \
+      "$HOME/Downloads" \
+      "$HOME/Documents" \
+      "$HOME/Desktop" \
+      "/run/media/$(id -un)" \
+      /mnt \
+      /media
+    do
+      [ -d "$candidate" ] && printf '%s\n' "$candidate"
+    done
+    for candidate_root in \
+      "$HOME/Downloads" \
+      "$HOME/Documents" \
+      "$HOME/Desktop"
+    do
+      [ -d "$candidate_root" ] || continue
+      find "$candidate_root" \
+        -xdev \
+        -mindepth 1 \
+        -maxdepth 2 \
+        -type d \
+        -print 2>/dev/null
+    done
+  } |
+    awk '!seen[$0]++' |
+    sed -n '1,400p' |
+    labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
+    true
+}
+
+choose_security_file() {
+  selection_prompt=$1
+  {
+    for candidate_dir in \
+      "$HOME/Downloads" \
+      "$HOME/Documents" \
+      "$HOME/Desktop" \
+      "$HOME"
+    do
+      [ -d "$candidate_dir" ] || continue
+      find "$candidate_dir" \
+        -xdev \
+        -mindepth 1 \
+        -maxdepth 3 \
+        -type f \
+        -print 2>/dev/null
+    done
+  } |
+    awk '!seen[$0]++' |
+    sed -n '1,400p' |
+    labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
+    true
+}
+
+security_auditing_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Endpoint Security — Security Auditing" \
+        'Audit Security Posture (lynis)' \
+        'Service Security Analysis' \
+        'Inspect Specific Service' \
+        'Check Firmware Security' \
+        'Check CPU Mitigations' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Audit Security Posture (lynis)')
+        run_security_action audit-security-posture
+        ;;
+      'Service Security Analysis')
+        run_security_action analyze-services
+        ;;
+      'Inspect Specific Service')
+        service=$(choose_service)
+        [ -n "$service" ] && run_security_action inspect-service "$service"
+        ;;
+      'Check Firmware Security')
+        run_security_action check-firmware-security
+        ;;
+      'Check CPU Mitigations')
+        run_security_action check-cpu-mitigations
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+malware_scanning_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Endpoint Security — Malware & Rootkits" \
+        'Run Rootkit Scan (rkhunter)' \
+        'Run Rootkit Scan (chkrootkit)' \
+        'Show ClamAV Signature Status' \
+        'Scan File with ClamAV' \
+        'Scan Folder Recursively with ClamAV' \
+        'Update ClamAV Signatures' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Run Rootkit Scan (rkhunter)')
+        run_security_action scan-rootkits-rkhunter
+        ;;
+      'Run Rootkit Scan (chkrootkit)')
+        run_security_action scan-rootkits-chkrootkit
+        ;;
+      'Show ClamAV Signature Status')
+        run_security_action show-clamav-signature-status
+        ;;
+      'Scan File with ClamAV')
+        scan_file=$(choose_security_file "ClamAV file path")
+        [ -n "$scan_file" ] &&
+          run_security_action scan-file-clamav "$scan_file"
+        ;;
+      'Scan Folder Recursively with ClamAV')
+        scan_folder=$(choose_security_folder "ClamAV folder path")
+        [ -n "$scan_folder" ] &&
+          run_security_action scan-folder-clamav "$scan_folder"
+        ;;
+      'Update ClamAV Signatures')
+        run_security_action update-clamav-signatures
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+vulnerability_integrity_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Endpoint Security — Vulnerability & Integrity" \
+        'Check Known Vulnerabilities' \
+        'Check Package Integrity' \
+        'Retrieve File Hashsums (SHA-256/SHA-512)' \
+        'Create Folder Tree SHA-256 Manifest' \
+        'Verify File Against SHA-256' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Check Known Vulnerabilities')
+        run_security_action check-known-vulnerabilities
+        ;;
+      'Check Package Integrity')
+        run_security_action check-package-integrity
+        ;;
+      'Retrieve File Hashsums (SHA-256/SHA-512)')
+        hash_file=$(choose_security_file "File path for SHA-256 and SHA-512")
+        [ -n "$hash_file" ] &&
+          run_security_action retrieve-file-hashes "$hash_file"
+        ;;
+      'Create Folder Tree SHA-256 Manifest')
+        hash_folder=$(choose_security_folder "Folder path for SHA-256 manifest")
+        [ -n "$hash_folder" ] &&
+          run_security_action create-folder-hash-manifest "$hash_folder"
+        ;;
+      'Verify File Against SHA-256')
+        verify_file=$(choose_security_file "File path to verify")
+        if [ -n "$verify_file" ]; then
+          expected_sha256=$(
+            choose_lines \
+              "Expected SHA-256 (64 hexadecimal characters)" \
+              'Paste or type the expected SHA-256 digest'
+          )
+          [ -n "$expected_sha256" ] &&
+            run_security_action verify-file-sha256 "$verify_file" "$expected_sha256"
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+choose_apparmor_application() {
+  application=$(
+    choose_lines \
+      "AppArmor application" \
+      'Bitwarden' \
+      'Chromium' \
+      'Code' \
+      'QoreDB' \
+      'Discord' \
+      'Filen' \
+      'KeePassXC' \
+      'Ledger Live' \
+      'Microsoft Edge' \
+      'Mullvad Browser' \
+      'Obsidian' \
+      'Postman' \
+      'qBittorrent' \
+      'RetroArch' \
+      'Sleek' \
+      'Spotify' \
+      'SQLite Browser' \
+      'Telegram Desktop' \
+      'Totem' \
+      'Tuta Mail' \
+      'Vivaldi' \
+      'Zoom' \
+      '← Back'
+  )
+
+  case "$application" in
+    'Bitwarden') printf '%s\n' bitwarden ;;
+    'Chromium') printf '%s\n' chromium ;;
+    'Code') printf '%s\n' code ;;
+    'QoreDB') printf '%s\n' qoredb ;;
+    'Discord') printf '%s\n' discord ;;
+    'Filen') printf '%s\n' filen ;;
+    'KeePassXC') printf '%s\n' keepassxc ;;
+    'Ledger Live') printf '%s\n' ledger-live ;;
+    'Microsoft Edge') printf '%s\n' microsoft-edge ;;
+    'Mullvad Browser') printf '%s\n' mullvad-browser ;;
+    'Obsidian') printf '%s\n' obsidian ;;
+    'Postman') printf '%s\n' postman ;;
+    'qBittorrent') printf '%s\n' qbittorrent ;;
+    'RetroArch') printf '%s\n' retroarch ;;
+    'Sleek') printf '%s\n' sleek ;;
+    'Spotify') printf '%s\n' spotify ;;
+    'SQLite Browser') printf '%s\n' sqlitebrowser ;;
+    'Telegram Desktop') printf '%s\n' telegram-desktop ;;
+    'Totem') printf '%s\n' totem ;;
+    'Tuta Mail') printf '%s\n' tuta-mail ;;
+    'Vivaldi') printf '%s\n' vivaldi ;;
+    'Zoom') printf '%s\n' zoom ;;
+  esac
+}
+
+choose_apparmor_executable() {
+  executable=$(
+    choose_lines \
+      "Absolute executable path" \
+      'Type or paste an absolute executable path' \
+      '← Back'
+  )
+
+  case "$executable" in
+    ''|'Type or paste an absolute executable path'|'← Back')
+      return 0
+      ;;
+    /*)
+      printf '%s\n' "$executable"
+      ;;
+    *)
+      printf 'warning: AppArmor executable path must be absolute: %s\n' \
+        "$executable" >&2
+      ;;
+  esac
+}
+
+run_confirmed_apparmor_profile_tool() {
+  profile_action=$1
+  confirmation_prompt=$2
+  shift 2
+
+  confirmation=$(
+    choose_lines \
+      "$confirmation_prompt" \
+      'Cancel' \
+      'Continue with AppArmor profile tool'
+  )
+  [ "$confirmation" = 'Continue with AppArmor profile tool' ] ||
+    return 0
+
+  run_security_action \
+    "$profile_action" \
+    "$@" \
+    confirmed-apparmor-profile-tool
+}
+
+set_apparmor_application_mode() {
+  application_key=$(choose_apparmor_application)
+  [ -n "$application_key" ] || return 0
+
+  mode_label=$(
+    choose_lines \
+      "AppArmor profile mode" \
+      'Enforce' \
+      'Complain' \
+      'Disable' \
+      '← Back'
+  )
+  case "$mode_label" in
+    Enforce) mode=enforce ;;
+    Complain) mode=complain ;;
+    Disable) mode=disable ;;
+    *) return 0 ;;
+  esac
+
+  confirmation=$(
+    choose_lines \
+      "Set ${application_key} and wrapper AppArmor profiles to ${mode}" \
+      'Cancel' \
+      'Continue with AppArmor mode change'
+  )
+  [ "$confirmation" = 'Continue with AppArmor mode change' ] || return 0
+
+  run_security_action \
+    set-apparmor-application-mode \
+    "$application_key" \
+    "$mode" \
+    confirmed-apparmor-mode-change
+}
+
+set_all_apparmor_desktop_profiles_mode() {
+  requested_mode=$1
+  case "$requested_mode" in
+    enforce|complain|disable) ;;
+    *) fatal "unsupported AppArmor desktop profile mode: $requested_mode" ;;
+  esac
+
+  confirmation=$(
+    choose_lines \
+      "Set every managed application and wrapper AppArmor profile to ${requested_mode}" \
+      'Cancel' \
+      'Continue with all-profile AppArmor mode change'
+  )
+  [ "$confirmation" = 'Continue with all-profile AppArmor mode change' ] ||
+    return 0
+
+  run_security_action \
+    set-apparmor-desktop-state \
+    "$requested_mode" \
+    confirmed-apparmor-desktop-state-change
+}
+
+set_apparmor_application_audit() {
+  application_key=$(choose_apparmor_application)
+  [ -n "$application_key" ] || return 0
+
+  audit_label=$(
+    choose_lines \
+      "AppArmor audit mode" \
+      'Enable Audit Mode' \
+      'Disable Audit Mode' \
+      '← Back'
+  )
+  case "$audit_label" in
+    'Enable Audit Mode') audit_mode=enable ;;
+    'Disable Audit Mode') audit_mode=disable ;;
+    *) return 0 ;;
+  esac
+
+  confirmation=$(
+    choose_lines \
+      "Set ${application_key} AppArmor audit mode to ${audit_mode}" \
+      'Cancel' \
+      'Continue with AppArmor audit change'
+  )
+  [ "$confirmation" = 'Continue with AppArmor audit change' ] || return 0
+
+  run_security_action \
+    set-apparmor-application-audit \
+    "$application_key" \
+    "$audit_mode" \
+    confirmed-apparmor-audit-change
+}
+
+generate_apparmor_rules() {
+  confirmation=$(
+    choose_lines \
+      "Generate validated local AppArmor rules from managed DENIED events" \
+      'Cancel' \
+      'Continue with AppArmor rule generation'
+  )
+  [ "$confirmation" = 'Continue with AppArmor rule generation' ] ||
+    return 0
+
+  run_security_action \
+    generate-apparmor-rules \
+    confirmed-apparmor-rule-generation
+}
+
+apparmor_status_audit_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "AppArmor — Status & Events" \
+        'AppArmor Status' \
+        'Kernel Enablement' \
+        'Unconfined Network Processes' \
+        'Features ABI' \
+        'Complain Events (24h)' \
+        'Denied Events (24h)' \
+        '← Back'
+    )
+
+    case "$action" in
+      'AppArmor Status')
+        run_security_action apparmor-status
+        ;;
+      'Kernel Enablement')
+        run_security_action apparmor-enabled
+        ;;
+      'Unconfined Network Processes')
+        run_security_action apparmor-unconfined
+        ;;
+      'Features ABI')
+        run_security_action apparmor-features-abi
+        ;;
+      'Complain Events (24h)')
+        run_security_action audit-apparmor-complain
+        ;;
+      'Denied Events (24h)')
+        run_security_action audit-apparmor-denied
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+apparmor_profile_generation_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "AppArmor — Profile Drafts" \
+        'Easyprof Draft' \
+        'Autodep Base Draft' \
+        'Logprof Draft Update' \
+        'Genprof Interactive Draft' \
+        'List Drafts' \
+        'Validate Drafts' \
+        'Activate Selected Draft' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Easyprof Draft')
+        apparmor_executable=$(choose_apparmor_executable)
+        [ -n "$apparmor_executable" ] &&
+          run_confirmed_apparmor_profile_tool \
+            aa-easyprof \
+            "Generate an easyprof draft for ${apparmor_executable}" \
+            "$apparmor_executable"
+        ;;
+      'Autodep Base Draft')
+        apparmor_executable=$(choose_apparmor_executable)
+        [ -n "$apparmor_executable" ] &&
+          run_confirmed_apparmor_profile_tool \
+            aa-autodep \
+            "Generate an autodep draft for ${apparmor_executable}" \
+            "$apparmor_executable"
+        ;;
+      'Logprof Draft Update')
+        run_confirmed_apparmor_profile_tool \
+          aa-logprof \
+          "Generate draft updates from /var/log/managed/apparmor/apparmor.log"
+        ;;
+      'Genprof Interactive Draft')
+        apparmor_executable=$(choose_apparmor_executable)
+        [ -n "$apparmor_executable" ] &&
+          run_confirmed_apparmor_profile_tool \
+            aa-genprof \
+            "Interactively generate a draft for ${apparmor_executable}" \
+            "$apparmor_executable"
+        ;;
+      'List Drafts')
+        run_security_action apparmor-list-drafts
+        ;;
+      'Validate Drafts')
+        run_security_action apparmor-validate-drafts
+        ;;
+      'Activate Selected Draft')
+        selected_draft=$(choose_apparmor_draft)
+        [ -n "$selected_draft" ] || continue
+        case "$selected_draft" in
+          easyprof/*)
+            draft_origin=easyprof
+            draft_name=${selected_draft#easyprof/}
+            ;;
+          drafts/*)
+            draft_origin=drafts
+            draft_name=${selected_draft#drafts/}
+            ;;
+          *)
+            printf 'warning: invalid AppArmor draft selection: %s\n' \
+              "$selected_draft" >&2
+            continue
+            ;;
+        esac
+        confirmation=$(
+          choose_lines \
+            "Validate and activate ${selected_draft}; existing profiles are backed up first" \
+            'Cancel' \
+            'Continue with AppArmor draft activation'
+        )
+        [ "$confirmation" = 'Continue with AppArmor draft activation' ] &&
+          run_security_action \
+            apparmor-activate-draft \
+            "$draft_origin" \
+            "$draft_name" \
+            confirmed-apparmor-draft-activation
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+apparmor_managed_modes_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "AppArmor — App Modes" \
+        'Show App Modes' \
+        'Generate New Rules' \
+        'Enforce All' \
+        'Complain All' \
+        'Disable All' \
+        'Set App Mode' \
+        'Set App Audit Logging' \
+        'Reload Modes & Clear Audit' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Show App Modes')
+        run_security_action apparmor-managed-application-modes
+        ;;
+      'Generate New Rules')
+        generate_apparmor_rules
+        ;;
+      'Enforce All')
+        set_all_apparmor_desktop_profiles_mode enforce
+        ;;
+      'Complain All')
+        set_all_apparmor_desktop_profiles_mode complain
+        ;;
+      'Disable All')
+        set_all_apparmor_desktop_profiles_mode disable
+        ;;
+      'Set App Mode')
+        set_apparmor_application_mode
+        ;;
+      'Set App Audit Logging')
+        set_apparmor_application_audit
+        ;;
+      'Reload Modes & Clear Audit')
+        confirmation=$(
+          choose_lines \
+            "Reload modes and clear temporary audit flags" \
+            'Cancel' \
+            'Continue with AppArmor reload'
+        )
+        [ "$confirmation" = 'Continue with AppArmor reload' ] &&
+          run_security_action \
+            reload-apparmor-managed-modes \
+            confirmed-apparmor-reload
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+apparmor_policy_maintenance_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "AppArmor — Policy Tools" \
+        'Disabled Profiles' \
+        'Preview Unknown Cleanup' \
+        'Reload AppArmor Service' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Disabled Profiles')
+        run_security_action apparmor-list-disabled-profiles
+        ;;
+      'Preview Unknown Cleanup')
+        run_security_action aa-remove-unknown-dry-run
+        ;;
+      'Reload AppArmor Service')
+        confirmation=$(
+          choose_lines \
+            "Reload every installed AppArmor profile" \
+            'Cancel' \
+            'Continue with AppArmor service reload'
+        )
+        [ "$confirmation" = 'Continue with AppArmor service reload' ] &&
+          run_security_action \
+            reload-apparmor-service \
+            confirmed-apparmor-service-reload
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+apparmor_management_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Endpoint Security — AppArmor" \
+        '⮞ Status & Events' \
+        '⮞ Profile Drafts' \
+        '⮞ App Modes' \
+        '⮞ Policy Tools' \
+        '← Back'
+    )
+
+    case "$action" in
+      '⮞ Status & Events')
+        apparmor_status_audit_menu
+        ;;
+      '⮞ Profile Drafts')
+        apparmor_profile_generation_menu
+        ;;
+      '⮞ App Modes')
+        apparmor_managed_modes_menu
+        ;;
+      '⮞ Policy Tools')
+        apparmor_policy_maintenance_menu
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+endpoint_security_menu() {
+  while :; do
+    security_category=$(
+      choose_lines \
+        "Endpoint Security" \
+        '⮞ Security Auditing' \
+        '⮞ Malware & Rootkit Scanning' \
+        '⮞ Vulnerability & Integrity' \
+        '⮞ AppArmor' \
+        '⮞ Firewall Security' \
+        '← Back'
+    )
+
+    case "$security_category" in
+      '⮞ Security Auditing')
+        security_auditing_menu
+        ;;
+      '⮞ Malware & Rootkit Scanning')
+        malware_scanning_menu
+        ;;
+      '⮞ Vulnerability & Integrity')
+        vulnerability_integrity_menu
+        ;;
+      '⮞ AppArmor')
+        apparmor_management_menu
+        ;;
+      '⮞ Firewall Security')
+        run_firewall_menu
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+command -v labwc-fuzzel >/dev/null 2>&1 || fatal "labwc-fuzzel is not installed"
+command -v systemctl >/dev/null 2>&1 || fatal "systemctl is not installed"
+command -v ip >/dev/null 2>&1 || fatal "ip is not installed"
+
+if [ "$(id -u)" -eq 0 ]; then
+  fatal "labwc-maintenance-menu must run as the logged-in desktop user"
+fi
+
+requested_category=${1:-}
+case "$requested_category" in
+  ''|security|system|recovery) ;;
+  *) fatal "unsupported maintenance category: $requested_category" ;;
+esac
+
+while :; do
+  case "$requested_category" in
+    security)
+      category='⮞ Endpoint Security'
+      ;;
+    system) category='⮞ System' ;;
+    recovery) category='⮞ Troubleshooting' ;;
+    '')
+      category=$(
+        choose_lines \
+          Maintenance \
+          '⮞ Endpoint Security' \
+          '⮞ System' \
+          '⮞ Troubleshooting'
+      )
+      ;;
+  esac
+
+  case "$category" in
+    '⮞ Endpoint Security')
+      endpoint_security_menu
+      ;;
+    '⮞ System')
+      while :; do
+        action=$(
+          choose_lines \
+            System \
+            'Show System Overview' \
+            'Show Failed Services' \
+            'Show Boot Performance' \
+            'Show Recent System Errors' \
+            'Show Kernel Warnings' \
+            'Show Storage Overview' \
+            'Manage External Drives' \
+            'Show Memory and Swap' \
+            'Show Network Overview' \
+            'Check Package Health' \
+            'List Pending Upgrades' \
+            'Inspect Service and Logs' \
+            'List Firmware-Capable Devices' \
+            'Refresh Firmware Metadata' \
+            'Check Firmware Updates' \
+            'Apply Firmware Updates' \
+            'Show Upgradeable Packages' \
+            'Run Unattended Upgrades Now' \
+            'Show NVMe SMART Health' \
+            'Show NVMe Firmware Slots' \
+            'Show NVMe Identify Data' \
+            'Show NVMe SMART via smartctl' \
+            'Show Btrfs Usage' \
+            'Show Btrfs DF Summary' \
+            'Show Last Btrfs Scrub Status' \
+            'Show Journal Disk Usage' \
+            'Rotate and Vacuum Journals by Time' \
+            'Rotate and Vacuum Journals by Size' \
+            'Top Disk Usage in Root' \
+            'Top Disk Usage in Home' \
+            'Show Failed System Units' \
+            'Show Failed User Units' \
+            'Show Timers' \
+            'Show PipeWire Status' \
+            'Show WirePlumber Status' \
+            'Restart PipeWire' \
+            'Restart WirePlumber' \
+            'Flush DNS Cache' \
+            'Reset Resolver Server Features' \
+            'Show Resolver Statistics' \
+            'Test Mako Notification' \
+            'Refresh Waybar Custom Module' \
+            '← Back'
+        )
+
+        case "$action" in
+          'Show System Overview')
+            run_system_action system-overview
+            ;;
+          'Show Failed Services')
+            run_system_action failed-services
+            ;;
+          'Show Boot Performance')
+            run_system_action boot-performance
+            ;;
+          'Show Recent System Errors')
+            run_system_action recent-errors
+            ;;
+          'Show Kernel Warnings')
+            run_system_action kernel-warnings
+            ;;
+          'Show Storage Overview')
+            run_system_action storage-overview
+            ;;
+          'Manage External Drives')
+            run_external_drive_manager
+            ;;
+          'Show Memory and Swap')
+            run_system_action memory-overview
+            ;;
+          'Show Network Overview')
+            run_system_action network-overview
+            ;;
+          'Check Package Health')
+            run_system_action package-health
+            ;;
+          'List Pending Upgrades')
+            run_system_action pending-upgrades
+            ;;
+          'Inspect Service and Logs')
+            service=$(choose_service)
+            [ -n "$service" ] && run_system_action inspect-service "$service"
+            ;;
+          'List Firmware-Capable Devices')
+            run_system_action firmware-devices
+            ;;
+          'Refresh Firmware Metadata')
+            run_system_action refresh-firmware-metadata
+            ;;
+          'Check Firmware Updates')
+            run_system_action firmware-updates
+            ;;
+          'Apply Firmware Updates')
+            run_confirmed_system_action \
+              apply-firmware-updates \
+              "Apply available firmware updates"
+            ;;
+          'Show Upgradeable Packages')
+            run_system_action upgradeable-packages
+            ;;
+          'Run Unattended Upgrades Now')
+            run_confirmed_system_action \
+              run-unattended-upgrades \
+              "Run unattended upgrades now"
+            ;;
+          'Show NVMe SMART Health')
+            nvme_device=$(choose_nvme_controller)
+            [ -n "$nvme_device" ] &&
+              run_system_action nvme-smart-health "$nvme_device"
+            ;;
+          'Show NVMe Firmware Slots')
+            nvme_device=$(choose_nvme_controller)
+            [ -n "$nvme_device" ] &&
+              run_system_action nvme-firmware-slots "$nvme_device"
+            ;;
+          'Show NVMe Identify Data')
+            nvme_device=$(choose_nvme_controller)
+            [ -n "$nvme_device" ] &&
+              run_system_action nvme-identify-data "$nvme_device"
+            ;;
+          'Show NVMe SMART via smartctl')
+            nvme_device=$(choose_nvme_controller)
+            [ -n "$nvme_device" ] &&
+              run_system_action nvme-smartctl "$nvme_device"
+            ;;
+          'Show Btrfs Usage')
+            run_system_action btrfs-usage
+            ;;
+          'Show Btrfs DF Summary')
+            run_system_action btrfs-df
+            ;;
+          'Show Last Btrfs Scrub Status')
+            run_system_action btrfs-scrub-status
+            ;;
+          'Show Journal Disk Usage')
+            run_system_action journal-disk-usage
+            ;;
+          'Rotate and Vacuum Journals by Time')
+            retention=$(choose_journal_vacuum_time)
+            [ -n "$retention" ] &&
+              run_confirmed_system_action \
+                journal-vacuum-time \
+                "Rotate journals and retain ${retention}" \
+                "$retention"
+            ;;
+          'Rotate and Vacuum Journals by Size')
+            retention=$(choose_journal_vacuum_size)
+            [ -n "$retention" ] &&
+              run_confirmed_system_action \
+                journal-vacuum-size \
+                "Rotate journals and cap usage at ${retention}" \
+                "$retention"
+            ;;
+          'Top Disk Usage in Root')
+            run_system_action top-disk-root
+            ;;
+          'Top Disk Usage in Home')
+            run_system_action top-disk-home
+            ;;
+          'Show Failed System Units')
+            run_system_action failed-system-units
+            ;;
+          'Show Failed User Units')
+            run_system_action failed-user-units
+            ;;
+          'Show Timers')
+            run_system_action show-timers
+            ;;
+          'Show PipeWire Status')
+            run_system_action pipewire-status
+            ;;
+          'Show WirePlumber Status')
+            run_system_action wireplumber-status
+            ;;
+          'Restart PipeWire')
+            run_confirmed_system_action restart-pipewire "Restart PipeWire services"
+            ;;
+          'Restart WirePlumber')
+            run_confirmed_system_action restart-wireplumber "Restart WirePlumber"
+            ;;
+          'Flush DNS Cache')
+            run_system_action flush-dns-cache
+            ;;
+          'Reset Resolver Server Features')
+            run_system_action reset-resolver-features
+            ;;
+          'Show Resolver Statistics')
+            run_system_action resolver-statistics
+            ;;
+          'Test Mako Notification')
+            run_system_action test-mako-notification
+            ;;
+          'Refresh Waybar Custom Module')
+            run_system_action refresh-waybar-custom-module
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '⮞ Troubleshooting')
+      while :; do
+        action=$(
+          choose_lines \
+            Troubleshooting \
+            'Restart Waybar' \
+            'Restart Audio Services' \
+            'Restart Desktop Portals' \
+            'Refresh Display Configuration' \
+            'Reset Failed System Units' \
+            'Restart NetworkManager' \
+            'Restart Bluetooth Service' \
+            'Restart UDisks Service' \
+            'Restart Polkit Service' \
+            'Refresh Package Index' \
+            'Complete Interrupted Package Configuration' \
+            'Repair Package Dependencies' \
+            'Rebuild Initramfs' \
+            'Refresh GRUB Configuration' \
+            'Create Timeshift Recovery Snapshot' \
+            'Drop Page Cache Only' \
+            'Drop Dentries and Inodes' \
+            'Drop All Clean Caches' \
+            'Reset zram Swap' \
+            'Aggressive Journal Vacuum' \
+            'Emergency Btrfs Unused-Chunk Reclaim' \
+            '← Back'
+        )
+
+        case "$action" in
+          'Restart Waybar')
+            run_recovery_action restart-waybar
+            ;;
+          'Restart Audio Services')
+            run_recovery_action restart-audio
+            ;;
+          'Restart Desktop Portals')
+            run_recovery_action restart-portals
+            ;;
+          'Refresh Display Configuration')
+            run_recovery_action refresh-displays
+            ;;
+          'Reset Failed System Units')
+            run_confirmed_recovery_action reset-failed-units "Reset failed units"
+            ;;
+          'Restart NetworkManager')
+            run_confirmed_recovery_action restart-networkmanager "Restart NetworkManager"
+            ;;
+          'Restart Bluetooth Service')
+            run_confirmed_recovery_action restart-bluetooth "Restart Bluetooth"
+            ;;
+          'Restart UDisks Service')
+            run_confirmed_recovery_action restart-udisks "Restart UDisks"
+            ;;
+          'Restart Polkit Service')
+            run_confirmed_recovery_action restart-polkit "Restart Polkit"
+            ;;
+          'Refresh Package Index')
+            run_confirmed_recovery_action refresh-package-index "Refresh package index"
+            ;;
+          'Complete Interrupted Package Configuration')
+            run_confirmed_recovery_action repair-dpkg "Complete dpkg configuration"
+            ;;
+          'Repair Package Dependencies')
+            run_confirmed_recovery_action repair-apt "Repair package dependencies"
+            ;;
+          'Rebuild Initramfs')
+            run_confirmed_recovery_action rebuild-initramfs "Rebuild all initramfs images"
+            ;;
+          'Refresh GRUB Configuration')
+            run_confirmed_recovery_action refresh-grub "Refresh GRUB configuration"
+            ;;
+          'Create Timeshift Recovery Snapshot')
+            run_confirmed_recovery_action create-timeshift-snapshot "Create Timeshift recovery snapshot"
+            ;;
+          'Drop Page Cache Only')
+            run_confirmed_recovery_action drop-page-cache "Drop clean page cache after sync"
+            ;;
+          'Drop Dentries and Inodes')
+            run_confirmed_recovery_action drop-dentries-inodes "Drop clean dentries and inode caches after sync"
+            ;;
+          'Drop All Clean Caches')
+            run_confirmed_recovery_action drop-all-clean-caches "Drop all clean filesystem caches after sync"
+            ;;
+          'Reset zram Swap')
+            run_confirmed_recovery_action reset-zram-swap "Restart the managed zram swap lifecycle"
+            ;;
+          'Aggressive Journal Vacuum')
+            run_confirmed_recovery_action aggressive-journal-vacuum "Rotate journals and retain only 3 days"
+            ;;
+          'Emergency Btrfs Unused-Chunk Reclaim')
+            run_confirmed_recovery_action emergency-btrfs-reclaim "Reclaim completely unused Btrfs chunks"
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '')
+      exit 0
+      ;;
+  esac
+
+  [ -z "$requested_category" ] || exit 0
+done

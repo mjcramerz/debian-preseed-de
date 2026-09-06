@@ -1,0 +1,42 @@
+# Managed by unattended-installer.
+#
+# This file is rendered during the desktop late-command. Xarchiver treats
+# preferred_temp_dir as a literal path, so the validated primary account name
+# must be substituted before the file is installed.
+[xarchiver]
+preferred_format=0
+prefer_unzip=true
+confirm_deletion=true
+sort_filename_content=false
+advanced_isearch=true
+auto_expand=true
+store_output=false
+icon_size=2
+show_archive_comment=false
+show_sidebar=true
+show_location_bar=true
+show_toolbar=true
+preferred_web_browser=xdg-open
+preferred_editor=featherpad
+preferred_viewer=qimgv
+preferred_archiver=xarchiver
+preferred_custom_cmd=
+preferred_temp_dir=/pool/cache/__INSTALLER_ACCOUNT_USERNAME__/tmp
+preferred_extract_dir=__INSTALLER_ACCOUNT_HOME__/Downloads
+allow_sub_dir=false
+extended_dnd=true
+mainwindow=64;64;1200;800;280;
+extract=720;520;
+add=720;520;
+ensure_directory=true
+overwrite=false
+full_path=2
+touch=false
+fresh=false
+update=false
+store_path=false
+updadd=true
+freshen=false
+recurse=true
+solid_archive=false
+remove_files=false

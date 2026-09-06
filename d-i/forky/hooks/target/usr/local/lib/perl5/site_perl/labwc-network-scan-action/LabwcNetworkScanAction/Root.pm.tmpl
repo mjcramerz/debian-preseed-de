@@ -1,0 +1,326 @@
+package LabwcNetworkScanAction::Root;
+
+use strict;
+use warnings;
+
+use File::Spec;
+use Moo;
+use MooX::StrictConstructor;
+use MooX::TypeTiny;
+use Types::Standard qw(Str);
+
+use LabwcNetworkScanAction::Command;
+use LabwcNetworkScanAction::Validation;
+
+has approved_tcp_ports => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub {
+        '20-23:25:53:80:88:110-111:119:135:139:143:179:389:443:445:465:514-515:554:587:631:636:853:873:989-990:993:995:1080:1194:1433:1521:1723:1883:2049:2181:2375-2380:2483-2484:3000:3100:3128:3260:3300:3306:3389:3690:4369:4646-4648:5000:5060-5061:5432:5671-5672:5900:5984-5986:6379:6443:6514:6667:6789:6800-6810:7001-7002:7199:7474:7687:8000:8008:8080-8081:8086:8088:8200:8300-8302:8443:8500:8600:8883:8888:9000-9001:9042:9090:9092-9093:9100:9200:9300:9418:9443:10250:10257:10259:11211:15672:27017-27019:28017:32400:35000:50309';
+    },
+);
+
+has approved_udp_ports => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub {
+        '53:67-69:88:111:123:137-138:161-162:500:514:520:546-547:1194:1701:1812-1813:1900:3478:4500:5060-5061:5353:5355:41641:51820';
+    },
+);
+
+has command => (
+    is      => 'ro',
+    default => sub {
+        LabwcNetworkScanAction::Command->new(
+            path => '/usr/sbin:/usr/bin:/sbin:/bin',
+        );
+    },
+);
+
+has managed_capture_user => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '__INSTALLER_ACCOUNT_USERNAME__' },
+);
+
+has nmap_script_root => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '/usr/local/share/nmap/scripts' },
+);
+
+has validator => (
+    is      => 'ro',
+    default => sub { LabwcNetworkScanAction::Validation->new() },
+);
+
+sub _fatal {
+    my ($self, $message) = @_;
+
+    $message = 'privileged network scan action failed' if !defined($message) || $message eq q{};
+    $message =~ s/[\r\n]+\z//;
+    print STDERR "fatal: $message\n";
+    return 1;
+}
+
+sub _trim {
+    my ($value) = @_;
+
+    $value //= q{};
+    $value =~ s/\A\s+//;
+    $value =~ s/\s+\z//;
+    return $value;
+}
+
+sub _require_managed_pkexec_invoker {
+    my ($self) = @_;
+
+    my $uid = $ENV{PKEXEC_UID} // q{};
+    $uid =~ /\A[1-9][0-9]*\z/
+        or die "privileged network helper must be invoked through pkexec\n";
+    my $getent = $self->command()->require_executable('getent');
+    my ($status, $record) = $self->command()->capture(
+        argv => [$getent, 'passwd', $uid],
+    );
+    $status == 0 && _trim($record) ne q{}
+        or die "unable to resolve pkexec invoking account\n";
+    my ($name) = split /:/, _trim($record), 2;
+    defined($name) && $name eq $self->managed_capture_user()
+        or die "network capture privileges are restricted to the managed desktop account\n";
+    return;
+}
+
+sub _require_nmap_script {
+    my ($self, $name) = @_;
+
+    defined($name) && $name =~ /\A[A-Za-z0-9._-]+[.]nse\z/
+        or die "invalid managed Nmap script name\n";
+    my $path = File::Spec->catfile($self->nmap_script_root(), $name);
+    -r $path
+        or die "managed Nmap script is missing: $name\n";
+    return $path;
+}
+
+sub _run_bounded_nmap {
+    my ($self, $rate, $duration, @nmap_args) = @_;
+
+    my $timeout = $self->command()->require_executable('timeout');
+    my $nmap = $self->command()->require_executable('nmap');
+    $self->command()->exec(
+        $timeout,
+        '--signal=INT',
+        '--kill-after=10s',
+        $duration,
+        $nmap,
+        '-n',
+        '--max-rate', $rate,
+        @nmap_args,
+    );
+}
+
+sub _require_single_host_target {
+    my ($self, $target) = @_;
+
+    $target !~ m{/} || $target =~ m{/32\z}
+        or die "full TCP scans require one IPv4 host, not a network: $target\n";
+    return;
+}
+
+sub _run_nmap_action {
+    my ($self, $action, $target, $scope) = @_;
+
+    $target = $self->validator()->nmap_target($target, $scope);
+    my $rate = $scope eq 'private-scan' ? '250' : '100';
+
+    if ($action eq 'nmap-discovery') {
+        $self->_run_bounded_nmap($rate, '5m',
+            '-sn', '-T3', '--max-retries', '2', '--host-timeout', '2m',
+            '--stats-every', '15s', '--reason', $target,
+        );
+    }
+    if ($action eq 'nmap-inventory') {
+        my $script = $self->_require_nmap_script('managed-service-inventory.nse');
+        $self->_run_bounded_nmap($rate, '20m',
+            '-sS', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
+            '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
+            '--stats-every', '30s', '--reason', '--script', $script, $target,
+        );
+    }
+    if ($action eq 'nmap-approved-services') {
+        my $script = $self->_require_nmap_script('managed-approved-services.nse');
+        $self->_run_bounded_nmap($rate, '25m',
+            '-sS', '-sU', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
+            '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
+            '--stats-every', '30s', '--reason', '--script', $script,
+            '--script-args', 'managed_approved_services.tcp=' . $self->approved_tcp_ports() . ',managed_approved_services.udp=' . $self->approved_udp_ports(),
+            $target,
+        );
+    }
+    if ($action eq 'nmap-tls-settings') {
+        my $policy = $self->_require_nmap_script('managed-tls-service-policy.nse');
+        $self->_run_bounded_nmap($rate, '15m',
+            '-sS', '-sV', '--version-light', '-T3', '-p', '443,465,636,853,993,995,8443',
+            '--open', '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '3m',
+            '--reason', '--script', "ssl-cert,ssl-enum-ciphers,$policy", $target,
+        );
+    }
+    if ($action eq 'nmap-http-headers') {
+        my $policy = $self->_require_nmap_script('managed-http-security-headers.nse');
+        $self->_run_bounded_nmap($rate, '15m',
+            '-sS', '-sV', '--version-light', '-T3', '-p', '80,443,8000,8080,8443',
+            '--open', '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
+            '--reason', '--script', "http-title,http-headers,$policy", $target,
+        );
+    }
+    if ($action eq 'nmap-compliance') {
+        my @scripts = map { $self->_require_nmap_script($_) } qw(
+          managed-admin-surface-policy.nse
+          managed-approved-services.nse
+          managed-database-exposure-policy.nse
+          managed-http-security-headers.nse
+          managed-name-resolution-policy.nse
+          managed-plaintext-service-policy.nse
+          managed-service-inventory.nse
+          managed-tls-service-policy.nse
+        );
+        $self->_run_bounded_nmap($rate, '30m',
+            '-sS', '-sU', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
+            '--max-retries', '2', '--host-timeout', '12m', '--script-timeout', '2m',
+            '--stats-every', '30s', '--reason', '--script', join(q{,}, @scripts),
+            '--script-args', 'managed_approved_services.tcp=' . $self->approved_tcp_ports() . ',managed_approved_services.udp=' . $self->approved_udp_ports(),
+            $target,
+        );
+    }
+    if ($action eq 'nmap-ssh-settings') {
+        $self->_run_bounded_nmap($rate, '10m',
+            '-sS', '-sV', '-T3', '-p', '22', '--open', '--max-retries', '2',
+            '--host-timeout', '5m', '--script-timeout', '2m', '--reason',
+            '--script', 'ssh2-enum-algos,ssh-hostkey', $target,
+        );
+    }
+    if ($action eq 'nmap-smb-settings') {
+        $self->_run_bounded_nmap($rate, '10m',
+            '-sS', '-sV', '-T3', '-p', '139,445', '--open', '--max-retries', '2',
+            '--host-timeout', '5m', '--script-timeout', '2m', '--reason',
+            '--script', 'smb-protocols,smb2-security-mode,smb2-time', $target,
+        );
+    }
+    if ($action eq 'nmap-dns-settings') {
+        $self->_run_bounded_nmap($rate, '10m',
+            '-sU', '-sV', '-T3', '-p', '53', '--open', '--max-retries', '2',
+            '--host-timeout', '5m', '--script-timeout', '2m', '--reason',
+            '--script', 'dns-recursion,dns-nsid', $target,
+        );
+    }
+    if ($action eq 'nmap-common-ports') {
+        $self->_run_bounded_nmap($rate, '20m',
+            '-sS', '-sU', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
+            '--max-retries', '2', '--host-timeout', '10m', '--stats-every', '30s',
+            '--reason', $target,
+        );
+    }
+    if ($action eq 'nmap-full-tcp') {
+        $self->_require_single_host_target($target);
+        $self->_run_bounded_nmap($rate, '25m',
+            '-sS', '-Pn', '-p-', '-T3', '--open', '--max-retries', '1',
+            '--host-timeout', '20m', '--stats-every', '30s', '--reason', $target,
+        );
+    }
+    die "unsupported privileged Nmap action: $action\n";
+}
+
+sub _validate_capture_interface {
+    my ($self, $interface) = @_;
+
+    $interface = $self->validator()->interface_name($interface);
+    return $interface if $interface eq 'any';
+    my $ip = $self->command()->require_executable('ip');
+    return $interface if $self->command()->run($ip, 'link', 'show', 'dev', $interface) == 0;
+
+    my $tcpdump = $self->command()->require_executable('tcpdump');
+    my ($status, $output) = $self->command()->capture(argv => [$tcpdump, '-D']);
+    $status == 0
+        or die "capture interface is unavailable: $interface\n";
+    for my $line (split /\n/, $output) {
+        return $interface if $line =~ /\A[0-9]+[.]([^\s]+)/ && $1 eq $interface;
+    }
+    die "capture interface is unavailable: $interface\n";
+}
+
+sub _run_tcpdump_action {
+    my ($self, $action, @args) = @_;
+
+    my $tcpdump = $self->command()->require_executable('tcpdump');
+    my $timeout = $self->command()->require_executable('timeout');
+    $self->command()->require_executable('ip');
+    if ($action eq 'tcpdump-list-interfaces') {
+        @args == 0 or die "$action does not accept an interface\n";
+        $self->command()->exec($tcpdump, '-D');
+    }
+
+    @args == 1 or die "$action requires one capture interface\n";
+    my $interface = $self->_validate_capture_interface($args[0]);
+    my @prefix = (
+        $timeout, '--preserve-status', '--signal=INT', '--kill-after=5s',
+        $action eq 'tcpdump-print-summary' ? '30s' : '60s',
+        $tcpdump, '-i', $interface, '-nn',
+    );
+    if ($action eq 'tcpdump-capture-general') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-');
+    }
+    if ($action eq 'tcpdump-capture-dns') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-', 'port', '53');
+    }
+    if ($action eq 'tcpdump-capture-dhcp') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-', 'port', '67', 'or', 'port', '68', 'or', 'port', '546', 'or', 'port', '547');
+    }
+    if ($action eq 'tcpdump-capture-icmp') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-', 'icmp', 'or', 'icmp6');
+    }
+    if ($action eq 'tcpdump-capture-arp') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-', 'arp');
+    }
+    if ($action eq 'tcpdump-capture-syn') {
+        $self->command()->exec(@prefix, '-s', '256', '-c', '20000', '-w', '-', 'tcp[tcpflags] & tcp-syn != 0');
+    }
+    if ($action eq 'tcpdump-print-summary') {
+        $self->command()->exec(@prefix, '-tttt', '-q', '-c', '500');
+    }
+    die "unsupported privileged tcpdump action: $action\n";
+}
+
+sub _dispatch {
+    my ($self, $action, @args) = @_;
+
+    if ($action eq 'show-listening-ports') {
+        @args == 0 or die "$action does not accept arguments\n";
+        my $ss = $self->command()->require_executable('ss');
+        $self->command()->exec($ss, '-tulpen');
+    }
+    if ($action =~ /\Anmap-/) {
+        @args == 2 or die "$action requires a target and scope authorization\n";
+        return $self->_run_nmap_action($action, @args);
+    }
+    if ($action =~ /\Atcpdump-/) {
+        return $self->_run_tcpdump_action($action, @args);
+    }
+    die "unsupported privileged network action: " . (defined($action) ? $action : 'unset') . "\n";
+}
+
+sub run {
+    my ($self, @argv) = @_;
+
+    return $self->_fatal('privileged network helper must run as root') if $> != 0;
+    my $status = eval {
+        local $ENV{PATH}   = '/usr/sbin:/usr/bin:/sbin:/bin';
+        local $ENV{LC_ALL} = 'C.UTF-8';
+        $self->_require_managed_pkexec_invoker();
+        @argv or die "usage: labwc-network-scan-action-root <action> [argument]\n";
+        my $action = shift @argv;
+        $self->_dispatch($action, @argv);
+    };
+    return $status if defined($status) && !$@;
+    return $self->_fatal($@ || 'privileged network scan action failed');
+}
+
+1;

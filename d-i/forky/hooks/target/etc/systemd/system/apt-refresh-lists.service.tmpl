@@ -1,0 +1,44 @@
+[Unit]
+Description=Refresh APT package lists after the apt lists mount is ready
+After=local-fs.target nss-lookup.target network-online.target NetworkManager-dispatcher.service
+Before=apt-daily.service apt-daily-upgrade.service
+Wants=nss-lookup.target network-online.target
+RequiresMountsFor=__INSTALLER_DIR_APT_LISTS__
+ConditionPathIsMountPoint=__INSTALLER_DIR_APT_LISTS__
+StartLimitIntervalSec=15min
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+# Three attempts per 15 minutes; ordinary apt timers remain the later retry path.
+Restart=on-failure
+RestartSec=60s
+Environment=DEBIAN_FRONTEND=noninteractive
+Environment=APT_LISTCHANGES_FRONTEND=none
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+ExecStart=/usr/bin/flock -w 5 /run/apt-refresh-lists.lock /usr/local/libexec/apt-refresh-lists
+TimeoutStartSec=__INSTALLER_APT_REFRESH_LISTS_TIMEOUT__
+RemainAfterExit=yes
+TimeoutStopSec=30s
+KillMode=control-group
+UMask=0077
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=true
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

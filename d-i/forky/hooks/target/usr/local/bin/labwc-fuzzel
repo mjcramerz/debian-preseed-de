@@ -1,0 +1,497 @@
+#!/bin/sh
+set -eu
+
+MENU_FAILURE_STATUS=2
+
+fatal() {
+  fatal_message=$*
+  fatal_log_scope=${managed_log_scope:-${LABWC_FUZZEL_LOG_SCOPE:-desktop}}
+  if [ -x /usr/local/bin/labwc-fuzzel-log ]; then
+    /usr/local/bin/labwc-fuzzel-log \
+      action \
+      launcher-failed \
+      "source=${fatal_log_scope}" \
+      "detail=${fatal_message}" \
+      "status=${MENU_FAILURE_STATUS}" || true
+  fi
+  printf 'fatal: %s\n' "$*" >&2
+  exit "$MENU_FAILURE_STATUS"
+}
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+command -v fuzzel >/dev/null 2>&1 || {
+  fatal 'fuzzel is not installed'
+}
+[ -x /usr/bin/flock ] || {
+  fatal '/usr/bin/flock is required to serialize Fuzzel launchers'
+}
+
+config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
+fuzzel_config_dir="${config_root}/fuzzel"
+mode=launcher
+managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
+managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
+managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
+menu_width_override=${LABWC_FUZZEL_MENU_WIDTH_OVERRIDE:-}
+menu_lines_override=${LABWC_FUZZEL_MENU_LINES_OVERRIDE:-}
+menu_font_size_override=${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}
+
+require_uint_range() {
+  setting_name=$1
+  setting_value=$2
+  minimum=$3
+  maximum=$4
+
+  case "$setting_value" in
+    ''|*[!0-9]*)
+      fatal "$setting_name must be an integer from $minimum to $maximum"
+      ;;
+  esac
+  if [ "$setting_value" -lt "$minimum" ] ||
+     [ "$setting_value" -gt "$maximum" ]; then
+    fatal "$setting_name must be an integer from $minimum to $maximum"
+  fi
+}
+
+case "$managed_icons" in
+  0|1) ;;
+  *)
+    fatal 'LABWC_FUZZEL_MANAGED_ICONS must be 0 or 1'
+    ;;
+esac
+case "$managed_root_menu" in
+  0|1) ;;
+  *)
+    fatal 'LABWC_FUZZEL_ROOT_MENU must be 0 or 1'
+    ;;
+esac
+case "$managed_log_scope" in
+  desktop|computer-management|android-debug-bridge) ;;
+  *) fatal 'LABWC_FUZZEL_LOG_SCOPE is invalid' ;;
+esac
+
+case "${1:-}" in
+  launcher|menu)
+    mode=$1
+    shift
+    ;;
+esac
+
+nul_delimited=false
+for arg in "$@"; do
+  case "$arg" in
+    --dmenu)
+      mode=menu
+      ;;
+    --dmenu0)
+      mode=menu
+      nul_delimited=true
+      ;;
+  esac
+done
+
+config_name=fuzzel.ini
+case "$mode" in
+  menu) config_name=menu.ini ;;
+esac
+
+have_config=false
+managed_prompt=
+expect_prompt_value=false
+for arg in "$@"; do
+  if [ "$expect_prompt_value" = true ]; then
+    managed_prompt=$arg
+    expect_prompt_value=false
+    continue
+  fi
+  case "$arg" in
+    --config|-c|--config=*) have_config=true ;;
+    --prompt) expect_prompt_value=true ;;
+    --prompt=*) managed_prompt=${arg#--prompt=} ;;
+  esac
+done
+
+if [ "$have_config" != true ] && [ -r "${fuzzel_config_dir}/${config_name}" ]; then
+  set -- "--config=${fuzzel_config_dir}/${config_name}" "$@"
+fi
+
+if [ "$mode" = menu ]; then
+  if [ -n "$menu_width_override" ]; then
+    require_uint_range LABWC_FUZZEL_MENU_WIDTH_OVERRIDE "$menu_width_override" 16 200
+    set -- "$@" "--width=${menu_width_override}"
+  fi
+  if [ -n "$menu_lines_override" ]; then
+    require_uint_range LABWC_FUZZEL_MENU_LINES_OVERRIDE "$menu_lines_override" 1 32
+    set -- "$@" "--lines=${menu_lines_override}"
+  fi
+  if [ -n "$menu_font_size_override" ]; then
+    require_uint_range LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE "$menu_font_size_override" 8 32
+    menu_font="Noto Sans:size=${menu_font_size_override},Noto Color Emoji:size=${menu_font_size_override},Font Awesome 6 Free:size=${menu_font_size_override}"
+    set -- "$@" "--font=${menu_font}"
+  fi
+fi
+
+runtime_root=${XDG_RUNTIME_DIR:-}
+case "$runtime_root" in
+  /*) ;;
+  *)
+    fatal 'XDG_RUNTIME_DIR must name an absolute Fuzzel runtime directory'
+    ;;
+esac
+[ -d "$runtime_root" ] && [ -w "$runtime_root" ] || {
+  fatal "Fuzzel runtime directory is unavailable: $runtime_root"
+}
+
+lock_path="${runtime_root%/}/labwc-fuzzel.lock"
+pid_path="${runtime_root%/}/labwc-fuzzel.pid"
+exec 8>"$lock_path"
+if ! /usr/bin/flock -w 5 8; then
+  fatal 'unable to acquire the Fuzzel launcher lock within five seconds'
+fi
+
+fuzzel_pid=
+managed_dir=
+raw_choices=
+display_choices=
+selection_file=
+first_selection=
+
+cleanup() {
+  if [ -n "$fuzzel_pid" ]; then
+    kill -TERM "$fuzzel_pid" >/dev/null 2>&1 || true
+  fi
+  rm -f -- "$pid_path"
+  if [ -n "$managed_dir" ]; then
+    rm -f -- "$raw_choices" "$display_choices" "$selection_file" "$first_selection"
+    rmdir -- "$managed_dir" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT HUP INT TERM
+
+run_fuzzel() {
+  exec 7<&0
+  fuzzel "$@" <&7 >&1 2>&2 8>&- &
+  fuzzel_pid=$!
+  exec 7<&-
+  printf '%s\n' "$fuzzel_pid" >"$pid_path"
+  if wait "$fuzzel_pid"; then
+    fuzzel_status=0
+  else
+    fuzzel_status=$?
+  fi
+  fuzzel_pid=
+  rm -f -- "$pid_path"
+  return "$fuzzel_status"
+}
+
+log_managed_menu_selection() {
+  selection_kind=$1
+  selection_value=$2
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  case "$selection_value" in
+    '⮞ '*) selection_value=${selection_value#'⮞ '} ;;
+    ' '*) selection_value=${selection_value#' '} ;;
+  esac
+  if ! /usr/local/bin/labwc-fuzzel-log \
+      menu \
+      selected \
+      "source=$managed_log_scope" \
+      "kind=$selection_kind" \
+      "selection=$selection_value" \
+      >/dev/null
+  then
+    :
+  fi
+}
+
+log_fuzzel_lifecycle() {
+  lifecycle_kind=$1
+  lifecycle_event=$2
+  lifecycle_status=$3
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  /usr/local/bin/labwc-fuzzel-log \
+    "$lifecycle_kind" \
+    "$lifecycle_event" \
+    "source=$managed_log_scope" \
+    "mode=$mode" \
+    "status=$lifecycle_status" \
+    >/dev/null || true
+}
+
+if [ "$mode" != menu ] ||
+   [ "$managed_icons" != 1 ] ||
+   [ "$nul_delimited" = true ]; then
+  case "$mode" in
+    menu) lifecycle_kind=menu ;;
+    *) lifecycle_kind=action ;;
+  esac
+  log_fuzzel_lifecycle "$lifecycle_kind" opened 0
+  if run_fuzzel "$@"; then
+    fuzzel_status=0
+  else
+    fuzzel_status=$?
+  fi
+  log_fuzzel_lifecycle "$lifecycle_kind" completed "$fuzzel_status"
+  exit "$fuzzel_status"
+fi
+
+umask 077
+managed_dir=$(mktemp -d "${runtime_root%/}/labwc-fuzzel-menu.XXXXXX") || {
+  fatal 'unable to create managed Fuzzel runtime directory'
+}
+raw_choices="${managed_dir}/raw"
+display_choices="${managed_dir}/display"
+selection_file="${managed_dir}/selection"
+first_selection="${managed_dir}/selection.first"
+
+if ! LC_ALL=C awk '
+  {
+    input_bytes += length($0) + 1
+    if (NR > 1024 || length($0) > 4096 || input_bytes > 1048576) {
+      exit 1
+    }
+    print
+  }
+' >"$raw_choices"; then
+  fatal 'managed Fuzzel input exceeds the menu bounds'
+fi
+
+awk -v root_menu="$managed_root_menu" -v menu_prompt="$managed_prompt" '
+function icon_for(label) {
+  if (label == "New Coding Session" ||
+      label == "Resume Last Session" ||
+      label == "Implement Task…" ||
+      label == "Ask Llama…" ||
+      label == "New Chat" ||
+      label == "Resume Last Chat" ||
+      label == "Change Model…" ||
+      label == "Download New Model…" ||
+      label == "Push-to-Talk" ||
+      label == "Toggle Dictation" ||
+      label == "Transcribe File…" ||
+      label == "Transcribe Last Recording" ||
+      label == "Live Captions" ||
+      label == "Voice Note") return "★"
+  if (label == "Open Podbin Guide" || label == "Show FreeRDP Help") return ""
+  if (label == "AppArmor Status") return ""
+  if (label == "Kernel Enablement" ||
+      label == "Validate Drafts" ||
+      label == "Activate Selected Draft") return ""
+  if (label == "Features ABI") return ""
+  if (label == "Complain Events (24h)") return ""
+  if (label == "Denied Events (24h)") return ""
+  if (label == "Easyprof Draft" ||
+      label == "Autodep Base Draft" ||
+      label == "Logprof Draft Update" ||
+      label == "Genprof Interactive Draft") return ""
+  if (label == "List Drafts") return ""
+  if (label == "Show App Modes" || label == "Set App Mode") return ""
+  if (label == "Generate New Rules") return ""
+  if (label == "Enforce All") return ""
+  if (label == "Complain All") return ""
+  if (label == "Disable All" || label == "Disabled Profiles") return ""
+  if (label == "Set App Audit Logging") return ""
+  if (label == "Preview Unknown Cleanup") return ""
+  if (label == "List Managed Users") return ""
+  if (label == "Show User Environment" || label == "Show Service Environment") return ""
+  if (label == "List Service Networks") return ""
+  if (label == "Show Service Statistics") return ""
+  if (label == "Show Recent Service Logs") return ""
+  if (label == "Aggressive Journal Vacuum") return ""
+  if (label ~ /^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$/) return ""
+  if (label == "Finish selection") return ""
+  if (menu_prompt == "Digital Assets") {
+    if (label == "DOCX Actions" ||
+        label == "PDF Actions" ||
+        label == "Image Actions") return "⮞"
+  }
+  if (menu_prompt == "DOCX Actions") {
+    if (label == "Convert DOCX to PDF") return ""
+    if (label == "Convert DOCX to Markdown") return ""
+    if (label == "Convert DOCX to Plain Text") return ""
+    if (label == "Convert DOCX to HTML") return ""
+  }
+  if (menu_prompt == "PDF Actions") {
+    if (label == "Convert PDF to PNG" ||
+        label == "Convert PDF to JPEG" ||
+        label == "Extract Images from PDF") return ""
+    if (label == "Convert PDF to DOCX") return ""
+    if (label == "Convert PDF to Plain Text") return ""
+    if (label == "Convert Markdown to PDF") return ""
+    if (label == "Merge Multiple PDF'\''s") return ""
+    if (label == "Split PDF (Burst to Pages)") return ""
+    if (label == "Extract Specific Pages") return ""
+    if (label == "Remove Specific Pages") return ""
+    if (label == "Rotate Pages") return ""
+    if (label == "Edit PDF Content") return ""
+    if (label == "Edit PDF Bookmarks" ||
+        label == "Extract TOC / Bookmarks") return ""
+    if (label == "Edit Hyperlinks and Typos") return ""
+    if (label == "Clean / Repair Corrupted PDF") return ""
+    if (label == "Inspect PDF Structure") return ""
+    if (label == "Encrypt / Password Protect") return ""
+    if (label == "Decrypt / Remove Password") return ""
+    if (label == "Linearize (Optimize size for Web)") return ""
+    if (label == "Add Page Numbers") return ""
+    if (label == "Add Text Watermark") return ""
+  }
+  if (menu_prompt == "Image Actions") {
+    if (label == "Convert Any Image to PNG" ||
+        label == "Convert Any Image to JPEG" ||
+        label == "Convert Image to WebP") return ""
+    if (label == "Resize Image") return ""
+    if (label == "Crop Image") return ""
+    if (label == "Rotate Image") return ""
+    if (label == "Flip (Horizontal)") return "↔"
+    if (label == "Flip (Vertical)") return "↕"
+    if (label == "Convert to Grayscale") return ""
+    if (label == "Compress / Optimize PNG" ||
+        label == "Compress / Optimize JPEG") return ""
+    if (label == "Create GIF from Images") return ""
+    if (label == "Read Image Metadata") return ""
+    if (label == "Edit Image Metadata") return ""
+  }
+  if (menu_prompt == "DOCX Actions" ||
+      menu_prompt == "PDF Actions" ||
+      menu_prompt == "Image Actions") {
+    if (label == "Read Metadata") return ""
+    if (label == "Edit Metadata") return ""
+    if (label == "Remove All Metadata") return ""
+    if (menu_prompt == "DOCX Actions") return ""
+    if (menu_prompt == "PDF Actions") return ""
+    if (menu_prompt == "Image Actions") return ""
+  }
+  if (label ~ /(Wi-Fi|WiFi|Wireless|WLAN|Radio)/) return ""
+  if (label ~ /(WireGuard)/) return ""
+  if (label ~ /(VPN)/) return ""
+  if (label ~ /(DNS)/) return ""
+  if (label ~ /(Resolver)/) return ""
+  if (label ~ /(WAN)/) return ""
+  if (label ~ /(LAN|Network)/) return ""
+  if (label ~ /(Packet)/) return ""
+  if (label ~ /(Port|Connection)/) return ""
+  if (menu_prompt == "System") {
+    if (label == "Show System Overview") return ""
+    if (label == "Show Failed Services") return ""
+    if (label == "Show Recent System Errors") return ""
+    if (label == "Show Kernel Warnings") return ""
+    if (label == "Show Memory and Swap") return ""
+    if (label == "Check Package Health") return ""
+    if (label == "List Pending Upgrades") return ""
+    if (label == "Inspect Service and Logs") return ""
+    if (label == "Show Upgradeable Packages" || label == "Show Upgradable Packages") return ""
+    if (label == "Run Unattended Upgrades Now") return ""
+    if (label == "Show Failed System Units") return ""
+    if (label == "Show Failed User Units") return ""
+    if (label == "Show Timers") return ""
+    if (label == "Test Mako Notification" || label == "Test Mako Notifications") return ""
+  }
+  if (menu_prompt == "ADB Server") {
+    if (label == "Show Server Status") return ""
+    if (label == "Reconnect USB Devices") return ""
+    if (label == "Reconnect Offline Devices") return ""
+    if (label == "Wait for Any Device (60s)") return ""
+    if (label == "List Devices with Details") return ""
+    if (label == "Show Host Features") return ""
+  }
+  if (label ~ /(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)/) return ""
+  if (label ~ /(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)/) return ""
+  if (label ~ /(Stop|Disable|Disconnect|Unmount|Hide)/) return ""
+  if (label ~ /(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)/) return ""
+  if (label ~ /(Create|Save|Backup|Snapshot|Manifest)/) return ""
+  if (label ~ /(Download|Pull|Retrieve)/) return ""
+  if (label ~ /(Upload|Push|Send)/) return ""
+  if (label ~ /(File|Folder|Directory|Path)/) return ""
+  if (label ~ /(Open|Console|Shell|Terminal|Interactive)/) return ""
+  if (label ~ /(User|Group|Sudo|Account)/) return ""
+  if (label ~ /(Container|Podman|Image|Volume|Pod|Resource)/) return ""
+  if (label ~ /(Remote Desktop|Display|Screen|Monitor)/) return ""
+  if (label ~ /(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)/) return ""
+  if (label ~ /(Phone|Android|ADB|Fastboot|Firmware)/) return ""
+  if (label ~ /(Recovery|Repair|Timeshift|GRUB|Initramfs)/) return ""
+  if (label ~ /(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)/) return ""
+  if (label ~ /(Bluetooth)/) return ""
+  if (label ~ /(Brightness|Power|Battery|Performance|Balanced)/) return ""
+  if (label ~ /(Audio|PipeWire|WirePlumber)/) return ""
+  if (label ~ /(Keyboard)/) return ""
+  if (label ~ /(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)/) return ""
+  if (label ~ /(Settings|Configuration|System|Service|Unit|Timer)/) return ""
+  if (label ~ /(Exit|Close)/) return ""
+  return ""
+}
+{
+  label = $0
+  if (label == "← Back") {
+    print label
+  }
+  else if (root_menu != "1" &&
+           (label == "Exit" || label == "Close" ||
+            label ~ /^[0-9]+[[:space:]]+Close$/ ||
+            label == "Cancel")) {
+    print "← Back"
+  }
+  else if (label ~ /^(⮞||★)[[:space:]]/) {
+    print label
+  }
+  else {
+    print icon_for(label) "  " label
+  }
+}
+' "$raw_choices" >"$display_choices"
+
+if [ "$managed_root_menu" != 1 ] &&
+   ! awk '
+     $0 == "← Back" ||
+     $0 == "Exit" ||
+     $0 == "Close" ||
+     $0 == "Cancel" ||
+     $0 ~ /^[0-9]+[[:space:]]+Close$/ {
+       found = 1
+     }
+     END { exit found ? 0 : 1 }
+   ' "$raw_choices"; then
+  printf '\n' >>"$raw_choices"
+  printf '← Back\n' >>"$display_choices"
+fi
+
+log_fuzzel_lifecycle menu opened 0
+if run_fuzzel "$@" <"$display_choices" >"$selection_file"; then
+  fuzzel_status=0
+else
+  fuzzel_status=$?
+fi
+log_fuzzel_lifecycle menu completed "$fuzzel_status"
+[ "$fuzzel_status" -eq 0 ] || exit "$fuzzel_status"
+
+sed -n '1p' "$selection_file" >"$first_selection"
+selection=$(cat "$first_selection")
+[ -n "$selection" ] || exit 0
+
+matched_line=$(
+  awk '
+    NR == FNR {
+      selected = $0
+      next
+    }
+    $0 == selected {
+      print FNR
+      exit
+    }
+  ' "$first_selection" "$display_choices"
+)
+
+if [ -n "$matched_line" ]; then
+  raw_selection=$(sed -n "${matched_line}p" "$raw_choices")
+  log_managed_menu_selection listed "$raw_selection"
+  printf '%s\n' "$raw_selection"
+else
+  # Do not write arbitrary free-form Fuzzel input to the system log.
+  log_managed_menu_selection custom-input redacted
+  printf '%s\n' "$selection"
+fi

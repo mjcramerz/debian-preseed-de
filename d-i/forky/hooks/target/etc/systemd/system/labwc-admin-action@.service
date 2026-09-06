@@ -1,0 +1,40 @@
+[Unit]
+Description=Execute authorized Labwc desktop power action (%i)
+Documentation=man:systemd.service(5) man:systemctl(1)
+After=systemd-logind.service
+Wants=systemd-logind.service
+ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
+TimeoutStartSec=60s
+TimeoutStopSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=labwc-admin-action
+UMask=0077
+AppArmorProfile=managed-labwc-admin-action-worker
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ProcSubset=pid
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

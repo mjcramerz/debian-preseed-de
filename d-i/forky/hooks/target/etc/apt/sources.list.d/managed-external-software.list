@@ -1,0 +1,4 @@
+# Managed by unattended-installer.
+# Retained, validated vendor packages let APT repair managed applications
+# without relying on a transient download directory.
+deb [signed-by=/etc/apt/keyrings/managed-external-software.gpg] file:/var/lib/software/debs ./

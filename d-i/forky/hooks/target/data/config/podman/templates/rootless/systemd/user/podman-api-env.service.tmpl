@@ -1,0 +1,18 @@
+[Unit]
+Description=Managed rootless Podman API environment for __INSTALLER_PODMAN_SERVICE_USER__
+After=podman.socket
+Wants=podman.socket
+
+[Service]
+Type=oneshot
+TimeoutStartSec=15s
+TimeoutStopSec=15s
+KillMode=control-group
+UMask=0077
+RemainAfterExit=yes
+__INSTALLER_PODMAN_API_SERVICE_ENVIRONMENT_LINES__
+ExecStart=/usr/bin/systemctl --user set-environment __INSTALLER_PODMAN_API_SET_ENV_ARGS__
+ExecStop=/usr/bin/systemctl --user unset-environment __INSTALLER_PODMAN_API_UNSET_ENV_NAMES__
+
+[Install]
+WantedBy=default.target

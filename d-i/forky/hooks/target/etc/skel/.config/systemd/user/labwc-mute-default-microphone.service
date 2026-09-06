@@ -1,0 +1,39 @@
+[Unit]
+Description=Mute all microphones for the Labwc session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+# PipeWire, PipeWire Pulse, and WirePlumber retain their vendor socket-driven
+# lifecycle outside the compositor chain. The helper polls for up to one minute
+# without blocking login when capture hardware or audio services are delayed.
+StartLimitIntervalSec=5min
+StartLimitBurst=4
+
+[Service]
+KillMode=control-group
+Type=oneshot
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+SyslogIdentifier=whisper-record-toggle
+StandardOutput=journal
+StandardError=journal
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecStart=/usr/local/libexec/labwc-mute-default-microphone
+Restart=on-failure
+RestartSec=1s
+TimeoutStartSec=75s
+TimeoutStopSec=5s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=labwc-session.target

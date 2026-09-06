@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Ledger Wallet (Ledger Live)
+Comment=Manage Ledger accounts and hardware signers
+Exec=__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ ledger-live %U
+Icon=ledger-live-desktop
+Terminal=false
+Type=Application
+StartupNotify=true
+StartupWMClass=Ledger Wallet
+MimeType=x-scheme-handler/ledgerlive;x-scheme-handler/ledgerwallet;
+Categories=Office;Finance;

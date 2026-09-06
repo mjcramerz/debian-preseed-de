@@ -1,0 +1,37 @@
+[Unit]
+StartLimitIntervalSec=0
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target mako.service
+Description=Deliver managed external software update events to Mako
+Wants=mako.service
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionPathExists=/var/lib/software/events
+
+[Service]
+RestartSec=15s
+Restart=on-failure
+StateDirectoryMode=0700
+StateDirectory=managed-external-software
+# Read trusted events in the host UID namespace. Do not weaken root ownership
+# checks to accept unmapped UIDs; filesystem namespaces in a user manager can
+# implicitly create a user namespace. Keep the independent seccomp hardening.
+KillMode=control-group
+Type=oneshot
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecStart=/usr/local/libexec/managed-external-software-notify
+TimeoutStartSec=2min
+TimeoutStopSec=5s
+NoNewPrivileges=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077

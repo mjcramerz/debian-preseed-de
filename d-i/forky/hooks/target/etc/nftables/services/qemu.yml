@@ -1,0 +1,76 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: qemu
+  description: Managed Incus guest-network overlay for direct QEMU/KVM and Incus desktop hosts.
+  merge_priority: 55
+  applies_to_profiles:
+  - desktop
+services:
+  qemu_guest_dhcp_v4:
+    enabled: true
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - 67
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      interfaces: __INSTALLER_NFTABLES_QEMU_ALLOW_INTERFACES__
+    sensitive: true
+    log: false
+  qemu_guest_dns_udp:
+    enabled: true
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - 53
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      interfaces: __INSTALLER_NFTABLES_QEMU_ALLOW_INTERFACES__
+    sensitive: true
+    log: false
+  qemu_guest_dns_tcp:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 53
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+      interfaces: __INSTALLER_NFTABLES_QEMU_ALLOW_INTERFACES__
+    sensitive: true
+    log: false
+forwarding:
+  enabled: true
+  router_mode: false
+  rules:
+    qemu_guest_outbound:
+      enabled: true
+      from_interfaces: __INSTALLER_NFTABLES_QEMU_ALLOW_INTERFACES__
+      to_interface_groups:
+      - wan
+      source_ipv4:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+nat:
+  enabled: true
+  masquerade:
+    enabled: true
+    out_interface_group: wan
+    source_ipv4:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16

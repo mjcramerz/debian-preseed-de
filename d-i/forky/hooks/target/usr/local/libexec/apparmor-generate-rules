@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use lib '/usr/local/lib/perl5/site_perl/labwc-security-action';
+
+use LabwcSecurityAction::AppArmor::RuleGenerator;
+
+if ($> != 0) {
+    print STDERR "fatal: AppArmor rule generator must run as root\n";
+    exit 1;
+}
+if (@ARGV != 2 ||
+    $ARGV[0] ne '--apply' ||
+    $ARGV[1] ne 'confirmed-apparmor-rule-generation') {
+    print STDERR "usage: apparmor-generate-rules --apply confirmed-apparmor-rule-generation\n";
+    exit 2;
+}
+my $uid = $ENV{PKEXEC_UID} // q{};
+if ($uid !~ /\A[1-9][0-9]*\z/) {
+    print STDERR "fatal: AppArmor rule generator requires a non-root pkexec invoker\n";
+    exit 1;
+}
+
+umask 0077;
+my $status = eval {
+    LabwcSecurityAction::AppArmor::RuleGenerator->new()->run($ARGV[1]);
+};
+if (!defined($status) || $@) {
+    my $error = $@ || 'AppArmor rule generation failed';
+    $error =~ s/\s+\z//;
+    $error =~ s/[\r\n]+/ /g;
+    print STDERR "fatal: $error\n";
+    exit 1;
+}
+exit $status;

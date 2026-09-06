@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Postman
+GenericName=API Client
+Comment=Build, test, and document APIs
+TryExec=/opt/postman/app/Postman
+Exec=__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ postman %U
+Icon=/opt/postman/app/resources/app/assets/icon.png
+Terminal=false
+Categories=Development;
+Keywords=API;HTTP;REST;GraphQL;
+StartupNotify=true
+StartupWMClass=Postman

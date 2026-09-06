@@ -1,0 +1,11 @@
+# Managed by unattended-installer.
+#
+# Read-only desktop policy shared by short-lived Labwc wrappers. Wayland,
+# D-Bus, GUI toolkits, temporary files, and user data remain explicit opt-ins.
+
+#include <abstractions/managed-wrapper-base>
+
+/etc/default/labwc-desktop r,
+owner /run/user/[0-9]*/ r,
+
+include if exists <local/managed-wrapper-desktop>

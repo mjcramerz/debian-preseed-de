@@ -1,0 +1,635 @@
+#!/bin/sh
+set -eu
+
+PODBIN_BINARY=/usr/local/sbin/podbin
+PODBIN_DEFAULTS=/etc/default/podbin
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+show_message() {
+  prompt=$1
+  message=$2
+
+  choose_lines "$prompt" "$message" >/dev/null
+}
+
+podbin_user_home_base() {
+  home_base=/data/accounts/podman/users
+  if [ -r "$PODBIN_DEFAULTS" ]; then
+    configured_home_base=$(
+      sed -n 's/^PODBIN_USER_HOME_BASE="\([^"]*\)"$/\1/p' "$PODBIN_DEFAULTS" |
+        sed -n '1p'
+    )
+    [ -z "$configured_home_base" ] || home_base=$configured_home_base
+  fi
+
+  case "$home_base" in
+    /*) ;;
+    *) fatal "invalid PODBIN_USER_HOME_BASE: ${home_base:-unset}" ;;
+  esac
+  case "$home_base" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      fatal "unsafe PODBIN_USER_HOME_BASE: $home_base"
+      ;;
+  esac
+
+  printf '%s\n' "$home_base"
+}
+
+managed_users() {
+  if command -v sudo >/dev/null 2>&1 && [ -x "$PODBIN_BINARY" ]; then
+    catalog=$(
+      sudo -n "$PODBIN_BINARY" --list-users 2>/dev/null |
+        awk -F '\t' 'NF { print $1 }' |
+        sort -u || true
+    )
+    [ -z "$catalog" ] || {
+      printf '%s\n' "$catalog"
+      return 0
+    }
+  fi
+  home_base=$(podbin_user_home_base)
+  getent passwd |
+    awk -F: -v home_prefix="${home_base}/" '
+      index($6, home_prefix) == 1 {
+        print $1
+      }
+    ' |
+    sort -u
+}
+
+candidate_import_users() {
+  home_base=$(podbin_user_home_base)
+  while IFS=: read -r candidate _ uid _ _ home shell; do
+    [ "$uid" -lt 1000 ] 2>/dev/null || continue
+    [ "$candidate" != podsvc ] || continue
+    [ "$shell" = /usr/sbin/nologin ] || continue
+    case "$home" in
+      /|/home|/home/*) continue ;;
+    esac
+    case "$home" in
+      "$home_base"/*) ;;
+      *)
+        [ -d "$home/.local/share/containers" ] ||
+          [ -d "$home/.config/containers" ] ||
+          grep -q "^${candidate}:" /etc/subuid 2>/dev/null ||
+          continue
+        ;;
+    esac
+    printf '%s\n' "$candidate"
+  done <<EOF |
+$(getent passwd)
+EOF
+    sort -u
+}
+
+choose_managed_user() {
+  users=$(managed_users)
+  if [ -z "$users" ]; then
+    show_message \
+      "Container Management" \
+      "No managed Podbin users. Use Managed Users > Create Managed User first."
+    return 1
+  fi
+
+  selected_user=$(
+    printf '%s\n' "$users" |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "Podbin user" 2>/dev/null ||
+      true
+  )
+  [ -n "$selected_user" ] || return 1
+  case "
+$users
+" in
+    *"
+$selected_user
+"*) ;;
+    *) fatal "selected Podbin user is not managed: $selected_user" ;;
+  esac
+
+  printf '%s\n' "$selected_user"
+}
+
+choose_import_user() {
+  users=$(candidate_import_users)
+  if [ -z "$users" ]; then
+    show_message "Container Management" "No locked system users are eligible for import."
+    return 1
+  fi
+  selected_user=$(
+    printf '%s\n' "$users" |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "Import Podbin user" 2>/dev/null ||
+      true
+  )
+  [ -n "$selected_user" ] || return 1
+  case "
+$users
+" in
+    *"
+$selected_user
+"*) ;;
+    *) fatal "selected import user is not an eligible system user: $selected_user" ;;
+  esac
+  printf '%s\n' "$selected_user"
+}
+
+service_containers() {
+  if command -v sudo >/dev/null 2>&1 && [ -x "$PODBIN_BINARY" ]; then
+    sudo -n "$PODBIN_BINARY" --service-podman ps --all --format '{{.Names}}' 2>/dev/null |
+      awk 'NF { print }' |
+      sort -u || true
+  fi
+}
+
+choose_service_container() {
+  containers=$(service_containers)
+  if [ -z "$containers" ]; then
+    show_message "Container Management" "No podsvc containers are available."
+    return 1
+  fi
+  selected_container=$(
+    printf '%s\n' "$containers" |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "podsvc container" 2>/dev/null ||
+      true
+  )
+  [ -n "$selected_container" ] || return 1
+  case "
+$containers
+" in
+    *"
+$selected_container
+"*) ;;
+    *) fatal "selected podsvc container is not available: $selected_container" ;;
+  esac
+  printf '%s\n' "$selected_container"
+}
+
+prompt_new_username() {
+  username=$(
+    choose_lines \
+      "New Podbin username" \
+      workload \
+      builder \
+      devbox \
+      test
+  )
+  [ -n "$username" ] || return 1
+  [ ${#username} -le 32 ] || {
+    show_message "Invalid username" "Username must be 32 characters or fewer."
+    return 1
+  }
+  case "$username" in
+    [abcdefghijklmnopqrstuvwxyz_]*) ;;
+    *)
+      show_message "Invalid username" "Username must start with a lowercase letter or underscore."
+      return 1
+      ;;
+  esac
+  case "$username" in
+    *[!abcdefghijklmnopqrstuvwxyz0123456789_-]*)
+      show_message "Invalid username" "Use only lowercase letters, digits, underscores, and hyphens."
+      return 1
+      ;;
+  esac
+
+  printf '%s\n' "$username"
+}
+
+prompt_new_container_name() {
+  container=$(
+    choose_lines \
+      "New container name" \
+      workload \
+      builder \
+      devbox \
+      test
+  )
+  [ -n "$container" ] || return 1
+  [ ${#container} -le 63 ] || {
+    show_message "Invalid container name" "Container names must be 63 characters or fewer."
+    return 1
+  }
+  case "$container" in
+    [abcdefghijklmnopqrstuvwxyz0123456789]*) ;;
+    *)
+      show_message "Invalid container name" "Container names must start with lowercase letters or numbers."
+      return 1
+      ;;
+  esac
+  case "$container" in
+    *[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+      show_message "Invalid container name" "Use only lowercase letters, numbers, and dashes."
+      return 1
+      ;;
+  esac
+
+  printf '%s\n' "$container"
+}
+
+confirm_action() {
+  prompt=$1
+  confirmation=$2
+
+  answer=$(
+    choose_lines \
+      "$prompt" \
+      Cancel \
+      "$confirmation"
+  )
+  [ "$answer" = "$confirmation" ]
+}
+
+launcher_path() {
+  printf '%s\n' /usr/local/bin/labwc-podman-menu
+}
+
+launch_podbin_terminal() {
+  [ "$#" -gt 0 ] || fatal "podbin arguments are required"
+  command -v labwc-terminal >/dev/null 2>&1 ||
+    fatal "labwc-terminal is not installed"
+  script_path=$(launcher_path)
+  exec labwc-terminal -e "$script_path" _run "$@"
+}
+
+launch_guide_terminal() {
+  command -v labwc-terminal >/dev/null 2>&1 ||
+    fatal "labwc-terminal is not installed"
+  script_path=$(launcher_path)
+  exec labwc-terminal -e "$script_path" _guide
+}
+
+run_podbin_terminal() {
+  shift
+  [ "$#" -gt 0 ] || fatal "podbin arguments are required"
+  [ -x "$PODBIN_BINARY" ] ||
+    fatal "podbin is not installed; enable the Debian installer podman addon"
+  command -v sudo >/dev/null 2>&1 || fatal "sudo is not installed"
+
+  printf 'Container Management\n'
+  printf 'Command: sudo %s' "$PODBIN_BINARY"
+  printf ' %s' "$@"
+  printf '\n\n'
+
+  set +e
+  sudo "$PODBIN_BINARY" "$@"
+  command_status=$?
+  set -e
+
+  printf '\nCommand exited with status %s.\n' "$command_status"
+  printf 'Press Enter to close this terminal.'
+  IFS= read -r _input || true
+  exit "$command_status"
+}
+
+run_guide_terminal() {
+  guide=/data/docs/podbin.md
+  [ -r "$guide" ] || fatal "Podbin guide is unavailable: $guide"
+
+  if command -v less >/dev/null 2>&1; then
+    exec less "$guide"
+  fi
+  cat "$guide"
+  printf '\nPress Enter to close this terminal.'
+  IFS= read -r _input || true
+}
+
+managed_users_menu() {
+  action=$(
+    choose_lines \
+      "Container Management — Managed Users" \
+      "List Managed Users" \
+      "Create Managed User" \
+      "Import Existing User" \
+      "Show User Environment" \
+      "Diagnose User" \
+      "Open Managed User Shell" \
+      "Wipe User and All Resources" \
+      "← Back"
+  )
+
+  case "$action" in
+    "List Managed Users")
+      launch_podbin_terminal --list-users
+      ;;
+    "Create Managed User")
+      username=$(prompt_new_username) || return 0
+      launch_podbin_terminal --create-user "$username"
+      ;;
+    "Import Existing User")
+      username=$(choose_import_user) || return 0
+      launch_podbin_terminal --import-user "$username"
+      ;;
+    "Show User Environment")
+      user=$(choose_managed_user) || return 0
+      launch_podbin_terminal --user-env "$user"
+      ;;
+    "Diagnose User")
+      user=$(choose_managed_user) || return 0
+      launch_podbin_terminal --diagnose-user "$user"
+      ;;
+    "Open Managed User Shell")
+      user=$(choose_managed_user) || return 0
+      launch_podbin_terminal --user-shell "$user"
+      ;;
+    "Wipe User and All Resources")
+      user=$(choose_managed_user) || return 0
+      confirm_action \
+        "Permanently wipe ${user}?" \
+        "Continue to WIPE confirmation" ||
+        return 0
+      launch_podbin_terminal --wipe-all "$user"
+      ;;
+  esac
+}
+
+containers_menu() {
+  user=$(choose_managed_user) || return 0
+  action=$(
+    choose_lines \
+      "Container Management — Containers (${user})" \
+      "Create Container" \
+      "List Containers" \
+      "Container Status" \
+      "Start Container" \
+      "Stop Container" \
+      "Restart Container" \
+      "Enable Container Service" \
+      "Disable Container Service" \
+      "Show Container Logs" \
+      "Follow Container Logs" \
+      "Inspect Container" \
+      "Connect over SSH" \
+      "Open Container Shell" \
+      "Delete Container" \
+      "← Back"
+  )
+
+  case "$action" in
+    "Create Container")
+      container=$(prompt_new_container_name) || return 0
+      launch_podbin_terminal --create-container "$user" "$container"
+      ;;
+    "List Containers") launch_podbin_terminal --list-containers "$user" ;;
+    "Container Status") launch_podbin_terminal --container-status "$user" ;;
+    "Start Container") launch_podbin_terminal --start-container "$user" ;;
+    "Stop Container") launch_podbin_terminal --stop-container "$user" ;;
+    "Restart Container") launch_podbin_terminal --restart-container "$user" ;;
+    "Enable Container Service") launch_podbin_terminal --enable-container "$user" ;;
+    "Disable Container Service") launch_podbin_terminal --disable-container "$user" ;;
+    "Show Container Logs") launch_podbin_terminal --logs-container "$user" ;;
+    "Follow Container Logs") launch_podbin_terminal --follow-logs "$user" ;;
+    "Inspect Container") launch_podbin_terminal --inspect-container "$user" ;;
+    "Connect over SSH") launch_podbin_terminal --connect-container "$user" ;;
+    "Open Container Shell") launch_podbin_terminal --open-container "$user" ;;
+    "Delete Container")
+      confirm_action \
+        "Delete a container for ${user}?" \
+        "Continue to DELETE confirmation" ||
+        return 0
+      launch_podbin_terminal --delete-container "$user"
+      ;;
+  esac
+}
+
+user_resources_menu() {
+  user=$(choose_managed_user) || return 0
+  action=$(
+    choose_lines \
+      "Container Management — Resources (${user})" \
+      "List Images" \
+      "List Volumes" \
+      "List Networks" \
+      "List Pods" \
+      "Show Podman Info" \
+      "Show Podman Version" \
+      "Show All Containers" \
+      "Show Container Statistics" \
+      "Show Storage Usage" \
+      "Show Podman System Connections" \
+      "Import Existing Containers" \
+      "Prune All Unused Resources" \
+      "← Back"
+  )
+
+  case "$action" in
+    "List Images") launch_podbin_terminal --list-images "$user" ;;
+    "List Volumes") launch_podbin_terminal --list-volumes "$user" ;;
+    "List Networks") launch_podbin_terminal --list-networks "$user" ;;
+    "List Pods") launch_podbin_terminal --list-pods "$user" ;;
+    "Show Podman Info") launch_podbin_terminal --user-podman "$user" info ;;
+    "Show Podman Version") launch_podbin_terminal --user-podman "$user" version ;;
+    "Show All Containers") launch_podbin_terminal --user-podman "$user" ps --all ;;
+    "Show Container Statistics") launch_podbin_terminal --user-podman "$user" stats --no-stream ;;
+    "Show Storage Usage") launch_podbin_terminal --user-podman "$user" system df ;;
+    "Show Podman System Connections") launch_podbin_terminal --user-podman "$user" system connection list ;;
+    "Import Existing Containers") launch_podbin_terminal --import-containers "$user" ;;
+    "Prune All Unused Resources")
+      confirm_action \
+        "Prune unused resources for ${user}?" \
+        "Prune unused Podman resources" ||
+        return 0
+      launch_podbin_terminal --prune-all "$user"
+      ;;
+  esac
+}
+
+user_runtime_menu() {
+  user=$(choose_managed_user) || return 0
+  action=$(
+    choose_lines \
+      "Container Management — User Runtime (${user})" \
+      "List User Units" \
+      "List Failed User Units" \
+      "List User Timers" \
+      "Show Podman User Unit" \
+      "Show Podman Socket Unit" \
+      "Show Podman Socket Properties" \
+      "Show Podman Service Properties" \
+      "Check Podman Socket Activity" \
+      "Check Podman Service Activity" \
+      "Show Podman Unit Status" \
+      "Show Recent User Journal" \
+      "Show User Warnings" \
+      "Show Podman User Logs" \
+      "Follow Podman User Logs" \
+      "Show Podman Version" \
+      "Show Podman System Connections" \
+      "Open Managed User Shell" \
+      "← Back"
+  )
+
+  case "$action" in
+    "List User Units") launch_podbin_terminal --user-systemctl "$user" list-units --all ;;
+    "List Failed User Units") launch_podbin_terminal --user-systemctl "$user" list-units --failed ;;
+    "List User Timers") launch_podbin_terminal --user-systemctl "$user" list-timers --all ;;
+    "Show Podman User Unit") launch_podbin_terminal --user-systemctl "$user" cat podman.service ;;
+    "Show Podman Socket Unit") launch_podbin_terminal --user-systemctl "$user" cat podman.socket ;;
+    "Show Podman Socket Properties") launch_podbin_terminal --user-systemctl "$user" show podman.socket ;;
+    "Show Podman Service Properties") launch_podbin_terminal --user-systemctl "$user" show podman.service ;;
+    "Check Podman Socket Activity") launch_podbin_terminal --user-systemctl "$user" is-active podman.socket ;;
+    "Check Podman Service Activity") launch_podbin_terminal --user-systemctl "$user" is-active podman.service ;;
+    "Show Podman Unit Status") launch_podbin_terminal --user-systemctl "$user" status podman.service podman.socket ;;
+    "Show Recent User Journal") launch_podbin_terminal --user-journalctl "$user" -n 200 ;;
+    "Show User Warnings") launch_podbin_terminal --user-journalctl "$user" --priority warning -n 200 ;;
+    "Show Podman User Logs") launch_podbin_terminal --user-journalctl "$user" -u podman.service -n 200 ;;
+    "Follow Podman User Logs") launch_podbin_terminal --user-journalctl "$user" -f -u podman.service ;;
+    "Show Podman Version") launch_podbin_terminal --user-podman "$user" version ;;
+    "Show Podman System Connections") launch_podbin_terminal --user-podman "$user" system connection list ;;
+    "Open Managed User Shell") launch_podbin_terminal --user-shell "$user" ;;
+  esac
+}
+
+managed_service_menu() {
+  action=$(
+    choose_lines \
+      "Container Management — Managed Service" \
+      "Show Service Environment" \
+      "Show Podman Info" \
+      "Show Podman Version" \
+      "List Service Containers" \
+      "Inspect Service Container" \
+      "Show Service Container Logs" \
+      "Show Service Container Ports" \
+      "List Service Images" \
+      "List Service Networks" \
+      "List Service Volumes" \
+      "List Service Pods" \
+      "Show Service Statistics" \
+      "List Service User Units" \
+      "List Failed Service Units" \
+      "List Service Timers" \
+      "Show Podman Socket Status" \
+      "Show Podman Service Status" \
+      "Show Podman Socket Unit" \
+      "Show Podman Service Unit" \
+      "Show Podman Socket Properties" \
+      "Show Podman Service Properties" \
+      "Check Podman Socket Activity" \
+      "Check Podman Service Activity" \
+      "Start Podman Service" \
+      "Stop Podman Service" \
+      "Restart Podman Service" \
+      "Enable Podman Service" \
+      "Disable Podman Service" \
+      "Show Recent Service Logs" \
+      "Show Recent Socket Logs" \
+      "Follow Podman Service Logs" \
+      "Follow Podman Socket Logs" \
+      "Open Service Shell" \
+      "← Back"
+  )
+
+  case "$action" in
+    "Show Service Environment") launch_podbin_terminal --service-env ;;
+    "Show Podman Info") launch_podbin_terminal --service-podman info ;;
+    "Show Podman Version") launch_podbin_terminal --service-podman version ;;
+    "List Service Containers") launch_podbin_terminal --service-podman ps --all ;;
+    "Inspect Service Container")
+      container=$(choose_service_container) || return 0
+      launch_podbin_terminal --service-podman inspect "$container"
+      ;;
+    "Show Service Container Logs")
+      container=$(choose_service_container) || return 0
+      launch_podbin_terminal --service-podman logs "$container"
+      ;;
+    "Show Service Container Ports")
+      container=$(choose_service_container) || return 0
+      launch_podbin_terminal --service-podman port "$container"
+      ;;
+    "List Service Images") launch_podbin_terminal --service-podman images ;;
+    "List Service Networks") launch_podbin_terminal --service-podman network ls ;;
+    "List Service Volumes") launch_podbin_terminal --service-podman volume ls ;;
+    "List Service Pods") launch_podbin_terminal --service-podman pod ls ;;
+    "Show Service Statistics") launch_podbin_terminal --service-podman stats --no-stream ;;
+    "List Service User Units") launch_podbin_terminal --service-systemctl list-units --all ;;
+    "List Failed Service Units") launch_podbin_terminal --service-systemctl list-units --failed ;;
+    "List Service Timers") launch_podbin_terminal --service-systemctl list-timers --all ;;
+    "Show Podman Socket Status") launch_podbin_terminal --service-systemctl status podman.socket ;;
+    "Show Podman Service Status") launch_podbin_terminal --service-systemctl status podman.service ;;
+    "Show Podman Socket Unit") launch_podbin_terminal --service-systemctl cat podman.socket ;;
+    "Show Podman Service Unit") launch_podbin_terminal --service-systemctl cat podman.service ;;
+    "Show Podman Socket Properties") launch_podbin_terminal --service-systemctl show podman.socket ;;
+    "Show Podman Service Properties") launch_podbin_terminal --service-systemctl show podman.service ;;
+    "Check Podman Socket Activity") launch_podbin_terminal --service-systemctl is-active podman.socket ;;
+    "Check Podman Service Activity") launch_podbin_terminal --service-systemctl is-active podman.service ;;
+    "Start Podman Service") launch_podbin_terminal --service-systemctl start podman.service ;;
+    "Stop Podman Service") launch_podbin_terminal --service-systemctl stop podman.service ;;
+    "Restart Podman Service") launch_podbin_terminal --service-systemctl restart podman.service ;;
+    "Enable Podman Service") launch_podbin_terminal --service-systemctl enable --now podman.service ;;
+    "Disable Podman Service") launch_podbin_terminal --service-systemctl disable --now podman.service ;;
+    "Show Recent Service Logs") launch_podbin_terminal --service-journalctl -u podman.service -n 200 ;;
+    "Show Recent Socket Logs") launch_podbin_terminal --service-journalctl -u podman.socket -n 200 ;;
+    "Follow Podman Service Logs") launch_podbin_terminal --service-journalctl -f -u podman.service ;;
+    "Follow Podman Socket Logs") launch_podbin_terminal --service-journalctl -f -u podman.socket ;;
+    "Open Service Shell") launch_podbin_terminal --service-shell ;;
+  esac
+}
+
+run_main_menu() {
+  command -v labwc-fuzzel >/dev/null 2>&1 ||
+    fatal "labwc-fuzzel is not installed"
+  command -v getent >/dev/null 2>&1 || fatal "getent is not installed"
+  command -v awk >/dev/null 2>&1 || fatal "awk is not installed"
+  command -v sort >/dev/null 2>&1 || fatal "sort is not installed"
+  [ "$(id -u)" -ne 0 ] ||
+    fatal "labwc-podman-menu must run as the logged-in desktop user"
+
+  while :; do
+    category=$(
+      choose_lines \
+        "Container Management" \
+        "⮞ Managed Users" \
+        "⮞ Containers" \
+        "⮞ User Resources" \
+        "⮞ User Runtime" \
+        "⮞ Managed Service" \
+        "Open Podbin Guide" \
+        "Exit"
+    )
+
+    case "$category" in
+      "⮞ Managed Users") managed_users_menu ;;
+      "⮞ Containers") containers_menu ;;
+      "⮞ User Resources") user_resources_menu ;;
+      "⮞ User Runtime") user_runtime_menu ;;
+      "⮞ Managed Service") managed_service_menu ;;
+      "Open Podbin Guide") launch_guide_terminal ;;
+      Exit|'') exit 0 ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  _run)
+    run_podbin_terminal "$@"
+    ;;
+  _guide)
+    run_guide_terminal
+    ;;
+  '')
+    run_main_menu
+    ;;
+  *)
+    fatal "unsupported labwc-podman-menu invocation"
+    ;;
+esac

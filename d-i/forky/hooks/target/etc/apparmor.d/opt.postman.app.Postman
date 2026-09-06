@@ -1,0 +1,86 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile postman /opt/postman/app/{Postman,postman} flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-user-documents>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  # Postman's interactive shell uses the managed zsh startup stack. Keep the
+  # observed helper set explicit rather than granting a broad command glob.
+  /dev/tty rw,
+  /{,usr/}bin/{bash,dash,sh} rix,
+  /usr/bin/{dircolors,env,git,id,run-parts,ssh-agent,starship,zsh} rix,
+  /etc/profile r,
+  /etc/profile.d/ r,
+  /etc/profile.d/** r,
+  /etc/terminfo/ r,
+  /etc/zsh/ r,
+  /etc/zsh/** r,
+  /usr/share/terminfo/ r,
+  /usr/share/terminfo/** r,
+  /usr/share/doc/fzf/examples/ r,
+  /usr/share/doc/fzf/examples/** r,
+  /usr/share/zsh/ r,
+  /usr/share/zsh/** r,
+  /usr/share/zsh-autosuggestions/ r,
+  /usr/share/zsh-autosuggestions/** r,
+  /usr/share/zsh-syntax-highlighting/ r,
+  /usr/share/zsh-syntax-highlighting/** r,
+  /opt/postman/ r,
+  /opt/postman/** mrix,
+
+  # The managed zsh profile has bounded, user-owned state for completion,
+  # prompt rendering, dircolors, and its optional per-user SSH agent.
+  owner @{HOME}/.cache/starship/ rw,
+  owner @{HOME}/.cache/starship/** rwk,
+  owner @{HOME}/.cache/zsh/ rw,
+  owner @{HOME}/.cache/zsh/** rwk,
+  owner @{HOME}/.config/fzf/ r,
+  owner @{HOME}/.config/fzf/default-opts r,
+  owner @{HOME}/.config/starship.toml r,
+  owner @{HOME}/.dircolors r,
+  owner @{HOME}/.profile r,
+  owner @{HOME}/.profile.d/ r,
+  owner @{HOME}/.profile.d/** r,
+  owner @{HOME}/.ssh/ rw,
+  owner @{HOME}/.ssh/agent/ rw,
+  owner @{HOME}/.ssh/agent/** rw,
+  owner @{HOME}/.zlogout r,
+  owner @{HOME}/.zprofile r,
+  owner @{HOME}/.zsh_aliases r,
+  owner @{HOME}/.zshenv r,
+  owner @{HOME}/.zshrc r,
+
+  # Postman's GPU renderer probes the primary DRM card. Restrict that access
+  # to card nodes, plus the exact process and executable directories observed.
+  /dev/dri/card[0-9]* rw,
+  /proc/[0-9]*/loginuid r,
+  /usr/bin/ r,
+  /usr/sbin/ r,
+  /usr/local/bin/ r,
+  /usr/local/sbin/ r,
+  owner @{HOME}/.cache/Postman/ rw,
+  owner @{HOME}/.cache/Postman/** rwk,
+  owner @{HOME}/.config/Postman/ rw,
+  owner @{HOME}/.config/Postman/** rwkl,
+  owner @{HOME}/.local/share/Postman/ rw,
+  owner @{HOME}/.local/share/Postman/** rwkl,
+  owner @{HOME}/Postman/ rw,
+  owner @{HOME}/Postman/** rwkl,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/opt.postman.app.Postman>
+}

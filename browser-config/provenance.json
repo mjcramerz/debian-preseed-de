@@ -1,0 +1,18 @@
+{
+  "input_sha256": {
+    "bookmarks_9_6_26.html": "8a8d4121b5609e49fbfb65662e6c312b62b103224bcba88dbe4eb5ec15eb817b",
+    "noscript_data.txt": "9493a0104e7ff3c54ccaa35a959a35573b695edfbd131f8d87d8d64d95dbdc5f",
+    "my-ubol-settings.json": "4644fea068f8b5857fb7e0598a2c581c8826a4e87fb7cccdc50c5b8d96e40c77",
+    "PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json": "dd1f3d05409bf428dc3ae5b4f3c006ed1bc2c79bf7cb9add258d3e3392a07979"
+  },
+  "badger_original_counts": {
+    "action_map": 10236,
+    "fp_scripts": 8,
+    "settings_map": 17,
+    "snitch_map": 9641,
+    "tracking_map": 3377
+  },
+  "badger_original_user_actions": 0,
+  "export_version_ubol": "2026.901.1442",
+  "reviewed_on": "2026-09-06"
+}

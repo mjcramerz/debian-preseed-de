@@ -1,0 +1,266 @@
+#!/usr/bin/python3 -I
+"""Bounded, non-destructive DOCX main-body text import for FocusWriter.
+
+This is deliberately NOT an OOXML round-trip converter. Tables are flattened;
+images, layout, comments, headers, footers, notes, and field semantics are not
+preserved. Keep the original DOCX for its complete content. Never unpack ZIP
+members to disk, resolve external entities, execute macros, or fetch links.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+from pathlib import Path
+import pwd
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+from xml.parsers import expat
+import zipfile
+
+MAX_ARCHIVE = 64 * 1024 * 1024
+MAX_XML = 16 * 1024 * 1024
+MAX_MEMBERS = 10000
+MAX_CENTRAL_DIRECTORY = 4 * 1024 * 1024
+MAX_DEPTH = 256
+MAX_NODES = 500000
+WORD_NAMESPACES = {
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "http://purl.oclc.org/ooxml/wordprocessingml/main",
+}
+MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+NOTICE = (
+    "TEXT-ONLY COPY. The Word original was not modified. Only main-body text "
+    "is imported, with tables flattened. Formatting, images, headers, footers, "
+    "notes, comments, tracked-deletion text and field semantics are not preserved. "
+    "Keep the original DOCX; this draft does not replace the complete document.\n"
+)
+
+
+class ImportFailure(ValueError):
+    """An input cannot safely be represented as a main-body text draft."""
+
+
+def split_name(name: str) -> tuple[str, str]:
+    namespace, separator, local = name.rpartition("|")
+    return (namespace, local) if separator else ("", name)
+
+
+def extract_text(data: bytes) -> str:
+    """Read strict or transitional OOXML without depending on namespace prefixes."""
+    if len(data) > MAX_XML:
+        raise ImportFailure("document XML exceeds the 16 MiB import limit")
+    output: list[str] = []
+    # (namespace, local-name, ignored-subtree). The parser never builds a DOM.
+    stack: list[tuple[str, str, bool]] = []
+    alternatives: list[bool] = []
+    nodes = 0
+    body_depth = 0
+    saw_document = False
+    parser = expat.ParserCreate(namespace_separator="|")
+
+    def reject(*_args: object) -> None:
+        raise ImportFailure("DTDs and external entities are not permitted")
+
+    def start(name: str, _attrs: dict[str, str]) -> None:
+        nonlocal nodes, body_depth, saw_document
+        nodes += 1
+        if nodes > MAX_NODES or len(stack) >= MAX_DEPTH:
+            raise ImportFailure("XML structure exceeds the import complexity limit")
+        ns, tag = split_name(name)
+        ignored = bool(stack and stack[-1][2])
+        if not stack:
+            if ns not in WORD_NAMESPACES or tag != "document":
+                raise ImportFailure("not a supported WordprocessingML document")
+            saw_document = True
+        if ns == MC and tag == "AlternateContent":
+            alternatives.append(False)
+        elif ns == MC and tag in {"Choice", "Fallback"} and alternatives:
+            # One representation only: Word's preferred branch, else fallback.
+            ignored = ignored or alternatives[-1]
+            alternatives[-1] = True
+        if ns in WORD_NAMESPACES:
+            ignored = ignored or tag in {"del", "moveFrom"}
+            if tag == "body":
+                body_depth = len(stack) + 1
+            if tag == "altChunk" and not ignored:
+                raise ImportFailure("embedded alternate content is not supported by text-only import")
+            if body_depth and not ignored and tag in {"tab", "br", "cr"}:
+                output.append("\t" if tag == "tab" else "\n")
+        stack.append((ns, tag, ignored))
+
+    def end(_name: str) -> None:
+        nonlocal body_depth
+        ns, tag, ignored = stack.pop()
+        if ns in WORD_NAMESPACES and body_depth and not ignored:
+            if tag in {"p", "tr"}:
+                output.append("\n")
+            elif tag == "tc":
+                output.append("\t")
+            elif tag == "body":
+                body_depth = 0
+        if ns == MC and tag == "AlternateContent":
+            alternatives.pop()
+
+    def text(value: str) -> None:
+        if body_depth and stack:
+            ns, tag, ignored = stack[-1]
+            if ns in WORD_NAMESPACES and tag == "t" and not ignored:
+                output.append(value)
+
+    parser.StartElementHandler = start
+    parser.EndElementHandler = end
+    parser.CharacterDataHandler = text
+    parser.StartDoctypeDeclHandler = reject
+    parser.EntityDeclHandler = reject
+    parser.ExternalEntityRefHandler = reject
+    try:
+        parser.Parse(data, True)
+    except expat.ExpatError as exc:
+        raise ImportFailure("malformed document XML") from exc
+    result = "".join(output).strip()
+    if not saw_document or not result:
+        raise ImportFailure("no importable main-body text; open the original in Writer")
+    return result + "\n"
+
+
+def preflight_zip(stream, size: int) -> None:
+    """Bound the central directory BEFORE ZipFile allocates its entry objects.
+
+    Ordinary DOCX containers need neither ZIP64 nor multi-disk archives. Reject
+    those variants explicitly rather than partially parsing unbounded metadata.
+    """
+    stream.seek(max(0, size - 65557))
+    tail_start = stream.tell()
+    tail = stream.read(65557)
+    offset = len(tail)
+    while True:
+        offset = tail.rfind(b"PK\x05\x06", 0, offset)
+        if offset < 0:
+            raise ImportFailure("missing ZIP end-of-central-directory record")
+        if offset + 22 <= len(tail):
+            fields = struct.unpack_from("<4s4H2LH", tail, offset)
+            if offset + 22 + fields[7] == len(tail):
+                break
+    _, disk, directory_disk, disk_entries, entries, length, start, _ = fields
+    if (disk or directory_disk or disk_entries != entries
+            or entries == 0xffff or length == 0xffffffff or start == 0xffffffff):
+        raise ImportFailure("ZIP64 and multi-disk DOCX containers are not supported")
+    if entries > MAX_MEMBERS or length > MAX_CENTRAL_DIRECTORY:
+        raise ImportFailure("ZIP central directory exceeds the import limit")
+    if start + length != tail_start + offset:
+        raise ImportFailure("inconsistent ZIP central directory boundaries")
+    stream.seek(0)
+
+
+def read_docx(source: Path) -> str:
+    if source.suffix.lower() != ".docx":
+        raise ImportFailure("only .docx text imports are supported")
+    # Nonblocking open prevents a selected FIFO/device from hanging the GUI.
+    fd = os.open(source, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_ARCHIVE:
+            raise ImportFailure("input must be a regular DOCX file no larger than 64 MiB")
+        preflight_zip(stream, metadata.st_size)
+        try:
+            with zipfile.ZipFile(stream) as archive:
+                entries = archive.infolist()
+                if len(entries) > MAX_MEMBERS:
+                    raise ImportFailure("too many ZIP members")
+                documents = [e for e in entries if e.filename == "word/document.xml"]
+                if len(documents) != 1:
+                    raise ImportFailure("missing or duplicate word/document.xml")
+                entry = documents[0]
+                if entry.flag_bits & 1 or entry.file_size > MAX_XML:
+                    raise ImportFailure("encrypted or oversized document XML")
+                with archive.open(entry) as member:
+                    data = member.read(MAX_XML + 1)
+                return extract_text(data)
+        except (zipfile.BadZipFile, RuntimeError, NotImplementedError) as exc:
+            raise ImportFailure("invalid, encrypted, or unsupported DOCX container") from exc
+
+
+def create_draft(source: Path, text: str, home: Path) -> Path:
+    """A new private directory prevents overwrite/collision with any original."""
+    documents = home / "Documents"
+    documents.mkdir(mode=0o700, exist_ok=True)
+    metadata = documents.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid()
+            or metadata.st_mode & 0o022 or documents.resolve() != documents):
+        raise ImportFailure("Documents must be account-owned, direct and not group/world-writable")
+    directory = Path(tempfile.mkdtemp(prefix="FocusWriter-import-", dir=documents))
+    draft = directory / "text-copy.txt"
+    try:
+        for path, content in (
+            (draft, text),
+            (directory / "IMPORT-NOTICE.txt", NOTICE + "\nSource: " + str(source) + "\n"),
+        ):
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+                stream.write(content)
+    except BaseException:
+        for path in (draft, directory / "IMPORT-NOTICE.txt"):
+            path.unlink(missing_ok=True)
+        directory.rmdir()
+        raise
+    return draft
+
+
+def notify(message: str, environment: dict[str, str]) -> None:
+    print(message, file=sys.stderr)
+    try:
+        subprocess.run(
+            ["/usr/bin/notify-send", "--app-name=FocusWriter import", "--",
+             "FocusWriter text import", message],
+            env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=3, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # The draft and its notice are persistent even without a notifier.
+
+
+def main(argv: list[str]) -> int:
+    os.umask(0o077)
+    arguments = argparse.ArgumentParser(description=__doc__)
+    arguments.add_argument("--no-open", action="store_true", help="create copies without opening the editor")
+    arguments.add_argument("files", nargs="+")
+    args = arguments.parse_args(argv)
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        arguments.error("run as the desktop account, never root/setuid")
+    if len(args.files) > 16:
+        arguments.error("import at most 16 documents per invocation")
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+    allowed = {"DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS",
+               "XDG_CURRENT_DESKTOP", "XDG_SESSION_TYPE", "LANG", "LC_ALL", "LC_CTYPE"}
+    environment = {key: value for key, value in os.environ.items() if key in allowed}
+    environment.update(HOME=str(home), PATH="/usr/bin:/bin")
+    drafts: list[str] = []
+    failures = 0
+    for filename in args.files:
+        source = Path(filename).absolute()
+        try:
+            draft = create_draft(source, read_docx(source), home)
+            drafts.append(str(draft))
+            print(draft)
+        except (ImportFailure, OSError) as exc:
+            failures += 1
+            notify(f"Cannot import {source.name!r}: {exc}", environment)
+    if not drafts:
+        return 1
+    notify(NOTICE, environment)
+    if args.no_open:
+        return int(bool(failures))
+    try:
+        # Absolute arguments cannot be mistaken for options; no shell involved.
+        result = subprocess.run(["/usr/bin/focuswriter", *drafts], env=environment, check=False)
+        return result.returncode if result.returncode >= 0 else 128 - result.returncode
+    except OSError as exc:
+        notify(f"Editor launch failed; drafts are saved: {exc}", environment)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

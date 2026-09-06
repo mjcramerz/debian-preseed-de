@@ -1,0 +1,74 @@
+#!/bin/sh
+set -eu
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+case "${LABWC_ENABLE_SWAYIDLE:-true}" in
+  true|yes|1|on) ;;
+  *) exit 0 ;;
+esac
+
+require_non_negative_integer() {
+  value_name=$1
+  value=$2
+
+  [ "${#value}" -le 7 ] || { printf 'fatal: %s is too large\n' "$value_name" >&2; exit 1; }
+  case "$value" in
+    ''|*[!0-9]*)
+      printf 'fatal: %s must be a non-negative integer, got: %s\n' "$value_name" "$value" >&2
+      exit 1
+      ;;
+  esac
+}
+
+require_idle_timeout_order() {
+  lock_seconds=$1
+  dpms_seconds=$2
+  suspend_seconds=$3
+
+  if [ "$dpms_seconds" -le "$lock_seconds" ]; then
+    printf 'fatal: LABWC_IDLE_DPMS_SECONDS (%s) must be greater than LABWC_IDLE_LOCK_SECONDS (%s) so the lock screen appears before the outputs sleep\n' \
+      "$dpms_seconds" \
+      "$lock_seconds" >&2
+    exit 1
+  fi
+
+  if [ "$suspend_seconds" -gt 0 ] &&
+     [ "$suspend_seconds" -le "$dpms_seconds" ]; then
+    printf 'fatal: LABWC_IDLE_SUSPEND_SECONDS (%s) must be greater than LABWC_IDLE_DPMS_SECONDS (%s) when suspend is enabled\n' \
+      "$suspend_seconds" \
+      "$dpms_seconds" >&2
+    exit 1
+  fi
+}
+
+lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1800}
+dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3600}
+suspend_seconds=${LABWC_IDLE_SUSPEND_SECONDS:-0}
+require_non_negative_integer LABWC_IDLE_LOCK_SECONDS "$lock_seconds"
+require_non_negative_integer LABWC_IDLE_DPMS_SECONDS "$dpms_seconds"
+require_non_negative_integer LABWC_IDLE_SUSPEND_SECONDS "$suspend_seconds"
+require_idle_timeout_order "$lock_seconds" "$dpms_seconds" "$suspend_seconds"
+
+swayidle_cmd=$(command -v swayidle 2>/dev/null || true)
+[ -n "$swayidle_cmd" ] || { printf 'fatal: swayidle is unavailable\n' >&2; exit 1; }
+
+if [ "$suspend_seconds" -gt 0 ]; then
+  exec "$swayidle_cmd" -w \
+    timeout "$lock_seconds" /usr/local/bin/labwc-lock \
+    timeout "$dpms_seconds" '/usr/local/libexec/labwc-output-watch --dpms-off' resume '/usr/local/libexec/labwc-output-watch --dpms-on' \
+    timeout "$suspend_seconds" '/usr/local/bin/labwc-lock && /usr/bin/systemctl suspend' \
+    before-sleep /usr/local/bin/labwc-lock \
+    after-resume '/usr/local/libexec/labwc-output-watch --dpms-on' \
+    lock /usr/local/bin/labwc-lock
+fi
+
+exec "$swayidle_cmd" -w \
+  timeout "$lock_seconds" /usr/local/bin/labwc-lock \
+  timeout "$dpms_seconds" '/usr/local/libexec/labwc-output-watch --dpms-off' resume '/usr/local/libexec/labwc-output-watch --dpms-on' \
+  before-sleep /usr/local/bin/labwc-lock \
+  after-resume '/usr/local/libexec/labwc-output-watch --dpms-on' \
+  lock /usr/local/bin/labwc-lock

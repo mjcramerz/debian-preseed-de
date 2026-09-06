@@ -1,0 +1,16 @@
+[Unit]
+# The user broker is socket-activated; make dbus.service alias resolution pull
+# in the matching user dbus.socket before dbus-broker-launch runs.
+Requires=dbus.socket
+After=dbus.socket
+
+[Service]
+# Keep the user bus launcher close to the vendor unit and adjust only bounded
+# resources so the broker activation model stays intact across systemd updates.
+TasksMax=__INSTALLER_DBUS_BROKER_TASKS_MAX__
+LimitNOFILE=__INSTALLER_DBUS_BROKER_LIMIT_NOFILE__
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native

@@ -1,0 +1,31 @@
+[Unit]
+Description=Run the managed Labwc compositor
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+Requires=dbus.service dbus.socket
+After=dbus.service dbus.socket
+PartOf=labwc-session.target
+Before=labwc-session.target
+
+[Service]
+TimeoutStartSec=30s
+Type=exec
+KillMode=control-group
+Environment=LIBSEAT_BACKEND=seatd
+# Never turn an inherited X11/Xwayland value into the compositor's executable
+# path. Point wlroots at a root-owned fail-closed executable so its lazy
+# Xwayland setup does not probe the intentionally absent /usr/bin/Xwayland.
+Environment=WLR_XWAYLAND=/usr/bin/false
+UnsetEnvironment=DISPLAY XAUTHORITY XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID
+# The private compatibility runtime belongs exclusively to the target-bound
+# Zoom/Discord Cage services and is not visible in Labwc's mount namespace.
+InaccessiblePaths=-/opt/xwayland
+# Keep the managed output-autostart policy in this service transaction. Labwc
+# has no environment or command-line switch for core.autoEnableOutputs, so the
+# service selects the rendered rc.xml explicitly and launches the one managed
+# startup helper only after the compositor event loop and Wayland socket exist.
+ExecStartPre=/usr/local/libexec/labwc-session-check compositor-config
+ExecStart=/usr/bin/labwc --config %h/.config/labwc/rc.xml --startup /usr/local/bin/labwc-autostart
+TimeoutStopSec=30s

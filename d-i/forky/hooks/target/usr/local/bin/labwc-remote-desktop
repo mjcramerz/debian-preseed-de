@@ -1,0 +1,1034 @@
+#!/usr/bin/python3 -I
+import base64
+import ipaddress
+import json
+import os
+import pathlib
+import pwd
+import re
+import shutil
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+PROFILE_VERSION = 2
+MAX_PROFILE_COUNT = 128
+MAX_PROFILE_FILE_BYTES = 65536
+MAX_SERIALIZED_PROFILE_BYTES = 16384
+FREERDP_PACKAGE_NAME = "freerdp-sdl"
+FREERDP_EXECUTABLE_CANDIDATES = ("sdl-freerdp", "sdl-freerdp3")
+FREERDP_EXECUTABLE = FREERDP_EXECUTABLE_CANDIDATES[0]
+FREERDP_ASKPASS_HELPER = "/usr/local/bin/labwc-freerdp-askpass"
+REMOVABLE_MEDIA_ROOT = pathlib.Path("/run/media")
+MAX_CONNECTION_LOG_BYTES = 1048576
+PROFILE_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+HOSTNAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,252}")
+DISPLAY_CHOICES = {
+    "Dynamic window (1600x900 initial)": ("dynamic", 1600, 900),
+    "Windowed 1600x900": ("window", 1600, 900),
+    "Windowed 1920x1080": ("window", 1920, 1080),
+    "Custom window size": ("custom", 0, 0),
+    "Full screen": ("fullscreen", 0, 0),
+    "Multi-monitor full screen": ("multimon", 0, 0),
+}
+NETWORK_CHOICES = {
+    "Automatic network detection": "auto",
+    "LAN": "lan",
+    "High-speed broadband": "broadband-high",
+    "Broadband": "broadband",
+    "Low-bandwidth connection": "modem",
+}
+AUDIO_CHOICES = {
+    "Play audio locally": "0",
+    "Play audio on the remote target": "1",
+    "Disable remote audio": "2",
+}
+CERTIFICATE_CHOICES = {
+    "Ask before trusting the remote certificate (recommended)": "prompt",
+    "Require a system-trusted remote certificate": "deny",
+}
+
+
+def fail(message: str) -> "NoReturn":
+    print(f"fatal: {message}", file=sys.stderr)
+    notify("Remote Desktop Management", message, urgency="critical", icon="dialog-error")
+    raise SystemExit(1)
+
+
+def notify(summary: str, body: str, *, urgency: str = "normal", icon: str = "preferences-desktop-remote-desktop") -> None:
+    notify_send = shutil.which("notify-send")
+    if notify_send is None or not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        return
+    subprocess.run(
+        [
+            notify_send,
+            "-a",
+            "Remote Desktop Management",
+            "-u",
+            urgency,
+            "-i",
+            icon,
+            summary,
+            body,
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def require_desktop_user() -> None:
+    if os.getuid() == 0:
+        fail("labwc-remote-desktop must run as the logged-in desktop user")
+    desktop_home()
+    require_wayland_session()
+
+
+def desktop_account() -> pwd.struct_passwd:
+    try:
+        account = pwd.getpwuid(os.getuid())
+    except KeyError:
+        fail(f"current user ID has no account entry: {os.getuid()}")
+    if (
+        not account.pw_name
+        or account.pw_name in {".", ".."}
+        or "/" in account.pw_name
+        or any(ord(character) < 32 or ord(character) == 127 for character in account.pw_name)
+    ):
+        fail("current user account name is invalid")
+    return account
+
+
+def desktop_username() -> str:
+    return desktop_account().pw_name
+
+
+def desktop_home() -> pathlib.Path:
+    account_home = pathlib.Path(desktop_account().pw_dir)
+    if not account_home.is_absolute():
+        fail(f"desktop account home must be absolute: {account_home}")
+    try:
+        resolved = account_home.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        fail(f"desktop account home is unavailable: {account_home}: {exc}")
+    if not resolved.is_dir():
+        fail(f"desktop account home is not a directory: {resolved}")
+    return resolved
+
+
+def require_wayland_session() -> None:
+    if os.environ.get("XDG_SESSION_TYPE") != "wayland":
+        fail("Remote Desktop Management requires the Labwc Wayland session")
+    runtime_dir_value = os.environ.get("XDG_RUNTIME_DIR", "")
+    wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+    if not runtime_dir_value or not os.path.isabs(runtime_dir_value):
+        fail(f"XDG_RUNTIME_DIR must be an absolute Wayland runtime path: {runtime_dir_value or 'unset'}")
+    if (
+        not wayland_display
+        or os.path.isabs(wayland_display)
+        or "/" in wayland_display
+        or len(wayland_display) > 255
+        or any(character in wayland_display for character in ("\n", "\r", "\0"))
+    ):
+        fail(f"WAYLAND_DISPLAY is invalid: {wayland_display or 'unset'}")
+    wayland_socket = os.path.join(runtime_dir_value, wayland_display)
+    try:
+        mode = os.stat(wayland_socket).st_mode
+    except OSError as exc:
+        fail(f"Wayland socket is unavailable: {wayland_socket}: {exc}")
+    if not stat.S_ISSOCK(mode):
+        fail(f"Wayland display path is not a socket: {wayland_socket}")
+
+
+def freerdp_wayland_environment() -> dict[str, str]:
+    require_wayland_session()
+    environment = os.environ.copy()
+    environment["SDL_VIDEODRIVER"] = "wayland"
+    return environment
+
+
+def resolve_freerdp_executable() -> str:
+    for executable in FREERDP_EXECUTABLE_CANDIDATES:
+        resolved = shutil.which(executable)
+        if resolved is not None:
+            return resolved
+    supported = ", ".join(FREERDP_EXECUTABLE_CANDIDATES)
+    fail(f"{FREERDP_PACKAGE_NAME} is not installed or does not provide one of: {supported}")
+
+
+def clean_text(label: str, value: str, *, maximum: int, allow_empty: bool = False) -> str:
+    cleaned = value.strip()
+    if not cleaned and not allow_empty:
+        fail(f"{label} must not be empty")
+    if len(cleaned) > maximum:
+        fail(f"{label} exceeds the {maximum}-character limit")
+    if any(ord(character) < 32 or ord(character) == 127 for character in cleaned):
+        fail(f"{label} contains unsupported control characters")
+    return cleaned
+
+
+def run_fuzzel(prompt: str, choices: list[str]) -> str | None:
+    fuzzel = shutil.which("labwc-fuzzel")
+    if fuzzel is None:
+        fail("labwc-fuzzel is not installed")
+    bounded_choices = choices[:128]
+    completed = subprocess.run(
+        [
+            fuzzel,
+            "menu",
+            "--dmenu",
+            "--prompt",
+            prompt,
+        ],
+        input="\n".join(bounded_choices) + ("\n" if bounded_choices else ""),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    output_lines = completed.stdout.splitlines()
+    if not output_lines or not output_lines[0].strip():
+        return None
+    return clean_text(prompt, output_lines[0], maximum=1024)
+
+
+def choose_value(prompt: str, choices: dict[str, object], default_label: str | None = None) -> object | None:
+    labels = list(choices)
+    if default_label in choices:
+        labels.remove(default_label)
+        labels.insert(0, default_label)
+    selection = run_fuzzel(prompt, labels)
+    if selection is None:
+        return None
+    return choices.get(selection)
+
+
+def prompt_text(prompt: str, suggestions: list[str], *, default: str = "", maximum: int = 255) -> str | None:
+    values: list[str] = []
+    if default:
+        values.append(default)
+    for suggestion in suggestions:
+        if suggestion and suggestion not in values:
+            values.append(suggestion)
+    selection = run_fuzzel(prompt, values)
+    if selection is None:
+        return None
+    return clean_text(prompt, selection, maximum=maximum)
+
+
+def prompt_optional_text(prompt: str, *, default: str = "") -> str | None:
+    none_label = "<none>"
+    suggestions = [default, none_label] if default else [none_label]
+    selection = prompt_text(prompt, suggestions, default=default, maximum=128)
+    if selection is None:
+        return None
+    if selection == none_label:
+        return ""
+    return selection
+
+
+def prompt_boolean(prompt: str, default: bool) -> bool | None:
+    enabled_label = "Enabled"
+    disabled_label = "Disabled"
+    selection = run_fuzzel(
+        prompt,
+        [enabled_label, disabled_label] if default else [disabled_label, enabled_label],
+    )
+    if selection is None:
+        return None
+    if selection == enabled_label:
+        return True
+    if selection == disabled_label:
+        return False
+    return None
+
+
+def validate_host(value: str) -> str:
+    host = clean_text("RDP target", value, maximum=253)
+    literal = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    try:
+        ipaddress.ip_address(literal)
+        return host
+    except ValueError:
+        pass
+    if not HOSTNAME_PATTERN.fullmatch(host) or "/" in host or ".." in host:
+        fail(f"RDP target is not a valid hostname or IP address: {host}")
+    return host
+
+
+def validate_port(value: object) -> int:
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        fail(f"RDP port is not numeric: {value}")
+    if port < 1 or port > 65535:
+        fail(f"RDP port is outside 1-65535: {port}")
+    return port
+
+
+def validate_dimension(label: str, value: object, minimum: int, maximum: int) -> int:
+    try:
+        dimension = int(value)
+    except (TypeError, ValueError):
+        fail(f"{label} is not numeric: {value}")
+    if dimension < minimum or dimension > maximum:
+        fail(f"{label} is outside {minimum}-{maximum}: {dimension}")
+    return dimension
+
+
+def share_path_roots() -> tuple[pathlib.Path, ...]:
+    roots = [desktop_home()]
+    media_root = REMOVABLE_MEDIA_ROOT / desktop_username()
+    try:
+        metadata = media_root.lstat()
+    except FileNotFoundError:
+        roots.append(media_root)
+    except OSError:
+        pass
+    else:
+        if not stat.S_ISLNK(metadata.st_mode) and stat.S_ISDIR(metadata.st_mode):
+            try:
+                roots.append(media_root.resolve(strict=True))
+            except (OSError, RuntimeError):
+                pass
+    return tuple(roots)
+
+
+def validate_share_path(value: str, *, require_existing: bool = True) -> str:
+    raw_path = clean_text("shared folder", value, maximum=1024)
+    if "," in raw_path:
+        fail("shared folder paths containing commas are not supported by FreeRDP drive redirection")
+    account_home = desktop_home()
+    if raw_path == "~":
+        candidate = account_home
+    elif raw_path.startswith("~/"):
+        candidate = account_home / raw_path[2:]
+    else:
+        candidate = pathlib.Path(raw_path)
+    if not candidate.is_absolute():
+        fail("shared folder must be an absolute path")
+    try:
+        resolved = candidate.resolve(strict=require_existing)
+    except (OSError, RuntimeError) as exc:
+        fail(f"shared folder is unavailable: {candidate}: {exc}")
+    if not any(resolved == root or root in resolved.parents for root in share_path_roots()):
+        fail("shared folder must be below HOME or the active user's /run/media directory")
+    if require_existing:
+        if not resolved.is_dir():
+            fail(f"shared folder is not a directory: {resolved}")
+        if not os.access(resolved, os.R_OK | os.X_OK):
+            fail(f"shared folder is not readable: {resolved}")
+    return str(resolved)
+
+
+def validate_profile(profile: object, *, require_share: bool = False) -> dict[str, object]:
+    if not isinstance(profile, dict):
+        fail("saved connection entry is not an object")
+    required_keys = {
+        "name",
+        "host",
+        "port",
+        "username",
+        "domain",
+        "share_path",
+        "display_mode",
+        "width",
+        "height",
+        "network",
+        "audio_mode",
+        "clipboard",
+        "microphone",
+        "printer",
+        "admin",
+        "certificate",
+    }
+    if set(profile) != required_keys:
+        fail("saved connection contains an unexpected field set")
+    name = clean_text("profile name", str(profile["name"]), maximum=64)
+    if not PROFILE_NAME_PATTERN.fullmatch(name):
+        fail(f"profile name must use letters, digits, dot, underscore, or hyphen: {name}")
+    host = validate_host(str(profile["host"]))
+    port = validate_port(profile["port"])
+    username = clean_text("RDP username", str(profile["username"]), maximum=256)
+    domain = clean_text("RDP domain", str(profile["domain"]), maximum=128, allow_empty=True)
+    share_path_value = clean_text(
+        "shared folder",
+        str(profile["share_path"]),
+        maximum=1024,
+        allow_empty=True,
+    )
+    share_path = (
+        validate_share_path(share_path_value, require_existing=require_share)
+        if share_path_value
+        else ""
+    )
+    display_mode = str(profile["display_mode"])
+    if display_mode not in {"dynamic", "window", "fullscreen", "multimon"}:
+        fail(f"unsupported display mode in saved connection: {display_mode}")
+    if display_mode in {"dynamic", "window"}:
+        width = validate_dimension("window width", profile["width"], 640, 7680)
+        height = validate_dimension("window height", profile["height"], 480, 4320)
+    else:
+        width = 0
+        height = 0
+    network = str(profile["network"])
+    if network not in set(NETWORK_CHOICES.values()):
+        fail(f"unsupported network profile in saved connection: {network}")
+    audio_mode = str(profile["audio_mode"])
+    if audio_mode not in set(AUDIO_CHOICES.values()):
+        fail(f"unsupported audio mode in saved connection: {audio_mode}")
+    certificate = str(profile["certificate"])
+    if certificate not in set(CERTIFICATE_CHOICES.values()):
+        fail(f"unsupported certificate policy in saved connection: {certificate}")
+    boolean_fields = {}
+    for field in ("clipboard", "microphone", "printer", "admin"):
+        if not isinstance(profile[field], bool):
+            fail(f"saved connection field must be boolean: {field}")
+        boolean_fields[field] = profile[field]
+    return {
+        "name": name,
+        "host": host,
+        "port": port,
+        "username": username,
+        "domain": domain,
+        "share_path": share_path,
+        "display_mode": display_mode,
+        "width": width,
+        "height": height,
+        "network": network,
+        "audio_mode": audio_mode,
+        "certificate": certificate,
+        **boolean_fields,
+    }
+
+
+def profile_store_path() -> pathlib.Path:
+    config_home_value = os.environ.get("XDG_CONFIG_HOME")
+    config_home = (
+        pathlib.Path(config_home_value)
+        if config_home_value
+        else desktop_home() / ".config"
+    )
+    if not config_home.is_absolute():
+        fail(f"XDG_CONFIG_HOME must be absolute: {config_home}")
+    return config_home / "labwc" / "remote-desktop" / "connections.json"
+
+
+def ensure_profile_directory(path: pathlib.Path) -> None:
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail(f"saved connection directory is not a real directory: {path}")
+    if metadata.st_uid != os.getuid():
+        fail(f"saved connection directory is not owned by the current user: {path}")
+    path.chmod(0o700)
+
+
+def load_profiles() -> list[dict[str, object]]:
+    path = profile_store_path()
+    if not path.exists():
+        return []
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(f"saved connection store is not a regular file: {path}")
+    if metadata.st_uid != os.getuid():
+        fail(f"saved connection store is not owned by the current user: {path}")
+    if metadata.st_size > MAX_PROFILE_FILE_BYTES:
+        fail(f"saved connection store exceeds {MAX_PROFILE_FILE_BYTES} bytes")
+    path.chmod(0o600)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        fail(f"saved connection store is invalid: {exc}")
+    if not isinstance(payload, dict) or payload.get("version") != PROFILE_VERSION:
+        fail("saved connection store has an unsupported version")
+    connections = payload.get("connections")
+    if not isinstance(connections, list) or len(connections) > MAX_PROFILE_COUNT:
+        fail("saved connection store contains an invalid connection list")
+    validated = [validate_profile(profile) for profile in connections]
+    names = [str(profile["name"]) for profile in validated]
+    if len(names) != len(set(names)):
+        fail("saved connection store contains duplicate profile names")
+    return validated
+
+
+def save_profiles(profiles: list[dict[str, object]]) -> None:
+    if len(profiles) > MAX_PROFILE_COUNT:
+        fail(f"no more than {MAX_PROFILE_COUNT} saved connections are allowed")
+    validated = [validate_profile(profile) for profile in profiles]
+    payload = json.dumps(
+        {"version": PROFILE_VERSION, "connections": validated},
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+    encoded = payload.encode("utf-8")
+    if len(encoded) > MAX_PROFILE_FILE_BYTES:
+        fail(f"saved connection store would exceed {MAX_PROFILE_FILE_BYTES} bytes")
+    path = profile_store_path()
+    ensure_profile_directory(path.parent)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=".connections.",
+            delete=False,
+        ) as handle:
+            temporary_path = pathlib.Path(handle.name)
+            os.fchmod(handle.fileno(), 0o600)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+        path.chmod(0o600)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def existing_default(existing: dict[str, object] | None, key: str, fallback: object) -> object:
+    return existing[key] if existing is not None else fallback
+
+
+def collect_connection(shared: bool, existing: dict[str, object] | None = None) -> dict[str, object] | None:
+    host_value = prompt_text(
+        "RDP target",
+        ["rdp.example.com", "192.168.1.10"],
+        default=str(existing_default(existing, "host", "")),
+        maximum=253,
+    )
+    if host_value is None:
+        return None
+    host = validate_host(host_value)
+    port_value = prompt_text(
+        "RDP port",
+        ["3389"],
+        default=str(existing_default(existing, "port", 3389)),
+        maximum=5,
+    )
+    if port_value is None:
+        return None
+    port = validate_port(port_value)
+    username = prompt_text(
+        "RDP username",
+        [desktop_username()],
+        default=str(existing_default(existing, "username", "")),
+        maximum=256,
+    )
+    if username is None:
+        return None
+    username = clean_text("RDP username", username, maximum=256)
+    domain = prompt_optional_text(
+        "RDP domain",
+        default=str(existing_default(existing, "domain", "")),
+    )
+    if domain is None:
+        return None
+    share_path = ""
+    if shared:
+        account_home = desktop_home()
+        share_default = str(existing_default(existing, "share_path", str(account_home)))
+        share_value = prompt_text(
+            "Folder shared with the remote target",
+            [str(account_home), str(account_home / "Downloads")],
+            default=share_default,
+            maximum=1024,
+        )
+        if share_value is None:
+            return None
+        share_path = validate_share_path(share_value)
+    display_default = "Dynamic window (1600x900 initial)"
+    if existing is not None:
+        mode = str(existing["display_mode"])
+        width = int(existing["width"])
+        height = int(existing["height"])
+        for label, candidate in DISPLAY_CHOICES.items():
+            if candidate == (mode, width, height):
+                display_default = label
+                break
+        if mode == "fullscreen":
+            display_default = "Full screen"
+        elif mode == "multimon":
+            display_default = "Multi-monitor full screen"
+    display_selection = choose_value("Display mode", DISPLAY_CHOICES, display_default)
+    if display_selection is None:
+        return None
+    display_mode, width, height = display_selection
+    if display_mode == "custom":
+        width_value = prompt_text("Window width", ["1600", "1920"], maximum=4)
+        if width_value is None:
+            return None
+        height_value = prompt_text("Window height", ["900", "1080"], maximum=4)
+        if height_value is None:
+            return None
+        width = validate_dimension("window width", width_value, 640, 7680)
+        height = validate_dimension("window height", height_value, 480, 4320)
+        display_mode = "window"
+    network_default = next(
+        (
+            label
+            for label, value in NETWORK_CHOICES.items()
+            if value == str(existing_default(existing, "network", "auto"))
+        ),
+        "Automatic network detection",
+    )
+    network = choose_value("Connection quality", NETWORK_CHOICES, network_default)
+    if network is None:
+        return None
+    audio_default = next(
+        (
+            label
+            for label, value in AUDIO_CHOICES.items()
+            if value == str(existing_default(existing, "audio_mode", "0"))
+        ),
+        "Play audio locally",
+    )
+    audio_mode = choose_value("Remote audio", AUDIO_CHOICES, audio_default)
+    if audio_mode is None:
+        return None
+    certificate_default = next(
+        (
+            label
+            for label, value in CERTIFICATE_CHOICES.items()
+            if value == str(existing_default(existing, "certificate", "prompt"))
+        ),
+        "Ask before trusting the remote certificate (recommended)",
+    )
+    certificate = choose_value("Certificate validation", CERTIFICATE_CHOICES, certificate_default)
+    if certificate is None:
+        return None
+    clipboard = prompt_boolean("Clipboard redirection", bool(existing_default(existing, "clipboard", True)))
+    if clipboard is None:
+        return None
+    microphone = prompt_boolean("Microphone redirection", bool(existing_default(existing, "microphone", False)))
+    if microphone is None:
+        return None
+    printer = prompt_boolean("Printer redirection", bool(existing_default(existing, "printer", False)))
+    if printer is None:
+        return None
+    admin = prompt_boolean("Administrative console session", bool(existing_default(existing, "admin", False)))
+    if admin is None:
+        return None
+    return validate_profile(
+        {
+            "name": str(existing_default(existing, "name", "temporary")),
+            "host": host,
+            "port": port,
+            "username": username,
+            "domain": domain,
+            "share_path": share_path,
+            "display_mode": display_mode,
+            "width": width,
+            "height": height,
+            "network": network,
+            "audio_mode": audio_mode,
+            "clipboard": clipboard,
+            "microphone": microphone,
+            "printer": printer,
+            "admin": admin,
+            "certificate": certificate,
+        },
+        require_share=shared,
+    )
+
+
+def profile_label(profile: dict[str, object]) -> str:
+    shared = "shared" if profile["share_path"] else "direct"
+    domain_prefix = f"{profile['domain']}\\" if profile["domain"] else ""
+    return f"{profile['name']} — {domain_prefix}{profile['username']}@{profile['host']} ({shared})"
+
+
+def select_profile(profiles: list[dict[str, object]], prompt: str) -> dict[str, object] | None:
+    if not profiles:
+        notify("Remote Desktop Management", "No saved connections are available.")
+        return None
+    labels = {profile_label(profile): profile for profile in profiles}
+    selected = run_fuzzel(prompt, sorted(labels))
+    return labels.get(selected) if selected is not None else None
+
+
+def encode_profile(profile: dict[str, object]) -> str:
+    raw = json.dumps(validate_profile(profile), separators=(",", ":")).encode("utf-8")
+    if len(raw) > MAX_SERIALIZED_PROFILE_BYTES:
+        fail("connection profile is unexpectedly large")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
+
+
+def decode_profile(value: str) -> dict[str, object]:
+    if len(value) > MAX_SERIALIZED_PROFILE_BYTES * 2:
+        fail("encoded connection profile is unexpectedly large")
+    try:
+        raw = base64.urlsafe_b64decode(value.encode("ascii"))
+        if len(raw) > MAX_SERIALIZED_PROFILE_BYTES:
+            fail("decoded connection profile is unexpectedly large")
+        return validate_profile(json.loads(raw.decode("utf-8")))
+    except (ValueError, UnicodeError, json.JSONDecodeError) as exc:
+        fail(f"encoded connection profile is invalid: {exc}")
+
+
+def freerdp_server_argument(host: str, port: int) -> str:
+    literal = host[1:-1] if host.startswith("[") and host.endswith("]") else host
+    try:
+        address = ipaddress.ip_address(literal)
+    except ValueError:
+        authority_host = host
+    else:
+        authority_host = f"[{address.compressed}]" if address.version == 6 else address.compressed
+    return f"/v:{authority_host}:{port}"
+
+
+def build_freerdp_command(profile: dict[str, object], executable: str = FREERDP_EXECUTABLE) -> list[str]:
+    connection = validate_profile(profile, require_share=True)
+    command = [
+        executable,
+        freerdp_server_argument(str(connection["host"]), int(connection["port"])),
+        f"/u:{connection['username']}",
+        "/from-stdin:force",
+    ]
+    if connection["certificate"] == "deny":
+        command.append("/cert:deny")
+    command.extend(
+        [
+            f"/network:{connection['network']}",
+            f"/audio-mode:{connection['audio_mode']}",
+            "+auto-reconnect",
+            "/auto-reconnect-max-retries:5",
+            "/log-level:WARN",
+            f"/title:RDP - {connection['name']}",
+        ]
+    )
+    if connection["domain"]:
+        command.append(f"/d:{connection['domain']}")
+    else:
+        command.append("/auth-pkg-list:!kerberos,!u2u")
+    if connection["clipboard"]:
+        command.append("/clipboard:direction-to:all,files-to:all")
+    else:
+        command.append("/clipboard:direction-to:off,files-to:off")
+    if connection["microphone"]:
+        command.append("/microphone")
+    if connection["printer"]:
+        command.append("/printer")
+    if connection["admin"]:
+        command.append("/admin")
+    display_mode = str(connection["display_mode"])
+    if display_mode == "dynamic":
+        command.extend(
+            [
+                f"/size:{connection['width']}x{connection['height']}",
+                "+dynamic-resolution",
+            ]
+        )
+    elif display_mode == "window":
+        command.extend(
+            [
+                f"/size:{connection['width']}x{connection['height']}",
+                "/smart-sizing",
+            ]
+        )
+    elif display_mode == "fullscreen":
+        command.append("/f")
+    elif display_mode == "multimon":
+        command.extend(["/multimon:force", "/f"])
+    if connection["share_path"]:
+        command.append(f"/drive:Shared,{connection['share_path']}")
+    return command
+
+
+def current_script_path() -> pathlib.Path:
+    candidate = pathlib.Path(sys.argv[0])
+    if not candidate.is_absolute():
+        located = shutil.which(sys.argv[0])
+        if located is not None:
+            candidate = pathlib.Path(located)
+    resolved = candidate.resolve()
+    if not resolved.is_file():
+        fail(f"unable to resolve the installed launcher path: {candidate}")
+    return resolved
+
+
+def validate_askpass_helper() -> None:
+    helper_path = pathlib.Path(FREERDP_ASKPASS_HELPER)
+    try:
+        metadata = helper_path.lstat()
+    except OSError as exc:
+        fail(f"FreeRDP askpass helper is unavailable: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(f"FreeRDP askpass helper is not a regular file: {helper_path}")
+    if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        fail(f"FreeRDP askpass helper must be root-owned and not group/world-writable: {helper_path}")
+    if not os.access(helper_path, os.X_OK):
+        fail(f"FreeRDP askpass helper is not executable: {helper_path}")
+
+
+def freerdp_connection_environment() -> dict[str, str]:
+    validate_askpass_helper()
+    environment = freerdp_wayland_environment()
+    environment["FREERDP_ASKPASS"] = FREERDP_ASKPASS_HELPER
+    return environment
+
+
+def connection_log_path() -> pathlib.Path:
+    return profile_store_path().with_name("last-session.log")
+
+
+def read_connection_log(log_path: pathlib.Path) -> str:
+    try:
+        metadata = log_path.lstat()
+    except OSError:
+        return ""
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != os.getuid()
+        or metadata.st_size > MAX_CONNECTION_LOG_BYTES
+    ):
+        return ""
+    try:
+        return log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
+    ensure_profile_directory(log_path.parent)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(log_path, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as log_handle:
+        metadata = os.fstat(log_handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+            fail(f"Remote Desktop log is not a user-owned regular file: {log_path}")
+        os.fchmod(log_handle.fileno(), 0o600)
+        completed = subprocess.run(
+            command,
+            env=freerdp_connection_environment(),
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+        return completed.returncode
+
+
+def connection_failure_message(profile: dict[str, object], log_path: pathlib.Path) -> str:
+    log_text = read_connection_log(log_path)
+    if "ERRCONNECT_CONNECT_FAILED" in log_text or "freerdp_tcp_connect_timeout" in log_text:
+        return (
+            f"Unable to reach {profile['host']}:{profile['port']}. "
+            "Verify the target address, routing, VPN/firewall policy, and that the remote RDP service is listening. "
+            f"Diagnostics: {log_path}"
+        )
+    if "ERRCONNECT_LOGON_FAILURE" in log_text:
+        return (
+            f"Authentication failed for {profile['username']} on {profile['host']}. "
+            "Verify the username, password, account state, and Remote Desktop logon rights. "
+            "Leave Domain empty for a local account; "
+            f"set Domain only for a directory-backed account. Diagnostics: {log_path}"
+        )
+    return f"{profile['name']} failed. Review {log_path}."
+
+
+def launch_connection(profile: dict[str, object]) -> None:
+    resolve_freerdp_executable()
+    validate_askpass_helper()
+    connection = validate_profile(profile, require_share=True)
+    script_path = current_script_path()
+    subprocess.Popen(
+        [str(script_path), "_connect", encode_profile(connection)],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    notify(
+        "Remote Desktop connection started",
+        "Credentials are requested in a protected GTK dialog and are never saved.",
+    )
+
+
+def save_connection(shared: bool) -> None:
+    connection = collect_connection(shared)
+    if connection is None:
+        return
+    profile_name = prompt_text("Saved connection name", [str(connection["host"])], maximum=64)
+    if profile_name is None:
+        return
+    profile_name = clean_text("profile name", profile_name, maximum=64)
+    if not PROFILE_NAME_PATTERN.fullmatch(profile_name):
+        fail("profile name must use letters, digits, dot, underscore, or hyphen")
+    connection["name"] = profile_name
+    profiles = load_profiles()
+    existing_index = next(
+        (index for index, profile in enumerate(profiles) if profile["name"] == profile_name),
+        None,
+    )
+    if existing_index is not None:
+        confirmation = run_fuzzel(
+            "Replace saved connection",
+            ["Cancel", f"Replace {profile_name}"],
+        )
+        if confirmation != f"Replace {profile_name}":
+            return
+        profiles[existing_index] = validate_profile(connection)
+    else:
+        profiles.append(validate_profile(connection))
+    save_profiles(profiles)
+    notify("Remote Desktop connection saved", f"Saved {profile_name} without a password.")
+
+
+def edit_connection() -> None:
+    profiles = load_profiles()
+    selected = select_profile(profiles, "Edit saved connection")
+    if selected is None:
+        return
+    edited = collect_connection(bool(selected["share_path"]), selected)
+    if edited is None:
+        return
+    edited["name"] = selected["name"]
+    updated = [
+        validate_profile(edited) if profile["name"] == selected["name"] else profile
+        for profile in profiles
+    ]
+    save_profiles(updated)
+    notify("Remote Desktop connection updated", f"Updated {selected['name']} without storing a password.")
+
+
+def delete_connection() -> None:
+    profiles = load_profiles()
+    selected = select_profile(profiles, "Delete saved connection")
+    if selected is None:
+        return
+    confirmation = run_fuzzel(
+        "Confirm deletion",
+        ["Cancel", f"Delete {selected['name']}"],
+    )
+    if confirmation != f"Delete {selected['name']}":
+        return
+    save_profiles([profile for profile in profiles if profile["name"] != selected["name"]])
+    notify("Remote Desktop connection deleted", f"Deleted {selected['name']}.")
+
+
+def open_profile_directory() -> None:
+    path = profile_store_path()
+    ensure_profile_directory(path.parent)
+    thunar = shutil.which("thunar")
+    if thunar is None:
+        fail("Thunar is not installed")
+    subprocess.Popen(
+        [thunar, str(path.parent)],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def connect_saved() -> None:
+    selected = select_profile(load_profiles(), "Saved connection")
+    if selected is not None:
+        launch_connection(selected)
+
+
+def connect_temporary(shared: bool) -> None:
+    connection = collect_connection(shared)
+    if connection is not None:
+        launch_connection(connection)
+
+
+def show_help() -> None:
+    terminal = shutil.which("labwc-terminal")
+    if terminal is None:
+        fail("labwc-terminal is not installed")
+    script_path = current_script_path()
+    subprocess.Popen(
+        [terminal, "-e", str(script_path), "_help"],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def main_menu() -> None:
+    action = run_fuzzel(
+        "Remote Desktop Management",
+        [
+            "Connect to Target (Direct)",
+            "Connect to Target (Shared)",
+            "Select Saved Connection",
+            "Save Connection (Direct)",
+            "Save Connection (Shared)",
+            "Edit Saved Connection",
+            "Delete Saved Connection",
+            "Open Saved Connections Folder",
+            "Show FreeRDP Help",
+        ],
+    )
+    if action == "Connect to Target (Direct)":
+        connect_temporary(False)
+    elif action == "Connect to Target (Shared)":
+        connect_temporary(True)
+    elif action == "Select Saved Connection":
+        connect_saved()
+    elif action == "Save Connection (Direct)":
+        save_connection(False)
+    elif action == "Save Connection (Shared)":
+        save_connection(True)
+    elif action == "Edit Saved Connection":
+        edit_connection()
+    elif action == "Delete Saved Connection":
+        delete_connection()
+    elif action == "Open Saved Connections Folder":
+        open_profile_directory()
+    elif action == "Show FreeRDP Help":
+        show_help()
+
+
+def run_encoded_connection(value: str) -> None:
+    executable = resolve_freerdp_executable()
+    profile = decode_profile(value)
+    command = build_freerdp_command(profile, executable)
+    log_path = connection_log_path()
+    returncode = run_freerdp_command(command, log_path)
+    if returncode != 0:
+        notify(
+            "Remote Desktop connection failed",
+            connection_failure_message(profile, log_path),
+            urgency="critical",
+            icon="dialog-error",
+        )
+        raise SystemExit(1)
+
+
+def run_help_terminal() -> None:
+    executable = resolve_freerdp_executable()
+    subprocess.run([executable, "/?"], env=freerdp_wayland_environment(), check=False)
+    print()
+    input("Press Enter to close this terminal.")
+
+
+def main() -> None:
+    require_desktop_user()
+    if len(sys.argv) == 1:
+        main_menu()
+        return
+    if len(sys.argv) == 3 and sys.argv[1] == "_connect":
+        run_encoded_connection(sys.argv[2])
+        return
+    if len(sys.argv) == 3 and sys.argv[1] == "_print-command":
+        print("\n".join(build_freerdp_command(decode_profile(sys.argv[2]), resolve_freerdp_executable())))
+        return
+    if len(sys.argv) == 2 and sys.argv[1] == "_help":
+        run_help_terminal()
+        return
+    fail("unsupported labwc-remote-desktop invocation")
+
+
+if __name__ == "__main__":
+    main()

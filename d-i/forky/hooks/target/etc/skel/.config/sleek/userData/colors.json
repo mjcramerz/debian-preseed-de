@@ -1,0 +1,178 @@
+{
+  "colors": {
+    "semantic": {
+      "primary": "#1E7D4D",
+      "error": "#FF7A76",
+      "warning": "#FCD36B",
+      "success": "#65F0BC",
+      "notification": "#7AC1FF",
+      "focus": "#7EF1FF"
+    },
+    "theme": {
+      "light": {
+        "background": "#FBFDFC",
+        "surface": "#F3F8F5",
+        "surfaceVariant": "#E8F1EC",
+        "outline": "#607F71",
+        "outlineVariant": "#B9CEC2",
+        "onSurface": "#173329",
+        "onBackground": "#173329"
+      },
+      "dark": {
+        "background": "#0E1F18",
+        "surface": "#12271F",
+        "surfaceVariant": "#18100F",
+        "outline": "#7FA897",
+        "outlineVariant": "#315A49",
+        "onSurface": "#E6F1ED",
+        "onBackground": "#E6F1ED"
+      },
+      "opacity": {
+        "disabled": 0.5,
+        "hover": 0.8,
+        "focus": 1
+      }
+    },
+    "navigation": {
+      "light": {
+        "iconColor": "#315A49",
+        "hoverBackground": "#E8F1EC"
+      },
+      "dark": {
+        "iconColor": "#AFC7BF",
+        "hoverBackground": "#1F6A50"
+      },
+      "logo": {
+        "start": "#1E7D4D",
+        "end": "#80E8D1"
+      }
+    },
+    "attributes": {
+      "priority": {
+        "A": {
+          "background": "#FF7A76",
+          "selected": {
+            "background": "#B4232D"
+          }
+        },
+        "B": {
+          "background": "#FCD36B",
+          "selected": {
+            "background": "#8A6500"
+          }
+        },
+        "C": {
+          "background": "#7AC1FF",
+          "selected": {
+            "background": "#145B84"
+          }
+        }
+      },
+      "projects": {
+        "light": {
+          "text": "#145B84",
+          "background": "#D9ECF7",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#145B84"
+          }
+        },
+        "dark": {
+          "text": "#B8E2FF",
+          "background": "#16455E",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#145B84"
+          }
+        }
+      },
+      "contexts": {
+        "light": {
+          "text": "#17653E",
+          "background": "#D8F0E1",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#17653E"
+          }
+        },
+        "dark": {
+          "text": "#B8F4CF",
+          "background": "#1E6B4A",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#17653E"
+          }
+        }
+      },
+      "pomodoro": {
+        "light": {
+          "text": "#B4232D",
+          "background": "#FDE7E6",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#B4232D"
+          }
+        },
+        "dark": {
+          "text": "#FFB4A2",
+          "background": "#602423",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#B4232D"
+          }
+        }
+      },
+      "due": {
+        "light": {
+          "text": "#FFFFFF",
+          "background": "#8A6500"
+        },
+        "dark": {
+          "text": "#0E1F18",
+          "background": "#FCD36B"
+        }
+      },
+      "t": {
+        "light": {
+          "text": "#FFFFFF",
+          "background": "#315A49"
+        },
+        "dark": {
+          "text": "#E6F1ED",
+          "background": "#244738"
+        }
+      },
+      "generic": {
+        "light": {
+          "text": "#315A49",
+          "background": "#E8F1EC",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#1E7D4D"
+          },
+          "chip": {
+            "background": "#315A49",
+            "text": "#FFFFFF"
+          }
+        },
+        "dark": {
+          "text": "#C8EBD9",
+          "background": "#244738",
+          "selected": {
+            "text": "#FFFFFF",
+            "background": "#1E7D4D"
+          },
+          "chip": {
+            "background": "#1E7D4D",
+            "text": "#FFFFFF"
+          }
+        }
+      }
+    }
+  },
+  "__internal__": {
+    "migrations": {
+      "version": "2.0.26"
+    }
+  }
+}

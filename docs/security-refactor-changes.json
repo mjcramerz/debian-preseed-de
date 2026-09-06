@@ -1,0 +1,651 @@
+{
+  "baseline_zip_sha256": "a2d3263faa1e5e4c71ba62e0db11bc0cae14d068038df9a7712182aa5727c90f",
+  "date": "2026-09-06",
+  "scope": "All regular repository files except validation/, this ledger, .git and cache directories; content and permission differences counted.",
+  "counts": {
+    "unchanged": 1200,
+    "modified": 39,
+    "added": 19
+  },
+  "changes": [
+    {
+      "path": "README.md",
+      "status": "modified",
+      "before": {
+        "sha256": "53a865818b5d0e8f096008fd2eccc72f26ecbb6b6fcf09cdc71c4c80ed11a8e8",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "931435205d37981074f383afa860f9b15cef28536477ac55424f7b882be5f9b6",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "SECURITY.md",
+      "status": "modified",
+      "before": {
+        "sha256": "be37b9f81bb27849117065b27131c381a10423b5985ec2c95529b6378c4f7168",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "3b48c94b699c1a95f0a64574c13b8e7631f6f43bf4236b2a080b3fe014e84696",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "browser-config/badger-settings-base.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "f31953b38cbcb2e3c7eceda264245c0847fea6b533673083f6d501b6548600cd",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "browser-config/bookmarks.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "24031deb245ac0349066939127f1860aed704e7cdb139bfa59b834a5cba1ebb2",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "browser-config/noscript-base.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "c2ddcb255f0826fb0f03ded007418b73ade80cd58f053b6be43870b6acc8e01f",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "browser-config/provenance.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "8d772b84fff14bd5a5464028ef492c92bbaa54d075d1aff6dc6fa7fcce097531",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "browser-config/reviewed-trackers.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "ba306f86383068c094c7706de8ce08743bbedc00f60d3b990f8653dca9b9e2f3",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
+      "status": "modified",
+      "before": {
+        "sha256": "bf3e15c9ba78a22f29007a4699d9980fe34043d3fe8074d02f062b82bea7cdf0",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "0870dceb752401563819b3ce26d9d6c8522870a26ea21a83ffd31621cb4fa43b",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "e3a6e56529a42d19f34d7bd69ab46595ba32a97d2e4aeee5603f2f579e2a94a4",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "71e73eab624b60975013c8db50961e6fe80fb0143ad7df2ed59b7e708e355a74",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "e8ee6a864e13bceec1de20b8f25c1997d8f66c15df8adc5203683024a6cb2a0a",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "3e66182da3f45ece873a2288b4369c9a85e6108400f8896d898e4b6298231b43",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/chromium",
+      "status": "modified",
+      "before": {
+        "sha256": "e77d4181d9c380f2b72167ba60b9f658ba85bb1ea867c33b0d8f8e310c2f06c4",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "49a4f1497959ce34f022abf74feb7473d20286e2941206b72b8232e3248a01bf",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/microsoft-edge-stable",
+      "status": "modified",
+      "before": {
+        "sha256": "a76f764c7ad8beb37611eb4530e1de4a22a42102dd14a1e3fb025482d50b4f79",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "13796c4d83f0b4ec1ab99107957ab4bca8b5743ec31687ae1932691912bffcf0",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/vivaldi-bin",
+      "status": "modified",
+      "before": {
+        "sha256": "eef0ca3ff7f06db5d2454bf219de63185f8797782a8b87b22fd4f97ff6d7ed3f",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "2505a93e974eb395cb6b8662b95f9bb66ad8a0bd227f27a1ec0bc261f9893541",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/chromium/policies/managed/performance.json",
+      "status": "modified",
+      "before": {
+        "sha256": "efae5f642186c6664337158701d22e6c153c6fa072b2330bc2761e2137556a49",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/chromium/policies/managed/security.json",
+      "status": "modified",
+      "before": {
+        "sha256": "154921bd75e018d524db7765c67777d71f6ae02b9c826a067981e4c35c4c9417",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/chromium/policies/managed/telemetry.json",
+      "status": "modified",
+      "before": {
+        "sha256": "0232a383e2550fdccc77117892fd1049b0585730f8dd40a90932d4e21aac8646",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/chromium/policies/recommended/defaults.json",
+      "status": "modified",
+      "before": {
+        "sha256": "eecb7512f8e6b34d22da63a4a9ce52cc1de00f2f536f53ea3367dedbbec637f4",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/chrome/policies/managed/performance.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/chrome/policies/managed/security.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/chrome/policies/managed/telemetry.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/chrome/policies/recommended/defaults.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/edge/policies/managed/performance.json",
+      "status": "modified",
+      "before": {
+        "sha256": "bda47b5a85a6c21f6664e49b8e0af7774e03df2ed0c7676d3ff6e649eb49cc87",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/edge/policies/managed/security.json",
+      "status": "modified",
+      "before": {
+        "sha256": "29d08148276d26938f0501127ff119f572fdbea19acb555fa1bc680610b44604",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "82155b5a4985880cfbd44e771ab5c3e6cc895ddc4e0c8373170b1c705d6400be",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/edge/policies/managed/telemetry.json",
+      "status": "modified",
+      "before": {
+        "sha256": "d8f463afeb497c18c0f3222ee7662188295e8ee60f80fe424a8878dfc089a4f7",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "69aa0c3f5802d50d78280d143d2f32e13351011e5f2f1571311f51fb9704e156",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/opt/edge/policies/recommended/defaults.json",
+      "status": "modified",
+      "before": {
+        "sha256": "f2bea7a93f12b9b1a783c7ce0b68a1cb8397950b77feedbfdbfb42d64bd967ec",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel/.config/chromium/Default/Preferences",
+      "status": "modified",
+      "before": {
+        "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel/.config/microsoft-edge/Default/Preferences",
+      "status": "modified",
+      "before": {
+        "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel/.config/vivaldi/Default/Preferences",
+      "status": "modified",
+      "before": {
+        "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/vivaldi/policies/managed/extensions.json",
+      "status": "modified",
+      "before": {
+        "sha256": "1ec775356f3083a9d7ddab50f020e70fabf3e428c4e52c05c7941f4739ad6e72",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "1039d2a6fe87e313388812da0936f6fefcc22f77e6d7d2907362d347a508a3f9",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/vivaldi/policies/managed/performance.json",
+      "status": "modified",
+      "before": {
+        "sha256": "efae5f642186c6664337158701d22e6c153c6fa072b2330bc2761e2137556a49",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/vivaldi/policies/managed/security.json",
+      "status": "modified",
+      "before": {
+        "sha256": "b6c151265edf3d1f7f208fe67f84db04cbdbc35963d860724633c84d81561244",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/vivaldi/policies/managed/telemetry.json",
+      "status": "modified",
+      "before": {
+        "sha256": "bb86a315909c338c43b7b1ea8227ec048c80d59a7a5ced87e06e7122dc05b3bc",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/vivaldi/policies/recommended/defaults.json",
+      "status": "modified",
+      "before": {
+        "sha256": "93ec644f36a843b777616fc597a723fab50aa9b834dbbd5b5c5626b6da3a0f27",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/browser-devtools",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "679b03263a45bb3fdf7db0ec1a4c5f0a9b3d9ea170adc9983e504d97ae610c09",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/install-browser-imports",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "46266bcaffefc8869a1d26b66f5355ae59c9ec966d2450d1ad9f9c9f53b52dcb",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/browser-imports/BROWSER-IMPORTS.md",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "8bf412f8f9e4373d55a8263df7fb0a0cce1ced9677f4c3743490eb64d71e7bc5",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/browser-imports/PrivacyBadger_user_data-9_6_2026_1_50_43_PM.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "c5e13d6d3fbbe1748231885bbbbf5142c1ffacb939180f975920f8754f75efbf",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/browser-imports/bookmark-coverage.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "ba62cb1815e7f6f68f296c795f60f38bbc86a4df0ce7ede8e330760f586bde1e",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/browser-imports/my-ubol-settings.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "cc876fd1d809d26f9f014b070d54c5b796f3169c7d4dbb64066676ad04ba0594",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/browser-imports/noscript_data.txt",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "36602c9061c00dbf4261e761e9c3603cce0b2fea785a91381d40ecead6a12535",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "status": "modified",
+      "before": {
+        "sha256": "7cebb66edc0195aa7cdac5071d77f67ed87db91c7b4e3b4801cf8550ce3941ad",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "ffef578c958c01f2467e2c29ea0d8e0557f26158e46626dd40874cf1a8d0b259",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "status": "modified",
+      "before": {
+        "sha256": "efb51bb33453891fbe19a369a2e65dc36769731b9e74e15456d171fb9334f13a",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "5079e2ccd3a5447b934ebb1306eea511cd45634b53c9ba54fc58fbc4fc6b4c57",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "status": "modified",
+      "before": {
+        "sha256": "497dde68084d5fd44896f4adaae5315ed99c013545f5d9dd2a801eacd3213053",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "a33776bb92646291adb53600fcf273f5f3bababe22f2cea21f5fa0de6ff183c0",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/common/lib.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "197306aad554215e00d57f626c1e0d6e9bdacb00e1faa81f2662f0123135a39b",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "c741484c6de05aa3600833734858a538fb349826ec1d6288bfff319f90fd382c",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/common/source.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "3214e7c2abb43c5954e3f3635b9a56a0fdf9c1ba45c98c1ff8291dcf6e449d44",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "14f8b05a8047f1d214d4c4ae60a10c8e851abeae7f01c53e99266c2de6b644bf",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "2cd4c14953da9635a231c956f6ae5b1256d9e1cb1eaf0e4358ae54c7d2ea4826",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "d2f73d03c6d842340dd6b2cbebc9f61ba419f4bfbf6ccc58d13f9390eda374c6",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/verify.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "710519b77f6b80db00a09be8f2428a8801951ca85bee3f2af14f79033fd5eb48",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "9051ca7209de85106cd1a94b5952e3ec5f0e0945e73313aeb34d2a474edc39ac",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/cuda-legacy.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "9c8333fe3da449eaada32f7d9c873791e86c603eb1c2024db8387f74543b557e",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "00003ef183a187a63d8dcef70e0722a1182ee41ca70446bd502498f5a3dd51b4",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/storage-maintenance.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "35e64a0fa7bbe3d0fae20127a7f9b700273e05a238a4c189b5677430fe2d738c",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "7f369a925c21fa0c532d72148bccaafcc83ff900b3768833186f3da42294bc60",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/runtime/common.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "73e96e18dce6c2bf51db5bc2d0f3773c6e66860fcde1937e6a08824c97061882",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "a6558743931a7e2746443576c06008dc83065f62f63130dc101633690036bab8",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_root_login.py",
+      "status": "modified",
+      "before": {
+        "sha256": "2c4ca9b22aad5ed371415385af3d0f0e0b5a2188d39c8b6eab46e6a0c6378756",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "21c3aa6427b95c0a6ff03302b93f1ad110e9951cfcd9cd68d4e0f87b33562e89",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_security_refactor.py",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "879c544cf2fec58fdab0730bc0d83e2187cfbe143d466485f2577048be520c56",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "docs/REFACTOR-2026-09-06.md",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "36ece1ef0e2bf2f3d909a26535053298b84e5d5ac917543c224b306b616ad8ee",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "docs/REFACTOR.md",
+      "status": "modified",
+      "before": {
+        "sha256": "0163f7fd9cc92549c9b264a60bd705f6c9909bfbe76d7209f5d1862bea540eaf",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "db0d2717007a77761289aba7b320f86db4b96dc21ee43962c28ddadbb87368e2",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "docs/VALIDATION.md",
+      "status": "modified",
+      "before": {
+        "sha256": "0553ed67e9392f7617e6f43d8c7bac35a8a47fc1efa2b55f236161627d24e223",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "ea14adcd449b21e3e216226c24d447a188e3091c960af822cfbc5f7e64685378",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "tools/build.py",
+      "status": "modified",
+      "before": {
+        "sha256": "8f588f257d25b4cd2e13d3ec5c9e5e90d5b3dbfc899dd4c090c5d51d07862646",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "750e46a4a5060599bd0c2ee49a467b0fec2197873a9fdaaacedaab7380446ddc",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "tools/build_browser_config.py",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "9913b0423b1eb23e0fc6f983fb6c9bf6f2a3b6fbf550a7b4e87b230e25c0737b",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "tools/validate.py",
+      "status": "modified",
+      "before": {
+        "sha256": "b12dc05adf850603a382e01a98c283837bf1c8b27b45d1b7dd15eb27e50c97ea",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "753e8741746b687b3acdb36e46c5fb24213715e71eff9a3ec4512c3f95fba4c3",
+        "mode": "0o640"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the optional OBS archive disabled for normal desktop package resolution.
+# Debian Forky supplies the managed Labwc and wlroots stack. An administrator
+# can explicitly opt into the OBS release for an individual transaction with:
+#
+#   apt-get install labwc/Debian_Unstable
+#   apt-get install -t Debian_Unstable labwc
+#
+# This generic Release pin is intentionally overrideable only by those explicit
+# target-release forms.
+
+Package: *
+Pin: release o=obs://build.opensuse.org/home:cramerz:debian/Debian_Unstable,l=home:cramerz:debian,n=Debian_Unstable
+Pin-Priority: -1

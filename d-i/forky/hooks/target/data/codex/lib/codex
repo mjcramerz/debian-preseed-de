@@ -1,0 +1,2254 @@
+#!/usr/bin/python3 -I
+"""Managed Codex launcher with validated Bubblewrap and slirp4netns isolation."""
+
+from __future__ import annotations
+
+import glob
+import grp
+import json
+import os
+from pathlib import Path, PurePosixPath
+import pwd
+import re
+import select
+import shutil
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from collections.abc import Iterable, MutableMapping, Sequence
+from typing import NoReturn
+
+# Managed by unattended-installer.
+#
+# The wrapper directory is the only managed Codex directory on the host PATH.
+# This remains the public ``codex`` command and starts Codex in a Bubblewrap
+# sandbox unless the caller explicitly supplies the wrapper-only ``--no-bwrap``
+# escape hatch. Release siblings are added only to the sanitized payload PATH.
+
+CODEX_RAW_BINARY = "/data/codex/share/bin/codex"
+CODEX_WRAPPER_DIRECTORY = "/data/codex/lib"
+CODEX_RELEASE_BINARY_DIRECTORY = "/data/codex/share/bin"
+CODEX_STORAGE_ROOT = "/data/codex"
+CODEX_POOL_ROOT = "/pool"
+CODEX_USER_ROOT = "/data/codex/usr"
+CODEX_AGENTS_ROOT = "/data/codex/usr/agents"
+CODEX_RUNTIME_HOME = "/data/codex/usr/home"
+CODEX_AUTH_PATH = f"{CODEX_RUNTIME_HOME}/auth.json"
+CODEX_SKILLS_ROOT = "/data/codex/usr/skills"
+CODEX_LOG_ROOT = "/data/codex/log"
+CODEX_HOST_LOG_ROOT = "/var/log/managed/openai/codex"
+CODEX_SQLITE_ROOT = "/data/codex/sqlite"
+CODEX_RUNTIME_ROOT = "/data/codex/runtime"
+CODEX_SHARED_DOWNLOADS_ROOT = "/data/downloads"
+CODEX_SHARED_TMP_ROOT = "/data/tmp"
+MAX_AUTH_CREDENTIAL_BYTES = 1_048_576
+CODEX_DEVOPS_GROUP = "devops"
+BWRAP_BINARY = "/usr/bin/bwrap"
+SLIRP4NETNS_BINARY = "/usr/bin/slirp4netns"
+PROFILE_SHELL = "/bin/sh"
+CODEX_APP_SERVER_ARGUMENTS = (
+    "app-server",
+    "--listen",
+    "unix:///data/codex/sockets/app-server-control.sock",
+)
+CODEX_APP_SERVER_SECRET_ENV_NAMES_VARIABLE = (
+    "CODEX_APP_SERVER_SECRET_ENV_NAMES"
+)
+MANAGED_PROFILE_FILENAMES = (
+    "71-devops-de.sh",
+    "72-incus.sh",
+    "75-firmware-workspace.sh",
+)
+INCUS_ENV_NAMES = (
+    "INCUS_CACHE",
+    "INCUS_CONF",
+    "INCUS_MANAGED_ENVIRONMENT_READY",
+)
+FIRMWARE_ENV_NAMES = (
+    "FIRMWARE_POOL_ROOT",
+    "FIRMWARE_WORKSPACE_ROOT",
+    "FIRMWARE_ORIGINAL_DIR",
+    "FIRMWARE_ANALYSIS_DIR",
+    "FIRMWARE_WORKING_DIR",
+    "FIRMWARE_WRITEBACK_DIR",
+    "FIRMWARE_LOG_DIR",
+    "FWOPS_FLASHROM_PROGRAMMER",
+    "FWOPS_FLASHROM_BIN",
+    "FWOPS_FLASHPROG_BIN",
+    "FWOPS_IMSPROG_BIN",
+    "FWOPS_IMSPROG_EDITOR_BIN",
+    "FWOPS_SNANDER_HOME",
+    "FWOPS_SNANDER_BIN",
+    "FWOPS_UEFITOOL_BIN",
+    "FWOPS_UEFIEXTRACT_BIN",
+    "FWOPS_UEFIFIND_BIN",
+    "FWOPS_IFDTOOL_BIN",
+    "FWOPS_CBFSTOOL_BIN",
+    "FWOPS_MTDINFO_BIN",
+    "FWOPS_NANDDUMP_BIN",
+    "FWOPS_NANDWRITE_BIN",
+    "FWOPS_SPI_CONFIG_BIN",
+    "FWOPS_SPI_PIPE_BIN",
+    "FWOPS_PICOCOM_BIN",
+    "FWOPS_BINWALK_BIN",
+    "FWOPS_UART_DEVICE",
+    "FWOPS_UART_BAUD",
+    "FWOPS_ACTIVE",
+    "FWOPS_ENVIRONMENT_READY",
+    "FWOPS_MODE",
+    "MINICOM",
+)
+CODEX_AUTHORITATIVE_ENV_NAMES = {
+    "CODEX_AGENTS",
+    "CODEX_HOME",
+    "CODEX_LOG_DIR",
+    "CODEX_SKILLS",
+    "CODEX_SQLITE_HOME",
+}
+DEVOPS_PRIVATE_RUNTIME_RELATIVE_DIRECTORIES = (
+    "python",
+    "python/pycache",
+    "ansible",
+    "ansible/tmp",
+    "ansible/pc",
+    "ansible/ssh",
+)
+
+DEVOPS_READ_WRITE_HOME_DIRECTORIES = (
+    "Downloads",
+    "Workspace",
+)
+# Non-secret developer configuration and user-installed tools may be updated.
+# Credential files and privileged service sockets are never bound here.
+DEVOPS_MUTABLE_HOME_DIRECTORIES = (
+    ".cmake/packages",
+    ".config/Code/User/snippets",
+    ".config/bat",
+    ".config/bazel",
+    ".config/clangd",
+    ".config/direnv",
+    ".config/featherpad",
+    ".config/fzf",
+    ".config/git",
+    ".config/micro",
+    ".config/mise",
+    ".config/nano",
+    ".config/nvim",
+    ".config/pip",
+    ".config/powershell",
+    ".config/retroarch",
+    ".config/satty",
+    ".config/sleek",
+    ".config/task",
+    ".config/vim",
+    ".config/yamllint",
+    ".local/bin",
+    ".local/lib",
+    ".local/share/powershell/Modules",
+)
+DEVOPS_READ_ONLY_HOME_FILES = (
+    ".bash_aliases",
+    ".bash_logout",
+    ".bash_profile",
+    ".bashrc",
+    ".config/Code/User/keybindings.json",
+    ".config/Code/User/settings.json",
+    ".config/cargo/config.toml",
+    ".config/containers/containers.conf",
+    ".config/containers/mounts.conf",
+    ".config/containers/policy.json",
+    ".config/containers/registries.conf",
+    ".config/containers/seccomp.json",
+    ".config/containers/storage.conf",
+    ".config/gh/config.yml",
+    ".config/go/env",
+    ".config/mimeapps.list",
+    ".config/obsidian/obsidian.json",
+    ".config/starship.toml",
+    ".config/user-dirs.dirs",
+    ".config/uv/uv.toml",
+    ".config/xdg-terminals.list",
+    ".dircolors",
+    ".gitconfig",
+    ".gitlint",
+    ".lldbinit",
+    ".markdownlint-cli2.cjs",
+    ".markdownlint-cli2.jsonc",
+    ".markdownlint-cli2.mjs",
+    ".markdownlint-cli2.yaml",
+    ".markdownlint.json",
+    ".markdownlint.yaml",
+    ".markdownlint.yml",
+    ".profile",
+    ".profile.d/71-devops-de.sh",
+    ".profile.d/72-incus.sh",
+    ".profile.d/75-firmware-workspace.sh",
+    ".recoll/recoll.conf",
+    ".ripgreprc",
+    ".rustfmt.toml",
+    ".shellcheckrc",
+    ".vimrc",
+    ".zlogin",
+    ".zlogout",
+    ".zprofile",
+    ".zsh_aliases",
+    ".zshenv",
+    ".zshrc",
+)
+AMBIENT_X11_ENV_NAMES = (
+    "DISPLAY",
+    "XAUTHORITY",
+    "WLR_XWAYLAND",
+    "XWAYLAND",
+    "XWAYLAND_PATH",
+    "XWAYLAND_NO_GLAMOR",
+    "XWAYLAND_FORCE_SCALE",
+    "XWAYLAND_RESTART_DELAY",
+    "_XWAYLAND_GLOBAL_OUTPUT_SCALE",
+    "WINDOWID",
+    "SESSION_MANAGER",
+    "DESKTOP_STARTUP_ID",
+)
+SANDBOX_UNSET_ENV_NAMES = (
+    "BASHOPTS",
+    "BASH_ENV",
+    "CONTAINER",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "DBUS_SYSTEM_BUS_ADDRESS",
+    "DESKTOP_STARTUP_ID",
+    "DESKTOP_SESSION",
+    "DISPLAY",
+    "ENV",
+    "GDMSESSION",
+    "GNOME_DESKTOP_SESSION_ID",
+    "HOST",
+    "HOSTNAME",
+    "HOSTTYPE",
+    "INVOCATION_ID",
+    "JOURNAL_STREAM",
+    "KDE_FULL_SESSION",
+    "LANGUAGE",
+    "LD_AUDIT",
+    "LD_DEBUG",
+    "LD_LIBRARY_PATH",
+    "LD_PRELOAD",
+    "MACHTYPE",
+    "OLDPWD",
+    "OSTYPE",
+    "PYTHONHOME",
+    "PYTHONINSPECT",
+    "PYTHONPATH",
+    "PYTHONSTARTUP",
+    "PYTHONUSERBASE",
+    "REMOTEHOST",
+    "SESSION_MANAGER",
+    "SHELLOPTS",
+    "SSH_AGENT_PID",
+    "SSH_AUTH_SOCK",
+    "SSH_CLIENT",
+    "SSH_CONNECTION",
+    "SSH_TTY",
+    "SYSTEMD_EXEC_PID",
+    "WAYLAND_DISPLAY",
+    "WINDOWID",
+    "WLR_XWAYLAND",
+    "XAUTHORITY",
+    "XWAYLAND",
+    "XWAYLAND_FORCE_SCALE",
+    "XWAYLAND_NO_GLAMOR",
+    "XWAYLAND_PATH",
+    "XWAYLAND_RESTART_DELAY",
+    "_XWAYLAND_GLOBAL_OUTPUT_SCALE",
+    "XDG_CURRENT_DESKTOP",
+    "XDG_SEAT",
+    "XDG_SESSION_CLASS",
+    "XDG_SESSION_DESKTOP",
+    "XDG_SESSION_ID",
+    "XDG_SESSION_TYPE",
+    "XDG_VTNR",
+    "container",
+)
+SHELL_CONTROL_ENV_NAMES = {
+    "BASHOPTS",
+    "BASH_ENV",
+    "CDPATH",
+    "ENV",
+    "GLOBIGNORE",
+    "IFS",
+    "SHELLOPTS",
+}
+PROFILE_IGNORED_ENV_NAMES = {
+    "HOME",
+    "LOGNAME",
+    "PWD",
+    "SHLVL",
+    "USER",
+    "XDG_RUNTIME_DIR",
+    "_",
+}
+SAFE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+APP_SERVER_SECRET_ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
+SAFE_USER_RE = re.compile(r"^[A-Za-z0-9_.@-]+$")
+UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+RENDER_DEVICE_RE = re.compile(r"^renderD(?:0|[1-9][0-9]{0,5})$")
+MAX_PROFILE_ENVIRONMENT_BYTES = 262_144
+MAX_PROFILE_ENVIRONMENT_VARIABLES = 256
+MAX_MANAGED_PATH_ENTRIES = 256
+MAX_BWRAP_INFO_BYTES = 16_384
+MAX_APP_SERVER_SECRET_ENV_NAMES = 64
+MAX_APP_SERVER_SECRET_ENV_NAME_POLICY_BYTES = 8_192
+MAX_APP_SERVER_SECRET_VALUE_BYTES = 65_536
+MAX_APP_SERVER_SECRET_ENVIRONMENT_BYTES = 262_144
+NETWORK_SETUP_TIMEOUT_SECONDS = 15.0
+PROCESS_STOP_TIMEOUT_SECONDS = 2.0
+SLIRP4NETNS_MTU = 65_520
+SLIRP4NETNS_TAP_NAME = "tap0"
+CODEX_RESOLVER_CONFIGURATION = (
+    b"nameserver 10.0.2.3\n"
+    b"options timeout:2 attempts:3\n"
+)
+CODEX_NSSWITCH_CONFIGURATION = (
+    b"passwd: files\n"
+    b"group: files\n"
+    b"shadow: files\n"
+    b"gshadow: files\n"
+    b"hosts: files dns\n"
+    b"networks: files dns\n"
+    b"protocols: files\n"
+    b"services: files\n"
+    b"ethers: files\n"
+    b"rpc: files\n"
+)
+
+CODEX_ARGS: list[str] = []
+BWRAP_ARGS: list[str] = []
+CODEX_DEVOPS_ENV_NAMES: list[str] = []
+CODEX_APP_SERVER_ENVIRONMENT: dict[str, str] = {}
+CODEX_APP_SERVER_MODE = False
+CODEX_USE_BWRAP = True
+CODEX_SANDBOX_PATH = ""
+CODEX_CONTROL_DIR = ""
+CODEX_AUTH_FD: int | None = None
+CODEX_BWRAP_PROCESS: subprocess.Popen[bytes] | None = None
+CODEX_SANDBOX_PID: int | None = None
+CODEX_SANDBOX_PIDFD: int | None = None
+CODEX_SLIRP_PROCESS: subprocess.Popen[bytes] | None = None
+CODEX_SIGNALLED = False
+
+
+class CodexError(RuntimeError):
+    """A bounded validation or launch failure suitable for user display."""
+
+
+def codex_log(message: str) -> None:
+    print(f"codex-wrapper: {message}", file=sys.stderr)
+
+
+def codex_warn(message: str) -> None:
+    print(f"codex-wrapper: warning: {message}", file=sys.stderr)
+
+
+def codex_die(message: str) -> NoReturn:
+    raise CodexError(message)
+
+
+def codex_control_root() -> str:
+    return f"{CODEX_RUNTIME_ROOT}/.control"
+
+
+def codex_repository_git_root() -> str:
+    return f"{CODEX_USER_ROOT}/.git"
+
+
+def codex_memory_root() -> str:
+    return f"{CODEX_RUNTIME_HOME}/memories"
+
+
+def codex_memory_git_guard() -> str:
+    return f"{codex_memory_root()}/.git"
+
+
+def _path_components_are_safe(value: str) -> bool:
+    if not value.startswith("/") or value == "/":
+        return False
+    if any(character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-" for character in value):
+        return False
+    components = value.split("/")[1:]
+    return bool(components) and all(component not in {"", ".", ".."} for component in components)
+
+
+def codex_require_abs_path(label: str, value: str) -> None:
+    if not _path_components_are_safe(value):
+        codex_die(f"{label} is not a safe absolute path: {value or 'unset'}")
+
+
+def _validated_managed_path_entries(label: str, value: str) -> tuple[str, ...]:
+    if not value:
+        codex_die(f"{label} is empty")
+    entries = tuple(value.split(":"))
+    if len(entries) > MAX_MANAGED_PATH_ENTRIES:
+        codex_die(f"{label} exceeds {MAX_MANAGED_PATH_ENTRIES} entries")
+    if len(set(entries)) != len(entries):
+        codex_die(f"{label} contains duplicate entries")
+    for entry in entries:
+        if not _path_components_are_safe(entry):
+            codex_die(f"{label} contains an unsafe entry")
+    return entries
+
+
+def codex_require_inherited_devops_path(
+    inherited_path: str,
+    managed_path: str,
+) -> None:
+    inherited_entries = _validated_managed_path_entries(
+        "inherited DevOps PATH", inherited_path
+    )
+    managed_entries = _validated_managed_path_entries(
+        "reconstructed managed DevOps PATH", managed_path
+    )
+    if any(entry not in inherited_entries for entry in managed_entries):
+        codex_die("the inherited DevOps PATH omits managed profile entries")
+
+
+def codex_require_directory(label: str, value: str) -> None:
+    codex_require_abs_path(label, value)
+    if os.path.islink(value) or not os.path.isdir(value):
+        codex_die(f"{label} is missing or is not a real directory: {value}")
+
+
+def codex_require_executable(label: str, value: str) -> None:
+    codex_require_abs_path(label, value)
+    if os.path.islink(value) or not os.path.isfile(value) or not os.access(value, os.X_OK):
+        codex_die(f"{label} is missing, indirect, or not executable: {value}")
+
+
+def _read_bounded_text(path: str, maximum_bytes: int, label: str) -> str:
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(maximum_bytes + 1)
+    except OSError as exc:
+        codex_die(f"cannot read {label}: {exc}")
+    if len(data) > maximum_bytes:
+        codex_die(f"{label} exceeds {maximum_bytes} bytes")
+    try:
+        return data.decode("ascii").strip()
+    except UnicodeDecodeError:
+        codex_die(f"{label} is not ASCII")
+
+
+def codex_require_user_namespace_support() -> None:
+    clone_policy_path = "/proc/sys/kernel/unprivileged_userns_clone"
+    if os.path.exists(clone_policy_path):
+        clone_policy = _read_bounded_text(clone_policy_path, 32, "user namespace policy")
+        if clone_policy != "1":
+            codex_die(
+                "unprivileged user namespaces are disabled; "
+                "the managed Codex sysctl policy is not active"
+            )
+    namespace_limit_path = "/proc/sys/user/max_user_namespaces"
+    if not os.path.isfile(namespace_limit_path):
+        codex_die("the kernel does not expose user.max_user_namespaces")
+    namespace_limit = _read_bounded_text(
+        namespace_limit_path,
+        32,
+        "user.max_user_namespaces",
+    )
+    if not namespace_limit.isdecimal() or int(namespace_limit) <= 0:
+        codex_die("user.max_user_namespaces must be greater than zero")
+
+
+def codex_generate_uuid() -> str:
+    value = _read_bounded_text(
+        "/proc/sys/kernel/random/uuid",
+        64,
+        "runtime identifier",
+    )
+    if UUID_RE.fullmatch(value) is None:
+        codex_die("unable to generate a runtime identifier")
+    return value
+
+
+def codex_parse_arguments(arguments: Sequence[str]) -> tuple[bool, list[str]]:
+    global CODEX_APP_SERVER_MODE, CODEX_ARGS, CODEX_USE_BWRAP
+    CODEX_USE_BWRAP = True
+    CODEX_ARGS = []
+    for argument in arguments:
+        if argument == "--no-bwrap":
+            CODEX_USE_BWRAP = False
+        else:
+            CODEX_ARGS.append(argument)
+    CODEX_APP_SERVER_MODE = tuple(CODEX_ARGS) == CODEX_APP_SERVER_ARGUMENTS
+    if CODEX_APP_SERVER_MODE and not CODEX_USE_BWRAP:
+        codex_die("the managed app-server service requires Bubblewrap isolation")
+    return CODEX_USE_BWRAP, [*CODEX_ARGS]
+
+
+def _app_server_secret_environment_name_is_safe(name: str) -> bool:
+    if APP_SERVER_SECRET_ENV_NAME_RE.fullmatch(name) is None:
+        return False
+    if (
+        name in SHELL_CONTROL_ENV_NAMES
+        or name in SANDBOX_UNSET_ENV_NAMES
+        or name in CODEX_AUTHORITATIVE_ENV_NAMES
+        or name in PROFILE_IGNORED_ENV_NAMES
+        or name in {"PATH", "CREDENTIALS_DIRECTORY", CODEX_APP_SERVER_SECRET_ENV_NAMES_VARIABLE}
+    ):
+        return False
+    return not name.startswith(
+        (
+            "BASH_FUNC_",
+            "DYLD_",
+            "GCONV_",
+            "LD_",
+            "MALLOC_",
+            "PERL",
+            "PYTHON",
+            "RUBY",
+        )
+    )
+
+
+def codex_capture_app_server_environment() -> dict[str, str]:
+    global CODEX_APP_SERVER_ENVIRONMENT
+    CODEX_APP_SERVER_ENVIRONMENT = {}
+    policy = os.environ.pop(CODEX_APP_SERVER_SECRET_ENV_NAMES_VARIABLE, "")
+    if not CODEX_APP_SERVER_MODE:
+        if policy:
+            codex_die(
+                "app-server secret environment policy requires the managed app-server invocation"
+            )
+        return {}
+    try:
+        policy_bytes = policy.encode("ascii")
+    except UnicodeEncodeError:
+        codex_die("app-server secret environment policy must be ASCII")
+    if len(policy_bytes) > MAX_APP_SERVER_SECRET_ENV_NAME_POLICY_BYTES:
+        codex_die("app-server secret environment policy exceeds 8 KiB")
+    if not policy:
+        return {}
+
+    names = policy.split(":")
+    if len(names) > MAX_APP_SERVER_SECRET_ENV_NAMES:
+        codex_die("app-server secret environment policy exceeds 64 names")
+    if any(not name for name in names):
+        codex_die("app-server secret environment policy contains an empty name")
+    if len(set(names)) != len(names):
+        codex_die("app-server secret environment policy contains duplicate names")
+
+    total_bytes = 0
+    captured: dict[str, str] = {}
+    for name in names:
+        if not _app_server_secret_environment_name_is_safe(name):
+            codex_die(f"app-server secret environment name is unsafe: {name}")
+        value = os.environ.pop(name, None)
+        if value in {None, ""}:
+            continue
+        if "\r" in value or "\n" in value:
+            codex_die(
+                f"app-server secret environment value contains a line break: {name}"
+            )
+        try:
+            value_bytes = value.encode("utf-8")
+        except UnicodeEncodeError:
+            codex_die(
+                f"app-server secret environment value is not valid UTF-8: {name}"
+            )
+        if len(value_bytes) > MAX_APP_SERVER_SECRET_VALUE_BYTES:
+            codex_die(
+                f"app-server secret environment value exceeds 64 KiB: {name}"
+            )
+        total_bytes += len(value_bytes)
+        if total_bytes > MAX_APP_SERVER_SECRET_ENVIRONMENT_BYTES:
+            codex_die("app-server secret environment exceeds 256 KiB")
+        captured[name] = value
+
+    CODEX_APP_SERVER_ENVIRONMENT = captured
+    return dict(captured)
+
+
+def codex_capture_auth_credential() -> None:
+    """Open systemd's per-service credential copy before cleaning the environment.
+
+    Passing a read-only fd to --ro-bind-data avoids a second user/mount namespace
+    in the user unit (which can lose supplementary devops group mappings).
+    Neither the credential value nor its source pathname is passed to Codex.
+    """
+    global CODEX_AUTH_FD
+    if not CODEX_APP_SERVER_MODE:
+        return
+    directory = os.environ.get("CREDENTIALS_DIRECTORY", "")
+    expected = f"/run/user/{os.getuid()}/credentials/codex-app-server.service"
+    if directory != expected or os.path.realpath(directory) != directory:
+        codex_die("app-server requires its systemd user-service credential directory")
+    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    descriptor: int | None = None
+    try:
+        directory_stat = os.fstat(directory_fd)
+        if directory_stat.st_uid != os.getuid() or directory_stat.st_mode & 0o022:
+            codex_die("app-server credential directory is not private account state")
+        descriptor = os.open(
+            "codex-auth.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=directory_fd,
+        )
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or metadata.st_mode & 0o077 or metadata.st_size > MAX_AUTH_CREDENTIAL_BYTES):
+            codex_die("app-server auth credential must be a private, bounded regular file")
+        data = os.read(descriptor, MAX_AUTH_CREDENTIAL_BYTES + 1)
+        if len(data) > MAX_AUTH_CREDENTIAL_BYTES:
+            codex_die("app-server auth credential exceeds 1 MiB")
+        try:
+            credential = json.loads(data)
+        except (ValueError, UnicodeDecodeError):
+            codex_die("app-server auth credential is not valid JSON")
+        if not isinstance(credential, dict):
+            codex_die("app-server auth credential must be a JSON object")
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        CODEX_AUTH_FD = descriptor
+        descriptor = None
+    finally:
+        os.close(directory_fd)
+        if descriptor is not None:
+            os.close(descriptor)
+
+
+def codex_restore_app_server_environment() -> None:
+    for name, value in CODEX_APP_SERVER_ENVIRONMENT.items():
+        if name in os.environ:
+            codex_die(
+                f"app-server secret environment collides with managed profile policy: {name}"
+            )
+        os.environ[name] = value
+
+
+def codex_clear_app_server_environment() -> None:
+    global CODEX_APP_SERVER_ENVIRONMENT
+    for name in CODEX_APP_SERVER_ENVIRONMENT:
+        os.environ.pop(name, None)
+    CODEX_APP_SERVER_ENVIRONMENT = {}
+
+
+def _same_file_if_present(first: str, second: str) -> bool:
+    try:
+        return os.path.exists(first) and os.path.exists(second) and os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def codex_sanitize_path(raw_path: str | None = None) -> str:
+    global CODEX_SANDBOX_PATH
+    source = raw_path if raw_path is not None else os.environ.get(
+        "PATH", "/usr/local/bin:/usr/bin:/bin"
+    )
+    entries: list[str] = []
+    for entry in source.split(":"):
+        if not entry.startswith("/") or entry in {
+            CODEX_WRAPPER_DIRECTORY,
+            CODEX_RELEASE_BINARY_DIRECTORY,
+        }:
+            continue
+        if _same_file_if_present(entry, CODEX_WRAPPER_DIRECTORY) or _same_file_if_present(
+            entry, CODEX_RELEASE_BINARY_DIRECTORY
+        ):
+            continue
+        if not _path_components_are_safe(entry) or entry in entries:
+            continue
+        entries.append(entry)
+    if not entries:
+        entries = ["/usr/local/bin", "/usr/bin", "/bin"]
+    entries.append(CODEX_RELEASE_BINARY_DIRECTORY)
+    CODEX_SANDBOX_PATH = ":".join(entries)
+    os.environ["PATH"] = "/usr/sbin:/usr/bin:/sbin:/bin"
+    return CODEX_SANDBOX_PATH
+
+
+def _access(path: str, mode: int) -> bool:
+    try:
+        return os.access(path, mode, effective_ids=True)
+    except TypeError:
+        return os.access(path, mode)
+
+
+def codex_require_account_owned_searchable_directory(label: str, path: str) -> None:
+    codex_require_directory(label, path)
+    if os.path.realpath(path) != path:
+        codex_die(f"{label} must not traverse symlinks: {path}")
+    metadata = os.stat(path, follow_symlinks=False)
+    if metadata.st_uid != os.getuid():
+        codex_die(f"{label} must remain owned by the invoking account")
+    if not _access(path, os.X_OK):
+        codex_die(f"{label} must remain searchable by the invoking account")
+
+
+def codex_require_account_owned_readable_directory(label: str, path: str) -> None:
+    codex_require_account_owned_searchable_directory(label, path)
+    mode = stat.S_IMODE(os.stat(path, follow_symlinks=False).st_mode)
+    if mode & 0o022:
+        codex_die(f"{label} must not be writable by group or other")
+    if not _access(path, os.R_OK):
+        codex_die(f"{label} must remain readable by the invoking account")
+
+
+def codex_require_account_owned_directory(label: str, path: str) -> None:
+    codex_require_account_owned_readable_directory(label, path)
+    if not _access(path, os.W_OK):
+        codex_die(f"{label} must remain writable by the invoking account")
+
+
+def codex_require_account_owned_home_directory(label: str, path: str) -> None:
+    codex_require_account_owned_searchable_directory(label, path)
+    if not _access(path, os.R_OK | os.W_OK):
+        codex_die(f"{label} must remain readable and writable by the invoking account")
+
+
+def codex_require_private_account_directory(label: str, path: str) -> None:
+    codex_require_account_owned_directory(label, path)
+    mode = stat.S_IMODE(os.stat(path, follow_symlinks=False).st_mode)
+    if mode != 0o700:
+        codex_die(f"{label} must remain mode 0700")
+
+
+def _group_name(group_id: int) -> str:
+    try:
+        return grp.getgrgid(group_id).gr_name
+    except KeyError:
+        return str(group_id)
+
+
+def codex_require_managed_directory(
+    label: str,
+    path: str,
+    expected_owner: int,
+    expected_group: str,
+    expected_mode: int,
+    require_write: bool = True,
+) -> None:
+    if not isinstance(expected_owner, int) or isinstance(expected_owner, bool) or expected_owner < 0:
+        codex_die(f"{label} expected owner is malformed")
+    if SAFE_USER_RE.fullmatch(expected_group) is None:
+        codex_die(f"{label} expected group is malformed")
+    if not isinstance(expected_mode, int) or isinstance(expected_mode, bool) or not 0 <= expected_mode <= 0o7777:
+        codex_die(f"{label} expected mode is malformed")
+    if not isinstance(require_write, bool):
+        codex_die(f"{label} write requirement is malformed")
+    codex_require_directory(label, path)
+    if os.path.realpath(path) != path:
+        codex_die(f"{label} must not traverse symlinks: {path}")
+    metadata = os.stat(path, follow_symlinks=False)
+    actual_group = _group_name(metadata.st_gid)
+    actual_mode = stat.S_IMODE(metadata.st_mode)
+    if (
+        metadata.st_uid != expected_owner
+        or actual_group != expected_group
+        or actual_mode != expected_mode
+    ):
+        codex_die(
+            f"{label} must remain owner {expected_owner}, group {expected_group}, "
+            f"and mode {expected_mode:o}: {path}"
+        )
+    if not _access(path, os.R_OK | os.X_OK):
+        codex_die(f"{label} must remain readable and searchable: {path}")
+    if require_write and not _access(path, os.W_OK):
+        codex_die(f"{label} must remain writable by the invoking account: {path}")
+
+
+def codex_require_devops_shared_account_directory(label: str, path: str) -> None:
+    codex_require_managed_directory(
+        label,
+        path,
+        os.getuid(),
+        CODEX_DEVOPS_GROUP,
+        0o2770,
+        True,
+    )
+
+
+def _parse_profile_environment(data: bytes) -> dict[str, str]:
+    if len(data) > MAX_PROFILE_ENVIRONMENT_BYTES:
+        codex_die("managed DevOps environment exceeds the 256 KiB limit")
+    records = data.split(b"\0")
+    if records and records[-1] == b"":
+        records.pop()
+    if len(records) > MAX_PROFILE_ENVIRONMENT_VARIABLES:
+        codex_die("managed DevOps environment exceeds 256 variables")
+    parsed: dict[str, str] = {}
+    for raw_record in records:
+        if b"=" not in raw_record:
+            codex_die("managed DevOps environment contains a malformed record")
+        raw_name, raw_value = raw_record.split(b"=", 1)
+        try:
+            name = raw_name.decode("ascii")
+            value = raw_value.decode("utf-8", "surrogateescape")
+        except UnicodeDecodeError:
+            codex_die("managed DevOps environment contains an unsafe variable name")
+        if SAFE_NAME_RE.fullmatch(name) is None:
+            codex_die("managed DevOps environment contains an unsafe variable name")
+        if name in parsed:
+            codex_die("managed DevOps environment contains a duplicate variable")
+        parsed[name] = value
+    return parsed
+
+
+_PROFILE_APPLY_SCRIPT = r'''
+devops_profile=$1
+incus_profile=$2
+firmware_profile=$3
+
+. "$devops_profile" >&2
+command -v devops_de_apply_environment >/dev/null 2>&1 || {
+  printf '%s\n' 'managed DevOps environment function is unavailable' >&2
+  exit 1
+}
+command -v devops_de_environment_is_active >/dev/null 2>&1 || {
+  printf '%s\n' 'managed DevOps environment validator is unavailable' >&2
+  exit 1
+}
+devops_de_apply_environment >&2 || {
+  printf '%s\n' 'managed DevOps environment activation failed' >&2
+  exit 1
+}
+devops_de_environment_is_active || {
+  printf '%s\n' 'managed DevOps environment marker is missing' >&2
+  exit 1
+}
+
+if [ "$incus_profile" != - ]; then
+  INCUS_PROFILE_DEFER_APPLY=1
+  export INCUS_PROFILE_DEFER_APPLY
+  . "$incus_profile" >&2
+  unset INCUS_PROFILE_DEFER_APPLY
+  command -v incus_profile_apply_environment >/dev/null 2>&1 || {
+    printf '%s\n' 'managed Incus environment function is unavailable' >&2
+    exit 1
+  }
+  command -v incus_profile_environment_is_active >/dev/null 2>&1 || {
+    printf '%s\n' 'managed Incus environment validator is unavailable' >&2
+    exit 1
+  }
+  incus_profile_apply_environment >&2 || {
+    printf '%s\n' 'managed Incus environment activation failed' >&2
+    exit 1
+  }
+  incus_profile_environment_is_active || {
+    printf '%s\n' 'managed Incus environment is inconsistent' >&2
+    exit 1
+  }
+fi
+
+if [ "$firmware_profile" != - ]; then
+  . "$firmware_profile" >&2
+  case "${FWOPS_ACTIVE:-}" in
+    1)
+      command -v fwops_environment_is_active >/dev/null 2>&1 || {
+        printf '%s\n' 'managed firmware environment validator is unavailable' >&2
+        exit 1
+      }
+      fwops_environment_is_active || {
+        printf '%s\n' 'managed firmware environment is inconsistent' >&2
+        exit 1
+      }
+      ;;
+    '') ;;
+    *)
+      printf '%s\n' 'managed firmware environment marker is malformed' >&2
+      exit 1
+      ;;
+  esac
+fi
+exec /usr/bin/env -0
+'''
+_PROFILE_VALIDATE_SCRIPT = r'''
+devops_profile=$1
+incus_profile=$2
+firmware_profile=$3
+
+. "$devops_profile" >&2
+command -v devops_de_environment_is_active >/dev/null 2>&1 || {
+  printf '%s\n' 'managed DevOps environment validator is unavailable' >&2
+  exit 1
+}
+devops_de_environment_is_active || {
+  printf '%s\n' 'managed DevOps environment marker is missing' >&2
+  exit 1
+}
+
+if [ "$incus_profile" != - ]; then
+  INCUS_PROFILE_DEFER_APPLY=1
+  export INCUS_PROFILE_DEFER_APPLY
+  . "$incus_profile" >&2
+  unset INCUS_PROFILE_DEFER_APPLY
+  command -v incus_profile_environment_is_active >/dev/null 2>&1 || {
+    printf '%s\n' 'managed Incus environment validator is unavailable' >&2
+    exit 1
+  }
+  incus_profile_environment_is_active || {
+    printf '%s\n' 'managed Incus environment is inconsistent' >&2
+    exit 1
+  }
+fi
+
+if [ "$firmware_profile" != - ]; then
+  . "$firmware_profile" >&2
+  case "${FWOPS_ACTIVE:-}" in
+    1)
+      command -v fwops_environment_is_active >/dev/null 2>&1 || {
+        printf '%s\n' 'managed firmware environment validator is unavailable' >&2
+        exit 1
+      }
+      fwops_environment_is_active || {
+        printf '%s\n' 'managed firmware environment is inconsistent' >&2
+        exit 1
+      }
+      ;;
+    '') ;;
+    *)
+      printf '%s\n' 'managed firmware environment marker is malformed' >&2
+      exit 1
+      ;;
+  esac
+fi
+'''
+_FIRMWARE_VALIDATE_SCRIPT = r'''
+firmware_profile=$3
+[ "$firmware_profile" != - ] || {
+  printf '%s\n' 'managed firmware profile is unavailable' >&2
+  exit 1
+}
+. "$firmware_profile" >&2
+command -v fwops_environment_is_active >/dev/null 2>&1 || {
+  printf '%s\n' 'managed firmware environment validator is unavailable' >&2
+  exit 1
+}
+fwops_environment_is_active || {
+  printf '%s\n' 'managed firmware environment is inconsistent' >&2
+  exit 1
+}
+'''
+
+
+def codex_require_managed_profile(
+    profile_directory: str,
+    filename: str,
+    *,
+    required: bool,
+) -> str | None:
+    if filename not in MANAGED_PROFILE_FILENAMES:
+        codex_die("managed profile filename is not approved")
+    path = f"{profile_directory}/{filename}"
+    codex_require_abs_path(f"managed profile {filename}", path)
+    if not os.path.lexists(path):
+        if required:
+            codex_die(f"required managed profile is missing: {path}")
+        return None
+    if os.path.islink(path) or not os.path.isfile(path):
+        codex_die(f"managed profile is not a direct regular file: {path}")
+    if os.path.realpath(path) != path:
+        codex_die(f"managed profile must not traverse symlinks: {path}")
+    metadata = os.stat(path, follow_symlinks=False)
+    mode = stat.S_IMODE(metadata.st_mode)
+    if metadata.st_uid != os.getuid():
+        codex_die(f"managed profile must remain owned by the invoking account: {path}")
+    if metadata.st_nlink != 1:
+        codex_die(f"managed profile must remain single-link: {path}")
+    if mode & 0o022:
+        codex_die(f"managed profile must not be writable by group or other: {path}")
+    if metadata.st_size > MAX_PROFILE_ENVIRONMENT_BYTES:
+        codex_die(f"managed profile exceeds the 256 KiB source limit: {path}")
+    if not _access(path, os.R_OK):
+        codex_die(f"managed profile must remain readable by the invoking account: {path}")
+    return path
+
+
+def codex_discover_managed_profiles(home: str) -> tuple[str, str | None, str | None]:
+    profile_directory = f"{home}/.profile.d"
+    codex_require_account_owned_readable_directory(
+        "managed profile directory", profile_directory
+    )
+    devops_profile = codex_require_managed_profile(
+        profile_directory, MANAGED_PROFILE_FILENAMES[0], required=True
+    )
+    assert devops_profile is not None
+    incus_profile = codex_require_managed_profile(
+        profile_directory, MANAGED_PROFILE_FILENAMES[1], required=False
+    )
+    firmware_profile = codex_require_managed_profile(
+        profile_directory, MANAGED_PROFILE_FILENAMES[2], required=False
+    )
+    return devops_profile, incus_profile, firmware_profile
+
+
+def _profile_shell_arguments(
+    profile_paths: tuple[str, str | None, str | None],
+) -> list[str]:
+    return [path if path is not None else "-" for path in profile_paths]
+
+
+def _run_profile_shell(
+    script: str,
+    profile_paths: tuple[str, str | None, str | None],
+    environment: dict[str, str],
+) -> bytes:
+    try:
+        completed = subprocess.run(
+            [
+                PROFILE_SHELL,
+                "-eu",
+                "-c",
+                script,
+                "codex-managed-environment",
+                *_profile_shell_arguments(profile_paths),
+            ],
+            check=False,
+            env=environment,
+            stdout=subprocess.PIPE,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        codex_die("managed profile environment activation timed out")
+    except OSError as exc:
+        codex_die(f"cannot execute the managed profile shell: {exc}")
+    if completed.returncode != 0:
+        codex_die("managed profile environment activation failed")
+    return completed.stdout
+
+
+def _present_environment_names(names: Iterable[str]) -> set[str]:
+    return {name for name in names if name in os.environ}
+
+
+def codex_validate_optional_profile_state(
+    profile_paths: tuple[str, str | None, str | None],
+) -> dict[str, str]:
+    _devops_profile, incus_profile, firmware_profile = profile_paths
+    incus_present = _present_environment_names(INCUS_ENV_NAMES)
+    if incus_profile is None:
+        if incus_present:
+            codex_die("inherited Incus variables exist without the managed Incus profile")
+    elif incus_present:
+        if incus_present != set(INCUS_ENV_NAMES):
+            codex_die("the inherited Incus environment is partial")
+        if os.environ.get("INCUS_MANAGED_ENVIRONMENT_READY") != "1":
+            codex_die("the inherited Incus environment marker is malformed")
+
+    firmware_present = _present_environment_names(FIRMWARE_ENV_NAMES)
+    if firmware_profile is None:
+        if firmware_present:
+            codex_die(
+                "inherited firmware variables exist without the managed firmware profile"
+            )
+        return {}
+    if not firmware_present:
+        return {}
+    if firmware_present != set(FIRMWARE_ENV_NAMES):
+        codex_die("the inherited firmware environment is partial")
+    if (
+        os.environ.get("FWOPS_ACTIVE") != "1"
+        or os.environ.get("FWOPS_ENVIRONMENT_READY") != "1"
+    ):
+        codex_die("the inherited firmware environment marker is malformed")
+    _run_profile_shell(_FIRMWARE_VALIDATE_SCRIPT, profile_paths, dict(os.environ))
+    return {name: os.environ[name] for name in FIRMWARE_ENV_NAMES}
+
+
+def _managed_environment_names(snapshot: dict[str, str]) -> list[str]:
+    selected: list[str] = []
+    for name in snapshot:
+        if name in PROFILE_IGNORED_ENV_NAMES or name == "PATH":
+            continue
+        if name in SHELL_CONTROL_ENV_NAMES:
+            codex_die("managed profile environment exports a shell-control variable")
+        if name in CODEX_AUTHORITATIVE_ENV_NAMES:
+            continue
+        selected.append(name)
+    return selected
+
+
+def codex_collect_devops_environment(
+    profile_paths: tuple[str, str | None, str | None],
+    clean_snapshot: dict[str, str],
+    *,
+    preserve_path: str | None,
+) -> list[str]:
+    global CODEX_DEVOPS_ENV_NAMES
+    selected = _managed_environment_names(clean_snapshot)
+    if preserve_path is not None:
+        for name in selected:
+            if os.environ.get(name) != clean_snapshot[name]:
+                codex_die(
+                    f"inherited managed profile environment differs from policy: {name}"
+                )
+        _run_profile_shell(_PROFILE_VALIDATE_SCRIPT, profile_paths, dict(os.environ))
+        codex_require_inherited_devops_path(
+            preserve_path, clean_snapshot["PATH"]
+        )
+
+    replacement = dict(clean_snapshot)
+    if preserve_path is not None:
+        replacement["PATH"] = preserve_path
+    os.environ.clear()
+    os.environ.update(replacement)
+    CODEX_DEVOPS_ENV_NAMES = selected
+    return [*selected]
+
+
+def codex_activate_devops_environment() -> None:
+    try:
+        actual_user = pwd.getpwuid(os.getuid()).pw_name
+    except KeyError:
+        codex_die("cannot resolve the invoking account name")
+    requested_user = os.environ.get("USER", "")
+    if SAFE_USER_RE.fullmatch(requested_user) is None or requested_user in {".", ".."}:
+        codex_die("the invoking account name is unsafe")
+    if requested_user != actual_user:
+        codex_die("USER does not match the invoking account")
+    if os.environ.get("LOGNAME", requested_user) != actual_user:
+        codex_die("LOGNAME does not match the invoking account")
+    home = os.environ.get("HOME", "")
+    codex_require_abs_path("HOME", home)
+    codex_require_account_owned_home_directory("HOME", home)
+    profile_paths = codex_discover_managed_profiles(home)
+    firmware_environment = codex_validate_optional_profile_state(profile_paths)
+
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR", "")
+    codex_require_private_account_directory("current user runtime directory", runtime_dir)
+    clean_environment = {
+        "HOME": home,
+        "USER": actual_user,
+        "LOGNAME": actual_user,
+        "XDG_RUNTIME_DIR": runtime_dir,
+        "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    }
+    clean_environment.update(firmware_environment)
+    clean_snapshot = _parse_profile_environment(
+        _run_profile_shell(_PROFILE_APPLY_SCRIPT, profile_paths, clean_environment)
+    )
+    if (
+        clean_snapshot.get("DEVOPS_DE_ACTIVE") != "1"
+        or clean_snapshot.get("DEVOPS_DE_ENVIRONMENT_READY") != "1"
+        or not clean_snapshot.get("PATH")
+    ):
+        codex_die("managed DevOps environment reconstruction is incomplete")
+    if profile_paths[1] is not None and any(
+        clean_snapshot.get(name, "") == "" for name in INCUS_ENV_NAMES
+    ):
+        codex_die("managed Incus environment reconstruction is incomplete")
+    if firmware_environment and any(
+        clean_snapshot.get(name, "") == "" for name in FIRMWARE_ENV_NAMES
+    ):
+        codex_die("managed firmware environment reconstruction is incomplete")
+
+    marker_names = ("DEVOPS_DE_ACTIVE", "DEVOPS_DE_ENVIRONMENT_READY")
+    marker_presence = tuple(name in os.environ for name in marker_names)
+    marker_values = tuple(os.environ.get(name, "") for name in marker_names)
+    if marker_presence == (False, False):
+        preserved_path = None
+    elif marker_presence == (True, True) and marker_values == ("1", "1"):
+        preserved_path = os.environ.get("PATH", "")
+        if not preserved_path:
+            codex_die("the inherited DevOps PATH is empty")
+    else:
+        codex_die("the inherited DevOps environment is incomplete")
+    codex_collect_devops_environment(
+        profile_paths,
+        clean_snapshot,
+        preserve_path=preserved_path,
+    )
+
+
+def codex_append_devops_environment() -> None:
+    for name in CODEX_DEVOPS_ENV_NAMES:
+        BWRAP_ARGS.extend(("--setenv", name, os.environ[name]))
+
+
+def codex_prepare_environment() -> None:
+    codex_activate_devops_environment()
+    os.environ.update(
+        {
+            "CODEX_AGENTS": CODEX_AGENTS_ROOT,
+            "CODEX_HOME": CODEX_RUNTIME_HOME,
+            "CODEX_LOG_DIR": CODEX_LOG_ROOT,
+            "CODEX_SKILLS": CODEX_SKILLS_ROOT,
+            "CODEX_SQLITE_HOME": CODEX_SQLITE_ROOT,
+            "SHELL": "/bin/zsh",
+        }
+    )
+    codex_sanitize_path()
+
+
+def codex_require_managed_work_areas() -> None:
+    account_uid = os.getuid()
+    user = os.environ["USER"]
+    current_group_ids = set(os.getgroups()) | {os.getgid()}
+    for home_directory in DEVOPS_READ_WRITE_HOME_DIRECTORIES:
+        codex_require_account_owned_home_directory(
+            f"managed {home_directory} directory",
+            f"{os.environ['HOME']}/{home_directory}",
+        )
+    codex_require_managed_directory(
+        "pool root", CODEX_POOL_ROOT, 0, CODEX_DEVOPS_GROUP, 0o2775, True
+    )
+    devops_group_id = os.stat(CODEX_POOL_ROOT, follow_symlinks=False).st_gid
+    if devops_group_id not in current_group_ids:
+        codex_die("the invoking account is not a member of the managed devops group")
+    for pool_label in ("cache", "build", "db"):
+        pool_root = f"{CODEX_POOL_ROOT}/{pool_label}"
+        codex_require_managed_directory(
+            f"pool {pool_label} root",
+            pool_root,
+            0,
+            CODEX_DEVOPS_GROUP,
+            0o2770,
+            True,
+        )
+        codex_require_managed_directory(
+            f"pool {pool_label} account directory",
+            f"{pool_root}/{user}",
+            account_uid,
+            CODEX_DEVOPS_GROUP,
+            0o2770,
+            True,
+        )
+    codex_require_managed_directory(
+        "managed Codex storage root",
+        CODEX_STORAGE_ROOT,
+        0,
+        CODEX_DEVOPS_GROUP,
+        0o3770,
+        True,
+    )
+    codex_require_managed_directory(
+        "managed shared temporary root", CODEX_SHARED_TMP_ROOT, 0, CODEX_DEVOPS_GROUP, 0o3770, True
+    )
+    codex_require_managed_directory(
+        "managed shared downloads root",
+        CODEX_SHARED_DOWNLOADS_ROOT,
+        account_uid,
+        user,
+        0o2750,
+        True,
+    )
+
+
+def codex_prepare_repository_metadata() -> None:
+    codex_require_managed_directory(
+        "Codex repository metadata",
+        codex_repository_git_root(),
+        os.getuid(),
+        CODEX_DEVOPS_GROUP,
+        0o750,
+        True,
+    )
+
+
+def codex_prepare_memory_guard() -> None:
+    memory_root = codex_memory_root()
+    guard = codex_memory_git_guard()
+    codex_require_account_owned_directory("Codex repository root", CODEX_USER_ROOT)
+    codex_require_devops_shared_account_directory("Codex home", CODEX_RUNTIME_HOME)
+    codex_require_devops_shared_account_directory("Codex memory directory", memory_root)
+    if os.path.islink(guard) or not os.path.isfile(guard):
+        codex_die("the account-owned memories .git marker is missing or indirect")
+    if os.path.realpath(guard) != guard:
+        codex_die("the memories .git marker must not traverse symlinks")
+    metadata = os.stat(guard, follow_symlinks=False)
+    actual_group = _group_name(metadata.st_gid)
+    actual_mode = stat.S_IMODE(metadata.st_mode)
+    if (
+        metadata.st_uid != os.getuid()
+        or actual_group != CODEX_DEVOPS_GROUP
+        or actual_mode != 0o660
+        or metadata.st_nlink != 1
+    ):
+        codex_die(
+            "the memories .git marker must remain a single-link regular file "
+            f"owned by the invoking account and group {CODEX_DEVOPS_GROUP} "
+            "with mode 0660"
+        )
+    if not _access(guard, os.R_OK | os.W_OK):
+        codex_die("the memories .git marker must remain readable and writable")
+
+
+def codex_prepare_control_state() -> None:
+    control_root = codex_control_root()
+    codex_require_devops_shared_account_directory("Codex runtime root", CODEX_RUNTIME_ROOT)
+    if os.path.lexists(control_root):
+        codex_require_private_account_directory("Codex runtime control root", control_root)
+    else:
+        try:
+            os.mkdir(control_root, 0o700)
+            os.chmod(control_root, 0o700, follow_symlinks=False)
+        except FileExistsError:
+            # Concurrent CLI and app-server startup: validate the winner below.
+            pass
+        except OSError as exc:
+            codex_die(f"cannot create the Codex runtime control root: {exc}")
+    codex_require_private_account_directory("Codex runtime control root", control_root)
+
+
+def _write_file(path: str, data: bytes, mode: int = 0o600) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags, mode)
+        with os.fdopen(descriptor, "wb", closefd=True) as handle:
+            handle.write(data)
+            handle.flush()
+        os.chmod(path, mode, follow_symlinks=False)
+    except OSError as exc:
+        codex_die(f"cannot create runtime identity file {path}: {exc}")
+
+
+def _shell_quote(value: str) -> str:
+    return "'" + value.replace("'", "'\\''") + "'"
+
+
+def codex_render_payload_launcher(
+    target: str,
+    *,
+    bwrap_binary: str = BWRAP_BINARY,
+    process_status_path: str = "/proc/self/status",
+) -> None:
+    codex_require_abs_path("nested Bubblewrap binary", bwrap_binary)
+    codex_require_abs_path("payload process status path", process_status_path)
+    script = f'''#!/usr/bin/python3 -I
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+BWRAP_BINARY = {bwrap_binary!r}
+PROCESS_STATUS_PATH = {process_status_path!r}
+MAX_STATUS_BYTES = 65536
+MAX_DIAGNOSTIC_BYTES = 8192
+
+
+def fatal(message: str) -> "NoReturn":
+    print(f"codex-payload: fatal: {{message}}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def capability_fields() -> dict[str, int]:
+    try:
+        with open(PROCESS_STATUS_PATH, "rb") as handle:
+            payload = handle.read(MAX_STATUS_BYTES + 1)
+    except OSError as exc:
+        fatal(f"cannot read process capabilities: {{exc}}")
+    if len(payload) > MAX_STATUS_BYTES:
+        fatal("process capability status exceeds 64 KiB")
+    fields: dict[str, int] = {{}}
+    for raw_line in payload.splitlines():
+        if b":" not in raw_line:
+            continue
+        raw_name, raw_value = raw_line.split(b":", 1)
+        try:
+            name = raw_name.decode("ascii")
+        except UnicodeDecodeError:
+            continue
+        if name not in {{"CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"}}:
+            continue
+        try:
+            fields[name] = int(raw_value.strip(), 16)
+        except ValueError:
+            fatal(f"process capability field is malformed: {{name}}")
+    required = {{"CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"}}
+    if set(fields) != required:
+        fatal("process capability status is incomplete")
+    return fields
+
+
+def validate_outer_capabilities() -> None:
+    fields = capability_fields()
+    for name in ("CapInh", "CapPrm", "CapEff", "CapAmb"):
+        if fields[name] != 0:
+            fatal(f"outer payload retains active capabilities: {{name}}")
+    # New user namespaces establish their own capability set. Do not infer
+    # namespace support from the parent's CapBnd; exercise it below instead.
+    with open(PROCESS_STATUS_PATH, encoding="ascii") as status:
+        if not any(line.split() == ["NoNewPrivs:", "1"] for line in status):
+            fatal("Bubblewrap did not set no_new_privs")
+
+
+def nested_bubblewrap_probe() -> None:
+    try:
+        descriptor, marker = tempfile.mkstemp(prefix=".codex-nested-bwrap-", dir="/tmp")
+        os.close(descriptor)
+    except OSError as exc:
+        fatal(f"cannot create nested Bubblewrap probe marker: {{exc}}")
+
+    probe = (
+        "from pathlib import Path; import sys; "
+        "hidden=Path(sys.argv[1]); "
+        "assert not hidden.exists(); "
+        "target=Path('/tmp/work/tool-write'); "
+        "target.write_bytes(b'ok'); "
+        "assert target.read_bytes() == b'ok'; "
+        "assert Path('/proc/self/status').is_file(); "
+        "assert Path('/proc/self/fd').is_dir()"
+    )
+    command = [
+        BWRAP_BINARY,
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--unshare-ipc",
+        "--unshare-net",
+        "--uid",
+        str(os.getuid()),
+        "--gid",
+        str(os.getgid()),
+        "--ro-bind",
+        "/",
+        "/",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        "/tmp",
+        "--perms",
+        "0700",
+        "--dir",
+        "/tmp/work",
+        "--chdir",
+        "/tmp/work",
+        "--cap-drop",
+        "ALL",
+        "--",
+        "/usr/bin/python3",
+        "-I",
+        "-c",
+        probe,
+        marker,
+    ]
+    if command.count("--unshare-user") != 1 or command.count("--unshare-pid") != 1:
+        fatal("nested Bubblewrap probe namespace policy is malformed")
+    proc_indexes = [index for index, value in enumerate(command) if value == "--proc"]
+    if len(proc_indexes) != 1 or command[proc_indexes[0] + 1] != "/proc":
+        fatal("nested Bubblewrap probe procfs policy is malformed")
+    try:
+        completed = subprocess.run(
+            command,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        fatal("nested Bubblewrap probe timed out")
+    except OSError as exc:
+        fatal(f"cannot execute nested Bubblewrap probe: {{exc}}")
+    finally:
+        try:
+            os.unlink(marker)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            fatal(f"cannot remove nested Bubblewrap probe marker: {{exc}}")
+    if completed.returncode != 0:
+        diagnostic = completed.stderr[:MAX_DIAGNOSTIC_BYTES].decode(
+            "utf-8", "replace"
+        ).replace("\\n", " ").replace("\\r", " ").strip()
+        if len(completed.stderr) > MAX_DIAGNOSTIC_BYTES:
+            diagnostic += " [truncated]"
+        fatal(
+            "nested Bubblewrap probe failed "
+            f"(status {{completed.returncode}}): {{diagnostic or 'no diagnostic'}}"
+        )
+
+
+def main(arguments: list[str]) -> int:
+    if not arguments:
+        fatal("raw Codex executable argument is missing")
+    validate_outer_capabilities()
+    nested_bubblewrap_probe()
+    raw_binary = arguments[0]
+    os.execve(raw_binary, [raw_binary, *arguments[1:]], dict(os.environ))
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
+'''
+    _write_file(target, script.encode("utf-8"), 0o600)
+
+
+def codex_prepare_identity_files(uid: int, gid: int) -> str:
+    global CODEX_CONTROL_DIR
+    try:
+        CODEX_CONTROL_DIR = tempfile.mkdtemp(prefix="launch.", dir=codex_control_root())
+        os.chmod(CODEX_CONTROL_DIR, 0o700, follow_symlinks=False)
+    except OSError as exc:
+        codex_die(f"unable to allocate wrapper control directory: {exc}")
+    launch_uuid = codex_generate_uuid()
+    installation_id = codex_generate_uuid()
+    machine_id = launch_uuid.replace("-", "")
+    fake_hostname = f"codex-{machine_id[:12]}"
+    group_ids = sorted(set(os.getgroups()) | {gid})
+    group_lines = ["root:x:0:", f"codex:x:{gid}:codex"]
+    group_lines.extend(
+        f"codex-g{group_id}:x:{group_id}:codex"
+        for group_id in group_ids
+        if group_id != gid
+    )
+    files: dict[str, bytes] = {
+        "machine-id": f"{machine_id}\n".encode(),
+        "hostname": f"{fake_hostname}\n".encode(),
+        "hostid": bytes.fromhex(machine_id[:8]),
+        "hosts": (
+            f"127.0.0.1 localhost\n127.0.1.1 {fake_hostname}\n"
+            "::1 localhost ip6-localhost ip6-loopback\n"
+        ).encode(),
+        "resolv.conf": CODEX_RESOLVER_CONFIGURATION,
+        "nsswitch.conf": CODEX_NSSWITCH_CONFIGURATION,
+        "passwd": (
+            "root:x:0:0:root:/root:/usr/sbin/nologin\n"
+            f"codex:x:{uid}:{gid}:Codex Runtime:{os.environ['HOME']}:/bin/zsh\n"
+        ).encode(),
+        "group": ("\n".join(group_lines) + "\n").encode(),
+        "empty": b"",
+        "installation_id": installation_id.encode(),
+    }
+    for name, data in files.items():
+        mode = 0o644 if name == "installation_id" else 0o600
+        _write_file(f"{CODEX_CONTROL_DIR}/{name}", data, mode)
+    codex_render_payload_launcher(f"{CODEX_CONTROL_DIR}/payload-launcher.py")
+    return CODEX_CONTROL_DIR
+
+
+def codex_append_ro_bind_if_present(source_path: str, destination_path: str) -> None:
+    if os.path.lexists(source_path):
+        BWRAP_ARGS.extend(("--ro-bind", source_path, destination_path))
+
+
+def _validate_home_relative_path(relative_path: str) -> tuple[str, ...]:
+    if not relative_path or relative_path.startswith("/") or "\n" in relative_path or "\r" in relative_path:
+        codex_die(f"HOME-relative bind path is unsafe: {relative_path}")
+    components = tuple(relative_path.split("/"))
+    if any(component in {"", ".", ".."} for component in components):
+        codex_die(f"HOME-relative bind path contains unsupported syntax: {relative_path}")
+    if str(PurePosixPath(*components)) != relative_path:
+        codex_die(f"HOME-relative bind path is not normalized: {relative_path}")
+    return components
+
+
+def codex_append_home_bind_if_present(relative_path: str, *, writable: bool = False) -> None:
+    components = _validate_home_relative_path(relative_path)
+    home = os.environ["HOME"]
+    source_path = f"{home}/{relative_path}"
+    if not os.path.lexists(source_path):
+        return
+    if os.path.islink(source_path) or not (os.path.isfile(source_path) or os.path.isdir(source_path)):
+        codex_die(f"HOME-relative bind source must be a direct regular file or directory: {source_path}")
+    source_real = os.path.realpath(source_path)
+    if source_real != source_path or not source_real.startswith(f"{home}/"):
+        codex_die(f"HOME-relative bind source escapes HOME or traverses a symlink: {source_path}")
+    metadata = os.stat(source_path, follow_symlinks=False)
+    if metadata.st_uid != os.getuid():
+        codex_die(f"HOME-relative bind source must remain owned by the invoking account: {source_path}")
+    required_access = os.R_OK | (os.X_OK if os.path.isdir(source_path) else 0)
+    if not _access(source_path, required_access):
+        codex_die(f"HOME-relative bind source is not readable or searchable: {source_path}")
+    current_path = home
+    for component in components[:-1]:
+        current_path = f"{current_path}/{component}"
+        codex_require_account_owned_searchable_directory(
+            "HOME-relative bind parent", current_path
+        )
+        BWRAP_ARGS.extend(("--dir", current_path))
+    if writable and not _access(source_path, os.W_OK):
+        codex_die(f"developer configuration is not writable: {source_path}")
+    BWRAP_ARGS.extend(("--bind" if writable else "--ro-bind", source_path, source_path))
+
+
+def codex_resolve_existing_mount_file(destination_path: str) -> str | None:
+    codex_require_abs_path("Bubblewrap mount destination", destination_path)
+    if not os.path.lexists(destination_path):
+        return None
+    resolved_destination = os.path.realpath(destination_path) if os.path.islink(destination_path) else destination_path
+    codex_require_abs_path("resolved Bubblewrap mount destination", resolved_destination)
+    if os.path.islink(resolved_destination) or not os.path.isfile(resolved_destination):
+        return None
+    return resolved_destination
+
+
+def codex_append_tmpfs_parent_dirs(destination_path: str) -> None:
+    codex_require_abs_path("Bubblewrap mount destination", destination_path)
+    path = PurePosixPath(destination_path)
+    if len(path.parts) < 4 or path.parts[1] != "run":
+        return
+    current = "/run"
+    for component in path.parts[2:-1]:
+        current = f"{current}/{component}"
+        BWRAP_ARGS.extend(("--dir", current))
+
+
+def codex_append_ro_bind_to_existing_path(source_path: str, destination_path: str) -> None:
+    resolved_destination = codex_resolve_existing_mount_file(destination_path)
+    if resolved_destination is None:
+        return
+    codex_append_tmpfs_parent_dirs(resolved_destination)
+    BWRAP_ARGS.extend(("--ro-bind", source_path, resolved_destination))
+
+
+def codex_append_required_ro_bind_to_existing_path(
+    label: str,
+    source_path: str,
+    destination_path: str,
+) -> None:
+    codex_require_abs_path(f"{label} source", source_path)
+    if os.path.islink(source_path) or not os.path.isfile(source_path):
+        codex_die(f"{label} source is missing or indirect: {source_path}")
+    resolved_destination = codex_resolve_existing_mount_file(destination_path)
+    if resolved_destination is None:
+        codex_die(f"{label} destination is missing or does not resolve to a regular file: {destination_path}")
+    codex_append_tmpfs_parent_dirs(resolved_destination)
+    BWRAP_ARGS.extend(("--ro-bind", source_path, resolved_destination))
+
+
+def codex_append_tmpfs_if_present(destination_path: str) -> None:
+    if os.path.isdir(destination_path) and not os.path.islink(destination_path):
+        BWRAP_ARGS.extend(("--tmpfs", destination_path))
+
+
+def codex_append_device_bind_if_present(device_path: str) -> None:
+    codex_require_abs_path("managed accelerator device", device_path)
+    if not os.path.lexists(device_path):
+        return
+    if os.path.islink(device_path):
+        codex_die(f"managed accelerator device must not be a symlink: {device_path}")
+    metadata = os.stat(device_path, follow_symlinks=False)
+    if not (stat.S_ISDIR(metadata.st_mode) or stat.S_ISCHR(metadata.st_mode)):
+        codex_die(f"managed accelerator path must be a directory or character device: {device_path}")
+    if metadata.st_uid != 0:
+        codex_die(f"managed accelerator path must remain root-owned: {device_path}")
+    BWRAP_ARGS.extend(("--dev-bind", device_path, device_path))
+
+
+def codex_append_accelerator_device_binds() -> None:
+    render_device_paths = sorted(glob.glob("/dev/dri/renderD[0-9]*"))
+    nvidia_device_paths = sorted(glob.glob("/dev/nvidia[0-9]*"))
+    for device_path in render_device_paths:
+        if RENDER_DEVICE_RE.fullmatch(os.path.basename(device_path)) is None:
+            codex_die(f"managed DRM render-node name is invalid: {device_path}")
+    if render_device_paths:
+        BWRAP_ARGS.extend(("--dir", "/dev/dri"))
+    device_paths = (
+        *render_device_paths,
+        "/dev/kfd",
+        "/dev/accel",
+        "/dev/nvidia-caps",
+        "/dev/nvidiactl",
+        "/dev/nvidia-uvm",
+        "/dev/nvidia-uvm-tools",
+        *nvidia_device_paths,
+    )
+    present_count = sum(os.path.lexists(path) for path in device_paths)
+    if present_count > 64:
+        codex_die("managed accelerator device count exceeds 64")
+    for device_path in device_paths:
+        codex_append_device_bind_if_present(device_path)
+
+
+def codex_append_selective_home_access() -> None:
+    home = os.environ["HOME"]
+    BWRAP_ARGS.extend(("--tmpfs", home))
+    for relative in DEVOPS_READ_WRITE_HOME_DIRECTORIES:
+        BWRAP_ARGS.extend(("--perms", "0700", "--dir", f"{home}/{relative}"))
+    BWRAP_ARGS.extend(("--dir", f"{home}/.config", "--dir", f"{home}/.local"))
+    for relative in DEVOPS_READ_WRITE_HOME_DIRECTORIES:
+        path = f"{home}/{relative}"
+        BWRAP_ARGS.extend(("--bind", path, path))
+    for relative in DEVOPS_READ_ONLY_HOME_FILES:
+        codex_append_home_bind_if_present(relative)
+    for relative in DEVOPS_MUTABLE_HOME_DIRECTORIES:
+        codex_append_home_bind_if_present(relative, writable=True)
+
+
+def _path_is_within(path: str, root: str) -> bool:
+    return path == root or path.startswith(f"{root}/")
+
+
+def codex_select_sandbox_cwd(host_cwd: str | None = None) -> str:
+    cwd = os.path.realpath(host_cwd if host_cwd is not None else os.getcwd())
+    if not os.path.isabs(cwd) or "\x00" in cwd:
+        codex_die("physical working directory is not an absolute path")
+    if _path_is_within(cwd, CODEX_RUNTIME_ROOT):
+        codex_die(
+            f"cannot preserve a working directory under {CODEX_RUNTIME_ROOT}: "
+            "managed runtime control state is masked in the sandbox"
+        )
+    allowed_roots = (
+        f"{os.environ['HOME']}/Downloads",
+        f"{os.environ['HOME']}/Workspace",
+        "/tmp",
+        CODEX_POOL_ROOT,
+        CODEX_STORAGE_ROOT,
+        CODEX_SHARED_DOWNLOADS_ROOT,
+        CODEX_SHARED_TMP_ROOT,
+    )
+    if any(_path_is_within(cwd, root) for root in allowed_roots):
+        return cwd
+    return f"{os.environ['HOME']}/Workspace"
+
+
+def validate_private_procfs(arguments: Sequence[str]) -> None:
+    if arguments.count("--unshare-pid") != 1:
+        codex_die("Codex Bubblewrap must create exactly one private PID namespace")
+    proc_indexes = [index for index, value in enumerate(arguments) if value == "--proc"]
+    if len(proc_indexes) != 1:
+        codex_die("Codex Bubblewrap must declare exactly one private procfs mount")
+    index = proc_indexes[0]
+    if index + 1 >= len(arguments) or arguments[index + 1] != "/proc":
+        codex_die("Codex Bubblewrap private procfs must be mounted at /proc")
+    # Every /proc pathname apart from the proc mount itself would be an
+    # accidental overmount (or host bind) in this argument builder.
+    for position, value in enumerate(arguments):
+        if value.startswith("/proc/") or (value == "/proc" and position != index + 1):
+            codex_die("Codex Bubblewrap must not bind or mask the private procfs")
+
+
+def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
+    global BWRAP_ARGS
+    sandbox_cwd = codex_select_sandbox_cwd()
+    hostname = _read_bounded_text(f"{CODEX_CONTROL_DIR}/hostname", 128, "synthetic hostname")
+    synthetic_path = CODEX_SANDBOX_PATH
+    BWRAP_ARGS = [
+        BWRAP_BINARY,
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-user",
+        "--unshare-pid",
+        "--unshare-uts",
+        "--unshare-ipc",
+        "--unshare-net",
+        "--unshare-cgroup",
+        "--uid",
+        str(uid),
+        "--gid",
+        str(gid),
+        "--hostname",
+        hostname,
+        # No host or ambient capabilities: a child user namespace can still
+        # acquire namespace-local mount capabilities. Verify that with the
+        # nested probe rather than retaining CAP_SYS_ADMIN in the payload.
+        "--cap-drop",
+        "ALL",
+        "--ro-bind",
+        "/",
+        "/",
+        "--dev",
+        "/dev",
+        "--proc",
+        "/proc",
+        "--tmpfs",
+        "/home",
+        "--ro-bind",
+        "/data",
+        "/data",
+        "--bind",
+        CODEX_POOL_ROOT,
+        CODEX_POOL_ROOT,
+        "--ro-bind",
+        "/sys",
+        "/sys",
+        "--tmpfs",
+        "/run",
+        "--perms",
+        "0700",
+        "--dir",
+        f"/run/user/{uid}",
+        "--dir",
+        "/run/codex-synthetic-bin",
+        "--ro-bind",
+        f"{CODEX_CONTROL_DIR}/payload-launcher.py",
+        "/run/codex-synthetic-bin/payload-launcher.py",
+        "--tmpfs",
+        "/var/log",
+        "--tmpfs",
+        "/var/tmp",
+    ]
+    sandbox_runtime_root = f"/run/user/{uid}"
+    for relative_path in DEVOPS_PRIVATE_RUNTIME_RELATIVE_DIRECTORIES:
+        BWRAP_ARGS.extend(
+            (
+                "--perms",
+                "0700",
+                "--dir",
+                f"{sandbox_runtime_root}/{relative_path}",
+            )
+        )
+    for hidden_path in (
+        "/var/lib/AccountsService",
+        "/var/lib/NetworkManager",
+        "/etc/NetworkManager",
+        "/etc/netplan",
+        "/etc/systemd/network",
+        "/etc/ssh",
+        "/boot",
+        "/efi",
+        "/media",
+        "/mnt",
+        "/root",
+        "/srv",
+        "/usr/lib/modules",
+        "/var/lib/bluetooth",
+        "/var/lib/connman",
+        "/var/lib/iwd",
+        "/var/lib/systemd/rfkill",
+        "/sys/block",
+        "/sys/bus/scsi/devices",
+        "/sys/class/block",
+        "/sys/class/dmi/id",
+        "/sys/class/net",
+        "/sys/class/nvme",
+        "/sys/devices/virtual/block",
+        "/sys/devices/virtual/dmi/id",
+        "/sys/devices/virtual/net",
+        "/sys/firmware",
+    ):
+        codex_append_tmpfs_if_present(hidden_path)
+    codex_append_ro_bind_if_present("/etc/ssh/ssh_config", "/etc/ssh/ssh_config")
+    codex_append_ro_bind_if_present("/etc/ssh/ssh_config.d", "/etc/ssh/ssh_config.d")
+    for label, source_name, destination in (
+        ("synthetic machine identity", "machine-id", "/etc/machine-id"),
+        ("synthetic hostname", "hostname", "/etc/hostname"),
+        ("synthetic hosts file", "hosts", "/etc/hosts"),
+        ("isolated resolver configuration", "resolv.conf", "/etc/resolv.conf"),
+        ("isolated name-service policy", "nsswitch.conf", "/etc/nsswitch.conf"),
+        ("synthetic account database", "passwd", "/etc/passwd"),
+        ("synthetic group database", "group", "/etc/group"),
+    ):
+        codex_append_required_ro_bind_to_existing_path(
+            label, f"{CODEX_CONTROL_DIR}/{source_name}", destination
+        )
+    for source_name, destination in (
+        ("hostid", "/etc/hostid"),
+        ("empty", "/etc/shadow"),
+        ("empty", "/etc/gshadow"),
+        ("empty", "/etc/subuid"),
+        ("empty", "/etc/subgid"),
+        ("empty", "/etc/fstab"),
+        ("empty", "/etc/crypttab"),
+        ("empty", "/etc/machine-info"),
+    ):
+        codex_append_ro_bind_to_existing_path(
+            f"{CODEX_CONTROL_DIR}/{source_name}", destination
+        )
+    BWRAP_ARGS.extend(
+        (
+            "--bind", "/tmp", "/tmp",
+            "--bind", CODEX_STORAGE_ROOT, CODEX_STORAGE_ROOT,
+            "--bind", CODEX_SHARED_DOWNLOADS_ROOT, CODEX_SHARED_DOWNLOADS_ROOT,
+            "--bind", CODEX_SHARED_TMP_ROOT, CODEX_SHARED_TMP_ROOT,
+            # Repository policy deliberately persists the complete managed Codex
+            # home. The per-launch installation ID shadows any host copy.
+            "--bind", CODEX_RUNTIME_HOME, CODEX_RUNTIME_HOME,
+            "--bind", f"{CODEX_CONTROL_DIR}/installation_id", f"{CODEX_RUNTIME_HOME}/installation_id",
+            "--bind", CODEX_HOST_LOG_ROOT, CODEX_LOG_ROOT,
+            "--bind", CODEX_SQLITE_ROOT, CODEX_SQLITE_ROOT,
+            # Synthetic control files have already been rebound. Mask persistent
+            # control state before starting the payload.
+            "--tmpfs", CODEX_RUNTIME_ROOT,
+        )
+    )
+    # Never expose credential sources, including for interactive invocations.
+    BWRAP_ARGS.extend(("--tmpfs", f"{CODEX_STORAGE_ROOT}/credentials"))
+    # Release code and administrator policy stay immutable even though the
+    # requested work/storage roots are writable. DAC is still enforced.
+    for protected in (f"{CODEX_STORAGE_ROOT}/lib", f"{CODEX_STORAGE_ROOT}/share", f"{CODEX_USER_ROOT}/etc"):
+        codex_append_ro_bind_if_present(protected, protected)
+    for protected in (f"{CODEX_STORAGE_ROOT}/config.schema.json", f"{CODEX_STORAGE_ROOT}/.managed-codex-release"):
+        codex_append_ro_bind_if_present(protected, protected)
+    if CODEX_APP_SERVER_MODE:
+        if CODEX_AUTH_FD is None:
+            codex_die("app-server authentication credential was not opened")
+        BWRAP_ARGS.extend(("--perms", "0600", "--ro-bind-data", str(CODEX_AUTH_FD), CODEX_AUTH_PATH))
+    codex_append_ro_bind_to_existing_path(
+        f"{CODEX_CONTROL_DIR}/machine-id", "/var/lib/dbus/machine-id"
+    )
+    # Do not overmount individual /proc paths. Locked submounts make a
+    # subsequent unprivileged procfs mount "too revealing" (EPERM). The fresh
+    # PID namespace limits process visibility; AppArmor and capability dropping
+    # restrict writes. CPU/memory/kernel information must remain accurate for
+    # build parallelism, compiler selection, and nested container tooling.
+    codex_append_selective_home_access()
+    codex_append_accelerator_device_binds()
+    for name in SANDBOX_UNSET_ENV_NAMES:
+        BWRAP_ARGS.extend(("--unsetenv", name))
+    codex_append_devops_environment()
+    BWRAP_ARGS.extend(
+        (
+            "--setenv", "HOME", os.environ["HOME"],
+            "--setenv", "USER", "codex",
+            "--setenv", "LOGNAME", "codex",
+            "--setenv", "SHELL", "/bin/zsh",
+            "--setenv", "HOSTNAME", hostname,
+            "--setenv", "LANG", "C.UTF-8",
+            "--setenv", "LC_ALL", "C.UTF-8",
+            "--setenv", "TZ", "UTC",
+            "--setenv", "CODEX_AGENTS", CODEX_AGENTS_ROOT,
+            "--setenv", "CODEX_HOME", CODEX_RUNTIME_HOME,
+            "--setenv", "CODEX_LOG_DIR", CODEX_LOG_ROOT,
+            "--setenv", "CODEX_SKILLS", CODEX_SKILLS_ROOT,
+            "--setenv", "CODEX_SQLITE_HOME", CODEX_SQLITE_ROOT,
+            "--setenv", "XDG_RUNTIME_DIR", f"/run/user/{uid}",
+            "--setenv", "TMPDIR", "/tmp",
+            "--setenv", "PATH", synthetic_path,
+            "--setenv", "PWD", sandbox_cwd,
+            "--chdir", sandbox_cwd,
+        )
+    )
+    validate_private_procfs(BWRAP_ARGS)
+    return [*BWRAP_ARGS]
+
+
+def codex_parse_sandbox_pid(info: bytes | str) -> int:
+    try:
+        document = json.loads(info)
+    except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+        codex_die("Bubblewrap returned malformed sandbox process information")
+    sandbox_pid = document.get("child-pid") if isinstance(document, dict) else None
+    if (not isinstance(sandbox_pid, int) or isinstance(sandbox_pid, bool)
+            or not 1 < sandbox_pid <= 2_147_483_647):
+        codex_die("Bubblewrap did not report a valid sandbox process id")
+    return sandbox_pid
+
+
+def _pid_alive(process_id: int | None) -> bool:
+    if process_id is None:
+        return False
+    try:
+        os.kill(process_id, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _read_json_fd(fd: int, process: subprocess.Popen[bytes]) -> bytes:
+    deadline = time.monotonic() + NETWORK_SETUP_TIMEOUT_SECONDS
+    data = bytearray()
+    os.set_blocking(fd, False)
+    while time.monotonic() < deadline:
+        if len(data) > MAX_BWRAP_INFO_BYTES:
+            codex_die("Bubblewrap process information exceeds the 16 KiB limit")
+        try:
+            json.loads(data.decode("utf-8"))
+            return bytes(data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            pass
+        if len(data) > MAX_BWRAP_INFO_BYTES:
+            codex_die("Bubblewrap process information exceeds the 16 KiB limit")
+        remaining = max(0.0, deadline - time.monotonic())
+        readable, _, _ = select.select((fd,), (), (), min(0.1, remaining))
+        if readable:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            data.extend(chunk)
+        elif process.poll() is not None:
+            break
+    if len(data) > MAX_BWRAP_INFO_BYTES:
+        codex_die("Bubblewrap process information exceeds the 16 KiB limit")
+    return bytes(data)
+
+
+def _read_ready_byte(fd: int, deadline_seconds: float) -> bytes:
+    deadline = time.monotonic() + deadline_seconds
+    while time.monotonic() < deadline:
+        readable, _, _ = select.select((fd,), (), (), min(0.1, deadline - time.monotonic()))
+        if readable:
+            return os.read(fd, 1)
+        if CODEX_BWRAP_PROCESS is not None and CODEX_BWRAP_PROCESS.poll() is not None:
+            return b""
+        if CODEX_SLIRP_PROCESS is not None and CODEX_SLIRP_PROCESS.poll() is not None:
+            return b""
+    return b""
+
+
+def _close_fd(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _terminate_process(process: subprocess.Popen[bytes] | None) -> None:
+    if process is None or process.poll() is not None:
+        return
+    try:
+        process.terminate()
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            print("warning: child did not exit after SIGKILL; service cgroup cleanup is required", file=sys.stderr)
+
+
+def _signal_sandbox(signum: int) -> None:
+    # The pinned handle cannot target a recycled PID during delayed cleanup.
+    if CODEX_SANDBOX_PIDFD is not None:
+        try:
+            signal.pidfd_send_signal(CODEX_SANDBOX_PIDFD, signum)
+        except (ProcessLookupError, PermissionError):
+            pass  # The supervising Popen process is still stopped below.
+
+
+def codex_cleanup() -> None:
+    global CODEX_AUTH_FD, CODEX_BWRAP_PROCESS, CODEX_CONTROL_DIR, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS, CODEX_SIGNALLED
+    # A signal arriving during normal finally cleanup must not interrupt teardown.
+    CODEX_SIGNALLED = True
+    _close_fd(CODEX_AUTH_FD)
+    CODEX_AUTH_FD = None
+    codex_clear_app_server_environment()
+    _signal_sandbox(signal.SIGTERM)
+    _terminate_process(CODEX_BWRAP_PROCESS)
+    _terminate_process(CODEX_SLIRP_PROCESS)
+    _signal_sandbox(signal.SIGKILL)
+    _close_fd(CODEX_SANDBOX_PIDFD)
+    CODEX_SANDBOX_PIDFD = None
+    CODEX_BWRAP_PROCESS = None
+    CODEX_SANDBOX_PID = None
+    CODEX_SLIRP_PROCESS = None
+    if CODEX_CONTROL_DIR:
+        control_dir = CODEX_CONTROL_DIR
+        CODEX_CONTROL_DIR = ""
+        if os.path.isdir(control_dir) and not os.path.islink(control_dir):
+            try:
+                shutil.rmtree(control_dir)
+            except OSError as exc:
+                print(f"warning: cannot remove Codex control state: {exc}", file=sys.stderr)
+
+
+def codex_handle_signal(signum: int, _frame: object = None) -> None:
+    global CODEX_SIGNALLED
+    if CODEX_SIGNALLED:
+        return  # Let the first signal unwind through the bounded cleanup once.
+    CODEX_SIGNALLED = True
+    _signal_sandbox(signum)
+    if CODEX_BWRAP_PROCESS is not None and CODEX_BWRAP_PROCESS.poll() is None:
+        try:
+            CODEX_BWRAP_PROCESS.send_signal(signum)
+        except ProcessLookupError:
+            pass
+    raise SystemExit(128 + signum)
+
+
+def codex_run_sandboxed() -> int:
+    global CODEX_AUTH_FD, CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS
+    uid = os.getuid()
+    gid = os.getgid()
+    codex_prepare_control_state()
+    codex_prepare_identity_files(uid, gid)
+    command = codex_build_bwrap_args(uid, gid)
+    info_read = info_write = block_read = block_write = None
+    ready_read = ready_write = exit_read = exit_write = None
+    stdout_handle = stderr_handle = None
+    try:
+        info_read, info_write = os.pipe()
+        block_read, block_write = os.pipe()
+        bwrap_command = [
+            *command,
+            "--info-fd",
+            str(info_write),
+            "--block-fd",
+            str(block_read),
+            "--",
+            "/usr/bin/python3",
+            "-I",
+            "/run/codex-synthetic-bin/payload-launcher.py",
+            CODEX_RAW_BINARY,
+            *CODEX_ARGS,
+        ]
+        CODEX_BWRAP_PROCESS = subprocess.Popen(
+            bwrap_command,
+            close_fds=True,
+            pass_fds=(info_write, block_read, *((CODEX_AUTH_FD,) if CODEX_AUTH_FD is not None else ())),
+        )
+        # systemd has already decoded daemon credentials into the service
+        # environment. Bubblewrap inherits that sanitized environment without
+        # putting secret values in argv; the supervising wrapper drops its copy
+        # immediately after the child has started.
+        codex_clear_app_server_environment()
+        _close_fd(CODEX_AUTH_FD)
+        CODEX_AUTH_FD = None
+        _close_fd(info_write)
+        info_write = None
+        _close_fd(block_read)
+        block_read = None
+        info = _read_json_fd(info_read, CODEX_BWRAP_PROCESS)
+        try:
+            CODEX_SANDBOX_PID = codex_parse_sandbox_pid(info)
+        except CodexError:
+            if CODEX_BWRAP_PROCESS.poll() is not None:
+                status = CODEX_BWRAP_PROCESS.returncode
+                codex_die(
+                    "Bubblewrap exited before reporting a sandbox process id "
+                    f"(status {status})"
+                )
+            raise
+        if CODEX_BWRAP_PROCESS.poll() is not None or not _pid_alive(CODEX_SANDBOX_PID):
+            status = CODEX_BWRAP_PROCESS.wait()
+            codex_die(f"Bubblewrap exited during sandbox setup (status {status})")
+
+        # The child is blocked on block_write until namespace networking is ready.
+        # Pin it while it is still supervised, before any cleanup signal is sent.
+        CODEX_SANDBOX_PIDFD = os.pidfd_open(CODEX_SANDBOX_PID)
+        ready_read, ready_write = os.pipe()
+        exit_read, exit_write = os.pipe()
+        stdout_handle = open(f"{CODEX_CONTROL_DIR}/slirp.stdout", "xb")
+        stderr_handle = open(f"{CODEX_CONTROL_DIR}/slirp.stderr", "xb")
+        CODEX_SLIRP_PROCESS = subprocess.Popen(
+            [
+                SLIRP4NETNS_BINARY,
+                "--configure",
+                f"--mtu={SLIRP4NETNS_MTU}",
+                "--disable-host-loopback",
+                "--ready-fd",
+                str(ready_write),
+                "--exit-fd",
+                str(exit_read),
+                str(CODEX_SANDBOX_PID),
+                SLIRP4NETNS_TAP_NAME,
+            ],
+            close_fds=True,
+            pass_fds=(ready_write, exit_read),
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+        )
+        _close_fd(ready_write)
+        ready_write = None
+        _close_fd(exit_read)
+        exit_read = None
+        ready = _read_ready_byte(ready_read, NETWORK_SETUP_TIMEOUT_SECONDS)
+        if ready != b"1":
+            if CODEX_BWRAP_PROCESS.poll() is not None:
+                codex_die(
+                    "Bubblewrap exited before network setup completed "
+                    f"(status {CODEX_BWRAP_PROCESS.returncode})"
+                )
+            if CODEX_SLIRP_PROCESS.poll() is not None:
+                codex_die(
+                    "slirp4netns exited before configuring the isolated network "
+                    f"namespace (status {CODEX_SLIRP_PROCESS.returncode})"
+                )
+            codex_die("slirp4netns timed out while configuring the isolated network namespace")
+        os.write(block_write, b"1")
+        _close_fd(block_write)
+        block_write = None
+        _close_fd(info_read)
+        info_read = None
+        _close_fd(ready_read)
+        ready_read = None
+        while True:
+            try:
+                bwrap_status = CODEX_BWRAP_PROCESS.wait(timeout=0.5)
+                break
+            except subprocess.TimeoutExpired:
+                if CODEX_SLIRP_PROCESS.poll() is not None:
+                    codex_die(f"isolated network helper exited (status {CODEX_SLIRP_PROCESS.returncode})")
+        CODEX_BWRAP_PROCESS = None
+        CODEX_SANDBOX_PID = None
+        _close_fd(CODEX_SANDBOX_PIDFD)
+        CODEX_SANDBOX_PIDFD = None
+        _close_fd(exit_write)
+        exit_write = None
+        try:
+            CODEX_SLIRP_PROCESS.wait(timeout=PROCESS_STOP_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            _terminate_process(CODEX_SLIRP_PROCESS)
+        CODEX_SLIRP_PROCESS = None
+        return bwrap_status if bwrap_status >= 0 else 128 - bwrap_status
+    finally:
+        for descriptor in (
+            info_read,
+            info_write,
+            block_read,
+            block_write,
+            ready_read,
+            ready_write,
+            exit_read,
+            exit_write,
+        ):
+            _close_fd(descriptor)
+        if stdout_handle is not None:
+            stdout_handle.close()
+        if stderr_handle is not None:
+            stderr_handle.close()
+
+
+def _exec_raw_codex() -> NoReturn:
+    for name in AMBIENT_X11_ENV_NAMES:
+        os.environ.pop(name, None)
+    os.environ["PATH"] = CODEX_SANDBOX_PATH
+    os.execve(CODEX_RAW_BINARY, [CODEX_RAW_BINARY, *CODEX_ARGS], dict(os.environ))
+
+
+def main(arguments: Sequence[str]) -> int:
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        codex_die("run Codex as the managed unprivileged account, not root/setuid")
+    codex_parse_arguments(arguments)
+    codex_capture_app_server_environment()
+    codex_capture_auth_credential()
+    codex_prepare_environment()
+    codex_restore_app_server_environment()
+    codex_require_executable("raw Codex binary", CODEX_RAW_BINARY)
+    codex_require_managed_work_areas()
+    codex_require_devops_shared_account_directory("Codex log directory", CODEX_LOG_ROOT)
+    codex_require_devops_shared_account_directory("Codex SQLite directory", CODEX_SQLITE_ROOT)
+    codex_prepare_repository_metadata()
+    codex_prepare_memory_guard()
+    if not CODEX_USE_BWRAP:
+        codex_warn("--no-bwrap explicitly disables host-identity and runtime mount isolation")
+        _exec_raw_codex()
+    codex_require_devops_shared_account_directory(
+        "managed Codex host log directory", CODEX_HOST_LOG_ROOT
+    )
+    codex_require_executable("Bubblewrap", BWRAP_BINARY)
+    codex_require_executable("slirp4netns", SLIRP4NETNS_BINARY)
+    codex_require_user_namespace_support()
+    for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM):
+        signal.signal(signum, codex_handle_signal)
+    try:
+        return codex_run_sandboxed()
+    finally:
+        codex_cleanup()
+
+
+def _entrypoint() -> int:
+    os.umask(0o077)
+    try:
+        return main(sys.argv[1:])
+    except CodexError as exc:
+        codex_cleanup()
+        print(f"codex-wrapper: fatal: {exc}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        codex_cleanup()
+        print(f"codex-wrapper: fatal: operating-system error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(_entrypoint())

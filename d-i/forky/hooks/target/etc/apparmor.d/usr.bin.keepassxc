@@ -1,0 +1,39 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile keepassxc /usr/bin/keepassxc flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-desktop-application>
+  include if exists <abstractions/user-tmp>
+
+  /usr/bin/keepassxc mr,
+  /usr/bin/ r,
+  /usr/bin/wl-copy mrix,
+  /usr/share/keepassxc/ r,
+  /usr/share/keepassxc/** r,
+
+  /dev/bus/usb/ r,
+  deny /dev/dri/card[0-9]* rw,
+  /run/udev/data/{+usb:*,c189:*} r,
+  @{sys}/devices/**/usb*/speed r,
+  @{sys}/devices/**/usb*/**/speed r,
+  owner @{PROC}/@{pid}/{cmdline,comm,stat} r,
+
+  owner @{HOME}/.cache/keepassxc/ rw,
+  owner @{HOME}/.cache/keepassxc/** rwkl,
+  owner @{HOME}/.config/#[0-9]* rwkl,
+  owner @{HOME}/.config/QtProject.conf* rwkl,
+  owner @{HOME}/.config/keepassxc/ rw,
+  owner @{HOME}/.config/keepassxc/** rwkl,
+  owner @{HOME}/.config/qt6ct/ rw,
+  owner @{HOME}/.config/qt6ct/** rwkl,
+  owner @{HOME}/.local/share/keepassxc/ rw,
+  owner @{HOME}/.local/share/keepassxc/** rwkl,
+  owner @{HOME}/Syncthing/ rw,
+  owner @{HOME}/Syncthing/keepassxc/ rw,
+  owner @{HOME}/Syncthing/keepassxc/** rwkl,
+
+  include if exists <local/usr.bin.keepassxc>
+}

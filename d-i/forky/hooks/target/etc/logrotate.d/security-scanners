@@ -1,0 +1,27 @@
+/var/log/managed/lynis/scan.log
+/var/log/managed/lynis/lynis.log
+/var/log/managed/lynis/lynis-report.dat
+/var/log/managed/rkhunter/scan.log
+/var/log/managed/rkhunter/rkhunter.log
+/var/log/managed/chkrootkit/scan.log
+/var/log/managed/debsecan/scan.log
+/var/log/managed/debsums/scan.log
+/var/log/managed/spectre-meltdown-checker/scan.log
+/var/log/managed/fwupd/security-scan.log
+/var/log/managed/clamav/scan.log
+{
+	daily
+	rotate 4
+	maxage 7
+	maxsize 20M
+	missingok
+	notifempty
+	compress
+	delaycompress
+	create 0640 root adm
+	su root adm
+	sharedscripts
+	postrotate
+		/usr/lib/rsyslog/rsyslog-rotate
+	endscript
+}

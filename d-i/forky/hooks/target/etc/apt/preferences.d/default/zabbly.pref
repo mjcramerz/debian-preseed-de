@@ -1,0 +1,12 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the qemu addon's Incus daemon, client, base files, and Web UI on one
+# coherent Zabbly build. Debian's Incus provider has a different launcher
+# layout and depends on standalone LXCFS, which this addon intentionally omits.
+
+Package: incus incus-base incus-client incus-ui-canonical
+Pin: origin pkgs.zabbly.com
+Pin-Priority: 1001
+
+Package: incus incus-base incus-client
+Pin: release o=Debian
+Pin-Priority: -1

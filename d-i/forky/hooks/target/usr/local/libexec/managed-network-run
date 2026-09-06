@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use FindBin qw($Bin);
+use File::Spec ();
+use lib
+    File::Spec->catdir(
+        $Bin, '..', 'lib', 'perl5', 'site_perl', 'managed-network'
+    ),
+    '/usr/local/lib/perl5/site_perl/managed-network';
+
+use ManagedNetwork::CLI;
+
+exit ManagedNetwork::CLI->new()->run(@ARGV);

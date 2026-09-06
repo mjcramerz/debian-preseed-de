@@ -1,0 +1,45 @@
+#!/bin/sh
+# Read-only provider and bus round-trip check. Never launches a private bus.
+set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+scope=${1:---system}
+wait_for_bus=${2:-}
+[ "$#" -le 2 ] || exit 64
+case "$wait_for_bus" in ''|--wait) ;; *) exit 64 ;; esac
+case "$scope" in
+  --system)
+    unset DBUS_SYSTEM_BUS_ADDRESS
+    unit_directory=system
+    ;;
+  --user)
+    uid=$(id -u)
+    XDG_RUNTIME_DIR=/run/user/$uid
+    [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] || exit 1
+    [ "$(stat -c '%u:%a' "$XDG_RUNTIME_DIR")" = "$uid:700" ] || exit 1
+    DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+    export XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+    unit_directory=user
+    ;;
+  *) printf '%s\n' 'usage: dbus-broker-check [--system|--user] [--wait]' >&2; exit 64 ;;
+esac
+attempt=0
+while :; do
+  if busctl "$scope" --timeout=2 call org.freedesktop.DBus /org/freedesktop/DBus \
+      org.freedesktop.DBus GetId >/dev/null 2>&1; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  [ "$wait_for_bus" = --wait ] && [ "$attempt" -lt 15 ] || {
+    printf 'dbus-broker-check: %s bus round-trip failed\n' "$scope" >&2
+    exit 1
+  }
+  sleep 1
+done
+properties=$(timeout --signal=TERM --kill-after=1s 5s systemctl "$scope" show dbus.service \
+  --no-pager --property=Id --property=ActiveState --property=FragmentPath --property=ExecStart)
+printf '%s\n' "$properties" | grep -Fxq 'Id=dbus-broker.service' || exit 1
+printf '%s\n' "$properties" | grep -Fxq 'ActiveState=active' || exit 1
+printf '%s\n' "$properties" | grep -Eq "^FragmentPath=/(usr/)?lib/systemd/$unit_directory/dbus-broker.service$" || exit 1
+printf '%s\n' "$properties" | grep -Eq '^ExecStart=.*path=/usr/bin/dbus-broker-launch[ ;]' || exit 1
+printf 'dbus_broker_check=%s:pass\n' "$unit_directory"

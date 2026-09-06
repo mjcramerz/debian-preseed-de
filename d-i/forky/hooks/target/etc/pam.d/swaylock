@@ -1,0 +1,8 @@
+#%PAM-1.0
+#
+# Managed by unattended-installer.
+# Swaylock authenticates an existing local session; it must use Debian's
+# shared authentication and account policy without opening another login
+# session.
+@include common-auth
+@include common-account

@@ -1,0 +1,100 @@
+# Managed by unattended-installer.
+#
+# Codex payload access shared by direct execution and the Bubblewrap child
+# domain. This runtime also covers Chromium/Electron payloads launched by
+# Codex or ChatGPT after no_new_privs prevents a separate application-profile
+# transition.
+
+#include <abstractions/managed-devops-toolchain-runtime>
+#include <abstractions/managed-electron-runtime>
+
+userns,
+
+# Chromium-derived sandbox children request these only after entering an
+# unprivileged user namespace. AppArmor permission does not grant capabilities
+# that the process does not hold in its current namespace.
+capability sys_admin,
+capability sys_chroot,
+capability sys_ptrace,
+
+@{PROC}/sys/kernel/osrelease r,
+@{PROC}/sys/kernel/overflowgid r,
+@{PROC}/sys/kernel/overflowuid r,
+@{PROC}/sys/user/max_user_namespaces r,
+owner @{PROC}/[0-9]*/{gid_map,setgroups,uid_map} rw,
+
+/data/ r,
+/data/** mr,
+/data/** rix,
+/data/codex/ rw,
+/data/codex/** rwklm,
+/data/codex/** rix,
+# Persistent credential sources are copied by systemd before the service enters
+# the managed wrapper and payload domains. Neither domain may reopen them.
+deny /data/codex/credentials/ rwkl,
+deny /data/codex/credentials/** rwklm,
+# These deny rules remove only write, hard-link, and lock permissions inherited
+# from the broad storage rules. They do not deny execute permission; execution
+# remains controlled by the wrapper transition and release-binary rules below.
+deny /data/codex/.managed-codex-release wkl,
+deny /data/codex/config.schema.json wkl,
+deny /data/codex/{lib,share}/ wkl,
+deny /data/codex/{lib,share}/** wkl,
+/data/codex/config.schema.json r,
+/data/codex/lib/ r,
+/data/codex/share/ r,
+/data/codex/share/bin/ r,
+/data/codex/share/bin/* mrix,
+/data/codex/usr/ r,
+/data/codex/usr/agents/ r,
+/data/codex/usr/agents/** mrix,
+# Git metadata is mutable account state. Permit only owner-scoped repository
+# traversal, file updates, locks, links, and mappings; root-owned etc/ remains denied.
+owner /data/codex/usr/.git/ rw,
+owner /data/codex/usr/.git/**/ rw,
+owner /data/codex/usr/.git/** rwklm,
+/data/codex/usr/etc/ r,
+deny /data/codex/usr/etc/ wkl,
+deny /data/codex/usr/etc/** wkl,
+# Prompts, model catalogs, and instruction fragments are nested and versioned.
+/data/codex/usr/instructions/ r,
+/data/codex/usr/instructions/** r,
+/data/codex/usr/skills/ r,
+/data/codex/usr/skills/** mrix,
+/data/codex/usr/home/ rw,
+/data/codex/usr/home/** rwklm,
+/data/codex/usr/home/** rix,
+/data/codex/log/ rw,
+/data/codex/log/** rwklm,
+/data/codex/runtime/ rw,
+/data/codex/runtime/** rwklm,
+/data/codex/sqlite/ rw,
+/data/codex/sqlite/** rwklm,
+/data/downloads/ rw,
+/data/downloads/** rwklm,
+/data/downloads/** rix,
+/opt/ r,
+deny /etc/opt/chrome/ w,
+deny /opt/vivaldi/extensions/ w,
+/run/udev/data/c13:* r,
+/usr/ r,
+/var/cache/debconf/{config.dat,templates.dat} r,
+/var/opt/vivaldi/media-codecs-*/libffmpeg.so mr,
+# Package discovery is read-only and limited to the metadata observed from
+# dpkg-query and apt-cache inside the Codex payload domain.
+/var/cache/apt/pkgcache.bin r,
+/var/lib/apt/lists/ r,
+/var/lib/apt/lists/*_{InRelease,Release} r,
+/var/lib/apt/lists/*_{Packages,Translation-*} r,
+/var/lib/dpkg/status r,
+/var/lib/dpkg/triggers/{File,Unincorp} r,
+/var/lib/dpkg/updates/ r,
+/var/lib/software/debs/Packages r,
+/run/codex-synthetic-bin/ r,
+/run/codex-synthetic-bin/payload-launcher.py r,
+
+# Private procfs is not overmounted: nested Codex/bwrap must be able to mount
+# a new instance. Namespace maps are writable only for same-UID processes.
+# No blanket /proc/** write grant and no host sysctl-write authority.
+deny @{PROC}/sys/** wklx,
+deny @{PROC}/{sysrq-trigger,kcore,keys,timer_list} rwklx,

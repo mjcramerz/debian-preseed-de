@@ -1,0 +1,52 @@
+# Managed by unattended-installer.
+#
+# Socket-only desktop audio client access. This deliberately does not include
+# Debian's abstractions/audio because that abstraction grants direct ALSA and
+# legacy sound-device access. Applications using this abstraction must talk to
+# PipeWire or pipewire-pulse through the logged-in user's runtime sockets.
+
+# Raw ALSA and legacy sound devices remain unavailable even when a vendor
+# profile includes another broad abstraction before this managed policy.
+deny /dev/snd/ r,
+deny /dev/snd/** rwklm,
+deny /dev/sound/ r,
+deny /dev/sound/** rwklm,
+deny /dev/{admmidi,adsp,aload,amidi,audio,dmfm,dmmidi,dsp,midi,mixer,mpu401data,mpu401stat,patmgr,phone,radio,rmidi,sequencer,smpte}* rwklm,
+
+# Client-side ALSA, OpenAL, PipeWire, and PulseAudio configuration. ALSA
+# libraries remain usable through the PipeWire plugin, but no hardware device
+# node is available to the application.
+/etc/alsa/ r,
+/etc/alsa/** r,
+/etc/asound.conf r,
+/etc/openal/alsoft.conf r,
+/etc/pipewire/ r,
+/etc/pipewire/** r,
+/etc/pulse/ r,
+/etc/pulse/** r,
+/usr/share/alsa/ r,
+/usr/share/alsa/** r,
+/usr/share/openal/ r,
+/usr/share/openal/** r,
+/usr/share/pipewire/ r,
+/usr/share/pipewire/** r,
+/usr/share/sounds/ r,
+/usr/share/sounds/** r,
+
+owner @{HOME}/.alsoftrc r,
+owner @{HOME}/.asoundrc r,
+owner @{HOME}/.config/pipewire/ r,
+owner @{HOME}/.config/pipewire/** r,
+owner @{HOME}/.config/pulse/ r,
+owner @{HOME}/.config/pulse/** rwk,
+owner @{HOME}/.pulse-cookie rwk,
+owner @{HOME}/.pulse/ rw,
+owner @{HOME}/.pulse/** rwk,
+
+# PipeWire and pipewire-pulse communication stays inside the per-user runtime
+# directory. Shared-memory files are PulseAudio transport state, not hardware.
+owner /run/user/[0-9]*/pipewire-[0-9]* rw,
+owner /run/user/[0-9]*/pulse/ r,
+owner /run/user/[0-9]*/pulse/{native,pid} rwk,
+owner /dev/shm/pulse-shm* rwk,
+owner @{run}/shm/pulse-shm* rwk,

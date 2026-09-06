@@ -1,0 +1,39 @@
+[Unit]
+Description=Managed Tailscale bootstrap
+After=network-online.target nss-lookup.target time-sync.target nftables.service tailscaled.service
+Wants=network-online.target nss-lookup.target time-sync.target tailscaled.service
+Requires=nftables.service
+ConditionPathExists=/etc/default/tailscale-managed
+ConditionPathExists=!/usr/local/lib/tailscale/complete
+ConditionFileIsExecutable=/usr/local/libexec/tailscale-managed-up
+OnSuccess=secondboot.service
+# A transient control-plane outage must not cause rapid reauthentication or
+# recycle the long-running daemon. The bootstrap helper fails independently and
+# systemd spaces later attempts; tailscaled.service owns its own restart policy.
+StartLimitIntervalSec=8h
+StartLimitBurst=8
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/tailscale-managed
+ExecStart=/usr/local/libexec/tailscale-managed-up --if-auth-key-present
+Restart=on-failure
+RestartSec=15min
+TimeoutStartSec=15min
+TimeoutStopSec=30s
+UMask=0077
+PrivateTmp=true
+# The wrapper performs an explicit AppArmor transition into usr.bin.tailscale.
+# no_new_privs would make the kernel reject that named transition.
+NoNewPrivileges=false
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

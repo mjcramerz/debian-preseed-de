@@ -1,0 +1,910 @@
+#!/usr/bin/python3
+"""Account-scoped Aptly/R2 publication entrypoints."""
+
+from __future__ import annotations
+
+import datetime as dt
+import hmac
+import json
+import os
+import pathlib
+import pwd
+import re
+import stat
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from typing import Callable, NoReturn
+
+
+ACCESS_KEY_RE = re.compile(r"[0-9A-Fa-f]{32}\Z")
+SECRET_KEY_RE = re.compile(r"[0-9A-Fa-f]{64}\Z")
+FINGERPRINT_RE = re.compile(r"(?:[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})\Z")
+ACCOUNT_RE = re.compile(r"[A-Za-z0-9_.@+-]+\Z")
+MAX_CONFIG_BYTES = 1024 * 1024
+MAX_SECRET_BYTES = 8192
+MAX_SOURCE_DESCRIPTOR_BYTES = 16 * 1024 * 1024
+ENDPOINT_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]*\Z")
+DISTRIBUTION_RE = re.compile(r"[a-z0-9][a-z0-9+.-]*\Z")
+COMPONENT_RE = re.compile(r"[a-z0-9][a-z0-9+./-]*\Z")
+BUCKET_RE = re.compile(r"[a-z0-9][a-z0-9.-]*\Z")
+WORKER_ROUTE_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\Z")
+ZONE_RE = re.compile(r"[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\Z")
+KEYRING_BACKEND_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")
+APTLY_BINARY = pathlib.Path("/usr/local/lib/aptly/bin/aptly")
+COMMAND_TIMEOUT_SECONDS = 3600
+PROBE_TIMEOUT_SECONDS = 60
+
+
+class PublishingError(RuntimeError):
+    """Expected validation or publication failure."""
+
+
+@dataclass(frozen=True)
+class AptlyContext:
+    config: pathlib.Path
+    state_dir: pathlib.Path
+    endpoint_name: str
+    endpoint_url: str
+    bucket: str
+    service: str
+    signing_key: str
+    credentials_backend: str
+    distributions: tuple[str, ...]
+    component: str
+    publish_target: str
+    public_base_url: str
+
+
+def fail(message: str) -> NoReturn:
+    raise PublishingError(message)
+
+
+def current_account() -> tuple[str, int]:
+    uid = os.getuid()
+    try:
+        username = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        fail("the current account is missing from the passwd database")
+    environment_user = os.environ.get("USER")
+    if environment_user and environment_user != username:
+        fail("USER does not identify the canonical current account")
+    if not ACCOUNT_RE.fullmatch(username):
+        fail("the current account name is unsafe for managed publication paths")
+    return username, uid
+
+
+def require_root_owned_executable(path: pathlib.Path, label: str) -> pathlib.Path:
+    try:
+        path_stat = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} is missing: {path}")
+    if path.is_symlink() or not stat.S_ISREG(path_stat.st_mode):
+        fail(f"{label} must be a regular non-symlink file: {path}")
+    if path_stat.st_uid != 0 or path_stat.st_gid != 0:
+        fail(f"{label} must be owned by root: {path}")
+    if stat.S_IMODE(path_stat.st_mode) & 0o022:
+        fail(f"{label} must not be group/world writable: {path}")
+    if not os.access(path, os.X_OK):
+        fail(f"{label} is not executable: {path}")
+    return path
+
+
+def require_private_regular_file(
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    maximum_bytes: int,
+) -> bytes:
+    flags = os.O_RDONLY
+    if not hasattr(os, "O_NOFOLLOW"):
+        fail("the kernel does not support no-follow managed-file reads")
+    flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        fail(f"{label} is missing or could not be opened safely: {path}")
+    try:
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode):
+            fail(f"{label} must be a regular non-symlink file: {path}")
+        if file_stat.st_uid != uid:
+            fail(f"{label} must be owned by the current account: {path}")
+        if stat.S_IMODE(file_stat.st_mode) != 0o600:
+            fail(f"{label} must have mode 0600: {path}")
+        if file_stat.st_size < 1 or file_stat.st_size > maximum_bytes:
+            fail(f"{label} has an invalid size: {path}")
+        chunks = []
+        remaining = maximum_bytes + 1
+        while remaining:
+            chunk = os.read(descriptor, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        final_stat = os.fstat(descriptor)
+    except OSError:
+        fail(f"{label} could not be read safely: {path}")
+    finally:
+        os.close(descriptor)
+    if (
+        len(data) != file_stat.st_size
+        or final_stat.st_size != file_stat.st_size
+        or final_stat.st_ino != file_stat.st_ino
+        or final_stat.st_dev != file_stat.st_dev
+    ):
+        fail(f"{label} changed while it was being read: {path}")
+    return data
+
+
+def require_managed_config(
+    configured_path: str,
+    expected_parent: pathlib.Path,
+    label: str,
+    uid: int,
+) -> tuple[pathlib.Path, bytes]:
+    path = pathlib.Path(configured_path)
+    if not path.is_absolute():
+        fail(f"{label} path must be absolute")
+    data = require_private_regular_file(path, label, uid, MAX_CONFIG_BYTES)
+    resolved_parent = expected_parent.resolve(strict=True)
+    resolved_path = path.resolve(strict=True)
+    try:
+        resolved_path.relative_to(resolved_parent)
+    except ValueError:
+        fail(f"{label} must remain below {resolved_parent}")
+    return resolved_path, data
+
+
+def decode_pending_secret(
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    validator: Callable[[str], bool],
+) -> str:
+    data = require_private_regular_file(path, label, uid, MAX_SECRET_BYTES)
+    try:
+        value = data.decode("utf-8")
+    except UnicodeDecodeError:
+        fail(f"{label} must be UTF-8 text")
+    if any(char in value for char in ("\x00", "\r", "\n")):
+        fail(f"{label} contains an unsupported control character")
+    if not validator(value):
+        fail(f"{label} has an invalid format")
+    return value
+
+
+def load_keyring(backend_name: str):
+    if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        fail(
+            "the managed Secret Service is unavailable; run this command inside "
+            "the graphical DevOps session"
+        )
+    try:
+        import keyring
+        import keyring.core
+    except ImportError:
+        fail("python3-keyring is unavailable")
+    try:
+        backend = keyring.core.load_keyring(backend_name)
+        keyring.set_keyring(backend)
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail("failed to initialize the managed Secret Service backend")
+    return keyring
+
+
+def pending_exists(path: pathlib.Path) -> bool:
+    return os.path.lexists(path)
+
+
+def import_pending_secret(
+    keyring_module,
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    service: str,
+    username: str,
+    validator: Callable[[str], bool],
+) -> None:
+    value = decode_pending_secret(path, label, uid, validator)
+    try:
+        keyring_module.set_password(service, username, value)
+        stored = keyring_module.get_password(service, username)
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail(f"failed to store {label} in Secret Service")
+    if stored is None or not hmac.compare_digest(stored, value):
+        fail(f"Secret Service did not preserve {label}")
+    path.unlink()
+
+
+def load_aptly_context() -> AptlyContext:
+    username, uid = current_account()
+    expected_state = pathlib.Path("/pool/db") / username / "aptly"
+    config_path, config_data = require_managed_config(
+        str(expected_state / "aptly.conf"),
+        expected_state,
+        "Aptly config",
+        uid,
+    )
+    try:
+        config = json.loads(config_data)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail(f"Aptly config is invalid JSON: {exc}")
+    if not isinstance(config, dict):
+        fail("Aptly config must be a JSON object")
+    if config.get("rootDir") != str(expected_state):
+        fail("Aptly rootDir does not match the managed account state directory")
+    if config.get("architectures") != ["amd64", "source"]:
+        fail("Aptly architectures must include amd64 and source")
+
+    managed = config.get("managedLocalPublishing")
+    if not isinstance(managed, dict) or managed.get("schemaVersion") != 1:
+        fail("Aptly config is missing managed local-publication policy version 1")
+    distributions_value = managed.get("distributions")
+    if not isinstance(distributions_value, str):
+        fail("Aptly managed distributions must be a string")
+    distributions = tuple(distributions_value.split())
+    if (
+        not distributions
+        or len(distributions) != len(set(distributions))
+        or any(DISTRIBUTION_RE.fullmatch(value) is None for value in distributions)
+    ):
+        fail("Aptly managed distributions are invalid")
+    component = managed.get("component")
+    if not isinstance(component, str) or COMPONENT_RE.fullmatch(component) is None:
+        fail("Aptly managed component is invalid")
+    worker_route = managed.get("workerRoute")
+    worker_zone = managed.get("workerZone")
+    public_base_url = managed.get("publicBaseURL")
+    if not isinstance(worker_route, str) or WORKER_ROUTE_RE.fullmatch(worker_route) is None:
+        fail("Aptly managed Worker route is invalid")
+    if not isinstance(worker_zone, str) or ZONE_RE.fullmatch(worker_zone) is None:
+        fail("Aptly managed Worker zone is invalid")
+    expected_public_base_url = f"https://{worker_route}.{worker_zone}"
+    if public_base_url != expected_public_base_url:
+        fail("Aptly managed public URL does not match the Worker route and zone")
+
+    endpoints = config.get("S3PublishEndpoints")
+    if not isinstance(endpoints, dict) or len(endpoints) != 1:
+        fail("Aptly config must define exactly one managed R2 endpoint")
+    endpoint_name = next(iter(endpoints))
+    if ENDPOINT_NAME_RE.fullmatch(endpoint_name) is None:
+        fail("Aptly R2 endpoint name is invalid")
+    if not isinstance(endpoints.get(endpoint_name), dict):
+        fail("Aptly managed R2 endpoint is invalid")
+    endpoint = endpoints[endpoint_name]
+    endpoint_url = endpoint.get("endpoint")
+    bucket = endpoint.get("bucket")
+    if not isinstance(endpoint_url, str):
+        fail("Aptly R2 endpoint URL is invalid")
+    parsed_endpoint = urllib.parse.urlsplit(endpoint_url)
+    endpoint_host = parsed_endpoint.hostname
+    try:
+        endpoint_port = parsed_endpoint.port
+    except ValueError:
+        fail("Aptly R2 endpoint contains an invalid port")
+    if (
+        parsed_endpoint.scheme != "https"
+        or endpoint_host is None
+        or parsed_endpoint.username is not None
+        or parsed_endpoint.password is not None
+        or endpoint_port is not None
+        or parsed_endpoint.path not in {"", "/"}
+        or parsed_endpoint.query
+        or parsed_endpoint.fragment
+    ):
+        fail("Aptly R2 endpoint must be one HTTPS origin")
+    if not isinstance(bucket, str) or BUCKET_RE.fullmatch(bucket) is None:
+        fail("Aptly R2 bucket name is invalid")
+    storage_prefix = endpoint.get("prefix")
+    if (
+        not isinstance(storage_prefix, str)
+        or not storage_prefix.endswith("/")
+        or storage_prefix.startswith("/")
+        or ".." in storage_prefix.split("/")
+    ):
+        fail("Aptly R2 storage prefix is invalid")
+    if endpoint.get("region") != "auto" or endpoint.get("acl") != "none":
+        fail("Aptly R2 region or ACL policy does not match the deployed repository")
+    if endpoint.get("awsAccessKeyID") != "" or endpoint.get("awsSecretAccessKey") != "":
+        fail("Aptly config must not contain persistent R2 credentials")
+    if config.get("gpgDisableSign") is not False or config.get("gpgProvider") != "gpg":
+        fail("Aptly repository signing must remain enabled through gpg")
+    signing_key = managed.get("signingKeyFingerprint")
+    if not isinstance(signing_key, str):
+        fail("Aptly managed signing-key fingerprint is missing")
+    if FINGERPRINT_RE.fullmatch(signing_key) is None:
+        fail("Aptly signing-key fingerprint has an invalid format")
+    signing_key = signing_key.upper()
+    credentials_backend = managed.get("credentialsBackend")
+    if (
+        not isinstance(credentials_backend, str)
+        or KEYRING_BACKEND_RE.fullmatch(credentials_backend) is None
+    ):
+        fail("Aptly managed Secret Service backend is invalid")
+    publish_target = managed.get("publishTarget")
+    if publish_target != f"s3:{endpoint_name}:":
+        fail("Aptly managed publish target does not match its R2 endpoint")
+    return AptlyContext(
+        config=config_path,
+        state_dir=expected_state,
+        endpoint_name=endpoint_name,
+        endpoint_url=endpoint_url,
+        bucket=bucket,
+        service=f"aptly-r2:{endpoint_host}:{bucket}",
+        signing_key=signing_key,
+        credentials_backend=credentials_backend,
+        distributions=distributions,
+        component=component,
+        publish_target=publish_target,
+        public_base_url=public_base_url,
+    )
+
+
+def require_aptly_signing_key(context: AptlyContext) -> None:
+    try:
+        result = subprocess.run(
+            [
+                "/usr/bin/gpg",
+                "--batch",
+                "--fixed-list-mode",
+                "--with-secret",
+                "--with-colons",
+                "--list-secret-keys",
+                context.signing_key,
+            ],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        fail("failed to inspect the configured Aptly OpenPGP secret key")
+    if result.returncode != 0:
+        fail("the configured Aptly OpenPGP secret key is unavailable")
+
+    expect_primary_fingerprint = False
+    matching_primary = False
+    matching_primary_found = False
+    local_signing_material = False
+    pending_primary_signing_material = False
+    for record in result.stdout.splitlines():
+        fields = record.split(":")
+        record_type = fields[0] if fields else ""
+        if record_type == "sec":
+            expect_primary_fingerprint = True
+            matching_primary = False
+            pending_primary_signing_material = (
+                len(fields) > 14
+                and "s" in fields[11]
+                and fields[14] == "+"
+            )
+            continue
+        if expect_primary_fingerprint and record_type == "fpr":
+            fingerprint = fields[9].upper() if len(fields) > 9 else ""
+            matching_primary = hmac.compare_digest(
+                fingerprint,
+                context.signing_key,
+            )
+            if matching_primary:
+                matching_primary_found = True
+                local_signing_material = (
+                    local_signing_material
+                    or pending_primary_signing_material
+                )
+            expect_primary_fingerprint = False
+            continue
+        if (
+            matching_primary
+            and record_type == "ssb"
+            and len(fields) > 14
+            and "s" in fields[11]
+            and fields[14] == "+"
+        ):
+            local_signing_material = True
+    if matching_primary_found and local_signing_material:
+        return
+    fail(
+        "the configured Aptly OpenPGP fingerprint does not select local "
+        "signing-capable secret-key material"
+    )
+
+
+def aptly_environment_with_credentials(context: AptlyContext) -> dict[str, str]:
+    _, uid = current_account()
+    pending_dir = context.state_dir / ".credentials.pending"
+    access_path = pending_dir / "cf-r2-access-key"
+    secret_path = pending_dir / "cf-r2-secret-key"
+    access_pending = pending_exists(access_path)
+    secret_pending = pending_exists(secret_path)
+    keyring_module = load_keyring(context.credentials_backend)
+    if access_pending:
+        import_pending_secret(
+            keyring_module,
+            access_path,
+            "R2 access key",
+            uid,
+            context.service,
+            "access-key-id",
+            lambda value: ACCESS_KEY_RE.fullmatch(value) is not None,
+        )
+    if secret_pending:
+        import_pending_secret(
+            keyring_module,
+            secret_path,
+            "R2 secret key",
+            uid,
+            context.service,
+            "secret-access-key",
+            lambda value: SECRET_KEY_RE.fullmatch(value) is not None,
+        )
+
+    try:
+        access_key = keyring_module.get_password(context.service, "access-key-id")
+        secret_key = keyring_module.get_password(context.service, "secret-access-key")
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail("failed to read R2 credentials from Secret Service")
+    if access_key is None or ACCESS_KEY_RE.fullmatch(access_key) is None:
+        fail("R2 access key is missing from Secret Service")
+    if secret_key is None or SECRET_KEY_RE.fullmatch(secret_key) is None:
+        fail("R2 secret key is missing from Secret Service")
+
+    environment = os.environ.copy()
+    for variable in (
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AWS_PROFILE",
+        "AWS_DEFAULT_PROFILE",
+        "AWS_SHARED_CREDENTIALS_FILE",
+        "AWS_CONFIG_FILE",
+    ):
+        environment.pop(variable, None)
+    environment["AWS_ACCESS_KEY_ID"] = access_key
+    environment["AWS_SECRET_ACCESS_KEY"] = secret_key
+    return environment
+
+
+def aptly_argv(context: AptlyContext, arguments: list[str]) -> list[str]:
+    return [str(APTLY_BINARY), f"-config={context.config}", *arguments]
+
+
+def aptly_publish_mutates_remote(arguments: list[str]) -> bool:
+    try:
+        index = arguments.index("publish")
+    except ValueError:
+        return False
+    if index + 1 >= len(arguments):
+        return False
+    return arguments[index + 1] in {"repo", "snapshot", "switch", "update", "drop"}
+
+
+def aptly_arguments_with_managed_signing(
+    context: AptlyContext,
+    arguments: list[str],
+) -> list[str]:
+    try:
+        publish_index = arguments.index("publish")
+    except ValueError:
+        return arguments
+    if publish_index + 1 >= len(arguments):
+        return arguments
+    publish_command = arguments[publish_index + 1]
+    if publish_command not in {"repo", "snapshot", "switch", "update"}:
+        return arguments
+    if any(
+        argument in {"-skip-signing", "--skip-signing"}
+        or argument.startswith(("-skip-signing=", "--skip-signing="))
+        for argument in arguments
+    ):
+        fail("managed Aptly publications must not disable repository signing")
+
+    configured_keys: list[str] = []
+    for index, argument in enumerate(arguments):
+        if argument.startswith(("-gpg-key=", "--gpg-key=")):
+            configured_keys.append(argument.split("=", 1)[1])
+        elif argument in {"-gpg-key", "--gpg-key"}:
+            if index + 1 >= len(arguments):
+                fail("Aptly -gpg-key requires a fingerprint")
+            configured_keys.append(arguments[index + 1])
+    if configured_keys:
+        if any(key.upper() != context.signing_key for key in configured_keys):
+            fail("Aptly -gpg-key must match the managed repository signing fingerprint")
+        require_aptly_signing_key(context)
+        managed_arguments = list(arguments)
+    else:
+        require_aptly_signing_key(context)
+        managed_arguments = [
+            *arguments[: publish_index + 2],
+            f"-gpg-key={context.signing_key}",
+            *arguments[publish_index + 2 :],
+        ]
+    if publish_command in {"repo", "snapshot"}:
+        acquire_flags = [
+            argument
+            for argument in managed_arguments
+            if argument in {"-acquire-by-hash", "--acquire-by-hash"}
+            or argument.startswith(("-acquire-by-hash=", "--acquire-by-hash="))
+        ]
+        if any(
+            flag
+            not in {
+                "-acquire-by-hash",
+                "--acquire-by-hash",
+                "-acquire-by-hash=true",
+                "--acquire-by-hash=true",
+            }
+            for flag in acquire_flags
+        ):
+            fail("managed Aptly publications must enable Acquire-By-Hash")
+        if not acquire_flags:
+            managed_arguments.insert(publish_index + 2, "-acquire-by-hash")
+    return managed_arguments
+
+
+def run_aptly(arguments: list[str]) -> None:
+    if any(
+        argument in {"-config", "--config"}
+        or argument.startswith(("-config=", "--config="))
+        for argument in arguments
+    ):
+        fail("the managed Aptly wrapper does not accept a config override")
+    context = load_aptly_context()
+    binary = require_root_owned_executable(APTLY_BINARY, "managed Aptly binary")
+    arguments = aptly_arguments_with_managed_signing(context, arguments)
+    environment = os.environ.copy()
+    if aptly_publish_mutates_remote(arguments):
+        environment = aptly_environment_with_credentials(context)
+    try:
+        os.execve(str(binary), aptly_argv(context, arguments), environment)
+    except OSError:
+        fail("managed Aptly binary could not start")
+
+
+def run_dpkg_buildpackage(arguments: list[str]) -> None:
+    signing_disabled = {
+        "-us",
+        "--unsigned-source",
+        "-uc",
+        "--unsigned-changes",
+        "-ui",
+        "--unsigned-buildinfo",
+        "--no-sign",
+    }
+    if any(argument in signing_disabled for argument in arguments):
+        fail("managed Debian package builds must not disable signing")
+    for argument in arguments:
+        if (
+            argument == "-k"
+            or (argument.startswith("-k") and len(argument) > 2)
+            or argument == "--sign-key"
+            or argument.startswith("--sign-key=")
+            or argument == "--sign-keyid"
+            or argument.startswith("--sign-keyid=")
+            or argument == "--sign-keyfile"
+            or argument.startswith("--sign-keyfile=")
+            or argument == "--sign-command"
+            or argument.startswith("--sign-command=")
+            or argument == "--sign-backend"
+            or argument.startswith("--sign-backend=")
+        ):
+            fail("managed Debian package builds do not accept signing overrides")
+    context = load_aptly_context()
+    require_aptly_signing_key(context)
+    environment = os.environ.copy()
+    for variable in list(environment):
+        if variable.startswith("DEB_SIGN_"):
+            environment.pop(variable, None)
+    environment["DEB_SIGN_KEYID"] = context.signing_key
+    try:
+        os.execve(
+            "/usr/bin/dpkg-buildpackage",
+            ["/usr/bin/dpkg-buildpackage", *arguments],
+            environment,
+        )
+    except OSError:
+        fail("managed dpkg-buildpackage could not start")
+
+
+def run_checked(
+    arguments: list[str],
+    label: str,
+    environment: dict[str, str] | None = None,
+    quiet: bool = False,
+    timeout: int = COMMAND_TIMEOUT_SECONDS,
+) -> None:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            env=environment,
+            stdin=None,
+            stdout=subprocess.DEVNULL if quiet else None,
+            stderr=subprocess.DEVNULL if quiet else None,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        fail(f"{label} exceeded its {timeout}-second timeout")
+    except OSError:
+        fail(f"{label} could not start")
+    if result.returncode != 0:
+        fail(f"{label} failed with status {result.returncode}")
+
+
+def public_distribution_exists(
+    context: AptlyContext,
+    distribution: str,
+    attempts: int = 1,
+) -> bool:
+    url = (
+        f"{context.public_base_url}/dists/"
+        f"{urllib.parse.quote(distribution, safe='')}/InRelease"
+    )
+    for attempt in range(attempts):
+        request = urllib.request.Request(
+            url,
+            method="HEAD",
+            headers={"User-Agent": "managed-aptly-publisher/1"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                if response.status in {200, 206}:
+                    return True
+                fail("the public Aptly Worker returned an unexpected success status")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                if attempt + 1 < attempts:
+                    time.sleep(2)
+                    continue
+                return False
+            fail(f"the public Aptly Worker preflight failed with HTTP status {exc.code}")
+        except (OSError, urllib.error.URLError):
+            if attempt + 1 < attempts:
+                time.sleep(2)
+                continue
+            fail("the public Aptly Worker preflight request failed")
+    return False
+
+
+def validated_package_paths(raw_paths: list[str]) -> list[str]:
+    validated: list[str] = []
+    for raw_path in raw_paths:
+        if not raw_path or raw_path.startswith("-"):
+            fail("package input paths must not be empty or option-like")
+        path = pathlib.Path(raw_path).expanduser()
+        try:
+            path_stat = path.lstat()
+        except FileNotFoundError:
+            fail(f"package input path does not exist: {path}")
+        if path.is_symlink() or not (stat.S_ISREG(path_stat.st_mode) or stat.S_ISDIR(path_stat.st_mode)):
+            fail(f"package input must be a regular file or directory: {path}")
+        resolved = path.resolve(strict=True)
+        if not os.access(resolved, os.R_OK):
+            fail(f"package input is not readable: {resolved}")
+        validated.append(str(resolved))
+    return validated
+
+
+def source_descriptor_paths(package_paths: list[str]) -> list[pathlib.Path]:
+    descriptors: dict[str, pathlib.Path] = {}
+    for package_path in package_paths:
+        path = pathlib.Path(package_path)
+        candidates: list[pathlib.Path]
+        if path.is_dir():
+            try:
+                candidates = list(path.rglob("*.dsc"))
+            except OSError:
+                fail(f"source package directory could not be scanned safely: {path}")
+        elif path.suffix == ".dsc":
+            candidates = [path]
+        else:
+            candidates = []
+
+        for candidate in candidates:
+            try:
+                candidate_stat = candidate.lstat()
+            except OSError:
+                fail(f"source package descriptor is unavailable: {candidate}")
+            if candidate.is_symlink() or not stat.S_ISREG(candidate_stat.st_mode):
+                fail(f"source package descriptor must be a regular file: {candidate}")
+            if (
+                candidate_stat.st_size < 1
+                or candidate_stat.st_size > MAX_SOURCE_DESCRIPTOR_BYTES
+            ):
+                fail(f"source package descriptor has an invalid size: {candidate}")
+            resolved = candidate.resolve(strict=True)
+            if not os.access(resolved, os.R_OK):
+                fail(f"source package descriptor is not readable: {resolved}")
+            descriptors[str(resolved)] = resolved
+    return [descriptors[key] for key in sorted(descriptors)]
+
+
+def require_signed_source_descriptors(
+    context: AptlyContext,
+    package_paths: list[str],
+) -> None:
+    for descriptor in source_descriptor_paths(package_paths):
+        try:
+            result = subprocess.run(
+                [
+                    "/usr/bin/gpg",
+                    "--batch",
+                    "--status-fd=1",
+                    "--verify",
+                    str(descriptor),
+                ],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            fail(f"source package signature could not be verified: {descriptor}")
+        if result.returncode != 0:
+            fail(f"source package descriptor has an invalid signature: {descriptor}")
+
+        matching_fingerprint = False
+        for status_line in result.stdout.splitlines():
+            if not status_line.startswith("[GNUPG:] VALIDSIG "):
+                continue
+            status_fingerprints = {
+                field.upper()
+                for field in status_line.split()[2:]
+                if FINGERPRINT_RE.fullmatch(field) is not None
+            }
+            if context.signing_key in status_fingerprints:
+                matching_fingerprint = True
+                break
+        if not matching_fingerprint:
+            fail(
+                "source package descriptor is not signed by the managed repository fingerprint: "
+                f"{descriptor}"
+            )
+
+
+def aptly_publish_local(arguments: list[str]) -> None:
+    if len(arguments) < 2:
+        fail("usage: aptly-publish-local <distribution> <package-file-or-directory> [...]")
+    context = load_aptly_context()
+    require_root_owned_executable(APTLY_BINARY, "managed Aptly binary")
+    distribution = arguments[0]
+    if distribution not in context.distributions:
+        fail(
+            "distribution is not enabled by aptly.conf: "
+            f"{', '.join(context.distributions)}"
+        )
+    component = context.component
+    public_base = context.public_base_url
+    package_paths = validated_package_paths(arguments[1:])
+    require_aptly_signing_key(context)
+    require_signed_source_descriptors(context, package_paths)
+    repository = f"local-{distribution}"
+    target = context.publish_target
+
+    show_repo = aptly_argv(context, ["repo", "show", repository])
+    try:
+        repository_exists = (
+            subprocess.run(
+                show_repo,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=PROBE_TIMEOUT_SECONDS,
+            ).returncode
+            == 0
+        )
+    except subprocess.TimeoutExpired:
+        fail("checking the managed Aptly repository timed out")
+    except OSError:
+        fail("checking the managed Aptly repository could not start")
+    if not repository_exists:
+        run_checked(
+            aptly_argv(
+                context,
+                [
+                    "repo",
+                    "create",
+                    f"-distribution={distribution}",
+                    f"-component={component}",
+                    repository,
+                ],
+            ),
+            f"creating Aptly repository {repository}",
+        )
+
+    run_checked(
+        aptly_argv(context, ["repo", "add", "-force-replace", repository, *package_paths]),
+        f"adding packages to Aptly repository {repository}",
+    )
+    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    snapshot = f"{repository}-{timestamp}-{os.getpid()}"
+    run_checked(
+        aptly_argv(context, ["snapshot", "create", snapshot, "from", "repo", repository]),
+        f"creating Aptly snapshot {snapshot}",
+    )
+
+    try:
+        published = (
+            subprocess.run(
+                aptly_argv(context, ["publish", "show", distribution, target]),
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=PROBE_TIMEOUT_SECONDS,
+            ).returncode
+            == 0
+        )
+    except subprocess.TimeoutExpired:
+        fail("checking the managed Aptly publication timed out")
+    except OSError:
+        fail("checking the managed Aptly publication could not start")
+    public_exists = public_distribution_exists(context, distribution)
+    if published != public_exists:
+        if public_exists:
+            fail(
+                "the public distribution already exists but this account-local Aptly "
+                "database does not own its publication state"
+            )
+        fail(
+            "the account-local Aptly database records a publication that is missing "
+            "from the public Worker"
+        )
+    publish_environment = aptly_environment_with_credentials(context)
+    if published:
+        publish_arguments = [
+            "publish",
+            "switch",
+            f"-component={component}",
+            f"-gpg-key={context.signing_key}",
+            distribution,
+            target,
+            snapshot,
+        ]
+    else:
+        publish_arguments = [
+            "publish",
+            "snapshot",
+            f"-distribution={distribution}",
+            f"-component={component}",
+            f"-gpg-key={context.signing_key}",
+            "-acquire-by-hash",
+            snapshot,
+            target,
+        ]
+    run_checked(
+        aptly_argv(context, publish_arguments),
+        f"publishing Aptly snapshot {snapshot} to R2",
+        environment=publish_environment,
+    )
+    if not public_distribution_exists(context, distribution, attempts=5):
+        fail("Aptly reported success but the published distribution is not readable through the Worker")
+    print(f"Published {snapshot} at {public_base}/dists/{distribution}/")
+
+
+def main() -> int:
+    command = pathlib.Path(sys.argv[0]).name
+    arguments = sys.argv[1:]
+    try:
+        if command == "aptly":
+            run_aptly(arguments)
+        elif command == "aptly-publish-local":
+            aptly_publish_local(arguments)
+        elif command == "dpkg-buildpackage":
+            run_dpkg_buildpackage(arguments)
+        else:
+            fail(f"unsupported managed Aptly publication command: {command}")
+    except PublishingError as exc:
+        print(f"fatal: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

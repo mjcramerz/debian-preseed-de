@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Foot
+GenericName=Terminal
+Comment=Open a terminal in the managed Labwc session
+TryExec=/usr/local/bin/labwc-terminal
+Exec=/usr/local/bin/labwc-terminal
+Icon=foot
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=shell;prompt;command;commandline;
+StartupNotify=true

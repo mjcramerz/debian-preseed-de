@@ -1,0 +1,223 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesProfile
+metadata:
+  name: desktop
+  description: Daily desktop/workstation base firewall profile with default-deny inbound policy,
+    source filtering, container interface definitions, and auditable egress.
+  profile_class: desktop
+  owner: root
+  risk: default-deny inbound; validate before reload
+generator:
+  mode: full_profile
+  outputs:
+    nftables_conf: /etc/nftables.conf
+    fragments:
+      defines: /etc/nftables.d/00-defines.nft
+      base: /etc/nftables.d/10-base.nft
+      filter: /etc/nftables.d/20-filter.nft
+      nat: /etc/nftables.d/30-nat.nft
+      local: /etc/nftables.d/90-local.nft
+    fragment_order:
+    - /etc/nftables.d/00-defines.nft
+    - /etc/nftables.d/10-base.nft
+    - /etc/nftables.d/20-filter.nft
+    - /etc/nftables.d/30-nat.nft
+    - /etc/nftables.d/90-local.nft
+  nftables_conf:
+    shebang: '#!/usr/sbin/nft -f'
+    flush_ruleset: true
+    include_order:
+    - /etc/nftables.d/00-defines.nft
+    - /etc/nftables.d/10-base.nft
+    - /etc/nftables.d/20-filter.nft
+    - /etc/nftables.d/30-nat.nft
+    - /etc/nftables.d/90-local.nft
+nftables:
+  family: inet
+  filter_table: filter
+  nat_family: ip
+  nat_table: nat
+  chain_names:
+    input: input
+    forward: forward
+    output: output
+    local_input: local_input
+    local_forward: local_forward
+    local_output: local_output
+policies:
+  input: drop
+  forward: drop
+  output: accept
+features:
+  allow_loopback: true
+  allow_established_related: true
+  drop_invalid: true
+  allow_icmpv4: true
+  allow_icmpv6: true
+  allow_ipv6_neighbor_discovery: true
+  source_filtering: true
+desktop_ipv6:
+  enabled: true
+  host_cidr_group: desktop_static_ipv6_host
+  account_input: true
+  account_output: true
+anti_spoofing:
+  exceptions:
+    allow_dhcp_client: true
+    allow_ipv6_neighbor_discovery: true
+source_filtering:
+  enabled: true
+  apply_to_interfaces:
+  - eth0
+  - en*
+  - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+  - wlan0
+  - wl*
+  - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+  drop_loopback_on_non_loopback: true
+  martian_ipv4_sources:
+  - 0.0.0.0/8
+  - 169.254.0.0/16
+  martian_ipv6_sources:
+  - ::/128
+  - ::ffff:0:0/96
+  - 64:ff9b::/96
+  - 100::/64
+  bogon_ipv4_sources:
+  - 192.0.0.0/24
+  - 192.0.2.0/24
+  - 198.18.0.0/15
+  - 198.51.100.0/24
+  - 203.0.113.0/24
+  - 224.0.0.0/4
+  - 240.0.0.0/4
+  bogon_ipv6_sources:
+  - 2001:db8::/32
+  - ff00::/8
+rate_limits:
+  icmpv4: 20/second burst 50 packets
+  icmpv6: 20/second burst 50 packets
+logging:
+  prefix: nftables
+  limit: 10/minute
+  drop:
+    enabled: true
+    chains:
+    - input
+    - forward
+    limit: 5/minute burst 10 packets
+    prefix: nftables
+  egress_audit:
+    enabled: true
+    limit: 5/minute burst 10 packets
+    prefix: nftables
+safety:
+  validate_before_write: true
+  validate_before_reload: true
+  backup_before_apply: true
+  fail_closed: true
+  reject_unresolved_placeholders: true
+egress:
+  mode: audit
+  default_policy_when_enforced: drop
+  allow_dns: true
+  allow_ntp: true
+  allow_http_https: true
+  rules: {}
+  enforce: false
+forwarding:
+  enabled: false
+  router_mode: false
+  allow_established_related: true
+  rules: {}
+nat:
+  enabled: false
+  masquerade:
+    enabled: false
+    out_interfaces:
+    - eth0
+    - en*
+    - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+    - wlan0
+    - wl*
+    - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+    source_ipv4:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+    - 10.8.0.0/24
+    - 10.88.0.0/16
+  dnat_rules: {}
+containers:
+  docker:
+    enabled: false
+    allow_container_outbound: false
+    interfaces:
+    - docker0
+    - br-*
+  podman:
+    enabled: false
+    allow_container_outbound: false
+    interfaces:
+    - podman0
+    - cni-podman0
+local:
+  allow_raw_nft: false
+interfaces:
+  loopback:
+  - lo
+  wan:
+  - wlan0
+  - wl*
+  - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+  - eth0
+  - en*
+  - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+  lan:
+  - wlan0
+  - wl*
+  - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+  - eth0
+  - en*
+  - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+  vpn:
+  - wg0
+  docker:
+  - docker0
+  - br-*
+  podman:
+  - podman0
+  - cni-podman0
+  trusted:
+  - lo
+  - wg0
+cidrs:
+  any_ipv4:
+  - 0.0.0.0/0
+  any_ipv6:
+  - ::/0
+  localhost_ipv4:
+  - 127.0.0.1/32
+  localhost_ipv6:
+  - ::1/128
+  lan_ipv4:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  lan_ipv6:
+  - fc00::/7
+  - fe80::/10
+  vpn_ipv4:
+  - 10.8.0.0/24
+  vpn_ipv6:
+  - fd00:8::/64
+  monitoring_ipv4:
+  - 10.0.0.0/8
+  - 192.168.0.0/16
+  monitoring_ipv6:
+  - fc00::/7
+  container_ipv4:
+  - 172.16.0.0/12
+  - 10.88.0.0/16
+  container_ipv6:
+  - fd00::/8

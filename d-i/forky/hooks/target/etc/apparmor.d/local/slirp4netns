@@ -1,0 +1,15 @@
+# Managed by unattended-installer.
+#
+# The package profile does not carry the complete current Forky runtime
+# library set or the namespace-inspection permissions used by rootless Podman.
+# Managed Codex uses its own named slirp4netns transition in
+# managed-desktop-wrappers. Permit only the observed package-profile loader,
+# socketpair, process-inspection, and namespace-file access here.
+
+/etc/ld.so.cache r,
+/usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+
+network create unix stream,
+capability sys_ptrace,
+ptrace (read) peer=unconfined,
+@{PROC}/[0-9]*/ns/{net,user} r,

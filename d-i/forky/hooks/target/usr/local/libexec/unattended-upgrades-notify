@@ -1,0 +1,159 @@
+#!/bin/sh
+set -u
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+EVENT_ROOT=${EVENT_ROOT:-/var/lib/labwc-notifications}
+EVENT_DIR="${EVENT_ROOT}/unattended-upgrades"
+EVENT_TMP=
+
+log_message() {
+  level=$1
+  shift
+  message=$*
+
+  printf '[unattended-upgrades-notify] %s: %s\n' "$level" "$message" >&2
+  if [ -x /usr/bin/logger ]; then
+    /usr/bin/logger -t unattended-upgrades-notify -- "${level}: ${message}" || true
+  fi
+}
+
+validate_absolute_path() {
+  label=$1
+  value=$2
+
+  case "$value" in
+    /*) ;;
+    *)
+      log_message error "$label must be an absolute path: ${value:-unset}"
+      return 1
+      ;;
+  esac
+  case "$value" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      log_message error "$label contains unsupported path syntax: $value"
+      return 1
+      ;;
+  esac
+}
+
+validate_token() {
+  value=$1
+
+  [ "${#value}" -le 64 ] || return 1
+  case "$value" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*) return 1 ;;
+  esac
+}
+
+ensure_event_directory() {
+  validate_absolute_path "notification event root" "$EVENT_ROOT" || return 1
+  validate_absolute_path "notification event directory" "$EVENT_DIR" || return 1
+
+  /usr/bin/install -d -m 0755 -- "$EVENT_ROOT" "$EVENT_DIR" || return 1
+  current_uid=$(/usr/bin/id -u)
+  for event_directory in "$EVENT_ROOT" "$EVENT_DIR"; do
+    trusted_directory=$(
+      /usr/bin/find "$event_directory" \
+        -maxdepth 0 \
+        -type d \
+        -uid "$current_uid" \
+        ! -perm /022 \
+        -print \
+        -quit 2>/dev/null || true
+    )
+    [ "$trusted_directory" = "$event_directory" ] || {
+      log_message error "notification event directory is not trusted: $event_directory"
+      return 1
+    }
+  done
+}
+
+emit_event() {
+  event_status=$1
+  detail_a=$2
+  detail_b=$3
+  detail_c=$4
+
+  if ! validate_token "$event_status" ||
+     ! validate_token "$detail_a" ||
+     ! validate_token "$detail_b" ||
+     ! validate_token "$detail_c"
+  then
+    log_message error "notification event contains an invalid token"
+    return 1
+  fi
+
+  event_epoch=$(/usr/bin/date -u +%s)
+  case "$event_epoch" in
+    ''|*[!0-9]*)
+      log_message error "unable to determine notification event timestamp"
+      return 1
+      ;;
+  esac
+
+  event_sequence=1
+  while [ "$event_sequence" -le 999 ]; do
+    event_name=$(printf '%010d-%010d-%04d.event' "$event_epoch" "$$" "$event_sequence")
+    event_path="${EVENT_DIR}/${event_name}"
+    [ -e "$event_path" ] || break
+    event_sequence=$((event_sequence + 1))
+  done
+  [ "$event_sequence" -le 999 ] || {
+    log_message error "unable to allocate a unique notification event name"
+    return 1
+  }
+
+  EVENT_TMP=$(/usr/bin/mktemp "${EVENT_DIR}/.unattended-upgrades.XXXXXX") || return 1
+  printf '%s|%s|%s|%s\n' "$event_status" "$detail_a" "$detail_b" "$detail_c" >"$EVENT_TMP" || return 1
+  /usr/bin/chmod 0644 "$EVENT_TMP" || return 1
+  /usr/bin/mv -f -- "$EVENT_TMP" "$event_path" || return 1
+  EVENT_TMP=
+
+  /usr/bin/find "$EVENT_DIR" \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -type f \
+    -name '*.event' \
+    -mtime +45 \
+    -delete 2>/dev/null || true
+}
+
+# shellcheck disable=SC2329
+cleanup() {
+  [ -n "$EVENT_TMP" ] || return 0
+  /usr/bin/rm -f -- "$EVENT_TMP" 2>/dev/null || true
+}
+trap cleanup EXIT HUP INT TERM
+
+if ensure_event_directory; then
+  case "${1:-}" in
+    started)
+      if ! emit_event started none none none; then
+        log_message error "failed to record the unattended-upgrades start event"
+      fi
+      ;;
+    finished)
+      service_result=${SERVICE_RESULT:-unknown}
+      exit_code=${EXIT_CODE:-unknown}
+      exit_status=${EXIT_STATUS:-unknown}
+      if [ "$service_result" = success ]; then
+        event_status=completed
+      else
+        event_status=failed
+      fi
+      if ! emit_event "$event_status" "$service_result" "$exit_code" "$exit_status"; then
+        log_message error "failed to record the unattended-upgrades completion event"
+      fi
+      ;;
+    *)
+      log_message error "unsupported notification event mode: ${1:-unset}"
+      ;;
+  esac
+fi
+
+# Notification delivery must never change the result of apt-daily-upgrade.
+exit 0

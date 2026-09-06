@@ -1,0 +1,142 @@
+#!/bin/sh
+set -eu
+
+brightnessctl_cmd() {
+  brightnessctl --class=backlight "$@"
+}
+
+ensure_non_root_desktop_user() {
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+    printf 'fatal: labwc-brightness-control must run in the managed desktop session\n' >&2
+    exit 1
+  }
+
+  runtime_root=${XDG_RUNTIME_DIR:-}
+  case "$runtime_root" in
+    /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
+    *) runtime_uid= ;;
+  esac
+  case "$runtime_uid" in
+    ''|0*|*[!0-9]*)
+      printf 'fatal: labwc-brightness-control requires a non-root desktop runtime directory\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
+signal_waybar() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  systemctl \
+    --user \
+    kill \
+    --kill-whom=main \
+    --signal=RTMIN+8 \
+    waybar.service >/dev/null 2>&1 ||
+    true
+}
+
+current_percent() {
+  brightnessctl_cmd -m 2>/dev/null |
+    awk -F, 'NR == 1 { gsub(/%/, "", $4); print $4 }' 2>/dev/null ||
+    true
+}
+
+print_status() {
+  percent=$(current_percent)
+  case "$percent" in
+    ''|*[!0-9]*)
+      printf '%s\n' '{"text":"☀ N/A","tooltip":"No controllable display backlight was detected","class":"unavailable"}'
+      ;;
+    *)
+      printf '{"text":"☀ %s%%","tooltip":"Display brightness %s%%\\nScroll or use the brightness keys to adjust","class":"available","percentage":%s}\n' \
+        "$percent" "$percent" "$percent"
+      ;;
+  esac
+}
+
+apply_brightness() {
+  value=$1
+  brightnessctl_cmd -q set "$value"
+  signal_waybar
+}
+
+ensure_non_root_desktop_user
+command -v brightnessctl >/dev/null 2>&1 || {
+  printf 'fatal: brightnessctl is not installed\n' >&2
+  exit 1
+}
+
+case "${1:-menu}" in
+  status)
+    print_status
+    exit 0
+    ;;
+  up|increase)
+    apply_brightness +10%
+    exit 0
+    ;;
+  down|decrease)
+    apply_brightness 10%-
+    exit 0
+    ;;
+  set)
+    [ "$#" -eq 2 ] || {
+      printf 'fatal: labwc-brightness-control set requires one percentage argument\n' >&2
+      exit 1
+    }
+    requested_percent=${2%\%}
+    case "$requested_percent" in
+      ''|*[!0-9]*)
+        printf 'fatal: unsupported brightness argument: %s\n' "$2" >&2
+        exit 1
+        ;;
+    esac
+    if [ "$requested_percent" -lt 1 ] || [ "$requested_percent" -gt 100 ]; then
+      printf 'fatal: brightness percentage must be between 1 and 100: %s\n' "$2" >&2
+      exit 1
+    fi
+    apply_brightness "${requested_percent}%"
+    exit 0
+    ;;
+  menu) ;;
+  *)
+    printf 'fatal: unsupported labwc-brightness-control action: %s\n' "$1" >&2
+    exit 1
+    ;;
+esac
+
+command -v labwc-fuzzel >/dev/null 2>&1 || {
+  printf 'fatal: labwc-fuzzel is not installed\n' >&2
+  exit 1
+}
+
+current_percent_value=$(current_percent)
+case "$current_percent_value" in
+  ''|*[!0-9]*) current_label='current unknown' ;;
+  *) current_label="current ${current_percent_value}%" ;;
+esac
+
+choice=$(
+  printf '%s\n' \
+    'Increase +10%' \
+    'Decrease -10%' \
+    'Night 15%' \
+    'Dim 30%' \
+    'Balanced 55%' \
+    'Bright 80%' \
+    'Maximum 100%' |
+    labwc-fuzzel menu --dmenu --prompt "Brightness (${current_label})" 2>/dev/null ||
+    true
+)
+
+case "$choice" in
+  'Increase +10%') apply_brightness +10% ;;
+  'Decrease -10%') apply_brightness 10%- ;;
+  'Night 15%') apply_brightness 15% ;;
+  'Dim 30%') apply_brightness 30% ;;
+  'Balanced 55%') apply_brightness 55% ;;
+  'Bright 80%') apply_brightness 80% ;;
+  'Maximum 100%') apply_brightness 100% ;;
+esac
+
+exit 0

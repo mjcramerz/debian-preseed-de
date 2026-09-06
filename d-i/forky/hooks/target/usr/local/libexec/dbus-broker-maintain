@@ -1,0 +1,259 @@
+#!/usr/bin/python3 -I
+"""Keep locally diverted broker compatibility files aligned with dpkg updates.
+
+This helper never restarts a message bus. Configure is used in the installer;
+refresh is a dpkg post-invoke hook and reloads only already-running buses.
+"""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import os
+from pathlib import Path
+import pwd
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import xml.etree.ElementTree as ET
+
+SESSION = Path('/usr/share/dbus-1/session.conf')
+SERVICES = Path('/usr/share/dbus-1/services')
+LOCAL_SERVICES = Path('/usr/local/share/dbus-1/services')
+ALIASES = {
+    'fr.emersion.mako.service': 'org.freedesktop.Notifications',
+    'org.xfce.Thunar.FileManager1.service': 'org.freedesktop.FileManager1',
+    'org.xfce.Tumbler.Cache1.service': 'org.freedesktop.thumbnails.Cache1',
+    'org.xfce.Tumbler.Manager1.service': 'org.freedesktop.thumbnails.Manager1',
+    'org.xfce.Tumbler.Thumbnailer1.service': 'org.freedesktop.thumbnails.Thumbnailer1',
+}
+DOCTYPE = ('<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"\n'
+           ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n')
+
+
+def command(argv: list[str], timeout: int = 30) -> str:
+    result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                            text=True, timeout=timeout, check=False,
+                            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C'})
+    if result.returncode:
+        raise RuntimeError(f'{Path(argv[0]).name} failed ({result.returncode}): {result.stderr.strip()[:500]}')
+    return result.stdout.strip()
+
+
+def read_owned_file(path: Path) -> bytes:
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as stream:
+        metadata = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022 or metadata.st_nlink != 1):
+            raise RuntimeError(f'unsafe root-owned configuration: {path}')
+        data = stream.read(1_048_577)
+        if not data or len(data) > 1_048_576:
+            raise RuntimeError(f'configuration size is invalid: {path}')
+        return data
+
+
+def trusted_directory(path: Path, mode: int = 0o755) -> None:
+    path.mkdir(mode=mode, parents=True, exist_ok=True)
+    metadata = path.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+            or metadata.st_mode & 0o022):
+        raise RuntimeError(f'unsafe configuration directory: {path}')
+
+
+def atomic_write(path: Path, data: bytes) -> None:
+    # Do not churn mtimes or reload content needlessly during multi-step dpkg runs.
+    if (path.exists() and not path.is_symlink() and read_owned_file(path) == data
+            and stat.S_IMODE(path.stat().st_mode) == 0o644):
+        return
+    fd, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), 0o644)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_DIRECTORY | os.O_RDONLY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+
+
+def broker_session_config(data: bytes) -> bytes:
+    if b'<!ENTITY' in data:
+        raise RuntimeError('entity declarations are not accepted in the vendor session configuration')
+    parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
+    root = ET.fromstring(data, parser=parser)
+    if root.tag != 'busconfig':
+        raise RuntimeError('vendor session configuration has no busconfig root')
+    for parent in root.iter():
+        for rule in list(parent):
+            if 'eavesdrop' not in rule.attrib:
+                continue
+            # Do not guess at the meaning of new deny rules on a future upgrade.
+            if rule.tag != 'allow' or rule.attrib['eavesdrop'] not in ('true', 'false'):
+                raise RuntimeError('unsupported vendor eavesdrop policy; review before upgrading')
+            del rule.attrib['eavesdrop']
+            if not rule.attrib:
+                index = list(parent).index(rule)
+                parent.remove(rule)
+                for offset, kind in enumerate(('method_call', 'method_return', 'error', 'signal')):
+                    parent.insert(index + offset, ET.Element('allow', {'receive_type': kind}))
+    if any(node.tag in ('allow', 'deny') and not node.attrib for node in root.iter()):
+        raise RuntimeError('refusing attribute-free D-Bus policy')
+    ET.indent(root, space='  ')
+    return (DOCTYPE + ET.tostring(root, encoding='unicode') + '\n').encode('utf-8')
+
+
+def diverted_source(path: Path) -> Path | None:
+    diverted = Path(str(path) + '.distrib')
+    owner = command(['/usr/bin/dpkg-divert', '--listpackage', str(path)])
+    if owner:
+        actual = command(['/usr/bin/dpkg-divert', '--truename', str(path)])
+        if owner != 'LOCAL' or actual != str(diverted):
+            raise RuntimeError(f'foreign diversion must not be replaced: {path}')
+        read_owned_file(diverted)
+        return diverted
+    if not path.exists():
+        if diverted.exists():
+            raise RuntimeError(f'orphaned diversion needs administrative review: {diverted}')
+        return None
+    read_owned_file(path)
+    if diverted.exists() or diverted.is_symlink():
+        raise RuntimeError(f'refusing to overwrite an unregistered diversion: {diverted}')
+    command(['/usr/bin/dpkg-divert', '--quiet', '--local', '--rename', '--add',
+             '--divert', str(diverted), str(path)])
+    return diverted
+
+
+def service_name(data: bytes) -> str:
+    # Name must come from the D-BUS Service section, not an unrelated section.
+    section = ''
+    names: list[str] = []
+    for line in data.decode('utf-8').splitlines():
+        line = line.strip()
+        if not line or line.startswith(('#', ';')):
+            continue
+        if line.startswith('[') and line.endswith(']'):
+            section = line[1:-1]
+        elif section == 'D-BUS Service' and '=' in line:
+            key, value = line.split('=', 1)
+            if key.strip() == 'Name':
+                names.append(value.strip())
+    if len(names) != 1:
+        raise RuntimeError('activation file must contain exactly one D-BUS Service Name')
+    return names[0]
+
+
+def refresh_files() -> None:
+    source = diverted_source(SESSION)
+    if source is None:
+        raise RuntimeError('dbus-session-bus-common is missing')
+    # Always read the vendor .distrib, never the previous locally rendered copy.
+    atomic_write(SESSION, broker_session_config(read_owned_file(source)))
+    trusted_directory(LOCAL_SERVICES)
+    for filename, expected in ALIASES.items():
+        path = SERVICES / filename
+        # Check names before altering a not-yet-diverted vendor file.
+        if path.exists() and service_name(read_owned_file(path)) != expected:
+            raise RuntimeError(f'unexpected activation Name in {path}')
+        source = diverted_source(path)
+        if source is None:
+            continue  # Optional desktop package is not installed on this role.
+        if service_name(read_owned_file(source)) != expected:
+            raise RuntimeError(f'unexpected activation Name in {source}')
+        alias = LOCAL_SERVICES / f'{expected}.service'
+        if alias.is_symlink() and os.readlink(alias) == str(source):
+            continue
+        with tempfile.TemporaryDirectory(prefix='.broker-alias.', dir=LOCAL_SERVICES) as directory:
+            temporary = Path(directory) / 'link'
+            temporary.symlink_to(source)
+            os.replace(temporary, alias)
+    print('dbus_broker_compatibility=refreshed')
+
+
+def reload_active_buses() -> None:
+    # ReloadConfig is non-disruptive; never use restart or try-reload-or-restart.
+    calls: list[list[str]] = []
+    method = ['call', 'org.freedesktop.DBus', '/org/freedesktop/DBus',
+              'org.freedesktop.DBus', 'ReloadConfig']
+    if Path('/run/dbus/system_bus_socket').is_socket():
+        calls.append(['/usr/bin/busctl', '--system', '--timeout=3', *method])
+    for runtime in sorted(Path('/run/user').glob('[0-9]*')):
+        if (not runtime.name.isdigit() or runtime.is_symlink()
+                or not (runtime / 'bus').is_socket()):
+            continue
+        uid = int(runtime.name)
+        if runtime.stat().st_uid != uid:
+            continue
+        try:
+            username = pwd.getpwuid(uid).pw_name
+        except KeyError:
+            continue
+        calls.append(['/usr/sbin/runuser', '-u', username, '--', '/usr/bin/env', '-i',
+                      'PATH=/usr/bin:/bin', f'XDG_RUNTIME_DIR={runtime}',
+                      f'DBUS_SESSION_BUS_ADDRESS=unix:path={runtime}/bus',
+                      '/usr/bin/busctl', '--user', '--timeout=3', *method])
+    deadline = time.monotonic() + 30
+    for argv in calls:
+        if time.monotonic() >= deadline:
+            print('warning: bus reload budget exhausted; run dbus-broker-maintain --refresh again', file=sys.stderr)
+            break
+        try:
+            command(argv, timeout=5)
+        except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+            print(f'warning: active bus reload deferred: {exc}', file=sys.stderr)
+
+
+def install_signal_handlers() -> None:
+    def stop(signum: int, _frame: object) -> None:
+        # A second signal must not interrupt finally blocks during teardown.
+        for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(watched, signal.SIG_IGN)
+        raise SystemExit(128 + signum)
+    for watched in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+        signal.signal(watched, stop)
+
+
+def main() -> int:
+    install_signal_handlers()
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--configure', action='store_true')
+    group.add_argument('--refresh', action='store_true')
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        parser.error('root is required')
+    os.umask(0o077)
+    lock_dir = Path('/run/dbus-broker-maintain')
+    trusted_directory(lock_dir, 0o700)
+    lock_fd = os.open(lock_dir / 'lock', os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        metadata = os.fstat(lock_fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
+            raise RuntimeError('unsafe maintenance lock')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        refresh_files()
+        if args.refresh:
+            reload_active_buses()
+    finally:
+        os.close(lock_fd)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, ValueError, ET.ParseError, subprocess.TimeoutExpired) as exc:
+        print(f'dbus-broker-maintain: fatal: {exc}', file=sys.stderr)
+        raise SystemExit(1)

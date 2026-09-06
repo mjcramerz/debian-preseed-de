@@ -1,0 +1,624 @@
+#!/bin/sh
+set -eu
+
+LABWC_FUZZEL_MANAGED_ICONS=1
+export LABWC_FUZZEL_MANAGED_ICONS
+
+export LABWC_FUZZEL_LOG_SCOPE=android-debug-bridge
+export LABWC_FUZZEL_LOG_SCOPE
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_menu_input() {
+  prompt=$1
+
+  if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
+    printf '%s\n' "$menu_selection"
+    return 0
+  else
+    menu_status=$?
+  fi
+
+  if [ "$menu_status" -eq 2 ] &&
+     [ -n "${LABWC_FUZZEL_MENU_WIDTH_OVERRIDE:-}${LABWC_FUZZEL_MENU_LINES_OVERRIDE:-}${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}" ]
+  then
+    log_adb_menu_failure "$prompt" "$menu_status"
+    printf 'warning: retrying the %s menu without category sizing overrides\n' \
+      "$prompt" >&2
+    unset \
+      LABWC_FUZZEL_MENU_WIDTH_OVERRIDE \
+      LABWC_FUZZEL_MENU_LINES_OVERRIDE \
+      LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE
+    if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
+      printf '%s\n' "$menu_selection"
+      return 0
+    else
+      menu_status=$?
+    fi
+  fi
+
+  case "$menu_status" in
+    1)
+      # Fuzzel uses status 1 when the user dismisses a dmenu picker.
+      return 0
+      ;;
+    *)
+      fatal "unable to open the ${prompt} menu (status ${menu_status})"
+      ;;
+  esac
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    choose_menu_input "$prompt"
+}
+
+choose_text() {
+  prompt=$1
+  suggested_value=${2:-}
+
+  printf '%s\n' "$suggested_value" |
+    choose_menu_input "$prompt"
+}
+
+run_adb_action() {
+  if labwc-adb-action "$@"; then
+    log_adb_action "$1" 0
+    return 0
+  else
+    action_status=$?
+  fi
+
+  log_adb_action "$1" "$action_status"
+  printf 'warning: Android Debug Bridge action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+log_adb_action() {
+  action_name=$1
+  action_status=$2
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  if ! /usr/local/bin/labwc-fuzzel-log \
+      action \
+      completed \
+      "source=android-debug-bridge" \
+      "action=$action_name" \
+      "status=$action_status" \
+      >/dev/null 2>&1
+  then
+    :
+  fi
+}
+
+log_adb_menu_failure() {
+  menu_prompt=$1
+  menu_status=$2
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  if ! /usr/local/bin/labwc-fuzzel-log \
+      action \
+      launcher-failed \
+      "source=android-debug-bridge" \
+      "menu=$menu_prompt" \
+      "status=$menu_status" \
+      >/dev/null 2>&1
+  then
+    :
+  fi
+}
+
+confirm_action() {
+  prompt=$1
+  confirmation=$(
+    choose_lines \
+      "$prompt" \
+      'Cancel' \
+      'Continue with authorized ADB action'
+  )
+  [ "$confirmation" = 'Continue with authorized ADB action' ]
+}
+
+confirm_phrase() {
+  prompt=$1
+  required_phrase=$2
+  entered_phrase=$(choose_text "${prompt}: type ${required_phrase}" "")
+  [ "$entered_phrase" = "$required_phrase" ]
+}
+
+choose_device() {
+  if ! device_lines=$(labwc-adb-action --menu-devices 2>/dev/null); then
+    run_adb_action server-status
+    return 1
+  fi
+  if [ -z "$device_lines" ]; then
+    run_adb_action wait-any-device
+    if ! device_lines=$(labwc-adb-action --menu-devices 2>/dev/null); then
+      run_adb_action server-status
+      return 1
+    fi
+    if [ -z "$device_lines" ]; then
+      run_adb_action diagnose-devices
+      return 1
+    fi
+  fi
+
+  selected_device=$(
+    printf '%s\n' "$device_lines" |
+      choose_menu_input "Android device"
+  )
+  [ -n "$selected_device" ] || return 1
+  printf '%s\n' "${selected_device%% *}"
+}
+
+choose_fastboot_device() {
+  if ! device_lines=$(labwc-adb-action --menu-fastboot-devices 2>/dev/null); then
+    run_adb_action fastboot-list
+    return 1
+  fi
+  if [ -z "$device_lines" ]; then
+    run_adb_action fastboot-list
+    return 1
+  fi
+
+  selected_device=$(
+    printf '%s\n' "$device_lines" |
+      choose_menu_input "Fastboot device"
+  )
+  [ -n "$selected_device" ] || return 1
+  printf '%s\n' "${selected_device%% *}"
+}
+
+choose_package() {
+  choose_text "Android package name" "com.example.app"
+}
+
+choose_local_file() {
+  prompt=$1
+  choose_text "$prompt" "${HOME%/}/Downloads/"
+}
+
+choose_samsung_firmware_directory() {
+  choose_text \
+    "Managed Samsung firmware directory" \
+    "${HOME%/}/Android/adb/samsung-firmware/"
+}
+
+command -v labwc-adb-action >/dev/null 2>&1 ||
+  fatal "labwc-adb-action is not installed"
+command -v labwc-fuzzel >/dev/null 2>&1 ||
+  fatal "labwc-fuzzel is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-adb-menu must run as the logged-in desktop user"
+
+while :; do
+  category=$(
+    choose_lines \
+      "Android Debug Bridge" \
+      '⮞ ADB Server' \
+      '⮞ Devices & Shell' \
+      '⮞ Files & Applications' \
+      '⮞ Diagnostics & Capture' \
+      '⮞ Wireless Debugging' \
+      '⮞ Port Forwarding' \
+      '⮞ Reboot & Recovery' \
+      '⮞ Fastboot' \
+      '← Back'
+  )
+
+  case "$category" in
+    '⮞ ADB Server')
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Server" \
+            'Show Server Status' \
+            'Start ADB Server' \
+            'Repair / Restart ADB Server' \
+            'Stop ADB Server' \
+            'Reconnect USB Devices' \
+            'Reconnect Offline Devices' \
+            'Wait for Any Device (60s)' \
+            'List Devices with Details' \
+            'Diagnose Device Connections' \
+            'Show ADB Version' \
+            'Show Host Features' \
+            '← Back'
+        )
+        case "$action" in
+          'Show Server Status') run_adb_action server-status ;;
+          'Start ADB Server') run_adb_action start-server ;;
+          'Repair / Restart ADB Server') run_adb_action repair-server ;;
+          'Stop ADB Server') run_adb_action stop-server ;;
+          'Reconnect USB Devices') run_adb_action reconnect-usb ;;
+          'Reconnect Offline Devices') run_adb_action reconnect-offline ;;
+          'Wait for Any Device (60s)') run_adb_action wait-any-device ;;
+          'List Devices with Details') run_adb_action list-devices ;;
+          'Diagnose Device Connections') run_adb_action diagnose-devices ;;
+          'Show ADB Version') run_adb_action adb-version ;;
+          'Show Host Features') run_adb_action host-features ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Devices & Shell')
+      device_serial=$(choose_device) || continue
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Device: ${device_serial}" \
+            'Show Device Summary' \
+            'Open Interactive Shell' \
+            'List User Applications' \
+            'Show Current Activity' \
+            'Show Battery Status' \
+            'Show Storage Status' \
+            'Show CPU and Memory' \
+            'List Android Users' \
+            '← Back'
+        )
+        case "$action" in
+          'Show Device Summary') run_adb_action device-summary "$device_serial" ;;
+          'Open Interactive Shell') run_adb_action interactive-shell "$device_serial" ;;
+          'List User Applications') run_adb_action list-packages "$device_serial" ;;
+          'Show Current Activity') run_adb_action current-activity "$device_serial" ;;
+          'Show Battery Status') run_adb_action battery-status "$device_serial" ;;
+          'Show Storage Status') run_adb_action storage-status "$device_serial" ;;
+          'Show CPU and Memory') run_adb_action cpu-memory "$device_serial" ;;
+          'List Android Users') run_adb_action list-android-users "$device_serial" ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Files & Applications')
+      device_serial=$(choose_device) || continue
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Files & Apps: ${device_serial}" \
+            'Install APK' \
+            'Install / Replace APK' \
+            'Uninstall Application' \
+            'Clear Application Data' \
+            'Grant Runtime Permission' \
+            'Push File to Download' \
+            'Pull Device File or Folder' \
+            '← Back'
+        )
+        case "$action" in
+          'Install APK')
+            local_file=$(choose_local_file "APK file")
+            [ -n "$local_file" ] &&
+              run_adb_action install-apk "$device_serial" "$local_file"
+            ;;
+          'Install / Replace APK')
+            local_file=$(choose_local_file "Replacement APK file")
+            [ -n "$local_file" ] &&
+              run_adb_action install-apk-replace "$device_serial" "$local_file"
+            ;;
+          'Uninstall Application')
+            package_name=$(choose_package)
+            if [ -n "$package_name" ] &&
+              confirm_action "Uninstall ${package_name}"
+            then
+              run_adb_action \
+                uninstall-package \
+                "$device_serial" \
+                "$package_name" \
+                confirmed-adb-action
+            fi
+            ;;
+          'Clear Application Data')
+            package_name=$(choose_package)
+            if [ -n "$package_name" ] &&
+              confirm_action "Clear all data for ${package_name}"
+            then
+              run_adb_action \
+                clear-app-data \
+                "$device_serial" \
+                "$package_name" \
+                confirmed-adb-action
+            fi
+            ;;
+          'Grant Runtime Permission')
+            package_name=$(choose_package)
+            permission_name=$(choose_text "Android permission" "android.permission.POST_NOTIFICATIONS")
+            if [ -n "$package_name" ] &&
+              [ -n "$permission_name" ] &&
+              confirm_action "Grant ${permission_name} to ${package_name}"
+            then
+              run_adb_action \
+                grant-permission \
+                "$device_serial" \
+                "$package_name" \
+                "$permission_name" \
+                confirmed-adb-action
+            fi
+            ;;
+          'Push File to Download')
+            local_file=$(choose_local_file "Local file to push")
+            [ -n "$local_file" ] &&
+              run_adb_action push-download "$device_serial" "$local_file"
+            ;;
+          'Pull Device File or Folder')
+            remote_path=$(choose_text "Absolute Android path" "/sdcard/Download")
+            [ -n "$remote_path" ] &&
+              run_adb_action pull-path "$device_serial" "$remote_path"
+            ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Diagnostics & Capture')
+      device_serial=$(choose_device) || continue
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Diagnostics: ${device_serial}" \
+            'Diagnose All Connections' \
+            'Save Screenshot' \
+            'Record Screen (30s)' \
+            'Show Recent Logcat' \
+            'Follow Live Logcat' \
+            'Collect Bugreport' \
+            '← Back'
+        )
+        case "$action" in
+          'Diagnose All Connections') run_adb_action diagnose-devices ;;
+          'Save Screenshot') run_adb_action screenshot "$device_serial" ;;
+          'Record Screen (30s)') run_adb_action screenrecord "$device_serial" ;;
+          'Show Recent Logcat') run_adb_action logcat-recent "$device_serial" ;;
+          'Follow Live Logcat') run_adb_action logcat-live "$device_serial" ;;
+          'Collect Bugreport') run_adb_action bugreport "$device_serial" ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Wireless Debugging')
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Wireless Debugging" \
+            'Pair with Pairing Code' \
+            'Connect to Wireless Device' \
+            'Disconnect Wireless Device' \
+            'Disconnect All Wireless Devices' \
+            'Show mDNS Services' \
+            'Enable Legacy TCP/IP Port 5555' \
+            '← Back'
+        )
+        case "$action" in
+          'Pair with Pairing Code')
+            endpoint=$(choose_text "Pairing host:port" "192.168.1.100:37099")
+            pairing_code=$(choose_text "Six-digit pairing code" "")
+            if [ -n "$endpoint" ] && [ -n "$pairing_code" ]; then
+              run_adb_action pair-wireless "$endpoint" "$pairing_code"
+            fi
+            ;;
+          'Connect to Wireless Device')
+            endpoint=$(choose_text "ADB host:port" "192.168.1.100:5555")
+            [ -n "$endpoint" ] &&
+              run_adb_action connect-wireless "$endpoint"
+            ;;
+          'Disconnect Wireless Device')
+            endpoint=$(choose_text "ADB host:port" "192.168.1.100:5555")
+            [ -n "$endpoint" ] &&
+              run_adb_action disconnect-wireless "$endpoint"
+            ;;
+          'Disconnect All Wireless Devices')
+            run_adb_action disconnect-all
+            ;;
+          'Show mDNS Services')
+            run_adb_action mdns-services
+            ;;
+          'Enable Legacy TCP/IP Port 5555')
+            device_serial=$(choose_device) || continue
+            if confirm_action "Enable unencrypted TCP/IP debugging on ${device_serial}"; then
+              run_adb_action \
+                enable-tcpip-5555 \
+                "$device_serial" \
+                confirmed-adb-action
+            fi
+            ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Port Forwarding')
+      device_serial=$(choose_device) || continue
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Port Forwarding: ${device_serial}" \
+            'List Forward and Reverse Rules' \
+            'Forward Host TCP to Device TCP' \
+            'Reverse Device TCP to Host TCP' \
+            '← Back'
+        )
+        case "$action" in
+          'List Forward and Reverse Rules')
+            run_adb_action list-forwards "$device_serial"
+            ;;
+          'Forward Host TCP to Device TCP')
+            host_port=$(choose_text "Host TCP port" "8080")
+            device_port=$(choose_text "Device TCP port" "8080")
+            if [ -n "$host_port" ] && [ -n "$device_port" ]; then
+              run_adb_action \
+                forward-tcp \
+                "$device_serial" \
+                "$host_port" \
+                "$device_port"
+            fi
+            ;;
+          'Reverse Device TCP to Host TCP')
+            device_port=$(choose_text "Device TCP port" "8080")
+            host_port=$(choose_text "Host TCP port" "8080")
+            if [ -n "$device_port" ] && [ -n "$host_port" ]; then
+              run_adb_action \
+                reverse-tcp \
+                "$device_serial" \
+                "$host_port" \
+                "$device_port"
+            fi
+            ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Reboot & Recovery')
+      device_serial=$(choose_device) || continue
+      while :; do
+        action=$(
+          choose_lines \
+            "ADB Reboot: ${device_serial}" \
+            'Reboot Android' \
+            'Reboot to Recovery' \
+            'Reboot to Bootloader' \
+            'Reboot to Sideload' \
+            'Backup Device' \
+            'Download Official Samsung Firmware' \
+            'Flash Official Firmware (Keep Data)' \
+            'Flash Official Firmware (Factory Reset)' \
+            '← Back'
+        )
+        case "$action" in
+          'Reboot Android')
+            if confirm_action "Reboot Android device ${device_serial}"; then
+              run_adb_action reboot-system "$device_serial" confirmed-adb-action
+            fi
+            ;;
+          'Reboot to Recovery')
+            if confirm_action "Reboot ${device_serial} to recovery"; then
+              run_adb_action reboot-recovery "$device_serial" confirmed-adb-action
+            fi
+            ;;
+          'Reboot to Bootloader')
+            if confirm_action "Reboot ${device_serial} to bootloader"; then
+              run_adb_action reboot-bootloader "$device_serial" confirmed-adb-action
+            fi
+            ;;
+          'Reboot to Sideload')
+            if confirm_action "Reboot ${device_serial} to sideload"; then
+              run_adb_action reboot-sideload "$device_serial" confirmed-adb-action
+            fi
+            ;;
+          'Backup Device')
+            if confirm_action "Back up all ADB-readable data from ${device_serial}"; then
+              run_adb_action backup-device "$device_serial" confirmed-adb-action
+            fi
+            ;;
+          'Download Official Samsung Firmware')
+            samsung_model=$(
+              choose_text "Samsung model" "SM-S931U1" |
+                tr '[:lower:]' '[:upper:]'
+            )
+            samsung_region=$(
+              choose_text "Samsung region CSC" "XAA" |
+                tr '[:lower:]' '[:upper:]'
+            )
+            if [ -n "$samsung_model" ] &&
+              [ -n "$samsung_region" ] &&
+              confirm_action "Download latest official firmware for ${samsung_model}/${samsung_region}"
+            then
+              run_adb_action \
+                samsung-download-firmware \
+                "$device_serial" \
+                "$samsung_model" \
+                "$samsung_region" \
+                confirmed-samsung-download
+            fi
+            ;;
+          'Flash Official Firmware (Keep Data)')
+            firmware_directory=$(choose_samsung_firmware_directory)
+            if [ -n "$firmware_directory" ] &&
+              confirm_phrase \
+                "Flash verified official firmware while requesting data preservation" \
+                "FLASH HOME_CSC"
+            then
+              run_adb_action \
+                samsung-flash-keep-data \
+                "$device_serial" \
+                "$firmware_directory" \
+                confirmed-samsung-keep-data-flash
+            fi
+            ;;
+          'Flash Official Firmware (Factory Reset)')
+            firmware_directory=$(choose_samsung_firmware_directory)
+            if [ -n "$firmware_directory" ] &&
+              confirm_phrase \
+                "ERASE DEVICE and flash verified official firmware" \
+                "FACTORY RESET"
+            then
+              run_adb_action \
+                samsung-flash-factory-reset \
+                "$device_serial" \
+                "$firmware_directory" \
+                confirmed-samsung-factory-reset
+            fi
+            ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '⮞ Fastboot')
+      while :; do
+        action=$(
+          choose_lines \
+            "Fastboot" \
+            'List Fastboot Devices' \
+            'Show Fastboot Device Information' \
+            'Reboot Fastboot Device' \
+            'Reboot Fastboot Device to Bootloader' \
+            '← Back'
+        )
+        case "$action" in
+          'List Fastboot Devices')
+            run_adb_action fastboot-list
+            ;;
+          'Show Fastboot Device Information')
+            fastboot_serial=$(choose_fastboot_device) || continue
+            run_adb_action fastboot-info "$fastboot_serial"
+            ;;
+          'Reboot Fastboot Device')
+            fastboot_serial=$(choose_fastboot_device) || continue
+            if confirm_action "Reboot fastboot device ${fastboot_serial}"; then
+              run_adb_action \
+                fastboot-reboot \
+                "$fastboot_serial" \
+                confirmed-adb-action
+            fi
+            ;;
+          'Reboot Fastboot Device to Bootloader')
+            fastboot_serial=$(choose_fastboot_device) || continue
+            if confirm_action "Reboot ${fastboot_serial} back to bootloader"; then
+              run_adb_action \
+                fastboot-reboot-bootloader \
+                "$fastboot_serial" \
+                confirmed-adb-action
+            fi
+            ;;
+          '← Back') break ;;
+          '') exit 0 ;;
+        esac
+      done
+      ;;
+    '← Back'|'')
+      exit 0
+      ;;
+  esac
+done

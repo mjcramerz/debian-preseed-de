@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+launcher_command=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}
+case "$launcher_command" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+@%=:,/\ -]*)
+    printf 'fatal: invalid LABWC_LAUNCHER_COMMAND: %s\n' "$launcher_command" >&2
+    exit 1
+    ;;
+esac
+
+launcher_binary=${launcher_command%% *}
+if ! command -v "$launcher_binary" >/dev/null 2>&1; then
+  printf 'fatal: launcher command is not installed: %s\n' "$launcher_binary" >&2
+  exit 1
+fi
+
+set -f
+# The validated command string intentionally contains only simple argv tokens.
+set -- $launcher_command
+set +f
+exec "$@"

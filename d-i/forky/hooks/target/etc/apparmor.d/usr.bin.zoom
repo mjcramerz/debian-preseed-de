@@ -1,0 +1,59 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile usr.bin.zoom /{usr/bin/zoom,opt/zoom/{zoom,ZoomLauncher}} flags=(attach_disconnected, mediate_deleted) {
+  # Zoom embeds Chromium/CEF and needs the same user-namespace and process
+  # bookkeeping contract as the repository-managed Electron applications.
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  capability sys_nice,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /dev/video* rw,
+
+  /usr/bin/zoom rix,
+  /opt/zoom/ r,
+  /opt/zoom/{ZoomLauncher,zoom} rix,
+  /opt/zoom/** mrix,
+
+  # Zoom is a desktop client, not a root service. Block root-owned state even
+  # when the package executable is invoked directly instead of through the
+  # managed non-root command wrapper.
+  deny /root/.cache/zoom/ rw,
+  deny /root/.cache/zoom/** rwkl,
+  deny /root/.config/\#* rwkl,
+  deny /root/.config/zoom/ rw,
+  deny /root/.config/zoom/** rwkl,
+  deny /root/.config/zoomus.conf* rwkl,
+  deny /root/.local/share/zoom/ rw,
+  deny /root/.local/share/zoom/** rwkl,
+  deny /root/.zoom/ rw,
+  deny /root/.zoom/** rwkl,
+
+  owner @{HOME}/.cache/zoom/ rw,
+  owner @{HOME}/.cache/zoom/** rwk,
+  owner @{HOME}/.config/zoom/ rw,
+  owner @{HOME}/.config/zoom/** rwkl,
+  owner @{HOME}/.config/\#* rwkl,
+  owner @{HOME}/.config/zoomus.conf* rwkl,
+  owner @{HOME}/.local/share/zoom/ rw,
+  owner @{HOME}/.local/share/zoom/** rwkl,
+  owner @{HOME}/.zoom/ rw,
+  owner @{HOME}/.zoom/** rwkl,
+  owner @{HOME}/.zoom/logs/zoom_stdout_stderr.log rak,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/usr.bin.zoom>
+}

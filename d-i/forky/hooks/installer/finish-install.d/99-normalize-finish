@@ -1,0 +1,692 @@
+#!/bin/sh
+# Final finish-install hook: normalize volatile mount backing directories after
+# preseed/late_command and any later installer finish hooks.
+set -eu
+
+RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+RUNTIME_LOG_FILE=/tmp/installer.log
+BOOTSTRAP_LIB="${RUNTIME_DIR}/bootstrap/common-lib.sh"
+TARGET=${INSTALLER_TARGET_DIR:-/target}
+ENV_DIR=${INSTALLER_ENV_DIR:-/tmp/install-env}
+HOST_ENV="${ENV_DIR}/host.env"
+ACCOUNT_ENV="${ENV_DIR}/account.env"
+RUNTIME_ENV="${ENV_DIR}/runtime.env"
+STATE_RUNTIME_ENV="${RUNTIME_DIR}/state/runtime.env"
+TARGET_LOG_FILE="${TARGET}/var/lib/installer-state/installer.log"
+START_EPOCH=$(date -u '+%s' 2>/dev/null || printf '')
+DEBUG_LOGS=1
+TEMPORARY_UNSHARE_PATH=/usr/bin/unshare
+TEMPORARY_UNSHARE_DIVERT_PATH=/usr/bin/unshare.installer-real
+TEMPORARY_UNSHARE_STATE_PATH=/var/lib/installer-state/temporary-unshare-shim
+TEMPORARY_UNSHARE_MARKER=INSTALLER_TEMPORARY_FAKE_UNSHARE_V1
+TEMPORARY_OS_PROBER_PATH=/usr/bin/os-prober
+TEMPORARY_OS_PROBER_REAL_PATH=/usr/bin/os-prober.installer-real
+TEMPORARY_OS_PROBER_STATE_PATH=/var/lib/installer-state/temporary-os-prober-shim
+TEMPORARY_OS_PROBER_MARKER=INSTALLER_TEMPORARY_FAKE_OS_PROBER_V1
+
+if [ -r "$BOOTSTRAP_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$BOOTSTRAP_LIB"
+  LOG=$(installer_runtime_log_file)
+  if command -v installer_export_logging_policy >/dev/null 2>&1; then
+    installer_export_logging_policy
+  fi
+else
+  LOG=$RUNTIME_LOG_FILE
+fi
+
+log_dir=$(dirname "$LOG")
+[ -d "$log_dir" ] || mkdir -p "$log_dir"
+: >>"$LOG"
+chmod 0600 "$LOG" 2>/dev/null || true
+exec >>"$LOG" 2>&1
+
+log() {
+  level=info
+  message=$*
+  case "$message" in
+    fatal:\ *) level=error; message=${message#fatal: } ;;
+    warn:\ *) level=warning; message=${message#warn: } ;;
+    error:\ *) level=error; message=${message#error: } ;;
+    info:\ *) level=info; message=${message#info: } ;;
+  esac
+  printf '%s stage=post_install_validation level=%s component=finish-install-normalize-finish %s\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf unknown-time)" \
+    "$level" \
+    "$message" >&2
+}
+
+target_is_mounted() {
+  if [ "${INSTALLER_ASSUME_TARGET_MOUNTED:-0}" = 1 ]; then
+    return 0
+  fi
+  while IFS=' ' read -r _mount_source mount_path _mount_type _mount_options _mount_rest || [ -n "${mount_path:-}" ]; do
+    [ "$mount_path" = "$TARGET" ] && return 0
+  done </proc/mounts
+  return 1
+}
+
+restore_temporary_unshare() {
+  target_unshare="${TARGET}${TEMPORARY_UNSHARE_PATH}"
+  target_divert="${TARGET}${TEMPORARY_UNSHARE_DIVERT_PATH}"
+  target_state="${TARGET}${TEMPORARY_UNSHARE_STATE_PATH}"
+  target_dpkg_divert="${TARGET}/usr/bin/dpkg-divert"
+
+  if [ ! -e "$target_state" ]; then
+    if [ -f "$target_unshare" ] &&
+       grep -Fqx "# ${TEMPORARY_UNSHARE_MARKER}" "$target_unshare"; then
+      log "fatal: temporary unshare shim exists without its installer state marker"
+      exit 1
+    fi
+    return 0
+  fi
+
+  [ -f "$target_state" ] || {
+    log "fatal: temporary unshare state is not a regular file"
+    exit 1
+  }
+  state_marker=$(cat "$target_state" 2>/dev/null || true)
+  [ "$state_marker" = "$TEMPORARY_UNSHARE_MARKER" ] || {
+    log "fatal: temporary unshare state marker is invalid"
+    exit 1
+  }
+  [ -x "$target_dpkg_divert" ] || {
+    log "fatal: target dpkg-divert is unavailable while restoring unshare"
+    exit 1
+  }
+  command -v chroot >/dev/null 2>&1 || {
+    log "fatal: installer chroot command is unavailable while restoring unshare"
+    exit 1
+  }
+
+  diversion_listing=$(
+    chroot "$TARGET" /usr/bin/dpkg-divert --list "$TEMPORARY_UNSHARE_PATH" 2>/dev/null || true
+  )
+  case "$diversion_listing" in
+    *"$TEMPORARY_UNSHARE_DIVERT_PATH"*) ;;
+    '')
+      if [ -x "$target_unshare" ] &&
+         [ ! -e "$target_divert" ] &&
+         ! grep -Fqx "# ${TEMPORARY_UNSHARE_MARKER}" "$target_unshare"; then
+        rm -f "$target_state"
+        log "info: removed stale temporary unshare state after the real binary was already restored"
+        return 0
+      fi
+      log "fatal: expected temporary unshare diversion is unavailable"
+      exit 1
+      ;;
+    *)
+      log "fatal: expected temporary unshare diversion is unavailable: $diversion_listing"
+      exit 1
+      ;;
+  esac
+
+  if [ -e "$target_unshare" ]; then
+    if [ ! -f "$target_unshare" ] ||
+       ! grep -Fqx "# ${TEMPORARY_UNSHARE_MARKER}" "$target_unshare"; then
+      log "fatal: refusing to remove an unexpected target unshare file"
+      exit 1
+    fi
+    rm -f "$target_unshare"
+  fi
+  [ -x "$target_divert" ] || {
+    log "fatal: diverted target unshare executable is unavailable"
+    exit 1
+  }
+
+  chroot "$TARGET" /usr/bin/dpkg-divert \
+    --quiet \
+    --local \
+    --rename \
+    --divert "$TEMPORARY_UNSHARE_DIVERT_PATH" \
+    --remove "$TEMPORARY_UNSHARE_PATH" || {
+      log "fatal: failed to restore the real target unshare executable"
+      exit 1
+    }
+
+  [ -x "$target_unshare" ] || {
+    log "fatal: real target unshare executable is unavailable after diversion removal"
+    exit 1
+  }
+  [ ! -e "$target_divert" ] || {
+    log "fatal: diverted target unshare path remains after restoration"
+    exit 1
+  }
+  rm -f "$target_state"
+  log "info: restored real target unshare executable and removed the temporary installer shim"
+}
+
+restore_temporary_installer_os_prober() {
+  if [ ! -e "$TEMPORARY_OS_PROBER_STATE_PATH" ]; then
+    if [ -e "$TEMPORARY_OS_PROBER_REAL_PATH" ]; then
+      [ -f "$TEMPORARY_OS_PROBER_REAL_PATH" ] &&
+        [ -x "$TEMPORARY_OS_PROBER_REAL_PATH" ] || {
+          log "fatal: preserved installer os-prober is not an executable regular file"
+          exit 1
+        }
+      if [ -e "$TEMPORARY_OS_PROBER_PATH" ]; then
+        if [ ! -f "$TEMPORARY_OS_PROBER_PATH" ] ||
+           ! grep -Fqx "# ${TEMPORARY_OS_PROBER_MARKER}" "$TEMPORARY_OS_PROBER_PATH"; then
+          log "fatal: refusing to overwrite an unexpected installer os-prober while recovering missing state"
+          exit 1
+        fi
+        rm -f "$TEMPORARY_OS_PROBER_PATH"
+      fi
+      mv "$TEMPORARY_OS_PROBER_REAL_PATH" "$TEMPORARY_OS_PROBER_PATH"
+      log "info: restored real installer os-prober after recovering a missing temporary state marker"
+      return 0
+    fi
+    if [ -f "$TEMPORARY_OS_PROBER_PATH" ] &&
+       grep -Fqx "# ${TEMPORARY_OS_PROBER_MARKER}" "$TEMPORARY_OS_PROBER_PATH"; then
+      log "fatal: temporary installer os-prober shim exists without its state or preserved executable"
+      exit 1
+    fi
+    return 0
+  fi
+
+  [ -f "$TEMPORARY_OS_PROBER_STATE_PATH" ] || {
+    log "fatal: temporary installer os-prober state is not a regular file"
+    exit 1
+  }
+  state_marker=$(cat "$TEMPORARY_OS_PROBER_STATE_PATH" 2>/dev/null || true)
+  [ "$state_marker" = "$TEMPORARY_OS_PROBER_MARKER" ] || {
+    log "fatal: temporary installer os-prober state marker is invalid"
+    exit 1
+  }
+  [ -f "$TEMPORARY_OS_PROBER_REAL_PATH" ] &&
+    [ -x "$TEMPORARY_OS_PROBER_REAL_PATH" ] || {
+      log "fatal: preserved installer os-prober executable is unavailable"
+      exit 1
+    }
+  if grep -Fqx "# ${TEMPORARY_OS_PROBER_MARKER}" "$TEMPORARY_OS_PROBER_REAL_PATH"; then
+    log "fatal: preserved installer os-prober unexpectedly contains the shim marker"
+    exit 1
+  fi
+
+  if [ -e "$TEMPORARY_OS_PROBER_PATH" ]; then
+    if [ ! -f "$TEMPORARY_OS_PROBER_PATH" ] ||
+       ! grep -Fqx "# ${TEMPORARY_OS_PROBER_MARKER}" "$TEMPORARY_OS_PROBER_PATH"; then
+      log "fatal: refusing to remove an unexpected installer os-prober file"
+      exit 1
+    fi
+    rm -f "$TEMPORARY_OS_PROBER_PATH"
+  fi
+
+  mv "$TEMPORARY_OS_PROBER_REAL_PATH" "$TEMPORARY_OS_PROBER_PATH"
+  [ -x "$TEMPORARY_OS_PROBER_PATH" ] || {
+    log "fatal: real installer os-prober is unavailable after restoration"
+    exit 1
+  }
+  rm -f "$TEMPORARY_OS_PROBER_STATE_PATH"
+  log "info: restored real installer os-prober after the controlled target-side dual-boot pass"
+}
+
+persist_log() {
+  [ -d "$TARGET" ] || return 0
+  target_is_mounted || return 0
+  target_log_tmp="${TARGET_LOG_FILE}.tmp.$$"
+  install -d -m 0700 "$(dirname "$TARGET_LOG_FILE")" 2>/dev/null || return 0
+  if command -v installer_redact_log_stream >/dev/null 2>&1; then
+    if installer_redact_log_stream <"$LOG" >"$target_log_tmp" 2>/dev/null; then
+      copy_status=0
+    else
+      copy_status=$?
+    fi
+  else
+    if sed 's/[Pp][Rr][Ee][Ss][Ee][Ee][Dd]/installer/g' <"$LOG" >"$target_log_tmp" 2>/dev/null; then
+      copy_status=0
+    else
+      copy_status=$?
+    fi
+  fi
+  if [ "$copy_status" -eq 0 ]; then
+    chmod 0600 "$target_log_tmp" 2>/dev/null || true
+    mv "$target_log_tmp" "$TARGET_LOG_FILE"
+  else
+    rm -f "$target_log_tmp"
+    log "error: failed to copy installer log to ${TARGET_LOG_FILE}"
+  fi
+}
+
+finish_log() {
+  status=${1:-0}
+  duration_field=
+  end_epoch=$(date -u '+%s' 2>/dev/null || printf '')
+  case "$end_epoch:${START_EPOCH:-}" in
+    [0-9]*:[0-9]*)
+      duration_field=" duration_seconds=$((end_epoch - START_EPOCH))"
+      ;;
+  esac
+  if [ "$status" -eq 0 ]; then
+    log "info: completed final target normalization hook${duration_field}"
+  else
+    log "error: final target normalization hook exited with status ${status}${duration_field}"
+  fi
+  persist_log
+}
+
+trap 'finish_log "$?"' EXIT
+
+restore_temporary_installer_os_prober
+[ -d "$TARGET" ] || exit 0
+target_is_mounted || exit 0
+restore_temporary_unshare
+[ -r "$HOST_ENV" ] || {
+  log "fatal: missing host env: $HOST_ENV"
+  exit 1
+}
+[ -r "$ACCOUNT_ENV" ] || {
+  log "fatal: missing account env: $ACCOUNT_ENV"
+  exit 1
+}
+if [ ! -r "$RUNTIME_ENV" ] && [ -r "$STATE_RUNTIME_ENV" ]; then
+  RUNTIME_ENV=$STATE_RUNTIME_ENV
+fi
+
+# shellcheck disable=SC1090
+. "$HOST_ENV"
+# shellcheck disable=SC1090
+. "$ACCOUNT_ENV"
+if [ -r "$RUNTIME_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$RUNTIME_ENV"
+fi
+
+bool_is_true() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+  esac
+  return 1
+}
+
+bool_is_false() {
+  case "${1:-}" in
+    0|false|FALSE|no|NO|off|OFF) return 0 ;;
+  esac
+  return 1
+}
+
+require_bool() {
+  label=$1
+  value=$2
+  if ! bool_is_true "$value" && ! bool_is_false "$value"; then
+    log "fatal: ${label} must be true or false, got '${value}'"
+    exit 1
+  fi
+}
+
+require_absolute_path() {
+  path=$1
+  label=$2
+  case "$path" in
+    /*) ;;
+    *)
+      log "fatal: ${label} must be absolute: ${path:-unset}"
+      exit 1
+      ;;
+  esac
+}
+
+target_path_for() {
+  rel_path=$1
+  label=$2
+
+  require_absolute_path "$rel_path" "$label"
+  printf '%s%s\n' "$TARGET" "$rel_path"
+}
+
+is_mounted() {
+  while IFS=' ' read -r _mount_source mount_path _mount_type _mount_options _mount_rest || [ -n "${mount_path:-}" ]; do
+    [ "$mount_path" = "$1" ] && return 0
+  done </proc/mounts
+  return 1
+}
+
+secure_boot_finish_mode() {
+  secure_boot_mode=${SECURE_BOOT_MODE:-}
+  secure_boot_state_mode=${SECURE_BOOT_STATE_MODE:-}
+
+  if [ -n "$secure_boot_mode" ] && [ -n "$secure_boot_state_mode" ] && [ "$secure_boot_mode" != "$secure_boot_state_mode" ]; then
+    log "fatal: SECURE_BOOT_MODE and SECURE_BOOT_STATE_MODE disagree: '${secure_boot_mode}' != '${secure_boot_state_mode}'"
+    exit 1
+  fi
+
+  mode=${secure_boot_mode:-$secure_boot_state_mode}
+  if [ -z "$mode" ]; then
+    case "${HOOK_FAMILY:-${INSTALLER_HOOK_FAMILY:-${INSTALLER_HOST_FAMILY:-}}}" in
+      btrfs|vm) mode=luks ;;
+      *) mode=direct ;;
+    esac
+  fi
+
+  case "$mode" in
+    luks|direct)
+      printf '%s\n' "$mode"
+      ;;
+    *)
+      log "fatal: SECURE_BOOT_MODE/SECURE_BOOT_STATE_MODE must be 'luks' or 'direct', got '${mode}'"
+      exit 1
+      ;;
+  esac
+}
+
+umount_path_if_mounted() {
+  path=$1
+  [ -n "$path" ] || return 0
+  if is_mounted "$path"; then
+    log "info: unmounting $path before final normalization"
+    umount "$path" 2>/dev/null || umount -l "$path" 2>/dev/null || {
+      log "fatal: failed to unmount $path during final normalization"
+      exit 1
+    }
+  fi
+}
+
+close_secure_boot_luks_state_if_needed() {
+  mode=$(secure_boot_finish_mode)
+  [ "$mode" = "luks" ] || return 0
+
+  secure_boot_mount=${DIR_VAR_LIB_SHSIGNED:-/var/lib/shim-signed}
+  secure_boot_target_mount=$(target_path_for "$secure_boot_mount" DIR_VAR_LIB_SHSIGNED)
+  secure_boot_mapper=${LUKS_MAPPER_VAR_LIB_SHSIGNED:-}
+  secure_boot_mapper_name=${LUKS_NAME_VAR_LIB_SHSIGNED:-}
+
+  umount_mounts_at_or_below "$secure_boot_target_mount"
+
+  if [ -z "$secure_boot_mapper_name" ] && [ -n "$secure_boot_mapper" ]; then
+    secure_boot_mapper_name=${secure_boot_mapper##*/}
+  fi
+  if [ -z "$secure_boot_mapper" ] && [ -n "$secure_boot_mapper_name" ]; then
+    secure_boot_mapper="/dev/mapper/${secure_boot_mapper_name}"
+  fi
+
+  [ -n "$secure_boot_mapper" ] || return 0
+  [ -b "$secure_boot_mapper" ] || return 0
+  [ -n "$secure_boot_mapper_name" ] || {
+    log "fatal: Secure Boot LUKS mapper exists but LUKS_NAME_VAR_LIB_SHSIGNED is unavailable"
+    exit 1
+  }
+  command -v cryptsetup >/dev/null 2>&1 || {
+    log "fatal: cryptsetup is unavailable while closing Secure Boot LUKS mapper ${secure_boot_mapper_name}"
+    exit 1
+  }
+
+  log "info: closing Secure Boot LUKS mapper ${secure_boot_mapper_name} during finish-install"
+  cryptsetup close "$secure_boot_mapper_name" 2>/dev/null || {
+    log "fatal: failed to close Secure Boot LUKS mapper ${secure_boot_mapper_name} during finish-install"
+    exit 1
+  }
+}
+
+mounted_paths_at_or_below() {
+  root=$1
+  while IFS=' ' read -r _mount_source mount_path _mount_type _mount_options _mount_rest || [ -n "${mount_path:-}" ]; do
+    case "$mount_path" in
+      "$root"|"$root"/*)
+        printf '%s\n' "$mount_path"
+        ;;
+    esac
+  done </proc/mounts | sort -r
+}
+
+umount_mounts_at_or_below() {
+  root=$1
+  [ -n "$root" ] || return 0
+
+  while IFS= read -r mount_path; do
+    [ -n "$mount_path" ] || continue
+    umount_path_if_mounted "$mount_path"
+  done <<EOF_MOUNTS
+$(mounted_paths_at_or_below "$root")
+EOF_MOUNTS
+}
+
+wipe_tree_contents() {
+  path=$1
+  [ -d "$path" ] || return 0
+  find "$path" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+}
+
+assert_empty_dir() {
+  path=$1
+  label=$2
+  [ -d "$path" ] || {
+    log "fatal: ${label} directory is missing after normalization: $path"
+    exit 1
+  }
+  if ! first_entry=$(find "$path" -mindepth 1 -maxdepth 1 -print 2>/dev/null); then
+    log "fatal: unable to inspect ${label} directory after normalization: $path"
+    exit 1
+  fi
+  [ -z "$first_entry" ] || {
+    log "fatal: ${label} still has content after normalization: $first_entry"
+    exit 1
+  }
+}
+
+ensure_empty_dir_mode() {
+  path=$1
+  label=$2
+  mode=$3
+
+  [ ! -L "$path" ] || {
+    log "fatal: ${label} must not be a symlink during final normalization: $path"
+    exit 1
+  }
+  umount_mounts_at_or_below "$path"
+  wipe_tree_contents "$path"
+  install -d -m "$mode" "$path"
+  chmod "$mode" "$path"
+  assert_empty_dir "$path" "$label"
+}
+
+ensure_dir_mode() {
+  path=$1
+  mode=$2
+  install -d -m "$mode" "$path"
+  chmod "$mode" "$path"
+}
+
+normalize_systemd_unit_tree_permissions() {
+  target_dir=$(target_path_for /etc/systemd /etc/systemd)
+  [ -d "$target_dir" ] || return 0
+  find "$target_dir" -type d -exec chmod 0755 {} +
+  find "$target_dir" -type f -exec chmod 0644 {} +
+}
+
+normalize_managed_helper_file_permissions() {
+  for rel_path in \
+    /usr/local/libexec/managed-network-run \
+    /usr/local/libexec/tailscale-managed-up \
+    /usr/local/libexec/managed-syncthing-configure \
+    /usr/local/libexec/crowdsec-firstboot \
+    /usr/local/libexec/secondboot-cleanup \
+    /usr/local/libexec/incus-host-managed
+  do
+    target_file=$(target_path_for "$rel_path" "$rel_path")
+    [ -f "$target_file" ] || continue
+    chmod 0755 "$target_file"
+  done
+}
+
+normalize_usr_local_script_permissions() {
+  for rel_dir in /usr/local/sbin /usr/local/bin; do
+    target_dir=$(target_path_for "$rel_dir" "$rel_dir")
+    [ -d "$target_dir" ] || continue
+    find "$target_dir" -type d -exec chmod 0755 {} +
+    while IFS= read -r script_path; do
+      [ -f "$script_path" ] || continue
+      prefix=$(head -c 2 "$script_path" 2>/dev/null || true)
+      [ "$prefix" = '#!' ] || continue
+      chmod 0755 "$script_path"
+    done <<EOF_MANAGED_SCRIPTS
+$(find "$target_dir" -type f | sort)
+EOF_MANAGED_SCRIPTS
+  done
+}
+
+normalize_account_home_permissions() {
+  account_home=${ACCOUNT_HOME:-}
+  [ -n "$account_home" ] || {
+    log "fatal: ACCOUNT_HOME must be set during final home permission normalization"
+    exit 1
+  }
+  require_absolute_path "$account_home" ACCOUNT_HOME
+  case "$account_home" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
+      log "fatal: ACCOUNT_HOME contains unsupported path syntax: $account_home"
+      exit 1
+      ;;
+  esac
+
+  target_home=$(target_path_for "$account_home" ACCOUNT_HOME)
+  [ -d "$target_home" ] && [ ! -L "$target_home" ] || {
+    log "fatal: target account home is unavailable or indirect: $target_home"
+    exit 1
+  }
+
+  find "$target_home" -xdev -type d -exec chmod 0700 {} + || {
+    log "fatal: failed to normalize target account home directories"
+    exit 1
+  }
+  find "$target_home" -xdev -type f -perm /0100 -exec chmod 0700 {} + || {
+    log "fatal: failed to normalize executable target account files"
+    exit 1
+  }
+  find "$target_home" -xdev -type f ! -perm /0100 -exec chmod 0600 {} + || {
+    log "fatal: failed to normalize non-executable target account files"
+    exit 1
+  }
+  log "info: normalized account home directories to 0700 and regular files to 0600 or 0700"
+}
+
+normalize_enabled_tmpfs_dir() {
+  bool_var=$1
+  dir_var=$2
+  mode=$3
+
+  eval "bool_value=\${$bool_var:-}"
+  [ -n "$bool_value" ] || {
+    log "fatal: ${bool_var} must be set"
+    exit 1
+  }
+  require_bool "$bool_var" "$bool_value"
+  bool_is_true "$bool_value" || return 0
+
+  eval "rel_dir=\${$dir_var:-}"
+  [ -n "$rel_dir" ] || {
+    log "fatal: ${dir_var} must be set when ${bool_var} is true"
+    exit 1
+  }
+  target_dir=$(target_path_for "$rel_dir" "$dir_var")
+  ensure_empty_dir_mode "$target_dir" "$dir_var" "$mode"
+}
+
+managed_tmpfs_mount_mode() {
+  rel_dir=$1
+
+  if [ "$rel_dir" = "$DIR_TMP" ] ||
+     { [ -n "${DIR_DEV_SHM:-}" ] && [ "$rel_dir" = "$DIR_DEV_SHM" ]; }; then
+    printf '1777\n'
+    return 0
+  fi
+  if { [ -n "${DIR_VAR_LOG:-}" ] && [ "$rel_dir" = "$DIR_VAR_LOG" ]; } ||
+     { [ -n "${DIR_VAR_CACHE:-}" ] && [ "$rel_dir" = "$DIR_VAR_CACHE" ]; } ||
+     { [ -n "${DIR_APT_LISTS:-}" ] && [ "$rel_dir" = "$DIR_APT_LISTS" ]; } ||
+     { [ -n "${DIR_SYSTEMD_COREDUMP:-}" ] && [ "$rel_dir" = "$DIR_SYSTEMD_COREDUMP" ]; } ||
+     { [ -n "${DIR_DATA_RUN:-}" ] && [ "$rel_dir" = "$DIR_DATA_RUN" ]; }; then
+    printf '0755\n'
+    return 0
+  fi
+
+  log "fatal: target fstab declares an unmanaged tmpfs mountpoint: $rel_dir"
+  exit 1
+}
+
+normalize_target_fstab_tmpfs_dirs() {
+  target_fstab="${TARGET}/etc/fstab"
+  [ -r "$target_fstab" ] || {
+    log "fatal: target fstab is unavailable during final tmpfs normalization: $target_fstab"
+    exit 1
+  }
+
+  tmpfs_mount_count=0
+  while read -r mount_source mount_path mount_type mount_options mount_dump mount_pass mount_extra ||
+        [ -n "${mount_source:-}${mount_path:-}${mount_type:-}${mount_options:-}${mount_dump:-}${mount_pass:-}${mount_extra:-}" ]; do
+    case "${mount_source:-}" in
+      ''|'#'*) continue ;;
+    esac
+    [ "${mount_type:-}" = tmpfs ] || continue
+    [ -z "${mount_extra:-}" ] || {
+      log "fatal: malformed target fstab tmpfs entry for ${mount_path:-unset}"
+      exit 1
+    }
+    require_absolute_path "${mount_path:-}" "target fstab tmpfs mountpoint"
+    case "$mount_path" in
+      /|*..*|*//*|*\\*)
+        log "fatal: unsafe target fstab tmpfs mountpoint: $mount_path"
+        exit 1
+        ;;
+    esac
+
+    mount_mode=$(managed_tmpfs_mount_mode "$mount_path")
+    target_mount=$(target_path_for "$mount_path" "target fstab tmpfs mountpoint")
+    ensure_empty_dir_mode "$target_mount" "target fstab tmpfs mountpoint ${mount_path}" "$mount_mode"
+    tmpfs_mount_count=$((tmpfs_mount_count + 1))
+  done <"$target_fstab"
+
+  [ "$tmpfs_mount_count" -gt 0 ] || {
+    log "fatal: target fstab declares no tmpfs mountpoints"
+    exit 1
+  }
+  log "info: normalized ${tmpfs_mount_count} tmpfs backing directories declared by target fstab"
+}
+
+require_absolute_path "$TARGET" TARGET
+require_absolute_path "$DIR_TMP" DIR_TMP
+require_absolute_path "$DIR_VAR_TMP" DIR_VAR_TMP
+
+close_secure_boot_luks_state_if_needed
+umount_mounts_at_or_below "${TARGET}/sys"
+
+for tmpfs_var in \
+  TMPFS_VAR_LOG \
+  TMPFS_VAR_CACHE \
+  TMPFS_VAR_LIB_APT_LISTS \
+  TMPFS_DEV_SHM \
+  TMPFS_DATA_RUN \
+  TMPFS_SYSTEMD_COREDUMP
+do
+  eval "tmpfs_value=\${$tmpfs_var:-}"
+  [ -n "$tmpfs_value" ] || {
+    log "fatal: ${tmpfs_var} must be set"
+    exit 1
+  }
+  require_bool "$tmpfs_var" "$tmpfs_value"
+done
+
+normalize_enabled_tmpfs_dir TMPFS_VAR_LOG DIR_VAR_LOG 0755
+normalize_enabled_tmpfs_dir TMPFS_VAR_CACHE DIR_VAR_CACHE 0755
+normalize_enabled_tmpfs_dir TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS 0755
+normalize_enabled_tmpfs_dir TMPFS_SYSTEMD_COREDUMP DIR_SYSTEMD_COREDUMP 0755
+normalize_enabled_tmpfs_dir TMPFS_DATA_RUN DIR_DATA_RUN 0755
+normalize_enabled_tmpfs_dir TMPFS_DEV_SHM DIR_DEV_SHM 1777
+normalize_target_fstab_tmpfs_dirs
+
+if bool_is_true "${TMPFS_VAR_LIB_APT_LISTS:-false}"; then
+  dir_apt_state=${DIR_APT_LISTS%/lists}
+  target_apt_state=$(target_path_for "$dir_apt_state" DIR_APT_STATE)
+  ensure_dir_mode "$target_apt_state" 0755
+fi
+
+normalize_systemd_unit_tree_permissions
+normalize_managed_helper_file_permissions
+normalize_usr_local_script_permissions
+normalize_account_home_permissions
+
+target_tmp=$(target_path_for "$DIR_TMP" DIR_TMP)
+target_var_tmp=$(target_path_for "$DIR_VAR_TMP" DIR_VAR_TMP)
+ensure_empty_dir_mode "$target_tmp" DIR_TMP 1777
+ensure_empty_dir_mode "$target_var_tmp" DIR_VAR_TMP 1777
+
+log "info: finished final target normalization; copying installer log to ${TARGET_LOG_FILE}"

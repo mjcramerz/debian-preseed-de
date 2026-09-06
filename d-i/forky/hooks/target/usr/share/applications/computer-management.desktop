@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Computer Management
+GenericName=Computer Administration
+Comment=Manage accounts, networks, security, system settings, hardware, and local AI copilots
+TryExec=/usr/local/bin/labwc-computer-management
+Exec=/usr/local/bin/labwc-computer-management
+Icon=preferences-system
+Terminal=false
+Categories=System;
+Keywords=Computer;Management;Administration;Users;Groups;Sudo;Container;Podman;Remote Desktop;RDP;Endpoint Security;Network;Connections;VPN;OpenVPN;WireGuard;DNS;Firewall;nftables;Ports;LAN;IP;Wi-Fi;System;Display;Power;Keyboard;Audio;ADB;Phone;Backup;Recovery;External Drives;Hardware;Bluetooth;Brightness;AI;Copilots;Codex;Llama;Whisper;GGUF;Transcription;
+StartupNotify=false

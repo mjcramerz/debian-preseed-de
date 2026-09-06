@@ -1,0 +1,22 @@
+# Managed by unattended-installer.
+#
+# System Perl runtime for repository-owned wrappers. The package abstraction
+# supplies package-owned module paths; explicit deny rules prevent repository
+# wrappers from importing modules or executing helper code from user-managed
+# Perl installation trees.
+
+#include <abstractions/managed-wrapper-base>
+#include <abstractions/perl>
+
+/usr/bin/perl rix,
+/usr/bin/perl5.[0-9]* rix,
+
+deny owner @{HOME}/perl5/ r,
+deny owner @{HOME}/perl5/** mrwkl,
+deny owner @{HOME}/.local/lib/perl5/ r,
+deny owner @{HOME}/.local/lib/perl5/** mrwkl,
+deny owner @{HOME}/.cpan/ r,
+deny owner @{HOME}/.cpan/** mrwkl,
+deny /root/ r,
+
+include if exists <local/managed-wrapper-perl>

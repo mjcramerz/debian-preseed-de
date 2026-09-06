@@ -1,0 +1,90 @@
+#!/usr/bin/python3
+"""Start an opt-in, loopback-only Chromium-family debugging profile."""
+from __future__ import annotations
+import argparse
+import json
+import os
+from pathlib import Path
+import pwd
+import socket
+import stat
+import sys
+from urllib.parse import urlsplit
+
+BINARIES = {
+    'chromium': ('/usr/bin/chromium',),
+    'vivaldi': ('/usr/bin/vivaldi-stable', '/usr/bin/vivaldi'),
+    'edge': ('/usr/bin/microsoft-edge-stable', '/usr/bin/microsoft-edge'),
+    'chrome': ('/usr/bin/google-chrome-stable', '/usr/bin/google-chrome'),
+}
+
+
+def port_number(value: str) -> int:
+    port = int(value)
+    if not 1024 <= port <= 65535:
+        raise argparse.ArgumentTypeError('port must be between 1024 and 65535')
+    return port
+
+
+def private_profile(home: Path, browser: str, uid: int) -> Path:
+    home = home.resolve(strict=True)
+    if home.stat().st_uid != uid or home.stat().st_mode & 0o022:
+        raise ValueError('account home is not owned by this user')
+    # The account home may be a legitimate mount. No symlinks are followed
+    # beneath it, and profile data is never shared with the normal browser.
+    path = home
+    for part in ('.local', 'state', 'browser-devtools', browser):
+        path = path / part
+        try:
+            path.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        info = path.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_mode & 0o022:
+            raise ValueError(f'unsafe profile ancestor: {path}')
+        if part in ('browser-devtools', browser):
+            path.chmod(0o700)
+    return path
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('browser', choices=BINARIES)
+    parser.add_argument('--port', type=port_number, default=9222)
+    parser.add_argument('--url', default='about:blank')
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args()
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        parser.error('run as your regular desktop user, without sudo')
+    if args.url != 'about:blank':
+        url = urlsplit(args.url)
+        if url.scheme not in {'https', 'http'} or not url.hostname or url.username is not None or url.password is not None:
+            parser.error('URL must be HTTP(S), without embedded credentials')
+    binary = next((p for p in BINARIES[args.browser] if os.path.isfile(p) and os.access(p, os.X_OK)), None)
+    if not binary:
+        parser.error(f'{args.browser} is not installed in a supported system path')
+    try:
+        profile = private_profile(Path(pwd.getpwuid(os.getuid()).pw_dir), args.browser, os.getuid())
+        command = [binary, f'--user-data-dir={profile}', '--remote-debugging-address=127.0.0.1',
+                   f'--remote-debugging-port={args.port}', '--no-first-run', '--no-default-browser-check', args.url]
+        if args.dry_run:
+            print(json.dumps(command))
+            return 0
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(('127.0.0.1', args.port))
+        print(f'DevTools: http://127.0.0.1:{args.port}; isolated profile: {profile}', file=sys.stderr)
+        print('Close this browser when finished. The endpoint has no authentication; do not expose it to the LAN.', file=sys.stderr)
+        environment = dict(os.environ)
+        if args.browser == 'vivaldi':
+            # Match the managed wrapper: use the root-installed codec, not a
+            # per-user helper download blocked by the enforced wrapper profile.
+            environment['VIVALDI_FFMPEG_AUTO'] = '0'
+        os.execve(binary, command, environment)
+    except (OSError, ValueError) as exc:
+        print(f'browser-devtools: {exc}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

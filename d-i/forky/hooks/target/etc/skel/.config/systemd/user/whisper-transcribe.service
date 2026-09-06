@@ -1,0 +1,40 @@
+[Unit]
+StartLimitIntervalSec=10min
+StartLimitBurst=3
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target whisper-record.service
+Description=Transcribe the completed Whisper voice recording
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+Restart=on-failure
+RestartSec=30s
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+SyslogIdentifier=whisper-record-toggle
+StandardOutput=journal
+StandardError=journal
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecStart=/usr/local/libexec/whisper-record-toggle transcribe
+TimeoutStartSec=15s
+RuntimeMaxSec=30min
+TimeoutStopSec=5s
+KillSignal=SIGTERM
+KillMode=control-group
+NoNewPrivileges=yes
+# Per-user filesystem namespace directives implicitly enable PrivateUsers=,
+# which hides host-root ownership behind the overflow UID. Keep the generated
+# root-owned configuration verifiable and rely on this unit's AppArmor domain
+# plus the fixed read-only system paths instead.
+RestrictAddressFamilies=AF_UNIX AF_INET
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077
+
+# This unit is intentionally not enabled: the recorder toggle starts it only
+# after whisper-record.service has stopped and left a completed WAV artifact.

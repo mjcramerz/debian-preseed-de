@@ -1,0 +1,3 @@
+# Managed by unattended-installer for addon/devops.
+# The ChatGPT package is serviced only through the signed local repository.
+repo_add_once="false"

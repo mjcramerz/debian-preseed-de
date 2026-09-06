@@ -1,0 +1,7595 @@
+[
+  {
+    "url": "chrome://chrome-urls/",
+    "title": "Chrome URLs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://components/",
+    "title": "Components",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://crashes/",
+    "title": "Crashes",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://extensions/",
+    "title": "Extensions",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://flags/",
+    "title": "Flags",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://password-manager/passwords",
+    "title": "Passwords",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome"
+    ]
+  },
+  {
+    "url": "chrome://sandbox/",
+    "title": "Sandbox Status",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://policy/",
+    "title": "Policies",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://indexeddb-internals/",
+    "title": "IndexedDB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://histograms/",
+    "title": "Histograms",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://inspect/#devices",
+    "title": "Inspect with Chrome Developer Tools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://net-export/",
+    "title": "Network Log Export",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://site-engagement/",
+    "title": "Site Engagement",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://suggest-internals/",
+    "title": "Suggest Debug Tool",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://device-log/",
+    "title": "Device Log",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://media-engagement/",
+    "title": "Media Engagement",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://predictors/",
+    "title": "Predictors",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Debug"
+    ]
+  },
+  {
+    "url": "chrome://connectors-internals/",
+    "title": "Connectors Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://quota-internals/",
+    "title": "Quota Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://usb-internals/",
+    "title": "USB Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://translate-internals/",
+    "title": "Translate Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://web-app-internals/",
+    "title": "Web App Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://password-manager-internals/",
+    "title": "Password Manager Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://net-internals/#events",
+    "title": "Net Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://metrics-internals/#uma",
+    "title": "Metrics Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://extensions-internals/",
+    "title": "Extensions Internal",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://gpu/",
+    "title": "GPU Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://gcm-internals/",
+    "title": "GCM Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://accessibility/",
+    "title": "Accessibility Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://app-service-internals/",
+    "title": "App Service Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://attribution-internals/",
+    "title": "Attribution Reporting API Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://autofill-internals/",
+    "title": "Autofill Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://private-aggregation-internals/",
+    "title": "Private Aggregation API Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://bluetooth-internals/#adapter",
+    "title": "Bluetooth Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://ntp-tiles-internals/",
+    "title": "NTP Tiles Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://process-internals/#general",
+    "title": "Process Model Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://sync-internals/",
+    "title": "Sync Internals",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://system/",
+    "title": "About System",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://version/",
+    "title": "About Version",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Internals"
+    ]
+  },
+  {
+    "url": "chrome://print/",
+    "title": "Print",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Chrome",
+      "Userland"
+    ]
+  },
+  {
+    "url": "chrome://new-tab-page/",
+    "title": "New Tab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://tab-search.top-chrome/",
+    "title": "Search Tab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://downloads/",
+    "title": "",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://settings/",
+    "title": "",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://apps/",
+    "title": "",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://app.raindrop.io/my/0",
+    "title": "BOOKMARKS",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://vivaldi-webui/startpage",
+    "title": "Start Page",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://gravatar.com/",
+    "title": "Gravatar",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/",
+    "title": "LinkedIn",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://www.glassdoor.com/",
+    "title": "Glassdoor",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://ko-fi.com/",
+    "title": "Ko-fi",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://app.tuta.com/login",
+    "title": "Tuta",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://x.com/",
+    "title": "Twitter",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://www.reddit.com/",
+    "title": "Reddit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Brand"
+    ]
+  },
+  {
+    "url": "https://www.ultramaroil.com/",
+    "title": "ULTRAMAR OIL GROUP LLC",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Career",
+      "Company"
+    ]
+  },
+  {
+    "url": "https://directrecruiters.com/",
+    "title": "Direct Recruiters Inc",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Career",
+      "Recruitment"
+    ]
+  },
+  {
+    "url": "https://weworkremotely.com/",
+    "title": "WeWorkRemotely",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Career",
+      "Recruitment"
+    ]
+  },
+  {
+    "url": "https://account.academicwork.com/my-profile",
+    "title": "Academic Work",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Career",
+      "Recruitment"
+    ]
+  },
+  {
+    "url": "https://jobb.a-hub.se/",
+    "title": "A-hub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Career",
+      "Recruitment"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-intro?view=windows-11",
+    "title": "WinPE",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/add-and-remove-drivers-to-an-offline-windows-image?view=windows-11",
+    "title": "Unattended Drivers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/powershell/scripting/install/install-debian?view=powershell-7.6",
+    "title": "PowerShell 7 on Debian",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://x.com/home",
+    "title": "(2) Home / X",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/download-winpe--windows-pe?view=windows-11",
+    "title": "WinPE: Download",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-mount-and-customize?view=windows-11",
+    "title": "WinPE: Mount and Customize",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/get-started/?view=windows-11",
+    "title": "Win11: Build",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-add-packages--optional-components-reference?view=windows-11",
+    "title": "WinPE: Add packages (Optional Components Reference) | Microsoft Learn",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install",
+    "title": "Download and install the Windows ADK",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-offline-install",
+    "title": "Install the ADK offline",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/windows/deployment/customize-boot-image?tabs=powershell",
+    "title": "Customize Windows PE boot images",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://www.how2shout.com/how-to/download-windows-adk-winpe-addon-windows-11-10.html#:~:text=You%20can%20also%20manually%20check,you're%20good%20to%20go.",
+    "title": "Installing Windows ADK and WinPE for Windows 10 & 1",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://gist.github.com/rvrsh3ll/0810c6ed60e44cf7932e4fbae25880df",
+    "title": "Windows Product Keys",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://gist.github.com/ryanhossain9797/81ce63938fcaa3aa2b9bcd23c74870cf",
+    "title": "Activate Windows for free",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://medhacloud.com/blog/office-365-product-keys-all-versions-2026",
+    "title": "Microsoft Office 365 Product Keys",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0064484",
+    "title": "Zoom Mass-deploying Windows",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://windowsforum.com/threads/enable-native-nvme-on-windows-11-hidden-flags-vivetool-and-server-2025-gains.406833/",
+    "title": "Enable Native NVMe on Windows 11: Hidden Flags, ViVeTool, and Server 2025 Gains | Windows Forum",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://docs.nvidia.com/",
+    "title": "NVIDIA Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Nvidia"
+    ]
+  },
+  {
+    "url": "https://www.psdevwiki.com/ps5/",
+    "title": "PS5 Developer Wiki",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Sony"
+    ]
+  },
+  {
+    "url": "https://docs.google.com/spreadsheets/u/0/d/e/2PACX-1vSNnVv8WE8ZcvzwlHQywKt8uw9sOTz8FcAbXDjsL2jKV8iOyHoHM7voHdT2n2yGbSg0q8l47GJnlOng/pubhtml?pli=1",
+    "title": "PS5 Exploit Table",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Sony"
+    ]
+  },
+  {
+    "url": "https://www.debian.org/distrib/packages",
+    "title": "Debian -- Packages",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://www.debian.org/releases/trixie/example-preseed.txt",
+    "title": "Debian Preseed Example",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://live-team.pages.debian.net/live-manual/html/live-manual/index.en.html",
+    "title": "Debian Live Manual",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://preseed.debian.net/debian-preseed/",
+    "title": "Debian preseeds - all the possibilities",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://armbian.com/",
+    "title": "Armbian",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://dietpi.com/",
+    "title": "DietPi",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://pkg.kali.org/",
+    "title": "Kali Linux Packages",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://nethunter.kali.org/",
+    "title": "Kali NetHunter Overview",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/community/",
+    "title": "Kali Linux Community",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://portal.cloud.hashicorp.com/vagrant/discover/kalilinux/rolling",
+    "title": "Kali Linux Vagrant",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/docs/containers/official-kalilinux-docker-images/",
+    "title": "Kali Linux Docker Images",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/tools/",
+    "title": "Kali Linux Tools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/docs/",
+    "title": "Kali Linux Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-platforms",
+    "title": "Kali Linux Download",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-installer-images",
+    "title": "Kali Linux Installer Images",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-virtual-machines",
+    "title": "Kali Linux Virtual Machines",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-arm",
+    "title": "Kali Linux RaspberryPI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-mobile",
+    "title": "Kali Linux NetHunter Pro",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-cloud",
+    "title": "Kali Linux Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-containers",
+    "title": "Kali Linux Containers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-live",
+    "title": "Kali Linux Live Boot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-wsl",
+    "title": "Kali Linux WSL",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/get-kali/#kali-build-scripts",
+    "title": "Kali Linux Build Scripts",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux",
+      "Images"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/docs/usb/",
+    "title": "Kali Linux Docs USB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://app.crowdsec.net/hub",
+    "title": "CrowdSec Hub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "CrowdSec"
+    ]
+  },
+  {
+    "url": "https://doc.crowdsec.net/u/bouncers/firewall/",
+    "title": "CrowdSec Firewall",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "CrowdSec"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=eUwR_CbezmQ",
+    "title": "Cut Your Hair",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "DIY"
+    ]
+  },
+  {
+    "url": "https://docs.github.com/en/webhooks/webhook-events-and-payloads",
+    "title": "GitHub Webhooks",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://www.freedesktop.org/wiki/Software/dbus/",
+    "title": "freedesktop - dbus",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Dbus"
+    ]
+  },
+  {
+    "url": "https://aide.github.io/doc/",
+    "title": "AIDE Manual",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AIDE"
+    ]
+  },
+  {
+    "url": "https://modelcontextprotocol.info/",
+    "title": "MCP Protocol",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "MCP"
+    ]
+  },
+  {
+    "url": "https://registry.modelcontextprotocol.io/",
+    "title": "MCP Registry",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "MCP"
+    ]
+  },
+  {
+    "url": "https://mcpservers.org/",
+    "title": "MCP Servers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "MCP"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/config-schema.json",
+    "title": "Config Schema",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/",
+    "title": "Codex Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex",
+    "title": "Codex",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/cli",
+    "title": "Codex CLI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/sdk",
+    "title": "Codex SDK",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/guides/agents-sdk",
+    "title": "Use Codex with the Agents SDK",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/github-action",
+    "title": "Codex GitHub Action",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/changelog",
+    "title": "Codex changelog",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/guides/agents-md#layer-project-instructions",
+    "title": "Custom instructions with AGENTS.md",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/quickstart/",
+    "title": "Quickstart",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/ide/",
+    "title": "Codex IDE extension",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/cloud",
+    "title": "Codex cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/skills",
+    "title": "Agent Skills",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/guides/slash-commands",
+    "title": "Slash commands in Codex CLI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://developers.openai.com/codex/guides/agents-md/",
+    "title": "Custom instructions with AGENTS.md",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://academy.openai.com/public/resources/codex-for-builders",
+    "title": "Codex for Builders - Resource | OpenAI Academy",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Codex"
+    ]
+  },
+  {
+    "url": "https://chatgpt.com/codex",
+    "title": "OpenAI Codex",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://cookbook.openai.com/articles/codex_exec_plans",
+    "title": "Using PLANS.md for multi-hour problem solving",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://cookbook.openai.com/examples/codex/code_modernization",
+    "title": "Modernizing your Codebase with Codex",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://openai.com/index/introducing-upgrades-to-codex/",
+    "title": "Introducing upgrades to Codex | OpenAI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://platform.openai.com/docs/overview",
+    "title": "OpenAI Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://agents.md/#examples",
+    "title": "AGENTS.md",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Agents"
+    ]
+  },
+  {
+    "url": "https://agentskills.io/home",
+    "title": "Overview - Agent Skills",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Agents"
+    ]
+  },
+  {
+    "url": "https://agentskills.io/specification",
+    "title": "Specification - Agent Skills",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "AI",
+      "Agents"
+    ]
+  },
+  {
+    "url": "https://documentation.wazuh.com/current/deployment-options/wazuh-from-sources/wazuh-server/index.html",
+    "title": "Installing the Wazuh manager from sources",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Wazuh"
+    ]
+  },
+  {
+    "url": "https://support.google.com/chromebook/answer/1080595?hl=en",
+    "title": "Recover your Chromebook",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Chromebook"
+    ]
+  },
+  {
+    "url": "https://docs.mrchromebox.tech/docs/firmware/wp/disabling.html",
+    "title": "Disabling Firmware Write Protection",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Chromebook"
+    ]
+  },
+  {
+    "url": "https://docs.mrchromebox.tech/docs/supported-devices.html",
+    "title": "Supported Devices",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Chromebook"
+    ]
+  },
+  {
+    "url": "https://docs.chrultrabook.com/docs/devices.html",
+    "title": "Device Support Status | Chrultrabook Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Chromebook"
+    ]
+  },
+  {
+    "url": "https://docs.chrultrabook.com/",
+    "title": "Chrultrabook Docs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Chromebook"
+    ]
+  },
+  {
+    "url": "https://wiki.cachyos.org/",
+    "title": "CachyOS",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://xanmod.org/",
+    "title": "XanMod Kernel",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://antixlinux.com/kernel-upgrades-available/",
+    "title": "antiX Debian Kernel",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://nvmexpress.org/",
+    "title": "NVM Express",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://documents.westerndigital.com/content/dam/doc-library/en_us/assets/public/western-digital/collateral/user-guide/user-guide-wddcs-tool.pdf",
+    "title": "User Guide: WDDCS Tool",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://sg.danny.cz/sg/sg3_utils.html",
+    "title": "The sg3_utils package",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://sg.danny.cz/sg/smp_utils.html#mozTocId356346",
+    "title": "smp_utils package",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://sg.danny.cz/sg/sg3_utils.html#__RefHeading___Toc142_3724309425",
+    "title": "The sg3_utils package",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Docs",
+      "Kernels"
+    ]
+  },
+  {
+    "url": "https://releases.llvm.org/",
+    "title": "LLVM Releases",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://apt.llvm.org/",
+    "title": "LLVM Apt",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://clang.llvm.org/",
+    "title": "LLVM Clang C",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.rarlab.com/",
+    "title": "WinRAR",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.7-zip.org/download.html",
+    "title": "7zip",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://portableapps.com/",
+    "title": "PortableApps.com",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.easeus.com/",
+    "title": "EaseUS Software",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://rufus.ie/downloads/",
+    "title": "Rufus Index",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.rodsbooks.com/",
+    "title": "gdisk/sgdisk/refind",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.gnu.org/software/grub/",
+    "title": "GNU GRUB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://www.netfilter.org/projects/nftables/index.html",
+    "title": "netfilter/iptables",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Artifacts"
+    ]
+  },
+  {
+    "url": "https://cdimage.debian.org/debian-cd/",
+    "title": "Debian Index",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://ftp.debian.org/debian/dists/trixie/main/debian-installer/binary-amd64/",
+    "title": "Debian Packages",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://preseed.debian.net/debian-preseed/trixie/",
+    "title": "Index of /debian-preseed/trixie",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://ftp.debian.org/debian/dists/",
+    "title": "Index of /debian/dists",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://ftp.sunet.se/",
+    "title": "Index of /tails",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/upstream-virtio/",
+    "title": "Fedora Virtio Drivers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Fedora"
+    ]
+  },
+  {
+    "url": "https://cdimage.kali.org/",
+    "title": "Kali Linux Index",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://http.kali.org/kali/",
+    "title": "Index of /kali",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://pcsupport.lenovo.com/us/en/products/laptops-and-netbooks/flex-series/flex-5-14itl05/82hs/82hs005hmx/pw005dzm/downloads/",
+    "title": "Lenovo Flex 5",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Lenovo"
+    ]
+  },
+  {
+    "url": "https://catalog.update.microsoft.com/Home.aspx",
+    "title": "MS Update Catalog",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://massgrave.dev/",
+    "title": "Microsoft Activation Scripts | MAS",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://schneegans.de/",
+    "title": "Windows Config Generators",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://www.microsoft.com/en-us/software-download",
+    "title": "Windows Download",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://uupdump.net/",
+    "title": "Windows UUP dump",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://thedoggybrad.github.io/WindowsPEBasicEnhanced/",
+    "title": "Windows PE Basic Enhanced",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://www.microsoft.com/en-us/download/details.aspx?id=55319",
+    "title": "Download Microsoft Security Compliance Toolkit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://zoom.us/download/admin",
+    "title": "Zoom Apps and Plugins",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://developer.download.nvidia.com/compute/cuda/repos/",
+    "title": "Nvidia Index",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Nvidia"
+    ]
+  },
+  {
+    "url": "https://cdimage.ubuntu.com/",
+    "title": "Ubuntu Index",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Ubuntu"
+    ]
+  },
+  {
+    "url": "https://www.google.com/chrome/",
+    "title": "Chrome Browser",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Google"
+    ]
+  },
+  {
+    "url": "https://dl.google.com/dl/edgedl/chromeos/recovery/linux_recovery.sh",
+    "title": "ChromeOS Recovery Linux",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download",
+      "Google"
+    ]
+  },
+  {
+    "url": "https://mirror.leaseweb.com/",
+    "title": "Leaseweb Linux Mirrors",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Download"
+    ]
+  },
+  {
+    "url": "https://cyberarsenal.org/",
+    "title": "CyberArsenal",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://0x00sec.org/",
+    "title": "0x00sec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.wilderssecurity.com/",
+    "title": "Wilders Security Forums",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://malwaretips.com/",
+    "title": "MalwareTips",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://hacklido.com/",
+    "title": "HACKLIDO",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.hackerone.com/",
+    "title": "HackerOne",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://forums.kali.org/",
+    "title": "Kali Linux Forum",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://theoven.org/",
+    "title": "TheOven.org",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://msfn.org/board/",
+    "title": "MSFN",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.technibble.com/",
+    "title": "Technibble",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://stackoverflow.com/questions",
+    "title": "Stack Overflow",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://dev.to/",
+    "title": "DEV Community",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.badcaps.net/",
+    "title": "Badcaps Repair Forum",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.twit.community/",
+    "title": "TWiT.Community",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://superuser.com/",
+    "title": "Super User",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://windowsforum.com/",
+    "title": "Windows Forum",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "Forum"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/blog/",
+    "title": "Kali Linux Blog",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://kalilinux.substack.com/",
+    "title": "Kali Linux Substack",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.bleepingcomputer.com/",
+    "title": "BleepingComputer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.esecurityplanet.com/",
+    "title": "eSecurity Planet",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.helpnetsecurity.com/",
+    "title": "Help Net Security",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.geeksforgeeks.org/",
+    "title": "GeeksforGeeks",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.phoronix.com/",
+    "title": "Phoronix News",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://flare.io/",
+    "title": "Flare",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.zerofox.com/",
+    "title": "ZeroFox",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://malwaretech.com/",
+    "title": "MalwareTech",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://devops.com/",
+    "title": "DevOps",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://onlinecomputertips.com/",
+    "title": "Online Computer Tips",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://www.libhunt.com/topic/nvme",
+    "title": "Top 20 nvme Open-Source Projects | LibHunt",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "News"
+    ]
+  },
+  {
+    "url": "https://discord.com/channels/@me",
+    "title": "Discord Chat",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "People"
+    ]
+  },
+  {
+    "url": "https://app.tuta.com/login",
+    "title": "Tuta Mail",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Admin",
+      "People"
+    ]
+  },
+  {
+    "url": "https://www.appveyor.com/",
+    "title": "AppVeyor",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://semaphore.io/",
+    "title": "Semaphore",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://about.gitea.com/",
+    "title": "Gitea",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://ci.codeberg.org/login",
+    "title": "Woodpecker",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://codeberg.org/",
+    "title": "Codeberg.org",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://circleci.com/",
+    "title": "CircleCI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://codefresh.io/",
+    "title": "Codefresh",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.harness.io/products/continuous-integration",
+    "title": "Harness",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.buildbuddy.io/",
+    "title": "BuildBuddy",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://script.google.com/home",
+    "title": "Google Scripts",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://cirrus-ci.org/",
+    "title": "Cirrus CI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://new.drupal.org/home",
+    "title": "Drupal",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.jenkins.io/",
+    "title": "Jenkins",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.travis-ci.com/",
+    "title": "Travis CI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://buildkite.com/home/",
+    "title": "Buildkite",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.drone.io/",
+    "title": "Drone CI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.jetbrains.com/teamcity/",
+    "title": "JetBrains",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://zuul-ci.org/",
+    "title": "Zuul",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Automation"
+    ]
+  },
+  {
+    "url": "https://www.oracle.com/cloud/free/",
+    "title": "Oracle Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://aws.amazon.com/",
+    "title": "Amazon Web Services",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://cloud.google.com/",
+    "title": "Google Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://azure.microsoft.com/en-us",
+    "title": "Microsoft Azure",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.ibm.com/solutions/cloud",
+    "title": "IBM Cloud Solutions",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.ibm.com/quantum",
+    "title": "IBM Quantum Computing",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.digitalocean.com/",
+    "title": "DigitalOcean",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://github.com/search?type=registrypackages",
+    "title": "Search GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/explore",
+    "title": "Explore GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/trending",
+    "title": "Trending GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/search?q=repo:shared-common/gh-actions-cfg+repo:shared-common/gh-actions-glab+repo:shared-common/gh-actions-glab-group+repo:mattycramer/codex&type=code",
+    "title": "GitHub Indexing",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/features/",
+    "title": "GitHub Features",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/mcp",
+    "title": "MCP Registry",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/repos",
+    "title": "Repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/mattycramer/repositories",
+    "title": "mattycramer repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/shared-common/repositories",
+    "title": "shared-common Repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/upstream-main/repositories",
+    "title": "upstream-main repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/xf-main/repositories",
+    "title": "xf-main repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/xf-qubit/repositories",
+    "title": "xf-qubit repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/xf-secops/repositories",
+    "title": "xf-secops repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://github.com/orgs/xf-checkout/repositories",
+    "title": "xf-checkout repositories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitHub"
+    ]
+  },
+  {
+    "url": "https://gitlab.com/explore/projects/active",
+    "title": "Explore Projects",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitLab"
+    ]
+  },
+  {
+    "url": "https://gitlab.com/explore/groups/active",
+    "title": "Explore Groups",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "GitLab"
+    ]
+  },
+  {
+    "url": "https://github.com/xf-main/MiniNT5-Tools",
+    "title": "xf-main/MiniNT5-Tools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Origin",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://github.com/xf-main/minimal-winpe",
+    "title": "xf-main/minimal-winpe: Scripts for creating Minimal Windows PE",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Origin",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://github.com/xf-checkout/PhoenixPE",
+    "title": "xf-checkout/PhoenixPE",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Origin",
+      "Microsoft"
+    ]
+  },
+  {
+    "url": "https://github.com/xf-checkout/docker-pihole-unbound",
+    "title": "xf-checkout/docker-pihole-unbound",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Origin",
+      "Pi-hole"
+    ]
+  },
+  {
+    "url": "https://github.com/xf-secops/wazuh",
+    "title": "xf-secops/wazuh",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Origin",
+      "Wazuh"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/salsa-ci-team/pipeline",
+    "title": "pipeline",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/pkg-netfilter-team/pkg-nftables",
+    "title": "pkg-nftables",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/labwc-team/labwc",
+    "title": "labwc",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/swaywm-team/wlopm",
+    "title": "wlopm",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://gitlab.gnome.org/GNOME/at-spi2-core",
+    "title": "at-spi2-core",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "GNOME"
+    ]
+  },
+  {
+    "url": "https://android.googlesource.com/platform/manifest",
+    "title": "android/platform/manifest",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Google Open Source"
+    ]
+  },
+  {
+    "url": "https://chromium.googlesource.com/chromiumos/user-recovery-tools/",
+    "title": "chromiumos/user-recovery-tools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Google Open Source"
+    ]
+  },
+  {
+    "url": "https://chromium.googlesource.com/chromiumos/",
+    "title": "chromiumos",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Google Open Source"
+    ]
+  },
+  {
+    "url": "https://gitlab.com/kalilinux/build-scripts/kali-vm",
+    "title": "Build-Scripts/kali-vm",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Kali Linux"
+    ]
+  },
+  {
+    "url": "https://invent.kde.org/utilities/kate",
+    "title": "KDE/Kate",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "KDE"
+    ]
+  },
+  {
+    "url": "https://git.kernel.org/pub/scm/git/git.git/",
+    "title": "kernel.org/git",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Linux"
+    ]
+  },
+  {
+    "url": "https://github.com/ossec/ossec-hids",
+    "title": "ossec-hids",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "OSSEC"
+    ]
+  },
+  {
+    "url": "https://sourceforge.net/p/zsh/code/ci/master/tree/",
+    "title": "zsh/Code",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "SourceForge"
+    ]
+  },
+  {
+    "url": "https://sourceforge.net/p/gptfdisk/code/ci/master/tree/",
+    "title": "gptfdisk",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "SourceForge"
+    ]
+  },
+  {
+    "url": "https://gitlab.freedesktop.org/hadess/switcheroo-control",
+    "title": "freedesktop/switcheroo-control",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Freedesktop"
+    ]
+  },
+  {
+    "url": "https://huggingface.co/Agents-MCP-Hackathon",
+    "title": "Agents-MCP-Hackathon",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Hugging Face"
+    ]
+  },
+  {
+    "url": "https://sr.ht/~kennylevinsen/seatd/",
+    "title": "seatd: Seat management daemon and library",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Sourcehut"
+    ]
+  },
+  {
+    "url": "https://github.com/pi-hole/pi-hole",
+    "title": "pi-hole",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Pi-hole"
+    ]
+  },
+  {
+    "url": "https://github.com/agentsmd/agents.md",
+    "title": "agents.md",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Agents"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc",
+    "title": "labwc",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-loc-graph",
+    "title": "labwc-loc-graph",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc.github.io",
+    "title": "labwc.github.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-tweaks",
+    "title": "labwc-tweaks: A Qt configuration tool for labwc",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-themes",
+    "title": "labwc-themes",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-artwork",
+    "title": "labwc-artwork",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-tweaks-gtk",
+    "title": "labwc-tweaks-gtk: A Gtk fork of labwc-tweaks",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-menu-generator",
+    "title": "labwc-menu-generator",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-scope",
+    "title": "labwc-scope: Acceptance Criteria for the Lab Compositor",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-gtktheme",
+    "title": "labwc-gtktheme",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc/labwc-menu-gnome3",
+    "title": "labwc-menu-gnome3",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/ipxe/wimboot",
+    "title": "wimboot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "UEFI"
+    ]
+  },
+  {
+    "url": "https://github.com/acidanthera/OpenCorePkg",
+    "title": "acidanthera/OpenCorePkg",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "UEFI"
+    ]
+  },
+  {
+    "url": "https://github.com/RefindPlusRepo/RefindPlus",
+    "title": "RefindPlusRepo/RefindPlus",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "UEFI"
+    ]
+  },
+  {
+    "url": "https://github.com/wazuh/wazuh",
+    "title": "wazuh/wazuh",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Upstream",
+      "Wazuh"
+    ]
+  },
+  {
+    "url": "https://github.com/cambridgeuniversity",
+    "title": "University of Cambridge",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "University"
+    ]
+  },
+  {
+    "url": "https://github.com/cmu-lib",
+    "title": "Carnegie Mellon University Libraries",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "University"
+    ]
+  },
+  {
+    "url": "https://github.com/stanfordnlp",
+    "title": "Stanford NLP",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "University"
+    ]
+  },
+  {
+    "url": "https://github.com/mit-cml",
+    "title": "MIT App Inventor Project",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "University"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/salsa-ci-team",
+    "title": "Salsa CI Team",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/pkg-netfilter-team",
+    "title": "Netfilter Packaging Team",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/go-team",
+    "title": "Debian Go Packaging Team · GitLab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/explore/groups",
+    "title": "GitLab Salsa Groups",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Debian"
+    ]
+  },
+  {
+    "url": "https://github.com/labwc",
+    "title": "Lab Wayland Compositor",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Labwc"
+    ]
+  },
+  {
+    "url": "https://github.com/crowdsecurity",
+    "title": "CrowdSec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "CrowdSec"
+    ]
+  },
+  {
+    "url": "https://github.com/nvidia",
+    "title": "Nvidia",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Nvidia"
+    ]
+  },
+  {
+    "url": "https://github.com/ossec",
+    "title": "OSSEC",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Ossec"
+    ]
+  },
+  {
+    "url": "https://github.com/malpedia",
+    "title": "Malpedia",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Malpedia"
+    ]
+  },
+  {
+    "url": "https://github.com/wazuh",
+    "title": "Wazuh",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Wazuh"
+    ]
+  },
+  {
+    "url": "https://github.com/NethServer",
+    "title": "NethServer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "NethServer"
+    ]
+  },
+  {
+    "url": "https://github.com/google",
+    "title": "Google",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "Google"
+    ]
+  },
+  {
+    "url": "https://github.com/acidanthera",
+    "title": "Acidanthera",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "UEFI"
+    ]
+  },
+  {
+    "url": "https://github.com/hashicorp",
+    "title": "HashiCorp",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library",
+      "Contrib",
+      "HashiCorp"
+    ]
+  },
+  {
+    "url": "https://github.com/denoyey/BurpsuitePro",
+    "title": "denoyey/BurpsuitePro",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library"
+    ]
+  },
+  {
+    "url": "https://github.com/xiv3r/Burpsuite-Professional",
+    "title": "xiv3r/Burpsuite-Professional",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Library"
+    ]
+  },
+  {
+    "url": "https://azure.microsoft.com/en-us/products/devops/?nav=min",
+    "title": "Azure DevOps",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://bitbucket.org/",
+    "title": "Bitbucket",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://github.com/",
+    "title": "GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://gitlab.com/",
+    "title": "GitLab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://salsa.debian.org/debian",
+    "title": "GitLab Debian",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://gitlab.freedesktop.org/explore/groups",
+    "title": "GitLab Freedesktop",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://gitlab.gnome.org/",
+    "title": "GitLab Gnome",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://invent.kde.org/",
+    "title": "GitLab KDE",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://aws.amazon.com/codecommit/",
+    "title": "AWS CodeCommit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://launchpad.net/",
+    "title": "Launchpad",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://source.cloud.google.com/onboarding/welcome",
+    "title": "Google Source",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://gitee.com/",
+    "title": "Gitee (CH)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://coding.net/",
+    "title": "CODING Dev (CH)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://account.aliyun.com/",
+    "title": "Aliyun Code (CH)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://cloud.tencent.com/",
+    "title": "Tencent (CH)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://gitlab.cn/en",
+    "title": "JiHu GitLab (CH)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://repo.or.cz/",
+    "title": "Repo Git Hosting",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Platforms"
+    ]
+  },
+  {
+    "url": "https://git-scm.com/",
+    "title": "Git SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://git.netfilter.org/",
+    "title": "Netfilter SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://android.googlesource.com/",
+    "title": "Android SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://chromium.googlesource.com/",
+    "title": "Chromium SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://git.kernel.org/",
+    "title": "Linux Kernel SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://gerrit.libreoffice.org/q/status:open+-is:wip",
+    "title": "LibreOffice SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://gitbox.apache.org/",
+    "title": "Apache SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://go.googlesource.com/",
+    "title": "Go SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://fossil-scm.org/home/doc/trunk/www/index.wiki",
+    "title": "Fossil SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://kernel.googlesource.com/",
+    "title": "Google Kernel SCM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Software"
+    ]
+  },
+  {
+    "url": "https://www.gitkraken.com/",
+    "title": "GitKraken",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Tools"
+    ]
+  },
+  {
+    "url": "https://www.postman.com/",
+    "title": "Postman",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Tools"
+    ]
+  },
+  {
+    "url": "https://www.canyouseeme.org/",
+    "title": "Port Check",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Tools"
+    ]
+  },
+  {
+    "url": "https://www.smartgit.dev/",
+    "title": "SmartGit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Tools"
+    ]
+  },
+  {
+    "url": "https://www.offsec.com/events/the-gauntlet/?utm_source=kali&utm_medium=web&utm_campaign=menu",
+    "title": "CTF OffSec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Training",
+      "Cybersecurity"
+    ]
+  },
+  {
+    "url": "https://www.offsec.com/",
+    "title": "OffSec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Training",
+      "Cybersecurity"
+    ]
+  },
+  {
+    "url": "https://www.offsec.com/kali-training/courses/?utm_source=kali&utm_medium=web&utm_campaign=menu",
+    "title": "Kali Linux Training",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Training",
+      "Cybersecurity"
+    ]
+  },
+  {
+    "url": "https://www.nvidia.com/en-us/",
+    "title": "NVIDIA",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://www.redhat.com/en",
+    "title": "Red Hat",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://gitkraken.dev/",
+    "title": "GitKraken.dev",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://www.kali.org/",
+    "title": "Kali Linux",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://www.freedesktop.org/wiki/",
+    "title": "Freedesktop",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://identity.kde.org/",
+    "title": "KDE Identity",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://www.debian.org/",
+    "title": "Debian",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://www.torproject.org/",
+    "title": "Tor Project",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://pi-hole.net/",
+    "title": "Pi-hole",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Vendors"
+    ]
+  },
+  {
+    "url": "https://gist.github.com/imcramer/649eae8e1b316726aeb885c3b095a4d3",
+    "title": "Windows Server 2025 Product Keys",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Gists"
+    ]
+  },
+  {
+    "url": "https://gist.github.com/imcramer/9fc01d577f9136db3c8fa3d744068da9",
+    "title": "Windows 8-11 Product Keys",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Collab",
+      "Gists"
+    ]
+  },
+  {
+    "url": "https://agents.md/",
+    "title": "AGENTS.md",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://dash.cloudflare.com/",
+    "title": "Cloudflare",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://github.com/",
+    "title": "GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://about.gitlab.com/",
+    "title": "GitLab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.gitbook.com/",
+    "title": "GitBook",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://labwc.github.io/",
+    "title": "Labwc",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://gitlab.com/kalilinux",
+    "title": "Kali Linux",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://llvm.org/",
+    "title": "LLVM",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://smee.io/",
+    "title": "smee.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.gtk.org/",
+    "title": "The GTK Project",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://launchpad.net/ubuntu",
+    "title": "Ubuntu",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://wezterm.org/",
+    "title": "WezTerm",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://ipxe.org/wimboot",
+    "title": "iPXE",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://easy2boot.xyz/",
+    "title": "Easy2Boot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.gnu.org/",
+    "title": "The GNU Operating System",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.supergrubdisk.org/super-grub2-disk/",
+    "title": "Super Grub2 Disk",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.rodsbooks.com/refind/getting.html",
+    "title": "The rEFInd Boot Manager",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://docs.mrchromebox.tech/",
+    "title": "MrChromebox.tech",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://raindrop.io/",
+    "title": "Raindrop.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://chromewebstore.google.com/detail/yami-bookmark-launcher/jnalohicjcjdgkbahjgobeadljgmlpba?pli=1",
+    "title": "Yami - Bookmark Launcher",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.adobe.com/#",
+    "title": "Adobe",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://www.hashicorp.com/en",
+    "title": "HashiCorp",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://idp-portal.suse.com/univention/self-service/#page=profiledata",
+    "title": "OpenSUSE Self-Service",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Discover"
+    ]
+  },
+  {
+    "url": "https://vercel.com/copilot-9578s-projects",
+    "title": "Vercel",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://dash.cloudflare.com/",
+    "title": "Cloudflare",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://ap.www.namecheap.com/dashboard",
+    "title": "Namecheap.com",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.netlify.com/",
+    "title": "Netlify",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.dynu.com/",
+    "title": "Dynu Systems, Inc.",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.dynadot.com/",
+    "title": "Dynadot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://jina.ai/api-dashboard/key-manager",
+    "title": "Jina AI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://render.com/",
+    "title": "Render",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.oracle.com/cloud/free/",
+    "title": "Oracle Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://porkbun.com/",
+    "title": "Porkbun",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://mullvad.net/en",
+    "title": "Mullvad VPN",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.namehero.com/",
+    "title": "NameHero®",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://packagecloud.io/",
+    "title": "Packagecloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.backblaze.com/",
+    "title": "Backblaze",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://gemfury.com/",
+    "title": "Gemfury",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.postman.com/",
+    "title": "Postman",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://lovable.dev/",
+    "title": "Lovable",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.heroku.com/",
+    "title": "Heroku",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.digitalocean.com/",
+    "title": "DigitalOcean",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.vultr.com/",
+    "title": "Vultr",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.scaleway.com/en/",
+    "title": "Scaleway",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.ovhcloud.com/en-ie/",
+    "title": "OVHcloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://gogs.io/getting-started/introduction",
+    "title": "Gogs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://gitbucket.github.io/",
+    "title": "GitBucket",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://forgejo.org/",
+    "title": "Forgejo",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://bonobogitserver.com/",
+    "title": "Bonobo Git Server",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.atlassian.com/software/bitbucket/enterprise",
+    "title": "Atlassian Bitbucket",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://rhodecode.com/",
+    "title": "RhodeCode",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.gerritcodereview.com/",
+    "title": "Gerrit Code Review",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://gitolite.com/gitolite/",
+    "title": "Gitolite",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://kallithea-scm.org/",
+    "title": "Kallithea",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.gitblit.com/",
+    "title": "Gitblit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://get.assembla.com/",
+    "title": "Assembla",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://cloudsmith.io/user/login/",
+    "title": "Cloudsmith",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://jfrog.com/artifactory/",
+    "title": "Artifactory",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.sourcetreeapp.com/",
+    "title": "Sourcetree",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://savannah.gnu.org/",
+    "title": "Savannah",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://opendev.org/",
+    "title": "OpenDev",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://codesandbox.io/",
+    "title": "CodeSandbox",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://replit.com/",
+    "title": "Replit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://stackblitz.com/",
+    "title": "StackBlitz",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://bolt.new/",
+    "title": "Bolt",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://ona.com/",
+    "title": "Ona",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://railway.com/",
+    "title": "Railway",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.akamai.com/",
+    "title": "Akamai",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.nethserver.org/",
+    "title": "NethServer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://neon.com/",
+    "title": "Neon Postgres",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.proxmox.com/en/",
+    "title": "Proxmox",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://build.opensuse.org/",
+    "title": "openSUSE Build",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hosting"
+    ]
+  },
+  {
+    "url": "https://www.npmjs.com/",
+    "title": "NPMjs",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://app.docker.com/",
+    "title": "Docker Hub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://huggingface.co/",
+    "title": "Hugging Face",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://www.openml.org/",
+    "title": "OpenML",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://sourceforge.net/",
+    "title": "SourceForge",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://sr.ht/",
+    "title": "sourcehut hub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://opensource.google/",
+    "title": "Google Open Source",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Hub"
+    ]
+  },
+  {
+    "url": "https://gofile.io/",
+    "title": "Gofile",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://filen.io/",
+    "title": "Filen.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://pixeldrain.com/",
+    "title": "Pixeldrain",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://filemood.com/",
+    "title": "FileMood",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://wdfiles.ru/",
+    "title": "WDfiles",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://mega.nz/",
+    "title": "MEGA",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://www.file.io/",
+    "title": "file.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://www.transfernow.net/en",
+    "title": "TransferNow",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://www.box.com/",
+    "title": "Box",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Storage"
+    ]
+  },
+  {
+    "url": "https://www.yeschat.ai/gpts-9t557IEFN5y-CyberSec-GPT",
+    "title": "CyberSec GPT",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://www.yeschat.ai/",
+    "title": "YesChat.ai",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://zapier.com/",
+    "title": "Zapier",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Connectors"
+    ]
+  },
+  {
+    "url": "https://www.hubspot.com/",
+    "title": "HubSpot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Connectors"
+    ]
+  },
+  {
+    "url": "https://www.canva.com/",
+    "title": "Canva",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Connectors"
+    ]
+  },
+  {
+    "url": "https://admin.mistral.ai/organization",
+    "title": "Mistral AI Admin",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Mistral"
+    ]
+  },
+  {
+    "url": "https://console.mistral.ai/",
+    "title": "Mistral AI Studio",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Mistral"
+    ]
+  },
+  {
+    "url": "https://mistral.ai/",
+    "title": "Mistral AI",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Mistral"
+    ]
+  },
+  {
+    "url": "https://console.anthropic.com/dashboard",
+    "title": "Claude Console",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Anthropic"
+    ]
+  },
+  {
+    "url": "https://claude.ai/new",
+    "title": "Claude Chat",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Anthropic"
+    ]
+  },
+  {
+    "url": "https://github.com/anthropics/skills/tree/main",
+    "title": "anthropics/skills: Public repository for Agent Skills",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Anthropic"
+    ]
+  },
+  {
+    "url": "https://claude.ai/login",
+    "title": "Claude",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Anthropic"
+    ]
+  },
+  {
+    "url": "https://dashboard.cohere.com/",
+    "title": "Cohere Dashboard",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Cohere"
+    ]
+  },
+  {
+    "url": "https://platform.deepseek.com/api_keys",
+    "title": "DeepSeek Platform",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "DeepSeek"
+    ]
+  },
+  {
+    "url": "https://chatgpt.com/admin",
+    "title": "ChatGPT Workspace",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "ChatGPT"
+    ]
+  },
+  {
+    "url": "https://grok.com/",
+    "title": "Grok Login",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "Grok"
+    ]
+  },
+  {
+    "url": "https://openai.com/",
+    "title": "OpenAI Homepage",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://platform.openai.com/api-keys",
+    "title": "OpenAI API-Keys",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://chatgpt.com/",
+    "title": "ChatGPT Chat",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "AI",
+      "Vendors",
+      "OpenAI"
+    ]
+  },
+  {
+    "url": "https://access.redhat.com/",
+    "title": "Red Hat Access",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "Linux"
+    ]
+  },
+  {
+    "url": "https://www.hirensbootcd.org/",
+    "title": "Hiren's BootCD",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "Rescue"
+    ]
+  },
+  {
+    "url": "https://medicatusb.com/",
+    "title": "Medicat USB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "System",
+      "Rescue"
+    ]
+  },
+  {
+    "url": "https://linear.app/cybops/team/CODE/active",
+    "title": "Linear",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow"
+    ]
+  },
+  {
+    "url": "https://www.figma.com/",
+    "title": "Figma",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow"
+    ]
+  },
+  {
+    "url": "https://claude.ai/new",
+    "title": "Claude",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow"
+    ]
+  },
+  {
+    "url": "https://chatgpt.com/",
+    "title": "ChatGPT",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow"
+    ]
+  },
+  {
+    "url": "https://www.shiori.ai/",
+    "title": "Shiori",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow"
+    ]
+  },
+  {
+    "url": "https://www.atlassian.com/",
+    "title": "Atlassian Homepage",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://admin.atlassian.com/",
+    "title": "Atlassian Administration",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://bitbucket.org/cybsecops/workspace/overview/",
+    "title": "Bitbucket Workspace",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://cybsecops.atlassian.net/wiki",
+    "title": "Confluence CybSecOps",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://matthewcramer.atlassian.net/wiki",
+    "title": "Confluence Matthewcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://mattycramer.atlassian.net/wiki/home",
+    "title": "Confluence Mattycramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://imcramer.atlassian.net/wiki",
+    "title": "Confluence Imcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://jcramer.atlassian.net/wiki",
+    "title": "Confluence Jcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://cybsecops.atlassian.net/jira/software/projects/KAN/list",
+    "title": "Jira CybSecOps",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://matthewcramer.atlassian.net/jira/",
+    "title": "Jira Matthewcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://mattycramer.atlassian.net/",
+    "title": "jira Mattycramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://imcramer.atlassian.net/",
+    "title": "Jira Imcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://jcramer.atlassian.net/jira/software/projects/KAN/list",
+    "title": "Jira Jcramer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://trello.com/b/KG9CpN2s/my-trello-board",
+    "title": "Trello Board",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://id.atlassian.com/manage-profile/products",
+    "title": "Atlassian Hosted",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://admin.atlassian.com/o/501fca7c-b976-48f8-ae9d-81d9a09ee432/sites",
+    "title": "Sites - jcramer - Atlassian Administration",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://admin.atlassian.com/o/501fca7c-b976-48f8-ae9d-81d9a09ee432/atlassian-apps",
+    "title": "Atlassian Apps",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://id.atlassian.com/",
+    "title": "Discover new apps - jcramer - Atlassian Administration",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Workspace",
+      "Workflow",
+      "Atlassian"
+    ]
+  },
+  {
+    "url": "https://app.any.run/",
+    "title": "ANY.RUN",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://tria.ge/",
+    "title": "Recorded Future",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://hybrid-analysis.com/",
+    "title": "Hybrid Analysis",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://www.joesandbox.com/#windows",
+    "title": "Joe Sandbox",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://cuckoo.cert.ee/",
+    "title": "Cuckoo Sandbox",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://yaraify.abuse.ch/",
+    "title": "YARAify",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://www.virustotal.com/gui/home/upload",
+    "title": "VirusTotal",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://www.filescan.io/scan",
+    "title": "Filescan.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://www.threat.rip/",
+    "title": "Threat Insights Portal",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Analyze"
+    ]
+  },
+  {
+    "url": "https://app.crowdsec.net/",
+    "title": "CrowdSec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://berylliumsec.com/",
+    "title": "Beryllium",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.ossec.net/",
+    "title": "OSSEC",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://wazuh.com/",
+    "title": "Wazuh",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://urlhaus.abuse.ch/",
+    "title": "URLhaus",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.abuseipdb.com/",
+    "title": "AbuseIPDB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://radar.cloudflare.com/",
+    "title": "Cloudflare Radar",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://talosintelligence.com/",
+    "title": "Cisco Talos",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://urlscan.io/",
+    "title": "urlscan.io",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://check.spamhaus.org/",
+    "title": "Spamhaus",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://exchange.xforce.ibmcloud.com/",
+    "title": "IBM X-Force Exchange",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://otx.alienvault.com/",
+    "title": "LevelBlue / Alienvault",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://checkphish.bolster.ai/",
+    "title": "CheckPhish",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.netcraft.com/",
+    "title": "Netcraft",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://global.sitesafety.trendmicro.com/",
+    "title": "Trend Micro",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.fortiguard.com/webfilter",
+    "title": "FortiGuard",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://opentip.kaspersky.com/",
+    "title": "Kaspersky Threat Intelligence",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://sitecheck.sucuri.net/",
+    "title": "Sucuri SiteCheck",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://check.labs.greynoise.io/",
+    "title": "GreyNoise IP Check",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.domaintools.com/",
+    "title": "DomainTools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://securitytrails.com/",
+    "title": "SecurityTrails",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.webroot.com/",
+    "title": "Webroot",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.alphamountain.ai/",
+    "title": "alphaMountain.ai",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Detection"
+    ]
+  },
+  {
+    "url": "https://www.clamav.net/",
+    "title": "ClamAVNet",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Endpoint"
+    ]
+  },
+  {
+    "url": "https://www.avast.com/en-us/index#pc",
+    "title": "Avast Security",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Endpoint"
+    ]
+  },
+  {
+    "url": "https://www.eset.com/us/",
+    "title": "ESET Cybersecurity",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Endpoint"
+    ]
+  },
+  {
+    "url": "https://cobalt-strike.github.io/community_kit/",
+    "title": "Cobalt-Strike Kits",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Exploit"
+    ]
+  },
+  {
+    "url": "https://portswigger.net/",
+    "title": "PortSwigger",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Forensic"
+    ]
+  },
+  {
+    "url": "https://bitwarden.com/",
+    "title": "Bitwarden",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Cybersecurity",
+      "Identity"
+    ]
+  },
+  {
+    "url": "chrome://bookmarks/",
+    "title": "",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "chrome://history/",
+    "title": "",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://www.mojeek.com/",
+    "title": "Mojeek",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://github.com/",
+    "title": "GitHub",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://about.gitlab.com/",
+    "title": "GitLab",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://x.com/",
+    "title": "Twitter",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://www.linkedin.com/",
+    "title": "LinkedIn",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://app.tuta.com/login",
+    "title": "Tuta",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://www.torrentday.com/t",
+    "title": "TorrentDay",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://www.youtube.com/",
+    "title": "YouTube",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://www.reddit.com/",
+    "title": "Reddit",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://digitalcore.club/",
+    "title": "DigitalCore",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://pt.btschool.club/index.php",
+    "title": "Btschool",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://c411.org/",
+    "title": "C411",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://www.svtplay.se/",
+    "title": "SVT Play",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://fruux.com/",
+    "title": "fruux | Contacts, calendars & tasks for teams.",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Content"
+    ]
+  },
+  {
+    "url": "https://www.oracle.com/cloud/free/",
+    "title": "Oracle Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://aws.amazon.com/",
+    "title": "Amazon Web Services",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://cloud.google.com/",
+    "title": "Google Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://azure.microsoft.com/en-us",
+    "title": "Microsoft Azure",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.ibm.com/solutions/cloud",
+    "title": "IBM Cloud Solutions",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.ibm.com/quantum",
+    "title": "IBM Quantum Computing",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Cloud"
+    ]
+  },
+  {
+    "url": "https://www.bing.com/",
+    "title": "Bing",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://www.google.com/",
+    "title": "Google",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://disboard.org/",
+    "title": "Disboard (Discord Servers)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://metager.org/",
+    "title": "MetaGer",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://swisscows.com/en",
+    "title": "Swisscows",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://yacy.net/",
+    "title": "YaCy",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://onion.live/",
+    "title": "onion.live",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Search"
+    ]
+  },
+  {
+    "url": "https://app.secria.me/app/signin",
+    "title": "Secria",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Mail"
+    ]
+  },
+  {
+    "url": "https://app.tuta.com/login",
+    "title": "Tuta Mail",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Mail"
+    ]
+  },
+  {
+    "url": "https://internxt.com/",
+    "title": "Internxt",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Mail"
+    ]
+  },
+  {
+    "url": "https://www.asusrouter.com:8443/Main_Login.asp",
+    "title": "ASUS Router",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Network"
+    ]
+  },
+  {
+    "url": "https://dash.cloudflare.com/",
+    "title": "Cloudflare",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Network"
+    ]
+  },
+  {
+    "url": "https://sharepoint.com/",
+    "title": "SharePoint",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Stack"
+    ]
+  },
+  {
+    "url": "https://m365.cloud.microsoft/search?auth=1&origindomain=Office&client-request-id=bb8290f8-6827-406b-aaba-773344eba878&redirfrom=CsrToSSR",
+    "title": "M365 Cloud",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Stack"
+    ]
+  },
+  {
+    "url": "https://bitwarden.com/",
+    "title": "Bitwarden",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Security"
+    ]
+  },
+  {
+    "url": "https://app.crowdsec.net/",
+    "title": "CrowdSec",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Security"
+    ]
+  },
+  {
+    "url": "https://www.expressen.se/",
+    "title": "Expressen",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Topics"
+    ]
+  },
+  {
+    "url": "https://discord.com/",
+    "title": "Discord",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Favs",
+      "Topics"
+    ]
+  },
+  {
+    "url": "https://chatgpt.com/",
+    "title": "ChatGPT",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "AI"
+    ]
+  },
+  {
+    "url": "https://claude.ai/new",
+    "title": "Claude",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "AI"
+    ]
+  },
+  {
+    "url": "https://grok.com/",
+    "title": "Grok",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "AI"
+    ]
+  },
+  {
+    "url": "https://gemini.google.com/u/3/app",
+    "title": "Google Gemini",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "AI"
+    ]
+  },
+  {
+    "url": "https://www.playstation.com/en-se/",
+    "title": "PlayStation®",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Handheld"
+    ]
+  },
+  {
+    "url": "https://www.picswalls.com/pic/4k-wallpapers/",
+    "title": "4K Wallpapers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Media",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://wallpapershome.com/",
+    "title": "WallpapersHome | Download 4k Wallpapers for Desktop, Windows 11, iPhone, and Android",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Media",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://www.torrentday.com/t",
+    "title": "TorrentDay",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://www.torrentleech.org/#",
+    "title": "TorrentLeech.org",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://www.torrentleech.me/#",
+    "title": "TorrentLeech.me",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://seedpool.org/",
+    "title": "Seedpool",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://pt.btschool.club/index.php",
+    "title": "BTSCHOOL Tracker",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://digitalcore.club/",
+    "title": "DigitalCore Tracker",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://redacted.sh/",
+    "title": "Redacted",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://www.myanonamouse.net/login.php?returnto=%2F",
+    "title": "My Anonamouse",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://bibliotik.me/",
+    "title": "Bibliotik",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://c411.org/",
+    "title": "C411",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://totheglory.im/login.php",
+    "title": "TTG",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://lst.gg/login",
+    "title": "LST",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://karagarga.in/",
+    "title": "KG",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Class"
+    ]
+  },
+  {
+    "url": "https://iptorrents.com/login.php",
+    "title": "iPTorrents",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://hd-space.org/",
+    "title": "HDSpace",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://speedapp.io/login",
+    "title": "SpeedApp",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://blutopia.cc/login",
+    "title": "Blutopia",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://orpheus.network/login.php",
+    "title": "Orpheus Tracker",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://www.torrentbd.net/account-login.php?returnto=%2F",
+    "title": "TorrentBD",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://kp.m-team.cc/login",
+    "title": "M-Team - TP",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://milkie.cc/auth/signin",
+    "title": "Milkie",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://hdfans.org/login.php",
+    "title": "HDFans",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://ncore.pro/login.php?set_lang=en",
+    "title": "nCore",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://torr9.net/login",
+    "title": "Torr9",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "General"
+    ]
+  },
+  {
+    "url": "https://samaritano.cc/pages/1",
+    "title": "Samaritano",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://tlzdigital.com/login",
+    "title": "The Leach Zone (TLZDigital)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://itatorrents.xyz/",
+    "title": "Itatorrents",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://darkpeers.org/",
+    "title": "Darkpeers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://infinityhd.net/login",
+    "title": "InfinityHD",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://malayabits.cc/",
+    "title": "MalayaBits",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://hd-torrents.org/",
+    "title": "HD-Torrents.org",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Movies"
+    ]
+  },
+  {
+    "url": "https://fappaizuri.me/",
+    "title": "Fappaizuri (PG18)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Niche"
+    ]
+  },
+  {
+    "url": "https://sportscult.org/index.php",
+    "title": "SportsCult",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Niche"
+    ]
+  },
+  {
+    "url": "https://bitporn.eu/login",
+    "title": "BitPorn (PG18)",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Niche"
+    ]
+  },
+  {
+    "url": "https://gazellegames.net/login.php",
+    "title": "GazelleGames.net",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Niche"
+    ]
+  },
+  {
+    "url": "https://www.funfile.org/",
+    "title": "FunFile",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://www.mojblink.si/login",
+    "title": "Mojblink.si",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://broadcasthe.net/index.php",
+    "title": "BroadcasTheNet",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://abn.lol/Home/Login?ReturnUrl=%2F",
+    "title": "Connexion",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://aither.cc/login",
+    "title": "Aither",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Private",
+      "Other"
+    ]
+  },
+  {
+    "url": "https://torrentseeker.com/",
+    "title": "TorrentSeeker",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://bitsearch.to/",
+    "title": "Bitsearch",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://ext.to/",
+    "title": "EXT Torrents",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://torrends.to/",
+    "title": "Torrends",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://uindex.org/",
+    "title": "UIndex",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://yts.gg/",
+    "title": "Yts.gg",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://yts.lt/",
+    "title": "Yts.lt",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://thepiratebay.org/index.html",
+    "title": "The Pirate Bay",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://appdoze.net/",
+    "title": "AppDoze",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://magnetz.eu/",
+    "title": "Magnetz",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://yts.bz/",
+    "title": "Yts.bz",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://torrent-empire.me/",
+    "title": "Torrent - Empire",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Public"
+    ]
+  },
+  {
+    "url": "https://www.xrel.to/home.html?lang=en_US",
+    "title": "xREL.v3 Scene-Releases",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Scenes"
+    ]
+  },
+  {
+    "url": "https://wutafuncat.blogspot.com/",
+    "title": "Eset 3-in-1",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers",
+      "Scenes"
+    ]
+  },
+  {
+    "url": "https://hdvinnie.github.io/Private-Trackers-Spreadsheet/",
+    "title": "Private Trackers Spreadsheet",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Entertainment",
+      "Trackers"
+    ]
+  },
+  {
+    "url": "https://watchpeoplelive.tv/",
+    "title": "WatchPeopleLive",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Death"
+    ]
+  },
+  {
+    "url": "https://watchpeopledie.tv/home",
+    "title": "WatchPeopleDie",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Death"
+    ]
+  },
+  {
+    "url": "https://erothots.co/video/sfmifieo/charlotte-star-gangbang",
+    "title": "charlotte star gangbang - EroThots",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://xgroovy.com/videos/112862/slim-model-with-nice-tits-gets-cum-on-cunt-after-sex-with-masculine-male/",
+    "title": "Charlotte Star x1",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.4wank.com/videos/245255/aussie-babe-gets-some-thunder-down-under/",
+    "title": "Charlotte Star x2",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.eporner.com/video-6TDYiU6n1aR/charlotte-star-hardcore-brown-bra/",
+    "title": "Charlotte Star x3",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://mat6tube.com/watch/-207003944_456241207",
+    "title": "Cheyla collins",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://mat6tube.com/watch/-165330904_456244757",
+    "title": "Sera ryder creampie",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://xgroovy.com/search/?q=creampie+gangbang",
+    "title": "Creampie gangbang Porn Videos",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://kenxxx.com/video/item308287713",
+    "title": "Love Creampie Cute young amateuh college teen fucked hard",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.xozilla.xxx/videos/332962/petite-latina-vanessa-insane-gangbang-porn/",
+    "title": "Petite Latina Gangbang",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://xhamster.com/videos/real-creampie-gang-bang-xhRX9xC?pw=",
+    "title": "Real Creampie GB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://xhamster.com/videos/21-guy-cum-inside-german-skinny-milf-at-amateur-swinger-club-xhX3GCe?pw=",
+    "title": "21 Guy German Creampie",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.pornicom.com/videos/2229565/creampied-ganged-indicate/?utm_source=galore&utm_medium=cpc&utm_campaign=pornicom",
+    "title": "Creampie Gangbang",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.porndr.com/videos/117133/petite-blon-gangdon/?utm_source=pbweb",
+    "title": "Petite Blond Gangbang",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://homemade.adult/videos/21737/skinny-teen-gets-creampied-by-black-fuckers/",
+    "title": "Gangbang Skinny Teen",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.porngem.com/videos/group-on-oak-230400/?utm_source=pbweb",
+    "title": "Group on Oak",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://pornkai.com/view?key=ph5b2d522e3276a",
+    "title": "BEST Destiny Lovee Gets smashed by the Cocksmen - PornKai.com",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://sxyprn.net/post/69c16d7a4dd04?sk=BigTits&so=0&ss=latest",
+    "title": "OnlyFans Tricia Oaks and TheFleshMechanic #cute #anal #hardcore #bigtits #pov #doggy #painmore (BigTits - 0) - (23.03.2026) on SexyPorn",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://www.pp39.cn/",
+    "title": "RedXXPorn - Premium HD Adult Videos and Exclusive XXX",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Cautious",
+      "Erot"
+    ]
+  },
+  {
+    "url": "https://wallpapersmax.com/",
+    "title": "650+ 4K Phone Wallpapers Free Download | WallpapersMax",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://iconscout.com/icons/file-app",
+    "title": "File App Icons - Free Download in SVG, PNG",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://www.pngegg.com/",
+    "title": "PNGEgg - Icons",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://www.pexels.com/search/mobile%20wallpaper/",
+    "title": "100,000+ Best Mobile Wallpaper Photos · 100% Free Download · Pexels Stock Photos",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://picjumbo.com/",
+    "title": "Free Images, Backgrounds and Photos • picjumbo",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://4kwallpapers.com/",
+    "title": "4K Wallpapers",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://iconscout.com/",
+    "title": "IconScout",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://www.iconsdb.com/",
+    "title": "Icons DB",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://www.softicons.com/",
+    "title": "SoftIcons",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://htmlcolorcodes.com/color-names/",
+    "title": "Color Names",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://htmlcolorcodes.com/",
+    "title": "HTML Color Codes",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://cdnlogo.com/",
+    "title": "CDNLogo: Brands Logo Vectors & Logo Templates For Free Download",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Theme"
+    ]
+  },
+  {
+    "url": "https://phh.readthedocs.io/en/stable/",
+    "title": "Poker Hand History File Format Specification — Poker Hand History File Format Specification 0.0.2 documentation",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Poker"
+    ]
+  },
+  {
+    "url": "https://zenodo.org/records/17136841",
+    "title": "A Dataset of Poker Hand Histories",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Poker"
+    ]
+  },
+  {
+    "url": "https://www.iconsdb.com/royal-blue-icons/github-8-icon.html",
+    "title": "gh-forks",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Logo",
+      "GitLab"
+    ]
+  },
+  {
+    "url": "https://steamrip.com/",
+    "title": "STEAMRIP",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Personal",
+      "Portfolio",
+      "Fun",
+      "Games"
+    ]
+  },
+  {
+    "url": "https://ae.org/",
+    "title": ".AE.ORG",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://tld-list.com/",
+    "title": "TLD-List",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.101domain.com/domain-availability-search.htm",
+    "title": "101domain",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://onlydomains.com/",
+    "title": "OnlyDomains",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Edge"
+    ]
+  },
+  {
+    "url": "https://www.amazon.com/",
+    "title": "Amazon.com",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Retailer"
+    ]
+  },
+  {
+    "url": "https://cybersectools.com/",
+    "title": "CybersecTools",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Imported",
+      "Home",
+      "Marketplace",
+      "Security"
+    ]
+  },
+  {
+    "url": "https://codeberg.org/jengelh/xtables-addons",
+    "title": "jengelh/xtables-addons",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://gigablast.org/",
+    "title": "gigablast.org",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/sd-browser-features",
+    "title": "Vivaldi Features",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Vivaldi"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/sd-webmail",
+    "title": "Vivaldi Webmail",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Vivaldi"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/sd-vivaldi-help-en",
+    "title": "Vivaldi Help",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Vivaldi"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/vivaldia-game",
+    "title": "Vivaldia Games",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks",
+      "Vivaldi"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/macys-en-us-bk",
+    "title": "Macy's",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/booking-us-bk",
+    "title": "Booking.com",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/tripadvisor-bk",
+    "title": "Tripadvisor",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/ali-us-bk",
+    "title": "AliExpress",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/ebay-us-bk",
+    "title": "eBay",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/yelp-en-us",
+    "title": "Yelp",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/overstock-us-bk",
+    "title": "Overstock",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/target-us",
+    "title": "Target",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/sd-instacart-en-us",
+    "title": "Instacart",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/rakuten-us-bk",
+    "title": "Rakuten",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  },
+  {
+    "url": "https://vivaldi.com/bk/hulu",
+    "title": "Hulu",
+    "folders": [
+      "Bookmarks",
+      "Bookmarks"
+    ]
+  }
+]

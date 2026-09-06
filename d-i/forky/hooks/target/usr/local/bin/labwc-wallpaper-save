@@ -1,0 +1,158 @@
+#!/bin/sh
+set -eu
+
+wallpaper_root=/usr/share/backgrounds/desktop
+state_dir=${HOME:?HOME must be set}/.local/state/labwc
+state_file=${state_dir}/wallpaper
+max_state_bytes=4096
+newline='
+'
+carriage_return=$(printf '\r')
+
+wallpaper_fail() {
+  if [ "${wallpaper_quiet:-false}" != true ]; then
+    printf 'fatal: %s\n' "$*" >&2
+  fi
+  exit 1
+}
+
+wallpaper_quiet=false
+wallpaper_apply=false
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --quiet)
+      wallpaper_quiet=true
+      shift
+      ;;
+    --apply)
+      wallpaper_apply=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    --current)
+      break
+      ;;
+    --*)
+      wallpaper_fail "unsupported option: $1"
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+case "$HOME" in
+  ''|/|*"$newline"*|*"$carriage_return"*)
+    wallpaper_fail "HOME is invalid"
+    ;;
+  /*) ;;
+  *) wallpaper_fail "HOME must be an absolute path" ;;
+esac
+
+wallpaper_resolve() {
+  requested_path=$1
+
+  case "$requested_path" in
+    ''|*"$newline"*|*"$carriage_return"*)
+      return 1
+      ;;
+    /*) ;;
+    *) return 1 ;;
+  esac
+  case "$requested_path" in
+    "${wallpaper_root}/"*) ;;
+    *) return 1 ;;
+  esac
+
+  resolved_path=$(/usr/bin/readlink -f -- "$requested_path" 2>/dev/null || true)
+  case "$resolved_path" in
+    "${wallpaper_root}/"*) ;;
+    *) return 1 ;;
+  esac
+  case "$resolved_path" in
+    *.png|*.jpg|*.jpeg) ;;
+    *) return 1 ;;
+  esac
+
+  [ -f "$resolved_path" ] &&
+    [ -r "$resolved_path" ] &&
+    [ ! -L "$resolved_path" ] ||
+    return 1
+  [ -z "$(/usr/bin/find "$resolved_path" -maxdepth 0 -perm /111 -print -quit 2>/dev/null)" ] ||
+    return 1
+
+  wallpaper_mime=$(/usr/bin/file --brief --mime-type -- "$resolved_path" 2>/dev/null || true)
+  case "$wallpaper_mime" in
+    image/png|image/jpeg) ;;
+    *) return 1 ;;
+  esac
+
+  printf '%s\n' "$resolved_path"
+}
+
+wallpaper_current() {
+  [ -f "$state_file" ] &&
+    [ ! -L "$state_file" ] &&
+    [ -r "$state_file" ] ||
+    return 1
+
+  state_owner=$(/usr/bin/stat -c %u -- "$state_file" 2>/dev/null || true)
+  [ "$state_owner" = "$(/usr/bin/id -u)" ] || return 1
+
+  state_bytes=$(/usr/bin/wc -c <"$state_file" 2>/dev/null || true)
+  state_bytes=${state_bytes##* }
+  case "$state_bytes" in
+    ''|*[!0123456789]*|0) return 1 ;;
+  esac
+  [ "$state_bytes" -le "$max_state_bytes" ] || return 1
+
+  saved_path=$(/usr/bin/cat -- "$state_file" 2>/dev/null || true)
+  case "$saved_path" in
+    ''|*"$newline"*|*"$carriage_return"*)
+      return 1
+      ;;
+  esac
+
+  wallpaper_resolve "$saved_path"
+}
+
+if [ "${1:-}" = --current ]; then
+  [ "$wallpaper_apply" = false ] ||
+    wallpaper_fail "--apply cannot be combined with --current"
+  [ "$#" -eq 1 ] || wallpaper_fail "--current does not accept additional arguments"
+  wallpaper_current
+  exit $?
+fi
+
+[ "$#" -eq 1 ] || wallpaper_fail "expected exactly one wallpaper path"
+resolved_wallpaper=$(wallpaper_resolve "$1" 2>/dev/null || true)
+[ -n "$resolved_wallpaper" ] ||
+  wallpaper_fail "wallpaper must be a readable, non-executable PNG or JPEG below ${wallpaper_root}"
+
+umask 077
+/usr/bin/install -d -m 0700 -- "$state_dir"
+temporary_state=$(/usr/bin/mktemp "${state_dir}/.wallpaper.XXXXXX")
+cleanup() {
+  if [ -n "${temporary_state:-}" ]; then
+    /usr/bin/rm -f -- "$temporary_state"
+  fi
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+printf '%s\n' "$resolved_wallpaper" >"$temporary_state"
+/usr/bin/chmod 0600 -- "$temporary_state"
+/usr/bin/mv -f -- "$temporary_state" "$state_file"
+temporary_state=
+
+if [ "$wallpaper_apply" = true ] &&
+  /usr/bin/systemctl --user --quiet is-active labwc-session.target 2>/dev/null
+then
+  /usr/bin/systemctl --user restart swaybg.service ||
+    wallpaper_fail "failed to restart swaybg.service"
+fi

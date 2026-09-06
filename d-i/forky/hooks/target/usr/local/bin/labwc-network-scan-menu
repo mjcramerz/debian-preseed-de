@@ -1,0 +1,450 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu --dmenu --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+run_network_action() {
+  command -v labwc-network-scan-action >/dev/null 2>&1 ||
+    fatal "labwc-network-scan-action is not installed"
+
+  if labwc-network-scan-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: network scanning action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+choose_interface() {
+  {
+    printf '%s\n' any
+    dumpcap -D 2>/dev/null |
+      sed -n 's/^[0-9][0-9]*\. \([^[:space:]]*\).*$/\1/p'
+    ip -o link show 2>/dev/null |
+      awk -F': ' '{ name=$2; sub(/@.*/, "", name); print name }'
+  } |
+    awk 'NF && !seen[$0]++' |
+    labwc-fuzzel menu --dmenu --prompt "Capture interface" 2>/dev/null ||
+    true
+}
+
+choose_private_target() {
+  {
+    printf '%s\n' 127.0.0.1
+    ip -o -4 route show scope link 2>/dev/null |
+      awk '$1 ~ /^[0-9]+\./ && $1 != "127.0.0.0/8" { print $1 }'
+    printf '%s\n' 192.168.50.0/24 192.168.50.1
+  } |
+    awk 'NF && !seen[$0]++' |
+    labwc-fuzzel menu --dmenu --prompt "Private IPv4 or /24-/32 CIDR" 2>/dev/null ||
+    true
+}
+
+choose_private_host() {
+  {
+    printf '%s\n' 127.0.0.1
+    ip -o -4 address show scope global 2>/dev/null |
+      awk '{ split($4, address, "/"); print address[1] }'
+    ip -o -4 route show default 2>/dev/null |
+      awk '{
+        for (field = 1; field <= NF; field++) {
+          if ($field == "via" && field < NF) {
+            print $(field + 1)
+          }
+        }
+      }'
+    printf '%s\n' 192.168.50.1
+  } |
+    awk 'NF && !seen[$0]++' |
+    labwc-fuzzel menu --dmenu --prompt "Private or loopback IPv4 host" 2>/dev/null ||
+    true
+}
+
+run_selected_nmap_action() {
+  nmap_action=$1
+  target_kind=${2:-network}
+  target_scope=$(
+    choose_lines \
+      "Nmap target scope" \
+      'Private or loopback target' \
+      'Authorized WAN IPv4 host'
+  )
+
+  case "$target_scope" in
+    'Private or loopback target')
+      case "$target_kind" in
+        host) target=$(choose_private_host) ;;
+        network) target=$(choose_private_target) ;;
+        *) fatal "unsupported Nmap target kind: $target_kind" ;;
+      esac
+      [ -n "$target" ] &&
+        run_network_action "$nmap_action" "$target" private-scan
+      ;;
+    'Authorized WAN IPv4 host')
+      confirmation=$(
+        choose_lines \
+          "WAN scan authorization" \
+          'Cancel' \
+          'I am authorized to scan this WAN host'
+      )
+      [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
+        return 0
+      target=$(
+        choose_lines \
+          "Authorized public IPv4 address" \
+          'Enter an authorized public IPv4 address'
+      )
+      [ -n "$target" ] &&
+        run_network_action "$nmap_action" "$target" authorized-wan-scan
+      ;;
+  esac
+}
+
+run_specific_wan_scan() {
+  confirmation=$(
+    choose_lines \
+      "WAN scan authorization" \
+      'Cancel' \
+      'I am authorized to scan this WAN host'
+  )
+  [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
+    return 0
+  target=$(
+    choose_lines \
+      "Authorized public IPv4 address" \
+      'Enter an authorized public IPv4 address'
+  )
+  [ -n "$target" ] &&
+    run_network_action nmap-common-ports "$target" authorized-wan-scan
+}
+
+choose_capture_file() {
+  capture_root="${HOME}/Captures/network-scanning"
+  [ -d "$capture_root" ] || return 0
+
+  find "$capture_root" \
+    -maxdepth 1 \
+    -type f \
+    \( -name '*.pcap' -o -name '*.pcapng' \) \
+    -printf '%T@ %p\n' 2>/dev/null |
+    sort -nr |
+    sed -n '1,50{s/^[^ ]* //;p;}' |
+    labwc-fuzzel menu --dmenu --prompt "Capture file" 2>/dev/null ||
+    true
+}
+
+command -v dumpcap >/dev/null 2>&1 || fatal "dumpcap is not installed"
+command -v ip >/dev/null 2>&1 || fatal "ip is not installed"
+command -v labwc-fuzzel >/dev/null 2>&1 || fatal "labwc-fuzzel is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-network-scan-menu must run as the logged-in desktop user"
+
+while :; do
+  category=$(
+    choose_lines \
+      "Network Scanning" \
+      '⮞ Nmap' \
+      '⮞ Wireshark' \
+      '⮞ Dumpcap' \
+      '⮞ Tcpdump' \
+      '⮞ TShark'
+  )
+
+  case "$category" in
+    '⮞ Nmap')
+      while :; do
+        action=$(
+          choose_lines \
+            Nmap \
+            'Show Listening TCP/UDP Ports' \
+            'Scan Localhost TCP Ports' \
+            'Scan LAN TCP Ports' \
+            'Scan Specific LAN IP' \
+            'Scan Specific WAN IP' \
+            'Discover Hosts' \
+            'Inventory Your Network' \
+            'Check Approved Services' \
+            'Check TLS Settings' \
+            'Check HTTP Security Headers' \
+            'Run Compliance Checks' \
+            'Check SSH Algorithms' \
+            'Check SMB Security' \
+            'Check DNS Service' \
+            'Check Common Ports' \
+            'Scan All TCP Ports (single host)' \
+            '← Back'
+        )
+        case "$action" in
+          'Show Listening TCP/UDP Ports')
+            run_network_action show-listening-ports
+            ;;
+          'Scan Localhost TCP Ports')
+            run_network_action nmap-full-tcp 127.0.0.1 private-scan
+            ;;
+          'Scan LAN TCP Ports')
+            target=$(choose_private_target)
+            [ -n "$target" ] &&
+              run_network_action nmap-common-ports "$target" private-scan
+            ;;
+          'Scan Specific LAN IP')
+            target=$(choose_private_host)
+            [ -n "$target" ] &&
+              run_network_action nmap-full-tcp "$target" private-scan
+            ;;
+          'Scan Specific WAN IP')
+            run_specific_wan_scan
+            ;;
+          'Discover Hosts')
+            run_selected_nmap_action nmap-discovery
+            ;;
+          'Inventory Your Network')
+            run_selected_nmap_action nmap-inventory
+            ;;
+          'Check Approved Services')
+            run_selected_nmap_action nmap-approved-services
+            ;;
+          'Check TLS Settings')
+            run_selected_nmap_action nmap-tls-settings
+            ;;
+          'Check HTTP Security Headers')
+            run_selected_nmap_action nmap-http-headers
+            ;;
+          'Run Compliance Checks')
+            run_selected_nmap_action nmap-compliance
+            ;;
+          'Check SSH Algorithms')
+            run_selected_nmap_action nmap-ssh-settings
+            ;;
+          'Check SMB Security')
+            run_selected_nmap_action nmap-smb-settings
+            ;;
+          'Check DNS Service')
+            run_selected_nmap_action nmap-dns-settings
+            ;;
+          'Check Common Ports')
+            run_selected_nmap_action nmap-common-ports
+            ;;
+          'Scan All TCP Ports (single host)')
+            run_selected_nmap_action nmap-full-tcp host
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '⮞ Wireshark')
+      while :; do
+        action=$(
+          choose_lines \
+            Wireshark \
+            'Launch Wireshark' \
+            'Open Managed Capture' \
+            '← Back'
+        )
+        case "$action" in
+          'Launch Wireshark')
+            run_network_action wireshark-launch
+            ;;
+          'Open Managed Capture')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] &&
+              run_network_action wireshark-open-capture "$capture_file"
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '⮞ Dumpcap')
+      while :; do
+        action=$(
+          choose_lines \
+            Dumpcap \
+            'List Capture Interfaces' \
+            'Capture General Traffic (60s)' \
+            'Capture DNS Traffic (60s)' \
+            'Capture DHCP Traffic (60s)' \
+            'Capture TLS Traffic (60s)' \
+            'Capture Discovery Traffic (60s)' \
+            '← Back'
+        )
+        case "$action" in
+          'List Capture Interfaces')
+            run_network_action dumpcap-list-interfaces
+            ;;
+          'Capture General Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action dumpcap-capture-general "$interface"
+            ;;
+          'Capture DNS Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action dumpcap-capture-dns "$interface"
+            ;;
+          'Capture DHCP Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action dumpcap-capture-dhcp "$interface"
+            ;;
+          'Capture TLS Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action dumpcap-capture-tls "$interface"
+            ;;
+          'Capture Discovery Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action dumpcap-capture-discovery "$interface"
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '⮞ Tcpdump')
+      while :; do
+        action=$(
+          choose_lines \
+            Tcpdump \
+            'List Capture Interfaces' \
+            'Capture General Traffic (60s)' \
+            'Capture DNS Traffic (60s)' \
+            'Capture DHCP Traffic (60s)' \
+            'Capture ICMP Traffic (60s)' \
+            'Capture ARP Traffic (60s)' \
+            'Capture TCP SYN Traffic (60s)' \
+            'Print Traffic Summary (30s)' \
+            '← Back'
+        )
+        case "$action" in
+          'List Capture Interfaces')
+            run_network_action tcpdump-list-interfaces
+            ;;
+          'Capture General Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-general "$interface"
+            ;;
+          'Capture DNS Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-dns "$interface"
+            ;;
+          'Capture DHCP Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-dhcp "$interface"
+            ;;
+          'Capture ICMP Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-icmp "$interface"
+            ;;
+          'Capture ARP Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-arp "$interface"
+            ;;
+          'Capture TCP SYN Traffic (60s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-capture-syn "$interface"
+            ;;
+          'Print Traffic Summary (30s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tcpdump-print-summary "$interface"
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '⮞ TShark')
+      while :; do
+        action=$(
+          choose_lines \
+            TShark \
+            'Show Live IP Endpoints (30s)' \
+            'Show Live DNS Queries (30s)' \
+            'Show Live TLS Server Names (30s)' \
+            'Show TCP Retransmissions (30s)' \
+            'Analyze Protocol Hierarchy' \
+            'Analyze IP Conversations' \
+            'Extract DNS Queries' \
+            'Extract TLS Server Names' \
+            'Show HTTP Error Responses' \
+            '← Back'
+        )
+        case "$action" in
+          'Show Live IP Endpoints (30s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tshark-live-endpoints "$interface"
+            ;;
+          'Show Live DNS Queries (30s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tshark-live-dns "$interface"
+            ;;
+          'Show Live TLS Server Names (30s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tshark-live-tls "$interface"
+            ;;
+          'Show TCP Retransmissions (30s)')
+            interface=$(choose_interface)
+            [ -n "$interface" ] && run_network_action tshark-live-retransmissions "$interface"
+            ;;
+          'Analyze Protocol Hierarchy')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] && run_network_action tshark-file-protocols "$capture_file"
+            ;;
+          'Analyze IP Conversations')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] && run_network_action tshark-file-conversations "$capture_file"
+            ;;
+          'Extract DNS Queries')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] && run_network_action tshark-file-dns "$capture_file"
+            ;;
+          'Extract TLS Server Names')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] && run_network_action tshark-file-tls "$capture_file"
+            ;;
+          'Show HTTP Error Responses')
+            capture_file=$(choose_capture_file)
+            [ -n "$capture_file" ] && run_network_action tshark-file-http-errors "$capture_file"
+            ;;
+          '← Back')
+            break
+            ;;
+          '')
+            exit 0
+            ;;
+        esac
+      done
+      ;;
+    '')
+      exit 0
+      ;;
+  esac
+done

@@ -1,0 +1,116 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/bin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+validate_wayland_session() {
+  current_uid=$(/usr/bin/id -u 2>/dev/null) ||
+    fatal "cannot resolve the current account ID"
+  case "$current_uid" in
+    ''|*[!0-9]*) fatal "the current account ID is invalid" ;;
+  esac
+  [ "$current_uid" -gt 0 ] || fatal "Mullvad VPN must not run as root"
+
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] ||
+    fatal "Mullvad VPN requires the managed Labwc desktop session"
+  [ "${XDG_SESSION_TYPE:-}" = wayland ] ||
+    fatal "Mullvad VPN requires a native Wayland session"
+
+  expected_runtime_dir="/run/user/${current_uid}"
+  [ "${XDG_RUNTIME_DIR:-}" = "$expected_runtime_dir" ] ||
+    fatal "XDG_RUNTIME_DIR is not the managed account runtime directory"
+  [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] ||
+    fatal "XDG_RUNTIME_DIR is not a direct directory"
+  runtime_owner=$(/usr/bin/stat -c '%u' -- "$XDG_RUNTIME_DIR" 2>/dev/null) ||
+    fatal "cannot inspect XDG_RUNTIME_DIR ownership"
+  runtime_mode=$(/usr/bin/stat -c '%a' -- "$XDG_RUNTIME_DIR" 2>/dev/null) ||
+    fatal "cannot inspect XDG_RUNTIME_DIR mode"
+  [ "$runtime_owner" = "$current_uid" ] ||
+    fatal "XDG_RUNTIME_DIR is not owned by the current account"
+  [ "$runtime_mode" = 700 ] ||
+    fatal "XDG_RUNTIME_DIR must be mode 0700"
+
+  case "${WAYLAND_DISPLAY:-}" in
+    wayland-*) wayland_suffix=${WAYLAND_DISPLAY#wayland-} ;;
+    *) fatal "WAYLAND_DISPLAY is not a managed Wayland socket name" ;;
+  esac
+  case "$wayland_suffix" in
+    ''|*[!0-9]*) fatal "WAYLAND_DISPLAY is not a managed Wayland socket name" ;;
+  esac
+
+  wayland_socket="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+  [ -S "$wayland_socket" ] && [ ! -L "$wayland_socket" ] ||
+    fatal "the managed Wayland socket is unavailable"
+  wayland_owner=$(/usr/bin/stat -c '%u' -- "$wayland_socket" 2>/dev/null) ||
+    fatal "cannot inspect the managed Wayland socket ownership"
+  wayland_links=$(/usr/bin/stat -c '%h' -- "$wayland_socket" 2>/dev/null) ||
+    fatal "cannot inspect the managed Wayland socket link count"
+  [ "$wayland_owner" = "$current_uid" ] ||
+    fatal "the managed Wayland socket is not owned by the current account"
+  [ "$wayland_links" = 1 ] ||
+    fatal "the managed Wayland socket must have one filesystem link"
+}
+
+[ "$#" -eq 0 ] || fatal "usage: mullvad-vpn"
+validate_wayland_session
+
+daemon_unit=mullvad-daemon.service
+root_helper=/usr/local/libexec/mullvad-daemon-start
+vendor_launcher='/opt/Mullvad VPN/mullvad-vpn'
+
+[ -x "$root_helper" ] || fatal "Mullvad daemon start helper is unavailable"
+[ -x "$vendor_launcher" ] || fatal "Mullvad VPN launcher is unavailable"
+
+if ! /usr/bin/systemctl --quiet is-active "$daemon_unit"; then
+  if /usr/bin/timeout \
+      --foreground \
+      --kill-after=5s \
+      120s \
+      /usr/bin/pkexec \
+      "$root_helper"
+  then
+    :
+  else
+    start_status=$?
+    fatal "Mullvad daemon start was cancelled or failed (status ${start_status})"
+  fi
+fi
+
+/usr/bin/systemctl --quiet is-active "$daemon_unit" ||
+  fatal "Mullvad daemon did not become active"
+
+unset \
+  DESKTOP_STARTUP_ID \
+  DISPLAY \
+  SESSION_MANAGER \
+  WINDOWID \
+  WLR_XWAYLAND \
+  XAUTHORITY \
+  XWAYLAND \
+  XWAYLAND_FORCE_SCALE \
+  XWAYLAND_NO_GLAMOR \
+  XWAYLAND_PATH \
+  XWAYLAND_RESTART_DELAY \
+  _XWAYLAND_GLOBAL_OUTPUT_SCALE
+
+ELECTRON_OZONE_PLATFORM_HINT=wayland
+GDK_BACKEND=wayland
+QT_QPA_PLATFORM=wayland
+SDL_VIDEODRIVER=wayland
+export \
+  ELECTRON_OZONE_PLATFORM_HINT \
+  GDK_BACKEND \
+  QT_QPA_PLATFORM \
+  SDL_VIDEODRIVER
+
+exec "$vendor_launcher" \
+  --enable-features=UseOzonePlatform \
+  --ozone-platform=wayland

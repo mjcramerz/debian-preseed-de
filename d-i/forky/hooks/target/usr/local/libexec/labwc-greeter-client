@@ -1,0 +1,36 @@
+#!/bin/sh
+set -eu
+
+: "${LABWC_GREETER_SESSION_COMMAND:?LABWC_GREETER_SESSION_COMMAND must be set}"
+
+labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'
+readonly labwc_x11_environment_names
+# Labwc may execute the primary greeter client with compositor-owned
+# environment additions. Strip every X11/Xwayland value before any greeter
+# helper or gtkgreet process is started.
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+
+watcher_pid=
+power_pid=
+
+cleanup_greeter_children() {
+  for child_pid in "$watcher_pid" "$power_pid"; do
+    [ -n "$child_pid" ] || continue
+    kill "$child_pid" >/dev/null 2>&1 || true
+    wait "$child_pid" 2>/dev/null || true
+  done
+}
+trap cleanup_greeter_children EXIT
+trap 'exit 0' HUP INT TERM
+
+if ! /usr/local/bin/labwc-greeter-output --configure >/dev/null 2>&1; then
+  printf '%s\n' 'fatal: managed greeter output selection failed' >&2
+  exit 1
+fi
+LABWC_GREETER_OWNER_PID=$$ \
+  /usr/local/bin/labwc-greeter-output --watch >/dev/null 2>&1 &
+watcher_pid=$!
+/usr/local/bin/labwc-greeter-power >/dev/null 2>&1 &
+power_pid=$!
+/usr/bin/gtkgreet --layer-shell -s /etc/greetd/gtkgreet.css -c "$LABWC_GREETER_SESSION_COMMAND"

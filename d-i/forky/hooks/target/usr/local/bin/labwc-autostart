@@ -1,0 +1,211 @@
+#!/bin/sh
+set -eu
+umask 077
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'
+readonly labwc_x11_environment_names
+# Labwc autostart is the session activation boundary. Never propagate an
+# inherited compositor or login-manager X11 environment into user services.
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+
+systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
+output_waiter=/usr/local/libexec/labwc-output-watch
+# Never wait synchronously for this compositor's stop from its autostart
+# child: the child is itself in that cgroup. Queue a transaction and return.
+activation_complete=false
+activation_owned=false
+session_systemctl() {
+  /usr/bin/timeout --signal=TERM --kill-after=1s 3s "$systemctl_cmd" --user "$@"
+}
+activation_exit() {
+  activation_status=$?
+  trap - 0 HUP INT TERM
+  if [ "$activation_complete" != true ] && [ "$activation_owned" = true ]; then
+    session_systemctl --no-block stop labwc-session.target labwc-compositor.service || \
+      printf 'warning: unable to queue cleanup of failed Labwc activation\n' >&2
+  fi
+  exit "$activation_status"
+}
+trap activation_exit 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+activation_environment_names='LABWC_SESSION_OWNER LABWC_PID DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR WAYLAND_DISPLAY SWAYSOCK DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_DIRS XDG_DATA_DIRS MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION QT_OPENGL QSG_RHI_BACKEND GDK_BACKEND SDL_VIDEODRIVER SDL_RENDER_DRIVER CLUTTER_BACKEND ANGLE_DEFAULT_PLATFORM WGPU_BACKEND XCURSOR_THEME XCURSOR_SIZE GTK_THEME GTK_A11Y NO_AT_BRIDGE WLR_RENDERER GSK_RENDERER GDK_DISABLE WLR_NO_HARDWARE_CURSORS'
+required_session_units='labwc-kwallet-portal.service hyprpolkitagent.service xdg-desktop-portal.service xdg-desktop-portal-gtk.service xdg-desktop-portal-wlr.service xdg-desktop-portal-lxqt.service'
+
+if [ "${LABWC_SESSION_OWNER:-}" != desktop ]; then
+  exit 0
+fi
+
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+  printf 'fatal: Labwc did not provide WAYLAND_DISPLAY to autostart\n' >&2
+  exit 1
+fi
+case "${LABWC_PID:-}" in
+  ''|0|1|*[!0-9]*)
+    printf 'fatal: Labwc did not provide a valid LABWC_PID to autostart\n' >&2
+    exit 1
+    ;;
+esac
+case "${LABWC_SESSION_UID:-}" in
+  ''|0|*[!0-9]*)
+    printf 'fatal: LABWC_SESSION_UID is unavailable for the managed Labwc session\n' >&2
+    exit 1
+    ;;
+esac
+expected_runtime_dir="/run/user/${LABWC_SESSION_UID}"
+if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] &&
+   [ -d "$expected_runtime_dir" ] &&
+   [ "$(stat -c '%u' "$expected_runtime_dir" 2>/dev/null || true)" = "$LABWC_SESSION_UID" ]; then
+  XDG_RUNTIME_DIR=$expected_runtime_dir
+  export XDG_RUNTIME_DIR
+fi
+if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
+   [ ! -d "$XDG_RUNTIME_DIR" ] ||
+   [ -L "$XDG_RUNTIME_DIR" ] ||
+   [ "$(stat -c '%u' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != "$LABWC_SESSION_UID" ] ||
+   [ "$(stat -c '%a' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != 700 ]; then
+  printf 'fatal: XDG_RUNTIME_DIR is unsafe or does not belong to the active Labwc session user\n' >&2
+  exit 1
+fi
+export XDG_RUNTIME_DIR
+session_bus_path="${XDG_RUNTIME_DIR}/bus"
+if [ ! -S "$session_bus_path" ]; then
+  printf 'fatal: the managed D-Bus user socket is unavailable: %s\n' "$session_bus_path" >&2
+  exit 1
+fi
+DBUS_SESSION_BUS_ADDRESS="unix:path=${session_bus_path}"
+export DBUS_SESSION_BUS_ADDRESS
+
+[ -n "$systemctl_cmd" ] || {
+  printf 'fatal: systemctl is required to activate the Labwc user session\n' >&2
+  exit 1
+}
+managed_pid=$(session_systemctl show --property=MainPID --value labwc-compositor.service) || exit 1
+[ "$managed_pid" = "$LABWC_PID" ] || {
+  printf 'fatal: autostart does not belong to the managed compositor instance\n' >&2
+  exit 1
+}
+activation_owned=true
+case "$WAYLAND_DISPLAY" in
+  /*) wayland_socket=$WAYLAND_DISPLAY ;;
+  *) wayland_socket=$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY ;;
+esac
+[ -S "$wayland_socket" ] || {
+  printf 'fatal: the Labwc Wayland socket is unavailable\n' >&2
+  exit 1
+}
+# shellcheck disable=SC2086
+session_systemctl unset-environment $labwc_x11_environment_names >/dev/null 2>&1 || {
+  printf 'fatal: unable to clear X11/Xwayland state from the Labwc user manager\n' >&2
+  exit 1
+}
+
+desktop_enabled() {
+  case "${1:-true}" in
+    true|yes|1|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sync_user_activation_environment() {
+  sync_attempt=1
+  while [ "$sync_attempt" -le 5 ]; do
+    sync_ok=true
+
+    # shellcheck disable=SC2086
+    session_systemctl import-environment $activation_environment_names >/dev/null 2>&1 || sync_ok=false
+    session_systemctl set-environment LABWC_SESSION_OWNER=desktop >/dev/null 2>&1 || sync_ok=false
+
+    if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+      # shellcheck disable=SC2086
+      /usr/bin/timeout --kill-after=1s 3s dbus-update-activation-environment --systemd $activation_environment_names >/dev/null 2>&1 || sync_ok=false
+    else
+      sync_ok=false
+    fi
+
+    [ "$sync_ok" = true ] && return 0
+    sleep 1
+    sync_attempt=$((sync_attempt + 1))
+  done
+
+  printf 'fatal: unable to import the Labwc Wayland environment into the user manager\n' >&2
+  exit 1
+}
+
+wait_for_wayland_output() {
+  [ -x "$output_waiter" ] || {
+    printf 'warning: the managed Labwc output readiness helper is unavailable; continuing with Labwc output auto-enable\n' >&2
+    return 0
+  }
+
+  # Labwc owns initial output activation through core.autoEnableOutputs.  This
+  # passive wait improves ordering for clients but must never tear down a live
+  # compositor merely because DRM enumeration exceeded the bounded window.
+  "$output_waiter" --wait-for-current-output ||
+    printf 'warning: Labwc has not exposed a current output yet; the persistent output watcher will continue convergence\n' >&2
+}
+
+start_session_target() {
+  session_systemctl --no-block start labwc-session.target >/dev/null 2>&1 || {
+    printf 'fatal: unable to activate the Labwc user session target\n' >&2
+    exit 1
+  }
+}
+
+wait_for_required_session_units() {
+  readiness_attempt=1
+  pending_session_units=
+
+  while [ "$readiness_attempt" -le 10 ]; do
+    pending_session_units=
+    for session_unit in $required_session_units; do
+      if ! session_systemctl --quiet is-active "$session_unit"; then
+        pending_session_units="${pending_session_units} ${session_unit}"
+      fi
+    done
+
+    [ -z "$pending_session_units" ] && return 0
+    sleep 1
+    readiness_attempt=$((readiness_attempt + 1))
+  done
+
+  printf 'fatal: required Labwc authentication, secret, or portal services did not become active:%s\n' \
+    "$pending_session_units" >&2
+  exit 1
+}
+
+start_waybar_if_enabled() {
+  if desktop_enabled "${LABWC_ENABLE_WAYBAR:-true}" &&
+     [ -r "$HOME/.config/waybar/config" ] &&
+     [ -r "$HOME/.config/waybar/style.css" ]
+  then
+    session_systemctl --no-block start waybar.service >/dev/null 2>&1 ||
+      printf 'warning: unable to request Waybar startup from the user manager\n' >&2
+  fi
+}
+
+start_health_notifier_if_enabled() {
+  if desktop_enabled "${LABWC_ENABLE_MAKO:-true}" &&
+     [ -r "$HOME/.config/mako/config" ]
+  then
+    session_systemctl --no-block start labwc-health-notify.path >/dev/null 2>&1 || printf 'warning: unable to start health path watcher\n' >&2
+    session_systemctl --no-block start labwc-health-notify.timer >/dev/null 2>&1 || printf 'warning: unable to start health timer\n' >&2
+  fi
+}
+
+sync_user_activation_environment
+start_session_target
+wait_for_wayland_output
+wait_for_required_session_units
+start_waybar_if_enabled
+start_health_notifier_if_enabled
+
+activation_complete=true

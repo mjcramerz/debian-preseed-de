@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use lib '/usr/local/lib/perl5/site_perl/whisper';
+
+use WhisperMode::Audio;
+use WhisperMode::State;
+
+umask 0077;
+my $state = WhisperMode::State->new();
+my $control = $state->lock(0, 1) or exit 0;
+my $recording = $state->lock(1, 1) or exit 0;
+
+my $audio = WhisperMode::Audio->new(
+    default_source_attempts      => 120,
+    default_source_retry_seconds => 0.5,
+);
+$audio->set_available_sources_muted(1);
+$audio->set_default_source_muted(1);
+exit 0;

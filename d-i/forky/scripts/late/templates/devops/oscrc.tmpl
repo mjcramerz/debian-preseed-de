@@ -1,0 +1,30 @@
+[general]
+apiurl = __INSTALLER_DEVOPS_OBS_API_URL__
+use_keyring = 1
+quiet = 0
+verbose = 0
+debug = 0
+http_debug = 0
+http_full_debug = 0
+http_manual_approve = 0
+traceback = 0
+post_mortem = 0
+show_download_progress = 1
+http_retries = 3
+cookiejar = __INSTALLER_DEVOPS_OSC_COOKIE_JAR__
+local_service_run = 0
+check_filelist = 1
+do_package_tracking = 1
+checkout_rooted = 1
+checkout_no_colon = 1
+status_mtime_heuristic = 0
+packagecachedir = __INSTALLER_DEVOPS_OSC_PACKAGE_CACHE_DIR__
+build-root = __INSTALLER_DEVOPS_OSC_BUILD_ROOT__/%(project)s/%(package)s/%(repo)s-%(arch)s
+build_repository = __INSTALLER_DEVOPS_OBS_REPOSITORY__
+buildlog_strip_time = 1
+no_verify = 0
+builtin_signature_check = 1
+
+[__INSTALLER_DEVOPS_OBS_API_URL__]
+sslcertck = 1
+allow_http = 0

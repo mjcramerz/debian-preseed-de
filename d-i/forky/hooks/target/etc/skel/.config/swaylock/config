@@ -1,0 +1,24 @@
+ignore-empty-password
+show-failed-attempts
+indicator-radius=110
+indicator-thickness=8
+color=111318
+image=/usr/share/backgrounds/login/lock-1920x1080.png
+scaling=fill
+font=Noto Sans
+font-size=18
+inside-color=111318cc
+inside-clear-color=6f8fb5cc
+inside-ver-color=ecb860cc
+inside-wrong-color=ca5252cc
+ring-color=e5ddcaaa
+ring-clear-color=6f8fb5ff
+ring-ver-color=ecb860ff
+ring-wrong-color=ca5252ff
+key-hl-color=ecb860ff
+bs-hl-color=ca5252ff
+separator-color=00000000
+text-color=f3ead7ff
+text-clear-color=f3ead7ff
+text-ver-color=111318ff
+text-wrong-color=f3ead7ff

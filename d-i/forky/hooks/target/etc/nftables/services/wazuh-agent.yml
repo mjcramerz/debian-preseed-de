@@ -1,0 +1,25 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: wazuh-agent
+  description: Wazuh agent outbound overlay.
+  merge_priority: 50
+egress:
+  rules:
+    wazuh_agent_to_manager:
+      enabled: true
+      protocols:
+      - tcp
+      ports:
+      - 1514
+      - 1515
+      - 55000
+      allow_to:
+        ipv4:
+        - 10.0.0.0/8
+        - 192.168.0.0/16
+        - 10.8.0.0/24
+        ipv6:
+        - fc00::/7
+        - fd00:8::/64
+      log: false

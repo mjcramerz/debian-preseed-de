@@ -1,0 +1,32 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: qbittorrent
+  description: qBittorrent fixed peer-listener overlay for the managed desktop software bundle.
+  merge_priority: 50
+  applies_to_profiles:
+  - desktop
+services:
+  qbittorrent_incoming:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    - udp
+    ports:
+    - 50309
+    allow:
+      ipv4:
+      - 0.0.0.0/0
+      ipv6:
+      - ::/0
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+      - wg0
+    rate_limit: 300/second burst 600 packets
+    log: false

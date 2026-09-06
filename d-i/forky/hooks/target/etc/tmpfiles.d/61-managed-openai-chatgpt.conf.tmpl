@@ -1,0 +1,9 @@
+# Protected ChatGPT/Codex application output, separate application-writable
+# sandbox log storage, and the private rsyslog socket.
+d /var/log/managed/openai 0751 root adm -
+d /var/log/managed/openai/chatgpt 0751 root adm -
+d /var/log/managed/openai/chatgpt/runtime 2770 __INSTALLER_ACCOUNT_USERNAME__ openailogger -
+f /var/log/managed/openai/chatgpt/runtime/codex-login.log 0660 __INSTALLER_ACCOUNT_USERNAME__ openailogger -
+f /var/log/managed/openai/chatgpt/runtime/codex-tui.log 0660 __INSTALLER_ACCOUNT_USERNAME__ openailogger -
+f /var/log/managed/openai/chatgpt/chatgpt.log 0640 root adm -
+d /run/rsyslog/managed-openai 0750 root openailogger -

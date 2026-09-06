@@ -1,0 +1,16 @@
+# Managed by unattended-installer.
+#
+# Capability-free WebKitGTK runtime used by the pinned QoreDB
+# applications. Application state, network access, and sandbox-construction
+# capabilities remain in the including profile.
+
+@{PROC}/stat r,
+@{PROC}/zoneinfo r,
+owner @{PROC}/[0-9]*/{cgroup,cmdline,maps,stat,statm} r,
+@{sys}/devices/system/cpu/online r,
+@{sys}/devices/virtual/dmi/id/chassis_type r,
+@{sys}/fs/cgroup/**/{cpu.max,memory.current,memory.high,memory.max} r,
+
+/usr/lib/@{multiarch}/webkit2gtk-4.1/WebKit{Network,Web}Process rix,
+/usr/share/glycin-loaders/2+/conf.d/ r,
+/usr/share/glycin-loaders/2+/conf.d/*.conf r,

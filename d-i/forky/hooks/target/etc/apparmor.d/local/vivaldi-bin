@@ -1,0 +1,116 @@
+# Managed by unattended-installer.
+#
+# Direct Vivaldi binary attachment. Keep this aligned with vivaldi-stable so a
+# direct vivaldi-bin invocation has the same bounded browser contract.
+
+#include <abstractions/managed-electron-application>
+#include <abstractions/managed-pipewire-audio>
+include if exists <abstractions/user-tmp>
+include if exists <abstractions/xdg-open>
+
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+network netlink raw,
+signal (send) set=(kill) peer=vivaldi-bin//vivaldi-bwrap,
+
+# Vivaldi probes both session and system D-Bus sockets through Chromium helper
+# threads before the final pathname is fully connected to the current mount
+# namespace. Keep those bounded desktop IPC reads explicit for enforce mode.
+/run/dbus/system_bus_socket rw,
+owner /run/user/[0-9]*/bus rw,
+
+/dev/video* rw,
+/dev/ r,
+
+# Chromium's MemoryInfra thread samples root-owned sandbox helper processes.
+@{PROC}/[0-9]*/statm r,
+
+# Chromium gamepad polling resolves dynamically numbered input and USB records.
+/run/udev/data/ r,
+/run/udev/data/** r,
+
+/opt/vivaldi/ r,
+/opt/vivaldi/** mrix,
+/var/opt/vivaldi/ r,
+/var/opt/vivaldi/** mr,
+/usr/bin/bwrap rCx -> vivaldi-bwrap,
+/usr/libexec/glycin-loaders/2+/glycin-svg mrix,
+/usr/share/glycin-loaders/2+/conf.d/ r,
+/usr/share/glycin-loaders/2+/conf.d/** r,
+
+/etc/vivaldi/policies/ r,
+/etc/vivaldi/policies/managed/ r,
+/etc/vivaldi/policies/managed/** r,
+/etc/vivaldi/policies/recommended/ r,
+/etc/vivaldi/policies/recommended/** r,
+# Managed policy is root-owned input. The browser may read it but must never
+# rewrite policy, lock files, or directory entries through a broader include.
+deny /etc/vivaldi/policies/ w,
+deny /etc/vivaldi/policies/** wkl,
+deny /etc/opt/chrome/ w,
+deny /opt/vivaldi/extensions/ w,
+
+@{sys}/devices/**/interface r,
+@{sys}/devices/**/report_descriptor r,
+owner /run/media/*/ r,
+owner /run/media/*/** r,
+owner @{HOME}/.cache/vivaldi/ rw,
+owner @{HOME}/.cache/vivaldi/** rwk,
+owner @{HOME}/.config/vivaldi/ rw,
+owner @{HOME}/.config/vivaldi/** rwkl,
+owner @{HOME}/.config/vivaldi/NativeMessagingHosts/.bitwarden_desktop_proxy rix,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/ r,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/.app.bw.socket rw,
+owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/.app.bw.bitwarden.log rwkl,
+owner @{HOME}/.config/vivaldi/WidevineCdm/*/_platform_specific/*/libwidevinecdm.so mr,
+owner @{HOME}/.local/share/.vivaldi_reporting_data rwkl,
+owner @{HOME}/.local/share/gvfs-metadata/root r,
+owner @{HOME}/.local/share/gvfs-metadata/root-*.log r,
+owner @{HOME}/.local/share/pki/ rw,
+owner @{HOME}/.local/share/pki/** rwkl,
+owner @{HOME}/.pki/nssdb/ rw,
+owner @{HOME}/.pki/nssdb/** rwk,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+owner @{HOME}/Documents/ rw,
+owner @{HOME}/Documents/** rwkl,
+owner @{HOME}/Workspace/llama-labwc/output/llama-{cuda,ram}.tar.gz r,
+/pool/build/whisper-labwc/artifacts/whisper-{cuda,ram}.tar.gz r,
+
+# Vivaldi invokes Bubblewrap from a worker thread. Keep namespace construction,
+# inherited browser descriptors, and the fixed browser/runtime trees out of the
+# main browser profile and inside a no-new-privileges-safe child domain.
+
+# Opt-in developer profile used by /usr/local/bin/browser-devtools.
+owner @{HOME}/.local/ r,
+owner @{HOME}/.local/state/ r,
+owner @{HOME}/.local/state/browser-devtools/ r,
+owner @{HOME}/.local/state/browser-devtools/vivaldi/ rw,
+owner @{HOME}/.local/state/browser-devtools/vivaldi/** rwkl,
+
+profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-bwrap-common>
+  #include <abstractions/managed-electron-runtime>
+
+  signal (receive) set=(kill) peer=vivaldi-bin,
+
+  /opt/vivaldi/ r,
+  /opt/vivaldi/** mr,
+  /var/opt/vivaldi/ r,
+  /var/opt/vivaldi/** mr,
+  /usr/bin/true rix,
+  /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  
+  # Opt-in developer profile used by /usr/local/bin/browser-devtools.
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/state/ r,
+  owner @{HOME}/.local/state/browser-devtools/ r,
+  owner @{HOME}/.local/state/browser-devtools/vivaldi/ rw,
+  owner @{HOME}/.local/state/browser-devtools/vivaldi/** rwkl,
+  owner @{HOME}/.config/vivaldi/ rw,
+  owner @{HOME}/.config/vivaldi/** rwkl,
+}

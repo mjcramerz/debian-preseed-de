@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+  <action>
+    <icon>utilities-terminal</icon>
+    <name>Open Terminal Here</name>
+    <unique-id>1717610100000001-1</unique-id>
+    <command>labwc-terminal --working-directory=%f</command>
+    <description>Open the selected folder in a terminal</description>
+    <patterns>*</patterns>
+    <directories/>
+  </action>
+  <action>
+    <icon>system-file-manager</icon>
+    <name>Browse Here In Nnn</name>
+    <unique-id>1717610100000001-2</unique-id>
+    <command>labwc-terminal --working-directory=%f -e nnn</command>
+    <description>Open the selected folder in the terminal file browser</description>
+    <patterns>*</patterns>
+    <directories/>
+  </action>
+  <action>
+    <icon>package-x-generic</icon>
+    <name>Open In Archive Manager</name>
+    <unique-id>1717610100000001-3</unique-id>
+    <command>xarchiver %F</command>
+    <description>Open the current archive selection in Xarchiver</description>
+    <patterns>*.7z;*.bz2;*.cab;*.gz;*.iso;*.lz;*.lz4;*.lzip;*.lzma;*.rar;*.tar;*.tar.bz2;*.tar.gz;*.tar.lrz;*.tar.lz4;*.tar.lzip;*.tar.lzma;*.tar.xz;*.tar.zst;*.tbz2;*.tgz;*.txz;*.tzst;*.xz;*.zip;*.zst</patterns>
+    <audio-files/>
+    <image-files/>
+    <other-files/>
+    <text-files/>
+    <video-files/>
+  </action>
+  <action>
+    <icon>text-x-generic</icon>
+    <name>Extract Text With OCR</name>
+    <unique-id>1717610100000001-4</unique-id>
+    <command>labwc-ocr %f</command>
+    <description>Extract text from the selected image with Tesseract OCR</description>
+    <patterns>*.bmp;*.gif;*.jpeg;*.jpg;*.jp2;*.pbm;*.pgm;*.png;*.pnm;*.ppm;*.tif;*.tiff;*.webp</patterns>
+    <image-files/>
+  </action>
+</actions>

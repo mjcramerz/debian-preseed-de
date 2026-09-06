@@ -1,0 +1,16 @@
+# Managed by installer automation for the Labwc desktop role.
+#
+# Debian's Chromium wrapper sources /etc/chromium.d/* before launching the
+# browser, so keep these flags conservative and shell-safe.
+#
+# The normal launcher stays on native Wayland without forcing a GPU backend.
+# GPU-specific desktop actions add app-specific Intel or NVIDIA acceleration
+# through labwc-managed-app.
+
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--ozone-platform=wayland"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--enable-wayland-ime"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--enable-features=UseOzonePlatform"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--use-gl=angle"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--use-angle=gl"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--use-webgpu-adapter=opengles"
+CHROMIUM_FLAGS="${CHROMIUM_FLAGS:+$CHROMIUM_FLAGS }--disable-features=WaylandWindowDecorations,WaylandWpColorManagerV1,Vulkan,DefaultANGLEVulkan,VulkanFromANGLE,ForceEnableWebGpuInterop"

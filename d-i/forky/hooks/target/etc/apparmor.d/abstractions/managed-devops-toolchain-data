@@ -1,0 +1,70 @@
+# Managed by unattended-installer.
+#
+# Shared filesystem/network state for developer tools and trusted launchers.
+# Broad package execution is kept in managed-devops-toolchain-runtime so
+# launchers can select profile transitions instead of inheriting every tool.
+
+#include <abstractions/managed-wrapper-desktop>
+include if exists <abstractions/nameservice-strict>
+include if exists <abstractions/ssl_certs>
+include if exists <abstractions/user-tmp>
+
+unix,
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+network netlink dgram,
+network netlink raw,
+
+/ r,
+/home/ r,
+
+
+
+/etc/ r,
+/etc/** r,
+/dev/ r,
+/dev/** rw,
+/proc/ r,
+/proc/** r,
+/sys/ r,
+/sys/** r,
+/usr/local/lib/bazelisk/ r,
+/usr/local/lib/bazelisk/** mr,
+/usr/local/lib/bazelisk/** rix,
+/usr/local/lib/rustup/ r,
+/usr/local/lib/rustup/** mr,
+/usr/local/lib/rustup/** rix,
+/usr/local/lib/node-{22,24,26}/ r,
+/usr/local/lib/node-{22,24,26}/** mr,
+/usr/local/lib/node-{22,24,26}/** rix,
+owner /run/user/[0-9]*/ rw,
+owner /run/user/[0-9]*/** rwkl,
+owner @{HOME}/ r,
+owner @{HOME}/** rwklm,
+owner @{HOME}/** rix,
+/pool/ rw,
+/pool/** rwklm,
+/pool/** rix,
+/tmp/ rw,
+/tmp/** rwklm,
+/tmp/** rix,
+/var/tmp/ rw,
+/var/tmp/** rwklm,
+/var/tmp/** rix,
+
+# Shared work directories used by the managed DevOps environment. Root-owned
+# releases remain read-only; package manager downloads/installs live in /pool.
+/data/ r,
+/data/downloads/ rw,
+/data/downloads/** rwklmix,
+/data/tmp/ rw,
+/data/tmp/** rwklmix,
+# Process-local controls used by runtimes and namespace constructors. This
+# does not grant writes to kernel-global /proc/sys controls or other users.
+owner @{PROC}/[0-9]*/{comm,coredump_filter,oom_score_adj} rw,
+owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+
+/usr/** mr,
+/opt/** mr,

@@ -1,0 +1,34 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile sleek /{usr/bin/sleek,opt/sleek/sleek} flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-user-documents>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /usr/bin/sleek mr,
+  /opt/sleek/ r,
+  /opt/sleek/** mrix,
+
+  owner @{HOME}/.cache/sleek/ rw,
+  owner @{HOME}/.cache/sleek/** rwk,
+  owner @{HOME}/.config/sleek/ rw,
+  owner @{HOME}/.config/sleek/** rwkl,
+  owner @{HOME}/.local/share/sleek/ rw,
+  owner @{HOME}/.local/share/sleek/** rwkl,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+  owner @{HOME}/Syncthing/sleek/ rw,
+  owner @{HOME}/Syncthing/sleek/** rwkl,
+
+  include if exists <local/sleek>
+}

@@ -1,0 +1,259 @@
+#!/bin/sh
+set -eu
+
+llama_fatal() {
+  printf 'fatal: llama: %s\n' "$*" >&2
+  exit 1
+}
+
+llama_require_root_directory() {
+  directory_path=$1
+  expected_mode=$2
+  directory_label=$3
+
+  [ -d "$directory_path" ] && [ ! -L "$directory_path" ] ||
+    llama_fatal "${directory_label} is missing or is not a real directory: ${directory_path}"
+  directory_metadata=$(stat -c '%u:%g:%a' -- "$directory_path" 2>/dev/null) ||
+    llama_fatal "cannot inspect ${directory_label}: ${directory_path}"
+  [ "$directory_metadata" = "0:0:${expected_mode}" ] ||
+    llama_fatal "${directory_label} must be root:root mode ${expected_mode}: ${directory_path}"
+}
+
+llama_require_root_file() {
+  file_path=$1
+  expected_mode=$2
+  file_label=$3
+
+  [ -f "$file_path" ] && [ ! -L "$file_path" ] ||
+    llama_fatal "${file_label} is missing or is not a regular file: ${file_path}"
+  file_metadata=$(stat -c '%u:%g:%a' -- "$file_path" 2>/dev/null) ||
+    llama_fatal "cannot inspect ${file_label}: ${file_path}"
+  [ "$file_metadata" = "0:0:${expected_mode}" ] ||
+    llama_fatal "${file_label} must be root:root mode ${expected_mode}: ${file_path}"
+}
+
+llama_validate_absolute_path() {
+  path_label=$1
+  path_value=$2
+
+  case "$path_value" in
+    /*) ;;
+    *) llama_fatal "${path_label} must be an absolute path" ;;
+  esac
+  case "$path_value" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      llama_fatal "${path_label} contains unsupported path syntax"
+      ;;
+  esac
+}
+
+llama_validate_integer_range() {
+  integer_label=$1
+  integer_value=$2
+  integer_minimum=$3
+  integer_maximum=$4
+
+  case "$integer_value" in
+    ''|*[!0123456789]*)
+      llama_fatal "${integer_label} must be an integer"
+      ;;
+  esac
+  [ "${#integer_value}" -le 7 ] ||
+    llama_fatal "${integer_label} is outside the supported range"
+  [ "$integer_value" -ge "$integer_minimum" ] &&
+    [ "$integer_value" -le "$integer_maximum" ] ||
+    llama_fatal "${integer_label} must be between ${integer_minimum} and ${integer_maximum}"
+}
+
+llama_config_path=/etc/llama/llama.conf
+llama_binary_dir=/data/llama/bin
+llama_require_root_directory /etc/llama 755 "configuration directory"
+llama_require_root_file "$llama_config_path" 644 "configuration file"
+llama_config_size=$(stat -c '%s' -- "$llama_config_path" 2>/dev/null) ||
+  llama_fatal "cannot determine configuration file size"
+case "$llama_config_size" in
+  ''|*[!0123456789]*) llama_fatal "configuration file size is invalid" ;;
+esac
+[ "$llama_config_size" -le 16384 ] ||
+  llama_fatal "configuration file exceeds 16384 bytes"
+
+llama_model=
+llama_context_size=
+llama_batch_size=
+llama_ubatch_size=
+llama_threads=
+llama_threads_batch=
+llama_gpu_layers=
+llama_kv_offload=
+llama_parallel=
+llama_server_host=
+llama_server_port=
+seen_llama_model=0
+seen_llama_context_size=0
+seen_llama_batch_size=0
+seen_llama_ubatch_size=0
+seen_llama_threads=0
+seen_llama_threads_batch=0
+seen_llama_gpu_layers=0
+seen_llama_kv_offload=0
+seen_llama_parallel=0
+seen_llama_server_host=0
+seen_llama_server_port=0
+
+while IFS= read -r llama_config_line || [ -n "$llama_config_line" ]; do
+  case "$llama_config_line" in
+    ''|\#*) continue ;;
+    LLAMA_MODEL=*)
+      [ "$seen_llama_model" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_MODEL"
+      llama_model=${llama_config_line#*=}
+      seen_llama_model=1
+      ;;
+    LLAMA_CONTEXT_SIZE=*)
+      [ "$seen_llama_context_size" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_CONTEXT_SIZE"
+      llama_context_size=${llama_config_line#*=}
+      seen_llama_context_size=1
+      ;;
+    LLAMA_BATCH_SIZE=*)
+      [ "$seen_llama_batch_size" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_BATCH_SIZE"
+      llama_batch_size=${llama_config_line#*=}
+      seen_llama_batch_size=1
+      ;;
+    LLAMA_UBATCH_SIZE=*)
+      [ "$seen_llama_ubatch_size" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_UBATCH_SIZE"
+      llama_ubatch_size=${llama_config_line#*=}
+      seen_llama_ubatch_size=1
+      ;;
+    LLAMA_THREADS=*)
+      [ "$seen_llama_threads" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_THREADS"
+      llama_threads=${llama_config_line#*=}
+      seen_llama_threads=1
+      ;;
+    LLAMA_THREADS_BATCH=*)
+      [ "$seen_llama_threads_batch" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_THREADS_BATCH"
+      llama_threads_batch=${llama_config_line#*=}
+      seen_llama_threads_batch=1
+      ;;
+    LLAMA_GPU_LAYERS=*)
+      [ "$seen_llama_gpu_layers" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_GPU_LAYERS"
+      llama_gpu_layers=${llama_config_line#*=}
+      seen_llama_gpu_layers=1
+      ;;
+    LLAMA_KV_OFFLOAD=*)
+      [ "$seen_llama_kv_offload" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_KV_OFFLOAD"
+      llama_kv_offload=${llama_config_line#*=}
+      seen_llama_kv_offload=1
+      ;;
+    LLAMA_PARALLEL=*)
+      [ "$seen_llama_parallel" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_PARALLEL"
+      llama_parallel=${llama_config_line#*=}
+      seen_llama_parallel=1
+      ;;
+    LLAMA_SERVER_HOST=*)
+      [ "$seen_llama_server_host" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_SERVER_HOST"
+      llama_server_host=${llama_config_line#*=}
+      seen_llama_server_host=1
+      ;;
+    LLAMA_SERVER_PORT=*)
+      [ "$seen_llama_server_port" = 0 ] || llama_fatal "configuration contains duplicate LLAMA_SERVER_PORT"
+      llama_server_port=${llama_config_line#*=}
+      seen_llama_server_port=1
+      ;;
+    *)
+      llama_fatal "configuration contains an invalid or unsupported record"
+      ;;
+  esac
+done <"$llama_config_path"
+
+for required_config_record in \
+  "$seen_llama_model" \
+  "$seen_llama_context_size" \
+  "$seen_llama_batch_size" \
+  "$seen_llama_ubatch_size" \
+  "$seen_llama_threads" \
+  "$seen_llama_threads_batch" \
+  "$seen_llama_gpu_layers" \
+  "$seen_llama_kv_offload" \
+  "$seen_llama_parallel" \
+  "$seen_llama_server_host" \
+  "$seen_llama_server_port"
+do
+  [ "$required_config_record" = 1 ] ||
+    llama_fatal "configuration is missing one or more required records"
+done
+
+llama_validate_absolute_path LLAMA_MODEL "$llama_model"
+case "$llama_model" in
+  /pool/*) ;;
+  *) llama_fatal "LLAMA_MODEL must remain below /pool" ;;
+esac
+llama_validate_integer_range LLAMA_CONTEXT_SIZE "$llama_context_size" 512 1048576
+llama_validate_integer_range LLAMA_BATCH_SIZE "$llama_batch_size" 1 32768
+llama_validate_integer_range LLAMA_UBATCH_SIZE "$llama_ubatch_size" 1 32768
+[ "$llama_ubatch_size" -le "$llama_batch_size" ] ||
+  llama_fatal "LLAMA_UBATCH_SIZE must not exceed LLAMA_BATCH_SIZE"
+llama_validate_integer_range LLAMA_THREADS "$llama_threads" 1 256
+llama_validate_integer_range LLAMA_THREADS_BATCH "$llama_threads_batch" 1 256
+llama_validate_integer_range LLAMA_GPU_LAYERS "$llama_gpu_layers" 0 999
+llama_validate_integer_range LLAMA_KV_OFFLOAD "$llama_kv_offload" 0 1
+llama_validate_integer_range LLAMA_PARALLEL "$llama_parallel" 1 128
+[ "$llama_server_host" = 127.0.0.1 ] ||
+  llama_fatal "LLAMA_SERVER_HOST must remain 127.0.0.1"
+llama_validate_integer_range LLAMA_SERVER_PORT "$llama_server_port" 1 65535
+llama_require_root_directory /data/llama 755 "runtime directory"
+llama_require_root_directory /data/llama/share 755 "runtime share directory"
+llama_require_root_directory "$llama_binary_dir" 755 "runtime binary directory"
+
+: "${LLAMA_ARG_MODEL:=$llama_model}"
+: "${LLAMA_ARG_CTX_SIZE:=$llama_context_size}"
+: "${LLAMA_ARG_BATCH:=$llama_batch_size}"
+: "${LLAMA_ARG_UBATCH:=$llama_ubatch_size}"
+: "${LLAMA_ARG_THREADS:=$llama_threads}"
+: "${LLAMA_ARG_THREADS_BATCH:=$llama_threads_batch}"
+: "${LLAMA_ARG_N_GPU_LAYERS:=$llama_gpu_layers}"
+: "${LLAMA_ARG_KV_OFFLOAD:=$llama_kv_offload}"
+: "${LLAMA_ARG_N_PARALLEL:=$llama_parallel}"
+export \
+  LLAMA_ARG_MODEL \
+  LLAMA_ARG_CTX_SIZE \
+  LLAMA_ARG_BATCH \
+  LLAMA_ARG_UBATCH \
+  LLAMA_ARG_THREADS \
+  LLAMA_ARG_N_GPU_LAYERS \
+  LLAMA_ARG_KV_OFFLOAD \
+  LLAMA_ARG_N_PARALLEL
+
+llama_exec() {
+  llama_binary_name=$1
+  shift
+  llama_binary="${llama_binary_dir}/${llama_binary_name}"
+
+  llama_require_root_file "$llama_binary" 755 "${llama_binary_name} binary"
+  for llama_argument do
+    case "$llama_argument" in
+      -tb|--threads-batch|--threads_batch)
+        exec "$llama_binary" "$@"
+        ;;
+    esac
+  done
+
+  exec "$llama_binary" \
+    --threads-batch "$LLAMA_ARG_THREADS_BATCH" \
+    "$@"
+}
+
+case "${1:-}" in
+  server)
+    shift
+    LLAMA_ARG_HOST=$llama_server_host
+    LLAMA_ARG_PORT=$llama_server_port
+    export LLAMA_ARG_HOST LLAMA_ARG_PORT
+    llama_exec llama-server "$@"
+    ;;
+  cli)
+    shift
+    llama_exec llama-cli "$@"
+    ;;
+  *)
+    llama_exec llama-cli "$@"
+    ;;
+esac

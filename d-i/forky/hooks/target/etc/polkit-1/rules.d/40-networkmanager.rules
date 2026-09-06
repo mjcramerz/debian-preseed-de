@@ -1,0 +1,67 @@
+// Managed by unattended-installer.
+// Permit only narrow local radio toggles to netdev; system networking is sudo-only.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+    var NETWORK_GROUP = "netdev";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function startsWith(value, prefix) {
+        return typeof value === "string" && value.indexOf(prefix) === 0;
+    }
+
+    function inList(value, list) {
+        var i;
+        for (i = 0; i < list.length; i++) {
+            if (value === list[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function adminOnly(subject) {
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        var id = action.id;
+        var userToggleActions = [
+            "org.freedesktop.NetworkManager.enable-disable-network",
+            "org.freedesktop.NetworkManager.enable-disable-wifi",
+            "org.freedesktop.NetworkManager.enable-disable-wwan",
+            "org.freedesktop.NetworkManager.enable-disable-wimax",
+            "org.freedesktop.NetworkManager.sleep-wake"
+        ];
+
+        if (!startsWith(id, "org.freedesktop.NetworkManager.")) {
+            return polkit.Result.NOT_HANDLED;
+        }
+
+        if (!isRoot(subject) && !activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+
+        if (inList(id, userToggleActions) && subject.isInGroup(NETWORK_GROUP)) {
+            return polkit.Result.YES;
+        }
+
+        return adminOnly(subject);
+    });
+})();

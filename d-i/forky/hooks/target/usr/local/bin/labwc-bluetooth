@@ -1,0 +1,524 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/bin:/usr/bin:/bin
+LANG=C.UTF-8
+LC_ALL=C.UTF-8
+export PATH LANG LC_ALL
+
+SCAN_SECONDS=6
+MAX_DEVICE_CHOICES=128
+
+ensure_desktop_user() {
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+    printf 'fatal: labwc-bluetooth must run in the managed desktop session\n' >&2
+    exit 1
+  }
+
+  runtime_root=${XDG_RUNTIME_DIR:-}
+  case "$runtime_root" in
+    /run/user/*) runtime_uid=${runtime_root#/run/user/} ;;
+    *) runtime_uid= ;;
+  esac
+  case "$runtime_uid" in
+    ''|0*|*[!0-9]*)
+      printf 'fatal: labwc-bluetooth requires a non-root desktop runtime directory\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
+require_bluetoothctl() {
+  command -v bluetoothctl >/dev/null 2>&1 || {
+    printf 'fatal: bluetoothctl is not installed\n' >&2
+    exit 1
+  }
+}
+
+notify_bluetooth() {
+  urgency=$1
+  icon=$2
+  category=$3
+  summary=$4
+  body=$5
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  notify-send \
+    -a Bluetooth \
+    -u "$urgency" \
+    -i "$icon" \
+    -c "$category" \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+controller_status() {
+  printf 'show\nquit\n' |
+    TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 2>/dev/null || true
+}
+
+run_controller_command() {
+  command_name=$1
+  command_value=$2
+
+  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 10 \
+    "$command_name" "$command_value" >/dev/null
+}
+
+validate_device_address() {
+  address=$1
+  printf '%s\n' "$address" |
+    grep -Eq '^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$' || {
+      printf 'fatal: invalid Bluetooth device address: %s\n' "$address" >&2
+      return 1
+    }
+}
+
+run_device_command() {
+  command_name=$1
+  address=$2
+
+  validate_device_address "$address"
+  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 20 \
+    "$command_name" "$address" >/dev/null
+}
+
+device_records() {
+  device_filter=$1
+
+  case "$device_filter" in
+    all) set -- devices ;;
+    paired) set -- devices Paired ;;
+    trusted) set -- devices Trusted ;;
+    connected) set -- devices Connected ;;
+    *)
+      printf 'fatal: unsupported Bluetooth device filter: %s\n' "$device_filter" >&2
+      return 1
+      ;;
+  esac
+
+  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 "$@" 2>/dev/null |
+    awk -v maximum="$MAX_DEVICE_CHOICES" '
+      /^Device[[:space:]]/ {
+        address = toupper($2)
+        $1 = ""
+        $2 = ""
+        sub(/^[[:space:]]+/, "", $0)
+        gsub(/[[:cntrl:]]/, " ", $0)
+        if (length($0) > 120) {
+          $0 = substr($0, 1, 117) "..."
+        }
+        if ($0 == "") {
+          $0 = "Unnamed device"
+        }
+        printf "%s  %s\n", address, $0
+        count++
+        if (count >= maximum) {
+          exit
+        }
+      }
+    '
+}
+
+choose_device() {
+  device_filter=$1
+  prompt=$2
+  records=$(device_records "$device_filter" || true)
+
+  if [ -z "$records" ]; then
+    notify_bluetooth normal bluetooth device.missing \
+      "No matching Bluetooth devices" \
+      "Scan for devices first or verify that the device is paired."
+    return 1
+  fi
+
+  selection=$(
+    printf '%s\n' "$records" |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "$prompt" 2>/dev/null ||
+      true
+  )
+  [ -n "$selection" ] || return 1
+
+  address=${selection%% *}
+  validate_device_address "$address"
+  printf '%s\n' "$address"
+}
+
+refresh_waybar() {
+  command -v systemctl >/dev/null 2>&1 || return 0
+  systemctl \
+    --user \
+    kill \
+    --kill-whom=main \
+    --signal=RTMIN+8 \
+    waybar.service >/dev/null 2>&1 ||
+    true
+}
+
+set_power() {
+  power_state=$1
+  case "$power_state" in
+    on)
+      success_summary="Bluetooth turned on"
+      success_body="The Bluetooth controller is now powered on."
+      ;;
+    off)
+      success_summary="Bluetooth turned off"
+      success_body="The Bluetooth controller is now powered off."
+      ;;
+    *)
+      printf 'fatal: unsupported Bluetooth power state: %s\n' "$power_state" >&2
+      exit 1
+      ;;
+  esac
+
+  if run_controller_command power "$power_state"; then
+    notify_bluetooth normal bluetooth device.changed "$success_summary" "$success_body"
+    refresh_waybar
+    return 0
+  fi
+  notify_bluetooth critical dialog-error device.error "Bluetooth power change failed" "The controller could not be powered ${power_state}."
+  return 1
+}
+
+controller_is_powered() {
+  controller_status |
+    grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'
+}
+
+ensure_powered() {
+  controller_is_powered && return 0
+  set_power on
+}
+
+scan_devices() {
+  ensure_powered || return 1
+  notify_bluetooth normal bluetooth device.added \
+    "Bluetooth scan started" \
+    "Scanning for nearby devices for ${SCAN_SECONDS} seconds."
+
+  if {
+    printf 'scan on\n'
+    sleep "$SCAN_SECONDS"
+    printf 'scan off\nquit\n'
+  } | TERM=dumb NO_COLOR=1 bluetoothctl --timeout $((SCAN_SECONDS + 5)) >/dev/null 2>&1
+  then
+    notify_bluetooth normal bluetooth device.added \
+      "Bluetooth scan completed" \
+      "Nearby devices are now available in the Bluetooth action menu."
+    refresh_waybar
+    return 0
+  fi
+
+  TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 scan off >/dev/null 2>&1 || true
+  notify_bluetooth critical dialog-error device.error \
+    "Bluetooth scan failed" \
+    "The nearby-device scan did not complete successfully."
+  return 1
+}
+
+set_visibility() {
+  visibility=$1
+  case "$visibility" in
+    discoverable)
+      ensure_powered || return 1
+      if run_controller_command pairable on &&
+         run_controller_command discoverable on
+      then
+        notify_bluetooth normal bluetooth device.added \
+          "Bluetooth is discoverable" \
+          "Nearby devices can now find and pair with this computer."
+        return 0
+      fi
+      ;;
+    hidden)
+      if run_controller_command discoverable off; then
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth discovery disabled" \
+          "This computer is no longer advertising itself to nearby devices."
+        return 0
+      fi
+      ;;
+    *)
+      printf 'fatal: unsupported Bluetooth visibility: %s\n' "$visibility" >&2
+      return 1
+      ;;
+  esac
+
+  notify_bluetooth critical dialog-error device.error \
+    "Bluetooth visibility change failed" \
+    "The controller visibility could not be updated."
+  return 1
+}
+
+perform_device_action() {
+  action_name=$1
+  device_filter=$2
+  prompt=$3
+  success_summary=$4
+  success_body=$5
+
+  address=$(choose_device "$device_filter" "$prompt") || return 0
+  if run_device_command "$action_name" "$address"; then
+    notify_bluetooth normal bluetooth device.changed \
+      "$success_summary" \
+      "${success_body} (${address})."
+    refresh_waybar
+    return 0
+  fi
+
+  notify_bluetooth critical dialog-error device.error \
+    "Bluetooth action failed" \
+    "The ${action_name} action failed for ${address}."
+  return 1
+}
+
+open_interactive_console() {
+  command -v labwc-terminal >/dev/null 2>&1 || {
+    printf 'fatal: labwc-terminal is not installed\n' >&2
+    exit 1
+  }
+  notify_bluetooth normal bluetooth device.added \
+    "Bluetooth controls opened" \
+    "Use the interactive console for advanced pairing and diagnostics."
+  exec labwc-terminal -e bluetoothctl --agent KeyboardDisplay
+}
+
+pair_device() {
+  scan_devices || true
+  address=$(choose_device all "Pair device") || return 0
+  exec labwc-terminal -e labwc-bluetooth pair "$address"
+}
+
+pair_device_in_terminal() {
+  address=$1
+  validate_device_address "$address"
+
+  printf 'Pairing Bluetooth device %s\n\n' "$address"
+  if TERM=xterm-256color NO_COLOR=1 bluetoothctl \
+    --agent KeyboardDisplay \
+    --timeout 90 \
+    pair "$address"
+  then
+    run_device_command trust "$address" || true
+    run_device_command connect "$address" || true
+    notify_bluetooth normal bluetooth device.added \
+      "Bluetooth device paired" \
+      "Paired, trusted, and connected ${address}."
+    refresh_waybar
+    result=0
+  else
+    notify_bluetooth critical dialog-error device.error \
+      "Bluetooth pairing failed" \
+      "Pairing did not complete for ${address}."
+    result=1
+  fi
+
+  sleep 2
+  return "$result"
+}
+
+show_device_info_in_terminal() {
+  address=$1
+  validate_device_address "$address"
+
+  TERM=xterm-256color NO_COLOR=1 bluetoothctl --timeout 15 info "$address" || true
+  printf '\nPress Enter to close this terminal.'
+  IFS= read -r _input || true
+}
+
+manage_device() {
+  address=$(choose_device all "Select device") || return 0
+  action=$(
+    printf '%s\n' \
+      'Connect Device' \
+      'Disconnect Device' \
+      'Trust Device' \
+      'Untrust Device' \
+      'Unpair Device' \
+      'Device Information' |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "Device actions" 2>/dev/null ||
+      true
+  )
+
+  case "$action" in
+    'Connect Device')
+      if run_device_command connect "$address"; then
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth device connected" \
+          "Connected to ${address}."
+        refresh_waybar
+      else
+        notify_bluetooth critical dialog-error device.error \
+          "Bluetooth connection failed" \
+          "Could not connect to ${address}."
+      fi
+      ;;
+    'Disconnect Device')
+      if run_device_command disconnect "$address"; then
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth device disconnected" \
+          "Disconnected ${address}."
+        refresh_waybar
+      else
+        notify_bluetooth critical dialog-error device.error \
+          "Bluetooth disconnect failed" \
+          "Could not disconnect ${address}."
+      fi
+      ;;
+    'Trust Device')
+      run_device_command trust "$address" &&
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth device trusted" \
+          "Trusted ${address}."
+      ;;
+    'Untrust Device')
+      run_device_command untrust "$address" &&
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth device untrusted" \
+          "Removed trust from ${address}."
+      ;;
+    'Unpair Device')
+      run_device_command remove "$address" &&
+        notify_bluetooth normal bluetooth device.changed \
+          "Bluetooth device unpaired" \
+          "Removed ${address}."
+      refresh_waybar
+      ;;
+    'Device Information')
+      exec labwc-terminal -e labwc-bluetooth info "$address"
+      ;;
+  esac
+}
+
+run_adapter_menu() {
+  action=$(
+    printf '%s\n' \
+      'Make Discoverable' \
+      'Hide from Discovery' \
+      'Enable Bluetooth' \
+      'Disable Bluetooth' |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "Bluetooth adapter" 2>/dev/null ||
+      true
+  )
+
+  case "$action" in
+    'Make Discoverable') set_visibility discoverable ;;
+    'Hide from Discovery') set_visibility hidden ;;
+    'Enable Bluetooth') set_power on ;;
+    'Disable Bluetooth') set_power off ;;
+  esac
+}
+
+run_action_menu() {
+  command -v labwc-fuzzel >/dev/null 2>&1 || {
+    printf 'fatal: labwc-fuzzel is not installed\n' >&2
+    exit 1
+  }
+
+  action=$(
+    printf '%s\n' \
+      'Scan for Devices' \
+      'Pair Device' \
+      'Connect Device' \
+      'Disconnect Device' \
+      'Manage Device' \
+      'Adapter Settings' \
+      'Open Interactive Console' |
+      labwc-fuzzel menu \
+        --dmenu \
+        --prompt "Bluetooth actions" 2>/dev/null ||
+      true
+  )
+  case "$action" in
+    'Scan for Devices') scan_devices ;;
+    'Pair Device') pair_device ;;
+    'Connect Device')
+      perform_device_action connect paired "Connect device" \
+        "Bluetooth device connected" "Connected to the selected device"
+      ;;
+    'Disconnect Device')
+      perform_device_action disconnect connected "Disconnect device" \
+        "Bluetooth device disconnected" "Disconnected the selected device"
+      ;;
+    'Manage Device') manage_device ;;
+    'Adapter Settings') run_adapter_menu ;;
+    'Open Interactive Console') open_interactive_console ;;
+  esac
+}
+
+print_status() {
+  if [ ! -S /run/dbus/system_bus_socket ]; then
+    printf '%s\n' '{"text":"","tooltip":"Bluetooth system D-Bus is unavailable","class":"unavailable"}'
+    return 0
+  fi
+
+  status_output=$(controller_status)
+  if ! printf '%s\n' "$status_output" | grep -q 'Controller '; then
+    printf '%s\n' '{"text":"","tooltip":"No Bluetooth controller detected","class":"unavailable"}'
+    return 0
+  fi
+
+  if printf '%s\n' "$status_output" | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'; then
+    if printf 'devices Connected\nquit\n' |
+      TERM=dumb NO_COLOR=1 bluetoothctl --timeout 5 2>/dev/null |
+      grep -q '^Device '
+    then
+      printf '%s\n' '{"text":"","tooltip":"Bluetooth is on with a connected device\nLeft-click: interactive console\nRight-click: device actions","class":"connected"}'
+    else
+      printf '%s\n' '{"text":"","tooltip":"Bluetooth is on\nLeft-click: interactive console\nRight-click: scan, pair, connect, trust, and remove","class":"enabled"}'
+    fi
+  else
+    printf '%s\n' '{"text":"","tooltip":"Bluetooth is off\nLeft-click: power on and open console\nRight-click: Bluetooth actions","class":"disabled"}'
+  fi
+}
+
+ensure_desktop_user
+require_bluetoothctl
+
+case "${1:-status}" in
+  status)
+    print_status
+    ;;
+  open)
+    open_interactive_console
+    ;;
+  power-toggle)
+    status_output=$(controller_status)
+    if printf '%s\n' "$status_output" | grep -Eq '^[[:space:]]*Powered:[[:space:]]+yes$'; then
+      set_power off
+    else
+      set_power on
+    fi
+    ;;
+  menu)
+    run_action_menu
+    ;;
+  pair)
+    [ "$#" -eq 2 ] || {
+      printf 'fatal: pair requires one Bluetooth device address\n' >&2
+      exit 1
+    }
+    pair_device_in_terminal "$2"
+    ;;
+  info)
+    [ "$#" -eq 2 ] || {
+      printf 'fatal: info requires one Bluetooth device address\n' >&2
+      exit 1
+    }
+    show_device_info_in_terminal "$2"
+    ;;
+  *)
+    printf 'fatal: unsupported labwc-bluetooth action: %s\n' "$1" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

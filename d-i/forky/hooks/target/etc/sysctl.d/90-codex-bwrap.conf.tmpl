@@ -1,0 +1,8 @@
+# Managed by unattended-installer for addon/devops.
+#
+# Bubblewrap requires an unprivileged user namespace. This file deliberately
+# sorts after the selectable 40-hardened profile, while retaining a bounded
+# per-user namespace ceiling for DevOps installations that do not also select
+# the rootless Podman addon.
+kernel.unprivileged_userns_clone=__INSTALLER_DEVOPS_CODEX_BWRAP_USERNS_CLONE__
+user.max_user_namespaces=__INSTALLER_DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES__

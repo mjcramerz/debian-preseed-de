@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
+use File::Spec ();
+
+BEGIN {
+    my @module_roots = (
+        '/usr/local/lib/perl5/site_perl/apparmor-managed-modes',
+    );
+    my $script_path = abs_path($0);
+    if (defined($script_path)) {
+        unshift @module_roots,
+            File::Spec->catdir(
+                dirname($script_path),
+                '..',
+                'lib',
+                'perl5',
+                'site_perl',
+                'apparmor-managed-modes',
+            );
+    }
+    unshift @INC, @module_roots;
+}
+
+use AppArmor::ManagedModes::CLI qw(fatal info parse_args);
+use AppArmor::ManagedModes::Config qw(load_config);
+use AppArmor::ManagedModes::Tool;
+use AppArmor::ManagedModes::Transition qw(apply_profile_mode);
+use AppArmor::ManagedModes::TrustedPath qw(
+    validate_absolute_path
+    validate_real_directory
+);
+use AppArmor::ManagedModes::Verify qw(
+    verify_loaded_profile_modes
+    verify_source_profile_modes
+);
+use AppArmor::ManagedModes::Workspace;
+
+my $options = parse_args(@ARGV);
+
+validate_absolute_path('configuration path', $options->{config_path});
+validate_absolute_path('profile directory', $options->{profile_dir});
+validate_absolute_path('tool directory', $options->{tool_dir});
+validate_absolute_path('loaded profiles path', $options->{loaded_profiles_path});
+validate_real_directory('profile directory', $options->{profile_dir});
+
+umask 0077;
+
+my $workspace = AppArmor::ManagedModes::Workspace->new();
+END {
+    if (defined($workspace) && !$workspace->cleanup()) {
+        print STDERR
+            "apparmor-managed-modes: warning: cannot remove one or more "
+            . "managed temporary paths\n";
+        $? = 1 if $? == 0;
+    }
+}
+
+my $entries = load_config($options);
+my $tools = AppArmor::ManagedModes::Tool->new();
+
+if ($options->{check_only}) {
+    verify_source_profile_modes($entries, $options, $workspace, $tools);
+}
+else {
+    for my $entry (@$entries) {
+        next if $entry->{mode} ne 'disable';
+        apply_profile_mode($entry, $options, $workspace, $tools);
+    }
+    for my $entry (@$entries) {
+        next if $entry->{mode} eq 'disable';
+        apply_profile_mode($entry, $options, $workspace, $tools);
+    }
+}
+
+if ($options->{check_loaded} ||
+    (!$options->{check_only} && $options->{reload_profiles})) {
+    verify_loaded_profile_modes($entries, $options, $workspace, $tools);
+}
+
+info('mode policy verified');
+exit 0;

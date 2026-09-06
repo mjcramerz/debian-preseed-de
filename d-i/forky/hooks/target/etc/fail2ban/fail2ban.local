@@ -1,0 +1,8 @@
+# Managed by unattended-installer.
+[DEFAULT]
+loglevel = INFO
+logtarget = /var/log/managed/fail2ban/fail2ban.log
+syslogsocket = auto
+dbfile = /var/lib/fail2ban/fail2ban.sqlite3
+dbpurgeage = 7d
+dbmaxmatches = 10

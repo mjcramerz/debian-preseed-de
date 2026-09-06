@@ -1,0 +1,51 @@
+/*
+ * Managed UX refinements kept separate from the color theme.
+ */
+
+:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 2px;
+}
+
+.markdown-source-view.mod-cm6 .cm-scroller,
+.markdown-reading-view {
+  scroll-behavior: smooth;
+}
+
+.markdown-rendered img {
+  border-radius: var(--radius-m);
+  height: auto;
+  max-width: 100%;
+}
+
+.markdown-rendered pre {
+  overflow-x: auto;
+}
+
+.markdown-rendered kbd {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  padding: 0.1em 0.4em;
+}
+
+.markdown-rendered thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

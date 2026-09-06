@@ -1,0 +1,63 @@
+# Compression and swap acceleration
+zram
+lz4
+lz4_compress
+
+# Disk / storage
+ahci
+libahci
+nvme
+scsi_mod
+sd_mod
+btrfs
+xfs
+
+# Crypto acceleration / hashes
+aes_x86_64
+sha256_generic
+sha512_generic
+__INSTALLER_CPU_CRC32C_MODULE__
+xxhash_generic
+
+# USB + HID stack for early keyboard
+usbcore
+xhci_hcd
+usbhid
+hid_generic
+hid
+
+# USB-C / UCSI
+typec
+typec_ucsi
+ucsi_acpi
+
+# Platform-specific modules
+__INSTALLER_INITRAMFS_PLATFORM_MODULES__
+
+# Graphics stack selected by installer gpu class
+__INSTALLER_GRAPHICS_INITRAMFS_MODULES__
+
+# Optional VFIO stack for protected platform devices
+__INSTALLER_VFIO_INITRAMFS_MODULES__
+
+# Host virtualization acceleration stack for all boot profiles
+__INSTALLER_VIRT_HOST_INITRAMFS_MODULES__
+
+# LSM
+apparmor
+
+# Device-mapper + crypto (if using LUKS/LVM)
+dm_mod
+dm_crypt
+#dm_thin_pool
+#dm_snapshot
+#dm_mirror
+#dm_raid
+#dm_integrity
+
+# TPM + trusted keys
+tpm
+tpm_tis
+tpm_crb
+trusted
+encrypted-keys

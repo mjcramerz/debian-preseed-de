@@ -1,0 +1,43 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile filen /{usr/bin/{filen,filen-desktop},opt/Filen/Filen} flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-user-documents>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /usr/bin/{filen,filen-desktop} mr,
+  /usr/bin/{wl-copy,wl-paste} r,
+  /opt/Filen/ r,
+  /opt/Filen/** mrix,
+
+  owner @{HOME}/.cache/{Filen,filen}/ rw,
+  owner @{HOME}/.cache/{Filen,filen}/** rwk,
+  owner @{HOME}/.config/{Filen,filen}/ rw,
+  owner @{HOME}/.config/{Filen,filen}/** rwkl,
+  owner @{HOME}/.config/@filen/ rw,
+  owner @{HOME}/.config/@filen/** rwkl,
+  owner @{HOME}/.config/@filen/desktop/rclone/bin/*/{rclone,.copy-*} rwklmrix,
+  owner @{HOME}/.config/rclone/ rw,
+  owner @{HOME}/.config/rclone/** rwkl,
+  owner @{HOME}/.local/share/{Filen,filen}/ rw,
+  owner @{HOME}/.local/share/{Filen,filen}/** rwkl,
+  owner @{HOME}/Filen/ rw,
+  owner @{HOME}/Filen/** rwkl,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/opt.Filen.Filen>
+}

@@ -1,0 +1,47 @@
+# Managed by unattended-installer for addon/devops.
+#
+# Keep the shared root sticky and root-owned so the devops account can create
+# work entries without being able to replace root-owned share/, lib/, or release
+# metadata through parent-directory rename or unlink operations.
+d /data/tmp 3770 root devops -
+d __INSTALLER_DEVOPS_CODEX_ROOT__ 3770 root devops -
+d __INSTALLER_DEVOPS_CODEX_USER_ROOT__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_AGENTS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_SKILLS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# The app server is supervised by the account user manager. Its canonical
+# startup lock remains below CODEX_HOME, while the listener itself uses the
+# private /data/codex/sockets directory selected by the managed user unit.
+f __INSTALLER_DEVOPS_CODEX_HOME__/auth.json 0600 __INSTALLER_ACCOUNT_USERNAME__ devops - {}
+d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-startup.lock 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
+L __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-control.sock - __INSTALLER_ACCOUNT_USERNAME__ devops - __INSTALLER_DEVOPS_CODEX_ROOT__/sockets/app-server-control.sock
+d __INSTALLER_DEVOPS_CODEX_HOME__/sessions 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_HOME__/shell_snapshots 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_HOME__/archived_sessions 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_HOME__/history.jsonl 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_HOME__/session_index.jsonl 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_HOME__/external_agent_session_imports.json 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_HOME__/memories 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_HOME__/memories/.git 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+
+d __INSTALLER_DEVOPS_CODEX_LOG_DIR__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d /var/log/managed/openai/codex 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f /var/log/managed/openai/codex/codex-login.log 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f /var/log/managed/openai/codex/codex-tui.log 0660 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_SQLITE_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
+# Wrapper coordination is intentionally private even though its parent runtime
+# root is shared with the managed devops group.
+d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__/.control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+
+# Official standalone package state exists only for ChatGPT installer and
+# discovery compatibility. The service executable remains the repository-built
+# Codex behind /data/codex/lib/codex.
+d __INSTALLER_DEVOPS_CODEX_ROOT__/packages 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_ROOT__/sockets 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+d __INSTALLER_DEVOPS_CODEX_ROOT__/credentials 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
+f __INSTALLER_DEVOPS_CODEX_ROOT__/credentials/auth.json 0600 __INSTALLER_ACCOUNT_USERNAME__ devops - {}
+f __INSTALLER_DEVOPS_CODEX_ROOT__/credentials/mcp.env 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
+
+d __INSTALLER_DEVOPS_CODEX_SYSTEM_CONFIG_DIR__ 0755 root root -

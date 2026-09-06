@@ -1,0 +1,18 @@
+# Managed by unattended-installer.
+#
+# Keep the PAM service file under /etc/pam.d so Debian's PAM stack treats it as
+# a supported local policy surface instead of warning about /usr/lib/pam.d.
+# user@.service is a service manager, not an interactive login entry point.
+# Password-locked system accounts such as the managed rootless Podman account
+# must be able to start their user manager without bypassing common-account for
+# normal login-class users.
+account  sufficient pam_usertype.so issystem
+@include common-account
+
+session  required pam_selinux.so close
+session  required pam_selinux.so nottys open
+session  required pam_loginuid.so
+session  required pam_limits.so
+@include common-session-noninteractive
+session  optional pam_keyinit.so force revoke
+session  optional pam_systemd.so

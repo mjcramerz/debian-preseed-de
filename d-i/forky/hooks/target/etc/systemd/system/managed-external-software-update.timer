@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule application of downloaded managed external software updates
+Documentation=man:systemd.timer(5)
+
+[Timer]
+OnCalendar=Sun *-*-* 05:30:00
+Persistent=true
+RandomizedDelaySec=30min
+AccuracySec=15m
+Unit=managed-external-software-update.service
+
+[Install]
+WantedBy=timers.target

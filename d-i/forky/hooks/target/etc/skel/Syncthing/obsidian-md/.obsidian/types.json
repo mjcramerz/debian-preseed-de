@@ -1,0 +1,10 @@
+{
+  "types": {
+    "aliases": "aliases",
+    "cssclasses": "multitext",
+    "owner": "text",
+    "status": "text",
+    "tags": "tags",
+    "updated": "date"
+  }
+}

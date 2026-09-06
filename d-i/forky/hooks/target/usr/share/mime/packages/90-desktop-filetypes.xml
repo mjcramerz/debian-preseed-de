@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-rdp">
+    <comment>Remote Desktop Protocol connection</comment>
+    <glob pattern="*.rdp" weight="80"/>
+  </mime-type>
+  <mime-type type="application/vnd.sqlite3">
+    <glob pattern="*.sqlite" weight="60"/>
+  </mime-type>
+</mime-info>

@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule daily official and external ClamAV signature updates
+Documentation=man:systemd.timer(5)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=2h
+AccuracySec=15m
+Unit=managed-clamav-signature-update.service
+
+[Install]
+WantedBy=timers.target

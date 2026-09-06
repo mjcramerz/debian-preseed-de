@@ -1,0 +1,183 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+CONNECTIVITY_URL="__INSTALLER_APT_REFRESH_LISTS_CONNECTIVITY_URL__"
+DIR_APT_STATE="__INSTALLER_DIR_APT_STATE__"
+DIR_APT_LISTS="__INSTALLER_DIR_APT_LISTS__"
+CONNECTIVITY_RETRY_DELAY_SECONDS=10
+CONNECTIVITY_MAX_ATTEMPTS=3
+LOG_TAG="apt-refresh-lists"
+LOG_HELPER="/usr/libexec/install-tools/system-log.sh"
+
+if [ -r /etc/default/system-runtime ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/system-runtime
+fi
+
+CONNECTIVITY_HOST=
+probe_http_cmd=
+probe_http_kind=
+SYSTEMD_LOG_LEVEL=${SYSTEMD_LOG_LEVEL:-error}
+[ -r "$LOG_HELPER" ] || { printf 'error: missing logging helper: %s\n' "$LOG_HELPER" >&2; exit 1; }
+# shellcheck disable=SC1090
+. "$LOG_HELPER"
+runtime_log_init "$LOG_TAG" SYSTEMD_LOG_LEVEL error
+
+usage() {
+  echo "usage: ${0##*/}" >&2
+  exit 1
+}
+
+require_absolute_path() {
+  path=$1
+  label=$2
+  case "$path" in
+    /*) ;;
+    *) fatal "$label must be absolute: $path" ;;
+  esac
+  [ "$path" != "/" ] || fatal "$label must not be /"
+}
+
+require_uint() {
+  label=$1
+  value=$2
+
+  case "$value" in
+    ''|*[!0-9]*)
+      fatal "$label must be an unsigned integer: ${value:-unset}"
+      ;;
+  esac
+}
+
+host_from_url() {
+  url=$1
+  case "$url" in
+    http://*|https://*) ;;
+    *) fatal "connectivity URL must use http or https: $url" ;;
+  esac
+  host_port=${url#*://}
+  host_port=${host_port%%/*}
+  case "$host_port" in
+    \[*\]*)
+      host=${host_port#\[}
+      host=${host%%\]*}
+      ;;
+    *)
+      host=${host_port%%:*}
+      ;;
+  esac
+  [ -n "$host" ] || fatal "connectivity URL has no host: $url"
+  printf '%s\n' "$host"
+}
+
+resolve_probe_http_cmd() {
+  [ -n "$probe_http_cmd" ] && [ -n "$probe_http_kind" ] && return 0
+
+  if probe_http_cmd=$(command -v curl 2>/dev/null); then
+    probe_http_kind=curl
+    return 0
+  fi
+  if probe_http_cmd=$(command -v wget 2>/dev/null); then
+    probe_http_kind=wget
+    return 0
+  fi
+  fatal "neither curl nor wget is available for Debian connectivity checks"
+}
+
+probe_url() {
+  url=$1
+
+  resolve_probe_http_cmd
+  case "$probe_http_kind" in
+    curl)
+      "$probe_http_cmd" --fail --silent --show-error --location --max-time 3 --head "$url" >/dev/null 2>&1
+      ;;
+    wget)
+      "$probe_http_cmd" --spider --quiet --tries=1 --timeout=3 "$url" >/dev/null 2>&1
+      ;;
+    *)
+      fatal "unsupported Debian connectivity probe command kind: $probe_http_kind"
+      ;;
+  esac
+}
+
+validate_config() {
+  [ -n "${CONNECTIVITY_URL:-}" ] || fatal "Debian connectivity URL is empty"
+  CONNECTIVITY_HOST=$(host_from_url "$CONNECTIVITY_URL")
+  require_absolute_path "${DIR_APT_STATE:-}" "DIR_APT_STATE"
+  require_absolute_path "${DIR_APT_LISTS:-}" "DIR_APT_LISTS"
+  require_uint CONNECTIVITY_RETRY_DELAY_SECONDS "${CONNECTIVITY_RETRY_DELAY_SECONDS:-}"
+  require_uint CONNECTIVITY_MAX_ATTEMPTS "${CONNECTIVITY_MAX_ATTEMPTS:-}"
+  case "$DIR_APT_LISTS" in
+    "$DIR_APT_STATE"/lists) ;;
+    *) fatal "DIR_APT_LISTS must be below DIR_APT_STATE/lists: $DIR_APT_LISTS" ;;
+  esac
+}
+
+prepare_partial_dirs() {
+  install -d -m 0755 "$DIR_APT_STATE" "$DIR_APT_LISTS"
+  install -d -m 0700 "$DIR_APT_LISTS/partial"
+  if id -u _apt >/dev/null 2>&1; then
+    chown _apt:root "$DIR_APT_LISTS/partial"
+  fi
+  chmod 0700 "$DIR_APT_LISTS/partial"
+}
+
+wait_for_debian_access() {
+  url=${1:-$CONNECTIVITY_URL}
+  if [ "$url" = "$CONNECTIVITY_URL" ] && [ -n "$CONNECTIVITY_HOST" ]; then
+    host=$CONNECTIVITY_HOST
+  else
+    host=$(host_from_url "$url")
+  fi
+  attempt=1
+
+  while [ "$attempt" -le "$CONNECTIVITY_MAX_ATTEMPTS" ]; do
+    if timeout --signal=TERM --kill-after=1s 3s getent hosts "$host" >/dev/null 2>&1 && probe_url "$url"; then
+      [ "$attempt" -eq 1 ] || log "connectivity to ${url} is available after ${attempt} attempts"
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$CONNECTIVITY_MAX_ATTEMPTS" ]; then
+      log "connectivity to ${url} is unavailable; attempt ${attempt}/${CONNECTIVITY_MAX_ATTEMPTS} failed"
+      break
+    fi
+
+    log "connectivity to ${url} is unavailable; attempt ${attempt}/${CONNECTIVITY_MAX_ATTEMPTS} failed, retrying in ${CONNECTIVITY_RETRY_DELAY_SECONDS}s"
+    sleep "$CONNECTIVITY_RETRY_DELAY_SECONDS"
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
+update_indexes() {
+  validate_config
+  prepare_partial_dirs
+  if ! wait_for_debian_access "$CONNECTIVITY_URL"; then
+    log "warning: connectivity to ${CONNECTIVITY_URL} is still unavailable; deferring apt-get update for a bounded service retry"
+    return 75
+  fi
+  if ! env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none \
+    apt-get \
+      -o Acquire::Retries=2
+      -o APT::Update::Error-Mode=any \
+      -o Acquire::http::Timeout=45 \
+      -o Acquire::https::Timeout=45 \
+      -o Dpkg::Use-Pty=0 \
+      update; then
+    log "warning: apt-get update failed; requesting a bounded service retry"
+    return 75
+  fi
+}
+
+case "$#" in
+  0)
+    update_indexes
+    ;;
+  *)
+    usage
+    ;;
+esac

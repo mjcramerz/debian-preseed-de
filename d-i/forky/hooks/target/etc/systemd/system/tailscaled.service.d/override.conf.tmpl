@@ -1,0 +1,37 @@
+[Unit]
+# DNS and a synchronized clock are prerequisites for a reliable initial
+# control-plane TLS session, not merely a configured link.
+# Load the TUN driver before tailscaled creates or cleans up its managed link.
+Wants=systemd-modules-load.service network-online.target nss-lookup.target time-sync.target
+# Ordering after the network manager and network target does not pull either
+# unit into the transaction. It keeps the physical network stack available
+# until tailscaled has drained its own shutdown work queue.
+After=systemd-modules-load.service NetworkManager.service network.target network-online.target nss-lookup.target time-sync.target
+
+[Service]
+# Preserve Tailscale's automatic port 80 Noise to HTTPS/443 fallback.
+# Upstream tailscaled performs DNS and router cleanup unconditionally before it
+# starts the daemon. Do not duplicate that cleanup in a repository-owned
+# ExecStartPre. Running tailscaled --cleanup again after the daemon exits also
+# races the daemon's own teardown, so clear the package ExecStopPost.
+ExecStopPost=
+UMask=0077
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+# Upstream cleanup is explicitly best-effort and logs this exact diagnostic
+# when the configured TUN link does not exist yet. Discard only that no-op
+# startup condition; keep every other router and control-plane diagnostic.
+LogFilterPatterns=~^router: enumerating __INSTALLER_TAILSCALE_INTERFACE_REGEX__ addresses for cleanup failed: failed to look up link "__INSTALLER_TAILSCALE_INTERFACE_REGEX__": Link not found$
+# Tailscale currently logs this exact message after it closes its extension
+# work queue and then asks the closed queue to drain. Upstream treats extension
+# shutdown callback failures as non-fatal. Discard only that deterministic
+# shutdown diagnostic; retain every other tailscaled message.
+LogFilterPatterns=~^ipnext: work queue shutdown failed: execqueue shut down$
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectControlGroups=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native

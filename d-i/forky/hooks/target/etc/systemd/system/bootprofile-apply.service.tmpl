@@ -1,0 +1,17 @@
+[Unit]
+Description=Apply boot profile tunables
+DefaultDependencies=no
+After=systemd-remount-fs.service
+Before=systemd-sysctl.service sysinit.target
+ConditionPathExists=/proc/cmdline
+
+[Service]
+Type=oneshot
+TimeoutStartSec=30s
+TimeoutStopSec=10s
+KillMode=control-group
+UMask=0077
+ExecStart=__INSTALLER_FILE_BOOTPROFILE_APPLY__
+
+[Install]
+WantedBy=sysinit.target

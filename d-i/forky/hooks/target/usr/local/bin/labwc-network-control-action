@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use lib '/usr/local/lib/perl5/site_perl/labwc-network-control-action';
+
+use LabwcNetworkControlAction::Client;
+
+exit LabwcNetworkControlAction::Client->new()->run(@ARGV);

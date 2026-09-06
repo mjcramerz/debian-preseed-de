@@ -1,0 +1,24 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile aa-status-reader /usr/{bin,sbin}/aa-status flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/{bin,sbin}/aa-status mr,
+  /dev/pts/[0-9]* r,
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/mounts r,
+  @{PROC}/[0-9]*/attr/apparmor/ r,
+  @{PROC}/[0-9]*/attr/apparmor/current r,
+  @{sys}/kernel/security/apparmor/ r,
+  @{sys}/kernel/security/apparmor/profiles r,
+  @{sys}/module/apparmor/ r,
+  @{sys}/module/apparmor/parameters/enabled r,
+  capability sys_ptrace,
+  ptrace (read),
+
+  include if exists <local/usr.sbin.aa-status>
+}

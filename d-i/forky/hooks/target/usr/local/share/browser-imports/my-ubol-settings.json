@@ -1,0 +1,21 @@
+{
+  "filteringModes": {
+    "basic": [],
+    "complete": [],
+    "none": [],
+    "optimal": [
+      "all-urls"
+    ]
+  },
+  "popupBlockMode": false,
+  "rulesets": [
+    "+adguard-spyware-url",
+    "+block-lan",
+    "+swe-1",
+    "+annoyances-cookies",
+    "+annoyances-notifications"
+  ],
+  "showBlockedCount": true,
+  "strictBlockMode": true,
+  "version": "2026.901.1442"
+}

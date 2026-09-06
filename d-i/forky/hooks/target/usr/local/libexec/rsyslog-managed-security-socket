@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+socket_path=/run/rsyslog/managed-security-scanners/scanner.sock
+socket_group=securitylogger
+
+command -v getent >/dev/null 2>&1 || {
+  printf 'fatal: getent is required to configure the managed scanner log socket\n' >&2
+  exit 1
+}
+getent group "$socket_group" >/dev/null 2>&1 || {
+  printf 'fatal: managed scanner log group is unavailable: %s\n' "$socket_group" >&2
+  exit 1
+}
+
+attempt=1
+while [ ! -S "$socket_path" ] && [ "$attempt" -le 10 ]; do
+  sleep 1
+  attempt=$((attempt + 1))
+done
+[ -S "$socket_path" ] || {
+  printf 'fatal: rsyslog did not create the managed scanner socket: %s\n' "$socket_path" >&2
+  exit 1
+}
+
+chown "root:${socket_group}" "$socket_path"
+chmod 0660 "$socket_path"

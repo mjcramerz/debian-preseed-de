@@ -1,0 +1,76 @@
+# Managed by unattended-installer.
+#
+# Least-privilege desktop runtime shared by repository-managed applications.
+# Application installation trees, mutable state, user documents, network,
+# audio, camera, input, and removable-media access stay in the individual
+# profiles. This abstraction only supplies common desktop IPC and graphics.
+
+#include <abstractions/base>
+include if exists <abstractions/dbus-session>
+include if exists <abstractions/dconf>
+include if exists <abstractions/fonts>
+include if exists <abstractions/freedesktop.org>
+include if exists <abstractions/gtk>
+#include <abstractions/managed-desktop-graphics>
+include <abstractions/nameservice-strict>
+include if exists <abstractions/openssl>
+include if exists <abstractions/qt5>
+include if exists <abstractions/qt6>
+include if exists <abstractions/ssl_certs>
+#include <abstractions/wayland>
+include if exists <abstractions/xdg-desktop>
+
+# Desktop applications routinely invoke these package-owned shell helpers
+# while resolving MIME handlers, browser integration, and vendor launch
+# scripts. Keep them inside the calling profile.
+/{,usr/}bin/{bash,dash,sh} rix,
+/usr/bin/{awk,basename,cat,cut,dbus-send,dirname,gawk,getconf,getopt,grep,head,lsb_release,mawk,mkdir,mv,nawk,readlink,realpath,sed,sort,touch,tr,uname,xdg-mime,xdg-settings,xprop} rix,
+
+# Raw audio hardware is compositor/session-service only. Application profiles
+# opt into PipeWire/Pulse sockets through managed-pipewire-audio instead.
+deny /dev/snd/ r,
+deny /dev/snd/** rwklm,
+deny /dev/sound/ r,
+deny /dev/sound/** rwklm,
+
+# The AppArmor package supplies the protocol abstraction; keep the exact
+# per-user Labwc socket explicit so Wayland remains available on every target.
+owner /run/user/[0-9]*/wayland-[0-9]* rw,
+owner /run/user/[0-9]*/dconf/ rw,
+owner /run/user/[0-9]*/dconf/** rwkl,
+
+# Applications cannot update the root-owned system font cache. Suppress these
+# expected probes so temporary complain/audit sessions stay useful.
+deny /var/cache/ w,
+deny /var/cache/fontconfig/ w,
+deny /var/cache/fontconfig/** rwkl,
+
+# Common toolkit and desktop-integration data used before an application opens
+# its app-specific configuration tree.
+/ r,
+/home/ r,
+/etc/ r,
+/etc/debian_version r,
+/etc/os-release r,
+/etc/xdg/ r,
+/etc/xdg/** r,
+/usr/lib/os-release r,
+/usr/local/share/fonts/ r,
+/usr/local/share/fonts/** r,
+/usr/share/fontconfig/conf.avail/ r,
+/usr/share/fontconfig/conf.avail/** r,
+/usr/share/xkeyboard-config-*/ r,
+/usr/share/xkeyboard-config-*/** r,
+owner @{HOME}/ r,
+owner @{HOME}/.config/ rw,
+owner @{HOME}/.config/mimeapps.list* rwkl,
+owner @{HOME}/.local/share/ rw,
+owner @{HOME}/.local/share/pki/ rw,
+owner @{HOME}/.local/share/pki/** rwkl,
+owner @{HOME}/.pki/ rw,
+owner @{HOME}/.pki/nssdb/ rw,
+owner @{HOME}/.pki/nssdb/** rwkl,
+
+# Files selected through xdg-desktop-portal are exposed below this FUSE mount.
+owner /run/user/[0-9]*/doc/ r,
+owner /run/user/[0-9]*/doc/** rw,

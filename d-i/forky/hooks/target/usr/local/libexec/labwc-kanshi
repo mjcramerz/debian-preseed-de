@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+case "${LABWC_ENABLE_KANSHI:-true}" in
+  true|yes|1|on) ;;
+  *) exit 0 ;;
+esac
+
+config_path=${XDG_CONFIG_HOME:-$HOME/.config}/kanshi/config
+[ -r "$config_path" ] || { printf 'fatal: kanshi configuration is unreadable: %s\n' "$config_path" >&2; exit 1; }
+kanshi_cmd=$(command -v kanshi 2>/dev/null || true)
+[ -n "$kanshi_cmd" ] || { printf 'fatal: kanshi is unavailable\n' >&2; exit 1; }
+
+exec "$kanshi_cmd" --config "$config_path"

@@ -1,0 +1,33 @@
+// Managed by unattended-installer.
+// Authenticate the exact managed power helper independently of display-manager
+// active/local classification. The root helper enforces the action allowlist.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+    var POWER_HELPER = "/usr/local/libexec/labwc-admin-action-root";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function lookupString(action, key) {
+        var value = action.lookup(key);
+        return typeof value === "string" ? value : "";
+    }
+
+    polkit.addRule(function(action, subject) {
+        if (action.id !== "org.freedesktop.policykit.exec") {
+            return polkit.Result.NOT_HANDLED;
+        }
+        if (lookupString(action, "program") !== POWER_HELPER) {
+            return polkit.Result.NOT_HANDLED;
+        }
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    });
+})();

@@ -1,0 +1,50 @@
+# Managed Labwc theme overrides for the default internal display profile.
+# Runtime profile switching uses the managed *.internal / *.external variants.
+border.width: 2
+
+window.active.border.color: #ecb860
+window.inactive.border.color: #334155
+window.active.title.bg: Gradient Vertical
+window.active.title.bg.color: #171e29
+window.active.title.bg.colorTo: #0c1017
+window.inactive.title.bg: Solid
+window.inactive.title.bg.color: #111827
+window.active.label.text.color: #f5efe3
+window.inactive.label.text.color: #9aa9ba
+window.label.text.justify: Center
+window.button.hover.bg.color: #ecb86033
+window.button.hover.bg.corner-radius: 8
+window.active.button.unpressed.image.color: #f5efe3
+window.inactive.button.unpressed.image.color: #9aa9ba
+window.active.shadow.size: 48
+window.inactive.shadow.size: 32
+window.active.shadow.color: #00000066
+window.inactive.shadow.color: #00000044
+
+menu.width.min: 170
+menu.width.max: 340
+menu.border.width: 1
+menu.border.color: #ecb860
+menu.items.padding.x: 6
+menu.items.padding.y: 3
+menu.items.bg.color: #0c1017
+menu.items.text.color: #f5efe3
+menu.items.active.bg.color: #263242
+menu.items.active.text.color: #ffffff
+menu.separator.color: #334155
+menu.title.bg.color: #171e29
+menu.title.text.color: #ecb860
+
+osd.bg.color: #0c1017e6
+osd.border.color: #ecb860
+osd.border.width: 1
+osd.label.text.color: #f5efe3
+osd.window-switcher.style-classic.width: 60%
+osd.window-switcher.style-classic.item.active.border.color: #ecb860
+osd.window-switcher.style-classic.item.active.bg.color: #6dc4ed26
+osd.window-switcher.preview.border.color: #ecb860,#0c1017,#ecb860
+
+snapping.overlay.region.bg.color: #6dc4ed33
+snapping.overlay.edge.bg.color: #6dc4ed33
+snapping.overlay.region.border.color: #ecb860,#0c1017,#ecb860
+snapping.overlay.edge.border.color: #ecb860,#0c1017,#ecb860

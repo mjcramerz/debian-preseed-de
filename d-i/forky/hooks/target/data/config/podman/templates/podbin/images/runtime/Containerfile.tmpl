@@ -1,0 +1,51 @@
+FROM docker.io/library/debian:trixie-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN install -d -m 0755 /var/cache/apt /var/cache/apt/archives /var/lib/apt/lists \
+ && install -d -m 0700 /var/cache/apt/archives/partial /var/lib/apt/lists/partial \
+ && if id -u _apt >/dev/null 2>&1; then chown _apt:root /var/cache/apt/archives/partial /var/lib/apt/lists/partial; fi \
+ && printf '%s\n' \
+    'APT::Install-Recommends "false";' \
+    'APT::Install-Suggests "false";' \
+    > /etc/apt/apt.conf.d/99noinstall-recommends \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends --no-install-suggests \
+    bash \
+    ca-certificates \
+    curl \
+    file \
+    iproute2 \
+    iputils-ping \
+    less \
+    openssh-server \
+    procps \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid __INSTALLER_PODBIN_RUNTIME_USER_GID__ __INSTALLER_PODBIN_RUNTIME_USER_NAME__ \
+ && useradd \
+    --uid __INSTALLER_PODBIN_RUNTIME_USER_UID__ \
+    --gid __INSTALLER_PODBIN_RUNTIME_USER_GID__ \
+    --home-dir __INSTALLER_PODBIN_RUNTIME_USER_HOME__ \
+    --create-home \
+    --shell __INSTALLER_PODBIN_RUNTIME_USER_SHELL__ \
+    __INSTALLER_PODBIN_RUNTIME_USER_NAME__ \
+ && install -d -m 0700 -o __INSTALLER_PODBIN_RUNTIME_USER_UID__ -g __INSTALLER_PODBIN_RUNTIME_USER_GID__ __INSTALLER_PODBIN_RUNTIME_AUTH_KEYS_DIR__ \
+ && install -d -m 0755 -o __INSTALLER_PODBIN_RUNTIME_USER_UID__ -g __INSTALLER_PODBIN_RUNTIME_USER_GID__ __INSTALLER_PODBIN_RUNTIME_WORKDIR__ \
+ && install -d -m 0755 -o __INSTALLER_PODBIN_RUNTIME_USER_UID__ -g __INSTALLER_PODBIN_RUNTIME_USER_GID__ /run/sshd \
+ && ssh-keygen -A \
+ && chown __INSTALLER_PODBIN_RUNTIME_USER_UID__:__INSTALLER_PODBIN_RUNTIME_USER_GID__ /etc/ssh/ssh_host_*_key \
+ && chmod 0600 /etc/ssh/ssh_host_*_key
+
+COPY entrypoint.sh /usr/local/bin/podbin-entrypoint
+COPY sshd_config /etc/ssh/sshd_config
+
+RUN chmod 0755 /usr/local/bin/podbin-entrypoint \
+ && chmod 0644 /etc/ssh/sshd_config
+
+USER __INSTALLER_PODBIN_RUNTIME_USER_UID__:__INSTALLER_PODBIN_RUNTIME_USER_GID__
+WORKDIR __INSTALLER_PODBIN_RUNTIME_WORKDIR__
+
+EXPOSE 2222
+
+CMD ["/usr/local/bin/podbin-entrypoint"]

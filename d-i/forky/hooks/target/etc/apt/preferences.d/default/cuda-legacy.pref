@@ -1,0 +1,11 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the CUDA archive available for explicit installs, but pin the managed
+# CUDA 12.8 and 12.9 toolkit sets to NVIDIA's Debian 12 packages.
+
+Package: *
+Pin: release o=NVIDIA,l=NVIDIA CUDA
+Pin-Priority: 100
+
+Package: cuda-cuobjdump-12-8 cuda-command-line-tools-12-8 cuda-cccl-12-8 cuda-cudart-12-8 cuda-cudart-dev-12-8 cuda-nvcc-12-8 cuda-nvml-dev-12-8 cuda-nvrtc-12-8 cuda-nvrtc-dev-12-8 cuda-nvvm-12-8 cuda-opencl-12-8 cuda-opencl-dev-12-8 cuda-nvtx-12-8 cuda-cupti-12-8 cuda-cupti-dev-12-8 cuda-sanitizer-12-8 libcublas-12-8 libcublas-dev-12-8 libcufft-12-8 libcufft-dev-12-8 libcurand-12-8 libcurand-dev-12-8 libcusolver-12-8 libcusolver-dev-12-8 libcusparse-12-8 libcusparse-dev-12-8 libnpp-12-8 libnpp-dev-12-8 libnvjitlink-12-8 libnvjitlink-dev-12-8 libnvfatbin-12-8 libnvfatbin-dev-12-8 libnvjpeg-12-8 libnvjpeg-dev-12-8 cuda-cuobjdump-12-9 cuda-command-line-tools-12-9 cuda-cccl-12-9 cuda-cudart-12-9 cuda-cudart-dev-12-9 cuda-nvcc-12-9 cuda-nvml-dev-12-9 cuda-nvrtc-12-9 cuda-nvrtc-dev-12-9 cuda-nvvm-12-9 cuda-opencl-12-9 cuda-opencl-dev-12-9 cuda-nvtx-12-9 cuda-cupti-12-9 cuda-cupti-dev-12-9 cuda-sanitizer-12-9 libcublas-12-9 libcublas-dev-12-9 libcufft-12-9 libcufft-dev-12-9 libcurand-12-9 libcurand-dev-12-9 libcusolver-12-9 libcusolver-dev-12-9 libcusparse-12-9 libcusparse-dev-12-9 libnpp-12-9 libnpp-dev-12-9 libnvjitlink-12-9 libnvjitlink-dev-12-9 libnvfatbin-12-9 libnvfatbin-dev-12-9 libnvjpeg-12-9 libnvjpeg-dev-12-9
+Pin: release o=NVIDIA,l=NVIDIA CUDA
+Pin-Priority: 900

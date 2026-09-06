@@ -1,0 +1,29 @@
+# Managed by unattended-installer.
+#
+# Enforced short-lived Vivaldi shell wrapper. Managed launches disable the
+# wrapper's optional per-user codec downloader and use the root-owned codec
+# installed below /var/opt/vivaldi. The browser transitions into vivaldi-bin,
+# so the long-running renderer does not inherit shell or helper execution.
+
+#include <abstractions/base>
+
+deny /dev/snd/ r,
+deny /dev/snd/** rwklm,
+deny /dev/sound/ r,
+deny /dev/sound/** rwklm,
+
+/{,usr/}bin/bash rix,
+/{,usr/}bin/{cat,dirname,readlink,tr,uname} rix,
+
+/dev/tty rw,
+/etc/os-release r,
+/usr/lib/os-release r,
+
+/opt/vivaldi/ r,
+/opt/vivaldi/vivaldi r,
+/opt/vivaldi/libffmpeg.so* mr,
+/var/opt/vivaldi/ r,
+/var/opt/vivaldi/media-codecs-*/libffmpeg.so mr,
+owner @{PROC}/@{pid}/fd/[0-9]* rw,
+
+/opt/vivaldi/vivaldi-bin px -> vivaldi-bin,

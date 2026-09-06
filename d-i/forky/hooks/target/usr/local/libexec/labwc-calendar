@@ -1,0 +1,414 @@
+#!/bin/sh
+set -eu
+umask 077
+
+: "${HOME:?HOME must be set}"
+
+resolve_writable_root() {
+  candidate=$1
+  fallback=$2
+
+  case "$candidate" in
+    /*) ;;
+    *)
+      printf '%s\n' "$fallback"
+      return 0
+      ;;
+  esac
+
+  probe_path=$candidate
+  while [ ! -d "$probe_path" ]; do
+    next_path=${probe_path%/*}
+    if [ -z "$next_path" ] || [ "$next_path" = "$probe_path" ]; then
+      probe_path=/
+      break
+    fi
+    probe_path=$next_path
+  done
+
+  if [ -w "$probe_path" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  printf '%s\n' "$fallback"
+}
+
+config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
+data_root=$(resolve_writable_root "${XDG_DATA_HOME:-${HOME}/.local/share}" "${HOME}/.local/share")
+state_root=$(resolve_writable_root "${XDG_STATE_HOME:-${HOME}/.local/state}" "${HOME}/.local/state")
+vdirsyncer_config="${config_root}/vdirsyncer/config"
+khal_config="${config_root}/khal/config"
+todoman_config="${config_root}/todoman/config.py"
+calendar_sync_lock="${XDG_RUNTIME_DIR:-${HOME}/.cache}/labwc-calendar-sync.lock"
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  notify_calendar critical "Calendar action failed" "The requested calendar action did not complete."
+  exit 1
+}
+
+notify_calendar() {
+  urgency=$1
+  summary=$2
+  body=$3
+
+  command -v notify-send >/dev/null 2>&1 || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  /usr/bin/timeout --kill-after=1s 5s notify-send \
+    -a Calendar \
+    -u "$urgency" \
+    -i x-office-calendar \
+    -c x-labwc.calendar \
+    -t 10000 \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fatal "required command is not installed: $1"
+}
+
+require_file() {
+  [ -r "$1" ] || fatal "required file is missing: $1"
+}
+
+run_terminal_action() {
+  require_command labwc-terminal
+  exec labwc-terminal -e "$0" "$@"
+}
+
+prompt_close() {
+  printf '\nPress Enter to close...'
+  IFS= read -r _ || true
+}
+
+ensure_calendar_environment() {
+  export VDIRSYNCER_CONFIG="$vdirsyncer_config"
+  export KHAL_CONFIG="$khal_config"
+  export TODOMAN_CONFIG="$todoman_config"
+}
+
+# Create one component at a time: never chmod an arbitrary runtime root or
+# follow symlinks supplied through XDG paths. Shared writable ancestors fail
+# closed because they cannot protect the lock and the private sync log.
+ensure_private_directory() (
+  path=$1
+  case "$path" in /*) ;; *) fatal "directory must be absolute: $path" ;; esac
+  case "$path" in *'/../'*|*'/./'*|*/..|*/.|*'//'*) fatal "non-canonical directory: $path" ;; esac
+  uid=$(id -u)
+  current=
+  old_ifs=$IFS
+  IFS=/
+  set -f
+  set -- $path
+  IFS=$old_ifs
+  for part do
+    [ -n "$part" ] || continue
+    current=$current/$part
+    if [ ! -e "$current" ] && [ ! -L "$current" ]; then
+      mkdir -m 0700 -- "$current" || fatal "cannot create directory: $current"
+    fi
+    [ -d "$current" ] && [ ! -L "$current" ] || fatal "unsafe directory: $current"
+    owner=$(stat -c %u -- "$current")
+    permissions=$(stat -c %a -- "$current")
+    { [ "$owner" = 0 ] || [ "$owner" = "$uid" ]; } &&
+      [ "$((0$permissions & 0022))" -eq 0 ] || fatal "unsafe directory permissions: $current"
+  done
+  [ "$(stat -c %u -- "$path")" = "$uid" ] || fatal "directory is not owned by this user: $path"
+  chmod 0700 -- "$path" || fatal "cannot protect directory: $path"
+)
+
+sync_calendar() {
+  quiet=false
+  sync_log=
+  if [ "${1:-}" = "--quiet" ]; then
+    quiet=true
+    shift
+  fi
+  [ "$#" -eq 0 ] || fatal "unsupported labwc-calendar sync arguments"
+
+  ensure_calendar_environment
+  require_command vdirsyncer
+  require_file "$VDIRSYNCER_CONFIG"
+
+  ensure_private_directory "${data_root}/calendars/personal"
+  ensure_private_directory "${data_root}/calendars/tasks"
+  ensure_private_directory "${state_root}/vdirsyncer/status"
+  calendar_sync_lock_dir=${calendar_sync_lock%/*}
+  [ "$calendar_sync_lock_dir" != "$calendar_sync_lock" ] || calendar_sync_lock_dir=.
+  if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    [ "$XDG_RUNTIME_DIR" = "/run/user/$(id -u)" ] && [ -d "$XDG_RUNTIME_DIR" ] &&
+      [ ! -L "$XDG_RUNTIME_DIR" ] &&
+      [ "$(stat -c '%u:%a' -- "$XDG_RUNTIME_DIR")" = "$(id -u):700" ] ||
+      fatal "unsafe XDG_RUNTIME_DIR"
+  else
+    ensure_private_directory "$calendar_sync_lock_dir"
+  fi
+
+  require_command flock
+  require_command timeout
+  [ ! -L "$calendar_sync_lock" ] &&
+    { [ ! -e "$calendar_sync_lock" ] || [ -f "$calendar_sync_lock" ]; } ||
+    fatal "unsafe or legacy directory lock: $calendar_sync_lock (stop old sync processes before removing a legacy empty lock directory)"
+  exec 9>>"$calendar_sync_lock"
+  [ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$(id -u):1:600" ] ||
+    fatal "calendar lock ownership, link count or mode is unsafe"
+  if flock --nonblock --conflict-exit-code 75 9; then
+    :
+  else
+    lock_status=$?
+    [ "$lock_status" -eq 75 ] && [ "$quiet" = true ] && return 0
+    [ "$lock_status" -ne 75 ] || fatal "calendar synchronization is already running"
+    fatal "cannot acquire the calendar synchronization lock"
+  fi
+  sync_pid=
+  cancel_sync() {
+    signal_status=$1
+    trap '' HUP INT TERM
+    if [ -n "$sync_pid" ]; then
+      # GNU timeout owns this process group, never a process selected by name.
+      /bin/kill -TERM -- "-$sync_pid" 2>/dev/null || kill -TERM "$sync_pid" 2>/dev/null || true
+      sleep 2
+      /bin/kill -KILL -- "-$sync_pid" 2>/dev/null || true
+      wait "$sync_pid" 2>/dev/null || true
+    fi
+    exit "$signal_status"
+  }
+  trap 'cancel_sync 129' HUP
+  trap 'cancel_sync 130' INT
+  trap 'cancel_sync 143' TERM
+  sync_command() {
+    command_timeout=$1
+    shift
+    timeout --signal=TERM --kill-after=2s "$command_timeout" vdirsyncer "$@" </dev/null >>"$sync_log" 2>&1 &
+    sync_pid=$!
+    command_status=0
+    wait "$sync_pid" || command_status=$?
+    sync_pid=
+    return "$command_status"
+  }
+
+  # A unique log cannot truncate a hard-linked or stale log from another run.
+  sync_log=$(mktemp "${state_root}/vdirsyncer/sync.XXXXXXXX.log") || fatal "cannot create sync log"
+  for pair in fruux_calendar fruux_tasks; do
+    if sync_command 40s discover "$pair"; then
+      continue
+    else
+      status=$?
+    fi
+    printf 'vdirsyncer discovery failed for %s.\n' "$pair" >&2
+    cat "$sync_log" >&2 2>/dev/null || true
+    # Retain the private failure log for diagnosis.
+    notify_calendar \
+      critical \
+      "Calendar synchronization failed" \
+      "The managed Fruux collections could not be discovered."
+    exit "$status"
+  done
+
+  if sync_command 180s sync fruux_calendar fruux_tasks; then
+    :
+  else
+    status=$?
+    cat "$sync_log" >&2 2>/dev/null || true
+    # Retain the private failure log for diagnosis.
+    notify_calendar \
+      critical \
+      "Calendar synchronization failed" \
+      "The managed Fruux calendar and task synchronization did not complete."
+    exit "$status"
+  fi
+  rm -f "$sync_log"
+  if [ "$quiet" = true ]; then
+    exit 0
+  fi
+  notify_calendar \
+    normal \
+    "Calendar synchronization completed" \
+    "Fruux calendar and task .ics files are synchronized below ~/.local/share/calendars."
+  printf 'Calendar synchronization completed.\n'
+}
+
+open_calendar() {
+  ensure_calendar_environment
+  require_command labwc-terminal
+  require_file "$KHAL_CONFIG"
+  if command -v ikhal >/dev/null 2>&1; then
+    exec labwc-terminal -e ikhal
+  fi
+  require_command khal
+  exec labwc-terminal -e khal interactive
+}
+
+show_agenda() {
+  ensure_calendar_environment
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  run_terminal_action agenda-terminal
+}
+
+show_agenda_terminal() {
+  ensure_calendar_environment
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  khal list today 14d
+  prompt_close
+}
+
+show_tasks() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  run_terminal_action tasks-terminal
+}
+
+show_tasks_terminal() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  todoman list
+  prompt_close
+}
+
+create_event() {
+  ensure_calendar_environment
+  require_command labwc-terminal
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  exec labwc-terminal -e khal new -i
+}
+
+edit_event() {
+  ensure_calendar_environment
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  run_terminal_action edit-event-terminal
+}
+
+edit_event_terminal() {
+  ensure_calendar_environment
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  printf 'Search event to edit: '
+  IFS= read -r query || exit 0
+  [ -n "$query" ] || exit 0
+  exec khal edit --show-past "$query"
+}
+
+create_task() {
+  ensure_calendar_environment
+  require_command labwc-terminal
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  exec labwc-terminal -e todoman new -i
+}
+
+edit_task() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  run_terminal_action edit-task-terminal
+}
+
+edit_task_terminal() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  todoman list
+  printf '\nTask id to edit: '
+  IFS= read -r task_id || exit 0
+  [ -n "$task_id" ] || exit 0
+  exec todoman edit -i "$task_id"
+}
+
+sync_terminal() {
+  if "$0" sync; then
+    status=0
+    printf '\nCalendar synchronization completed.\n'
+  else
+    status=$?
+    printf '\nCalendar synchronization failed with status %s.\n' "$status" >&2
+  fi
+  printf 'Press Enter to close... '
+  IFS= read -r _ || true
+  exit "$status"
+}
+
+open_menu() {
+  require_command labwc-fuzzel
+  selection=$(labwc-fuzzel menu --dmenu --prompt Calendar 2>/dev/null <<'EOF' || true
+Open Calendar
+Upcoming Agenda
+Open Tasks
+Create new Event
+Edit Event
+Create new Task
+Edit Task
+Sync Calendar
+EOF
+)
+
+  case "$selection" in
+    'Open Calendar') exec "$0" browse ;;
+    'Upcoming Agenda') exec "$0" agenda ;;
+    'Open Tasks') exec "$0" tasks ;;
+    'Create new Event') exec "$0" new-event ;;
+    'Edit Event') exec "$0" edit-event ;;
+    'Create new Task') exec "$0" new-task ;;
+    'Edit Task') exec "$0" edit-task ;;
+    'Sync Calendar')
+      run_terminal_action sync-terminal
+      ;;
+  esac
+  exit 0
+}
+
+case "${1:-browse}" in
+  browse|open)
+    open_calendar
+    ;;
+  agenda)
+    show_agenda
+    ;;
+  agenda-terminal)
+    show_agenda_terminal
+    ;;
+  tasks)
+    show_tasks
+    ;;
+  tasks-terminal)
+    show_tasks_terminal
+    ;;
+  new-event)
+    create_event
+    ;;
+  edit-event)
+    edit_event
+    ;;
+  edit-event-terminal)
+    edit_event_terminal
+    ;;
+  new-task)
+    create_task
+    ;;
+  edit-task)
+    edit_task
+    ;;
+  edit-task-terminal)
+    edit_task_terminal
+    ;;
+  sync-terminal)
+    sync_terminal
+    ;;
+  menu)
+    open_menu
+    ;;
+  sync)
+    shift
+    sync_calendar "$@"
+    ;;
+  *)
+    fatal "unsupported labwc-calendar action: $1"
+    ;;
+esac

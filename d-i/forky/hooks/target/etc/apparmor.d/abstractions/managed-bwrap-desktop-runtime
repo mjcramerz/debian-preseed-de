@@ -1,0 +1,20 @@
+# Managed by unattended-installer.
+#
+# Runtime policy for applications that stay inside labwc-managed-app's
+# Bubblewrap payload domain. Bubblewrap sets no_new_privs before exec, so those
+# payloads cannot gain permission by transitioning into their top-level
+# attachment. Keep the common Electron and desktop-runtime access in this
+# capability-free abstraction; namespace-construction privileges remain in
+# managed-bwrap-common and application installation trees remain explicit in
+# the caller.
+
+#include <abstractions/managed-electron-runtime>
+
+# Managed applications use their existing per-application profiles when
+# launched directly. Their Bubblewrap payloads need the same client-side
+# network primitives, but remain restricted by the separate Bubblewrap
+# network namespace when the launcher selects private networking.
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,

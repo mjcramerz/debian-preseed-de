@@ -1,0 +1,64 @@
+[Unit]
+Description=Run adaptive PSI zram pressure handler
+After=__INSTALLER_ZRAM_SETUP_UNIT__ sys-kernel-debug.mount
+BindsTo=__INSTALLER_ZRAM_SETUP_UNIT__
+PartOf=__INSTALLER_ZRAM_SETUP_UNIT__
+Requires=__INSTALLER_ZRAM_SETUP_UNIT__
+Wants=sys-kernel-debug.mount
+ConditionPathExists=/proc/pressure/memory
+ConditionPathExists=/sys/block/__INSTALLER_ZRAM_SWAP_DEVICE_NAME__/writeback
+ConditionPathIsReadWrite=/sys/block/__INSTALLER_ZRAM_SWAP_DEVICE_NAME__/writeback
+ConditionPathExists=__INSTALLER_ZRAM_SWAP_DEVICE__
+ConditionPathExists=__INSTALLER_ZRAM_BACKING_DEVICE__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_DEFAULT__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_CONFIG__
+ConditionPathExists=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__
+StartLimitIntervalSec=30min
+StartLimitBurst=3
+
+[Service]
+Type=exec
+KillMode=control-group
+EnvironmentFile=__INSTALLER_FILE_ZRAM_DEFAULT__
+RuntimeDirectory=zram
+RuntimeDirectoryMode=0750
+SyslogIdentifier=zram-writeback
+StandardOutput=journal
+StandardError=journal
+ExecStartPre=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__ --config ${ZRAM_POLICY_CONFIG} validate-runtime
+ExecStart=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__ --config ${ZRAM_POLICY_CONFIG} daemon
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+Nice=10
+CPUSchedulingPolicy=batch
+CPUWeight=25
+TasksAccounting=yes
+TasksMax=16
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+IOAccounting=yes
+IOWeight=20
+IOWriteBandwidthMax=__INSTALLER_ZRAM_BACKING_DEVICE__ __INSTALLER_ZRAM_MAINTENANCE_IO_WRITE_BANDWIDTH_MAX__
+MemoryAccounting=yes
+MemoryHigh=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_HIGH__
+MemoryMax=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_MAX__
+OOMScoreAdjust=250
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectSystem=strict
+ReadWritePaths=__INSTALLER_ZRAM_RUNTIME_DIR__
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

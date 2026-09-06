@@ -1,0 +1,10 @@
+# Managed by unattended-installer.
+#
+# Top-level desktop applications share the capability-free runtime and may
+# hand external links to the system desktop handler. Bubblewrap payload
+# profiles include managed-desktop-runtime instead and keep execution inside
+# their no_new_privs domain.
+
+#include <abstractions/managed-desktop-runtime>
+
+/usr/bin/xdg-open rPUx,

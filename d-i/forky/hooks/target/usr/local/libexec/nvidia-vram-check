@@ -1,0 +1,64 @@
+#!/usr/bin/python3
+"""Validate NVIDIA suspend backing storage before invoking the vendor service."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+
+BACKING = Path('/var/lib/nvidia-vram')
+
+
+def check_directory(path: Path = BACKING) -> None:
+    entry = path.lstat()
+    if (not stat.S_ISDIR(entry.st_mode) or entry.st_uid != 0 or
+            stat.S_IMODE(entry.st_mode) != 0o700 or path.resolve(strict=True) != path):
+        raise RuntimeError('NVIDIA backing directory must be direct, root-owned and mode 0700')
+    result = subprocess.run(['/usr/bin/findmnt', '--noheadings', '--output', 'FSTYPE',
+                             '--target', str(path)], check=True, capture_output=True,
+                            text=True, timeout=10)
+    if result.stdout.strip() not in {'ext4', 'xfs', 'btrfs', 'f2fs'}:
+        raise RuntimeError('NVIDIA preservation requires a supported local disk-backed filesystem')
+    fd = os.open(path, os.O_TMPFILE | os.O_RDWR | os.O_CLOEXEC, 0o600)
+    os.close(fd)
+
+
+def required_bytes(output: str) -> int:
+    lines = output.splitlines()
+    if not lines or len(output) > 65536 or any(not row.strip().isdigit() for row in lines):
+        raise RuntimeError('cannot determine total installed NVIDIA video memory')
+    total = sum(int(row.strip()) for row in lines) * 1024 * 1024
+    if total <= 0:
+        raise RuntimeError('NVIDIA video-memory capacity is zero')
+    # NVIDIA recommends space for all GPUs plus five percent overhead.
+    return (total * 105 + 99) // 100
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0:
+        raise PermissionError('NVIDIA backing validation must run as root')
+    if argv not in ([], ['--directory-only']):
+        raise ValueError('usage: nvidia-vram-check [--directory-only]')
+    check_directory()
+    if not argv:
+        result = subprocess.run(['/usr/bin/nvidia-smi', '--query-gpu=memory.total',
+                                 '--format=csv,noheader,nounits'], check=True,
+                                capture_output=True, text=True, timeout=15)
+        required = required_bytes(result.stdout)
+        storage = os.statvfs(BACKING)
+        available = storage.f_bavail * storage.f_frsize
+        if available < required:
+            raise RuntimeError(f'insufficient NVIDIA backing space: need {required} bytes, have {available}')
+        print(f'nvidia-vram-check: disk backing ready; need={required} available={available}',
+              file=sys.stderr)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print(f'nvidia-vram-check: fatal: {error}', file=sys.stderr)
+        sys.exit(1)

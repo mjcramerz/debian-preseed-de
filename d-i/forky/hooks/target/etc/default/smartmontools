@@ -1,0 +1,7 @@
+# Managed by unattended-installer.
+#
+# Debian's smartmontools.service expands $smartd_opts directly. Keep the
+# variable set even when no daemon flags are required so systemd does not warn
+# about an unset environment reference during boot.
+
+smartd_opts=""

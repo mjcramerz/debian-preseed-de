@@ -1,0 +1,22 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: ollama
+  description: Ollama local API overlay. Loopback by default.
+  merge_priority: 50
+services:
+  ollama:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 11434
+    allow:
+      ipv4:
+      - 127.0.0.1/32
+      ipv6:
+      - ::1/128
+      interfaces:
+      - lo
+    sensitive: true

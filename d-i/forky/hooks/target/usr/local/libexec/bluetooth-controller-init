@@ -1,0 +1,172 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+
+BTMGMT=/usr/bin/btmgmt
+TIMEOUT=/usr/bin/timeout
+CONTROLLER_WAIT_SECONDS=5
+BTMGMT_TIMEOUT_SECONDS=2
+COMMAND_TIMEOUT_SECONDS=5
+COMMAND_KILL_GRACE_SECONDS=1
+MAX_CONTROLLERS=8
+
+log_message() {
+  level=$1
+  shift
+  message=$*
+
+  printf '[bluetooth-controller-init] %s: %s\n' "$level" "$message" >&2
+  if [ -x /usr/bin/logger ]; then
+    /usr/bin/logger -t bluetooth-controller-init -- "${level}: ${message}" || true
+  fi
+}
+
+apply_setting() {
+  controller_index=$1
+  shift
+
+  if output=$(
+    "$TIMEOUT" \
+      --signal=TERM \
+      --kill-after="${COMMAND_KILL_GRACE_SECONDS}s" \
+      "${COMMAND_TIMEOUT_SECONDS}s" \
+      "$BTMGMT" \
+      --index "$controller_index" \
+      --timeout "$BTMGMT_TIMEOUT_SECONDS" \
+      "$@" </dev/null 2>&1
+  ); then
+    log_message info "hci${controller_index}: applied btmgmt setting: $*"
+    return 0
+  else
+    command_status=$?
+  fi
+
+  case "$command_status" in
+    124|137)
+      log_message warn "hci${controller_index}: optional btmgmt setting exceeded ${COMMAND_TIMEOUT_SECONDS}s; BlueZ remains authoritative: $*"
+      ;;
+    *)
+      log_message warn "hci${controller_index}: BlueZ remains authoritative after optional btmgmt setting failed: $*: ${output:-no diagnostic}"
+      ;;
+  esac
+  return 0
+}
+
+controller_is_powered() {
+  controller_index=$1
+
+  if output=$(
+    "$TIMEOUT" \
+      --signal=TERM \
+      --kill-after="${COMMAND_KILL_GRACE_SECONDS}s" \
+      "${COMMAND_TIMEOUT_SECONDS}s" \
+      "$BTMGMT" \
+      --index "$controller_index" \
+      --timeout "$BTMGMT_TIMEOUT_SECONDS" \
+      info </dev/null 2>&1
+  ); then
+    printf '%s\n' "$output" |
+      grep -Eq '^[[:space:]]*current settings:.*[[:space:]]powered([[:space:]]|$)'
+    return
+  fi
+
+  log_message info "hci${controller_index}: controller state was not queryable; leaving power policy to BlueZ"
+  return 2
+}
+
+controllers_present() {
+  for controller_path in /sys/class/bluetooth/hci*; do
+    [ -e "$controller_path" ] && return 0
+  done
+  return 1
+}
+
+wait_for_controllers() {
+  remaining=$CONTROLLER_WAIT_SECONDS
+
+  while [ "$remaining" -gt 0 ]; do
+    controllers_present && return 0
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+  return 1
+}
+
+rfkill_blocks_bluetooth() {
+  command -v rfkill >/dev/null 2>&1 || return 1
+  rfkill_state=$(rfkill list bluetooth 2>/dev/null || true)
+  printf '%s\n' "$rfkill_state" |
+    grep -Eq '^[[:space:]]*(Soft|Hard) blocked:[[:space:]]+yes$'
+}
+
+[ "$(/usr/bin/id -u)" -eq 0 ] || {
+  log_message error "controller initialization must run as root"
+  exit 1
+}
+[ -x "$BTMGMT" ] || {
+  log_message error "btmgmt is unavailable"
+  exit 1
+}
+[ -x "$TIMEOUT" ] || {
+  log_message error "timeout is unavailable"
+  exit 1
+}
+
+if [ ! -d /sys/class/bluetooth ]; then
+  log_message info "the Bluetooth kernel subsystem is not present; skipping controller initialization"
+  exit 0
+fi
+
+if ! wait_for_controllers; then
+  log_message info "no Bluetooth controllers appeared within ${CONTROLLER_WAIT_SECONDS}s; BlueZ will handle later hotplug"
+  exit 0
+fi
+
+if command -v rfkill >/dev/null 2>&1; then
+  if rfkill_blocks_bluetooth; then
+    log_message info "Bluetooth is blocked by user policy or a hardware switch; preserving the rfkill state"
+    exit 0
+  fi
+fi
+
+controller_count=0
+for controller_path in /sys/class/bluetooth/hci*; do
+  [ -e "$controller_path" ] || continue
+  controller_name=${controller_path##*/}
+  controller_index=${controller_name#hci}
+  case "$controller_index" in
+    ''|*[!0-9]*)
+      log_message warn "ignoring unexpected Bluetooth controller name: $controller_name"
+      continue
+      ;;
+  esac
+  [ "$controller_index" -le 65535 ] || {
+    log_message warn "ignoring out-of-range Bluetooth controller index: $controller_index"
+    continue
+  }
+  if [ "$controller_count" -ge "$MAX_CONTROLLERS" ]; then
+    log_message warn "controller limit ${MAX_CONTROLLERS} reached; leaving remaining controllers to BlueZ"
+    break
+  fi
+
+  controller_count=$((controller_count + 1))
+  if controller_is_powered "$controller_index"; then
+    log_message info "hci${controller_index}: BlueZ already enabled the controller"
+  else
+    powered_status=$?
+    if [ "$powered_status" -eq 1 ]; then
+      apply_setting "$controller_index" power on
+    fi
+  fi
+done
+
+if [ "$controller_count" -eq 0 ]; then
+  log_message info "no valid Bluetooth controllers were present during boot initialization"
+  exit 0
+fi
+
+log_message info "initialized ${controller_count} Bluetooth controller(s)"
+exit 0

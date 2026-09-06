@@ -1,0 +1,673 @@
+# shellcheck shell=sh
+# shellcheck disable=SC2119,SC2120
+# Managed by unattended-installer.
+#
+# Firmware tooling is deliberately opt-in for ordinary terminals. Sourcing this
+# fragment defines fwops helpers only. `fwops` enters a nested interactive shell
+# with the managed firmware workspace, exact tool paths, and safe defaults.
+# Exiting that shell, or running `fwops` again from it, returns to the unchanged
+# ordinary shell environment.
+
+fwops_path_is_safe_absolute() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  case "$1" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
+      return 1
+      ;;
+  esac
+)
+
+fwops_account_owned_directory_is_mode() (
+  case "$#" in
+    2) ;;
+    *) return 64 ;;
+  esac
+
+  fwops_directory=$1
+  fwops_mode=$2
+  fwops_path_is_safe_absolute "$fwops_directory" || return 1
+  case "$fwops_mode" in
+    ''|*[!0-7]*) return 1 ;;
+  esac
+
+  [ -d "$fwops_directory" ] &&
+    [ ! -L "$fwops_directory" ] &&
+    [ -r "$fwops_directory" ] &&
+    [ -w "$fwops_directory" ] &&
+    [ -x "$fwops_directory" ] ||
+    return 1
+
+  fwops_directory_real=$(/usr/bin/readlink -f -- "$fwops_directory" 2>/dev/null) ||
+    return 1
+  [ "$fwops_directory_real" = "$fwops_directory" ] || return 1
+  fwops_directory_owner=$(/usr/bin/stat -c '%u' -- "$fwops_directory" 2>/dev/null) ||
+    return 1
+  fwops_directory_actual_mode=$(/usr/bin/stat -c '%a' -- "$fwops_directory" 2>/dev/null) ||
+    return 1
+  fwops_uid=$(/usr/bin/id -u 2>/dev/null) || return 1
+
+  [ "$fwops_directory_owner" = "$fwops_uid" ] &&
+    [ "$fwops_directory_actual_mode" = "$fwops_mode" ]
+)
+
+fwops_validate_workspace() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  fwops_current_user=$(/usr/bin/id -un 2>/dev/null) || {
+    printf '%s\n' 'fwops: cannot resolve the current account name' >&2
+    return 1
+  }
+  [ "$fwops_current_user" = '__INSTALLER_ACCOUNT_USERNAME__' ] || {
+    printf 'fwops: this profile belongs to account %s, not %s\n' \
+      '__INSTALLER_ACCOUNT_USERNAME__' "$fwops_current_user" >&2
+    return 1
+  }
+
+  fwops_pool='__INSTALLER_DIR_POOL_FIRMWARE__'
+  fwops_workspace="${fwops_pool}/__INSTALLER_ACCOUNT_USERNAME__"
+  fwops_path_is_safe_absolute "$fwops_pool" || return 1
+  [ -d "$fwops_pool" ] && [ ! -L "$fwops_pool" ] || {
+    printf 'fwops: firmware pool is unavailable: %s\n' "$fwops_pool" >&2
+    return 1
+  }
+
+  for fwops_directory in \
+    "$fwops_workspace" \
+    "$fwops_workspace/original" \
+    "$fwops_workspace/analysis" \
+    "$fwops_workspace/working" \
+    "$fwops_workspace/writeback" \
+    "$fwops_workspace/logs"
+  do
+    fwops_account_owned_directory_is_mode "$fwops_directory" 2750 || {
+      printf 'fwops: expected an account-owned mode-2750 directory: %s\n' \
+        "$fwops_directory" >&2
+      return 1
+    }
+  done
+)
+
+fwops_validate_uart_device_name() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  fwops_uart_device=$1
+  fwops_path_is_safe_absolute "$fwops_uart_device" || return 1
+  case "$fwops_uart_device" in
+    /dev/ttyUSB*)
+      fwops_uart_suffix=${fwops_uart_device#/dev/ttyUSB}
+      case "$fwops_uart_suffix" in
+        ''|*[!0-9]*) return 1 ;;
+      esac
+      ;;
+    /dev/serial/by-id/*)
+      fwops_uart_suffix=${fwops_uart_device#/dev/serial/by-id/}
+      case "$fwops_uart_suffix" in
+        ''|*/*) return 1 ;;
+      esac
+      ;;
+    *) return 1 ;;
+  esac
+)
+
+fwops_validate_uart_baud() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  case "$1" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "${#1}" -le 7 ] || return 1
+  [ "$1" -ge 50 ] 2>/dev/null && [ "$1" -le 4000000 ] 2>/dev/null
+)
+
+fwops_apply_environment() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+  case "$1" in
+    unchanged|usb|modules|uart) ;;
+    *) return 64 ;;
+  esac
+
+  fwops_validate_workspace || return 1
+
+  FWOPS_UART_DEVICE=${FWOPS_UART_DEVICE:-/dev/ttyUSB0}
+  FWOPS_UART_BAUD=${FWOPS_UART_BAUD:-115200}
+  fwops_validate_uart_device_name "$FWOPS_UART_DEVICE" || {
+    printf 'fwops: unsupported UART device path: %s\n' "$FWOPS_UART_DEVICE" >&2
+    return 1
+  }
+  fwops_validate_uart_baud "$FWOPS_UART_BAUD" || {
+    printf 'fwops: UART baud must be an integer from 50 through 4000000: %s\n' \
+      "$FWOPS_UART_BAUD" >&2
+    return 1
+  }
+
+  # Firmware commands are exported as absolute paths. Preserve the caller's
+  # already validated PATH (including an active DevOps PATH) rather than
+  # replacing it while entering the workspace.
+  FIRMWARE_POOL_ROOT='__INSTALLER_DIR_POOL_FIRMWARE__'
+  FIRMWARE_WORKSPACE_ROOT="${FIRMWARE_POOL_ROOT}/__INSTALLER_ACCOUNT_USERNAME__"
+  FIRMWARE_ORIGINAL_DIR="${FIRMWARE_WORKSPACE_ROOT}/original"
+  FIRMWARE_ANALYSIS_DIR="${FIRMWARE_WORKSPACE_ROOT}/analysis"
+  FIRMWARE_WORKING_DIR="${FIRMWARE_WORKSPACE_ROOT}/working"
+  FIRMWARE_WRITEBACK_DIR="${FIRMWARE_WORKSPACE_ROOT}/writeback"
+  FIRMWARE_LOG_DIR="${FIRMWARE_WORKSPACE_ROOT}/logs"
+
+  FWOPS_FLASHROM_PROGRAMMER=ch341a_spi
+  FWOPS_FLASHROM_BIN=/usr/sbin/flashrom
+  FWOPS_FLASHPROG_BIN=/usr/bin/flashprog
+  FWOPS_IMSPROG_BIN=/usr/bin/IMSProg
+  FWOPS_IMSPROG_EDITOR_BIN=/usr/bin/IMSProg_editor
+  FWOPS_SNANDER_HOME=/usr/local/lib/snander/__INSTALLER_SNANDER_VERSION__
+  FWOPS_SNANDER_BIN=/usr/local/bin/SNANDer
+  FWOPS_UEFITOOL_BIN=/usr/bin/uefitool
+  FWOPS_UEFIEXTRACT_BIN=/usr/bin/uefiextract
+  FWOPS_UEFIFIND_BIN=/usr/bin/uefifind
+  FWOPS_IFDTOOL_BIN=/usr/sbin/ifdtool
+  FWOPS_CBFSTOOL_BIN=/usr/sbin/cbfstool
+  FWOPS_MTDINFO_BIN=/usr/sbin/mtdinfo
+  FWOPS_NANDDUMP_BIN=/usr/sbin/nanddump
+  FWOPS_NANDWRITE_BIN=/usr/sbin/nandwrite
+  FWOPS_SPI_CONFIG_BIN=/usr/bin/spi-config
+  FWOPS_SPI_PIPE_BIN=/usr/bin/spi-pipe
+  FWOPS_PICOCOM_BIN=/usr/bin/picocom
+  if [ -x /usr/bin/binwalk ]; then
+    FWOPS_BINWALK_BIN=/usr/bin/binwalk
+  else
+    FWOPS_BINWALK_BIN=/usr/bin/pybinwalk
+  fi
+
+  # MINICOM is a native minicom environment variable. Command-line arguments
+  # still override these managed UART defaults for an individual invocation.
+  MINICOM="-o -D ${FWOPS_UART_DEVICE} -b ${FWOPS_UART_BAUD}"
+  FWOPS_ACTIVE=1
+  FWOPS_ENVIRONMENT_READY=1
+  FWOPS_MODE=$1
+
+  export \
+    FIRMWARE_POOL_ROOT \
+    FIRMWARE_WORKSPACE_ROOT \
+    FIRMWARE_ORIGINAL_DIR \
+    FIRMWARE_ANALYSIS_DIR \
+    FIRMWARE_WORKING_DIR \
+    FIRMWARE_WRITEBACK_DIR \
+    FIRMWARE_LOG_DIR \
+    FWOPS_FLASHROM_PROGRAMMER \
+    FWOPS_FLASHROM_BIN \
+    FWOPS_FLASHPROG_BIN \
+    FWOPS_IMSPROG_BIN \
+    FWOPS_IMSPROG_EDITOR_BIN \
+    FWOPS_SNANDER_HOME \
+    FWOPS_SNANDER_BIN \
+    FWOPS_UEFITOOL_BIN \
+    FWOPS_UEFIEXTRACT_BIN \
+    FWOPS_UEFIFIND_BIN \
+    FWOPS_IFDTOOL_BIN \
+    FWOPS_CBFSTOOL_BIN \
+    FWOPS_MTDINFO_BIN \
+    FWOPS_NANDDUMP_BIN \
+    FWOPS_NANDWRITE_BIN \
+    FWOPS_SPI_CONFIG_BIN \
+    FWOPS_SPI_PIPE_BIN \
+    FWOPS_PICOCOM_BIN \
+    FWOPS_BINWALK_BIN \
+    FWOPS_UART_DEVICE \
+    FWOPS_UART_BAUD \
+    FWOPS_ACTIVE \
+    FWOPS_ENVIRONMENT_READY \
+    FWOPS_MODE \
+    MINICOM
+
+  umask 027
+}
+
+fwops_validate_tools() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  for fwops_tool in \
+    "$FWOPS_FLASHROM_BIN" \
+    "$FWOPS_FLASHPROG_BIN" \
+    "$FWOPS_IMSPROG_BIN" \
+    "$FWOPS_IMSPROG_EDITOR_BIN" \
+    "$FWOPS_SNANDER_BIN" \
+    "$FWOPS_UEFITOOL_BIN" \
+    "$FWOPS_UEFIEXTRACT_BIN" \
+    "$FWOPS_UEFIFIND_BIN" \
+    "$FWOPS_IFDTOOL_BIN" \
+    "$FWOPS_CBFSTOOL_BIN" \
+    "$FWOPS_MTDINFO_BIN" \
+    "$FWOPS_NANDDUMP_BIN" \
+    "$FWOPS_NANDWRITE_BIN" \
+    "$FWOPS_SPI_CONFIG_BIN" \
+    "$FWOPS_SPI_PIPE_BIN" \
+    "$FWOPS_PICOCOM_BIN" \
+    "$FWOPS_BINWALK_BIN"
+  do
+    [ -x "$fwops_tool" ] || {
+      printf 'fwops: required firmware tool is unavailable: %s\n' "$fwops_tool" >&2
+      return 1
+    }
+  done
+)
+
+fwops_environment_is_active() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  [ "${FWOPS_ACTIVE:-}" = 1 ] &&
+    [ "${FWOPS_ENVIRONMENT_READY:-}" = 1 ] || {
+    printf '%s\n' 'fwops: the inherited firmware environment marker is incomplete' >&2
+    return 1
+  }
+  case "${FWOPS_MODE:-}" in
+    unchanged|usb|modules|uart) ;;
+    *)
+      printf 'fwops: inherited firmware mode is invalid: %s\n' \
+        "${FWOPS_MODE:-unset}" >&2
+      return 1
+      ;;
+  esac
+
+  fwops_validate_workspace || return 1
+  fwops_validate_uart_device_name "${FWOPS_UART_DEVICE:-}" || {
+    printf '%s\n' 'fwops: inherited UART device is invalid' >&2
+    return 1
+  }
+  fwops_validate_uart_baud "${FWOPS_UART_BAUD:-}" || {
+    printf '%s\n' 'fwops: inherited UART baud is invalid' >&2
+    return 1
+  }
+
+  fwops_expected_pool='__INSTALLER_DIR_POOL_FIRMWARE__'
+  fwops_expected_workspace="${fwops_expected_pool}/__INSTALLER_ACCOUNT_USERNAME__"
+  [ "${FIRMWARE_POOL_ROOT:-}" = "$fwops_expected_pool" ] &&
+    [ "${FIRMWARE_WORKSPACE_ROOT:-}" = "$fwops_expected_workspace" ] &&
+    [ "${FIRMWARE_ORIGINAL_DIR:-}" = "$fwops_expected_workspace/original" ] &&
+    [ "${FIRMWARE_ANALYSIS_DIR:-}" = "$fwops_expected_workspace/analysis" ] &&
+    [ "${FIRMWARE_WORKING_DIR:-}" = "$fwops_expected_workspace/working" ] &&
+    [ "${FIRMWARE_WRITEBACK_DIR:-}" = "$fwops_expected_workspace/writeback" ] &&
+    [ "${FIRMWARE_LOG_DIR:-}" = "$fwops_expected_workspace/logs" ] || {
+    printf '%s\n' 'fwops: inherited firmware workspace paths are inconsistent' >&2
+    return 1
+  }
+
+  if [ -x /usr/bin/binwalk ]; then
+    fwops_expected_binwalk=/usr/bin/binwalk
+  else
+    fwops_expected_binwalk=/usr/bin/pybinwalk
+  fi
+  [ "${FWOPS_FLASHROM_PROGRAMMER:-}" = ch341a_spi ] &&
+    [ "${FWOPS_FLASHROM_BIN:-}" = /usr/sbin/flashrom ] &&
+    [ "${FWOPS_FLASHPROG_BIN:-}" = /usr/bin/flashprog ] &&
+    [ "${FWOPS_IMSPROG_BIN:-}" = /usr/bin/IMSProg ] &&
+    [ "${FWOPS_IMSPROG_EDITOR_BIN:-}" = /usr/bin/IMSProg_editor ] &&
+    [ "${FWOPS_SNANDER_HOME:-}" = /usr/local/lib/snander/__INSTALLER_SNANDER_VERSION__ ] &&
+    [ "${FWOPS_SNANDER_BIN:-}" = /usr/local/bin/SNANDer ] &&
+    [ "${FWOPS_UEFITOOL_BIN:-}" = /usr/bin/uefitool ] &&
+    [ "${FWOPS_UEFIEXTRACT_BIN:-}" = /usr/bin/uefiextract ] &&
+    [ "${FWOPS_UEFIFIND_BIN:-}" = /usr/bin/uefifind ] &&
+    [ "${FWOPS_IFDTOOL_BIN:-}" = /usr/sbin/ifdtool ] &&
+    [ "${FWOPS_CBFSTOOL_BIN:-}" = /usr/sbin/cbfstool ] &&
+    [ "${FWOPS_MTDINFO_BIN:-}" = /usr/sbin/mtdinfo ] &&
+    [ "${FWOPS_NANDDUMP_BIN:-}" = /usr/sbin/nanddump ] &&
+    [ "${FWOPS_NANDWRITE_BIN:-}" = /usr/sbin/nandwrite ] &&
+    [ "${FWOPS_SPI_CONFIG_BIN:-}" = /usr/bin/spi-config ] &&
+    [ "${FWOPS_SPI_PIPE_BIN:-}" = /usr/bin/spi-pipe ] &&
+    [ "${FWOPS_PICOCOM_BIN:-}" = /usr/bin/picocom ] &&
+    [ "${FWOPS_BINWALK_BIN:-}" = "$fwops_expected_binwalk" ] || {
+    printf '%s\n' 'fwops: inherited firmware tool paths are inconsistent' >&2
+    return 1
+  }
+  [ "${MINICOM:-}" = "-o -D ${FWOPS_UART_DEVICE} -b ${FWOPS_UART_BAUD}" ] || {
+    printf '%s\n' 'fwops: inherited minicom selector is inconsistent' >&2
+    return 1
+  }
+  fwops_validate_tools
+)
+
+fwops_apply_mode() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+  case "$1" in
+    usb|modules|uart) ;;
+    *) return 64 ;;
+  esac
+
+  [ -x /usr/local/sbin/fwops-mode ] || {
+    printf '%s\n' 'fwops: /usr/local/sbin/fwops-mode is unavailable' >&2
+    return 1
+  }
+  [ -x /usr/bin/sudo ] || {
+    printf '%s\n' 'fwops: sudo is unavailable' >&2
+    return 1
+  }
+
+  /usr/bin/sudo -- /usr/local/sbin/fwops-mode "$1"
+}
+
+fwops_print_help() {
+  cat <<'FWOPS_HELP'
+usage: fwops [--usb|--modules|--uart|--status|--help]
+
+  fwops            enter the firmware workspace without changing driver state
+  fwops --usb      unload spi_ch341, then enter direct-libusb programming mode
+  fwops --modules  load runtime SPI/MTD modules and bind CH341A to spidev
+  fwops --uart     load usbserial/ch341, then enter UART workspace mode
+  fwops --status   show managed paths, tools, devices, and loaded modules
+  fwops --help     show this help
+
+Inside an active fwops shell, run fwops to exit or use a mode option to switch
+the running-kernel preparation in place. Module changes are never persisted.
+`fwops --uart` cannot change the adapter's physical USB personality; UART-mode
+hardware must enumerate as a CH341 serial device before /dev/ttyUSB* appears.
+Use `fwuart [DEVICE [BAUD]]` for a validated picocom terminal and
+`fwcd {original|analysis|working|writeback|logs}` to change workspace directory.
+FWOPS_HELP
+}
+
+fwops_status() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  printf 'active=%s mode=%s\n' "${FWOPS_ACTIVE:-0}" "${FWOPS_MODE:-inactive}"
+  printf 'workspace=%s\n' '__INSTALLER_DIR_POOL_FIRMWARE__/__INSTALLER_ACCOUNT_USERNAME__'
+  if fwops_validate_workspace >/dev/null 2>&1; then
+    printf '%s\n' 'workspace_state=ready'
+  else
+    printf '%s\n' 'workspace_state=unavailable'
+  fi
+
+  for fwops_status_tool in \
+    flashrom:/usr/sbin/flashrom \
+    flashprog:/usr/bin/flashprog \
+    IMSProg:/usr/bin/IMSProg \
+    SNANDer:/usr/local/bin/SNANDer \
+    uefitool:/usr/bin/uefitool \
+    uefiextract:/usr/bin/uefiextract \
+    ifdtool:/usr/sbin/ifdtool \
+    cbfstool:/usr/sbin/cbfstool \
+    picocom:/usr/bin/picocom
+  do
+    fwops_status_name=${fwops_status_tool%%:*}
+    fwops_status_path=${fwops_status_tool#*:}
+    if [ -x "$fwops_status_path" ]; then
+      printf 'tool=%s path=%s state=ready\n' "$fwops_status_name" "$fwops_status_path"
+    else
+      printf 'tool=%s path=%s state=missing\n' "$fwops_status_name" "$fwops_status_path"
+    fi
+  done
+
+  for fwops_status_module in mtd nandcore spi_nor spinand spidev spi_ch341 usbserial ch341; do
+    if [ -d "/sys/module/$fwops_status_module" ]; then
+      printf 'module=%s state=loaded\n' "$fwops_status_module"
+    else
+      printf 'module=%s state=not-loaded\n' "$fwops_status_module"
+    fi
+  done
+
+  fwops_status_usb_seen=0
+  if [ -x /usr/bin/lsusb ]; then
+    for fwops_status_usb_id in 1a86:5512 1a86:55db 1a86:5523 1a86:7522 1a86:7523; do
+      if /usr/bin/lsusb -d "$fwops_status_usb_id" 2>/dev/null; then
+        fwops_status_usb_seen=1
+      fi
+    done
+  fi
+  [ "$fwops_status_usb_seen" -eq 1 ] || printf '%s\n' 'usb_device=none'
+
+  fwops_status_node_seen=0
+  for fwops_status_node in /dev/spidev* /dev/ttyUSB*; do
+    [ -e "$fwops_status_node" ] || continue
+    printf 'device_node=%s\n' "$fwops_status_node"
+    fwops_status_node_seen=1
+  done
+  [ "$fwops_status_node_seen" -eq 1 ] || printf '%s\n' 'device_node=none'
+)
+
+fwops_print_banner() {
+  printf 'Entering firmware workspace (mode=%s). Run fwops or exit to return.\n' \
+    "${FWOPS_MODE:-unchanged}"
+  printf '%s\n' 'Electrical safety: verify programmer and target logic voltage before connecting a flash or UART.'
+  case "${FWOPS_MODE:-unchanged}" in
+    unchanged)
+      printf '%s\n' 'Driver ownership was not changed; use fwops --usb, --modules, or --uart explicitly.'
+      ;;
+    usb)
+      printf '%s\n' 'Direct USB mode: use flashrom, SNANDer, or IMSProg; do not run kernel SPI users concurrently.'
+      ;;
+    modules)
+      printf '%s\n' 'Kernel SPI mode: close flashrom, SNANDer, and IMSProg while spi_ch341 owns the programmer.'
+      ;;
+    uart)
+      printf '%s\n' 'UART mode: adapter hardware must expose an asynchronous serial personality; use fwuart to connect.'
+      ;;
+  esac
+}
+
+fwops_deactivate() {
+  case "${FWOPS_ACTIVE:-}" in
+    1)
+      printf '%s\n' 'Firmware workspace deactivated'
+      exit 0
+      ;;
+    *)
+      printf '%s\n' 'fwops: no firmware workspace is active' >&2
+      return 1
+      ;;
+  esac
+}
+
+fwops_activate() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    printf '%s\n' 'fwops: an interactive terminal is required' >&2
+    return 1
+  fi
+
+  fwops_requested_mode=$1
+  fwops_apply_environment "$fwops_requested_mode" || return 1
+  fwops_validate_tools || return 1
+
+  case "$fwops_requested_mode" in
+    unchanged) ;;
+    usb|modules|uart) fwops_apply_mode "$fwops_requested_mode" || return 1 ;;
+    *) return 64 ;;
+  esac
+
+  case "${SHELL:-}" in
+    /bin/bash|/usr/bin/bash|/bin/zsh|/usr/bin/zsh) fwops_shell=$SHELL ;;
+    *) fwops_shell=/bin/bash ;;
+  esac
+  [ -x "$fwops_shell" ] || {
+    printf '%s\n' 'fwops: no supported interactive shell is available' >&2
+    return 1
+  }
+
+  fwops_title_pushed=0
+  fwops_restore_terminal_title_once() {
+    case "${fwops_title_pushed:-0}" in
+      1)
+        fwops_title_pushed=0
+        printf '\033[23;0t'
+        ;;
+    esac
+  }
+  trap 'fwops_restore_terminal_title_once' 0
+  printf '\033[22;0t'
+  fwops_title_pushed=1
+  printf '\033]0;%s\007' "[fwops:${FWOPS_MODE}]"
+  fwops_print_banner
+
+  "$fwops_shell" -i
+  fwops_shell_status=$?
+  fwops_restore_terminal_title_once || {
+    [ "$fwops_shell_status" -ne 0 ] || fwops_shell_status=1
+  }
+  trap - 0
+  return "$fwops_shell_status"
+)
+
+fwops_switch_active_mode() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  fwops_environment_is_active || return 1
+  fwops_apply_mode "$1" || return 1
+  FWOPS_MODE=$1
+  export FWOPS_MODE
+  fwops_print_banner
+}
+
+fwops() {
+  case "${FWOPS_ACTIVE:-}" in
+    1)
+      fwops_environment_is_active || return 1
+      case "$#" in
+        0) fwops_deactivate ;;
+        1)
+          case "$1" in
+            --usb) fwops_switch_active_mode usb ;;
+            --modules) fwops_switch_active_mode modules ;;
+            --uart) fwops_switch_active_mode uart ;;
+            --status) fwops_status ;;
+            --help|-h) fwops_print_help ;;
+            *) fwops_print_help >&2; return 64 ;;
+          esac
+          ;;
+        *) fwops_print_help >&2; return 64 ;;
+      esac
+      ;;
+    '')
+      case "$#" in
+        0) fwops_activate unchanged ;;
+        1)
+          case "$1" in
+            --usb) fwops_activate usb ;;
+            --modules) fwops_activate modules ;;
+            --uart) fwops_activate uart ;;
+            --status) fwops_status ;;
+            --help|-h) fwops_print_help ;;
+            *) fwops_print_help >&2; return 64 ;;
+          esac
+          ;;
+        *) fwops_print_help >&2; return 64 ;;
+      esac
+      ;;
+    *)
+      printf '%s\n' 'fwops: invalid firmware workspace activation marker' >&2
+      return 1
+      ;;
+  esac
+}
+
+fwcd() {
+  fwops_environment_is_active >/dev/null 2>&1 || {
+    printf '%s\n' 'fwcd: enter a valid fwops environment first' >&2
+    return 1
+  }
+  case "$#" in
+    1) ;;
+    *) printf '%s\n' 'usage: fwcd {original|analysis|working|writeback|logs}' >&2; return 64 ;;
+  esac
+
+  case "$1" in
+    original) fwops_cd_target=$FIRMWARE_ORIGINAL_DIR ;;
+    analysis) fwops_cd_target=$FIRMWARE_ANALYSIS_DIR ;;
+    working) fwops_cd_target=$FIRMWARE_WORKING_DIR ;;
+    writeback) fwops_cd_target=$FIRMWARE_WRITEBACK_DIR ;;
+    logs) fwops_cd_target=$FIRMWARE_LOG_DIR ;;
+    *) printf '%s\n' 'usage: fwcd {original|analysis|working|writeback|logs}' >&2; return 64 ;;
+  esac
+
+  fwops_cd_status=0
+  CDPATH='' cd "$fwops_cd_target" || fwops_cd_status=$?
+  unset fwops_cd_target
+  return "$fwops_cd_status"
+}
+
+fwuart() (
+  fwops_environment_is_active >/dev/null 2>&1 || {
+    printf '%s\n' 'fwuart: enter a valid fwops environment first' >&2
+    return 1
+  }
+  case "$#" in
+    0|1|2) ;;
+    *) printf '%s\n' 'usage: fwuart [DEVICE [BAUD]]' >&2; return 64 ;;
+  esac
+
+  fwops_uart_device=${1:-$FWOPS_UART_DEVICE}
+  fwops_uart_baud=${2:-$FWOPS_UART_BAUD}
+  fwops_validate_uart_device_name "$fwops_uart_device" || {
+    printf 'fwuart: unsupported UART device path: %s\n' "$fwops_uart_device" >&2
+    return 1
+  }
+  fwops_validate_uart_baud "$fwops_uart_baud" || {
+    printf 'fwuart: baud must be an integer from 50 through 4000000: %s\n' \
+      "$fwops_uart_baud" >&2
+    return 1
+  }
+
+  fwops_uart_real=$(/usr/bin/readlink -f -- "$fwops_uart_device" 2>/dev/null) || {
+    printf 'fwuart: UART device does not exist: %s\n' "$fwops_uart_device" >&2
+    return 1
+  }
+  case "$fwops_uart_real" in
+    /dev/ttyUSB*)
+      fwops_uart_suffix=${fwops_uart_real#/dev/ttyUSB}
+      case "$fwops_uart_suffix" in
+        ''|*[!0-9]*) return 1 ;;
+      esac
+      ;;
+    *)
+      printf 'fwuart: UART path did not resolve to /dev/ttyUSBN: %s\n' \
+        "$fwops_uart_real" >&2
+      return 1
+      ;;
+  esac
+  [ -c "$fwops_uart_real" ] && [ -r "$fwops_uart_real" ] && [ -w "$fwops_uart_real" ] || {
+    printf 'fwuart: UART device is not an accessible character device: %s\n' \
+      "$fwops_uart_real" >&2
+    return 1
+  }
+  [ -x "$FWOPS_PICOCOM_BIN" ] || {
+    printf 'fwuart: picocom is unavailable: %s\n' "$FWOPS_PICOCOM_BIN" >&2
+    return 1
+  }
+
+  printf 'Opening %s at %s baud, 8N1, no flow control.\n' \
+    "$fwops_uart_real" "$fwops_uart_baud"
+  exec "$FWOPS_PICOCOM_BIN" -b "$fwops_uart_baud" --flow n "$fwops_uart_real"
+)

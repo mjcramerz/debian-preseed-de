@@ -1,0 +1,32 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile spotify /usr/bin/spotify flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/bin/spotify rix,
+  /proc/self/exe rix,
+  /usr/share/spotify/ r,
+  /usr/share/spotify/** mrix,
+
+  owner @{HOME}/.cache/spotify/ rw,
+  owner @{HOME}/.cache/spotify/** rwk,
+  owner @{HOME}/.config/spotify/ rw,
+  owner @{HOME}/.config/spotify/** rwk,
+  owner @{HOME}/.local/share/spotify/ rw,
+  owner @{HOME}/.local/share/spotify/** rwk,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+
+  include if exists <local/usr.bin.spotify>
+}

@@ -1,0 +1,59 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: crowdsec
+  description: CrowdSec engine, LAPI, metrics, enrollment/bouncer overlay.
+  merge_priority: 50
+services:
+  crowdsec_lapi:
+    enabled: true
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 8080
+    allow:
+      ipv4:
+      - 127.0.0.1/32
+      ipv6:
+      - ::1/128
+      interfaces:
+      - lo
+    sensitive: true
+    log: false
+  crowdsec_prometheus:
+    enabled: false
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 6060
+    allow:
+      ipv4:
+      - 10.0.0.0/8
+      - 192.168.0.0/16
+      ipv6:
+      - fc00::/7
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+      - wg0
+    sensitive: true
+    log: false
+egress:
+  rules:
+    crowdsec_console_enrollment:
+      enabled: true
+      protocols:
+      - tcp
+      ports:
+      - 443
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0

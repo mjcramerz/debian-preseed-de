@@ -1,0 +1,45 @@
+#!/usr/bin/python3 -I
+"""Privileged dispatcher for the managed Labwc firewall package."""
+
+import stat
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+
+PACKAGE_ROOT = Path("/usr/local/lib/python3.14/dist-packages")
+PACKAGE_DIRECTORY = PACKAGE_ROOT / "labwc_firewall"
+PACKAGE_MODULES = (
+    "__init__.py",
+    "cli.py",
+    "files.py",
+    "nftables.py",
+    "renderer.py",
+    "state.py",
+    "validation.py",
+)
+
+
+def require_managed_path(path: Path, *, directory: bool) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError:
+        print(f"fatal: managed firewall package is unavailable: {path}", file=sys.stderr)
+        raise SystemExit(1)
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    if stat.S_ISLNK(metadata.st_mode) or not expected_type(metadata.st_mode):
+        print(f"fatal: managed firewall package is unavailable: {path}", file=sys.stderr)
+        raise SystemExit(1)
+    if metadata.st_uid != 0 or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        print(f"fatal: managed firewall package is unsafe: {path}", file=sys.stderr)
+        raise SystemExit(1)
+
+
+require_managed_path(PACKAGE_DIRECTORY, directory=True)
+for package_module in PACKAGE_MODULES:
+    require_managed_path(PACKAGE_DIRECTORY / package_module, directory=False)
+
+sys.path.insert(0, str(PACKAGE_ROOT))
+from labwc_firewall.cli import main
+
+raise SystemExit(main("root", sys.argv[1:]))

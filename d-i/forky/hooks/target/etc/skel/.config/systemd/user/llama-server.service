@@ -1,0 +1,39 @@
+[Unit]
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Description=Managed on-demand Llama server for the Labwc session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionFileIsExecutable=/usr/local/libexec/labwc-ai-llama-server
+ConditionFileIsExecutable=/data/llama/lib/llama
+ConditionFileIsExecutable=/data/llama/bin/llama-server
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+StartLimitIntervalSec=60s
+StartLimitBurst=3
+
+[Service]
+KillMode=control-group
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=HOME=%h
+Environment=XDG_RUNTIME_DIR=%t
+SyslogIdentifier=llama-server
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/local/libexec/labwc-ai-llama-server
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=30s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+SendSIGKILL=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+UMask=0077

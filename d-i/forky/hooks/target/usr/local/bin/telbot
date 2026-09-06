@@ -1,0 +1,745 @@
+#!/usr/bin/python3 -I
+"""Send bounded messages and files through the managed Telegram bot."""
+
+from __future__ import annotations
+
+import argparse
+import errno
+import http.client
+import json
+import mimetypes
+import os
+import re
+import secrets
+import ssl
+import stat
+import sys
+import urllib.parse
+from dataclasses import dataclass
+from typing import BinaryIO
+
+
+PROGRAM = "telbot"
+VERSION = "1.0"
+CONFIG_PATH = "/etc/default/labwc-plans"
+MAX_CONFIG_BYTES = 32 * 1024
+MAX_RESPONSE_BYTES = 1024 * 1024
+MAX_MESSAGE_CHARACTERS = 4096
+MAX_CAPTION_CHARACTERS = 1024
+MAX_MESSAGE_UTF8_BYTES = MAX_MESSAGE_CHARACTERS * 4
+MAX_DOCUMENT_BYTES = 50 * 1024 * 1024
+MAX_PHOTO_BYTES = 10 * 1024 * 1024
+MAX_TIMEOUT_SECONDS = 120
+UPLOAD_CHUNK_BYTES = 128 * 1024
+
+TOKEN_PATTERN = re.compile(r"[0-9]{5,16}:[A-Za-z0-9_-]{20,128}")
+CHAT_ID_PATTERN = re.compile(r"-?[0-9]{1,20}")
+ASSIGNMENT_PATTERN = re.compile(
+    r"(?P<key>[A-Z][A-Z0-9_]*)='(?P<value>[^'\r\n]*)'"
+)
+REQUIRED_CONFIG_KEYS = frozenset(
+    {
+        "LABWC_PLANS_TELEGRAM_ENABLED",
+        "LABWC_PLANS_TELEGRAM_API_BASE",
+        "LABWC_PLANS_TELEGRAM_API_KEY",
+        "LABWC_PLANS_TELEGRAM_CHAT_ID",
+        "LABWC_PLANS_HTTP_TIMEOUT_SECONDS",
+    }
+)
+
+
+class TelbotError(RuntimeError):
+    """A user-facing failure which is safe to print without a traceback."""
+
+
+@dataclass(frozen=True)
+class TelegramConfig:
+    api_base: str
+    api_key: str
+    chat_id: str
+    timeout_seconds: int
+
+
+@dataclass
+class Upload:
+    stream: BinaryIO
+    size: int
+    filename: str
+    content_type: str
+
+    def close(self) -> None:
+        self.stream.close()
+
+
+def safe_terminal_text(value: object, maximum: int = 512) -> str:
+    text = str(value)
+    cleaned = "".join(
+        character if character.isprintable() and character != "\x1b" else " "
+        for character in text
+    )
+    cleaned = " ".join(cleaned.split())
+    if len(cleaned) > maximum:
+        return f"{cleaned[:maximum]}..."
+    return cleaned
+
+
+def fail(message: str) -> TelbotError:
+    return TelbotError(safe_terminal_text(message))
+
+
+def parse_config_text(config_text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+
+    for line_number, raw_line in enumerate(config_text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        match = ASSIGNMENT_PATTERN.fullmatch(line)
+        if match is None:
+            key_name = line.partition("=")[0]
+            if key_name in REQUIRED_CONFIG_KEYS:
+                raise fail(
+                    f"{CONFIG_PATH} has an invalid managed assignment on line "
+                    f"{line_number}"
+                )
+            continue
+
+        key = match.group("key")
+        if key not in REQUIRED_CONFIG_KEYS:
+            continue
+        if key in values:
+            raise fail(f"{CONFIG_PATH} defines {key} more than once")
+        values[key] = match.group("value")
+
+    missing = sorted(REQUIRED_CONFIG_KEYS.difference(values))
+    if missing:
+        raise fail(
+            f"{CONFIG_PATH} is missing managed settings: {', '.join(missing)}"
+        )
+    return values
+
+
+def read_managed_config() -> dict[str, str]:
+    open_flags = os.O_RDONLY | os.O_CLOEXEC
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+
+    try:
+        descriptor = os.open(CONFIG_PATH, open_flags)
+    except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise fail(f"{CONFIG_PATH} must not be a symbolic link") from error
+        raise fail(f"cannot open the managed Telegram configuration: {error}") from error
+
+    try:
+        metadata = os.fstat(descriptor)
+        mode = stat.S_IMODE(metadata.st_mode)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise fail(f"{CONFIG_PATH} is not a regular file")
+        if metadata.st_uid != 0:
+            raise fail(f"{CONFIG_PATH} is not owned by root")
+        if mode != 0o640:
+            raise fail(f"{CONFIG_PATH} must have mode 0640")
+        if metadata.st_size <= 0 or metadata.st_size > MAX_CONFIG_BYTES:
+            raise fail(f"{CONFIG_PATH} has an invalid size")
+
+        chunks: list[bytes] = []
+        bytes_read = 0
+        while True:
+            chunk = os.read(
+                descriptor,
+                min(8192, MAX_CONFIG_BYTES + 1 - bytes_read),
+            )
+            if not chunk:
+                break
+            chunks.append(chunk)
+            bytes_read += len(chunk)
+            if bytes_read > MAX_CONFIG_BYTES:
+                raise fail(f"{CONFIG_PATH} exceeds the managed size limit")
+    finally:
+        os.close(descriptor)
+
+    try:
+        return parse_config_text(b"".join(chunks).decode("utf-8", "strict"))
+    except UnicodeDecodeError as error:
+        raise fail(f"{CONFIG_PATH} is not valid UTF-8") from error
+
+
+def validate_api_base(api_base: str) -> str:
+    try:
+        parsed = urllib.parse.urlsplit(api_base)
+        port = parsed.port
+    except ValueError as error:
+        raise fail("the managed Telegram API base URL is invalid") from error
+
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+        or (port is not None and not 1 <= port <= 65535)
+    ):
+        raise fail("the managed Telegram API base must be a plain HTTPS URL")
+    return api_base.rstrip("/")
+
+
+def load_telegram_config() -> TelegramConfig:
+    values = read_managed_config()
+
+    if values["LABWC_PLANS_TELEGRAM_ENABLED"] != "true":
+        raise fail("Telegram delivery is disabled in the managed configuration")
+
+    api_key = values["LABWC_PLANS_TELEGRAM_API_KEY"]
+    chat_id = values["LABWC_PLANS_TELEGRAM_CHAT_ID"]
+    if TOKEN_PATTERN.fullmatch(api_key) is None:
+        raise fail("the managed Telegram API key has an invalid format")
+    if CHAT_ID_PATTERN.fullmatch(chat_id) is None:
+        raise fail("the managed Telegram chat ID has an invalid format")
+
+    timeout_text = values["LABWC_PLANS_HTTP_TIMEOUT_SECONDS"]
+    if not timeout_text.isascii() or not timeout_text.isdecimal():
+        raise fail("the managed Telegram timeout is not an integer")
+    timeout_seconds = int(timeout_text, 10)
+    if not 1 <= timeout_seconds <= MAX_TIMEOUT_SECONDS:
+        raise fail(
+            f"the managed Telegram timeout must be between 1 and "
+            f"{MAX_TIMEOUT_SECONDS} seconds"
+        )
+
+    return TelegramConfig(
+        api_base=validate_api_base(
+            values["LABWC_PLANS_TELEGRAM_API_BASE"]
+        ),
+        api_key=api_key,
+        chat_id=chat_id,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def timeout_argument(value: str) -> int:
+    try:
+        timeout_seconds = int(value, 10)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if not 1 <= timeout_seconds <= MAX_TIMEOUT_SECONDS:
+        raise argparse.ArgumentTypeError(
+            f"must be between 1 and {MAX_TIMEOUT_SECONDS} seconds"
+        )
+    return timeout_seconds
+
+
+def build_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=PROGRAM,
+        description=(
+            "Send a text message, an uncompressed document, or a Telegram "
+            "photo using the bot credentials installed from the kernel "
+            "command line."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  telbot -m "installation finished"\n'
+            "  printf 'multiline message\\n' | telbot -m -\n"
+            '  telbot -u ./report.txt -a "daily report"\n'
+            '  telbot -c ./photo.jpg -a "rack state" --spoiler\n\n'
+            f"Credentials are read only from {CONFIG_PATH}. Requests are "
+            "not retried automatically because Telegram send operations are "
+            "not idempotent."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    operation = parser.add_mutually_exclusive_group(required=True)
+    operation.add_argument(
+        "-m",
+        "--message",
+        metavar="TEXT",
+        help="send a plain text message with sendMessage; use '-' to read UTF-8 stdin",
+    )
+    operation.add_argument(
+        "-u",
+        "--upload",
+        metavar="FILE",
+        help=(
+            "send a regular, non-symlink FILE unchanged with sendDocument "
+            "(maximum 50 MiB)"
+        ),
+    )
+    operation.add_argument(
+        "-c",
+        "--photo",
+        metavar="IMAGE",
+        help=(
+            "send a regular, non-symlink IMAGE with sendPhoto "
+            "(maximum 10 MiB)"
+        ),
+    )
+
+    parser.add_argument(
+        "-a",
+        "--caption",
+        metavar="TEXT",
+        help="caption for --upload or --photo (maximum 1024 characters)",
+    )
+    parser.add_argument(
+        "--parse-mode",
+        choices=("plain", "HTML", "MarkdownV2"),
+        default="plain",
+        help="Telegram formatting mode for the message or caption (default: plain)",
+    )
+    parser.add_argument(
+        "--silent",
+        action="store_true",
+        help="send without an audible Telegram notification",
+    )
+    parser.add_argument(
+        "--protect-content",
+        action="store_true",
+        help="ask Telegram to protect the message from forwarding and saving",
+    )
+    parser.add_argument(
+        "--spoiler",
+        action="store_true",
+        help="mark --photo media as a spoiler",
+    )
+    parser.add_argument(
+        "--no-link-preview",
+        action="store_true",
+        help="disable link previews for --message",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=timeout_argument,
+        metavar="SECONDS",
+        help=(
+            f"HTTPS socket timeout from 1 to {MAX_TIMEOUT_SECONDS} seconds "
+            "(default: managed configuration)"
+        ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {VERSION}",
+    )
+    return parser
+
+
+def validate_text(
+    value: str,
+    label: str,
+    maximum_characters: int,
+    *,
+    allow_empty: bool,
+) -> str:
+    if "\x00" in value:
+        raise fail(f"{label} must not contain a NUL character")
+    if not allow_empty and not value:
+        raise fail(f"{label} must not be empty")
+    if len(value) > maximum_characters:
+        raise fail(
+            f"{label} exceeds the {maximum_characters}-character Telegram limit"
+        )
+    try:
+        value.encode("utf-8", "strict")
+    except UnicodeEncodeError as error:
+        raise fail(f"{label} is not valid UTF-8 text") from error
+    return value
+
+
+def read_message_from_stdin() -> str:
+    raw_message = sys.stdin.buffer.read(MAX_MESSAGE_UTF8_BYTES + 1)
+    if len(raw_message) > MAX_MESSAGE_UTF8_BYTES:
+        raise fail("stdin exceeds the maximum UTF-8 message size")
+    try:
+        return raw_message.decode("utf-8", "strict")
+    except UnicodeDecodeError as error:
+        raise fail("stdin is not valid UTF-8") from error
+
+
+def open_upload(path_text: str, maximum_bytes: int, label: str) -> Upload:
+    open_flags = os.O_RDONLY | os.O_CLOEXEC
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+
+    try:
+        descriptor = os.open(path_text, open_flags)
+    except OSError as error:
+        safe_path = safe_terminal_text(path_text, 256)
+        if error.errno == errno.ELOOP:
+            raise fail(f"{label} must not be a symbolic link: {safe_path}") from error
+        raise fail(f"cannot open {label} {safe_path}: {error}") from error
+
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise fail(f"{label} must be a regular file")
+        if metadata.st_size <= 0:
+            raise fail(f"{label} must not be empty")
+        if metadata.st_size > maximum_bytes:
+            raise fail(
+                f"{label} exceeds the {maximum_bytes // (1024 * 1024)} MiB "
+                "Telegram limit"
+            )
+
+        filename = os.path.basename(path_text.rstrip(os.sep))
+        if not filename or filename in {".", ".."}:
+            raise fail(f"{label} has an invalid filename")
+        if "\x00" in filename or "\r" in filename or "\n" in filename:
+            raise fail(f"{label} has an unsafe filename")
+
+        content_type = (
+            mimetypes.guess_type(filename, strict=False)[0]
+            or "application/octet-stream"
+        )
+        stream = os.fdopen(descriptor, "rb", closefd=True)
+        descriptor = -1
+        return Upload(
+            stream=stream,
+            size=metadata.st_size,
+            filename=filename,
+            content_type=content_type,
+        )
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def api_connection(
+    config: TelegramConfig,
+    timeout_seconds: int,
+) -> tuple[http.client.HTTPSConnection, str]:
+    parsed = urllib.parse.urlsplit(config.api_base)
+    if parsed.hostname is None:
+        raise fail("the managed Telegram API base has no hostname")
+
+    connection = http.client.HTTPSConnection(
+        parsed.hostname,
+        parsed.port or 443,
+        timeout=timeout_seconds,
+        context=ssl.create_default_context(),
+    )
+    base_path = parsed.path.rstrip("/")
+    token = urllib.parse.quote(config.api_key, safe=":")
+    return connection, f"{base_path}/bot{token}"
+
+
+def parse_api_response(
+    response: http.client.HTTPResponse,
+) -> int | None:
+    response_body = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(response_body) > MAX_RESPONSE_BYTES:
+        raise fail("the Telegram API response exceeds the managed size limit")
+
+    try:
+        payload = json.loads(response_body.decode("utf-8", "strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise fail(
+            f"Telegram returned an invalid response with HTTP status "
+            f"{response.status}"
+        ) from error
+
+    if not isinstance(payload, dict):
+        raise fail("Telegram returned an unexpected response object")
+
+    if response.status < 200 or response.status >= 300 or payload.get("ok") is not True:
+        error_code = payload.get("error_code", response.status)
+        description = safe_terminal_text(
+            payload.get("description", response.reason),
+            384,
+        )
+        retry_after = None
+        parameters = payload.get("parameters")
+        if isinstance(parameters, dict):
+            candidate = parameters.get("retry_after")
+            if isinstance(candidate, int) and candidate > 0:
+                retry_after = candidate
+        retry_text = (
+            f"; retry after at least {retry_after} seconds"
+            if retry_after is not None
+            else ""
+        )
+        raise fail(
+            f"Telegram rejected the request (HTTP {response.status}, "
+            f"error {error_code}): {description}{retry_text}"
+        )
+
+    result = payload.get("result")
+    if isinstance(result, dict):
+        message_id = result.get("message_id")
+        if isinstance(message_id, int):
+            return message_id
+    return None
+
+
+def common_api_fields(
+    config: TelegramConfig,
+    *,
+    silent: bool,
+    protect_content: bool,
+) -> dict[str, str]:
+    fields = {"chat_id": config.chat_id}
+    if silent:
+        fields["disable_notification"] = "true"
+    if protect_content:
+        fields["protect_content"] = "true"
+    return fields
+
+
+def post_urlencoded(
+    config: TelegramConfig,
+    method: str,
+    fields: dict[str, str],
+    timeout_seconds: int,
+) -> int | None:
+    connection, api_root = api_connection(config, timeout_seconds)
+    body = urllib.parse.urlencode(fields).encode("utf-8")
+    try:
+        connection.request(
+            "POST",
+            f"{api_root}/{method}",
+            body=body,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Content-Length": str(len(body)),
+                "User-Agent": f"{PROGRAM}/{VERSION}",
+            },
+        )
+        return parse_api_response(connection.getresponse())
+    except (OSError, http.client.HTTPException, ssl.SSLError) as error:
+        raise fail(f"Telegram HTTPS request failed: {error}") from error
+    finally:
+        connection.close()
+
+
+def multipart_field(boundary: str, name: str, value: str) -> bytes:
+    return (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{name}"\r\n'
+        "\r\n"
+        f"{value}\r\n"
+    ).encode("utf-8")
+
+
+def multipart_file_header(
+    boundary: str,
+    field_name: str,
+    upload: Upload,
+) -> bytes:
+    ascii_filename = "".join(
+        character
+        if 0x20 <= ord(character) <= 0x7E and character not in {'"', "\\"}
+        else "_"
+        for character in upload.filename
+    )
+    ascii_filename = ascii_filename[:255] or "upload"
+    encoded_filename = urllib.parse.quote(upload.filename, safe="")
+    return (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{field_name}"; '
+        f'filename="{ascii_filename}"; filename*=UTF-8\'\'{encoded_filename}\r\n'
+        f"Content-Type: {upload.content_type}\r\n"
+        "\r\n"
+    ).encode("utf-8")
+
+
+def post_multipart(
+    config: TelegramConfig,
+    method: str,
+    file_field: str,
+    fields: dict[str, str],
+    upload: Upload,
+    timeout_seconds: int,
+) -> int | None:
+    boundary = f"telbot-{secrets.token_hex(24)}"
+    prefix = b"".join(
+        multipart_field(boundary, name, value)
+        for name, value in fields.items()
+    )
+    prefix += multipart_file_header(boundary, file_field, upload)
+    suffix = f"\r\n--{boundary}--\r\n".encode("ascii")
+    content_length = len(prefix) + upload.size + len(suffix)
+
+    connection, api_root = api_connection(config, timeout_seconds)
+    try:
+        connection.putrequest("POST", f"{api_root}/{method}")
+        connection.putheader("Accept", "application/json")
+        connection.putheader(
+            "Content-Type",
+            f"multipart/form-data; boundary={boundary}",
+        )
+        connection.putheader("Content-Length", str(content_length))
+        connection.putheader("User-Agent", f"{PROGRAM}/{VERSION}")
+        connection.endheaders()
+        connection.send(prefix)
+
+        remaining = upload.size
+        while remaining:
+            chunk = upload.stream.read(min(UPLOAD_CHUNK_BYTES, remaining))
+            if not chunk:
+                raise fail("the upload file changed while it was being read")
+            connection.send(chunk)
+            remaining -= len(chunk)
+
+        connection.send(suffix)
+        return parse_api_response(connection.getresponse())
+    except TelbotError:
+        raise
+    except (OSError, http.client.HTTPException, ssl.SSLError) as error:
+        raise fail(f"Telegram HTTPS upload failed: {error}") from error
+    finally:
+        connection.close()
+
+
+def run(args: argparse.Namespace) -> tuple[str, int | None]:
+    if args.message is not None:
+        if args.caption is not None:
+            raise fail("--caption is valid only with --upload or --photo")
+        if args.spoiler:
+            raise fail("--spoiler is valid only with --photo")
+
+        message = (
+            read_message_from_stdin()
+            if args.message == "-"
+            else args.message
+        )
+        message = validate_text(
+            message,
+            "message",
+            MAX_MESSAGE_CHARACTERS,
+            allow_empty=False,
+        )
+        config = load_telegram_config()
+        timeout_seconds = args.timeout or config.timeout_seconds
+        fields = common_api_fields(
+            config,
+            silent=args.silent,
+            protect_content=args.protect_content,
+        )
+        fields["text"] = message
+        if args.parse_mode != "plain":
+            fields["parse_mode"] = args.parse_mode
+        if args.no_link_preview:
+            fields["link_preview_options"] = json.dumps(
+                {"is_disabled": True},
+                separators=(",", ":"),
+            )
+        return (
+            "message",
+            post_urlencoded(
+                config,
+                "sendMessage",
+                fields,
+                timeout_seconds,
+            ),
+        )
+
+    if args.no_link_preview:
+        raise fail("--no-link-preview is valid only with --message")
+    if args.parse_mode != "plain" and args.caption is None:
+        raise fail("--parse-mode requires --message or --caption")
+
+    caption = None
+    if args.caption is not None:
+        caption = validate_text(
+            args.caption,
+            "caption",
+            MAX_CAPTION_CHARACTERS,
+            allow_empty=True,
+        )
+
+    config = load_telegram_config()
+    timeout_seconds = args.timeout or config.timeout_seconds
+    fields = common_api_fields(
+        config,
+        silent=args.silent,
+        protect_content=args.protect_content,
+    )
+    if caption:
+        fields["caption"] = caption
+        if args.parse_mode != "plain":
+            fields["parse_mode"] = args.parse_mode
+
+    if args.upload is not None:
+        if args.spoiler:
+            raise fail("--spoiler is valid only with --photo")
+        fields["disable_content_type_detection"] = "true"
+        upload = open_upload(
+            args.upload,
+            MAX_DOCUMENT_BYTES,
+            "document",
+        )
+        try:
+            return (
+                "document",
+                post_multipart(
+                    config,
+                    "sendDocument",
+                    "document",
+                    fields,
+                    upload,
+                    timeout_seconds,
+                ),
+            )
+        finally:
+            upload.close()
+
+    if args.photo is None:
+        raise fail("no Telegram operation was selected")
+    if args.spoiler:
+        fields["has_spoiler"] = "true"
+    upload = open_upload(
+        args.photo,
+        MAX_PHOTO_BYTES,
+        "photo",
+    )
+    try:
+        return (
+            "photo",
+            post_multipart(
+                config,
+                "sendPhoto",
+                "photo",
+                fields,
+                upload,
+                timeout_seconds,
+            ),
+        )
+    finally:
+        upload.close()
+
+
+def main() -> int:
+    parser = build_argument_parser()
+    arguments = parser.parse_args()
+
+    try:
+        delivery_type, message_id = run(arguments)
+    except KeyboardInterrupt:
+        print("fatal: Telegram request interrupted", file=sys.stderr)
+        return 130
+    except TelbotError as error:
+        print(f"fatal: {error}", file=sys.stderr)
+        return 1
+    except OSError as error:
+        print(
+            f"fatal: operating-system error: {safe_terminal_text(error)}",
+            file=sys.stderr,
+        )
+        return 1
+
+    message_id_text = (
+        f" message_id={message_id}"
+        if message_id is not None
+        else ""
+    )
+    print(f"Telegram {delivery_type} sent.{message_id_text}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

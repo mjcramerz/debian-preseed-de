@@ -1,0 +1,10 @@
+# Managed by the installer apt-setup preferences generator.
+# Prefer the testing CrowdSec feed for the managed engine and bouncer stack.
+
+Package: *
+Pin: release o=packagecloud.io/crowdsec/crowdsec-testing
+Pin-Priority: 1001
+
+Package: *
+Pin: release l=packagecloud.io/crowdsec/crowdsec-testing
+Pin-Priority: 1001

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Timeshift runs as root from managed system units. Its built-in notification
+# cannot authenticate to the desktop user's D-Bus session, so the managed
+# wrapper delivers the notification after the snapshot completes.
+exit 0

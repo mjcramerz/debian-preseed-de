@@ -1,0 +1,9 @@
+{
+  "DefaultInsecureContentSetting": 2,
+  "DeveloperToolsAvailability": 1,
+  "DisableSafeBrowsingProceedAnyway": true,
+  "DownloadRestrictions": 1,
+  "ExtensionDeveloperModeSettings": 0,
+  "RemoteDebuggingAllowed": true,
+  "SSLErrorOverrideAllowed": false
+}

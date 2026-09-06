@@ -1,0 +1,20 @@
+# Managed by unattended-installer.
+#
+# System Python runtime for repository-owned wrappers. The package abstraction
+# supplies standard-library and extension-module paths; explicit deny rules
+# prevent wrappers from importing user-controlled Python modules or creating
+# interpreter caches below the user's home directory.
+
+#include <abstractions/managed-wrapper-base>
+#include <abstractions/python>
+
+/usr/bin/python3 rix,
+/usr/bin/python3.[0-9]* rix,
+
+deny owner @{HOME}/.local/lib/python*/ r,
+deny owner @{HOME}/.local/lib/python*/** mrwkl,
+deny owner @{HOME}/.cache/Python/ rw,
+deny owner @{HOME}/.cache/Python/** rwkl,
+deny /root/ r,
+
+include if exists <local/managed-wrapper-python>

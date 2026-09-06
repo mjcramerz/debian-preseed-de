@@ -1,0 +1,443 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+choose_text() {
+  prompt=$1
+  printf '\n' |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+choose_adapter() {
+  adapter_type=$1
+
+  {
+    if command -v nmcli >/dev/null 2>&1; then
+      nmcli --terse --fields DEVICE,TYPE device status 2>/dev/null |
+        awk -F: -v expected="$adapter_type" '
+          $2 == expected && $1 != "" {
+            print $1
+          }
+        '
+    fi
+    for interface_path in /sys/class/net/*; do
+      [ -e "$interface_path/device" ] || continue
+      interface_name=${interface_path##*/}
+      case "$adapter_type" in
+        ethernet)
+          [ -d "$interface_path/wireless" ] || printf '%s\n' "$interface_name"
+          ;;
+        wifi)
+          [ -d "$interface_path/wireless" ] && printf '%s\n' "$interface_name"
+          ;;
+      esac
+    done
+  } |
+    sort -u |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "${adapter_type} adapter" 2>/dev/null ||
+    true
+}
+
+validate_uuid() {
+  printf '%s\n' "$1" |
+    grep -Eq '^[0123456789abcdefABCDEF]{8}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{4}-[0123456789abcdefABCDEF]{12}$'
+}
+
+connection_is_active() {
+  target_uuid=$1
+  nmcli --terse --fields UUID connection show --active 2>/dev/null |
+    grep -Fxiq "$target_uuid"
+}
+
+connection_matches_kind() {
+  connection_uuid=$1
+  requested_kind=$2
+  connection_type=$(
+    nmcli --get-values connection.type connection show uuid "$connection_uuid" 2>/dev/null ||
+      true
+  )
+  case "$requested_kind:$connection_type" in
+    all:*) return 0 ;;
+    vpn:vpn) return 0 ;;
+    wireguard:wireguard) return 0 ;;
+  esac
+  return 1
+}
+
+choose_connection() {
+  requested_kind=$1
+  requested_state=$2
+
+  {
+    nmcli --terse --fields UUID connection show 2>/dev/null |
+      sed -n '1,200p' |
+      while IFS= read -r connection_uuid; do
+        validate_uuid "$connection_uuid" || continue
+        connection_matches_kind "$connection_uuid" "$requested_kind" || continue
+        case "$requested_state" in
+          active)
+            connection_is_active "$connection_uuid" || continue
+            ;;
+          saved) ;;
+          *) continue ;;
+        esac
+        connection_name=$(
+          nmcli --get-values connection.id connection show uuid "$connection_uuid" 2>/dev/null |
+            tr '\n\r\t' '   ' |
+            cut -c 1-80
+        )
+        connection_type=$(
+          nmcli --get-values connection.type connection show uuid "$connection_uuid" 2>/dev/null |
+            tr '\n\r\t' '   ' |
+            cut -c 1-32
+        )
+        printf '%s  %s [%s]\n' \
+          "$connection_uuid" \
+          "${connection_name:-unnamed}" \
+          "${connection_type:-unknown}"
+      done
+  } |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "Select connection" 2>/dev/null ||
+    true
+}
+
+connection_uuid_from_selection() {
+  selection=$1
+  connection_uuid=${selection%% *}
+  validate_uuid "$connection_uuid" || return 1
+  printf '%s\n' "$connection_uuid"
+}
+
+choose_import_file() {
+  import_kind=$1
+
+  {
+    case "$import_kind" in
+      openvpn)
+        for candidate_dir in \
+          "$HOME/Downloads" \
+          "$HOME/Documents" \
+          "$HOME/Desktop" \
+          "$HOME"
+        do
+          [ -d "$candidate_dir" ] || continue
+          find "$candidate_dir" \
+            -xdev \
+            -mindepth 1 \
+            -maxdepth 3 \
+            -type f \
+            -name '*.ovpn' \
+            -size +0c \
+            -size -1048577c \
+            -print 2>/dev/null
+        done
+        ;;
+      wireguard)
+        find /data/config/network/wireguard \
+        -xdev \
+        -mindepth 1 \
+        -maxdepth 1 \
+        -type f \
+        -name '*.conf' \
+        -size +0c \
+        -size -1048577c \
+        -print 2>/dev/null
+        ;;
+      *) return 1 ;;
+    esac
+  } |
+    awk '!seen[$0]++' |
+    sed -n '1,300p' |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "Import ${import_kind} profile" 2>/dev/null ||
+    true
+}
+
+confirm_action() {
+  prompt=$1
+  confirmation=$(
+    choose_lines \
+      "$prompt" \
+      'Cancel' \
+      'Continue with network change'
+  )
+  [ "$confirmation" = 'Continue with network change' ]
+}
+
+run_network_action() {
+  if labwc-network-control-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: network control action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+connection_profiles_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Connection Profiles" \
+        'Activate Saved Connection' \
+        'Deactivate Active Connection' \
+        'Enable Ethernet Adapter' \
+        'Disable Ethernet Adapter' \
+        'Enable WiFi Adapter' \
+        'Disable WiFi Adapter' \
+        'Generate Random MAC Addresses' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Activate Saved Connection')
+        selection=$(choose_connection all saved)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action activate-connection "$connection_uuid"
+        ;;
+      'Deactivate Active Connection')
+        selection=$(choose_connection all active)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action deactivate-connection "$connection_uuid"
+        ;;
+      'Enable Ethernet Adapter')
+        ethernet_adapter=$(choose_adapter ethernet)
+        [ -n "$ethernet_adapter" ] &&
+          run_network_action enable-ethernet "$ethernet_adapter"
+        ;;
+      'Disable Ethernet Adapter')
+        ethernet_adapter=$(choose_adapter ethernet)
+        [ -n "$ethernet_adapter" ] &&
+          run_network_action disable-ethernet "$ethernet_adapter"
+        ;;
+      'Enable WiFi Adapter')
+        wifi_adapter=$(choose_adapter wifi)
+        [ -n "$wifi_adapter" ] &&
+          run_network_action enable-wifi "$wifi_adapter"
+        ;;
+      'Disable WiFi Adapter')
+        wifi_adapter=$(choose_adapter wifi)
+        [ -n "$wifi_adapter" ] &&
+          run_network_action disable-wifi "$wifi_adapter"
+        ;;
+      'Generate Random MAC Addresses')
+        if confirm_action "Randomize saved physical network profiles"; then
+          run_network_action randomize-macs confirmed-network-action
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+vpn_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "VPN Connections" \
+        'Activate VPN Connection' \
+        'Deactivate VPN Connection' \
+        'Import OpenVPN Profile' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Activate VPN Connection')
+        selection=$(choose_connection vpn saved)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action activate-vpn "$connection_uuid"
+        ;;
+      'Deactivate VPN Connection')
+        selection=$(choose_connection vpn active)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action deactivate-vpn "$connection_uuid"
+        ;;
+      'Import OpenVPN Profile')
+        profile_path=$(choose_import_file openvpn)
+        if [ -n "$profile_path" ] &&
+           confirm_action "Import selected OpenVPN profile"; then
+          run_network_action \
+            import-openvpn \
+            "$profile_path" \
+            confirmed-network-action
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+wireguard_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "WireGuard Connections" \
+        'Activate WireGuard Connection' \
+        'Deactivate WireGuard Connection' \
+        'Import WireGuard Profile' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Activate WireGuard Connection')
+        selection=$(choose_connection wireguard saved)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action activate-wireguard "$connection_uuid"
+        ;;
+      'Deactivate WireGuard Connection')
+        selection=$(choose_connection wireguard active)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        [ -n "$connection_uuid" ] &&
+          run_network_action deactivate-wireguard "$connection_uuid"
+        ;;
+      'Import WireGuard Profile')
+        profile_path=$(choose_import_file wireguard)
+        if [ -n "$profile_path" ] &&
+           confirm_action "Import selected WireGuard profile"; then
+          run_network_action \
+            import-wireguard \
+            "$profile_path" \
+            confirmed-network-action
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+dns_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "DNS Configuration" \
+        'Show DNS Status' \
+        'Restore Automatic DNS' \
+        'Set Custom DNS Servers' \
+        'Flush DNS Cache' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Show DNS Status')
+        run_network_action show-dns-status
+        ;;
+      'Restore Automatic DNS')
+        selection=$(choose_connection all saved)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        if [ -n "$connection_uuid" ] &&
+           confirm_action "Restore automatic DNS for selected connection"; then
+          run_network_action \
+            restore-automatic-dns \
+            "$connection_uuid" \
+            confirmed-network-action
+        fi
+        ;;
+      'Set Custom DNS Servers')
+        selection=$(choose_connection all saved)
+        connection_uuid=$(connection_uuid_from_selection "$selection" || true)
+        if [ -n "$connection_uuid" ]; then
+          dns_servers=$(choose_text "DNS IPs separated by spaces or commas")
+          if [ -n "$dns_servers" ] &&
+             confirm_action "Apply custom DNS to selected connection"; then
+            run_network_action \
+              set-custom-dns \
+              "$connection_uuid" \
+              "$dns_servers" \
+              confirmed-network-action
+          fi
+        fi
+        ;;
+      'Flush DNS Cache')
+        if confirm_action "Flush managed DNS caches"; then
+          run_network_action flush-dns-cache confirmed-network-action
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+main_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Network Management" \
+        '⮞ Connection Profiles' \
+        '⮞ VPN Connections' \
+        '⮞ WireGuard Connections' \
+        '⮞ DNS Configuration' \
+        '← Back'
+    )
+    case "$action" in
+      '⮞ Connection Profiles') connection_profiles_menu ;;
+      '⮞ VPN Connections') vpn_menu ;;
+      '⮞ WireGuard Connections') wireguard_menu ;;
+      '⮞ DNS Configuration') dns_menu ;;
+      '← Back'|'') return 0 ;;
+    esac
+  done
+}
+
+command -v labwc-fuzzel >/dev/null 2>&1 || fatal "labwc-fuzzel is not installed"
+command -v labwc-network-control-action >/dev/null 2>&1 ||
+  fatal "labwc-network-control-action is not installed"
+command -v awk >/dev/null 2>&1 || fatal "awk is not installed"
+command -v cut >/dev/null 2>&1 || fatal "cut is not installed"
+command -v find >/dev/null 2>&1 || fatal "find is not installed"
+command -v grep >/dev/null 2>&1 || fatal "grep is not installed"
+command -v nmcli >/dev/null 2>&1 || fatal "NetworkManager nmcli is not installed"
+command -v sed >/dev/null 2>&1 || fatal "sed is not installed"
+command -v sort >/dev/null 2>&1 || fatal "sort is not installed"
+command -v tr >/dev/null 2>&1 || fatal "tr is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-network-control-menu must run as the logged-in desktop user"
+
+case "${1:-main}" in
+  main) main_menu ;;
+  connections) connection_profiles_menu ;;
+  vpn) vpn_menu ;;
+  wireguard) wireguard_menu ;;
+  dns) dns_menu ;;
+  *) fatal "unsupported network menu: $1" ;;
+esac
+
+exit 0

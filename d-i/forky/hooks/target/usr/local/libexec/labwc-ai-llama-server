@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eu
+
+: "${HOME:?HOME must be set}"
+: "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
+
+[ "$#" -eq 0 ] || {
+  printf '%s\n' 'labwc-ai-llama-server: arguments are not supported' >&2
+  exit 64
+}
+
+active_uid=$(/usr/bin/id -u)
+active_user=$(/usr/bin/id -un)
+case "$active_uid:$active_user" in
+  0:*|*:*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*|*:)
+    printf '%s\n' 'labwc-ai-llama-server: invalid desktop identity' >&2
+    exit 1
+    ;;
+esac
+
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+  printf '%s\n' 'labwc-ai-llama-server: managed Labwc session is required' >&2
+  exit 1
+}
+[ "${XDG_SESSION_TYPE:-}" = wayland ] || {
+  printf '%s\n' 'labwc-ai-llama-server: Wayland session is required' >&2
+  exit 1
+}
+
+exec /usr/bin/env -i \
+  HOME="$HOME" \
+  USER="$active_user" \
+  LOGNAME="$active_user" \
+  LANG=C.UTF-8 \
+  LC_ALL=C.UTF-8 \
+  XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  XDG_SESSION_TYPE=wayland \
+  LABWC_SESSION_OWNER=desktop \
+  PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin \
+  /usr/bin/perl \
+    -I/usr/local/lib/perl5/site_perl/ai-copilots \
+    -MAICopilots::Runtime \
+    -MAICopilots::Session \
+    -e 'my $session = AICopilots::Session->new(require_wayland => 0); exit AICopilots::Runtime->new(session => $session)->run_llama_server()' \
+    --

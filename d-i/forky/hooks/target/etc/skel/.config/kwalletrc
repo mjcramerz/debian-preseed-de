@@ -1,0 +1,5 @@
+[Wallet]
+Enabled=true
+
+[org.freedesktop.secrets]
+apiEnabled=true

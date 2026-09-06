@@ -1,0 +1,176 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+SYSTEMD_PAGER='cat'
+PAGER='cat'
+export PATH LC_ALL SYSTEMD_PAGER PAGER
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 ||
+    fatal "required recovery command is not installed: $1"
+}
+
+require_pkexec_invoker() {
+  case "${PKEXEC_UID:-}" in
+    ''|*[!0-9]*|0)
+      fatal "privileged recovery helper must be invoked by a non-root desktop user through pkexec"
+      ;;
+  esac
+  getent passwd "$PKEXEC_UID" >/dev/null 2>&1 ||
+    fatal "pkexec invoking account does not exist: $PKEXEC_UID"
+}
+
+drop_clean_caches() {
+  cache_selector=$1
+  case "$cache_selector" in
+    1|2|3) ;;
+    *) fatal "unsupported drop_caches selector: ${cache_selector:-unset}" ;;
+  esac
+
+  require_command sync
+  [ -w /proc/sys/vm/drop_caches ] ||
+    fatal "kernel drop_caches control is unavailable"
+  sync
+  printf '%s\n' "$cache_selector" >/proc/sys/vm/drop_caches
+}
+
+reset_managed_zram_swap() {
+  require_command grep
+  require_command swapon
+  require_command systemctl
+
+  systemctl restart zram-setup.service
+  systemctl is-active --quiet zram-setup.service ||
+    fatal "managed zram setup service did not return to active state"
+  swapon --noheadings --raw --show=NAME |
+    grep -Eq '^/dev/zram[0-9]+$' ||
+    fatal "no active zram swap device was found after reset"
+}
+
+aggressive_journal_vacuum() {
+  require_command journalctl
+  journalctl --rotate
+  journalctl --vacuum-time=3d
+}
+
+emergency_btrfs_reclaim() {
+  require_command btrfs
+  require_command findmnt
+
+  root_fstype=$(findmnt --noheadings --raw --output FSTYPE --target /)
+  [ "$root_fstype" = btrfs ] ||
+    fatal "the root filesystem is not Btrfs: ${root_fstype:-unknown}"
+  balance_status=$(btrfs balance status / 2>&1 || true)
+  case "$balance_status" in
+    *running*|*paused*)
+      fatal "a Btrfs balance is already active or paused"
+      ;;
+  esac
+  exec btrfs balance start -dusage=0 -musage=0 /
+}
+
+[ "$(id -u)" -eq 0 ] || fatal "privileged recovery helper must run as root"
+require_pkexec_invoker
+[ "$#" -eq 2 ] || fatal "usage: labwc-recovery-action-root <action> confirmed-recovery-action"
+[ "$2" = confirmed-recovery-action ] ||
+  fatal "managed recovery confirmation is missing"
+
+action=$1
+
+case "$action" in
+  reset-failed-units)
+    require_command systemctl
+    exec systemctl reset-failed
+    ;;
+  restart-networkmanager)
+    require_command systemctl
+    exec systemctl restart NetworkManager.service
+    ;;
+  restart-bluetooth)
+    require_command systemctl
+    exec systemctl restart bluetooth.service
+    ;;
+  restart-udisks)
+    require_command systemctl
+    exec systemctl restart udisks2.service
+    ;;
+  restart-polkit)
+    require_command systemctl
+    exec systemctl restart polkit.service
+    ;;
+  refresh-package-index)
+    require_command apt-get
+    exec apt-get update
+    ;;
+  repair-dpkg)
+    require_command dpkg
+    exec dpkg --configure -a
+    ;;
+  repair-apt)
+    require_command apt-get
+    DEBIAN_FRONTEND=noninteractive
+    export DEBIAN_FRONTEND
+    exec apt-get \
+      --fix-broken \
+      install \
+      --assume-yes \
+      --no-remove \
+      --no-install-recommends \
+      --no-install-suggests
+    ;;
+  rebuild-initramfs)
+    require_command update-initramfs
+    exec update-initramfs -u -k all
+    ;;
+  refresh-grub)
+    if command -v update-grub >/dev/null 2>&1; then
+      exec update-grub
+    fi
+    require_command grub-mkconfig
+    exec grub-mkconfig -o /boot/grub/grub.cfg
+    ;;
+  create-timeshift-snapshot)
+    require_command findmnt
+    require_command timeshift
+    root_fstype=$(findmnt --noheadings --raw --output FSTYPE --target /)
+    case "$root_fstype" in
+      btrfs) snapshot_mode=--btrfs ;;
+      *) snapshot_mode=--rsync ;;
+    esac
+    exec timeshift \
+      --create \
+      --scripted \
+      --yes \
+      "$snapshot_mode" \
+      --tags O \
+      --comments "Manual recovery snapshot from Labwc maintenance"
+    ;;
+  drop-page-cache)
+    drop_clean_caches 1
+    ;;
+  drop-dentries-inodes)
+    drop_clean_caches 2
+    ;;
+  drop-all-clean-caches)
+    drop_clean_caches 3
+    ;;
+  reset-zram-swap)
+    reset_managed_zram_swap
+    ;;
+  aggressive-journal-vacuum)
+    aggressive_journal_vacuum
+    ;;
+  emergency-btrfs-reclaim)
+    emergency_btrfs_reclaim
+    ;;
+  *)
+    fatal "unsupported privileged recovery action: ${action:-unset}"
+    ;;
+esac

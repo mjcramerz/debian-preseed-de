@@ -1,0 +1,7 @@
+// Managed by unattended-installer.
+//
+// Disable APT pdiff downloads so metadata refreshes fetch full indexes instead
+// of incremental patches. This keeps automated maintenance behavior predictable
+// across mirrors and first-boot refresh paths.
+
+Acquire::PDiffs "false";

@@ -1,0 +1,257 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+CONF=${SWAP_FALLBACK_CONFIG_PATH:-/etc/default/swap-fallback.conf}
+LOG_TAG="swap-fallback"
+LOG_HELPER="/usr/libexec/install-tools/system-log.sh"
+
+if [ -r /etc/default/system-runtime ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/system-runtime
+fi
+
+SYSTEMD_LOG_LEVEL=${SYSTEMD_LOG_LEVEL:-error}
+[ -r "$LOG_HELPER" ] || { printf 'error: missing logging helper: %s\n' "$LOG_HELPER" >&2; exit 1; }
+# shellcheck disable=SC1090
+. "$LOG_HELPER"
+runtime_log_init "$LOG_TAG" SYSTEMD_LOG_LEVEL error
+
+[ -r "$CONF" ] || fatal "missing swap fallback config $CONF"
+
+# shellcheck disable=SC1090
+. "$CONF"
+
+SWAP_FALLBACK_RAW_PARTUUID=${SWAP_FALLBACK_RAW_PARTUUID:-}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fatal "required command is unavailable: $1"
+}
+
+ensure_integer() {
+  label=$1
+  value=$2
+  case "$value" in
+    ''|*[!0-9]*)
+      fatal "$label must be an integer, got '${value:-unset}'"
+      ;;
+  esac
+}
+
+ensure_positive_integer() {
+  label=$1
+  value=$2
+  ensure_integer "$label" "$value"
+  [ "$value" -gt 0 ] || fatal "$label must be greater than zero"
+}
+
+ensure_key_size_bits() {
+  label=$1
+  value=$2
+  ensure_positive_integer "$label" "$value"
+  [ "$((value % 8))" -eq 0 ] || fatal "$label must be a multiple of 8 bits"
+}
+
+validate_device_path() {
+  label=$1
+  value=$2
+  case "$value" in
+    /dev/*) ;;
+    *)
+      fatal "${label} must be an absolute /dev path, got '${value:-unset}'"
+      ;;
+  esac
+}
+
+validate_mapper_name() {
+  label=$1
+  value=$2
+  case "$value" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.+-]*)
+      fatal "${label} must be a simple dm-crypt mapper name, got '${value:-unset}'"
+      ;;
+  esac
+}
+
+validate_token() {
+  label=$1
+  value=$2
+  case "$value" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.+-]*)
+      fatal "${label} must be a simple token, got '${value:-unset}'"
+      ;;
+  esac
+}
+
+canonical_device_path() {
+  readlink -f "$1" 2>/dev/null || printf '%s\n' "$1"
+}
+
+same_device_path() {
+  left=$(canonical_device_path "$1")
+  right=$(canonical_device_path "$2")
+  [ "$left" = "$right" ]
+}
+
+swap_active() {
+  target=$(canonical_device_path "$1")
+  {
+    IFS= read -r _
+    while read -r swapdev _; do
+      [ -n "$swapdev" ] || continue
+      if [ "$swapdev" = "$target" ] || same_device_path "$swapdev" "$target"; then
+        return 0
+      fi
+    done
+  } </proc/swaps
+  return 1
+}
+
+ephemeral_keyfile_size_bytes() {
+  ensure_key_size_bits DMCRYPT_EPHEMERAL_KEY_SIZE "$DMCRYPT_EPHEMERAL_KEY_SIZE"
+  printf '%s\n' "$((DMCRYPT_EPHEMERAL_KEY_SIZE / 8))"
+}
+
+active_mapper_device() {
+  mapper_name=$1
+  cryptsetup status "$mapper_name" 2>/dev/null |
+    sed -n 's/^[[:space:]]*device:[[:space:]]*//p' | sed -n '1p'
+}
+
+ensure_mapper_matches_raw_device() {
+  [ -b "$SWAP_FALLBACK_MAPPER" ] || return 1
+  mapper_source=$(active_mapper_device "$SWAP_FALLBACK_MAPPER_NAME") || \
+    fatal "existing swap fallback mapper ${SWAP_FALLBACK_MAPPER} is not an active cryptsetup mapping"
+  same_device_path "$mapper_source" "$SWAP_FALLBACK_RAW_DEVICE" || \
+    fatal "existing swap fallback mapper ${SWAP_FALLBACK_MAPPER} maps ${mapper_source}, expected ${SWAP_FALLBACK_RAW_DEVICE}"
+}
+
+validate_config() {
+  validate_token SWAP_FALLBACK_RAW_PARTUUID "$SWAP_FALLBACK_RAW_PARTUUID"
+  validate_device_path SWAP_FALLBACK_RAW_DEVICE "$SWAP_FALLBACK_RAW_DEVICE"
+  [ "$SWAP_FALLBACK_RAW_DEVICE" = "/dev/disk/by-partuuid/${SWAP_FALLBACK_RAW_PARTUUID}" ] ||
+    fatal "swap fallback raw device must use its configured PARTUUID path"
+  validate_device_path SWAP_FALLBACK_MAPPER "$SWAP_FALLBACK_MAPPER"
+  validate_mapper_name SWAP_FALLBACK_MAPPER_NAME "$SWAP_FALLBACK_MAPPER_NAME"
+  [ "$SWAP_FALLBACK_RAW_DEVICE" != "$SWAP_FALLBACK_MAPPER" ] || fatal "swap fallback raw device and mapper must differ"
+  validate_token DMCRYPT_EPHEMERAL_CIPHER "$DMCRYPT_EPHEMERAL_CIPHER"
+  ensure_key_size_bits DMCRYPT_EPHEMERAL_KEY_SIZE "$DMCRYPT_EPHEMERAL_KEY_SIZE"
+  validate_token DMCRYPT_EPHEMERAL_HASH "$DMCRYPT_EPHEMERAL_HASH"
+  validate_device_path DMCRYPT_RANDOM_KEY_FILE "$DMCRYPT_RANDOM_KEY_FILE"
+  ensure_integer SWAP_FALLBACK_PRIORITY "$SWAP_FALLBACK_PRIORITY"
+  [ "$SWAP_FALLBACK_PRIORITY" -ge 0 ] || fatal "SWAP_FALLBACK_PRIORITY must be non-negative"
+}
+
+open_mapper() {
+  [ -b "$SWAP_FALLBACK_RAW_DEVICE" ] || fatal "missing raw swap fallback device $SWAP_FALLBACK_RAW_DEVICE"
+  if [ -b "$SWAP_FALLBACK_MAPPER" ]; then
+    ensure_mapper_matches_raw_device
+    return 0
+  fi
+
+  require_command cryptsetup
+  if command -v modprobe >/dev/null 2>&1; then
+    modprobe dm_mod >/dev/null 2>&1 || true
+    modprobe dm_crypt >/dev/null 2>&1 || true
+  fi
+
+  keyfile_size=$(ephemeral_keyfile_size_bytes)
+  log "info: opening ephemeral swap fallback mapper ${SWAP_FALLBACK_MAPPER_NAME} from ${SWAP_FALLBACK_RAW_DEVICE}"
+  if ! cryptsetup open \
+    --type plain \
+    --batch-mode \
+    --key-file "$DMCRYPT_RANDOM_KEY_FILE" \
+    --keyfile-size "$keyfile_size" \
+    --cipher "$DMCRYPT_EPHEMERAL_CIPHER" \
+    --key-size "$DMCRYPT_EPHEMERAL_KEY_SIZE" \
+    --hash "$DMCRYPT_EPHEMERAL_HASH" \
+    "$SWAP_FALLBACK_RAW_DEVICE" \
+    "$SWAP_FALLBACK_MAPPER_NAME"; then
+    fatal "failed to open ephemeral swap fallback mapper ${SWAP_FALLBACK_MAPPER_NAME}"
+  fi
+  [ -b "$SWAP_FALLBACK_MAPPER" ] || fatal "swap fallback mapper did not appear: $SWAP_FALLBACK_MAPPER"
+}
+
+close_mapper() {
+  [ -b "$SWAP_FALLBACK_MAPPER" ] || return 0
+  require_command cryptsetup
+  ensure_mapper_matches_raw_device
+  log "info: closing ephemeral swap fallback mapper ${SWAP_FALLBACK_MAPPER_NAME}"
+
+  close_attempt=1
+  while [ "$close_attempt" -le 20 ]; do
+    if cryptsetup close "$SWAP_FALLBACK_MAPPER_NAME" 2>/dev/null ||
+       [ ! -b "$SWAP_FALLBACK_MAPPER" ]; then
+      return 0
+    fi
+    [ "$close_attempt" -lt 20 ] || break
+    sleep 1
+    close_attempt=$((close_attempt + 1))
+  done
+
+  cryptsetup close "$SWAP_FALLBACK_MAPPER_NAME" ||
+    fatal "failed to close ephemeral swap fallback mapper ${SWAP_FALLBACK_MAPPER_NAME} after bounded retries"
+}
+
+prepare_swap_device() {
+  require_command mkswap
+  log "info: preparing ${SWAP_FALLBACK_MAPPER} as ephemeral swap"
+  mkswap -f "$SWAP_FALLBACK_MAPPER" >/dev/null
+}
+
+start_swap_fallback() {
+  validate_config
+
+  if swap_active "$SWAP_FALLBACK_RAW_DEVICE"; then
+    fatal "raw swap fallback device is already active directly: $SWAP_FALLBACK_RAW_DEVICE"
+  fi
+  if swap_active "$SWAP_FALLBACK_MAPPER"; then
+    ensure_mapper_matches_raw_device
+    log "info: fallback swap mapper is already active: $SWAP_FALLBACK_MAPPER"
+    return 0
+  fi
+
+  open_mapper
+  prepare_swap_device
+  require_command swapon
+  swapon -p "$SWAP_FALLBACK_PRIORITY" "$SWAP_FALLBACK_MAPPER"
+}
+
+stop_swap_fallback() {
+  validate_config
+  if swap_active "$SWAP_FALLBACK_MAPPER"; then
+    require_command swapoff
+    swapoff "$SWAP_FALLBACK_MAPPER" || fatal "failed to disable fallback swap mapper $SWAP_FALLBACK_MAPPER"
+    swap_wait_attempt=1
+    while swap_active "$SWAP_FALLBACK_MAPPER"; do
+      [ "$swap_wait_attempt" -lt 10 ] ||
+        fatal "fallback swap mapper stayed active after swapoff: $SWAP_FALLBACK_MAPPER"
+      sleep 1
+      swap_wait_attempt=$((swap_wait_attempt + 1))
+    done
+  fi
+  close_mapper
+}
+
+status_swap_fallback() {
+  validate_config
+  printf 'raw_device=%s\n' "$SWAP_FALLBACK_RAW_DEVICE"
+  printf 'mapper=%s\n' "$SWAP_FALLBACK_MAPPER"
+  printf 'mapper_active=%s\n' "$([ -b "$SWAP_FALLBACK_MAPPER" ] && printf yes || printf no)"
+  printf 'raw_swap_active=%s\n' "$(swap_active "$SWAP_FALLBACK_RAW_DEVICE" && printf yes || printf no)"
+  printf 'swap_active=%s\n' "$(swap_active "$SWAP_FALLBACK_MAPPER" && printf yes || printf no)"
+}
+
+case "${1:-}" in
+  start) start_swap_fallback ;;
+  stop) stop_swap_fallback ;;
+  restart)
+    stop_swap_fallback
+    start_swap_fallback
+    ;;
+  status) status_swap_fallback ;;
+  *)
+    echo "usage: ${0##*/} {start|stop|restart|status}" >&2
+    exit 1
+    ;;
+esac

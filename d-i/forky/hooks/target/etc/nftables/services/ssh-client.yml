@@ -1,0 +1,20 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: ssh-client
+  description: SSH client outbound overlay.
+  merge_priority: 50
+egress:
+  rules:
+    ssh_client:
+      enabled: true
+      protocols:
+      - tcp
+      ports:
+      - 22
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+      log: false

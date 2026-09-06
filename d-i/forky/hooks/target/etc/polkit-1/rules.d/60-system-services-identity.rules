@@ -1,0 +1,58 @@
+// Managed by unattended-installer.
+// System service and machine identity changes require active local sudo auth.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function startsWith(value, prefix) {
+        return typeof value === "string" && value.indexOf(prefix) === 0;
+    }
+
+    function hasPrefix(value, prefixes) {
+        var i;
+        for (i = 0; i < prefixes.length; i++) {
+            if (startsWith(value, prefixes[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function adminOnly(subject) {
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        var prefixes = [
+            "org.freedesktop.systemd1.",
+            "org.freedesktop.accounts.",
+            "org.freedesktop.hostname1.",
+            "org.freedesktop.locale1.",
+            "org.freedesktop.timedate1.",
+            "org.freedesktop.realmd."
+        ];
+
+        if (hasPrefix(action.id, prefixes)) {
+            return adminOnly(subject);
+        }
+
+        return polkit.Result.NOT_HANDLED;
+    });
+})();

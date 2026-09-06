@@ -1,0 +1,5 @@
+#!/usr/bin/python3 -I
+
+from labwc_ai_copilots.cli import main
+
+raise SystemExit(main())

@@ -1,0 +1,19 @@
+profile external-lg-ultragear-1080p120 {
+  output "LG Electronics LG ULTRAGEAR 310INAR0E000" enable mode __INSTALLER_LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH__x__INSTALLER_LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT__@__INSTALLER_LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ__Hz position 0,0 scale __INSTALLER_LABWC_OUTPUT_EXTERNAL_SCALE__
+}
+
+profile laptop-edp {
+  output eDP-1 enable position 0,0 scale __INSTALLER_LABWC_OUTPUT_INTERNAL_SCALE__
+}
+
+profile laptop-lvds {
+  output LVDS-1 enable position 0,0 scale __INSTALLER_LABWC_OUTPUT_INTERNAL_SCALE__
+}
+
+profile laptop-dsi {
+  output DSI-1 enable position 0,0 scale __INSTALLER_LABWC_OUTPUT_INTERNAL_SCALE__
+}
+
+profile any-output {
+  output * enable position 0,0 scale __INSTALLER_LABWC_OUTPUT_SCALE__
+}

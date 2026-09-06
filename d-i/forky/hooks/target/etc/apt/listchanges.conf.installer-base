@@ -1,0 +1,8 @@
+[apt]
+frontend=none
+which=news
+confirm=false
+headers=false
+email_address=
+save_seen=/var/lib/apt/listchanges.db
+no_network=true

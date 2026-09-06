@@ -1,0 +1,26 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target labwc-output-watch.service
+Description=Highly customizable Wayland bar for Sway and Wlroots based compositors
+Documentation=https://github.com/Alexays/Waybar/wiki/
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionPathExists=%h/.config/waybar/config
+ConditionPathExists=%h/.config/waybar/style.css
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+RestartSec=3s
+TimeoutStopSec=10s
+TimeoutStartSec=30s
+KillMode=control-group
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecStart=/usr/bin/waybar -c %h/.config/waybar/config -s %h/.config/waybar/style.css
+ExecReload=/usr/local/libexec/labwc-session-check reload-waybar $MAINPID
+Restart=on-failure

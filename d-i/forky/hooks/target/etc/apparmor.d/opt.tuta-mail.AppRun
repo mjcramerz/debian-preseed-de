@@ -1,0 +1,153 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-runtime>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /dev/tty rw,
+  # Chromium's generic sensor backend probes host accelerometers even though
+  # the mail client has no sensor feature. Keep those privacy-sensitive reads
+  # explicitly unavailable instead of widening Tuta's hardware boundary.
+  deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
+  /usr/bin/bwrap rCx -> tuta-bwrap,
+  /usr/bin/{env,expr,ldd,touch,true} rix,
+  /usr/bin/chromium rPx,
+  /usr/libexec/glycin-loaders/2+/glycin-image-rs rPx -> tuta-glycin-loader,
+  /usr/libexec/glycin-loaders/2+/glycin-svg rPx -> tuta-glycin-loader,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  /opt/tuta-mail/ r,
+  /opt/tuta-mail/** mrix,
+
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
+  owner @{HOME}/.cache/tutanota-desktop/ rw,
+  owner @{HOME}/.cache/tutanota-desktop/** rwk,
+  owner @{HOME}/.config/tuta_integration/ rw,
+  owner @{HOME}/.config/tuta_integration/** rwkl,
+  owner @{HOME}/.config/user-dirs.dirs r,
+  owner @{HOME}/.config/tutanota-desktop/ rw,
+  owner @{HOME}/.config/tutanota-desktop/** rwkl,
+  owner @{HOME}/.local/share/tutanota-desktop/ rw,
+  owner @{HOME}/.local/share/tutanota-desktop/** rwkl,
+  owner @{HOME}/.local/share/applications/ rw,
+  owner @{HOME}/.local/share/applications/tutanota-desktop.desktop rwkl,
+  owner @{HOME}/.local/share/icons/ rw,
+  owner @{HOME}/.local/share/icons/hicolor/ rw,
+  owner @{HOME}/.local/share/icons/hicolor/{64x64,512x512}/ rw,
+  owner @{HOME}/.local/share/icons/hicolor/{64x64,512x512}/apps/ rw,
+  owner @{HOME}/.local/share/icons/hicolor/{64x64,512x512}/apps/tutanota-desktop.png rwkl,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/tutanota-desktop/ rw,
+  owner @{HOME}/.local/state/tutanota-desktop/** rwkl,
+  owner @{HOME}/@{XDG_DESKTOP_DIR}/ r,
+  owner @{HOME}/@{XDG_DESKTOP_DIR}/** r,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ r,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** r,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+  owner @{HOME}/@{XDG_PICTURES_DIR}/ r,
+  owner @{HOME}/@{XDG_PICTURES_DIR}/** r,
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/ r,
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/** r,
+  owner @{HOME}/@{XDG_TEMPLATES_DIR}/ r,
+  owner @{HOME}/@{XDG_TEMPLATES_DIR}/** r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/ r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/** r,
+
+  profile tuta-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-desktop-application>
+    include if exists <abstractions/user-tmp>
+
+    network inet stream,
+    network inet6 stream,
+    network inet dgram,
+    network inet6 dgram,
+
+    /usr/bin/{env,expr,ldd,touch,true} rix,
+    /usr/bin/chromium rPx -> chromium,
+    /usr/libexec/glycin-loaders/2+/glycin-image-rs rPx -> tuta-glycin-loader,
+    /usr/libexec/glycin-loaders/2+/glycin-svg rPx -> tuta-glycin-loader,
+    /usr/share/glycin-loaders/2+/conf.d/ r,
+    /usr/share/glycin-loaders/2+/conf.d/** r,
+    /opt/tuta-mail/ r,
+    /opt/tuta-mail/** mr,
+    /opt/tuta-mail/** rPx -> tuta-mail,
+
+    owner @{HOME}/.cache/glycin/ rw,
+    owner @{HOME}/.cache/glycin/** rwkl,
+    owner @{HOME}/.cache/tutanota-desktop/ rw,
+    owner @{HOME}/.cache/tutanota-desktop/** rwk,
+    owner @{HOME}/.config/tuta_integration/ rw,
+    owner @{HOME}/.config/tuta_integration/** rwkl,
+    owner @{HOME}/.config/user-dirs.dirs r,
+    owner @{HOME}/.config/tutanota-desktop/ rw,
+    owner @{HOME}/.config/tutanota-desktop/** rwkl,
+    owner @{HOME}/.local/share/tutanota-desktop/ rw,
+    owner @{HOME}/.local/share/tutanota-desktop/** rwkl,
+    owner @{HOME}/.local/state/tutanota-desktop/ rw,
+    owner @{HOME}/.local/state/tutanota-desktop/** rwkl,
+    owner @{HOME}/@{XDG_DESKTOP_DIR}/ r,
+    owner @{HOME}/@{XDG_DESKTOP_DIR}/** r,
+    owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ r,
+    owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** r,
+    owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+    owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+    owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
+    owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+    owner @{HOME}/@{XDG_PICTURES_DIR}/ r,
+    owner @{HOME}/@{XDG_PICTURES_DIR}/** r,
+    owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/ r,
+    owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/** r,
+    owner @{HOME}/@{XDG_TEMPLATES_DIR}/ r,
+    owner @{HOME}/@{XDG_TEMPLATES_DIR}/** r,
+    owner @{HOME}/@{XDG_VIDEOS_DIR}/ r,
+    owner @{HOME}/@{XDG_VIDEOS_DIR}/** r,
+  }
+
+  include if exists <local/opt.tuta-mail.AppRun>
+}
+
+profile tuta-glycin-loader flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-desktop-application>
+  include if exists <abstractions/user-tmp>
+
+  /usr/libexec/glycin-loaders/2+/glycin-image-rs mrix,
+  /usr/libexec/glycin-loaders/2+/glycin-svg mrix,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
+  owner @{HOME}/.config/user-dirs.dirs r,
+  owner @{HOME}/@{XDG_DESKTOP_DIR}/ r,
+  owner @{HOME}/@{XDG_DESKTOP_DIR}/** r,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ r,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** r,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ r,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+  owner @{HOME}/@{XDG_PICTURES_DIR}/ r,
+  owner @{HOME}/@{XDG_PICTURES_DIR}/** r,
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/ r,
+  owner @{HOME}/@{XDG_PUBLICSHARE_DIR}/** r,
+  owner @{HOME}/@{XDG_TEMPLATES_DIR}/ r,
+  owner @{HOME}/@{XDG_TEMPLATES_DIR}/** r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/ r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/** r,
+}

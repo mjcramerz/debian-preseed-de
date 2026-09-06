@@ -1,0 +1,94 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+[ "$(/usr/bin/id -u)" -eq 0 ] ||
+  fatal "system power worker must run as root"
+
+[ "$#" -eq 1 ] && [ -n "$1" ] ||
+  fatal "usage: labwc-admin-action-worker <uid>-<suspend|reboot|poweroff>"
+instance=$1
+case "$instance" in
+  *-suspend)
+    invoker_uid=${instance%-suspend}
+    action=suspend
+    ;;
+  *-reboot)
+    invoker_uid=${instance%-reboot}
+    action=reboot
+    ;;
+  *-poweroff)
+    invoker_uid=${instance%-poweroff}
+    action=poweroff
+    ;;
+  *)
+    fatal "invalid system power worker instance: $instance"
+    ;;
+esac
+case "$invoker_uid" in
+  ''|0|0*|*[!0-9]*)
+    fatal "invalid system power worker uid: ${invoker_uid:-unset}"
+    ;;
+esac
+
+invoker_passwd=$(/usr/bin/getent passwd "$invoker_uid" 2>/dev/null) ||
+  fatal "system power worker account does not exist: $invoker_uid"
+invoker_name=${invoker_passwd%%:*}
+invoker_passwd_tail=${invoker_passwd#*:}
+invoker_passwd_tail=${invoker_passwd_tail#*:}
+invoker_record_uid=${invoker_passwd_tail%%:*}
+case "$invoker_name" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*)
+    fatal "system power worker account name is unsafe: ${invoker_name:-unset}"
+    ;;
+esac
+[ "${#invoker_name}" -le 64 ] ||
+  fatal "system power worker account name exceeds the managed identifier limit"
+[ "$invoker_record_uid" = "$invoker_uid" ] ||
+  fatal "system power worker account identity does not match its uid"
+
+[ -x /usr/bin/systemctl ] ||
+  fatal "required executable is not available: /usr/bin/systemctl"
+[ -x /usr/bin/timeout ] ||
+  fatal "required executable is not available: /usr/bin/timeout"
+
+stop_managed_desktop_session() {
+  session_machine="${invoker_name}@.host"
+  session_stop_status=0
+  /usr/bin/timeout \
+    --foreground \
+    --signal=TERM \
+    --kill-after=5s \
+    45s \
+    /usr/bin/systemctl \
+      --user \
+      --machine="$session_machine" \
+      --no-ask-password \
+      --quiet \
+      stop \
+      labwc-session.target || session_stop_status=$?
+  if [ "$session_stop_status" -ne 0 ]; then
+    printf 'warning: managed desktop session did not stop cleanly before %s (status %s)\n' \
+      "$action" "$session_stop_status" >&2
+  fi
+}
+
+case "$action" in
+  reboot|poweroff)
+    # Stop desktop clients while PipeWire, BlueZ, DRM, libvirt, the user bus,
+    # and the system manager are still available. This worker is owned by PID 1
+    # and cannot be killed by stopping the requester's user-session target.
+    stop_managed_desktop_session
+    ;;
+esac
+
+exec /usr/bin/systemctl --no-block "$action"

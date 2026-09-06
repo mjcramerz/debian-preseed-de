@@ -1,0 +1,7 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep Debian Forky as the preferred target archive when fallback suites are
+# configured alongside the managed baseline.
+
+Package: *
+Pin: release n=forky
+Pin-Priority: 900

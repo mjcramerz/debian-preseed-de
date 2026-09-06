@@ -1,0 +1,76 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+run_account_action() {
+  if labwc-security-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: account action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+command -v labwc-fuzzel >/dev/null 2>&1 ||
+  fatal "labwc-fuzzel is not installed"
+command -v labwc-security-action >/dev/null 2>&1 ||
+  fatal "labwc-security-action is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-users-groups-menu must run as the logged-in desktop user"
+
+while :; do
+  action=$(
+    choose_lines \
+      "Users & Groups" \
+      'List User Accounts' \
+      'List Non-Sudo Users' \
+      'List Groups' \
+      'List Sudo Administrators' \
+      'List Accounts Without Password' \
+      'Audit Sudo Access' \
+      '← Back'
+  )
+
+  case "$action" in
+    'List User Accounts')
+      run_account_action list-users
+      ;;
+    'List Non-Sudo Users')
+      run_account_action list-non-sudo-users
+      ;;
+    'List Groups')
+      run_account_action list-groups
+      ;;
+    'List Sudo Administrators')
+      run_account_action list-sudo-administrators
+      ;;
+    'List Accounts Without Password')
+      run_account_action list-passwordless-accounts
+      ;;
+    'Audit Sudo Access')
+      run_account_action audit-sudo-access
+      ;;
+    '← Back'|'')
+      exit 0
+      ;;
+  esac
+done

@@ -1,0 +1,167 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+fwops_mode_fatal() {
+  printf 'fwops-mode: %s\n' "$*" >&2
+  exit 1
+}
+
+fwops_mode_info() {
+  printf 'fwops-mode: %s\n' "$*" >&2
+}
+
+fwops_mode_warn() {
+  printf 'fwops-mode: warning: %s\n' "$*" >&2
+}
+
+fwops_mode_module_is_loaded() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+  [ -d "/sys/module/$1" ]
+}
+
+fwops_mode_load_required_module() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  /usr/sbin/modprobe "$1" ||
+    fwops_mode_fatal "required kernel module could not be loaded: $1"
+}
+
+fwops_mode_load_optional_module() {
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  if /usr/sbin/modprobe "$1"; then
+    return 0
+  fi
+  fwops_mode_warn "optional kernel module is unavailable: $1"
+  return 0
+}
+
+fwops_mode_unload_spi_controller() {
+  if ! fwops_mode_module_is_loaded spi_ch341; then
+    fwops_mode_info 'spi_ch341 is not loaded; direct USB ownership is already available'
+    return 0
+  fi
+
+  /usr/sbin/modprobe -r spi_ch341 ||
+    fwops_mode_fatal 'spi_ch341 is busy; close kernel SPI users before selecting direct USB mode'
+  fwops_mode_info 'direct USB mode prepared; spi_ch341 is unloaded'
+}
+
+fwops_mode_bind_ch341_spidev() {
+  fwops_mode_seen=0
+  fwops_mode_bound=0
+
+  for fwops_mode_device_dir in /sys/bus/spi/devices/spi*; do
+    [ -d "$fwops_mode_device_dir" ] || continue
+    [ -r "$fwops_mode_device_dir/modalias" ] || continue
+
+    fwops_mode_modalias=$(cat "$fwops_mode_device_dir/modalias" 2>/dev/null || true)
+    case "$fwops_mode_modalias" in
+      spi:spi-ch341a|spi-ch341a) ;;
+      *) continue ;;
+    esac
+    fwops_mode_seen=$((fwops_mode_seen + 1))
+    fwops_mode_device=${fwops_mode_device_dir##*/}
+    fwops_mode_bus_chip=${fwops_mode_device#spi}
+    fwops_mode_bus=${fwops_mode_bus_chip%%.*}
+    fwops_mode_chip=${fwops_mode_bus_chip#*.}
+    case "$fwops_mode_bus:$fwops_mode_chip" in
+      *[!0-9:]*|:*|*:) fwops_mode_fatal "kernel exposed an unsafe CH341 SPI device name: $fwops_mode_device" ;;
+    esac
+    [ "$fwops_mode_bus_chip" = "${fwops_mode_bus}.${fwops_mode_chip}" ] ||
+      fwops_mode_fatal "kernel exposed an unsafe CH341 SPI device name: $fwops_mode_device"
+
+    if [ -L "$fwops_mode_device_dir/driver" ]; then
+      fwops_mode_driver=$(readlink -f "$fwops_mode_device_dir/driver" 2>/dev/null || true)
+      case "$fwops_mode_driver" in
+        */spidev)
+          fwops_mode_bound=$((fwops_mode_bound + 1))
+          continue
+          ;;
+        *)
+          fwops_mode_warn "$fwops_mode_device is already owned by ${fwops_mode_driver:-an unknown SPI driver}; leaving it unchanged"
+          continue
+          ;;
+      esac
+    fi
+
+    [ -w "$fwops_mode_device_dir/driver_override" ] ||
+      fwops_mode_fatal "driver_override is unavailable for $fwops_mode_device"
+    [ -w /sys/bus/spi/drivers/spidev/bind ] ||
+      fwops_mode_fatal 'the spidev bind interface is unavailable'
+
+    printf '%s\n' spidev >"$fwops_mode_device_dir/driver_override" ||
+      fwops_mode_fatal "failed to select spidev for $fwops_mode_device"
+    if ! printf '%s\n' "$fwops_mode_device" >/sys/bus/spi/drivers/spidev/bind; then
+      printf '\n' >"$fwops_mode_device_dir/driver_override" 2>/dev/null || true
+      fwops_mode_fatal "failed to bind $fwops_mode_device to spidev"
+    fi
+    if ! printf '\n' >"$fwops_mode_device_dir/driver_override"; then
+      fwops_mode_warn "spidev is bound, but driver_override could not be cleared for $fwops_mode_device"
+    fi
+    fwops_mode_bound=$((fwops_mode_bound + 1))
+  done
+
+  if [ "$fwops_mode_seen" -eq 0 ]; then
+    fwops_mode_info 'kernel SPI modules are loaded; connect/replug a 1a86:5512 programmer and rerun fwops --modules to bind spidev'
+  else
+    fwops_mode_info "kernel SPI mode prepared; CH341 SPI devices seen=${fwops_mode_seen} spidev-bound=${fwops_mode_bound}"
+  fi
+
+  unset \
+    fwops_mode_seen \
+    fwops_mode_bound \
+    fwops_mode_device_dir \
+    fwops_mode_modalias \
+    fwops_mode_device \
+    fwops_mode_bus_chip \
+    fwops_mode_bus \
+    fwops_mode_chip \
+    fwops_mode_driver
+}
+
+fwops_mode_prepare_kernel_spi() {
+  # These loads affect only the running kernel. This add-on deliberately does
+  # not create modules-load.d or modprobe.d persistence for CH341A facilities.
+  fwops_mode_load_required_module mtd
+  fwops_mode_load_optional_module nandcore
+  fwops_mode_load_required_module spi_nor
+  fwops_mode_load_optional_module spinand
+  fwops_mode_load_required_module spidev
+  fwops_mode_load_required_module spi_ch341
+  fwops_mode_bind_ch341_spidev
+}
+
+fwops_mode_prepare_uart() {
+  fwops_mode_load_required_module usbserial
+  fwops_mode_load_required_module ch341
+  fwops_mode_info 'UART drivers are loaded; the adapter must enumerate in a UART personality before /dev/ttyUSB* can appear'
+}
+
+case "$#" in
+  1) ;;
+  *) fwops_mode_fatal 'usage: fwops-mode {usb|modules|uart}' ;;
+esac
+
+fwops_mode_uid=$(/usr/bin/id -u 2>/dev/null || true)
+[ "$fwops_mode_uid" = 0 ] || fwops_mode_fatal 'root privileges are required'
+[ -x /usr/sbin/modprobe ] || fwops_mode_fatal '/usr/sbin/modprobe is unavailable'
+
+case "$1" in
+  usb) fwops_mode_unload_spi_controller ;;
+  modules) fwops_mode_prepare_kernel_spi ;;
+  uart) fwops_mode_prepare_uart ;;
+  *) fwops_mode_fatal 'usage: fwops-mode {usb|modules|uart}' ;;
+esac

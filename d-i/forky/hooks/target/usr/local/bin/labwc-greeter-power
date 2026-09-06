@@ -1,0 +1,116 @@
+#!/usr/bin/python3 -I
+
+import os
+import subprocess
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+
+from gi.repository import GLib, Gtk, GtkLayerShell
+
+
+ACTION_HELPER = "/usr/local/sbin/greetd-power-action"
+CSS_PATH = "/etc/greetd/gtkgreet-power.css"
+
+
+class GreeterPower:
+    def __init__(self):
+        self.pending_action = None
+        self.buttons = {}
+
+        self.window = Gtk.Window()
+        self.window.set_name("greeter-power")
+        self.window.set_decorated(False)
+        self.window.set_resizable(False)
+        self.window.set_accept_focus(False)
+
+        GtkLayerShell.init_for_window(self.window)
+        GtkLayerShell.set_layer(self.window, GtkLayerShell.Layer.OVERLAY)
+        GtkLayerShell.set_anchor(self.window, GtkLayerShell.Edge.RIGHT, True)
+        GtkLayerShell.set_anchor(self.window, GtkLayerShell.Edge.BOTTOM, True)
+        GtkLayerShell.set_margin(self.window, GtkLayerShell.Edge.RIGHT, 32)
+        GtkLayerShell.set_margin(self.window, GtkLayerShell.Edge.BOTTOM, 32)
+
+        panel = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        panel.set_name("greeter-power-box")
+        self.window.add(panel)
+
+        panel.pack_start(
+            self.create_button("reboot", "Reboot"),
+            False,
+            False,
+            0,
+        )
+        panel.pack_start(
+            self.create_button("poweroff", "Shutdown"),
+            False,
+            False,
+            0,
+        )
+
+        self.load_css()
+        self.window.connect("destroy", Gtk.main_quit)
+        self.window.show_all()
+
+    def create_button(self, action, label):
+        button = Gtk.Button.new_with_label(label)
+        button.get_style_context().add_class("greeter-power-button")
+        button.get_style_context().add_class(
+            "reboot" if action == "reboot" else "shutdown"
+        )
+        button.connect("clicked", self.request_action, action)
+        self.buttons[action] = (button, label)
+        return button
+
+    def load_css(self):
+        provider = Gtk.CssProvider()
+        provider.load_from_path(CSS_PATH)
+        screen = self.window.get_screen()
+        Gtk.StyleContext.add_provider_for_screen(
+            screen,
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+    def reset_pending(self, expected_action=None):
+        if expected_action is not None and self.pending_action != expected_action:
+            return GLib.SOURCE_REMOVE
+
+        self.pending_action = None
+        for button, label in self.buttons.values():
+            button.set_label(label)
+            button.set_sensitive(True)
+            button.get_style_context().remove_class("confirm")
+        return GLib.SOURCE_REMOVE
+
+    def request_action(self, button, action):
+        if self.pending_action != action:
+            self.reset_pending()
+            self.pending_action = action
+            button.set_label(
+                "Confirm reboot" if action == "reboot" else "Confirm shutdown"
+            )
+            button.get_style_context().add_class("confirm")
+            GLib.timeout_add_seconds(5, self.reset_pending, action)
+            return
+
+        for current_button, _ in self.buttons.values():
+            current_button.set_sensitive(False)
+        button.set_label("Rebooting…" if action == "reboot" else "Shutting down…")
+        subprocess.Popen(
+            [ACTION_HELPER, action],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+
+
+if not os.path.isfile(ACTION_HELPER) or not os.access(ACTION_HELPER, os.X_OK):
+    raise SystemExit("greetd power action helper is unavailable")
+
+GreeterPower()
+Gtk.main()

@@ -1,0 +1,39 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+Description=Run Crystal Dock in the Labwc session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+BindsTo=labwc-compositor.service
+Requires=labwc-sync-application-launchers.service
+After=labwc-compositor.service labwc-session.target labwc-output-watch.service labwc-sync-application-launchers.service
+ConditionFileIsExecutable=/usr/bin/crystal-dock
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+TimeoutStartSec=30s
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=ELECTRON_OZONE_PLATFORM_HINT=wayland
+Environment=GDK_BACKEND=wayland
+Environment=GDK_DISABLE=vulkan
+Environment=GSK_RENDERER=opengl
+Environment=QT_OPENGL=desktop
+Environment=QT_QPA_PLATFORM=wayland
+Environment=QSG_RHI_BACKEND=opengl
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecCondition=/usr/local/libexec/labwc-output-watch --wait-for-current-output
+ExecStart=/usr/bin/crystal-dock
+Restart=on-failure
+RestartMode=direct
+RestartSec=2s
+TimeoutStopSec=10s
+KillMode=control-group
+SyslogIdentifier=crystal-dock
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=labwc-session.target

@@ -1,0 +1,17 @@
+# Managed by unattended-installer for addon/devops.
+# Codex keeps both files open, so preserve the inode with copytruncate.
+/var/log/managed/openai/codex/codex-login.log
+/var/log/managed/openai/codex/codex-tui.log
+{
+	daily
+	rotate 4
+	maxage 7
+	maxsize 16M
+	missingok
+	notifempty
+	compress
+	delaycompress
+	copytruncate
+	create 0660 __INSTALLER_ACCOUNT_USERNAME__ devops
+	su __INSTALLER_ACCOUNT_USERNAME__ devops
+}

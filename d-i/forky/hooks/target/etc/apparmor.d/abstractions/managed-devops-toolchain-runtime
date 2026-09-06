@@ -1,0 +1,6 @@
+# Managed by unattended-installer. Developer children inherit confinement.
+#include <abstractions/managed-devops-toolchain-data>
+
+/{bin,sbin}/** rix,
+/usr/** mrix,
+/opt/** mrix,

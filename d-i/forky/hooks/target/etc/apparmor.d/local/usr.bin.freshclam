@@ -1,0 +1,8 @@
+# Managed by unattended-installer.
+#
+# managed-clamav-signature-update keeps the Fangfrisch update lock open while
+# it launches freshclam. Permit only that inherited descriptor so the package
+# profile can coexist with the repository-managed wrapper lock discipline.
+
+/var/lib/fangfrisch/ r,
+/var/lib/fangfrisch/update.lock rwk,

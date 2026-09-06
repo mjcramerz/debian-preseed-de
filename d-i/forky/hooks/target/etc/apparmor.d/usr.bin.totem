@@ -1,0 +1,63 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile /usr/bin/totem /usr/bin/totem flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-application>
+  #include <abstractions/managed-user-documents>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  capability sys_nice,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/bin/totem mr,
+  /usr/libexec/totem* rix,
+  /usr/libexec/gstreamer-1.0/gst-plugin-scanner ix,
+  /usr/share/{glib-2.0,gstreamer-1.0,totem}/ r,
+  /usr/share/{glib-2.0,gstreamer-1.0,totem}/** r,
+
+  /dev/video* rw,
+
+  owner @{HOME}/.cache/totem/ rw,
+  owner @{HOME}/.cache/totem/** rwk,
+  owner @{HOME}/.config/totem/ rw,
+  owner @{HOME}/.config/totem/** rwk,
+  owner @{HOME}/.local/share/totem/ rw,
+  owner @{HOME}/.local/share/totem/** rwk,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ r,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/ r,
+  owner @{HOME}/@{XDG_MUSIC_DIR}/** r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/ r,
+  owner @{HOME}/@{XDG_VIDEOS_DIR}/** r,
+  owner /media/*/ r,
+  owner /media/*/** r,
+  owner /mnt/ r,
+  owner /mnt/** r,
+  owner /run/media/*/ r,
+  owner /run/media/*/** r,
+
+  profile sanitized_helper flags=(attach_disconnected) {
+    #include <abstractions/managed-desktop-application>
+    include if exists <abstractions/user-tmp>
+
+    /usr/bin/totem mr,
+    /usr/libexec/totem* rix,
+    /usr/libexec/gstreamer-1.0/gst-plugin-scanner ix,
+    /usr/share/{glib-2.0,gstreamer-1.0,totem}/ r,
+    /usr/share/{glib-2.0,gstreamer-1.0,totem}/** r,
+
+    owner @{HOME}/.cache/totem/ rw,
+    owner @{HOME}/.cache/totem/** rwk,
+
+    include if exists <local/usr.bin.totem>
+  }
+
+  include if exists <local/usr.bin.totem>
+}

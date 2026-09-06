@@ -1,0 +1,40 @@
+[Unit]
+Description=Clean tmpfs backing directories before volatile mounts
+DefaultDependencies=no
+Before=systemd-tmpfiles-setup.service shutdown.target
+Before=__INSTALLER_TMPFS_PRE_CLEAN_BEFORE_UNITS__
+Conflicts=shutdown.target
+__INSTALLER_TMPFS_PRE_CLEAN_REQUIRES_MOUNTS_FOR__
+__INSTALLER_TMPFS_PRE_CLEAN_CONDITION_LINES__
+
+[Service]
+Type=oneshot
+TimeoutStartSec=2min
+TimeoutStopSec=15s
+KillMode=control-group
+# Inspect the host mount table, not sandbox-created ReadWritePaths bind mounts.
+Environment=TMPFS_PRE_CLEAN_MOUNTINFO=/proc/1/mountinfo
+ExecStart=__INSTALLER_FILE_TMPFS_PRE_CLEAN__
+RemainAfterExit=yes
+UMask=0077
+# PrivateTmp adds an implicit dependency on systemd-tmpfiles-setup.service,
+# which cycles with journal-flush/local-fs when /var/log is tmpfs-backed.
+PrivateDevices=yes
+ProtectSystem=strict
+ReadWritePaths=__INSTALLER_TMPFS_PRE_CLEAN_READ_WRITE_PATHS__
+ProtectHome=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+RestrictNamespaces=yes
+MemoryDenyWriteExecute=yes
+ProtectProc=invisible
+ProcSubset=pid

@@ -1,0 +1,61 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile bitwarden /opt/Bitwarden/bitwarden flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  # Preserve diagnostics inherited from an interactive launcher without
+  # granting access to another account's pseudoterminal.
+  owner /dev/pts/[0-9]* rw,
+
+  /opt/Bitwarden/ r,
+  /opt/Bitwarden/** mrix,
+
+  owner @{HOME}/.cache/Bitwarden/ rw,
+  owner @{HOME}/.cache/Bitwarden/** rwk,
+  owner @{HOME}/.cache/com.bitwarden.desktop/ rw,
+  owner @{HOME}/.cache/com.bitwarden.desktop/** rwkl,
+  owner @{HOME}/.config/autostart/ rw,
+  owner @{HOME}/.config/autostart/bitwarden.desktop rwkl,
+  owner @{HOME}/.config/Bitwarden/ rw,
+  owner @{HOME}/.config/Bitwarden/** rwkl,
+
+  # Browser integration is limited to the exact proxy, manifest, IPC socket,
+  # and proxy log paths used by Bitwarden. Upstream treats every existing
+  # listener directory as an enabled native-messaging target, so each managed
+  # target receives only its exact proxy, manifest, and applicable socket files,
+  # never general write access to browser-owned profile state.
+  owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/ r,
+  owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/NativeMessagingHosts/ rw,
+  owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge,vivaldi}/NativeMessagingHosts/{.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+  owner @{HOME}/.config/{chromium,google-chrome,microsoft-edge}/NativeMessagingHosts/.app.bw.socket rwkl,
+  owner @{HOME}/.config/{chromium,microsoft-edge}/NativeMessagingHosts/.app.bw.bitwarden.log rwkl,
+  owner @{HOME}/.mozilla/ r,
+  owner @{HOME}/.mozilla/native-messaging-hosts/ rw,
+  owner @{HOME}/.mozilla/native-messaging-hosts/{.app.bw.socket,.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+  owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/ rw,
+  owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/{.app.bw.socket,.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+  owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/{.app.bw.socket,.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/{.app.bw.socket,.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/{.app.bw.socket,.bitwarden_desktop_proxy,com.8bit.bitwarden.json} rwkl,
+
+  owner @{HOME}/.local/share/Bitwarden/ rw,
+  owner @{HOME}/.local/share/Bitwarden/** rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/opt.Bitwarden.bitwarden>
+}

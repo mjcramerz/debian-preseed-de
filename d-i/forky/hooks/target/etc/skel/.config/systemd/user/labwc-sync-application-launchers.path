@@ -1,0 +1,24 @@
+[Unit]
+# Session triggers start after D-Bus, not before the user manager basic target.
+# Avoid the implicit paths.target/timers.target -> basic.target -> session cycle.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+BindsTo=labwc-compositor.service
+Description=Watch vendor autostart entries for managed launcher synchronization
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+
+[Path]
+PathChanged=%h/.config/autostart
+PathChanged=%h/.config/autostart/bitwarden.desktop
+PathChanged=/usr/share/applications
+PathChanged=/etc/default/labwc-desktop
+Unit=labwc-sync-application-launchers.service
+
+[Install]
+WantedBy=labwc-session.target

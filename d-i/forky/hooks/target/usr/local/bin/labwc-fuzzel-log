@@ -1,0 +1,39 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Sys::Syslog qw(:standard :macros);
+
+sub usage {
+    die "usage: labwc-fuzzel-log <menu|action> <event> [key=value ...]\n";
+}
+
+sub normalize_value {
+    my ($value) = @_;
+    defined($value) && !ref($value) or die "log value is invalid\n";
+
+    $value =~ s/[\r\n]+/ /g;
+    $value =~ s/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/?/g;
+    $value =~ s/[[:space:]]+/_/g;
+    $value =~ s/[^A-Za-z0-9._:+@\/&()=-]/?/g;
+    return substr($value, 0, 160);
+}
+
+@ARGV >= 2 && @ARGV <= 10 or usage();
+my ($kind, $event, @fields) = @ARGV;
+$kind =~ /\A(?:menu|action)\z/ or usage();
+$event =~ /\A[a-z][a-z0-9-]{0,63}\z/ or usage();
+
+my @normalized;
+for my $field (@fields) {
+    $field =~ /\A([a-z][a-z0-9-]{0,31})=(.*)\z/s
+        or die "log field is invalid\n";
+    push @normalized, "$1=" . normalize_value($2);
+}
+
+my $message = join q{ }, "event=$event", @normalized;
+openlog("labwc-fuzzel-$kind", 'pid,nowait', LOG_USER);
+syslog(LOG_INFO, '%s', $message);
+closelog();
+
+exit 0;

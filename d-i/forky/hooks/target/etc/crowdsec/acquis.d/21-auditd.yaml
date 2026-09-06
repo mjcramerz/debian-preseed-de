@@ -1,0 +1,6 @@
+# Managed by unattended-installer.
+filenames:
+  - /var/log/audit/audit.log
+  - /var/log/audit/audit.log.*
+labels:
+  type: auditd

@@ -1,0 +1,17 @@
+# Managed by unattended-installer for addon/devops.
+# The embedded Codex process keeps these files open across a session.
+/var/log/managed/openai/chatgpt/runtime/codex-login.log
+/var/log/managed/openai/chatgpt/runtime/codex-tui.log
+{
+	daily
+	rotate 4
+	maxage 7
+	maxsize 16M
+	missingok
+	notifempty
+	compress
+	delaycompress
+	copytruncate
+	create 0660 __INSTALLER_ACCOUNT_USERNAME__ openailogger
+	su __INSTALLER_ACCOUNT_USERNAME__ openailogger
+}

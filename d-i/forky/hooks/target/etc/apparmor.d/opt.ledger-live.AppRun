@@ -1,0 +1,40 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile ledger-live /opt/ledger-live/AppRun flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /dev/bus/usb/** rw,
+  /dev/hidraw* rw,
+  /dev/tty rw,
+
+  @{sys}/devices/**/report_descriptor r,
+  /opt/ledger-live/ r,
+  /opt/ledger-live/** mrix,
+
+  owner "@{HOME}/.cache/Ledger Live/" rw,
+  owner "@{HOME}/.cache/Ledger Live/**" rwk,
+  owner "@{HOME}/.config/Ledger Live/" rw,
+  owner "@{HOME}/.config/Ledger Live/**" rwkl,
+  owner "@{HOME}/.config/Ledger Wallet/" rw,
+  owner "@{HOME}/.config/Ledger Wallet/**" rwkl,
+  owner @{HOME}/.config/ledger-live-desktop/ rw,
+  owner @{HOME}/.config/ledger-live-desktop/** rwkl,
+  owner "@{HOME}/.local/share/Ledger Live/" rw,
+  owner "@{HOME}/.local/share/Ledger Live/**" rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/opt.ledger-live.AppRun>
+}

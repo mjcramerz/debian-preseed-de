@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Remote Desktop Connection
+GenericName=Remote Desktop Client
+Comment=Manage direct, shared, and saved RDP connections
+Exec=/usr/local/bin/labwc-remote-desktop
+Icon=preferences-desktop-remote-desktop
+Terminal=false
+NoDisplay=true
+Categories=Network;RemoteAccess;
+Keywords=RDP;Remote Desktop;FreeRDP;
+StartupNotify=false

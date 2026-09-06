@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Sleek
+GenericName=Todo.txt Manager
+Comment=Manage todo.txt task lists
+TryExec=/opt/sleek/sleek
+Exec=__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek %U
+Icon=sleek
+Terminal=false
+Categories=Office;ProjectManagement;
+Keywords=Todo;Tasks;Productivity;
+StartupNotify=true
+StartupWMClass=sleek

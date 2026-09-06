@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<openbox_menu>
+  <menu id="root-menu" label="Labwc">
+    <item label="Terminal" icon="utilities-terminal">
+      <action name="Execute" command="labwc-terminal" />
+    </item>
+    <item label="Applications" icon="applications-system">
+      <action name="Execute" command="labwc-run" />
+    </item>
+    <item label="Files" icon="system-file-manager">
+      <action name="Execute" command="thunar" />
+    </item>
+    <separator />
+    <menu id="productivity-menu" label="Productivity" icon="applications-office">
+      <item label="Writing" icon="focuswriter">
+        <action name="Execute" command="focuswriter" />
+      </item>
+      <item label="Text Editor" icon="featherpad">
+        <action name="Execute" command="featherpad" />
+      </item>
+      <item label="Notes" icon="org.gnome.Gnote">
+        <action name="Execute" command="gnote" />
+      </item>
+      <item label="Screen Annotation" icon="wayscriber">
+        <action name="Execute" command="labwc-wayscriber-toggle" />
+      </item>
+      <item label="Handwritten Notes" icon="com.github.xournalpp.xournalpp">
+        <action name="Execute" command="xournalpp" />
+      </item>
+      <item label="Spreadsheet" icon="gnumeric">
+        <action name="Execute" command="gnumeric" />
+      </item>
+      <item label="Calculator" icon="qalculate-qt">
+        <action name="Execute" command="qalculate-qt" />
+      </item>
+      <item label="Diff / Merge Tool" icon="kdiff3">
+        <action name="Execute" command="kdiff3" />
+      </item>
+      <item label="PDF Viewer" icon="org.pwmt.zathura">
+        <action name="Execute" command="zathura" />
+      </item>
+      <item label="Feed Reader" icon="net.sourceforge.liferea">
+        <action name="Execute" command="liferea" />
+      </item>
+    </menu>
+    <menu id="organizer-menu" label="Calendar &amp; Tasks" icon="office-calendar">
+      <item label="Calendar" icon="office-calendar">
+        <action name="Execute" command="labwc-calendar" />
+      </item>
+      <item label="Tasks" icon="view-calendar-tasks">
+        <action name="Execute" command="labwc-calendar tasks" />
+      </item>
+      <item label="Calendar Actions" icon="view-calendar-day">
+        <action name="Execute" command="labwc-calendar menu" />
+      </item>
+    </menu>
+    <menu id="utilities-menu" label="Media &amp; Utilities" icon="applications-utilities">
+      <item label="Image Viewer" icon="image-x-generic">
+        <action name="Execute" command="qimgv" />
+      </item>
+      <item label="Archive Manager" icon="package-x-generic">
+        <action name="Execute" command="xarchiver" />
+      </item>
+      <item label="Terminal File Browser" icon="folder">
+        <action name="Execute" command="labwc-terminal sh -lc nnn" />
+      </item>
+      <item label="System Monitor" icon="utilities-system-monitor">
+        <action name="Execute" command="labwc-terminal sh -lc btop" />
+      </item>
+      <item label="Computer Management" icon="preferences-system">
+        <action name="Execute" command="labwc-computer-management" />
+      </item>
+      <item label="RetroArch" icon="retroarch">
+        <action name="Execute" command="retroarch" />
+      </item>
+    </menu>
+    <menu id="desktop-settings-menu" label="Desktop Settings" icon="preferences-system">
+      <item label="Display" icon="video-display">
+        <action name="Execute" command="wdisplays" />
+      </item>
+      <item label="Audio" icon="multimedia-volume-control">
+        <action name="Execute" command="pavucontrol" />
+      </item>
+      <item label="Appearance" icon="preferences-desktop-theme">
+        <action name="Execute" command="nwg-look" />
+      </item>
+      <item label="Wallpaper" icon="preferences-desktop-wallpaper">
+        <action name="Execute" command="/usr/local/bin/waypaper" />
+      </item>
+      <item label="Labwc Tweaks" icon="labwc_tweaks">
+        <action name="Execute" command="labwc-tweaks" />
+      </item>
+      <item label="Qt6 Settings" icon="qt6ct">
+        <action name="Execute" command="qt6ct" />
+      </item>
+      <separator />
+      <item label="Refresh Outputs" icon="view-refresh">
+        <action name="Execute" command="/usr/local/libexec/labwc-output-watch --refresh" />
+      </item>
+      <item label="Restart Dock" icon="view-refresh">
+        <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
+      </item>
+    </menu>
+    <separator />
+    <item label="Lock" icon="system-lock-screen">
+      <action name="Execute" command="labwc-lock" />
+    </item>
+    <item label="Power" icon="system-shutdown">
+      <action name="Execute" command="labwc-power-menu" />
+    </item>
+    <separator />
+    <item label="Reconfigure" icon="preferences-system">
+      <action name="Reconfigure" />
+    </item>
+    <item label="Close Window" icon="window-close">
+      <action name="Close" />
+    </item>
+    <item label="Logout" icon="system-log-out">
+      <action name="Execute" command="labwc-logout" />
+    </item>
+  </menu>
+</openbox_menu>

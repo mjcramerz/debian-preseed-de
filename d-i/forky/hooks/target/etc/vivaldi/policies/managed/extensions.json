@@ -1,0 +1,33 @@
+{
+  "3rdparty": {
+    "extensions": {
+      "ddkjiahejlhfcafbddmgiahcphecmpfh": {
+        "disableFirstRunPage": true
+      },
+      "pkehgijcmpdhfbdbbnkijodmdjhbjlgp": {
+        "checkForDNTPolicy": false,
+        "sendDNTSignal": false
+      }
+    }
+  },
+  "ExtensionSettings": {
+    "ddkjiahejlhfcafbddmgiahcphecmpfh": {
+      "file_url_navigation_allowed": false,
+      "installation_mode": "normal_installed",
+      "toolbar_pin": "default_pinned",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    },
+    "doojmbjmlfjjnbmnoijecmcbfeoakpjm": {
+      "file_url_navigation_allowed": false,
+      "installation_mode": "normal_installed",
+      "toolbar_pin": "default_pinned",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    },
+    "pkehgijcmpdhfbdbbnkijodmdjhbjlgp": {
+      "file_url_navigation_allowed": false,
+      "installation_mode": "normal_installed",
+      "toolbar_pin": "default_pinned",
+      "update_url": "https://clients2.google.com/service/update2/crx"
+    }
+  }
+}

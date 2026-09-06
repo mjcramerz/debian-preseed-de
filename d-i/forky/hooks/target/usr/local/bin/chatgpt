@@ -1,0 +1,115 @@
+#!/bin/sh
+
+# Never inherit launcher diagnostics or application output into a terminal,
+# compositor console, or generic session log.
+exec </dev/null >/dev/null 2>&1
+
+set -eu
+umask 077
+
+managed_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+chatgpt_fatal() {
+  printf '%s\n' "fatal: $*" >&2
+  exit 1
+}
+
+case "$#" in
+  0)
+    mode=auto
+    ;;
+  *)
+    mode=$1
+    shift
+    ;;
+esac
+case "$mode" in
+  auto|launch|intel|nvidia) ;;
+  *)
+    chatgpt_fatal 'launch mode must be auto, launch, intel, or nvidia'
+    ;;
+esac
+
+case "${USER:-}" in
+  ''|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.@-]*)
+    chatgpt_fatal 'the current account name is unsafe'
+    ;;
+esac
+actual_user=$(/usr/bin/id -un) ||
+  chatgpt_fatal 'cannot resolve the current account name'
+[ "$USER" = "$actual_user" ] ||
+  chatgpt_fatal 'USER does not match the current account'
+case "${LOGNAME:-$USER}" in
+  "$USER") ;;
+  *) chatgpt_fatal 'LOGNAME does not match the current account' ;;
+esac
+case "${HOME:-}" in
+  /*) ;;
+  *) chatgpt_fatal 'HOME must be an absolute path' ;;
+esac
+case "$HOME" in
+  /|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*|*/../*|*/./*|*//*)
+    chatgpt_fatal 'HOME contains unsupported path syntax'
+    ;;
+esac
+
+profile_path="${HOME}/.profile.d/71-devops-de.sh"
+[ ! -L "$profile_path" ] ||
+  chatgpt_fatal "managed DevOps profile must not be a symlink: $profile_path"
+profile_real=$(/usr/bin/readlink -f -- "$profile_path" 2>/dev/null) ||
+  chatgpt_fatal "managed DevOps profile is unavailable: $profile_path"
+[ "$profile_real" = "$profile_path" ] ||
+  chatgpt_fatal "managed DevOps profile must not traverse symlinks: $profile_path"
+
+profile_metadata=$(
+  /usr/bin/stat \
+    --format='%F:%u' \
+    -- "$profile_path" 2>/dev/null
+) || chatgpt_fatal "managed DevOps profile is unavailable: $profile_path"
+[ "$profile_metadata" = "regular file:$(/usr/bin/id -u)" ] ||
+  chatgpt_fatal "managed DevOps profile is unsafe: $profile_path"
+[ -r "$profile_path" ] ||
+  chatgpt_fatal "managed DevOps profile is unreadable: $profile_path"
+
+exec /usr/bin/env -i \
+  HOME="$HOME" \
+  USER="$USER" \
+  LOGNAME="${LOGNAME:-$USER}" \
+  SHELL=/bin/zsh \
+  PATH="$managed_path" \
+  XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}" \
+  WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}" \
+  DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-}" \
+  QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-}" \
+  COLORTERM="${COLORTERM:-}" \
+  TERM="${TERM:-}" \
+  LANG="${LANG:-}" \
+  LC_ALL="${LC_ALL:-}" \
+  LC_CTYPE="${LC_CTYPE:-}" \
+  TZ="${TZ:-}" \
+  /bin/sh -eu -c '
+    profile_path=$1
+    shift
+    # shellcheck source=/dev/null
+    . "$profile_path"
+    command -v devops_de_apply_environment >/dev/null 2>&1 || {
+      printf "%s\n" "managed DevOps environment function is unavailable" >&2
+      exit 1
+    }
+    devops_de_apply_environment || {
+      printf "%s\n" "managed DevOps environment activation failed" >&2
+      exit 1
+    }
+    [ "${DEVOPS_DE_ACTIVE:-}" = 1 ] || {
+      printf "%s\n" "managed DevOps environment marker is missing" >&2
+      exit 1
+    }
+    exec "$@"
+  ' chatgpt-devops-environment \
+  "$profile_path" \
+  /usr/local/libexec/labwc-chatgpt-log-runner \
+  "$mode" \
+  "$@" \
+  </dev/null \
+  >/dev/null \
+  2>&1

@@ -1,0 +1,164 @@
+anchor=top-right
+layer=overlay
+font=Noto Sans 11
+width=420
+height=220
+outer-margin=14,14,0,14
+margin=8
+padding=12,14
+border-size=2
+border-radius=14
+icons=1
+max-icon-size=48
+icon-path=/usr/share/icons/Papirus-Dark:/usr/share/icons/Papirus:/usr/share/icons/Adwaita:/usr/share/icons/hicolor
+icon-border-radius=8
+markup=1
+actions=1
+history=1
+max-history=100
+max-visible=5
+group-by=summary,app-name,urgency
+sort=-time
+format=<b>%s</b>\n%b
+default-timeout=8000
+ignore-timeout=0
+background-color=#08111ff2
+text-color=#f5efe3ff
+border-color=#ecb860ff
+progress-color=over #ecb860ff
+on-button-left=invoke-default-action
+on-button-middle=dismiss --no-history
+on-button-right=dismiss
+on-touch=dismiss
+
+[grouped]
+format=<b>%s</b>\n%b\n<small>%g notifications</small>
+
+[hidden]
+format=<b>%h hidden</b> (%t total)
+border-color=#b8a07bff
+progress-color=over #b8a07bff
+
+[actionable]
+border-color=#94d2bdff
+
+[urgency=low]
+background-color=#0d1625f2
+border-color=#64748bff
+default-timeout=5000
+history=0
+
+[urgency=normal]
+background-color=#08111ff2
+border-color=#ecb860ff
+default-timeout=12000
+
+[urgency=critical]
+background-color=#2b1116f2
+text-color=#fff1f2ff
+border-color=#ef4444ff
+progress-color=over #ef4444ff
+default-timeout=0
+
+[app-name="Desktop Health"]
+default-timeout=12000
+border-color=#94d2bdff
+
+[app-name="Desktop Health" category=email.arrived]
+border-color=#94d2bdff
+progress-color=over #94d2bdff
+
+[app-name="Timeshift" category=system.backup]
+border-color=#60a5faff
+progress-color=over #60a5faff
+
+[app-name="Software Updater" category=system.software-update]
+border-color=#c084fcff
+progress-color=over #c084fcff
+
+[app-name="Unattended Upgrades" category=system.software-update]
+border-color=#22c55eff
+progress-color=over #22c55eff
+
+[app-name="Desktop Security" category=system.security.auth]
+border-color=#c084fcff
+progress-color=over #c084fcff
+
+[app-name="Desktop Security" category=device.added]
+border-color=#60a5faff
+progress-color=over #60a5faff
+
+[app-name="Desktop Security" category=device.error]
+border-color=#ef4444ff
+progress-color=over #ef4444ff
+
+[app-name="Desktop Security" category=system.security]
+border-color=#ef4444ff
+progress-color=over #ef4444ff
+
+[app-name="Desktop Security" category=system.security.network]
+border-color=#f59e0bff
+progress-color=over #f59e0bff
+
+[app-name="Desktop Health" category=system.memory]
+border-color=#f59e0bff
+progress-color=over #f59e0bff
+
+[app-name="Desktop Health" category=system.battery]
+border-color=#facc15ff
+progress-color=over #facc15ff
+
+[app-name="Desktop Health" category=system.reboot]
+border-color=#60a5faff
+progress-color=over #60a5faff
+
+[app-name="System Maintenance" category=x-labwc.maintenance]
+border-color=#60a5faff
+progress-color=over #60a5faff
+
+[app-name="Security Maintenance" category=x-labwc.maintenance]
+border-color=#c084fcff
+progress-color=over #c084fcff
+
+[app-name="Recovery" category=x-labwc.maintenance]
+border-color=#22c55eff
+progress-color=over #22c55eff
+
+[app-name="Network Scanning" category=x-labwc.maintenance]
+border-color=#38bdf8ff
+progress-color=over #38bdf8ff
+
+[app-name="Android Device" category=x-labwc.maintenance]
+border-color=#a3e635ff
+progress-color=over #a3e635ff
+
+[app-name="OCR" category=x-labwc.maintenance]
+border-color=#f0abfcff
+progress-color=over #f0abfcff
+
+[app-name="Calendar" category=x-labwc.calendar]
+border-color=#2dd4bfff
+progress-color=over #2dd4bfff
+
+[app-name="Bluetooth"]
+border-color=#60a5faff
+progress-color=over #60a5faff
+
+[app-name="Screen Capture" category=x-labwc.screen-capture]
+border-color=#f0abfcff
+progress-color=over #f0abfcff
+
+[app-name="Screen Capture" category=x-labwc.screen-recording]
+border-color=#f87171ff
+progress-color=over #f87171ff
+
+[app-name="Desktop Health" category=device.error urgency=normal]
+border-color=#f59e0bff
+progress-color=over #f59e0bff
+
+[app-name="Desktop Health" category=device.error urgency=critical]
+border-color=#ef4444ff
+progress-color=over #ef4444ff
+
+[mode=do-not-disturb]
+invisible=1

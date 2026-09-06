@@ -1,0 +1,1231 @@
+#!/bin/sh
+set -eu
+
+: "${HOME:?HOME must be set}"
+
+TERMINAL_LAUNCHER=/usr/local/bin/labwc-ai-copilots
+MAX_TEXT_INPUT_CHARS=16384
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+require_terminal_tty() {
+  [ -r /dev/tty ] && [ -w /dev/tty ] ||
+    fatal "AI & Copilots terminal input is unavailable"
+}
+
+choose_fzf_input() {
+  prompt=$1
+  header_lines=$2
+
+  if terminal_selection=$(
+    fzf \
+      --height=100% \
+      --layout=reverse \
+      --border \
+      --cycle \
+      --no-multi \
+      --no-sort \
+      --header-lines="$header_lines" \
+      --prompt="${prompt}> "
+  ); then
+    printf '%s\n' "$terminal_selection"
+    return 0
+  else
+    selector_status=$?
+  fi
+
+  case "$selector_status" in
+    1|130)
+      return 0
+      ;;
+    *)
+      fatal "unable to open the ${prompt} terminal selector (status ${selector_status})"
+      ;;
+  esac
+}
+
+choose_menu_input() {
+  choose_fzf_input "$1" 0
+}
+
+choose_table_input() {
+  choose_fzf_input "$1" "${2:-2}"
+}
+
+choose_catalog() {
+  prompt=$1
+  catalog_name=$2
+
+  {
+    catalog "$catalog_name"
+    case "$catalog_name" in
+      root) printf '%s\n' Exit ;;
+      *) printf '%s\n' "← Back" ;;
+    esac
+  } |
+    choose_menu_input "$prompt"
+}
+
+choose_text() {
+  prompt=$1
+  suggestion=$2
+
+  require_terminal_tty
+  printf '\n%s\n' "$prompt" >/dev/tty
+  [ -z "$suggestion" ] ||
+    printf 'Suggestion: %s\n' "$suggestion" >/dev/tty
+  printf '> ' >/dev/tty
+  if IFS= read -r text_value </dev/tty; then
+    :
+  else
+    printf '\n' >/dev/tty
+    return 0
+  fi
+
+  if [ "${#text_value}" -gt "$MAX_TEXT_INPUT_CHARS" ]; then
+    printf 'Input exceeds the %s-character limit.\n' \
+      "$MAX_TEXT_INPUT_CHARS" >/dev/tty
+    return 0
+  fi
+  printf '%s\n' "$text_value"
+}
+
+show_message() {
+  prompt=$1
+  message=$2
+
+  require_terminal_tty
+  printf '\n%s\n%s\n\nPress Enter to continue...' \
+    "$prompt" "$message" >/dev/tty
+  IFS= read -r _message_ack </dev/tty || true
+  printf '\n' >/dev/tty
+}
+
+run_action() {
+  command -v labwc-ai-copilots-action >/dev/null 2>&1 ||
+    fatal "labwc-ai-copilots-action is not installed"
+
+  if labwc-ai-copilots-action --run "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: AI & Copilots action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+choose_project() {
+  {
+    printf '%s\n' "$HOME"
+    for project_root in "$HOME/Workspace" "$HOME/Projects" "$HOME/src"; do
+      [ -d "$project_root" ] || continue
+      find "$project_root" \
+        -xdev -mindepth 1 -maxdepth 2 -type d \
+        -not -path '*/.git/*' \
+        -print 2>/dev/null
+    done
+  } |
+    LC_ALL=C sort -u |
+    sed -n '1,200p' |
+    choose_menu_input "Codex project"
+}
+
+choose_installed_model() {
+  model_family=$1
+  model_prompt=$2
+  empty_message=$3
+  model_names=$(
+    labwc-ai-copilots-action --list-model-names "$model_family" 2>/dev/null ||
+      true
+  )
+  if [ -z "$model_names" ]; then
+    show_message "$model_prompt" "$empty_message"
+    return 0
+  fi
+
+  selected_name=$(
+    printf '%s\n' "$model_names" |
+      choose_menu_input "$model_prompt"
+  )
+  [ -n "$selected_name" ] || return 0
+  selected_path=$(
+    labwc-ai-copilots-action \
+      --resolve-model-name \
+      "$model_family" \
+      "$selected_name" \
+      2>/dev/null ||
+      true
+  )
+  [ -n "$selected_path" ] || return 0
+  printf '%s\n' "$selected_path"
+}
+
+choose_model() {
+  choose_installed_model \
+    llama \
+    "Llama model" \
+    "No validated GGUF models are installed"
+}
+
+choose_favorite_model() {
+  choose_installed_model \
+    llama-favorite \
+    "Favorite model" \
+    "No validated favorite GGUF models are recorded"
+}
+
+choose_whisper_model() {
+  choose_installed_model \
+    whisper \
+    "Whisper model" \
+    "No validated Whisper models are installed"
+}
+
+choose_audio_file() {
+  {
+    for audio_root in \
+      "$HOME/Downloads" \
+      "$HOME/Music" \
+      "$HOME/Music/Whisper/audio"
+    do
+      [ -d "$audio_root" ] || continue
+      find "$audio_root" \
+        -xdev -mindepth 1 -maxdepth 3 -type f \
+        \( \
+          -iname '*.flac' -o -iname '*.m4a' -o -iname '*.mp3' -o \
+          -iname '*.ogg' -o -iname '*.opus' -o -iname '*.wav' \
+        \) \
+        -size -2147483649c \
+        -print 2>/dev/null
+    done
+  } |
+    LC_ALL=C sort -u |
+    sed -n '1,200p' |
+    choose_menu_input "Audio file"
+}
+
+download_custom_llama_model() {
+  model_url=$(choose_text "GGUF HTTPS URL" "Enter HTTPS model URL")
+  [ -n "$model_url" ] || return 0
+  model_filename=$(choose_text "GGUF file name" "model-name.Q4_K_M.gguf")
+  [ -n "$model_filename" ] || return 0
+  model_sha256=$(choose_text "Expected SHA-256" "Enter 64 lowercase hex characters")
+  [ -n "$model_sha256" ] || return 0
+  model_bytes=$(choose_text "Expected byte count" "1000000000")
+  [ -n "$model_bytes" ] || return 0
+
+  run_action \
+    llama-download-model \
+    "$model_url" \
+    "$model_filename" \
+    "$model_sha256" \
+    "$model_bytes"
+}
+
+download_custom_whisper_model() {
+  model_url=$(choose_text "Whisper model HTTPS URL" "Enter Hugging Face HTTPS model URL")
+  [ -n "$model_url" ] || return 0
+  model_filename=$(choose_text "Whisper model file name" "ggml-small.en-q8_0.bin")
+  [ -n "$model_filename" ] || return 0
+  model_sha256=$(choose_text "Expected SHA-256" "Enter 64 lowercase hex characters")
+  [ -n "$model_sha256" ] || return 0
+  model_bytes=$(choose_text "Expected byte count" "500000000")
+  [ -n "$model_bytes" ] || return 0
+
+  run_action \
+    whisper-download-model \
+    "$model_url" \
+    "$model_filename" \
+    "$model_sha256" \
+    "$model_bytes"
+}
+
+choose_download_model() {
+  model_family=$1
+  model_prompt=$2
+  catalog_rows=$(
+    labwc-ai-copilots-action \
+      --list-download-models \
+      "$model_family" \
+      2>/dev/null ||
+      true
+  )
+  selected_row=$(
+    table_header_lines=2
+    [ -n "$catalog_rows" ] || table_header_lines=0
+    {
+      [ -z "$catalog_rows" ] || printf '%s\n' "$catalog_rows"
+      printf '%s\n' "★ Custom Hugging Face URL…"
+    } |
+      choose_table_input "$model_prompt" "$table_header_lines"
+  )
+  [ -n "$selected_row" ] || return 0
+  if [ "$selected_row" = "★ Custom Hugging Face URL…" ]; then
+    printf '%s\n' '__custom_url__'
+    return 0
+  fi
+
+  selected_id=$(
+    labwc-ai-copilots-action \
+      --resolve-download-model \
+      "$model_family" \
+      "$selected_row" \
+      2>/dev/null ||
+      true
+  )
+  [ -n "$selected_id" ] || return 0
+  printf '%s\n' "$selected_id"
+}
+
+download_llama_model() {
+  selected_model=$(choose_download_model llama "Download Llama model")
+  case "$selected_model" in
+    __custom_url__) download_custom_llama_model ;;
+    '') return 0 ;;
+    *) run_action llama-download-catalog-model "$selected_model" ;;
+  esac
+}
+
+download_whisper_model() {
+  selected_model=$(choose_download_model whisper "Download Whisper model")
+  case "$selected_model" in
+    __custom_url__) download_custom_whisper_model ;;
+    '') return 0 ;;
+    *) run_action whisper-download-catalog-model "$selected_model" ;;
+  esac
+}
+
+run_model_info() {
+  model_field=$1
+  selected_model=$(choose_model)
+  [ -n "$selected_model" ] || return 0
+  run_action llama-model-info "$model_field" "$selected_model"
+}
+
+catalog() {
+  case "$1" in
+    root)
+      cat <<'EOF'
+⮞ Codex
+⮞ Llama
+⮞ Whisper
+EOF
+      ;;
+    codex-root)
+      cat <<'EOF'
+★ New Coding Session
+★ Resume Last Session
+★ Implement Task…
+⮞ Sessions
+⮞ Code Actions
+⮞ Project Context
+⮞ Models & Reasoning
+⮞ Skills & Tools
+⮞ Diagnostics
+EOF
+      ;;
+    codex-sessions)
+      cat <<'EOF'
+New Coding Session
+Resume Last Session
+Browse Sessions
+Show Session Storage
+Show Recent Session Index
+Clear Recent Projects
+EOF
+      ;;
+    codex-code-actions)
+      cat <<'EOF'
+Implement Task…
+Review Current Project…
+Explain Code…
+Fix Failing Tests…
+Refactor Safely…
+Generate Tests…
+Security Review…
+Update Documentation…
+EOF
+      ;;
+    codex-project-context)
+      cat <<'EOF'
+Choose Project…
+Use Home Directory
+Show Current Project
+Show Git Status
+Show Project Files
+Open Project Terminal
+Show Project AGENTS.md
+Show Recent Projects
+EOF
+      ;;
+    codex-models-reasoning)
+      cat <<'EOF'
+Use Default Model
+Set Model…
+Set Reasoning Effort…
+Show Model & Reasoning Settings
+Show Codex Version
+Show Codex Help
+EOF
+      ;;
+    codex-skills-tools)
+      cat <<'EOF'
+List Installed Skills
+Show Codex Home
+Show Memory Directory
+Show Configuration Files
+Open Codex Home Terminal
+Check Managed Wrapper
+EOF
+      ;;
+    codex-diagnostics)
+      cat <<'EOF'
+Run Wrapper Health Check
+Show Runtime Paths
+Show Recent Session Index
+Show Recent Codex Logs
+Show Codex Version
+Show Codex Help
+EOF
+      ;;
+    llama-root)
+      cat <<'EOF'
+★ Ask Llama…
+★ New Chat
+★ Resume Last Chat
+★ Change Model…
+★ Download New Model…
+⮞ ★ Persistent Memory
+⮞ Models
+⮞ Chat & Context
+⮞ Prompt Presets
+⮞ Runtime
+⮞ Performance
+⮞ Server
+⮞ Storage
+⮞ Diagnostics
+EOF
+      ;;
+    llama-persistent-memory)
+      cat <<'EOF'
+Enable Persistent Prompt Memory
+Disable Persistent Prompt Memory
+Show Memory Status
+Show Remembered Prompts
+Clear Remembered Prompts
+EOF
+      ;;
+    llama-models)
+      cat <<'EOF'
+Change Model…
+Download New Model…
+Search Models…
+Browse Recommended Models
+Browse Coding Models
+Browse Reasoning Models
+Browse Small / Fast Models
+Browse Vision Models
+Browse Embedding Models
+Browse Recently Added Models
+Show Installed Models
+⮞ Favorite Models
+Recent Models
+Set Default Model
+Set Model Alias
+Show Model Details
+Show Model License
+Show Model Architecture
+Show Parameter Count
+Show Quantization
+Show Model Size
+Show Context Length
+Show Disk Location
+EOF
+      ;;
+    llama-favorites)
+      cat <<'EOF'
+Show Favorite Models
+Add Active Model to Favorites
+Remove Active Model from Favorites
+Use Favorite Model…
+EOF
+      ;;
+    llama-chat-context)
+      cat <<'EOF'
+New Chat
+Resume Last Chat
+Show Last Prompt
+Show Recent Chats
+Clear Chat History
+Set System Prompt…
+Show System Prompt
+Clear System Prompt
+EOF
+      ;;
+    llama-prompt-presets)
+      cat <<'EOF'
+Coding Assistant
+Code Review
+Security Review
+Deep Reasoning
+Concise Summary
+Brainstorm
+Shell Safety Review
+Show Active Preset
+Clear Active Preset
+EOF
+      ;;
+    llama-runtime)
+      cat <<'EOF'
+Show Runtime Configuration
+Show Active Model
+Show Llama Version
+Show Llama Help
+Start Interactive CLI
+Reset Runtime Overrides
+EOF
+      ;;
+    llama-performance)
+      cat <<'EOF'
+Balanced Preset
+Low-Memory Preset
+High-Context Preset
+Set Context Length…
+Set Thread Count…
+Set Batch Size…
+Set GPU Layers…
+Show Performance Settings
+EOF
+      ;;
+    llama-server)
+      cat <<'EOF'
+Start Llama Server
+Stop Llama Server
+Show Server Status
+Show Server Configuration
+Show Server Endpoint
+Show Server Help
+EOF
+      ;;
+    llama-storage)
+      cat <<'EOF'
+Show Model Directories
+Show Model Storage Usage
+Show Download Directory
+Prune Partial Downloads
+Show State File
+EOF
+      ;;
+    llama-diagnostics)
+      cat <<'EOF'
+Run Llama Health Check
+Show Wrapper Configuration
+Show Active Model Details
+Show Installed Models
+Show Recent Chats
+Show Llama Version
+Show Llama Help
+EOF
+      ;;
+    whisper-root)
+      cat <<'EOF'
+★ Push-to-Talk
+★ Toggle Dictation
+★ Transcribe File…
+★ Transcribe Last Recording
+★ Change Model…
+★ Download New Model…
+★ Live Captions
+★ Voice Note
+⮞ Recording
+⮞ Transcription
+⮞ Languages
+⮞ Output
+⮞ Post-Processing
+⮞ Models
+⮞ History
+⮞ Audio Devices
+⮞ Diagnostics
+EOF
+      ;;
+    whisper-recording)
+      cat <<'EOF'
+Start Recording
+Stop Recording
+Toggle Recording
+Show Recording Status
+Show Latest Recording
+Open Recording Folder
+EOF
+      ;;
+    whisper-transcription)
+      cat <<'EOF'
+Transcribe File…
+Transcribe Last Recording
+Show Latest Transcript
+Open Transcript Folder
+Show Transcription Service Status
+EOF
+      ;;
+    whisper-languages)
+      cat <<'EOF'
+Auto-Detect Language
+English
+Swedish
+German
+French
+Spanish
+Set Language Code…
+Show Selected Language
+EOF
+      ;;
+    whisper-output)
+      cat <<'EOF'
+Save Transcript to File
+Copy Transcript to Clipboard
+Save and Copy Transcript
+Show Output Mode
+Open Transcript Folder
+EOF
+      ;;
+    whisper-post-processing)
+      cat <<'EOF'
+Raw Transcript
+Normalize Whitespace
+Show Post-Processing Mode
+EOF
+      ;;
+    whisper-models)
+      cat <<'EOF'
+Change Model…
+Download New Model…
+Show Installed Models
+Show Configured Model
+Show Model Size
+Show Model Location
+Check Model Readability
+Prune Partial Downloads
+Show Whisper Configuration
+EOF
+      ;;
+    whisper-history)
+      cat <<'EOF'
+Show Recent Recordings
+Show Recent Transcripts
+Show Latest Recording
+Show Latest Transcript
+Open Recording Folder
+Open Transcript Folder
+EOF
+      ;;
+    whisper-audio-devices)
+      cat <<'EOF'
+Show PipeWire Status
+Show Default Capture Source
+Toggle Default Microphone Mute
+Mute Default Microphone
+Unmute Default Microphone
+Open Audio Control
+EOF
+      ;;
+    whisper-diagnostics)
+      cat <<'EOF'
+Run Whisper Health Check
+Show User Service Status
+Show Recent Whisper Logs
+Show Persistent Server Status
+Show Whisper Configuration
+Show Whisper CLI Help
+EOF
+      ;;
+    *)
+      fatal "unknown AI & Copilots catalog: $1"
+      ;;
+  esac
+}
+
+codex_prompt_action() {
+  prompt_prefix=$1
+  prompt_title=$2
+  prompt_text=$(choose_text "$prompt_title" "Describe the requested work")
+  [ -n "$prompt_text" ] || return 0
+  run_action codex-task "${prompt_prefix}${prompt_text}"
+}
+
+codex_sessions_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Sessions" codex-sessions)
+    case "$action" in
+      "New Coding Session") run_action codex-new-session ;;
+      "Resume Last Session") run_action codex-resume-last ;;
+      "Browse Sessions") run_action codex-resume-picker ;;
+      "Show Session Storage") run_action codex-diagnostic session-storage ;;
+      "Show Recent Session Index") run_action codex-diagnostic session-index ;;
+      "Clear Recent Projects") run_action codex-clear-recent-projects ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_code_actions_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Code Actions" codex-code-actions)
+    case "$action" in
+      "Implement Task…") codex_prompt_action "Implement this task safely and completely: " "Codex task" ;;
+      "Review Current Project…") codex_prompt_action "Review the current project, focusing on: " "Review focus" ;;
+      "Explain Code…") codex_prompt_action "Explain this code or behavior clearly: " "Code to explain" ;;
+      "Fix Failing Tests…") codex_prompt_action "Diagnose and fix these failing tests without weakening coverage: " "Failing tests" ;;
+      "Refactor Safely…") codex_prompt_action "Refactor this area while preserving behavior: " "Refactor goal" ;;
+      "Generate Tests…") codex_prompt_action "Add focused tests for this behavior: " "Test objective" ;;
+      "Security Review…") codex_prompt_action "Perform a repository-grounded security review of: " "Security review scope" ;;
+      "Update Documentation…") codex_prompt_action "Update the relevant documentation for: " "Documentation objective" ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_project_context_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Project Context" codex-project-context)
+    case "$action" in
+      "Choose Project…")
+        project=$(choose_project)
+        [ -n "$project" ] && run_action codex-set-project "$project"
+        ;;
+      "Use Home Directory") run_action codex-set-project "$HOME" ;;
+      "Show Current Project") run_action codex-diagnostic current-project ;;
+      "Show Git Status") run_action codex-diagnostic git-status ;;
+      "Show Project Files") run_action codex-diagnostic project-files ;;
+      "Open Project Terminal") run_action codex-open-project-terminal ;;
+      "Show Project AGENTS.md") run_action codex-diagnostic project-agents ;;
+      "Show Recent Projects") run_action codex-diagnostic recent-projects ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_models_reasoning_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Models & Reasoning" codex-models-reasoning)
+    case "$action" in
+      "Use Default Model") run_action codex-set-model default ;;
+      "Set Model…")
+        model=$(choose_text "Codex model" "Enter model identifier")
+        [ -n "$model" ] && run_action codex-set-model "$model"
+        ;;
+      "Set Reasoning Effort…")
+        effort=$(
+          printf '%s\n' low medium high xhigh default |
+            choose_menu_input "Codex reasoning effort"
+        )
+        [ -n "$effort" ] && run_action codex-set-reasoning "$effort"
+        ;;
+      "Show Model & Reasoning Settings") run_action codex-diagnostic model-settings ;;
+      "Show Codex Version") run_action codex-diagnostic version ;;
+      "Show Codex Help") run_action codex-diagnostic help ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_skills_tools_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Skills & Tools" codex-skills-tools)
+    case "$action" in
+      "List Installed Skills") run_action codex-diagnostic skills ;;
+      "Show Codex Home") run_action codex-diagnostic codex-home ;;
+      "Show Memory Directory") run_action codex-diagnostic memories ;;
+      "Show Configuration Files") run_action codex-diagnostic config-files ;;
+      "Open Codex Home Terminal") run_action codex-open-home-terminal ;;
+      "Check Managed Wrapper") run_action codex-diagnostic wrapper ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_diagnostics_menu() {
+  while :; do
+    action=$(choose_catalog "Codex — Diagnostics" codex-diagnostics)
+    case "$action" in
+      "Run Wrapper Health Check") run_action codex-diagnostic health ;;
+      "Show Runtime Paths") run_action codex-diagnostic runtime-paths ;;
+      "Show Recent Session Index") run_action codex-diagnostic session-index ;;
+      "Show Recent Codex Logs") run_action codex-diagnostic recent-logs ;;
+      "Show Codex Version") run_action codex-diagnostic version ;;
+      "Show Codex Help") run_action codex-diagnostic help ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+codex_menu() {
+  while :; do
+    action=$(choose_catalog Codex codex-root)
+    case "$action" in
+      "★ New Coding Session") run_action codex-new-session ;;
+      "★ Resume Last Session") run_action codex-resume-last ;;
+      "★ Implement Task…") codex_prompt_action "Implement this task safely and completely: " "Codex task" ;;
+      "⮞ Sessions") codex_sessions_menu ;;
+      "⮞ Code Actions") codex_code_actions_menu ;;
+      "⮞ Project Context") codex_project_context_menu ;;
+      "⮞ Models & Reasoning") codex_models_reasoning_menu ;;
+      "⮞ Skills & Tools") codex_skills_tools_menu ;;
+      "⮞ Diagnostics") codex_diagnostics_menu ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_memory_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Persistent Memory" llama-persistent-memory)
+    case "$action" in
+      "Enable Persistent Prompt Memory") run_action llama-memory enable ;;
+      "Disable Persistent Prompt Memory") run_action llama-memory disable ;;
+      "Show Memory Status") run_action llama-diagnostic memory-status ;;
+      "Show Remembered Prompts") run_action llama-diagnostic remembered-prompts ;;
+      "Clear Remembered Prompts") run_action llama-memory clear ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_favorites_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Favorite Models" llama-favorites)
+    case "$action" in
+      "Show Favorite Models") run_action llama-diagnostic favorites ;;
+      "Add Active Model to Favorites") run_action llama-favorite add ;;
+      "Remove Active Model from Favorites") run_action llama-favorite remove ;;
+      "Use Favorite Model…")
+        model=$(choose_favorite_model)
+        [ -n "$model" ] && run_action llama-set-active-model "$model"
+        ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_models_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Models" llama-models)
+    case "$action" in
+      "Change Model…")
+        model=$(choose_model)
+        [ -n "$model" ] && run_action llama-set-active-model "$model"
+        ;;
+      "Download New Model…") download_llama_model ;;
+      "Search Models…")
+        query=$(choose_text "Search Hugging Face models" "coding GGUF")
+        [ -n "$query" ] && run_action llama-open-model-search search "$query"
+        ;;
+      "Browse Recommended Models") run_action llama-open-model-search recommended ;;
+      "Browse Coding Models") run_action llama-open-model-search coding ;;
+      "Browse Reasoning Models") run_action llama-open-model-search reasoning ;;
+      "Browse Small / Fast Models") run_action llama-open-model-search small-fast ;;
+      "Browse Vision Models") run_action llama-open-model-search vision ;;
+      "Browse Embedding Models") run_action llama-open-model-search embedding ;;
+      "Browse Recently Added Models") run_action llama-open-model-search recent ;;
+      "Show Installed Models") run_action llama-diagnostic installed-models ;;
+      "⮞ Favorite Models") llama_favorites_menu ;;
+      "Recent Models") run_action llama-diagnostic recent-models ;;
+      "Set Default Model")
+        model=$(choose_model)
+        [ -n "$model" ] && run_action llama-set-default-model "$model"
+        ;;
+      "Set Model Alias")
+        model=$(choose_model)
+        [ -n "$model" ] || continue
+        alias_name=$(choose_text "Model alias" "coding")
+        [ -n "$alias_name" ] && run_action llama-set-model-alias "$alias_name" "$model"
+        ;;
+      "Show Model Details") run_model_info details ;;
+      "Show Model License") run_model_info license ;;
+      "Show Model Architecture") run_model_info architecture ;;
+      "Show Parameter Count") run_model_info parameter-count ;;
+      "Show Quantization") run_model_info quantization ;;
+      "Show Model Size") run_model_info size ;;
+      "Show Context Length") run_model_info context-length ;;
+      "Show Disk Location") run_model_info location ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_chat_context_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Chat & Context" llama-chat-context)
+    case "$action" in
+      "New Chat") run_action llama-new-chat ;;
+      "Resume Last Chat") run_action llama-resume-last-chat ;;
+      "Show Last Prompt") run_action llama-diagnostic last-prompt ;;
+      "Show Recent Chats") run_action llama-diagnostic recent-chats ;;
+      "Clear Chat History") run_action llama-clear-chat-history ;;
+      "Set System Prompt…")
+        prompt=$(choose_text "Llama system prompt" "You are a careful local assistant.")
+        [ -n "$prompt" ] && run_action llama-set-system-prompt "$prompt"
+        ;;
+      "Show System Prompt") run_action llama-diagnostic system-prompt ;;
+      "Clear System Prompt") run_action llama-set-system-prompt clear ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_prompt_presets_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Prompt Presets" llama-prompt-presets)
+    case "$action" in
+      "Coding Assistant") run_action llama-set-preset coding ;;
+      "Code Review") run_action llama-set-preset code-review ;;
+      "Security Review") run_action llama-set-preset security-review ;;
+      "Deep Reasoning") run_action llama-set-preset deep-reasoning ;;
+      "Concise Summary") run_action llama-set-preset concise-summary ;;
+      Brainstorm) run_action llama-set-preset brainstorm ;;
+      "Shell Safety Review") run_action llama-set-preset shell-safety ;;
+      "Show Active Preset") run_action llama-diagnostic active-preset ;;
+      "Clear Active Preset") run_action llama-set-preset clear ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_runtime_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Runtime" llama-runtime)
+    case "$action" in
+      "Show Runtime Configuration") run_action llama-diagnostic runtime ;;
+      "Show Active Model") run_action llama-diagnostic active-model ;;
+      "Show Llama Version") run_action llama-diagnostic version ;;
+      "Show Llama Help") run_action llama-diagnostic help ;;
+      "Start Interactive CLI") run_action llama-new-chat ;;
+      "Reset Runtime Overrides") run_action llama-reset-runtime ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_performance_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Performance" llama-performance)
+    case "$action" in
+      "Balanced Preset") run_action llama-performance-preset balanced ;;
+      "Low-Memory Preset") run_action llama-performance-preset low-memory ;;
+      "High-Context Preset") run_action llama-performance-preset high-context ;;
+      "Set Context Length…")
+        value=$(choose_text "Llama context length" "8192")
+        [ -n "$value" ] && run_action llama-set-runtime context "$value"
+        ;;
+      "Set Thread Count…")
+        value=$(choose_text "Llama thread count" "4")
+        [ -n "$value" ] && run_action llama-set-runtime threads "$value"
+        ;;
+      "Set Batch Size…")
+        value=$(choose_text "Llama batch size" "256")
+        [ -n "$value" ] && run_action llama-set-runtime batch "$value"
+        ;;
+      "Set GPU Layers…")
+        value=$(choose_text "Llama GPU layers" "0")
+        [ -n "$value" ] && run_action llama-set-runtime gpu-layers "$value"
+        ;;
+      "Show Performance Settings") run_action llama-diagnostic performance ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_server_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Server" llama-server)
+    case "$action" in
+      "Start Llama Server") run_action llama-start-server ;;
+      "Stop Llama Server") run_action llama-stop-server ;;
+      "Show Server Status") run_action llama-diagnostic server-status ;;
+      "Show Server Configuration") run_action llama-diagnostic server-config ;;
+      "Show Server Endpoint") run_action llama-diagnostic server-endpoint ;;
+      "Show Server Help") run_action llama-diagnostic server-help ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_storage_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Storage" llama-storage)
+    case "$action" in
+      "Show Model Directories") run_action llama-diagnostic model-directories ;;
+      "Show Model Storage Usage") run_action llama-diagnostic storage-usage ;;
+      "Show Download Directory") run_action llama-diagnostic download-directory ;;
+      "Prune Partial Downloads") run_action llama-prune-partials ;;
+      "Show State File") run_action llama-diagnostic state-file ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_diagnostics_menu() {
+  while :; do
+    action=$(choose_catalog "Llama — Diagnostics" llama-diagnostics)
+    case "$action" in
+      "Run Llama Health Check") run_action llama-diagnostic health ;;
+      "Show Wrapper Configuration") run_action llama-diagnostic wrapper-config ;;
+      "Show Active Model Details") run_action llama-model-info details active ;;
+      "Show Installed Models") run_action llama-diagnostic installed-models ;;
+      "Show Recent Chats") run_action llama-diagnostic recent-chats ;;
+      "Show Llama Version") run_action llama-diagnostic version ;;
+      "Show Llama Help") run_action llama-diagnostic help ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+llama_menu() {
+  while :; do
+    action=$(choose_catalog Llama llama-root)
+    case "$action" in
+      "★ Ask Llama…")
+        prompt=$(choose_text "Ask Llama" "Enter a question")
+        [ -n "$prompt" ] && run_action llama-ask "$prompt"
+        ;;
+      "★ New Chat") run_action llama-new-chat ;;
+      "★ Resume Last Chat") run_action llama-resume-last-chat ;;
+      "★ Change Model…")
+        model=$(choose_model)
+        [ -n "$model" ] && run_action llama-set-active-model "$model"
+        ;;
+      "★ Download New Model…") download_llama_model ;;
+      "⮞ ★ Persistent Memory") llama_memory_menu ;;
+      "⮞ Models") llama_models_menu ;;
+      "⮞ Chat & Context") llama_chat_context_menu ;;
+      "⮞ Prompt Presets") llama_prompt_presets_menu ;;
+      "⮞ Runtime") llama_runtime_menu ;;
+      "⮞ Performance") llama_performance_menu ;;
+      "⮞ Server") llama_server_menu ;;
+      "⮞ Storage") llama_storage_menu ;;
+      "⮞ Diagnostics") llama_diagnostics_menu ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_transcribe_file() {
+  audio_file=$(choose_audio_file)
+  [ -n "$audio_file" ] && run_action whisper-transcribe-file "$audio_file"
+}
+
+whisper_recording_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Recording" whisper-recording)
+    case "$action" in
+      "Start Recording") run_action whisper-control start ;;
+      "Stop Recording") run_action whisper-control stop ;;
+      "Toggle Recording") run_action whisper-control toggle ;;
+      "Show Recording Status") run_action whisper-diagnostic recording-status ;;
+      "Show Latest Recording") run_action whisper-diagnostic latest-recording ;;
+      "Open Recording Folder") run_action whisper-open recording-folder ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_transcription_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Transcription" whisper-transcription)
+    case "$action" in
+      "Transcribe File…") whisper_transcribe_file ;;
+      "Transcribe Last Recording") run_action whisper-transcribe-last ;;
+      "Show Latest Transcript") run_action whisper-diagnostic latest-transcript ;;
+      "Open Transcript Folder") run_action whisper-open transcript-folder ;;
+      "Show Transcription Service Status") run_action whisper-diagnostic transcription-status ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_languages_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Languages" whisper-languages)
+    case "$action" in
+      "Auto-Detect Language") run_action whisper-set-language auto ;;
+      English) run_action whisper-set-language en ;;
+      Swedish) run_action whisper-set-language sv ;;
+      German) run_action whisper-set-language de ;;
+      French) run_action whisper-set-language fr ;;
+      Spanish) run_action whisper-set-language es ;;
+      "Set Language Code…")
+        language=$(choose_text "Whisper language code" "en")
+        [ -n "$language" ] && run_action whisper-set-language "$language"
+        ;;
+      "Show Selected Language") run_action whisper-diagnostic language ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_output_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Output" whisper-output)
+    case "$action" in
+      "Save Transcript to File") run_action whisper-set-output file ;;
+      "Copy Transcript to Clipboard") run_action whisper-set-output clipboard ;;
+      "Save and Copy Transcript") run_action whisper-set-output both ;;
+      "Show Output Mode") run_action whisper-diagnostic output-mode ;;
+      "Open Transcript Folder") run_action whisper-open transcript-folder ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_post_processing_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Post-Processing" whisper-post-processing)
+    case "$action" in
+      "Raw Transcript") run_action whisper-set-post-processing raw ;;
+      "Normalize Whitespace") run_action whisper-set-post-processing normalize ;;
+      "Show Post-Processing Mode") run_action whisper-diagnostic post-processing ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_models_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Models" whisper-models)
+    case "$action" in
+      "Change Model…")
+        model=$(choose_whisper_model)
+        [ -n "$model" ] && run_action whisper-set-active-model "$model"
+        ;;
+      "Download New Model…") download_whisper_model ;;
+      "Show Installed Models") run_action whisper-diagnostic installed-models ;;
+      "Show Configured Model") run_action whisper-diagnostic model ;;
+      "Show Model Size") run_action whisper-diagnostic model-size ;;
+      "Show Model Location") run_action whisper-diagnostic model-location ;;
+      "Check Model Readability") run_action whisper-diagnostic model-health ;;
+      "Prune Partial Downloads") run_action whisper-prune-partials ;;
+      "Show Whisper Configuration") run_action whisper-diagnostic config ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_history_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — History" whisper-history)
+    case "$action" in
+      "Show Recent Recordings") run_action whisper-diagnostic recent-recordings ;;
+      "Show Recent Transcripts") run_action whisper-diagnostic recent-transcripts ;;
+      "Show Latest Recording") run_action whisper-diagnostic latest-recording ;;
+      "Show Latest Transcript") run_action whisper-diagnostic latest-transcript ;;
+      "Open Recording Folder") run_action whisper-open recording-folder ;;
+      "Open Transcript Folder") run_action whisper-open transcript-folder ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_audio_devices_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Audio Devices" whisper-audio-devices)
+    case "$action" in
+      "Show PipeWire Status") run_action whisper-diagnostic pipewire ;;
+      "Show Default Capture Source") run_action whisper-diagnostic default-source ;;
+      "Toggle Default Microphone Mute") run_action whisper-audio toggle-mute ;;
+      "Mute Default Microphone") run_action whisper-audio mute ;;
+      "Unmute Default Microphone") run_action whisper-audio unmute ;;
+      "Open Audio Control") run_action whisper-open audio-control ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_diagnostics_menu() {
+  while :; do
+    action=$(choose_catalog "Whisper — Diagnostics" whisper-diagnostics)
+    case "$action" in
+      "Run Whisper Health Check") run_action whisper-diagnostic health ;;
+      "Show User Service Status") run_action whisper-diagnostic services ;;
+      "Show Recent Whisper Logs") run_action whisper-diagnostic logs ;;
+      "Show Persistent Server Status") run_action whisper-diagnostic server-status ;;
+      "Show Whisper Configuration") run_action whisper-diagnostic config ;;
+      "Show Whisper CLI Help") run_action whisper-diagnostic help ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+whisper_menu() {
+  while :; do
+    action=$(choose_catalog Whisper whisper-root)
+    case "$action" in
+      "★ Push-to-Talk") run_action whisper-control toggle ;;
+      "★ Toggle Dictation") run_action whisper-dictation toggle ;;
+      "★ Transcribe File…") whisper_transcribe_file ;;
+      "★ Transcribe Last Recording") run_action whisper-transcribe-last ;;
+      "★ Change Model…")
+        model=$(choose_whisper_model)
+        [ -n "$model" ] && run_action whisper-set-active-model "$model"
+        ;;
+      "★ Download New Model…") download_whisper_model ;;
+      "★ Live Captions") run_action whisper-dictation toggle ;;
+      "★ Voice Note") run_action whisper-control toggle ;;
+      "⮞ Recording") whisper_recording_menu ;;
+      "⮞ Transcription") whisper_transcription_menu ;;
+      "⮞ Languages") whisper_languages_menu ;;
+      "⮞ Output") whisper_output_menu ;;
+      "⮞ Post-Processing") whisper_post_processing_menu ;;
+      "⮞ Models") whisper_models_menu ;;
+      "⮞ History") whisper_history_menu ;;
+      "⮞ Audio Devices") whisper_audio_devices_menu ;;
+      "⮞ Diagnostics") whisper_diagnostics_menu ;;
+      "← Back"|'') return 0 ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  --catalog)
+    [ "$#" -eq 2 ] || fatal "usage: labwc-ai-copilots --catalog <name>"
+    catalog "$2"
+    exit 0
+    ;;
+  --terminal)
+    [ "$#" -eq 1 ] ||
+      fatal "usage: labwc-ai-copilots --terminal"
+    ;;
+  '')
+    [ "$#" -eq 0 ] ||
+      fatal "usage: labwc-ai-copilots [--terminal|--catalog <name>]"
+    [ "$(id -u)" -ne 0 ] ||
+      fatal "labwc-ai-copilots must run as the logged-in desktop user"
+    command -v labwc-terminal >/dev/null 2>&1 ||
+      fatal "labwc-terminal is not installed"
+    exec labwc-terminal -e "$TERMINAL_LAUNCHER" --terminal
+    ;;
+  *)
+    fatal "usage: labwc-ai-copilots [--terminal|--catalog <name>]"
+    ;;
+esac
+
+command -v fzf >/dev/null 2>&1 ||
+  fatal "fzf is not installed"
+command -v labwc-ai-copilots-action >/dev/null 2>&1 ||
+  fatal "labwc-ai-copilots-action is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-ai-copilots must run as the logged-in desktop user"
+
+while :; do
+  category=$(choose_catalog "AI & Copilots" root)
+  case "$category" in
+    "⮞ Codex") codex_menu ;;
+    "⮞ Llama") llama_menu ;;
+    "⮞ Whisper") whisper_menu ;;
+    Exit|'') exit 0 ;;
+  esac
+done

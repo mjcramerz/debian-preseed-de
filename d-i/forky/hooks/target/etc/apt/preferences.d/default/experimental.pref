@@ -1,0 +1,7 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep Debian Experimental available only for exact-version downloads such as
+# Satty's private GLIBC runtime.
+
+Package: *
+Pin: release a=experimental,n=rc-buggy
+Pin-Priority: 1

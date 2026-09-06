@@ -1,0 +1,22 @@
+[containers]
+cgroupns = "__INSTALLER_PODMAN_CONTAINERS_CGROUPNS__"
+log_driver = "__INSTALLER_PODMAN_CONTAINERS_LOG_DRIVER__"
+utsns = "__INSTALLER_PODMAN_CONTAINERS_UTSNS__"
+
+[engine]
+cgroup_manager = "__INSTALLER_PODMAN_CGROUP_MANAGER__"
+events_logger = "__INSTALLER_PODMAN_EVENTS_LOGGER__"
+image_copy_tmp_dir = "__INSTALLER_PODMAN_ROOTLESS_IMAGE_TMPDIR__"
+runtime = "__INSTALLER_PODMAN_RUNTIME__"
+static_dir = "__INSTALLER_PODMAN_ROOTLESS_STATIC_DIR__"
+tmp_dir = "__INSTALLER_PODMAN_ROOTLESS_TMPDIR__"
+volume_path = "__INSTALLER_PODMAN_ROOTLESS_VOLUME_PATH__"
+
+[engine.runtimes]
+crun = ["/usr/bin/crun"]
+
+[network]
+network_backend = "__INSTALLER_PODMAN_NETWORK_BACKEND__"
+network_config_dir = "__INSTALLER_PODMAN_ROOTLESS_NETWORK_CONFIG_DIR__"
+firewall_driver = "__INSTALLER_PODMAN_FIREWALL_DRIVER__"
+default_rootless_network_cmd = "__INSTALLER_PODMAN_ROOTLESS_NETWORK_CMD__"

@@ -1,0 +1,547 @@
+#!/bin/sh
+set -eu
+
+profile_config=/etc/default/grub-profiles.conf
+
+fatal() {
+  printf "fatal: %s\n" "$*" >&2
+  exit 1
+}
+
+grub_single_quote() {
+  printf '%s\n' "$1" | sed "s/'/'\\\\''/g"
+}
+
+shell_single_quote() {
+  printf "'%s'\n" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+write_profile_config() {
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+  {
+    printf 'dev_part_boot=%s\n' "$(shell_single_quote "$dev_part_boot")"
+    printf 'dev_part_root=%s\n' "$(shell_single_quote "$dev_part_root")"
+    printf 'dev_part_efi=%s\n' "$(shell_single_quote "$dev_part_efi")"
+    printf 'bootprofile_default=%s\n' "$(shell_single_quote "$bootprofile_default")"
+    printf 'bootprofile_performance=%s\n' "$(shell_single_quote "$bootprofile_performance")"
+    printf 'bootprofile_hardened=%s\n' "$(shell_single_quote "$bootprofile_hardened")"
+    printf 'grub_root_flags=%s\n' "$(shell_single_quote "$grub_root_flags")"
+    printf 'grub_initramfs_flags=%s\n' "$(shell_single_quote "$grub_initramfs_flags")"
+    printf 'grub_nvme_flags=%s\n' "$(shell_single_quote "$grub_nvme_flags")"
+    printf 'grub_cgroup_flags=%s\n' "$(shell_single_quote "$grub_cgroup_flags")"
+    printf 'grub_security_core_flags=%s\n' "$(shell_single_quote "$grub_security_core_flags")"
+    printf 'grub_blacklist_flags=%s\n' "$(shell_single_quote "$grub_blacklist_flags")"
+    printf 'grub_vfio_flags=%s\n' "$(shell_single_quote "$grub_vfio_flags")"
+    printf 'grub_memory_core_flags=%s\n' "$(shell_single_quote "$grub_memory_core_flags")"
+    printf 'grub_hardening_flags=%s\n' "$(shell_single_quote "$grub_hardening_flags")"
+    printf 'grub_aspm_flags=%s\n' "$(shell_single_quote "$grub_aspm_flags")"
+    printf 'grub_systemd_mask_flags=%s\n' "$(shell_single_quote "$grub_systemd_mask_flags")"
+    printf 'grub_profile_default_flags=%s\n' "$(shell_single_quote "$grub_profile_default_flags")"
+    printf 'grub_profile_performance_flags=%s\n' "$(shell_single_quote "$grub_profile_performance_flags")"
+    printf 'grub_profile_hardened_flags=%s\n' "$(shell_single_quote "$grub_profile_hardened_flags")"
+    printf 'mok_der_path=%s\n' "$(shell_single_quote "$mok_der_path")"
+    printf 'grub_default_entry=%s\n' "$(shell_single_quote "$grub_default_entry")"
+    printf 'rescue_usb_uuid=%s\n' "$(shell_single_quote "$rescue_usb_uuid")"
+    printf 'grub_gfxpayload_linux=%s\n' "$(shell_single_quote "$grub_gfxpayload_linux")"
+    printf 'dualboot_enabled=%s\n' "$(shell_single_quote "$dualboot_enabled")"
+  } >"$tmp"
+
+  install -d -m 0755 /etc/default
+  install -m 0600 "$tmp" "$profile_config"
+  rm -f "$tmp"
+  trap - EXIT HUP INT TERM
+}
+
+load_profile_config() {
+  [ -r "$profile_config" ] || fatal "GRUB profile config is missing: $profile_config"
+  # shellcheck disable=SC1090
+  . "$profile_config"
+}
+
+ensure_grubenv() {
+  [ -s /boot/grub/grubenv ] && return 0
+  command -v grub-editenv >/dev/null 2>&1 || \
+    fatal "grub-editenv is unavailable; cannot create /boot/grub/grubenv for saved profile kernels"
+  grub-editenv /boot/grub/grubenv create || \
+    fatal "failed to create /boot/grub/grubenv for saved profile kernels"
+  [ -s /boot/grub/grubenv ] || \
+    fatal "created /boot/grub/grubenv is missing or empty"
+}
+
+disable_duplicate_custom_source() {
+  if [ -e /etc/grub.d/41_custom ]; then
+    chmod 0644 /etc/grub.d/41_custom
+  fi
+}
+
+install_custom_generator_script() {
+  install -m 0755 "$0" /etc/grub.d/40_custom
+  disable_duplicate_custom_source
+}
+
+emit_target=
+emit_tmp=
+case "$#" in
+  25)
+    dev_part_boot=$1
+    dev_part_root=$2
+    dev_part_efi=$3
+    bootprofile_default=$4
+    bootprofile_performance=$5
+    bootprofile_hardened=$6
+    grub_root_flags=$7
+    grub_initramfs_flags=$8
+    grub_nvme_flags=$9
+    grub_cgroup_flags=${10}
+    grub_security_core_flags=${11}
+    grub_blacklist_flags=${12}
+    grub_vfio_flags=${13}
+    grub_memory_core_flags=${14}
+    grub_hardening_flags=${15}
+    grub_aspm_flags=${16}
+    grub_systemd_mask_flags=${17}
+    grub_profile_default_flags=${18}
+    grub_profile_performance_flags=${19}
+    grub_profile_hardened_flags=${20}
+    mok_der_path=${21}
+    grub_default_entry=${22}
+    rescue_usb_uuid=${23}
+    grub_gfxpayload_linux=${24}
+    dualboot_enabled=${25}
+    write_profile_config
+    install -d -m 0755 /boot/grub /etc/grub.d
+    ensure_grubenv
+    install_custom_generator_script
+    emit_target=/boot/grub/custom.cfg
+    ;;
+  0)
+    load_profile_config
+    disable_duplicate_custom_source
+    ;;
+  *)
+    fatal "invalid GRUB profile installer argument count: $#"
+    ;;
+esac
+
+# grub-mkconfig does not export custom GRUB_PROFILE_* variables to generators.
+# Read the managed hardware fragments ourselves on BOTH initial installation
+# and every regeneration. Saved profile_config retains only the base policy,
+# so changes/removals take effect and repeated runs cannot accumulate flags.
+load_hardware_profile_flags() {
+  GRUB_CMDLINE_LINUX=
+  GRUB_PROFILE_DEFAULT_FLAGS=
+  GRUB_PROFILE_PERFORMANCE_FLAGS=
+  GRUB_PROFILE_HARDENED_FLAGS=
+  for hardware_fragment in \
+    72-nvme-platform.cfg 73-pcie-power.cfg 74-intel-mei-blacklist.cfg \
+    75-intel-vfio.cfg 80-cpu-profile-flags.cfg 85-gpu-intel.cfg \
+    86-gpu-amd.cfg 87-gpu-nvidia.cfg
+  do
+    hardware_path="/etc/default/grub.d/$hardware_fragment"
+    [ -e "$hardware_path" ] || [ -L "$hardware_path" ] || continue
+    [ -f "$hardware_path" ] && [ ! -L "$hardware_path" ] ||
+      fatal "hardware GRUB fragment is not a direct regular file: $hardware_path"
+    [ "$(stat -c %u "$hardware_path")" = 0 ] ||
+      fatal "hardware GRUB fragment must be root-owned: $hardware_path"
+    hardware_mode=$(stat -c %a "$hardware_path")
+    case "$hardware_mode" in
+      [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
+      *) fatal "invalid hardware GRUB fragment mode: $hardware_path" ;;
+    esac
+    [ $((0$hardware_mode & 0022)) -eq 0 ] ||
+      fatal "hardware GRUB fragment is writable by non-root users: $hardware_path"
+    # shellcheck disable=SC1090
+    . "$hardware_path"
+  done
+  grub_hardware_flags=$GRUB_CMDLINE_LINUX
+  grub_profile_default_flags="${grub_profile_default_flags}${GRUB_PROFILE_DEFAULT_FLAGS:+ $GRUB_PROFILE_DEFAULT_FLAGS}"
+  grub_profile_performance_flags="${grub_profile_performance_flags}${GRUB_PROFILE_PERFORMANCE_FLAGS:+ $GRUB_PROFILE_PERFORMANCE_FLAGS}"
+  grub_profile_hardened_flags="${grub_profile_hardened_flags}${GRUB_PROFILE_HARDENED_FLAGS:+ $GRUB_PROFILE_HARDENED_FLAGS}"
+}
+load_hardware_profile_flags
+
+if [ -n "$emit_target" ]; then
+  emit_tmp=$(mktemp)
+  trap 'rm -f "$emit_tmp"' EXIT HUP INT TERM
+  exec >"$emit_tmp"
+fi
+
+detect_grub_distro_title() {
+  distro_title="Debian GNU/Linux"
+  os_release=
+  if [ -r /etc/os-release ]; then
+    os_release=/etc/os-release
+  elif [ -r /usr/lib/os-release ]; then
+    os_release=/usr/lib/os-release
+  fi
+  if [ -n "$os_release" ]; then
+    distro_name=$(sed -n 's/^NAME=//p' "$os_release" | head -n1 | tr -d '"' || true)
+    distro_version=$(sed -n 's/^VERSION_ID=//p' "$os_release" | head -n1 | tr -d '"' || true)
+    if [ -n "$distro_name" ] && [ -n "$distro_version" ]; then
+      distro_title="${distro_name} ${distro_version}"
+    elif [ -n "$distro_name" ]; then
+      distro_title="$distro_name"
+    fi
+  fi
+  printf '%s\n' "$distro_title"
+}
+
+kernel_label_for_version() {
+  case "$1" in
+    *) printf 'Linux %s\n' "$1" ;;
+  esac
+}
+
+grub_id_fragment() {
+  printf '%s\n' "$1" | sed 's/[^A-Za-z0-9_]/_/g'
+}
+
+list_bootable_kernel_images() {
+  for img in /boot/vmlinuz-*; do
+    [ -e "$img" ] || continue
+    ver=${img#/boot/vmlinuz-}
+    [ -e "/boot/initrd.img-${ver}" ] || continue
+    printf '%s\n' "$img"
+  done | sort -Vr
+}
+
+resolve_default_kernel_image() {
+  for candidate in /vmlinuz /boot/vmlinuz; do
+    [ -e "$candidate" ] || continue
+    resolved=$(readlink -f "$candidate" 2>/dev/null || true)
+    case "$resolved" in
+      /boot/vmlinuz-*)
+        ver=${resolved#/boot/vmlinuz-}
+        [ -e "/boot/initrd.img-${ver}" ] || continue
+        printf '%s\n' "$resolved"
+        return 0
+        ;;
+    esac
+  done
+
+  printf '%s\n' "$bootable_kernel_images" | sed -n '1p'
+}
+
+bootable_kernel_images=$(list_bootable_kernel_images)
+[ -n "$bootable_kernel_images" ] || fatal "unable to locate installed bootable kernel/initrd pairs under target /boot"
+default_img=$(resolve_default_kernel_image)
+if [ -z "$default_img" ]; then
+  fatal "unable to locate an installed default kernel/initrd under target /boot"
+fi
+
+default_ver=${default_img#/boot/vmlinuz-}
+distro_title_raw=$(detect_grub_distro_title)
+distro_title=$(grub_single_quote "$distro_title_raw")
+
+boot_uuid=$(blkid -s UUID -o value "$dev_part_boot" 2>/dev/null || true)
+root_uuid=$(blkid -s UUID -o value "$dev_part_root" 2>/dev/null || true)
+efi_uuid=$(blkid -s UUID -o value "$dev_part_efi" 2>/dev/null || true)
+mokmanager_path=__INSTALLER_GRUB_MOK_MANAGER_EFI_PATH__
+rescue_usb_efi_path=__INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH__
+skip_mok_signing=false
+case "${SKIP_MOK_SIGNING:-0}" in
+  1|true|yes|on)
+    skip_mok_signing=true
+    ;;
+  ''|0|false|no|off)
+    ;;
+  *)
+    fatal "SKIP_MOK_SIGNING must be boolean when set"
+    ;;
+esac
+if [ -n "$boot_uuid" ]; then
+  boot_search="search --no-floppy --fs-uuid --set=root ${boot_uuid}"
+else
+  boot_search="search --no-floppy --file --set=root /vmlinuz-${default_ver}"
+fi
+if [ -n "$root_uuid" ]; then
+  root_arg="root=UUID=${root_uuid}"
+else
+  root_arg="root=${dev_part_root}"
+fi
+if [ "$skip_mok_signing" = true ]; then
+  mok_header_comment="MOK enrollment menu omitted because SKIP_MOK_SIGNING=1."
+else
+  if [ -n "$efi_uuid" ]; then
+    mokmanager_search="search --no-floppy --fs-uuid --set=esp ${efi_uuid}"
+  else
+    mokmanager_search="search --no-floppy --file --set=esp ${mokmanager_path}"
+  fi
+  [ -f "/boot/efi${mokmanager_path}" ] || fatal "MokManager is missing at /boot/efi${mokmanager_path}"
+  [ -r "$mok_der_path" ] || fatal "generated MOK DER certificate is missing at $mok_der_path"
+  mok_header_comment="The generated MOK DER certificate is expected at ${mok_der_path}."
+fi
+
+base_cmdline="${grub_root_flags} ${grub_initramfs_flags} ${grub_nvme_flags} ${grub_systemd_mask_flags} ${grub_cgroup_flags} ${grub_security_core_flags} ${grub_blacklist_flags} ${grub_vfio_flags} ${grub_memory_core_flags} ${grub_hardening_flags} ${grub_aspm_flags} ${grub_hardware_flags}"
+last_profile_var=installer_linux_last_profile
+last_kernel_var=installer_linux_last_kernel
+
+validate_grub_token() {
+  token_name=$1
+  token_value=$2
+  case "$token_value" in
+    ''|*[!A-Za-z0-9_.:-]*)
+      fatal "${token_name} contains unsupported characters for generated GRUB state: ${token_value}"
+      ;;
+  esac
+}
+
+validate_kernel_version() {
+  kernel_value=$1
+  case "$kernel_value" in
+    ''|*[!A-Za-z0-9_.:+~=-]*)
+      fatal "kernel version contains unsupported characters for generated GRUB entries: ${kernel_value}"
+      ;;
+  esac
+}
+
+validate_grub_absolute_efi_path() {
+  path_name=$1
+  path_value=$2
+  case "$path_value" in
+    /*) ;;
+    *) fatal "${path_name} must be an absolute EFI path: ${path_value}" ;;
+  esac
+  case "$path_value" in
+    *'/../'*|*'/..'|*'/./'*|*'/.')
+      fatal "${path_name} must not contain relative path segments: ${path_value}"
+      ;;
+    *[!A-Za-z0-9_./+-]*)
+      fatal "${path_name} contains unsupported characters for generated GRUB paths: ${path_value}"
+      ;;
+  esac
+}
+
+validate_grub_token bootprofile_default "$bootprofile_default"
+validate_grub_token bootprofile_performance "$bootprofile_performance"
+validate_grub_token bootprofile_hardened "$bootprofile_hardened"
+validate_grub_token grub_default_entry "$grub_default_entry"
+validate_kernel_version "$default_ver"
+validate_grub_absolute_efi_path rescue_usb_efi_path "$rescue_usb_efi_path"
+if [ "$skip_mok_signing" != true ]; then
+  validate_grub_absolute_efi_path mokmanager_path "$mokmanager_path"
+fi
+case "${rescue_usb_uuid:-}" in
+  ''|*[!A-Za-z0-9-]*)
+    [ -z "${rescue_usb_uuid:-}" ] || fatal "rescue_usb_uuid contains unsupported characters: ${rescue_usb_uuid}"
+    ;;
+esac
+case "$grub_gfxpayload_linux" in
+  ''|*[!A-Za-z0-9_,.x-]*)
+    fatal "grub_gfxpayload_linux contains unsupported characters: ${grub_gfxpayload_linux}"
+    ;;
+esac
+case "${dualboot_enabled:-false}" in
+  true|false) ;;
+  *) fatal "dualboot_enabled must be true or false, got ${dualboot_enabled}" ;;
+esac
+if [ -n "${rescue_usb_uuid:-}" ]; then
+  rescue_usb_search="search --no-floppy --fs-uuid --set=root ${rescue_usb_uuid}"
+else
+  rescue_usb_search="search --no-floppy --file --set=root ${rescue_usb_efi_path}"
+fi
+grub_gfxpayload_linux_escaped=$(grub_single_quote "$grub_gfxpayload_linux")
+
+emit_grub_linux_display_policy() {
+  prefix=${1:-}
+  [ -n "$grub_gfxpayload_linux" ] || return 0
+
+  cat <<DISPLAY_EOF
+${prefix}set gfxpayload='${grub_gfxpayload_linux_escaped}'
+DISPLAY_EOF
+}
+
+emit_grub_display_policy() {
+  prefix=${1:-}
+
+  cat <<DISPLAY_EOF
+${prefix}set timeout=-1
+DISPLAY_EOF
+}
+
+emit_btrfs_snapshot_menu() {
+  case "$grub_root_flags" in
+    *"rootfstype=btrfs"*) ;;
+    *) return 0 ;;
+  esac
+  [ -r /etc/default/grub-btrfs/config ] || return 0
+
+  cat <<'SNAPSHOTS_EOF'
+submenu 'BTRFS Snapshots' --id 'snapshots-btrfs' --class snapshots --class btrfs --class os {
+    configfile "${prefix}/grub-btrfs.cfg"
+}
+SNAPSHOTS_EOF
+}
+
+emit_profile_submenu() {
+  profile=$1
+  profile_label=$2
+  profile_saved_var=$3
+  profile_flags=$4
+
+  validate_grub_token profile_saved_var "$profile_saved_var"
+
+  cat <<SUBMENU_EOF
+submenu '${distro_title} (${profile_label})' --class debian --class gnu-linux --class gnu --class os {
+    set last_known_profile='${profile}'
+    if [ -s \$prefix/grubenv ]; then
+        load_env ${profile_saved_var}
+        load_env ${last_profile_var}
+        load_env ${last_kernel_var}
+    fi
+    if [ -n "\$${profile_saved_var}" ]; then
+        set default="\$${profile_saved_var}"
+    fi
+SUBMENU_EOF
+  emit_grub_display_policy "    "
+
+  while IFS= read -r kernel_image; do
+    [ -n "$kernel_image" ] || continue
+    kernel_ver=${kernel_image#/boot/vmlinuz-}
+    kernel_id_fragment=$(grub_id_fragment "$kernel_ver")
+    kernel_entry_id="installer-linux-${profile}-${kernel_id_fragment}"
+    kernel_title=$(grub_single_quote "${distro_title_raw} (${profile_label}) [${kernel_ver}]")
+    validate_kernel_version "$kernel_ver"
+    validate_grub_token kernel_entry_id "$kernel_entry_id"
+    cat <<ENTRY_EOF
+    menuentry '${kernel_title}' --id '${kernel_entry_id}' --class debian --class gnu-linux --class gnu --class os {
+        set ${profile_saved_var}='${kernel_entry_id}'
+        set ${last_profile_var}='${profile}'
+        set ${last_kernel_var}='${kernel_ver}'
+        if [ -s \$prefix/grubenv ]; then
+            save_env ${profile_saved_var}
+            save_env ${last_profile_var}
+            save_env ${last_kernel_var}
+        fi
+        insmod gzio
+        insmod zstd
+        insmod part_gpt
+        insmod ext2
+        ${boot_search}
+$(emit_grub_linux_display_policy "        ")
+        linux   /vmlinuz-${kernel_ver} ${root_arg} ro ${base_cmdline} systemd.setenv=BOOTPROFILE=${profile} ${profile_flags}
+        initrd  /initrd.img-${kernel_ver}
+    }
+ENTRY_EOF
+  done <<EOF_KERNEL_IMAGES
+$bootable_kernel_images
+EOF_KERNEL_IMAGES
+
+  printf '}\n'
+}
+
+emit_mok_enrollment_menu() {
+  [ "$skip_mok_signing" = true ] && return 0
+
+  cat <<MOKMENU_EOF
+menuentry 'MOK Enrollment' --id 'installer-mok-enrollment' --class debian --class secure-boot --class os {
+    insmod fat
+    insmod chain
+    ${mokmanager_search}
+    echo 'Use MokManager to enroll the generated certificate stored at ${mok_der_path}.'
+    chainloader (\$esp)${mokmanager_path}
+}
+MOKMENU_EOF
+}
+
+emit_grub_display_policy
+
+cat <<HEADER_EOF
+# Managed by installer automation.
+# ${mok_header_comment}
+set active_profile='${bootprofile_default}'
+set active_profile_label='Balanced'
+set active_profile_flags='${grub_profile_default_flags}'
+set active_kernel_ver='${default_ver}'
+if [ -s \$prefix/grubenv ]; then
+    load_env ${last_profile_var}
+    load_env ${last_kernel_var}
+fi
+if [ "\$${last_profile_var}" = '${bootprofile_hardened}' ]; then
+    set active_profile='${bootprofile_hardened}'
+    set active_profile_label='Hardened'
+    set active_profile_flags='${grub_profile_hardened_flags}'
+elif [ "\$${last_profile_var}" = '${bootprofile_performance}' ]; then
+    set active_profile='${bootprofile_performance}'
+    set active_profile_label='Performance'
+    set active_profile_flags='${grub_profile_performance_flags}'
+elif [ "\$${last_profile_var}" = '${bootprofile_default}' ]; then
+    set active_profile='${bootprofile_default}'
+    set active_profile_label='Balanced'
+    set active_profile_flags='${grub_profile_default_flags}'
+fi
+if [ -n "\$${last_kernel_var}" ]; then
+    if [ -e "/vmlinuz-\$${last_kernel_var}" ]; then
+        if [ -e "/initrd.img-\$${last_kernel_var}" ]; then
+            set active_kernel_ver="\$${last_kernel_var}"
+        fi
+    fi
+fi
+menuentry "Last Boot (\$active_profile_label) [\$active_kernel_ver]" --id '${grub_default_entry}' --class debian --class gnu-linux --class gnu --class os {
+    set ${last_profile_var}="\$active_profile"
+    set ${last_kernel_var}="\$active_kernel_ver"
+    if [ -s \$prefix/grubenv ]; then
+        save_env ${last_profile_var}
+        save_env ${last_kernel_var}
+    fi
+    insmod gzio
+    insmod zstd
+    insmod part_gpt
+    insmod ext2
+    ${boot_search}
+$(emit_grub_linux_display_policy "    ")
+    linux   /vmlinuz-\$active_kernel_ver ${root_arg} ro ${base_cmdline} systemd.setenv=BOOTPROFILE=\$active_profile \$active_profile_flags
+    initrd  /initrd.img-\$active_kernel_ver
+}
+HEADER_EOF
+emit_profile_submenu "$bootprofile_default" "Balanced" "installer_linux_balanced_kernel" "$grub_profile_default_flags"
+emit_profile_submenu "$bootprofile_performance" "Performance" "installer_linux_performance_kernel" "$grub_profile_performance_flags"
+emit_profile_submenu "$bootprofile_hardened" "Hardened" "installer_linux_hardened_kernel" "$grub_profile_hardened_flags"
+emit_btrfs_snapshot_menu
+
+cat <<RESCUE_EOF
+menuentry 'Boot from Rescue USB' --id 'installer-rescue-usb' --class efi --class usb --class os {
+    if [ "\$grub_platform" = "efi" ]; then
+        insmod part_gpt
+        insmod fat
+        insmod search
+        insmod chain
+        if ${rescue_usb_search}; then
+            if [ -e ${rescue_usb_efi_path} ]; then
+                echo 'Chainloading the installer rescue USB.'
+                chainloader ${rescue_usb_efi_path}
+            else
+                echo 'The installer rescue USB was found, but ${rescue_usb_efi_path} is missing.'
+                false
+            fi
+        else
+            echo 'Rescue USB not plugged in'
+            false
+        fi
+    else
+        echo 'Boot from Rescue USB requires UEFI GRUB.'
+        false
+    fi
+}
+RESCUE_EOF
+
+emit_mok_enrollment_menu
+
+cat <<FIRMWARE_EOF
+if [ "\$grub_platform" = "efi" ]; then
+    fwsetup --is-supported
+    if [ "\$?" = 0 ]; then
+        menuentry 'UEFI Firmware Settings' \$menuentry_id_option 'uefi-firmware' --class firmware --class efi {
+            fwsetup
+        }
+    fi
+fi
+FIRMWARE_EOF
+
+if [ -n "$emit_target" ]; then
+  install -m 0644 "$emit_tmp" "$emit_target"
+  rm -f "$emit_tmp"
+  trap - EXIT HUP INT TERM
+fi

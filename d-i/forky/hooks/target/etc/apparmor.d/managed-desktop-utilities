@@ -1,0 +1,67 @@
+# Managed by unattended-installer.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected) {
+  #include <abstractions/managed-document-runtime>
+  /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate}/ rw,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
+  owner @{HOME}/.config/{kdiff3rc,qalculaterc}* rwkl,
+  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/ rw,
+  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/ rw,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/** rwklm,
+  /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
+  include if exists <local/managed-desktop-editors>
+}
+
+profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(attach_disconnected) {
+  #include <abstractions/managed-document-runtime>
+  #include <abstractions/managed-pipewire-audio>
+  /usr/bin/{mpv,recoll,recollindex,recollq,liferea} mrix,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /usr/share/recoll/filters/** rix,
+  /usr/bin/{cat,file,ffmpeg,ffprobe,gzip,unzip,pdftotext,python3,python3.[0-9]*,perl} rix,
+  /usr/lib/python3*/** mr,
+  /usr/lib/@{multiarch}/perl*/** mr,
+  /usr/share/perl*/** r,
+  owner @{HOME}/.recoll/ rw,
+  owner @{HOME}/.recoll/** rwklm,
+  owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/ rw,
+  owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/** rwklm,
+  owner @{HOME}/.local/share/{mpv,recoll,liferea}/ rw,
+  owner @{HOME}/.local/share/{mpv,recoll,liferea}/** rwklm,
+  include if exists <local/managed-desktop-media>
+}
+
+# These are intentional user-command launchers/file managers, not document
+# parsers. An existing narrower profile wins; otherwise children stay in this
+# developer domain. There is no general unconfined execution fallback.
+profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected) {
+  #include <abstractions/managed-devops-toolchain-data>
+  #include <abstractions/managed-desktop-runtime>
+  #include <abstractions/managed-user-documents>
+  #include <abstractions/managed-pipewire-audio>
+  /usr/bin/** rPix,
+  /usr/local/{bin,sbin,libexec}/** rPix,
+  /usr/libexec/** rPix,
+  /usr/lib/{chromium,firefox,firefox-esr}/** rPix,
+  /opt/** rPix,
+  /data/codex/lib/codex rPx -> managed-codex-wrapper,
+  /usr/lib/thunar/** rix,
+  /usr/share/** r,
+  # Authentication boundary: Polkit/sudo retain their own authorization checks;
+  # privileged repository helpers attach to their existing dedicated profiles.
+  /usr/bin/{pkexec,sudo,sudoedit} rPUx,
+  /usr/bin/bwrap rCx -> application-bwrap,
+  profile application-bwrap flags=(attach_disconnected) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-bwrap-desktop-runtime>
+    #include <abstractions/managed-devops-toolchain-runtime>
+  }
+  include if exists <local/managed-desktop-launcher>
+}

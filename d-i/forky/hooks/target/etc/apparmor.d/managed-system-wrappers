@@ -1,0 +1,930 @@
+# Managed by unattended-installer.
+#
+# Repository-owned system, storage, network, first-boot, Podman, and GitLab
+# Runner control-plane wrappers. Every executable attachment is exact. Child
+# helpers either transition to another named profile or inherit the calling
+# wrapper's bounded job-specific domain; no rule falls back to an unconfined
+# or generated null profile.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  unix,
+  dbus,
+
+  /usr/local/libexec/firstboot.sh rix,
+  /usr/local/libexec/dbus-broker-check rix,
+  /usr/bin/{busctl,id,stat} rix,
+  /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,
+  signal (send, receive) set=(hup, int, term, kill, cont) peer=managed-firstboot,
+  /usr/local/lib/firstboot.d/ r,
+  /usr/local/lib/firstboot.d/logging.sh r,
+  /usr/local/lib/firstboot.d/{01-early,02-collect,03-network,04-validation,05-cleanup}.sh rix,
+  /usr/bin/{cat,chmod,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,
+  /usr/{bin,sbin}/ip rix,
+  /usr/bin/{eglinfo,es2_info,wlr-randr} rix,
+  /usr/bin/coredumpctl rix,
+  /usr/sbin/aa-status rPx -> aa-status-reader,
+  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
+
+  /boot/ r,
+  /boot/** r,
+  /etc/ r,
+  /etc/** r,
+  /run/ r,
+  /run/** r,
+  /usr/local/ r,
+  /usr/local/** r,
+  /usr/share/ r,
+  /usr/share/** r,
+  /var/lib/installer-state/ rw,
+  /var/lib/installer-state/** rwkl,
+  /var/log/ r,
+  /var/log/** r,
+  @{PROC}/ r,
+  @{PROC}/** r,
+  @{sys}/ r,
+  @{sys}/** r,
+
+  include if exists <local/usr.local.libexec.firstboot.sh>
+}
+
+profile managed-tpm2-cryptroot-initramfs-hook /etc/initramfs-tools/hooks/tpm2-cryptroot flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability dac_override,
+  capability fowner,
+
+  /etc/initramfs-tools/hooks/tpm2-cryptroot rix,
+  /etc/tpm2-cryptroot.conf r,
+  /usr/share/initramfs-tools/ r,
+  /usr/share/initramfs-tools/** r,
+  /{,usr/}{,s}bin/** rix,
+  /lib/ r,
+  /lib/** mr,
+  /usr/lib/ r,
+  /usr/lib/** mr,
+  /run/mkinitramfs/ rw,
+  /run/mkinitramfs/** rwkl,
+  /tmp/mkinitramfs_*/ rw,
+  /tmp/mkinitramfs_*/** rwkl,
+  /var/tmp/mkinitramfs_*/ rw,
+  /var/tmp/mkinitramfs_*/** rwkl,
+
+  include if exists <local/etc.initramfs-tools.hooks.tpm2-cryptroot>
+}
+
+profile managed-installer-initramfs-health /etc/initramfs-tools/scripts/{init-top,init-premount,local-top,local-block,local-premount,local-bottom,init-bottom}/90-installer-health flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /etc/initramfs-tools/scripts/{init-top,init-premount,local-top,local-block,local-premount,local-bottom,init-bottom}/90-installer-health rix,
+  /etc/initramfs-tools/scripts/installer-health-common r,
+  /{,usr/}bin/{chmod,cp,date,ls,mkdir,mv,rm,sed,uname,wc} rix,
+
+  / r,
+  /boot/ r,
+  /boot/** r,
+  /dev/ r,
+  /dev/** r,
+  /etc/ r,
+  /etc/** r,
+  @{PROC}/ r,
+  @{PROC}/** r,
+  /run/ r,
+  /run/installer-initramfs-health/ rw,
+  /run/installer-initramfs-health/** rwkl,
+  @{sys}/ r,
+  @{sys}/** r,
+  /usr/ r,
+  /usr/** r,
+  /root/ r,
+  /root/var/ r,
+  /root/var/lib/ r,
+  /root/var/lib/installer-state/ rw,
+  /root/var/lib/installer-state/logs/ rw,
+  /root/var/lib/installer-state/logs/initramfs/ rw,
+  /root/var/lib/installer-state/logs/initramfs/** rwkl,
+  /var/lib/installer-state/ rw,
+  /var/lib/installer-state/logs/ rw,
+  /var/lib/installer-state/logs/initramfs/ rw,
+  /var/lib/installer-state/logs/initramfs/** rwkl,
+
+  include if exists <local/etc.initramfs-tools.scripts.installer-health>
+}
+
+profile managed-tpm2-cryptroot-initramfs-script /etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability dac_override,
+  capability ipc_lock,
+  capability sys_admin,
+
+  /etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot rix,
+  /etc/tpm2-cryptroot.conf r,
+  /{,usr/}bin/{grep,sleep,udevadm} rix,
+  /{,usr/}sbin/cryptsetup rix,
+  /dev/disk/by-uuid/ r,
+  /dev/disk/by-uuid/* r,
+  /dev/mapper/ rw,
+  /dev/mapper/** rw,
+  /dev/{dm-[0-9]*,tpm[0-9]*,tpmrm[0-9]*} rw,
+  /run/cryptsetup/ rw,
+  /run/cryptsetup/** rwkl,
+  @{sys}/class/block/ r,
+  @{sys}/class/block/** r,
+
+  include if exists <local/etc.initramfs-tools.scripts.local-top.00-tpm2-cryptroot>
+}
+
+profile managed-apt-refresh-lists /usr/local/libexec/apt-refresh-lists flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  # Availability takes precedence for this package-maintenance helper. Keep
+  # every child process in the same managed profile and allow the complete
+  # filesystem and kernel-operation surface observed during APT refreshes.
+  capability,
+  network,
+  unix,
+  dbus,
+  userns,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  signal,
+
+  /usr/local/libexec/apt-refresh-lists rix,
+  /usr/libexec/install-tools/system-log.sh r,
+  /usr/bin/{apt-get,chmod,chown,curl,env,getent,gpgv,id,install,logger,sleep,wget} rix,
+  /usr/lib/apt/methods/* rix,
+  /usr/lib/apt/solvers/* rix,
+  /usr/lib/apt/planners/* rix,
+
+  / r,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/ rw,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rwklm,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rix,
+  /dev/log w,
+  /etc/apt/ r,
+  /etc/apt/** r,
+  /etc/default/system-runtime r,
+  /etc/resolv.conf r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /run/apt-refresh-lists.lock rwk,
+  /usr/share/keyrings/ r,
+  /usr/share/keyrings/** r,
+  /usr/share/dpkg/ r,
+  /usr/share/dpkg/** r,
+  /var/cache/apt/ rw,
+  /var/cache/apt/** rwkl,
+  /var/lib/apt/ rw,
+  /var/lib/apt/** rwkl,
+  /var/lib/dpkg/ r,
+  /var/lib/dpkg/** r,
+
+  include if exists <local/usr.local.libexec.apt-refresh-lists>
+}
+
+profile managed-augenrules-quiet /usr/local/libexec/augenrules-quiet flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability audit_control,
+  network netlink raw,
+
+  /usr/local/libexec/augenrules-quiet rix,
+  /usr/bin/{mktemp,rm} rix,
+  /usr/{sbin,bin}/augenrules rix,
+  /usr/{sbin,bin}/auditctl rix,
+  /etc/audit/ r,
+  /etc/audit/audit.rules rw,
+  /etc/audit/rules.d/ r,
+  /etc/audit/rules.d/** r,
+  /run/auditd.pid r,
+  owner /tmp/augenrules-quiet.{stdout,stderr}.* rw,
+
+  include if exists <local/usr.local.libexec.augenrules-quiet>
+}
+
+profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  capability net_admin,
+  capability sys_ptrace,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  unix,
+  dbus,
+  ptrace (read) peer=unconfined,
+
+  /usr/local/libexec/crowdsec-firstboot rix,
+  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mv,rm,sleep,ss,systemctl} rix,
+  /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
+
+  /etc/crowdsec/ rw,
+  /etc/crowdsec/** rwkl,
+  /etc/default/crowdsec-firstboot r,
+  /etc/machine-id r,
+  /etc/resolv.conf r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /etc/systemd/system/ rw,
+  /etc/systemd/system/** rwkl,
+  /run/crowdsec/ rw,
+  /run/crowdsec/** rwkl,
+  /run/dbus/system_bus_socket rw,
+  /run/systemd/private rw,
+  @{PROC}/[0-9]*/mountinfo r,
+  @{PROC}/[0-9]*/stat r,
+  /sys/kernel/mm/hugepages/ r,
+  /usr/local/lib/crowdsec/ rw,
+  /usr/local/lib/crowdsec/** rwkl,
+  /var/lib/crowdsec/ rw,
+  /var/lib/crowdsec/** rwkl,
+  /var/lib/systemd/ r,
+  /var/lib/systemd/** rwkl,
+  /var/log/crowdsec/ rw,
+  /var/log/crowdsec/** rwkl,
+  owner /tmp/crowdsec-*.log rw,
+  owner /tmp/crowdsec-enroll.*.log rw,
+
+  include if exists <local/usr.local.libexec.crowdsec-firstboot>
+}
+
+profile managed-grub-btrfs-refresh /usr/local/libexec/grub-btrfs-refresh flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  capability dac_override,
+  capability sys_admin,
+  mount,
+  umount,
+
+  /usr/local/libexec/grub-btrfs-refresh rix,
+  /usr/local/lib/perl5/site_perl/timeshift-managed/ r,
+  /usr/local/lib/perl5/site_perl/timeshift-managed/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/bin/grub-script-check rix,
+  /usr/bin/{btrfs,mount,sort,umount} rix,
+  /usr/sbin/blkid rix,
+
+  /boot/ r,
+  /boot/** rwkl,
+  /dev/disk/by-uuid/ r,
+  /dev/disk/by-uuid/* r,
+  /dev/{mapper,nvme*,sd*,vd*,mmcblk*}* r,
+  /etc/default/grub-btrfs/config r,
+  /etc/default/grub-profiles.conf r,
+  /proc/mounts r,
+  @{PROC}/@{pid}/mounts r,
+  /run/ r,
+  /run/blkid/ rw,
+  /run/blkid/** rwkl,
+  /run/grub-btrfs-refresh/ rw,
+  /run/grub-btrfs-refresh/** rwkl,
+  /run/grub-btrfs-refresh.* rwkl,
+  /run/lock/ rw,
+  /run/lock/grub-btrfs-refresh.lock rwk,
+  /run/mount/ r,
+  /run/mount/utab r,
+  /run/timeshift/ r,
+  /run/timeshift/** r,
+  /run/udev/data/ r,
+  /run/udev/data/* r,
+  @{sys}/devices/**/ r,
+  @{sys}/devices/**/{dev,size,start,uevent} r,
+  /timeshift/ r,
+  /timeshift/** r,
+
+  include if exists <local/usr.local.libexec.grub-btrfs-refresh>
+}
+
+profile managed-managed-network-run /usr/local/libexec/managed-network-run flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/managed-network-run rix,
+  /usr/local/lib/perl5/site_perl/managed-network/ r,
+  /usr/local/lib/perl5/site_perl/managed-network/** r,
+  /dev/log w,
+  /etc/default/managed-network r,
+  /etc/default/system-runtime r,
+  /etc/network/interfaces r,
+  /etc/network/interfaces.d/ r,
+  /etc/network/interfaces.d/50-managed-network r,
+  /sys/class/net/ r,
+  /sys/class/net/** r,
+  @{sys}/devices/**/net/managed-{eth,wifi}[0-9]*/{address,type} r,
+
+  include if exists <local/usr.local.libexec.managed-network-run>
+}
+
+profile managed-managed-syncthing-configure /usr/local/libexec/managed-syncthing-configure flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  #include <abstractions/nameservice>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  signal (send, receive) peer=managed-managed-syncthing-configure,
+
+  /usr/local/libexec/managed-syncthing-configure rix,
+  /usr/bin/{dirname,flock,id,install,python3,syncthing,timeout} rix,
+  / r,
+  /etc/default/managed-syncthing r,
+  /data/ r,
+  /data/** rwkl,
+  /home/ r,
+  /home/*/ r,
+  /home/*/Syncthing/ rw,
+  /home/*/Syncthing/** rwkl,
+  /home/*/.local/ r,
+  /home/*/.local/state/ rw,
+  /home/*/.local/state/syncthing/ rw,
+  /home/*/.local/state/syncthing/** rwkl,
+
+  include if exists <local/usr.local.libexec.managed-syncthing-configure>
+}
+
+profile managed-rsyslog-managed-security-socket /usr/local/libexec/rsyslog-managed-security-socket flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability chown,
+  capability fowner,
+
+  /usr/local/libexec/rsyslog-managed-security-socket rix,
+  /usr/bin/{chmod,chown,getent,sleep} rix,
+  /run/rsyslog/managed-security-scanners/ rw,
+  /run/rsyslog/managed-security-scanners/scanner.sock rw,
+
+  include if exists <local/usr.local.libexec.rsyslog-managed-security-socket>
+}
+
+profile managed-rsyslog-managed-openai-socket /usr/local/libexec/rsyslog-managed-openai-socket flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability chown,
+  capability fowner,
+
+  /usr/local/libexec/rsyslog-managed-openai-socket rix,
+  /usr/bin/{chmod,chown,getent,sleep} rix,
+  /run/rsyslog/managed-openai/ rw,
+  /run/rsyslog/managed-openai/chatgpt.sock rw,
+
+  include if exists <local/usr.local.libexec.rsyslog-managed-openai-socket>
+}
+
+profile managed-secondboot-cleanup /usr/local/libexec/secondboot-cleanup flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability dac_override,
+  unix,
+  dbus,
+
+  /usr/local/libexec/secondboot-cleanup rix,
+  /usr/bin/{chmod,grep,id,rm,rmdir} rix,
+  /usr/bin/systemctl PUx,
+  /usr/sbin/update-initramfs rPx -> managed-update-initramfs,
+  /boot/ r,
+  /boot/** rwkl,
+  /etc/default/{crowdsec-firstboot,tailscale-managed} rw,
+  /etc/initramfs-tools/ rw,
+  /etc/initramfs-tools/** rwkl,
+  /etc/profile.d/tpm2-enroll-prompt.sh rw,
+  /etc/systemd/system/ rw,
+  /etc/systemd/system/** rwkl,
+  /etc/xdg/autostart/tpm2-enroll.desktop rw,
+  /run/dbus/system_bus_socket rw,
+  /run/installer-initramfs-health/ rw,
+  /run/installer-initramfs-health/** rwkl,
+  /run/lock/tpm2-enroll.lock rw,
+  /run/systemd/private rw,
+  /usr/local/bin/tpm2-enroll-launch rw,
+  /usr/local/lib/crowdsec/ rw,
+  /usr/local/lib/crowdsec/** rwkl,
+  /usr/local/lib/crypto/ rw,
+  /usr/local/lib/crypto/** rwkl,
+  /usr/local/lib/firstboot.d/ rw,
+  /usr/local/lib/firstboot.d/** rwkl,
+  /usr/local/lib/tailscale/ rw,
+  /usr/local/lib/tailscale/** rwkl,
+  /usr/local/libexec/{crowdsec-firstboot,firstboot.sh,secondboot-cleanup,tailscale-managed-up} rw,
+  /usr/local/sbin/tpm2-enroll.sh rw,
+  /var/lib/installer-state/ r,
+  /var/lib/installer-state/** r,
+  /var/lib/systemd/ r,
+  /var/lib/systemd/** rwkl,
+
+  include if exists <local/usr.local.libexec.secondboot-cleanup>
+}
+
+profile managed-update-initramfs /usr/sbin/update-initramfs flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  # update-initramfs fan-outs through package hooks, dracut, shell, Perl, and
+  # coreutils helpers. Inherit this compatibility-first domain for every child
+  # and allow the complete maintenance surface so initramfs generation cannot
+  # be interrupted by a missing AppArmor rule.
+  capability,
+  network,
+  unix,
+  dbus,
+  userns,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  signal,
+
+  /usr/sbin/update-initramfs rix,
+
+  / r,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/ rw,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rwklm,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rix,
+
+  include if exists <local/usr.sbin.update-initramfs>
+}
+
+profile managed-swap-fallback-setup /usr/local/libexec/swap-fallback-setup flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability dac_override,
+  capability sys_admin,
+  capability sys_module,
+
+  /usr/local/libexec/swap-fallback-setup rix,
+  /usr/libexec/install-tools/system-log.sh r,
+  /usr/bin/kmod rix,
+  /usr/bin/{logger,readlink,sed} rix,
+  /usr/sbin/{cryptsetup,modprobe,mkswap,swapoff,swapon} rix,
+  /sbin/{cryptsetup,modprobe,mkswap,swapoff,swapon} rix,
+
+  /dev/log w,
+  /dev/disk/by-partuuid/ r,
+  /dev/disk/by-partuuid/* r,
+  /dev/mapper/ rw,
+  /dev/mapper/** rw,
+  /dev/dm-* rw,
+  /dev/{mmcblk*,nvme*,sd*,vd*} rw,
+  /dev/urandom r,
+  /etc/modprobe.d/ r,
+  /etc/modprobe.d/** r,
+  /etc/default/swap-fallback.conf r,
+  /etc/default/system-runtime r,
+  /proc/cmdline r,
+  /proc/devices r,
+  @{PROC}/[0-9]*/mounts r,
+  /proc/swaps r,
+  /run/cryptsetup/ rw,
+  /run/cryptsetup/** rwkl,
+  /run/lock/cryptsetup/ rw,
+  /run/lock/cryptsetup/** rwkl,
+  /sys/devices/ r,
+  /sys/devices/** r,
+  /sys/module/dm_crypt/ r,
+  /sys/module/dm_crypt/** r,
+  /sys/module/dm_mod/ r,
+  /sys/module/dm_mod/** r,
+
+  include if exists <local/usr.local.libexec.swap-fallback-setup>
+}
+
+profile managed-tailscale-managed-up /usr/local/libexec/tailscale-managed-up flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  capability dac_override,
+  capability sys_ptrace,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  unix,
+  dbus,
+  ptrace (read) peer=unconfined,
+
+  /usr/local/libexec/tailscale-managed-up rix,
+  /usr/bin/{chmod,date,dirname,id,install,journalctl,mv,python3,rm,sleep,systemctl,timeout,touch} rix,
+  /usr/bin/tailscale rPx -> usr.bin.tailscale,
+
+  / r,
+  /etc/default/tailscale-managed r,
+  /etc/resolv.conf r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /run/dbus/system_bus_socket rw,
+  /run/systemd/private rw,
+  /run/tailscale/ r,
+  /run/tailscale/tailscaled.sock rw,
+  @{PROC}/[0-9]*/stat r,
+  /usr/local/lib/tailscale/ rw,
+  /usr/local/lib/tailscale/** rwkl,
+  /var/run/tailscale/ r,
+  /var/run/tailscale/tailscaled.sock rw,
+
+  include if exists <local/usr.local.libexec.tailscale-managed-up>
+}
+
+profile managed-timeshift-notify-shim /usr/local/libexec/timeshift-managed/notify-send flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/timeshift-managed/notify-send rix,
+
+  include if exists <local/usr.local.libexec.timeshift-managed.notify-send>
+}
+
+profile managed-tmpfs-pre-clean /usr/local/libexec/tmpfs-pre-clean flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability dac_override,
+
+  /usr/local/libexec/tmpfs-pre-clean rix,
+  /usr/bin/{awk,mawk,gawk,nawk,find,rm} rix,
+  @{PROC}/@{pid}/mountinfo r,
+  @{PROC}/1/mountinfo r,
+  /data/run/ rw,
+  /data/run/** rwkl,
+  /dev/shm/ rw,
+  /dev/shm/** rwkl,
+  /tmp/ rw,
+  /tmp/** rwkl,
+  /var/cache/ rw,
+  /var/cache/** rwkl,
+  /var/lib/apt/lists/ rw,
+  /var/lib/apt/lists/** rwkl,
+  /var/lib/systemd/coredump/ rw,
+  /var/lib/systemd/coredump/** rwkl,
+  /var/log/ rw,
+  /var/log/** rwkl,
+
+  include if exists <local/usr.local.libexec.tmpfs-pre-clean>
+}
+
+profile managed-unattended-upgrades-notify /usr/local/libexec/unattended-upgrades-notify flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  / r,
+  /usr/local/libexec/unattended-upgrades-notify rix,
+  /usr/bin/{chmod,date,find,id,install,logger,mktemp,mv,rm} rix,
+  /dev/log w,
+  /var/lib/labwc-notifications/ rw,
+  /var/lib/labwc-notifications/unattended-upgrades/ rw,
+  /var/lib/labwc-notifications/unattended-upgrades/** rwkl,
+
+  include if exists <local/usr.local.libexec.unattended-upgrades-notify>
+}
+
+profile managed-zram-device-setup /usr/local/libexec/zram-device-setup flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  capability dac_override,
+  capability sys_admin,
+  capability sys_module,
+
+  /usr/local/libexec/zram-device-setup rix,
+  /usr/local/lib/perl5/site_perl/zram-writeback/ r,
+  /usr/local/lib/perl5/site_perl/zram-writeback/** r,
+  /usr/bin/kmod rix,
+  /sbin/{mkswap,swapon} rix,
+  /usr/sbin/{blkid,blockdev,cryptsetup,mkswap,modprobe,swapoff,swapon,wipefs,zramctl} rix,
+
+  /dev/mapper/ rw,
+  /dev/mapper/** rw,
+  /dev/dm-* rw,
+  /dev/{mmcblk*,nvme*,sd*,vd*,zram[0-9]*} rw,
+  /dev/urandom r,
+  /etc/modprobe.d/ r,
+  /etc/modprobe.d/** r,
+  /etc/default/zram-writeback r,
+  /etc/zram-writeback.conf r,
+  /proc/cmdline r,
+  /proc/devices r,
+  /proc/meminfo r,
+  /proc/mounts r,
+  @{PROC}/[0-9]*/mounts r,
+  /proc/swaps r,
+  /run/blkid/ rw,
+  /run/blkid/** rwkl,
+  /run/zram/ rw,
+  /run/zram/** rwkl,
+  /sys/block/ r,
+  /sys/block/** rw,
+  /sys/class/block/ r,
+  /sys/class/block/** r,
+  /sys/devices/ r,
+  /sys/devices/** rw,
+  /sys/module/dm_crypt/ r,
+  /sys/module/dm_crypt/** r,
+  /sys/module/dm_mod/ r,
+  /sys/module/dm_mod/** r,
+  /sys/module/zram/ r,
+  /sys/module/zram/** r,
+
+  include if exists <local/usr.local.libexec.zram-device-setup>
+}
+
+profile managed-zram-writeback /usr/local/libexec/zram-writeback flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  # Writeback setup is a privileged storage-maintenance path. Keep it
+  # compatibility-first so kernel and sysfs layout changes cannot block the
+  # managed writeback cycle.
+  capability,
+  network,
+  unix,
+  dbus,
+  userns,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  signal,
+
+  /usr/local/libexec/zram-writeback rix,
+  /usr/local/lib/perl5/site_perl/zram-writeback/ r,
+  /usr/local/lib/perl5/site_perl/zram-writeback/** r,
+
+  / r,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/ rw,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rwklm,
+  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rix,
+  /dev/mapper/zram-writeback rw,
+  /dev/zram[0-9]* rw,
+  /etc/default/zram-writeback r,
+  /etc/zram-writeback.conf r,
+  /proc/meminfo r,
+  /proc/pressure/ r,
+  /proc/pressure/{cpu,io,memory} rw,
+  /proc/stat r,
+  /proc/swaps r,
+  /proc/uptime r,
+  /run/zram/ rw,
+  /run/zram/** rwkl,
+  /sys/block/ r,
+  /sys/block/** rw,
+  /sys/class/block/ r,
+  /sys/class/block/** r,
+  /sys/kernel/debug/ r,
+  /sys/kernel/debug/zram/ r,
+  /sys/kernel/debug/zram/** rw,
+
+  include if exists <local/usr.local.libexec.zram-writeback>
+}
+
+profile managed-luks-mok-open /usr/local/sbin/luks-mok-open flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/luks-mok-open rix,
+  /usr/libexec/install-tools/secure-boot-tool rPx -> managed-secure-boot-tool,
+
+  include if exists <local/usr.local.sbin.luks-mok-open>
+}
+
+profile managed-luks-mok-close /usr/local/sbin/luks-mok-close flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/luks-mok-close rix,
+  /usr/libexec/install-tools/secure-boot-tool rPx -> managed-secure-boot-tool,
+
+  include if exists <local/usr.local.sbin.luks-mok-close>
+}
+
+profile managed-luks-mok-passwd /usr/local/sbin/luks-mok-passwd flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/luks-mok-passwd rix,
+  /usr/libexec/install-tools/secure-boot-tool rPx -> managed-secure-boot-tool,
+
+  include if exists <local/usr.local.sbin.luks-mok-passwd>
+}
+
+profile managed-nft-policy-generate /usr/local/sbin/nft-policy-generate flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  capability net_admin,
+  network netlink raw,
+  unix,
+  dbus,
+
+  /usr/local/sbin/nft-policy-generate rix,
+  /usr/sbin/nft rix,
+  /usr/bin/systemctl rix,
+  /etc/nftables.conf rw,
+  /etc/nftables.d/ rw,
+  /etc/nftables.d/** rwkl,
+  /etc/nftables/ r,
+  /etc/nftables/** r,
+  /run/dbus/system_bus_socket rw,
+  /run/nftables.lock rwk,
+  /run/systemd/private rw,
+  /var/backups/nftables/ rw,
+  /var/backups/nftables/** rwkl,
+  owner /tmp/.nftables.conf.*.tmp rw,
+  owner /tmp/.95-firewall-security.nft.*.tmp rw,
+
+  include if exists <local/usr.local.sbin.nft-policy-generate>
+}
+
+profile managed-podbin /usr/local/sbin/podbin flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  capability,
+  network,
+  unix,
+  dbus,
+  userns,
+  mount,
+  remount,
+  umount,
+  pivot_root,
+  signal,
+
+  /usr/local/sbin/podbin rix,
+  /usr/bin/{awk,basename,cat,chmod,chown,date,dirname,env,find,getent,hostname,id,install,journalctl,ln,loginctl,mawk,mktemp,mv,podman,readlink,rm,sed,sleep,ssh,ssh-keygen,stat,systemctl} rix,
+  /usr/sbin/runuser rix,
+  /usr/sbin/{groupadd,groupdel,nologin,useradd,userdel,usermod} rix,
+  /usr/bin/{buildah,conmon,crun,fuse-overlayfs,newgidmap,newuidmap,pasta,slirp4netns} rix,
+  /usr/libexec/podman/ r,
+  /usr/libexec/podman/** rix,
+  /usr/libexec/netavark rix,
+  /usr/libexec/aardvark-dns rix,
+
+  /data/accounts/podman/ rw,
+  /data/accounts/podman/** rwkl,
+  /data/config/podman/ rw,
+  /data/config/podman/** rwkl,
+  /data/docs/podbin.md r,
+  /data/pki/ssh/podbin/ rw,
+  /data/pki/ssh/podbin/** rwkl,
+  /dev/fuse rw,
+  /dev/net/tun rw,
+  /dev/pts/ rw,
+  /dev/pts/** rw,
+  /dev/{null,random,tty,urandom,zero} rw,
+  /etc/containers/ rw,
+  /etc/containers/** rwkl,
+  /etc/default/podbin r,
+  /etc/login.defs r,
+  /etc/{group,gshadow,passwd,shadow,subgid,subuid} rw,
+  /etc/{group,gshadow,passwd,shadow,subgid,subuid}- rw,
+  /etc/.pwd.lock rwk,
+  /pool/podman/ rw,
+  /pool/podman/** rwkl,
+  /proc/ r,
+  /proc/** r,
+  /run/containers/ rw,
+  /run/containers/** rwkl,
+  /run/podbin/ rw,
+  /run/podbin/** rwkl,
+  /run/systemd/ r,
+  /run/systemd/** rwkl,
+  /run/user/ r,
+  /run/user/[0-9]*/ rw,
+  /run/user/[0-9]*/** rwkl,
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** rw,
+  /tmp/ rw,
+  /tmp/** rwkl,
+  /var/lib/containers/ rw,
+  /var/lib/containers/** rwkl,
+  /var/lib/systemd/ rw,
+  /var/lib/systemd/** rwkl,
+
+  include if exists <local/usr.local.sbin.podbin>
+}
+
+
+
+
+
+
+
+
+
+profile managed-fwops-mode /usr/local/sbin/fwops-mode flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability sys_module,
+
+  /usr/local/sbin/fwops-mode rix,
+  /usr/bin/{cat,id,kmod,readlink} rix,
+  /usr/sbin/modprobe rix,
+  /sbin/modprobe rix,
+
+  /etc/modprobe.d/ r,
+  /etc/modprobe.d/** r,
+  /run/modprobe.d/ r,
+  /run/modprobe.d/** r,
+  /{,usr/}lib/modules/ r,
+  /{,usr/}lib/modules/** r,
+  /sys/module/ r,
+  /sys/module/{ch341,mtd,nandcore,spi_ch341,spi_nor,spidev,spinand,usbserial}/ r,
+  /sys/bus/spi/devices/ r,
+  /sys/bus/spi/devices/spi*/ r,
+  /sys/bus/spi/devices/spi*/driver r,
+  /sys/bus/spi/devices/spi*/modalias r,
+  /sys/bus/spi/devices/spi*/driver_override rw,
+  /sys/bus/spi/drivers/ r,
+  /sys/bus/spi/drivers/*/ r,
+  /sys/bus/spi/drivers/spidev/bind w,
+
+  include if exists <local/usr.local.sbin.fwops-mode>
+}
+
+profile managed-bootprofile-apply /usr/libexec/install-tools/bootprofile-apply flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/libexec/install-tools/bootprofile-apply rix,
+  /usr/bin/{basename,cat,cp,install,rm,sed} rix,
+  /etc/sysctl.d/ r,
+  /etc/sysctl.d/** r,
+  /proc/cmdline r,
+  /run/bootprofile.current rw,
+  /run/sysctl.d/ rw,
+  /run/sysctl.d/** rwkl,
+
+  include if exists <local/usr.libexec.install-tools.bootprofile-apply>
+}
+
+profile managed-secure-boot-tool /usr/libexec/install-tools/secure-boot-tool flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/openssl>
+
+  capability,
+  mount,
+  remount,
+  umount,
+  unix,
+  dbus,
+
+  /usr/libexec/install-tools/secure-boot-tool rix,
+  /usr/bin/{awk,cat,chmod,cmp,cp,cut,date,dirname,find,findmnt,flock,grep,gzip,id,install,mkdir,mktemp,mokutil,mount,mv,openssl,readlink,rm,sbsign,sbverify,sed,sort,stat,systemctl,umount,xz,zstd} rix,
+  /usr/sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
+  /sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
+  /usr/src/linux-headers-*/scripts/sign-file rix,
+  /usr/lib/linux-kbuild-*/scripts/sign-file rix,
+  /lib/modules/*/build/scripts/sign-file rix,
+
+  /boot/ rw,
+  /boot/** rwkl,
+  /dev/disk/ r,
+  /dev/disk/** r,
+  /dev/mapper/ rw,
+  /dev/mapper/** rw,
+  /dev/{mmcblk*,nvme*,sd*,vd*} rw,
+  /dev/tty rw,
+  /etc/default/secure-boot.conf r,
+  /etc/initramfs-tools/ rw,
+  /etc/initramfs-tools/** rwkl,
+  /etc/kernel/ rw,
+  /etc/kernel/** rwkl,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /lib/modules/ rw,
+  /lib/modules/** rwkl,
+  /proc/self/mounts r,
+  /run/dbus/system_bus_socket rw,
+  /run/lock/ rw,
+  /run/lock/** rwkl,
+  /run/systemd/private rw,
+  /usr/local/lib/crypto/ rw,
+  /usr/local/lib/crypto/** rwkl,
+  /usr/src/ r,
+  /usr/src/** rwkl,
+  owner /tmp/secure-boot.* rwkl,
+  owner /tmp/secure-boot.*/ rw,
+  owner /tmp/secure-boot.*/** rwkl,
+
+  include if exists <local/usr.libexec.install-tools.secure-boot-tool>
+}
+
+profile managed-secure-boot-kernel-hooks /etc/kernel/{postinst.d/zz-sign-kernel,postrm.d/zz-sign-kernel-cleanup,header_postinst.d/zz-sign-kernel-headers} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /etc/kernel/{postinst.d/zz-sign-kernel,postrm.d/zz-sign-kernel-cleanup,header_postinst.d/zz-sign-kernel-headers} rix,
+  /usr/libexec/install-tools/secure-boot-tool rPx -> managed-secure-boot-tool,
+
+  include if exists <local/managed-secure-boot-kernel-hooks>
+}

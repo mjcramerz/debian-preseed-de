@@ -1,0 +1,309 @@
+#!/bin/sh
+
+installer_health_valid_absolute_path() {
+  case "${1:-}" in
+    /|''|*[!A-Za-z0-9_./-]*|*/../*|*/..) return 1 ;;
+    /*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+installer_health_number() {
+  value=${1:-}
+  fallback=$2
+  minimum=$3
+  maximum=$4
+
+  case "$value" in
+    ''|*[!0-9]*) value=$fallback ;;
+  esac
+  if [ "$value" -lt "$minimum" ] 2>/dev/null; then
+    value=$minimum
+  elif [ "$value" -gt "$maximum" ] 2>/dev/null; then
+    value=$maximum
+  fi
+  printf '%s\n' "$value"
+}
+
+installer_health_configure() {
+  PATH=/sbin:/bin:/usr/sbin:/usr/bin
+  export PATH
+  umask 077
+
+  INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR=${INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR:-/run/installer-initramfs-health}
+  INSTALLER_INITRAMFS_HEALTH_TARGET_DIR=${INSTALLER_INITRAMFS_HEALTH_TARGET_DIR:-/var/lib/installer-state/logs/initramfs}
+  INSTALLER_INITRAMFS_HEALTH_LOG_MAX_BYTES=$(installer_health_number "${INSTALLER_INITRAMFS_HEALTH_LOG_MAX_BYTES:-}" 262144 32768 1048576)
+  INSTALLER_INITRAMFS_HEALTH_LOCAL_BLOCK_LIMIT=$(installer_health_number "${INSTALLER_INITRAMFS_HEALTH_LOCAL_BLOCK_LIMIT:-}" 32 1 128)
+  INSTALLER_INITRAMFS_ROOTMNT=${rootmnt:-/root}
+
+  installer_health_valid_absolute_path "$INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR" ||
+    INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR=/run/installer-initramfs-health
+  installer_health_valid_absolute_path "$INSTALLER_INITRAMFS_HEALTH_TARGET_DIR" ||
+    INSTALLER_INITRAMFS_HEALTH_TARGET_DIR=/var/lib/installer-state/logs/initramfs
+  installer_health_valid_absolute_path "$INSTALLER_INITRAMFS_ROOTMNT" ||
+    INSTALLER_INITRAMFS_ROOTMNT=/root
+}
+
+installer_health_log_name() {
+  case "$1" in
+    init-top) printf '%s\n' 01-init-top.log ;;
+    init-premount) printf '%s\n' 02-init-premount.log ;;
+    local-top) printf '%s\n' 03-local-top.log ;;
+    local-block) printf '%s\n' 04-local-block.log ;;
+    local-premount) printf '%s\n' 05-local-premount.log ;;
+    local-bottom) printf '%s\n' 06-local-bottom.log ;;
+    init-bottom) printf '%s\n' 07-init-bottom.log ;;
+    *) return 1 ;;
+  esac
+}
+
+installer_health_timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf '%s\n' unknown-time
+}
+
+installer_health_redacted_cmdline() {
+  redacted=
+  cmdline=
+
+  [ -r /proc/cmdline ] && IFS= read -r cmdline </proc/cmdline || true
+  set -f
+  for argument in $cmdline; do
+    case "$argument" in
+      primary_gpg_passphrase=*|fruux_username=*|fruux_password=*|netcfg/wireless_wpa=*|wireless_wpa=*|wifi_wpa=*|*[Pp][Aa][Ss][Ss]*=*|*[Ss][Ee][Cc][Rr][Ee][Tt]*=*|*[Tt][Oo][Kk][Ee][Nn]*=*|*[Kk][Ee][Yy]*=*)
+        argument=${argument%%=*}=REDACTED
+        ;;
+    esac
+    redacted="${redacted:+${redacted} }${argument}"
+  done
+  set +f
+  printf '%s\n' "$redacted"
+}
+
+installer_health_capture_file() {
+  label=$1
+  path=$2
+  limit=$(installer_health_number "${3:-}" 120 1 500)
+
+  [ -r "$path" ] || return 0
+  printf '\n## %s\n' "$label"
+  sed -n "1,${limit}p" "$path" 2>&1 || true
+}
+
+installer_health_list_dir() {
+  label=$1
+  path=$2
+  limit=$(installer_health_number "${3:-}" 80 1 200)
+  count=0
+
+  [ -d "$path" ] || return 0
+  printf '\n## %s\n' "$label"
+  for entry in "$path"/*; do
+    [ -e "$entry" ] || [ -L "$entry" ] || continue
+    ls -ld "$entry" 2>&1 || true
+    count=$((count + 1))
+    [ "$count" -lt "$limit" ] || break
+  done
+}
+
+installer_health_root_mounted() {
+  [ -r /proc/mounts ] || return 1
+  while IFS=' ' read -r _source mount_path _type _options _rest || [ -n "${mount_path:-}" ]; do
+    [ "$mount_path" = "$INSTALLER_INITRAMFS_ROOTMNT" ] && return 0
+  done </proc/mounts
+  return 1
+}
+
+installer_health_capture_root_state() {
+  printf '\n## root-state\n'
+  printf 'root=%s\n' "${ROOT:-unset}"
+  printf 'rootfstype=%s\n' "${ROOTFSTYPE:-unset}"
+  printf 'boot=%s\n' "${BOOT:-unset}"
+  printf 'rootmnt=%s\n' "$INSTALLER_INITRAMFS_ROOTMNT"
+  if installer_health_root_mounted; then
+    printf 'rootmnt_mounted=true\n'
+  else
+    printf 'rootmnt_mounted=false\n'
+  fi
+}
+
+installer_health_capture_target_state() {
+  printf '\n## target-state\n'
+  for target_path in / /etc /usr /var /boot /etc/fstab /sbin/init /usr/lib/systemd/systemd; do
+    full_path="${INSTALLER_INITRAMFS_ROOTMNT}${target_path}"
+    if [ -e "$full_path" ] || [ -L "$full_path" ]; then
+      printf 'path=%s present=true\n' "$target_path"
+    else
+      printf 'path=%s present=false\n' "$target_path"
+    fi
+  done
+}
+
+installer_health_capture_device() {
+  device=${1:-}
+
+  printf '\n## local-block-device\n'
+  printf 'requested_device=%s\n' "${device:-unset}"
+  case "$device" in
+    /dev/*)
+      if [ -b "$device" ]; then
+        printf 'device_state=block\n'
+      elif [ -e "$device" ] || [ -L "$device" ]; then
+        printf 'device_state=present-nonblock\n'
+      else
+        printf 'device_state=missing\n'
+      fi
+      ls -ld "$device" 2>&1 || true
+      ;;
+    *)
+      printf 'device_state=unresolved-identifier\n'
+      ;;
+  esac
+}
+
+installer_health_local_block_allowed() {
+  counter_file="${INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR}/.local-block-count"
+  count=0
+
+  if [ -r "$counter_file" ]; then
+    IFS= read -r count <"$counter_file" || count=0
+  fi
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  [ "$count" -lt "$INSTALLER_INITRAMFS_HEALTH_LOCAL_BLOCK_LIMIT" ] || return 1
+  count=$((count + 1))
+  printf '%s\n' "$count" >"${counter_file}.tmp.$$" 2>/dev/null || return 1
+  mv -f "${counter_file}.tmp.$$" "$counter_file" 2>/dev/null || {
+    rm -f "${counter_file}.tmp.$$" 2>/dev/null || true
+    return 1
+  }
+}
+
+installer_health_log_has_capacity() {
+  log_file=$1
+  size=0
+
+  if [ -f "$log_file" ]; then
+    size=$(wc -c <"$log_file" 2>/dev/null || printf '%s\n' 0)
+  fi
+  case "$size" in
+    ''|*[!0-9]*) size=0 ;;
+  esac
+  [ "$size" -lt "$INSTALLER_INITRAMFS_HEALTH_LOG_MAX_BYTES" ]
+}
+
+installer_health_ensure_local_block_log() {
+  log_file="${INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR}/04-local-block.log"
+  [ -f "$log_file" ] && return 0
+
+  {
+    printf '## event\n'
+    printf 'timestamp=%s\n' "$(installer_health_timestamp)"
+    printf 'stage=local-block\n'
+    printf 'invoked=false\n'
+    printf 'reason=root-device-resolved-without-local-block-retry\n'
+  } >"${log_file}.tmp.$$" 2>/dev/null || {
+    rm -f "${log_file}.tmp.$$" 2>/dev/null || true
+    return 0
+  }
+  chmod 0600 "${log_file}.tmp.$$" 2>/dev/null || true
+  mv -f "${log_file}.tmp.$$" "$log_file" 2>/dev/null ||
+    rm -f "${log_file}.tmp.$$" 2>/dev/null || true
+}
+
+installer_health_flush() {
+  installer_health_root_mounted || return 0
+  target_dir="${INSTALLER_INITRAMFS_ROOTMNT}${INSTALLER_INITRAMFS_HEALTH_TARGET_DIR}"
+  mkdir -p "$target_dir" 2>/dev/null || return 0
+
+  for source_log in "${INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR}"/*.log; do
+    [ -f "$source_log" ] || continue
+    target_log="${target_dir}/${source_log##*/}"
+    cp "$source_log" "${target_log}.tmp.$$" 2>/dev/null || {
+      rm -f "${target_log}.tmp.$$" 2>/dev/null || true
+      continue
+    }
+    chmod 0600 "${target_log}.tmp.$$" 2>/dev/null || true
+    mv -f "${target_log}.tmp.$$" "$target_log" 2>/dev/null ||
+      rm -f "${target_log}.tmp.$$" 2>/dev/null || true
+  done
+  chmod 0700 "$target_dir" 2>/dev/null || true
+}
+
+installer_initramfs_health_run() {
+  stage=${1:-}
+  shift || true
+
+  case "$stage" in
+    init-top|init-premount|local-top|local-block|local-premount|local-bottom|init-bottom) ;;
+    *) return 0 ;;
+  esac
+
+  installer_health_configure
+  mkdir -p "$INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR" 2>/dev/null || return 0
+  if [ "$stage" = local-block ]; then
+    installer_health_local_block_allowed || return 0
+  elif [ "$stage" = local-premount ]; then
+    installer_health_ensure_local_block_log
+  fi
+
+  log_name=$(installer_health_log_name "$stage") || return 0
+  log_file="${INSTALLER_INITRAMFS_HEALTH_SPOOL_DIR}/${log_name}"
+  installer_health_log_has_capacity "$log_file" || return 0
+
+  {
+    printf '\n## event\n'
+    printf 'timestamp=%s\n' "$(installer_health_timestamp)"
+    printf 'stage=%s\n' "$stage"
+    printf 'kernel=%s\n' "$(uname -r 2>/dev/null || printf '%s\n' unknown)"
+    printf 'machine=%s\n' "$(uname -m 2>/dev/null || printf '%s\n' unknown)"
+    printf 'cmdline=%s\n' "$(installer_health_redacted_cmdline)"
+    installer_health_capture_root_state
+
+    case "$stage" in
+      init-top)
+        if [ -d /sys/firmware/efi ]; then
+          printf '\n## firmware\nmode=uefi\n'
+        else
+          printf '\n## firmware\nmode=bios-or-unknown\n'
+        fi
+        installer_health_capture_file proc-filesystems /proc/filesystems 120
+        ;;
+      init-premount)
+        installer_health_capture_file proc-partitions /proc/partitions 160
+        installer_health_list_dir sys-class-block /sys/class/block 120
+        ;;
+      local-top)
+        installer_health_capture_file proc-partitions /proc/partitions 160
+        installer_health_list_dir disk-by-uuid /dev/disk/by-uuid 120
+        installer_health_list_dir mapper /dev/mapper 120
+        printf '\n## tpm\n'
+        for tpm_path in /dev/tpmrm0 /dev/tpm0; do
+          [ -e "$tpm_path" ] && ls -ld "$tpm_path" 2>&1 || true
+        done
+        ;;
+      local-block)
+        installer_health_capture_device "${1:-}"
+        ;;
+      local-premount)
+        installer_health_capture_file proc-mounts /proc/mounts 200
+        installer_health_list_dir mapper /dev/mapper 120
+        ;;
+      local-bottom)
+        installer_health_capture_target_state
+        installer_health_capture_file proc-mounts /proc/mounts 240
+        ;;
+      init-bottom)
+        installer_health_capture_target_state
+        installer_health_capture_file proc-mounts /proc/mounts 240
+        installer_health_capture_file proc-modules /proc/modules 240
+        ;;
+    esac
+  } >>"$log_file" 2>&1 || true
+  chmod 0600 "$log_file" 2>/dev/null || true
+
+  case "$stage" in
+    local-bottom|init-bottom) installer_health_flush ;;
+  esac
+  return 0
+}

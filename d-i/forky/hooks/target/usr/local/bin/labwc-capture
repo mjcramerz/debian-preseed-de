@@ -1,0 +1,612 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/bin:/usr/bin:/bin
+LC_ALL=C.UTF-8
+export PATH LC_ALL
+umask 077
+
+APP_NAME="Screen Capture"
+RECORDING_UNIT="labwc-screen-recording.service"
+NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+desktop_uid=
+
+ensure_desktop_user() {
+  [ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+    printf 'fatal: labwc-capture must run in the managed desktop session\n' >&2
+    exit 1
+  }
+
+  runtime_root=${XDG_RUNTIME_DIR:-}
+  case "$runtime_root" in
+    /run/user/*) desktop_uid=${runtime_root#/run/user/} ;;
+    *) desktop_uid= ;;
+  esac
+  case "$desktop_uid" in
+    ''|0*|*[!0-9]*)
+      printf 'fatal: labwc-capture requires a non-root desktop runtime directory\n' >&2
+      exit 1
+      ;;
+  esac
+}
+
+notify_user() {
+  urgency=$1
+  icon=$2
+  category=$3
+  summary=$4
+  body=$5
+
+  [ -n "$NOTIFY_SEND" ] || return 0
+  [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || return 0
+  "$NOTIFY_SEND" \
+    -a "$APP_NAME" \
+    -u "$urgency" \
+    -i "$icon" \
+    -c "$category" \
+    "$summary" \
+    "$body" >/dev/null 2>&1 || true
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || {
+    notify_user critical dialog-error x-labwc.screen-capture "Screen capture unavailable" "$1 is not installed."
+    printf 'fatal: required command is unavailable: %s\n' "$1" >&2
+    exit 1
+  }
+}
+
+validate_absolute_path() {
+  path_label=$1
+  path_value=$2
+
+  case "$path_value" in
+    /*) ;;
+    *)
+      printf 'fatal: %s must be an absolute path\n' "$path_label" >&2
+      exit 1
+      ;;
+  esac
+  case "$path_value" in
+    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,=-]*)
+      printf 'fatal: %s contains unsupported path syntax: %s\n' "$path_label" "$path_value" >&2
+      exit 1
+      ;;
+  esac
+}
+
+initialize_paths() {
+  : "${HOME:?HOME must be set}"
+  : "${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}"
+
+  validate_absolute_path HOME "$HOME"
+  validate_absolute_path XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR"
+  [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] || {
+    printf 'fatal: XDG_RUNTIME_DIR is unavailable or unsafe: %s\n' "$XDG_RUNTIME_DIR" >&2
+    exit 1
+  }
+  [ "$(stat -c '%u' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" = "$desktop_uid" ] || {
+    printf 'fatal: XDG_RUNTIME_DIR is not owned by the current user\n' >&2
+    exit 1
+  }
+
+  STATE_DIR="${XDG_RUNTIME_DIR}/labwc-capture"
+  STATE_HOME="${XDG_STATE_HOME:-${HOME}/.local/state}"
+  SCREENSHOT_DIR="${HOME}/Pictures/Screenshots"
+  RECORDING_DIR="${HOME}/Videos/Recordings"
+  RECORDING_LOG_DIR="${STATE_HOME}/labwc-capture"
+  RECORDING_LOG="${RECORDING_LOG_DIR}/recording.log"
+  SATTY_CONFIG="${XDG_CONFIG_HOME:-${HOME}/.config}/satty/config.toml"
+  PIPEWIRE_REMOTE_NAME="${PIPEWIRE_REMOTE:-pipewire-0}"
+
+  validate_absolute_path XDG_STATE_HOME "$STATE_HOME"
+  case "$PIPEWIRE_REMOTE_NAME" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      printf 'fatal: PIPEWIRE_REMOTE contains unsupported syntax\n' >&2
+      exit 1
+      ;;
+  esac
+
+  install -d -m 0700 "$STATE_DIR" "$RECORDING_LOG_DIR"
+}
+
+require_wayland_session() {
+  : "${WAYLAND_DISPLAY:?WAYLAND_DISPLAY must be set}"
+  case "$WAYLAND_DISPLAY" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      printf 'fatal: WAYLAND_DISPLAY contains unsupported syntax\n' >&2
+      exit 1
+      ;;
+  esac
+  [ -S "${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}" ] || {
+    notify_user critical dialog-error x-labwc.screen-capture "Screen capture unavailable" "The active Wayland socket could not be found."
+    printf 'fatal: active Wayland socket is unavailable\n' >&2
+    exit 1
+  }
+}
+
+recording_active() {
+  systemctl --user --quiet is-active "$RECORDING_UNIT" >/dev/null 2>&1
+}
+
+refresh_waybar() {
+  systemctl \
+    --user \
+    kill \
+    --kill-whom=main \
+    --signal=RTMIN+9 \
+    waybar.service >/dev/null 2>&1 ||
+    true
+}
+
+print_status() {
+  if recording_active; then
+    printf '%s\n' '{"text":"","tooltip":"Screen recording is active\nLeft-click: select an area and annotate\nMiddle-click: stop and save recording\nRight-click: capture and recording actions","class":"recording"}'
+  else
+    printf '%s\n' '{"text":"","tooltip":"Left-click: select an area and annotate\nMiddle-click: stop an active recording\nRight-click: screenshots and recordings","class":"idle"}'
+  fi
+}
+
+next_output_path() {
+  output_dir=$1
+  output_prefix=$2
+  output_extension=$3
+  output_timestamp=$(date '+%Y-%m-%d_%H-%M-%S')
+  output_path="${output_dir}/${output_prefix}_${output_timestamp}.${output_extension}"
+  output_counter=1
+
+  while [ -e "$output_path" ]; do
+    output_path="${output_dir}/${output_prefix}_${output_timestamp}_${output_counter}.${output_extension}"
+    output_counter=$((output_counter + 1))
+    [ "$output_counter" -le 999 ] || {
+      printf 'fatal: unable to allocate a unique output filename\n' >&2
+      exit 1
+    }
+  done
+  printf '%s\n' "$output_path"
+}
+
+select_geometry() {
+  require_command slurp
+  selected_geometry=$(slurp 2>/dev/null) || return 1
+  [ -n "$selected_geometry" ] || return 1
+  [ "${#selected_geometry}" -le 128 ] || {
+    notify_user critical dialog-error x-labwc.screen-capture "Selection rejected" "The selected geometry was unexpectedly long."
+    return 1
+  }
+  printf '%s\n' "$selected_geometry" |
+    grep -Eq '^-?[0-9]+,-?[0-9]+ [1-9][0-9]*x[1-9][0-9]*$' || {
+      notify_user critical dialog-error x-labwc.screen-capture "Selection rejected" "The selected geometry was invalid."
+      return 1
+    }
+  printf '%s\n' "$selected_geometry"
+}
+
+capture_full() {
+  require_wayland_session
+  require_command grim
+  install -d -m 0700 "$SCREENSHOT_DIR"
+  screenshot_path=$(next_output_path "$SCREENSHOT_DIR" Screenshot png)
+
+  if grim "$screenshot_path"; then
+    notify_user normal camera-photo x-labwc.screen-capture "Screenshot saved" "$screenshot_path"
+    return 0
+  fi
+
+  rm -f -- "$screenshot_path"
+  notify_user critical dialog-error x-labwc.screen-capture "Screenshot failed" "The full-screen capture could not be created."
+  return 1
+}
+
+annotate_capture() {
+  capture_scope=$1
+
+  require_wayland_session
+  require_command grim
+  require_command satty
+  [ -r "$SATTY_CONFIG" ] || {
+    notify_user critical dialog-error x-labwc.screen-capture "Satty configuration missing" "$SATTY_CONFIG could not be read."
+    return 1
+  }
+
+  install -d -m 0700 "$SCREENSHOT_DIR"
+  screenshot_path=$(next_output_path "$SCREENSHOT_DIR" Screenshot png)
+  source_path=$(mktemp "${STATE_DIR}/satty-source.XXXXXX.png")
+
+  case "$capture_scope" in
+    full)
+      if ! grim "$source_path"; then
+        rm -f -- "$source_path"
+        notify_user critical dialog-error x-labwc.screen-capture "Screenshot failed" "The annotation source could not be captured."
+        return 1
+      fi
+      ;;
+    box)
+      selected_geometry=$(select_geometry) || {
+        rm -f -- "$source_path"
+        return 0
+      }
+      if ! grim -g "$selected_geometry" "$source_path"; then
+        rm -f -- "$source_path"
+        notify_user critical dialog-error x-labwc.screen-capture "Screenshot failed" "The selected area could not be captured."
+        return 1
+      fi
+      ;;
+    *)
+      rm -f -- "$source_path"
+      printf 'fatal: unsupported annotation scope: %s\n' "$capture_scope" >&2
+      return 1
+      ;;
+  esac
+
+  if satty \
+    --config "$SATTY_CONFIG" \
+    --filename "$source_path" \
+    --output-filename "$screenshot_path"
+  then
+    if [ -s "$screenshot_path" ]; then
+      notify_user normal camera-photo x-labwc.screen-capture "Annotated screenshot saved" "$screenshot_path"
+    else
+      notify_user normal camera-photo x-labwc.screen-capture "Annotation closed" "No annotated screenshot was saved."
+    fi
+    rm -f -- "$source_path"
+    return 0
+  fi
+
+  rm -f -- "$source_path"
+  notify_user critical dialog-error x-labwc.screen-capture "Satty failed" "The annotation tool exited with an error."
+  return 1
+}
+
+select_recording_format() {
+  require_command labwc-fuzzel
+  recording_choice=$(
+    printf '%s\n' \
+      'Local - mkv' \
+      'Share - mp4' \
+      'Website - webm' |
+      labwc-fuzzel menu --dmenu --prompt 'Recording format' 2>/dev/null || true
+  )
+
+  case "$recording_choice" in
+    'Local - mkv') printf '%s\n' mkv ;;
+    'Share - mp4') printf '%s\n' mp4 ;;
+    'Website - webm') printf '%s\n' webm ;;
+    '') return 1 ;;
+    *)
+      notify_user critical dialog-error x-labwc.screen-recording "Recording format rejected" "The selected recording format was not recognized."
+      return 1
+      ;;
+  esac
+}
+
+select_recording_output() {
+  require_command wlr-randr
+  recording_outputs=$(
+    wlr-randr 2>/dev/null |
+      awk '/^[^[:space:]]/ { print $1 }' |
+      grep -E '^[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]+$' || true
+  )
+  [ -n "$recording_outputs" ] || {
+    notify_user critical dialog-error x-labwc.screen-recording "Recording output unavailable" "No active Wayland output could be detected."
+    return 1
+  }
+
+  recording_output_count=$(printf '%s\n' "$recording_outputs" | wc -l | tr -d '[:space:]')
+  if [ "$recording_output_count" -eq 1 ]; then
+    printf '%s\n' "$recording_outputs"
+    return 0
+  fi
+
+  require_command labwc-fuzzel
+  recording_output=$(
+    printf '%s\n' "$recording_outputs" |
+      labwc-fuzzel menu --dmenu --prompt 'Recording output' 2>/dev/null || true
+  )
+  [ -n "$recording_output" ] || return 1
+  printf '%s\n' "$recording_outputs" | grep -Fqx "$recording_output" || {
+    notify_user critical dialog-error x-labwc.screen-recording "Recording output rejected" "The selected output is not active."
+    return 1
+  }
+  printf '%s\n' "$recording_output"
+}
+
+require_pipewire_audio() {
+  pipewire_socket="${XDG_RUNTIME_DIR}/${PIPEWIRE_REMOTE_NAME}"
+  [ -S "$pipewire_socket" ] || {
+    notify_user critical dialog-error x-labwc.screen-recording "Recording audio unavailable" "The PipeWire socket is unavailable: ${pipewire_socket}"
+    printf 'fatal: PipeWire socket is unavailable: %s\n' "$pipewire_socket" >&2
+    return 1
+  }
+}
+
+start_recording() {
+  recording_scope=$1
+
+  require_wayland_session
+  require_command systemd-run
+  require_command wf-recorder
+  require_pipewire_audio || return 1
+  if recording_active; then
+    notify_user normal media-record x-labwc.screen-recording "Recording already active" "Stop the current recording before starting another."
+    return 0
+  fi
+
+  recording_format=$(select_recording_format) || return 0
+  recording_output=-
+  recording_geometry=-
+  if [ "$recording_scope" = box ]; then
+    recording_geometry=$(select_geometry) || return 0
+  elif [ "$recording_scope" = full ]; then
+    recording_output=$(select_recording_output) || return 0
+  else
+    printf 'fatal: unsupported recording scope: %s\n' "$recording_scope" >&2
+    return 1
+  fi
+
+  install -d -m 0700 "$RECORDING_DIR"
+  recording_path=$(next_output_path "$RECORDING_DIR" Recording "$recording_format")
+  : >"$RECORDING_LOG"
+  systemctl --user reset-failed "$RECORDING_UNIT" >/dev/null 2>&1 || true
+
+  if ! systemd-run \
+    --user \
+    --quiet \
+    --collect \
+    --unit="$RECORDING_UNIT" \
+    --property=Type=exec \
+    --property=KillSignal=SIGINT \
+    --property=TimeoutStopSec=20s \
+    --property=UMask=0077 \
+    --setenv="HOME=${HOME}" \
+    --setenv="PATH=${PATH}" \
+    --setenv="LABWC_SESSION_OWNER=${LABWC_SESSION_OWNER}" \
+    --setenv="WAYLAND_DISPLAY=${WAYLAND_DISPLAY}" \
+    --setenv="XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${HOME}/.config}" \
+    --setenv="XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}" \
+    --setenv="XDG_STATE_HOME=${XDG_STATE_HOME:-${HOME}/.local/state}" \
+    --setenv="DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-}" \
+    --setenv="PIPEWIRE_REMOTE=${PIPEWIRE_REMOTE_NAME}" \
+    /usr/local/bin/labwc-capture \
+      record-worker \
+      "$recording_scope" \
+      "$recording_format" \
+      "$recording_path" \
+      "$recording_output" \
+      "$recording_geometry"
+  then
+    notify_user critical dialog-error x-labwc.screen-recording "Recording failed to start" "The transient user recording service could not be created."
+    return 1
+  fi
+
+  recording_started=false
+  recording_attempt=0
+  while [ "$recording_attempt" -lt 5 ]; do
+    if recording_active; then
+      recording_started=true
+      break
+    fi
+    recording_attempt=$((recording_attempt + 1))
+    sleep 1
+  done
+  if [ "$recording_started" != true ]; then
+    notify_user critical dialog-error x-labwc.screen-recording "Recording failed to start" "wf-recorder did not remain active. Details were written to ${RECORDING_LOG}."
+    return 1
+  fi
+
+  notify_user normal media-record x-labwc.screen-recording "Screen recording started" "Audio is enabled. Middle-click the screenshot button, or choose Stop Recording from its right-click menu, to stop and save."
+  refresh_waybar
+}
+
+stop_recording() {
+  if ! recording_active; then
+    notify_user normal media-record x-labwc.screen-recording "No active recording" "There is no screen recording to stop."
+    return 0
+  fi
+
+  notify_user normal media-record x-labwc.screen-recording "Stopping screen recording" "The recording is being finalized."
+  if ! systemctl --user stop "$RECORDING_UNIT"; then
+    notify_user critical dialog-error x-labwc.screen-recording "Recording stop failed" "The recording service could not be stopped cleanly."
+    return 1
+  fi
+  refresh_waybar
+}
+
+record_worker() {
+  recording_scope=$1
+  recording_format=$2
+  recording_path=$3
+  recording_output=$4
+  recording_geometry=$5
+
+  require_wayland_session
+  require_command wf-recorder
+  require_pipewire_audio
+  validate_absolute_path "recording output" "$recording_path"
+  case "$recording_scope" in
+    full|box) ;;
+    *)
+      printf 'fatal: unsupported recording worker scope: %s\n' "$recording_scope" >&2
+      exit 1
+      ;;
+  esac
+  case "$recording_format:$recording_path" in
+    "mkv:${RECORDING_DIR}/Recording_"*.mkv)
+      recording_muxer=matroska
+      recording_video_codec=libx264
+      recording_audio_codec=aac
+      ;;
+    "mp4:${RECORDING_DIR}/Recording_"*.mp4)
+      recording_muxer=mp4
+      recording_video_codec=libx264
+      recording_audio_codec=aac
+      ;;
+    "webm:${RECORDING_DIR}/Recording_"*.webm)
+      recording_muxer=webm
+      recording_video_codec=libvpx-vp9
+      recording_audio_codec=libopus
+      ;;
+    *)
+      printf 'fatal: recording output does not match the selected format\n' >&2
+      exit 1
+      ;;
+  esac
+  if [ "$recording_scope" = full ]; then
+    case "$recording_output" in
+      ''|-|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+        printf 'fatal: full-screen recording output is invalid\n' >&2
+        exit 1
+        ;;
+    esac
+    [ "$recording_geometry" = - ] || {
+      printf 'fatal: full-screen recording received unexpected geometry\n' >&2
+      exit 1
+    }
+  else
+    [ "$recording_output" = - ] || {
+      printf 'fatal: box recording received an unexpected output name\n' >&2
+      exit 1
+    }
+    printf '%s\n' "$recording_geometry" |
+      grep -Eq '^-?[0-9]+,-?[0-9]+ [1-9][0-9]*x[1-9][0-9]*$' || {
+        printf 'fatal: recording geometry is invalid\n' >&2
+        exit 1
+      }
+  fi
+
+  set -- \
+    wf-recorder \
+    --audio \
+    --audio-backend=pipewire \
+    --muxer "$recording_muxer" \
+    --codec "$recording_video_codec" \
+    --audio-codec "$recording_audio_codec" \
+    --file "$recording_path"
+  if [ "$recording_scope" = box ]; then
+    set -- "$@" --geometry "$recording_geometry"
+  else
+    set -- "$@" --output "$recording_output"
+  fi
+
+  recording_stopping=0
+  recording_child=
+  # shellcheck disable=SC2329
+  forward_recording_signal() {
+    recording_stopping=1
+    [ -n "$recording_child" ] || return 0
+    kill -INT "$recording_child" 2>/dev/null || true
+  }
+  trap forward_recording_signal HUP INT TERM
+
+  set +e
+  "$@" >>"$RECORDING_LOG" 2>&1 &
+  recording_child=$!
+  while :; do
+    wait "$recording_child"
+    recording_status=$?
+    kill -0 "$recording_child" 2>/dev/null || break
+  done
+  set -e
+  trap - HUP INT TERM
+
+  if [ -s "$recording_path" ] &&
+     { [ "$recording_status" -eq 0 ] || [ "$recording_stopping" -eq 1 ]; }
+  then
+    notify_user normal video-x-generic x-labwc.screen-recording "Screen recording saved" "$recording_path"
+    exit 0
+  fi
+
+  [ -s "$recording_path" ] || rm -f -- "$recording_path"
+  notify_user critical dialog-error x-labwc.screen-recording "Screen recording failed" "wf-recorder exited with status ${recording_status}. Details were written to ${RECORDING_LOG}."
+  exit "$recording_status"
+}
+
+open_menu() {
+  require_command labwc-fuzzel
+
+  if recording_active; then
+    capture_menu=$(
+      printf '%s\n' \
+        'Stop Recording' \
+        'Open annotation tool' \
+        'Take Screenshot (Full)' \
+        'Take Screenshot (Box)' \
+        'Record Screen (Full)' \
+        'Record Screen (Box)' |
+        labwc-fuzzel menu --dmenu --prompt 'Screen capture' 2>/dev/null || true
+    )
+  else
+    capture_menu=$(
+      printf '%s\n' \
+        'Open annotation tool' \
+        'Take Screenshot (Full)' \
+        'Take Screenshot (Box)' \
+        'Record Screen (Full)' \
+        'Record Screen (Box)' |
+        labwc-fuzzel menu --dmenu --prompt 'Screen capture' 2>/dev/null || true
+    )
+  fi
+
+  case "$capture_menu" in
+    'Stop Recording') stop_recording ;;
+    'Open annotation tool') annotate_capture full ;;
+    'Take Screenshot (Full)') capture_full ;;
+    'Take Screenshot (Box)') annotate_capture box ;;
+    'Record Screen (Full)') start_recording full ;;
+    'Record Screen (Box)') start_recording box ;;
+    '') return 0 ;;
+    *)
+      notify_user critical dialog-error x-labwc.screen-capture "Capture action rejected" "The selected action was not recognized."
+      return 1
+      ;;
+  esac
+}
+
+ensure_desktop_user
+
+if [ "${1:-status}" = status ]; then
+  print_status
+  exit 0
+fi
+
+initialize_paths
+
+case "${1:-status}" in
+  primary)
+    annotate_capture box
+    ;;
+  menu)
+    open_menu
+    ;;
+  annotate-full)
+    annotate_capture full
+    ;;
+  screenshot-full)
+    capture_full
+    ;;
+  screenshot-box)
+    annotate_capture box
+    ;;
+  record-full)
+    start_recording full
+    ;;
+  record-box)
+    start_recording box
+    ;;
+  stop)
+    stop_recording
+    ;;
+  record-worker)
+    [ "$#" -eq 6 ] || {
+      printf 'fatal: record-worker requires scope, format, path, output, and geometry\n' >&2
+      exit 2
+    }
+    record_worker "$2" "$3" "$4" "$5" "$6"
+    ;;
+  *)
+    printf 'usage: labwc-capture [status|primary|menu|annotate-full|screenshot-full|screenshot-box|record-full|record-box|stop]\n' >&2
+    exit 2
+    ;;
+esac
+
+exit 0

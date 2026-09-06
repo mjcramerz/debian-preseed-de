@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+<labwc_config>
+  <core>
+    <decoration>server</decoration>
+    <gap>6</gap>
+    <!-- Labwc must always establish the first usable scanout itself.  The
+         managed watcher converges the topology after the Wayland output is
+         visible; disabling this makes login depend on a racy helper call and
+         can leave every connector black. -->
+    <autoEnableOutputs>yes</autoEnableOutputs>
+    <reuseOutputMode>yes</reuseOutputMode>
+    <primarySelection>yes</primarySelection>
+  </core>
+
+  <placement>
+    <policy>center</policy>
+  </placement>
+
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>no</raiseOnFocus>
+  </focus>
+
+  <theme>
+    <name>Adwaita</name>
+    <icon>__INSTALLER_LABWC_ICON_THEME__</icon>
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+      <showTitle>yes</showTitle>
+    </titlebar>
+    <maximizedDecoration>titlebar</maximizedDecoration>
+    <dropShadows>yes</dropShadows>
+    <cornerRadius>10</cornerRadius>
+    <font place="ActiveWindow">
+      <name>Noto Sans</name>
+      <size>__INSTALLER_LABWC_FONT_WINDOW_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="InactiveWindow">
+      <name>Noto Sans</name>
+      <size>__INSTALLER_LABWC_FONT_WINDOW_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="MenuHeader">
+      <name>Noto Sans</name>
+      <size>__INSTALLER_LABWC_FONT_MENU_SIZE__</size>
+      <slant>normal</slant>
+      <weight>bold</weight>
+    </font>
+    <font place="MenuItem">
+      <name>Noto Sans</name>
+      <size>__INSTALLER_LABWC_FONT_MENU_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+    <font place="OnScreenDisplay">
+      <name>Noto Sans</name>
+      <size>__INSTALLER_LABWC_FONT_OSD_SIZE__</size>
+      <slant>normal</slant>
+      <weight>normal</weight>
+    </font>
+  </theme>
+
+  <menu>
+    <showIcons>yes</showIcons>
+  </menu>
+
+  <desktops>
+    <number>__INSTALLER_LABWC_WORKSPACE_COUNT__</number>
+    <popupTime>600</popupTime>
+    <names>
+__INSTALLER_LABWC_WORKSPACE_NAME_LINES__
+    </names>
+  </desktops>
+
+  <windowSwitcher preview="yes" outlines="yes" order="focus">
+    <osd show="yes" style="classic" output="all" />
+    <fields>
+      <field content="icon" width="10%" />
+      <field content="trimmed_identifier" width="32%" />
+      <field content="title" width="58%" />
+    </fields>
+  </windowSwitcher>
+
+  <libinput>
+    <device category="non-touch">
+      <pointerSpeed>__INSTALLER_LABWC_MOUSE_POINTER_SPEED__</pointerSpeed>
+      <accelProfile>__INSTALLER_LABWC_MOUSE_ACCEL_PROFILE__</accelProfile>
+    </device>
+    <device category="touchpad">
+      <accelProfile>adaptive</accelProfile>
+      <tap>yes</tap>
+      <tapButtonMap>lrm</tapButtonMap>
+      <tapAndDrag>no</tapAndDrag>
+      <dragLock>no</dragLock>
+      <disableWhileTyping>yes</disableWhileTyping>
+      <clickMethod>clickfinger</clickMethod>
+      <scrollMethod>twofinger</scrollMethod>
+    </device>
+  </libinput>
+
+  <keyboard>
+    <default />
+    <numlock>on</numlock>
+    <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
+    <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
+    <keybind key="A-Tab">
+      <action name="NextWindow" workspace="all" />
+    </keybind>
+    <keybind key="A-S-Tab">
+      <action name="PreviousWindow" workspace="all" />
+    </keybind>
+    <keybind key="W-Return">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="W-d">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="W-space">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="C-A-space">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="C-Super_L">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+    <keybind key="Super_L" onRelease="yes">
+      <action name="Execute" command="labwc-run" />
+    </keybind>
+    <keybind key="Menu">
+      <action name="ShowMenu" menu="root-menu" />
+    </keybind>
+    <keybind key="W-l">
+      <action name="Execute" command="labwc-lock" />
+    </keybind>
+    <keybind key="W-S-d">
+      <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
+    </keybind>
+    <keybind key="W-m">
+      <action name="Execute" command="labwc-computer-management" />
+    </keybind>
+    <keybind key="C-A-m">
+      <action name="Execute" command="labwc-computer-management" />
+    </keybind>
+    <keybind key="W-S-p">
+      <action name="Execute" command="labwc-power-menu" />
+    </keybind>
+    <keybind key="W-S-o">
+      <action name="Execute" command="/usr/local/libexec/labwc-output-watch --refresh" />
+    </keybind>
+    <keybind key="W-f">
+      <action name="Execute" command="thunar" />
+    </keybind>
+    <keybind key="C-A-f">
+      <action name="Execute" command="thunar" />
+    </keybind>
+    <keybind key="W-b">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia vivaldi" />
+    </keybind>
+    <keybind key="C-A-b">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia vivaldi" />
+    </keybind>
+    <keybind key="W-t">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="C-A-t">
+      <action name="Execute" command="labwc-terminal" />
+    </keybind>
+    <keybind key="W-e">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia tutanota" />
+    </keybind>
+    <keybind key="C-A-e">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia tutanota" />
+    </keybind>
+    <keybind key="W-p">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia bitwarden" />
+    </keybind>
+    <keybind key="C-A-p">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia bitwarden" />
+    </keybind>
+    <keybind key="W-w">
+      <action name="Execute" command="labwc-wayscriber-toggle" />
+    </keybind>
+    <keybind key="C-A-w">
+      <action name="Execute" command="labwc-wayscriber-toggle" />
+    </keybind>
+    <keybind key="W-s">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app auto spotify" />
+    </keybind>
+    <keybind key="C-A-s">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app auto spotify" />
+    </keybind>
+    <keybind key="W-c">
+      <action name="Execute" command="qalculate-qt" />
+    </keybind>
+    <keybind key="C-A-c">
+      <action name="Execute" command="qalculate-qt" />
+    </keybind>
+    <keybind key="W-o">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia filen" />
+    </keybind>
+    <keybind key="C-A-o">
+      <action name="Execute" command="/usr/local/bin/labwc-managed-app nvidia filen" />
+    </keybind>
+    <keybind key="W-a">
+      <action name="Execute" command="__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__" />
+    </keybind>
+    <keybind key="C-A-a">
+      <action name="Execute" command="__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__" />
+    </keybind>
+    <keybind key="C-A-x">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+__INSTALLER_LABWC_RECORDING_KEYBIND_LINES__
+    <keybind key="W-q">
+      <action name="Close" />
+    </keybind>
+    <keybind key="W-S-q">
+      <action name="Execute" command="labwc-logout" />
+    </keybind>
+__INSTALLER_LABWC_WORKSPACE_KEYBIND_LINES__
+    <keybind key="W-Left">
+      <action name="SnapToEdge" direction="left" combine="yes" />
+    </keybind>
+    <keybind key="W-Right">
+      <action name="SnapToEdge" direction="right" combine="yes" />
+    </keybind>
+    <keybind key="W-Up">
+      <action name="ToggleMaximize" />
+    </keybind>
+    <keybind key="W-Down">
+      <action name="UnMaximize" />
+    </keybind>
+    <keybind key="W-S-f">
+      <action name="ToggleFullscreen" />
+    </keybind>
+    <keybind key="Print">
+      <action name="Execute">
+        <command>labwc-capture screenshot-full</command>
+      </action>
+    </keybind>
+    <keybind key="S-Print">
+      <action name="Execute">
+        <command>labwc-capture screenshot-box</command>
+      </action>
+    </keybind>
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2" />
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute" command="wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" />
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" />
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute" command="labwc-brightness-control up" />
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute" command="labwc-brightness-control down" />
+    </keybind>
+    <keybind key="XF86MonBrightnessCycle">
+      <action name="Execute" command="labwc-brightness-control menu" />
+    </keybind>
+    <keybind key="W-F6">
+      <action name="Execute" command="labwc-brightness-control up" />
+    </keybind>
+    <keybind key="W-F5">
+      <action name="Execute" command="labwc-brightness-control down" />
+    </keybind>
+  </keyboard>
+
+  <mouse>
+    <default />
+    <context name="Root">
+      <mousebind button="Left" action="Press">
+        <action name="Unfocus" />
+      </mousebind>
+      <mousebind button="Right" action="Press">
+        <action name="ShowMenu" menu="root-menu" />
+      </mousebind>
+    </context>
+    <context name="All">
+      <mousebind direction="W-Up" action="Scroll">
+        <action name="GoToDesktop" to="left" />
+      </mousebind>
+      <mousebind direction="W-Down" action="Scroll">
+        <action name="GoToDesktop" to="right" />
+      </mousebind>
+    </context>
+  </mouse>
+
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="yes" />
+  </windowRules>
+</labwc_config>

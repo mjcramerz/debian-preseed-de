@@ -1,0 +1,14 @@
+[Unit]
+Description=Create the managed weekly Timeshift snapshot
+ConditionPathExists=/usr/bin/timeshift
+ConditionPathExists=/etc/timeshift/timeshift.json
+After=local-fs.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=6h
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+UMask=0077
+ExecStart=/usr/local/libexec/timeshift-managed-snapshot weekly

@@ -1,0 +1,152 @@
+// Managed by unattended-installer.
+//
+// Automatic maintenance policy:
+// - accept upgrade candidates only from explicitly approved repository sites;
+// - let the repository pin policy choose the candidate version;
+// - keep boot, kernel, firmware, GPU, and desktop audio-graph changes manual;
+// - preserve the existing cleanup behavior and never reboot automatically.
+
+#clear Unattended-Upgrade::Allowed-Origins;
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+        // Official Debian archives.
+        "site=deb.debian.org";
+        "site=security.debian.org";
+
+        // Approved vendor archives declared by the Forky installer classes.
+        "site=deb.xanmod.org";
+        "site=developer.download.nvidia.com";
+        "site=downloadcontent.opensuse.org";
+        "site=packagecloud.io";
+        "site=packages.gitlab.com";
+        "site=packages.microsoft.com";
+        "site=pkgs.tailscale.com";
+        "site=pkgs.zabbly.com";
+        "site=repo.mysql.com";
+        "site=repo.vivaldi.com";
+        "site=repository.mullvad.net";
+        "site=repository.spotify.com";
+        "site=storage.googleapis.com";
+};
+
+// Python regular expressions are matched against binary package names.
+Unattended-Upgrade::Package-Blacklist {
+        // UEFI, Secure Boot, bootloaders, and firmware update tooling.
+        "^.*(efi|uefi).*$";
+        "^grub($|-).*";
+        "^shim($|-).*";
+        "^mokutil$";
+        "^os-prober$";
+        "^systemd-boot($|-).*";
+        "^fwupd($|-).*";
+        "^fwupdate($|-).*";
+        "^flashrom$";
+        "^ovmf$";
+
+        // Kernels, initramfs generators, out-of-tree modules, and firmware.
+        "^linux($|-).*";
+        "^kernel($|-).*";
+        "^initramfs-tools($|-).*";
+        "^dracut($|-).*";
+        "^kmod$";
+        "^dkms$";
+        "^.*-dkms$";
+        "^module-assistant$";
+        "^.*-modules?($|-).*";
+        "^firmware($|-).*";
+        "^.*-firmware($|-).*";
+        "^.*firmware.*$";
+        "^intel-microcode$";
+        "^amd64-microcode$";
+        "^iucode-tool$";
+
+        // NVIDIA, CUDA, cuDNN, NCCL, Nsight, and their runtime libraries.
+        "^nvidia($|-).*";
+        "^libnvidia($|-).*";
+        "^.*nvidia.*$";
+        "^xserver-xorg-video-nvidia($|-).*";
+        "^cuda($|-).*";
+        "^libcuda($|-).*";
+        "^.*cuda.*$";
+        "^cudnn($|-).*";
+        "^libcudnn($|-).*";
+        "^nccl($|-).*";
+        "^libnccl($|-).*";
+        "^nsight($|-).*";
+        "^libcublas.*";
+        "^libcudart.*";
+        "^libcufft.*";
+        "^libcupti.*";
+        "^libcurand.*";
+        "^libcusolver.*";
+        "^libcusparse.*";
+        "^libnpp.*";
+        "^libnvblas.*";
+        "^libnvjitlink.*";
+        "^libnvrtc.*";
+        "^libnvtoolsext.*";
+
+        // Vulkan, OpenGL, EGL, Mesa, GLVND, DRM/GBM, and shader tooling.
+        "^.*vulkan.*$";
+        "^.*opengl.*$";
+        "^.*egl.*$";
+        "^mesa($|-).*";
+        "^libgl($|-|[0-9]).*";
+        "^libegl($|-|[0-9]).*";
+        "^libgles($|-|[0-9]).*";
+        "^libglx($|-|[0-9]).*";
+        "^libopengl($|-|[0-9]).*";
+        "^libglapi($|-|[0-9]).*";
+        "^libglvnd($|-|[0-9]).*";
+        "^libglu($|-|[0-9]).*";
+        "^libgbm($|-|[0-9]).*";
+        "^libdrm($|-|[0-9]).*";
+        "^glslang($|-).*";
+        "^spirv($|-).*";
+        "^libspirv($|-|[0-9]).*";
+
+        // PipeWire, WirePlumber, and their direct audio/hardware integrations.
+        "^pipewire($|-).*";
+        "^libpipewire($|-).*";
+        "^libspa($|-).*";
+        "^wireplumber($|-).*";
+        "^libwireplumber($|-).*";
+        "^gstreamer1[.]0-pipewire$";
+        "^rtkit$";
+        "^alsa($|-).*";
+        "^libasound[0-9].*";
+        "^pulseaudio($|-).*";
+        "^libpulse($|-|[0-9]).*";
+        "^libcamera($|-|[0-9]).*";
+        "^bluez($|-).*";
+        "^libbluetooth[0-9].*";
+        "^rfkill$";
+};
+
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+Unattended-Upgrade::MinimalSteps "true";
+Unattended-Upgrade::InstallOnShutdown "false";
+
+Unattended-Upgrade::Mail "";
+Unattended-Upgrade::MailReport "on-change";
+
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+# Automatic package maintenance must never reboot this computer. Reboot
+# decisions remain explicit administrative actions after the user has saved
+# their work.
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+
+Unattended-Upgrade::OnlyOnACPower "false";
+Unattended-Upgrade::Skip-Updates-On-Metered-Connections "true";
+
+Unattended-Upgrade::Allow-downgrade "false";
+Unattended-Upgrade::Allow-APT-Mark-Fallback "true";
+
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::SyslogFacility "daemon";
+Unattended-Upgrade::Verbose "false";
+Unattended-Upgrade::Debug "false";

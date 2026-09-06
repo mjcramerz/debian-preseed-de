@@ -1,0 +1,337 @@
+/*
+ * Evergreen Notes
+ * Managed local theme for the Debian Labwc desktop.
+ */
+
+body {
+  --font-interface-theme: "Noto Sans", sans-serif;
+  --font-text-theme: "Noto Sans", sans-serif;
+  --font-monospace-theme: "Noto Sans Mono", monospace;
+  --font-text-size: 16px;
+  --line-height-normal: 1.6;
+  --line-height-tight: 1.35;
+  --file-line-width: 860px;
+  --radius-s: 4px;
+  --radius-m: 7px;
+  --radius-l: 10px;
+  --input-radius: 5px;
+  --button-radius: 5px;
+  --tab-radius-active: 5px 5px 0 0;
+  --checkbox-radius: 4px;
+  --callout-radius: 7px;
+  --embed-border-start: 3px solid var(--interactive-accent);
+  --nav-item-size: 14px;
+  --nav-item-padding: 4px 8px;
+  --status-bar-font-size: 12px;
+  --h1-size: 1.85em;
+  --h2-size: 1.55em;
+  --h3-size: 1.3em;
+  --h4-size: 1.15em;
+  --h5-size: 1.05em;
+  --h6-size: 1em;
+  --h1-weight: 700;
+  --h2-weight: 700;
+  --h3-weight: 650;
+  --h4-weight: 650;
+  --h5-weight: 600;
+  --h6-weight: 600;
+  --bold-weight: 700;
+  --link-decoration: none;
+  --link-decoration-hover: underline;
+}
+
+.theme-dark {
+  color-scheme: dark;
+  --color-base-00: #0b1813;
+  --color-base-05: #0e1f18;
+  --color-base-10: #12271f;
+  --color-base-20: #183128;
+  --color-base-25: #1e3d32;
+  --color-base-30: #274b3d;
+  --color-base-35: #315a49;
+  --color-base-40: #426f5c;
+  --color-base-50: #608a77;
+  --color-base-60: #7fa897;
+  --color-base-70: #a8c8bc;
+  --color-base-100: #e6f1ed;
+  --accent-h: 158;
+  --accent-s: 71%;
+  --accent-l: 57%;
+  --background-primary: #0e1f18;
+  --background-primary-alt: #12271f;
+  --background-secondary: #18100f;
+  --background-secondary-alt: #20130b;
+  --background-modifier-hover: #2a180c;
+  --background-modifier-active-hover: #3a2410;
+  --background-modifier-border: #315a49;
+  --background-modifier-border-hover: #43e0a6;
+  --background-modifier-border-focus: #7ef1ff;
+  --background-modifier-form-field: #0e1930;
+  --background-modifier-message: #122a22;
+  --interactive-normal: #244738;
+  --interactive-hover: #2d5a46;
+  --interactive-accent: #1e7d4d;
+  --interactive-accent-hsl: 157, 61%, 30%;
+  --interactive-accent-hover: #24955c;
+  --text-normal: #e6f1ed;
+  --text-muted: #afc7bf;
+  --text-faint: #7c948c;
+  --text-on-accent: #ffffff;
+  --text-on-accent-inverted: #07130f;
+  --text-success: #65f0bc;
+  --text-warning: #fcd36b;
+  --text-error: #ff7a76;
+  --text-accent: #8cf5d9;
+  --text-accent-hover: #b8f4cf;
+  --text-selection: #1d6b5e99;
+  --text-highlight-bg: #a6751b66;
+  --caret-color: #ffffff;
+  --link-color: #80e8d1;
+  --link-color-hover: #b8f4cf;
+  --link-external-color: #7ac1ff;
+  --link-external-color-hover: #a6d8ff;
+  --link-unresolved-color: #fcd36b;
+  --tag-color: #ffe8a6;
+  --tag-color-hover: #ffffff;
+  --tag-background: #3a2410;
+  --tag-background-hover: #5a3514;
+  --code-normal: #b8f4cf;
+  --code-comment: #7c948c;
+  --code-function: #80e8d1;
+  --code-important: #ff8d8a;
+  --code-keyword: #72dcd5;
+  --code-operator: #fcd36b;
+  --code-property: #c8ebd9;
+  --code-punctuation: #afc7bf;
+  --code-string: #b8f4cf;
+  --code-tag: #a5e8b7;
+  --code-value: #f5e287;
+  --code-background: #0b1813;
+  --blockquote-border-color: #1f9e79;
+  --blockquote-background-color: #12271f;
+  --hr-color: #315a49;
+  --table-border-color: #315a49;
+  --table-header-background: #12271f;
+  --table-row-alt-background: #0b1813;
+  --checkbox-color: #1e7d4d;
+  --checkbox-color-hover: #24955c;
+  --checkbox-border-color: #7fa897;
+  --nav-item-color: #c9a96a;
+  --nav-item-color-hover: #ffeedb;
+  --nav-item-color-active: #ffeedb;
+  --nav-item-background-hover: #2a180c;
+  --nav-item-background-active: #3a2410;
+  --nav-indentation-guide-color: #4a2e12;
+  --tab-background-active: #3a2410;
+  --tab-text-color: #c9a96a;
+  --tab-text-color-active: #ffeedb;
+  --tab-text-color-focused-active: #ffffff;
+  --tab-divider-color: #4a2e12;
+  --titlebar-background: #20130b;
+  --titlebar-background-focused: #20130b;
+  --titlebar-text-color: #ffeedb;
+  --ribbon-background: #18100f;
+  --ribbon-background-collapsed: #18100f;
+  --ribbon-background-hover: #2a180c;
+  --status-bar-background: #0e3b2c;
+  --status-bar-text-color: #f4f8ff;
+  --divider-color: #4a2e12;
+  --divider-color-hover: #ffcc66;
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb-bg: #8da4c880;
+  --scrollbar-active-thumb-bg: #f2f8ff99;
+  --modal-background: #12271f;
+  --modal-border-color: #315a49;
+  --prompt-border-color: #43e0a6;
+  --graph-line: #426f5c;
+  --graph-node: #80e8d1;
+  --graph-node-unresolved: #fcd36b;
+  --graph-node-focused: #ffffff;
+  --graph-node-tag: #ffe8a6;
+  --graph-node-attachment: #7ac1ff;
+  --canvas-background: #0b1813;
+  --canvas-card-label-color: #afc7bf;
+  --canvas-dot-pattern: #274b3d;
+  --canvas-color: 158, 71%, 57%;
+}
+
+.theme-light {
+  color-scheme: light;
+  --color-base-00: #ffffff;
+  --color-base-05: #fbfdfc;
+  --color-base-10: #f3f8f5;
+  --color-base-20: #e8f1ec;
+  --color-base-25: #dbe8e0;
+  --color-base-30: #cbdcd2;
+  --color-base-35: #b9cec2;
+  --color-base-40: #9fb9ab;
+  --color-base-50: #7f9f90;
+  --color-base-60: #607f71;
+  --color-base-70: #405e51;
+  --color-base-100: #173329;
+  --accent-h: 157;
+  --accent-s: 61%;
+  --accent-l: 31%;
+  --background-primary: #fbfdfc;
+  --background-primary-alt: #f3f8f5;
+  --background-secondary: #f7f1e9;
+  --background-secondary-alt: #eee4d8;
+  --background-modifier-hover: #e8f1ec;
+  --background-modifier-active-hover: #dbe8e0;
+  --background-modifier-border: #b9cec2;
+  --background-modifier-border-hover: #1e7d4d;
+  --background-modifier-border-focus: #145b84;
+  --background-modifier-form-field: #ffffff;
+  --background-modifier-message: #f3f8f5;
+  --interactive-normal: #e8f1ec;
+  --interactive-hover: #dbe8e0;
+  --interactive-accent: #1e7d4d;
+  --interactive-accent-hsl: 157, 61%, 30%;
+  --interactive-accent-hover: #17653e;
+  --text-normal: #173329;
+  --text-muted: #4c6b5d;
+  --text-faint: #718c7f;
+  --text-on-accent: #ffffff;
+  --text-on-accent-inverted: #07130f;
+  --text-success: #17653e;
+  --text-warning: #8a6500;
+  --text-error: #b4232d;
+  --text-accent: #17653e;
+  --text-accent-hover: #0e4d2e;
+  --text-selection: #75cfa755;
+  --text-highlight-bg: #f5d36b66;
+  --caret-color: #07130f;
+  --link-color: #17653e;
+  --link-color-hover: #0e4d2e;
+  --link-external-color: #145b84;
+  --link-external-color-hover: #0c4160;
+  --link-unresolved-color: #8a6500;
+  --tag-color: #5a3514;
+  --tag-color-hover: #3a2410;
+  --tag-background: #f3dfc6;
+  --tag-background-hover: #ecd0ad;
+  --code-normal: #17653e;
+  --code-comment: #718c7f;
+  --code-function: #116c70;
+  --code-important: #b4232d;
+  --code-keyword: #145b84;
+  --code-operator: #8a6500;
+  --code-property: #315a49;
+  --code-punctuation: #607f71;
+  --code-string: #17653e;
+  --code-tag: #4c6b1d;
+  --code-value: #8a6500;
+  --code-background: #f3f8f5;
+  --blockquote-border-color: #1e7d4d;
+  --blockquote-background-color: #f3f8f5;
+  --hr-color: #b9cec2;
+  --table-border-color: #b9cec2;
+  --table-header-background: #e8f1ec;
+  --table-row-alt-background: #f7faf8;
+  --checkbox-color: #1e7d4d;
+  --checkbox-color-hover: #17653e;
+  --checkbox-border-color: #607f71;
+  --nav-item-color: #5a3514;
+  --nav-item-color-hover: #3a2410;
+  --nav-item-color-active: #173329;
+  --nav-item-background-hover: #eee4d8;
+  --nav-item-background-active: #e4d4c1;
+  --nav-indentation-guide-color: #c6aa88;
+  --tab-background-active: #eee4d8;
+  --tab-text-color: #715b42;
+  --tab-text-color-active: #3a2410;
+  --tab-text-color-focused-active: #173329;
+  --tab-divider-color: #c6aa88;
+  --titlebar-background: #eee4d8;
+  --titlebar-background-focused: #eee4d8;
+  --titlebar-text-color: #3a2410;
+  --ribbon-background: #f7f1e9;
+  --ribbon-background-collapsed: #f7f1e9;
+  --ribbon-background-hover: #eee4d8;
+  --status-bar-background: #dbe8e0;
+  --status-bar-text-color: #173329;
+  --divider-color: #c6aa88;
+  --divider-color-hover: #8a6500;
+  --scrollbar-bg: transparent;
+  --scrollbar-thumb-bg: #7f9f9080;
+  --scrollbar-active-thumb-bg: #405e5199;
+  --modal-background: #fbfdfc;
+  --modal-border-color: #b9cec2;
+  --prompt-border-color: #1e7d4d;
+  --graph-line: #9fb9ab;
+  --graph-node: #17653e;
+  --graph-node-unresolved: #8a6500;
+  --graph-node-focused: #07130f;
+  --graph-node-tag: #5a3514;
+  --graph-node-attachment: #145b84;
+  --canvas-background: #f7faf8;
+  --canvas-card-label-color: #4c6b5d;
+  --canvas-dot-pattern: #cbdcd2;
+  --canvas-color: 157, 61%, 31%;
+}
+
+.markdown-source-view.mod-cm6 .cm-line,
+.markdown-rendered p,
+.markdown-rendered li {
+  letter-spacing: 0.005em;
+}
+
+.markdown-rendered h1,
+.markdown-rendered h2,
+.markdown-rendered h3,
+.markdown-rendered h4,
+.markdown-rendered h5,
+.markdown-rendered h6 {
+  letter-spacing: -0.012em;
+}
+
+.markdown-rendered table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.markdown-rendered th {
+  font-weight: 700;
+  text-align: left;
+}
+
+.markdown-rendered code,
+.markdown-source-view.mod-cm6 .cm-inline-code {
+  border-radius: var(--radius-s);
+  padding: 0.08em 0.3em;
+}
+
+.markdown-rendered pre code {
+  padding: 0;
+}
+
+.workspace-tab-header.is-active {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.nav-file-title.is-active,
+.nav-folder-title.is-active {
+  font-weight: 650;
+}
+
+.callout {
+  border: 1px solid rgba(var(--callout-color), 0.35);
+  box-shadow: none;
+}
+
+.tag {
+  border: 1px solid var(--background-modifier-border);
+  font-weight: 600;
+}
+
+@media print {
+  body {
+    --font-text-size: 11pt;
+    --file-line-width: 100%;
+  }
+
+  .markdown-preview-view {
+    color: #000000;
+    background: #ffffff;
+  }
+}

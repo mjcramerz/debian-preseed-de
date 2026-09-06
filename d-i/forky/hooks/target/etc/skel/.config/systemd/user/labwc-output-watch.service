@@ -1,0 +1,33 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=60s
+Description=Refresh Labwc output policy after DRM hotplug events
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+TimeoutStartSec=30s
+KillMode=control-group
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/etc/default/labwc-desktop
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+# Labwc establishes an initial usable scanout.  This persistent owner then
+# converges the configured topology once and repeats the same operation after
+# settled DRM hotplug events.
+ExecStart=/usr/local/libexec/labwc-output-watch
+Restart=always
+RestartSec=2s
+TimeoutStopSec=10s
+UMask=0077
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+#PrivateTmp=yes
+
+[Install]
+WantedBy=labwc-session.target

@@ -1,0 +1,130 @@
+#!/bin/sh
+set -eu
+umask 077
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'
+readonly labwc_x11_environment_names
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+
+greeter_uid=$(id -u)
+greeter_runtime_parent=
+if [ -n "${XDG_RUNTIME_DIR:-}" ] &&
+   [ -d "${XDG_RUNTIME_DIR}" ] &&
+   [ -w "${XDG_RUNTIME_DIR}" ]; then
+  greeter_runtime_parent=$XDG_RUNTIME_DIR
+else
+  greeter_runtime_parent=${TMPDIR:-/tmp}
+fi
+
+greeter_session_root=$(mktemp -d "${greeter_runtime_parent}/labwc-greeter.${greeter_uid}.XXXXXX")
+cleanup_greeter_session_root() {
+  rm -rf -- "${greeter_session_root}"
+}
+trap cleanup_greeter_session_root EXIT HUP INT TERM
+
+install -d -m 0700 \
+  "${greeter_session_root}/home" \
+  "${greeter_session_root}/cache" \
+  "${greeter_session_root}/state" \
+  "${greeter_session_root}/config/labwc" \
+  "${greeter_session_root}/data" \
+  "${greeter_session_root}/tmp" \
+  "${greeter_session_root}/gnupg"
+
+export HOME="${greeter_session_root}/home"
+export XDG_CACHE_HOME="${greeter_session_root}/cache"
+export XDG_STATE_HOME="${greeter_session_root}/state"
+export XDG_CONFIG_HOME="${greeter_session_root}/config"
+export XDG_DATA_HOME="${greeter_session_root}/data"
+export TMPDIR="${greeter_session_root}/tmp"
+export GNUPGHOME="${greeter_session_root}/gnupg"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export XDG_CONFIG_DIRS="${XDG_CONFIG_DIRS:-/etc/xdg}"
+export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP="${LABWC_GREETER_CURRENT_DESKTOP:-labwc}"
+export XDG_SESSION_DESKTOP="${LABWC_GREETER_SESSION_DESKTOP:-labwc}"
+export DESKTOP_SESSION="${LABWC_GREETER_DESKTOP_SESSION:-labwc}"
+export LABWC_SESSION_OWNER=greeter
+export LABWC_UPDATE_ACTIVATION_ENV=0
+export LIBSEAT_BACKEND=seatd
+unset WAYLAND_DISPLAY SWAYSOCK LABWC_PID
+# Reassert the Wayland-only greeter boundary immediately before Labwc starts.
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+greeter_wlr_no_hardware_cursors=${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS:-__INSTALLER_LABWC_GREETER_WLR_NO_HARDWARE_CURSORS__}
+greeter_gsk_renderer_default="__INSTALLER_LABWC_GREETER_GSK_RENDERER__"
+unset WLR_RENDERER
+if [ "${LABWC_GREETER_WLR_RENDERER+x}" = x ]; then
+  [ -z "${LABWC_GREETER_WLR_RENDERER}" ] || export WLR_RENDERER="${LABWC_GREETER_WLR_RENDERER}"
+else
+  export WLR_RENDERER="__INSTALLER_LABWC_GREETER_WLR_RENDERER__"
+fi
+unset GSK_RENDERER
+if [ "${LABWC_GREETER_GSK_RENDERER+x}" = x ]; then
+  [ -z "${LABWC_GREETER_GSK_RENDERER}" ] || export GSK_RENDERER="${LABWC_GREETER_GSK_RENDERER}"
+else
+  [ -z "$greeter_gsk_renderer_default" ] || export GSK_RENDERER="$greeter_gsk_renderer_default"
+fi
+unset WLR_NO_HARDWARE_CURSORS
+[ -z "$greeter_wlr_no_hardware_cursors" ] || export WLR_NO_HARDWARE_CURSORS="$greeter_wlr_no_hardware_cursors"
+export GDK_BACKEND=wayland
+export GDK_DISABLE="${LABWC_GREETER_GDK_DISABLE:-__INSTALLER_LABWC_GREETER_GDK_DISABLE__}"
+export GTK_A11Y="${GTK_A11Y:-none}"
+export NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}"
+export ANGLE_DEFAULT_PLATFORM=gl
+export WGPU_BACKEND=gl
+export SDL_RENDER_DRIVER=opengl
+unset \
+  VK_ADD_DRIVER_FILES \
+  VK_ADD_LAYER_PATH \
+  VK_DRIVER_FILES \
+  VK_ICD_FILENAMES \
+  VK_INSTANCE_LAYERS \
+  VK_LAYER_PATH \
+  VK_LOADER_DEBUG \
+  VK_LOADER_DRIVERS_DISABLE \
+  VK_LOADER_DRIVERS_SELECT \
+  VK_LOADER_LAYERS_DISABLE \
+  VK_LOADER_LAYERS_ENABLE \
+  MESA_VK_DEVICE_SELECT \
+  MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE \
+  __VK_LAYER_NV_optimus
+export GTK_USE_PORTAL=0
+export GIO_USE_PORTALS=0
+export GIO_USE_VFS=local
+export GVFS_DISABLE_FUSE=1
+
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=${XDG_RUNTIME_DIR}/bus}"
+fi
+
+session_command=${LABWC_DESKTOP_SESSION_COMMAND:-__INSTALLER_LABWC_DESKTOP_SESSION_COMMAND__}
+greeter_config_dir="${greeter_session_root}/config/labwc"
+greeter_asset_dir=/usr/local/share/labwc-greeter
+greeter_client=/usr/local/libexec/labwc-greeter-client
+greeter_autostart="${greeter_config_dir}/autostart"
+
+[ -r "${greeter_asset_dir}/rc.xml" ] || {
+  printf 'fatal: greeter Labwc configuration is missing: %s\n' "${greeter_asset_dir}/rc.xml" >&2
+  exit 1
+}
+[ -r "${greeter_asset_dir}/autostart" ] || {
+  printf 'fatal: greeter Labwc autostart is missing: %s\n' "${greeter_asset_dir}/autostart" >&2
+  exit 1
+}
+[ -x "$greeter_client" ] || {
+  printf 'fatal: greeter client is unavailable: %s\n' "$greeter_client" >&2
+  exit 1
+}
+install -m 0600 "${greeter_asset_dir}/rc.xml" "${greeter_config_dir}/rc.xml"
+install -m 0700 "${greeter_asset_dir}/autostart" "$greeter_autostart"
+export LABWC_GREETER_SESSION_COMMAND="$session_command"
+
+/usr/bin/labwc -C "$greeter_config_dir" -S "$greeter_client"

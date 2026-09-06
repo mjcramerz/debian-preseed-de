@@ -1,0 +1,3 @@
+#!/bin/sh
+# Public calendar entrypoint for Labwc and Fuzzel.  The systemd worker is private.
+exec /usr/local/libexec/labwc-calendar "$@"

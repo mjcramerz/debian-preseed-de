@@ -1,0 +1,6 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the Labwc desktop role free from the X11/X.Org runtime stack.
+
+Package: dbus-x11 x11-xkb-utils x11-xserver-utils xauth xinit xterm xwayland xserver-common xserver-xorg xserver-xorg-core xserver-xorg-input-all xserver-xorg-legacy xserver-xorg-video-all xserver-xorg-video-amdgpu
+Pin: version *
+Pin-Priority: -1

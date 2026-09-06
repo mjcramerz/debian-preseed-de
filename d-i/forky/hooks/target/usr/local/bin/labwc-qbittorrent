@@ -1,0 +1,745 @@
+#!/usr/bin/python3 -I
+import configparser
+import hashlib
+import os
+import pathlib
+import pwd
+import re
+import shlex
+import shutil
+import stat
+import sys
+import urllib.parse
+
+
+DEFAULTS_PATH = pathlib.Path("/etc/default/labwc-desktop")
+MAX_DEFAULTS_BYTES = 65536
+MAX_LAUNCH_ARGUMENTS = 64
+MAX_LAUNCH_ARGUMENT_BYTES = 8192
+MAX_TORRENT_FILE_BYTES = 16 * 1024 * 1024
+MANAGED_PORT = 50309
+USERNAME_PATTERN = re.compile(r"^[a-z_][a-z0-9_-]*$")
+DBUS_ADDRESS_PATTERN = re.compile(r"unix:path=([^,]+)(?:,[^=]+=[^,]+)*")
+DEFAULT_KEYS = {
+    "LABWC_INTEL_ACCELERATION_AVAILABLE",
+    "LABWC_NVIDIA_ACCELERATION_AVAILABLE",
+    "LABWC_QBITTORRENT_PORT",
+    "LABWC_QBITTORRENT_ROOT",
+    "LABWC_QBITTORRENT_USER",
+}
+ACCELERATION_OPTION_PREFIX = "--managed-acceleration="
+
+
+def fail(message: str) -> None:
+    print(f"fatal: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def validate_absolute_path(label: str, value: str) -> pathlib.Path:
+    if not value or not value.startswith("/"):
+        fail(f"{label} must be an absolute path: {value or 'unset'}")
+    if any(character in value for character in ("\0", "\n", "\r")):
+        fail(f"{label} contains unsupported control characters")
+    path = pathlib.Path(value)
+    if ".." in path.parts:
+        fail(f"{label} must not contain parent traversal: {value}")
+    return path
+
+
+def load_defaults(path: pathlib.Path) -> dict[str, str]:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        fail(f"managed desktop defaults are unavailable: {path}: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(f"managed desktop defaults must be a regular file: {path}")
+    if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        fail(f"managed desktop defaults must be root-owned and not writable by group or others: {path}")
+    if metadata.st_size > MAX_DEFAULTS_BYTES:
+        fail(f"managed desktop defaults exceed {MAX_DEFAULTS_BYTES} bytes: {path}")
+
+    values: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        fail(f"failed to read managed desktop defaults: {path}: {exc}")
+    for line_number, raw_line in enumerate(lines, start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        key = key.strip()
+        if key not in DEFAULT_KEYS:
+            continue
+        try:
+            parsed = shlex.split(raw_value, comments=False, posix=True)
+        except ValueError as exc:
+            fail(f"invalid {key} assignment on line {line_number}: {exc}")
+        if len(parsed) != 1:
+            fail(f"invalid {key} assignment on line {line_number}")
+        values[key] = parsed[0]
+    return values
+
+
+def select_acceleration_mode(
+    defaults: dict[str, str],
+    raw_arguments: list[str],
+) -> tuple[str, list[str]]:
+    mode = "launch"
+    launch_arguments: list[str] = []
+
+    for raw_argument in raw_arguments:
+        if not raw_argument.startswith(ACCELERATION_OPTION_PREFIX):
+            launch_arguments.append(raw_argument)
+            continue
+        if mode != "launch":
+            fail("qBittorrent accepts at most one managed acceleration selector")
+        mode = raw_argument[len(ACCELERATION_OPTION_PREFIX) :]
+        if mode not in {"intel", "nvidia"}:
+            fail(f"unsupported qBittorrent managed acceleration mode: {mode or 'unset'}")
+
+    if mode in {"intel", "nvidia"}:
+        key = f"LABWC_{mode.upper()}_ACCELERATION_AVAILABLE"
+        available = defaults.get(key, "")
+        if available not in {"true", "false"}:
+            fail(f"{key} must be true or false in managed desktop defaults")
+        if available != "true":
+            fail(f"{mode} acceleration is unavailable on this target")
+    return mode, launch_arguments
+
+
+def configured_account(defaults: dict[str, str]) -> tuple[pwd.struct_passwd, pathlib.Path]:
+    if os.geteuid() == 0:
+        fail("qBittorrent must run as the configured desktop user, never root")
+    try:
+        account = pwd.getpwuid(os.getuid())
+    except KeyError:
+        fail(f"current uid has no passwd entry: {os.getuid()}")
+
+    configured_user = defaults.get("LABWC_QBITTORRENT_USER", "")
+    if not USERNAME_PATTERN.fullmatch(configured_user):
+        fail(f"LABWC_QBITTORRENT_USER is invalid: {configured_user or 'unset'}")
+    if configured_user != account.pw_name:
+        fail(f"qBittorrent is restricted to {configured_user}, not {account.pw_name}")
+
+    configured_port = defaults.get("LABWC_QBITTORRENT_PORT", "")
+    if configured_port != str(MANAGED_PORT):
+        fail(f"LABWC_QBITTORRENT_PORT must remain fixed at {MANAGED_PORT}: {configured_port or 'unset'}")
+
+    expected_root = pathlib.Path(f"/run/media/{configured_user}/bittorrent")
+    configured_root = validate_absolute_path(
+        "LABWC_QBITTORRENT_ROOT",
+        defaults.get("LABWC_QBITTORRENT_ROOT", ""),
+    )
+    if configured_root != expected_root:
+        fail(f"LABWC_QBITTORRENT_ROOT must be {expected_root}: {configured_root}")
+    return account, configured_root
+
+
+def require_real_directory(path: pathlib.Path, label: str) -> None:
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        fail(f"{label} is unavailable: {path}: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        fail(f"{label} must be a real directory, not a symlink: {path}")
+
+
+def ensure_directory(path: pathlib.Path, mode: int) -> None:
+    if os.path.lexists(path):
+        require_real_directory(path, "managed qBittorrent directory")
+    else:
+        try:
+            path.mkdir(mode=mode)
+        except OSError as exc:
+            fail(f"failed to create managed qBittorrent directory {path}: {exc}")
+    try:
+        os.chmod(path, mode)
+    except OSError as exc:
+        fail(f"failed to set managed qBittorrent directory mode on {path}: {exc}")
+
+
+def prepare_storage(root: pathlib.Path) -> dict[str, pathlib.Path]:
+    require_real_directory(root, "qBittorrent storage root")
+    if root.resolve() != root:
+        fail(f"qBittorrent storage root must not resolve through symlinks: {root}")
+    if not os.access(root, os.R_OK | os.W_OK | os.X_OK):
+        fail(f"qBittorrent storage root is not accessible for reading and writing: {root}")
+
+    paths = {
+        "active": root / "active",
+        "completed": root / "completed",
+        "torrents_active": root / "torrents-active",
+        "torrents_completed": root / "torrents-completed",
+        "profile_home": root / ".qbittorrent-profile",
+        "imports": root / ".qbittorrent-profile" / "imports",
+    }
+    for name, path in paths.items():
+        ensure_directory(path, 0o700 if name in {"profile_home", "imports"} else 0o750)
+    return paths
+
+
+def managed_settings(paths: dict[str, pathlib.Path]) -> dict[str, dict[str, str]]:
+    return {
+        "Application": {"MemoryWorkingSetLimit": "1024"},
+        "BitTorrent": {
+            "Session\\AddExtensionToIncompleteFiles": "true",
+            "Session\\AnnounceToAllTiers": "true",
+            "Session\\AnnounceToAllTrackers": "true",
+            "Session\\AnonymousModeEnabled": "false",
+            "Session\\BTProtocol": "Both",
+            "Session\\DHTEnabled": "false",
+            "Session\\DefaultSavePath": str(paths["completed"]),
+            "Session\\DisableAutoTMMByDefault": "true",
+            "Session\\Encryption": "0",
+            "Session\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
+            "Session\\GlobalMaxRatio": "-1",
+            "Session\\GlobalMaxSeedingMinutes": "-1",
+            "Session\\LSDEnabled": "false",
+            "Session\\MaxActiveTorrents": "-1",
+            "Session\\MaxActiveUploads": "-1",
+            "Session\\MaxUploads": "-1",
+            "Session\\PeXEnabled": "false",
+            "Session\\Port": str(MANAGED_PORT),
+            "Session\\QueueingSystemEnabled": "false",
+            "Session\\ReannounceWhenAddressChanged": "true",
+            "Session\\SSRFMitigation": "true",
+            "Session\\TempPath": str(paths["active"]),
+            "Session\\TempPathEnabled": "true",
+            "Session\\TorrentExportDirectory": str(paths["torrents_active"]),
+            "Session\\UseRandomPort": "false",
+            "Session\\UseUPnP": "false",
+            "Session\\ValidateHTTPSTrackerCertificate": "true",
+        },
+        "Core": {"AutoDeleteAddedTorrentFile": "Never"},
+        "LegalNotice": {"Accepted": "true"},
+        "Network": {"PortForwardingEnabled": "false"},
+        "Preferences": {
+            "Connection\\PortRangeMin": str(MANAGED_PORT),
+            "Connection\\ResolvePeerCountries": "true",
+            "Connection\\UPnP": "false",
+            "Downloads\\FinishedTorrentExportDirectory": str(paths["torrents_completed"]),
+            "Downloads\\SavePath": str(paths["completed"]),
+            "Downloads\\TempPath": str(paths["active"]),
+            "Downloads\\TempPathEnabled": "true",
+            "Downloads\\TorrentExportDirectory": str(paths["torrents_active"]),
+            "General\\UseRandomPort": "false",
+            "Queueing\\QueueingEnabled": "false",
+        },
+    }
+
+
+def write_config(profile_home: pathlib.Path, paths: dict[str, pathlib.Path]) -> pathlib.Path:
+    config_dir = profile_home / ".config" / "qBittorrent"
+    ensure_directory(profile_home / ".config", 0o700)
+    ensure_directory(config_dir, 0o700)
+    config_path = config_dir / "qBittorrent.conf"
+
+    parser = configparser.ConfigParser(
+        interpolation=None,
+        strict=False,
+        delimiters=("=",),
+        empty_lines_in_values=False,
+    )
+    parser.optionxform = str
+    if os.path.lexists(config_path):
+        metadata = config_path.lstat()
+        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+            fail(f"qBittorrent config must be a regular file, not a symlink: {config_path}")
+        try:
+            with config_path.open(encoding="utf-8") as handle:
+                parser.read_file(handle)
+        except (OSError, configparser.Error) as exc:
+            fail(f"failed to parse qBittorrent config {config_path}: {exc}")
+
+    for section, settings in managed_settings(paths).items():
+        if not parser.has_section(section):
+            parser.add_section(section)
+        for key, value in settings.items():
+            parser[section][key] = value
+
+    temporary_path = config_path.with_name(f".{config_path.name}.{os.getpid()}.tmp")
+    try:
+        descriptor = os.open(
+            temporary_path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            parser.write(handle, space_around_delimiters=False)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, config_path)
+        os.chmod(config_path, 0o600)
+    except OSError as exc:
+        try:
+            temporary_path.unlink()
+        except OSError:
+            pass
+        fail(f"failed to write managed qBittorrent config {config_path}: {exc}")
+    return config_path
+
+
+def local_torrent_path(raw_argument: str) -> pathlib.Path | None:
+    if raw_argument.startswith("file:"):
+        try:
+            parsed = urllib.parse.urlsplit(raw_argument)
+            decoded_path = urllib.parse.unquote(
+                parsed.path,
+                encoding="utf-8",
+                errors="strict",
+            )
+        except (UnicodeError, ValueError) as exc:
+            fail(f"invalid local torrent file URI: {exc}")
+        if parsed.scheme != "file" or parsed.netloc not in {"", "localhost"}:
+            fail("local torrent file URI must use file:// with no remote host")
+        if parsed.query or parsed.fragment:
+            fail("local torrent file URI must not contain a query or fragment")
+        return validate_absolute_path("local torrent file", decoded_path)
+    if raw_argument.startswith("/"):
+        return validate_absolute_path("local torrent file", raw_argument)
+    return None
+
+
+def stage_torrent_file(
+    source_path: pathlib.Path,
+    imports_path: pathlib.Path,
+) -> str:
+    if source_path.suffix.lower() != ".torrent":
+        fail(f"local qBittorrent input must end in .torrent: {source_path}")
+    try:
+        source_metadata = source_path.lstat()
+    except OSError as exc:
+        fail(f"local torrent file is unavailable: {source_path}: {exc}")
+    if stat.S_ISLNK(source_metadata.st_mode) or not stat.S_ISREG(source_metadata.st_mode):
+        fail(f"local torrent file must be a regular file, not a symlink: {source_path}")
+    if source_metadata.st_size <= 0:
+        fail(f"local torrent file is empty: {source_path}")
+    if source_metadata.st_size > MAX_TORRENT_FILE_BYTES:
+        fail(
+            "local torrent file exceeds "
+            f"{MAX_TORRENT_FILE_BYTES} bytes: {source_path}"
+        )
+
+    temporary_path = imports_path / f".import.{os.getpid()}.{source_metadata.st_ino}.tmp"
+    digest = hashlib.sha256()
+    try:
+        source_descriptor = os.open(
+            source_path,
+            os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
+        )
+        destination_descriptor = os.open(
+            temporary_path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(source_descriptor, "rb") as source_handle, os.fdopen(
+            destination_descriptor,
+            "wb",
+        ) as destination_handle:
+            opened_metadata = os.fstat(source_handle.fileno())
+            if (
+                not stat.S_ISREG(opened_metadata.st_mode)
+                or opened_metadata.st_dev != source_metadata.st_dev
+                or opened_metadata.st_ino != source_metadata.st_ino
+                or opened_metadata.st_size != source_metadata.st_size
+            ):
+                fail(f"local torrent file changed while opening: {source_path}")
+            copied_bytes = 0
+            while True:
+                chunk = source_handle.read(1024 * 1024)
+                if not chunk:
+                    break
+                copied_bytes += len(chunk)
+                if copied_bytes > MAX_TORRENT_FILE_BYTES:
+                    fail(
+                        "local torrent file exceeds "
+                        f"{MAX_TORRENT_FILE_BYTES} bytes while reading: {source_path}"
+                    )
+                digest.update(chunk)
+                destination_handle.write(chunk)
+            if copied_bytes != source_metadata.st_size:
+                fail(f"local torrent file changed while reading: {source_path}")
+            destination_handle.flush()
+            os.fsync(destination_handle.fileno())
+
+        destination_path = imports_path / f"{digest.hexdigest()}.torrent"
+        if os.path.lexists(destination_path):
+            destination_metadata = destination_path.lstat()
+            if stat.S_ISLNK(destination_metadata.st_mode) or not stat.S_ISREG(
+                destination_metadata.st_mode
+            ):
+                fail(
+                    "managed qBittorrent import destination must be a regular file: "
+                    f"{destination_path}"
+                )
+        os.replace(temporary_path, destination_path)
+        os.chmod(destination_path, 0o600)
+        return str(pathlib.Path("/home/user/imports") / destination_path.name)
+    except OSError as exc:
+        fail(f"failed to stage local torrent file {source_path}: {exc}")
+    finally:
+        try:
+            temporary_path.unlink()
+        except OSError:
+            pass
+
+
+def prepare_launch_arguments(
+    paths: dict[str, pathlib.Path],
+    raw_arguments: list[str],
+) -> list[str]:
+    if len(raw_arguments) > MAX_LAUNCH_ARGUMENTS:
+        fail(f"qBittorrent accepts at most {MAX_LAUNCH_ARGUMENTS} launch arguments")
+
+    prepared: list[str] = []
+    for raw_argument in raw_arguments:
+        if (
+            not raw_argument
+            or len(raw_argument.encode("utf-8", errors="surrogateescape"))
+            > MAX_LAUNCH_ARGUMENT_BYTES
+            or any(character in raw_argument for character in ("\0", "\n", "\r"))
+        ):
+            fail("qBittorrent launch argument is empty, oversized, or contains controls")
+
+        local_path = local_torrent_path(raw_argument)
+        if local_path is not None:
+            prepared.append(stage_torrent_file(local_path, paths["imports"]))
+            continue
+
+        try:
+            parsed = urllib.parse.urlsplit(raw_argument)
+        except ValueError as exc:
+            fail(f"invalid qBittorrent launch URI: {exc}")
+        if parsed.scheme == "magnet" and raw_argument.startswith("magnet:?"):
+            prepared.append(raw_argument)
+            continue
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            prepared.append(raw_argument)
+            continue
+        fail(f"unsupported qBittorrent launch argument: {raw_argument}")
+    return prepared
+
+
+def optional_ro_bind(command: list[str], source: str) -> None:
+    if os.path.exists(source):
+        command.extend(["--ro-bind", source, source])
+
+
+def add_gpu_device_binds(command: list[str], acceleration_mode: str) -> None:
+    if acceleration_mode not in {"launch", "intel", "nvidia"}:
+        fail(f"unsupported qBittorrent accelerator mode: {acceleration_mode}")
+
+    render_devices = sorted(
+        path
+        for path in pathlib.Path("/dev/dri").glob("renderD[0-9]*")
+        if re.fullmatch(r"renderD(?:0|[1-9][0-9]{0,5})", path.name)
+    )
+    if render_devices:
+        command.extend(["--dir", "/dev/dri"])
+    device_paths = [
+        *render_devices,
+        pathlib.Path("/dev/kfd"),
+        pathlib.Path("/dev/accel"),
+    ]
+    if acceleration_mode == "nvidia":
+        device_paths.extend(
+            (
+                pathlib.Path("/dev/nvidia-caps"),
+                pathlib.Path("/dev/nvidiactl"),
+                pathlib.Path("/dev/nvidia-uvm"),
+                pathlib.Path("/dev/nvidia-uvm-tools"),
+            )
+        )
+        device_paths.extend(sorted(pathlib.Path("/dev").glob("nvidia[0-9]*")))
+    for device_path in device_paths[:64]:
+        try:
+            metadata = device_path.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            fail(f"cannot inspect qBittorrent accelerator device {device_path}: {exc}")
+        if stat.S_ISLNK(metadata.st_mode) or not (
+            stat.S_ISDIR(metadata.st_mode) or stat.S_ISCHR(metadata.st_mode)
+        ):
+            fail(
+                "qBittorrent accelerator path must be a directory or character "
+                f"device: {device_path}"
+            )
+        if metadata.st_uid != 0:
+            fail(f"qBittorrent accelerator path must remain root-owned: {device_path}")
+        command.extend(["--dev-bind", str(device_path), str(device_path)])
+
+
+def validate_no_host_audio_device_binds(command: list[str]) -> None:
+    bind_options = {
+        "--bind",
+        "--bind-try",
+        "--dev-bind",
+        "--dev-bind-try",
+        "--ro-bind",
+        "--ro-bind-try",
+    }
+    for index, argument in enumerate(command):
+        if argument not in bind_options:
+            continue
+        if index + 2 >= len(command):
+            fail("malformed qBittorrent bubblewrap bind")
+        for raw_path in command[index + 1 : index + 3]:
+            normalized_path = os.path.normpath(raw_path)
+            if normalized_path == "/dev/snd" or normalized_path.startswith("/dev/snd/"):
+                fail(f"qBittorrent bubblewrap forbids direct ALSA device access: {raw_path}")
+
+
+def validate_no_host_display_control_binds(command: list[str]) -> None:
+    bind_options = {
+        "--bind",
+        "--bind-try",
+        "--dev-bind",
+        "--dev-bind-try",
+        "--ro-bind",
+        "--ro-bind-try",
+    }
+    for index, argument in enumerate(command):
+        if argument not in bind_options:
+            continue
+        if index + 2 >= len(command):
+            fail("malformed qBittorrent bubblewrap bind")
+        for raw_path in command[index + 1 : index + 3]:
+            normalized_path = os.path.normpath(raw_path)
+            if (
+                normalized_path == "/dev/dri"
+                or (
+                    normalized_path.startswith("/dev/dri/")
+                    and re.fullmatch(
+                        r"/dev/dri/renderD(?:0|[1-9][0-9]{0,5})",
+                        normalized_path,
+                    )
+                    is None
+                )
+                or normalized_path == "/dev/nvidia-modeset"
+            ):
+                fail(
+                    "qBittorrent bubblewrap forbids host display-control "
+                    f"device access: {raw_path}"
+                )
+
+
+def require_socket(path: pathlib.Path, label: str) -> None:
+    try:
+        metadata = path.stat()
+    except OSError as exc:
+        fail(f"{label} is unavailable: {path}: {exc}")
+    if not stat.S_ISSOCK(metadata.st_mode):
+        fail(f"{label} is not a socket: {path}")
+
+
+def session_bus_path(raw_address: str) -> pathlib.Path | None:
+    address = raw_address.strip()
+    if not address:
+        return None
+    if len(address) > 4096 or any(character in address for character in ("\0", "\n", "\r", ";")):
+        fail("DBUS_SESSION_BUS_ADDRESS is invalid")
+    match = DBUS_ADDRESS_PATTERN.fullmatch(address)
+    if match is None:
+        fail("DBUS_SESSION_BUS_ADDRESS must use one local unix:path transport")
+    path = validate_absolute_path("DBUS session bus path", match.group(1))
+    require_socket(path, "DBUS session bus")
+    return path
+
+
+def build_command(
+    account: pwd.struct_passwd,
+    root: pathlib.Path,
+    profile_home: pathlib.Path,
+    acceleration_mode: str,
+    extra_args: list[str],
+) -> list[str]:
+    bwrap = shutil.which("bwrap")
+    executable = shutil.which("qbittorrent")
+    if bwrap is None:
+        fail("bubblewrap is not installed")
+    if executable is None:
+        fail("qBittorrent is not installed")
+
+    host_runtime = validate_absolute_path(
+        "XDG_RUNTIME_DIR",
+        os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"),
+    )
+    wayland_display = os.environ.get("WAYLAND_DISPLAY", "wayland-0")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", wayland_display):
+        fail(f"WAYLAND_DISPLAY contains unsupported characters: {wayland_display}")
+    host_wayland = host_runtime / wayland_display
+    require_socket(host_wayland, "Wayland display")
+
+    sandbox_runtime = pathlib.Path(f"/run/user/{os.getuid()}")
+    sandbox_home = pathlib.Path("/home/user")
+    command = [
+        bwrap,
+        "--unshare-all",
+        "--share-net",
+        "--new-session",
+        "--die-with-parent",
+        "--clearenv",
+        "--uid",
+        str(os.getuid()),
+        "--gid",
+        str(os.getgid()),
+        "--hostname",
+        f"qbittorrent-{os.getuid()}",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--ro-bind",
+        "/sys",
+        "/sys",
+        "--dir",
+        "/home",
+        "--bind",
+        str(profile_home),
+        str(sandbox_home),
+        "--dir",
+        "/run",
+        "--dir",
+        "/run/user",
+        "--dir",
+        str(sandbox_runtime),
+        "--dir",
+        "/run/media",
+        "--dir",
+        f"/run/media/{account.pw_name}",
+        "--bind",
+        str(root),
+        str(root),
+        "--dir",
+        "/etc",
+        "--dir",
+        "/var",
+        "--dir",
+        "/var/lib",
+        "--dir",
+        "/var/lib/dbus",
+        "--tmpfs",
+        "/tmp",
+        "--chmod",
+        "01777",
+        "/tmp",
+        "--tmpfs",
+        "/var/tmp",
+        "--chmod",
+        "01777",
+        "/var/tmp",
+        "--tmpfs",
+        "/dev/shm",
+        "--chmod",
+        "01777",
+        "/dev/shm",
+        "--bind",
+        str(host_wayland),
+        str(sandbox_runtime / wayland_display),
+        "--chdir",
+        str(sandbox_home),
+    ]
+
+    for source in ("/usr", "/bin", "/lib"):
+        command.extend(["--ro-bind", source, source])
+    for source in ("/sbin", "/lib64", "/lib32", "/opt"):
+        optional_ro_bind(command, source)
+    add_gpu_device_binds(command, acceleration_mode)
+    for source in (
+        "/etc/alternatives",
+        "/etc/ca-certificates",
+        "/etc/fonts",
+        "/etc/group",
+        "/etc/hosts",
+        "/etc/ld.so.cache",
+        "/etc/ld.so.conf",
+        "/etc/ld.so.conf.d",
+        "/etc/localtime",
+        "/etc/machine-id",
+        "/etc/mime.types",
+        "/etc/nsswitch.conf",
+        "/etc/passwd",
+        "/etc/pki",
+        "/etc/resolv.conf",
+        "/etc/ssl",
+        "/etc/timezone",
+        "/etc/xdg",
+        "/var/lib/dbus/machine-id",
+    ):
+        optional_ro_bind(command, source)
+
+    environment = {
+        "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin",
+        "USER": account.pw_name,
+        "LOGNAME": account.pw_name,
+        "HOME": str(sandbox_home),
+        "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "LC_ALL": os.environ.get("LC_ALL", ""),
+        "XDG_RUNTIME_DIR": str(sandbox_runtime),
+        "XDG_CONFIG_HOME": str(sandbox_home / ".config"),
+        "XDG_CACHE_HOME": str(sandbox_home / ".cache"),
+        "XDG_DATA_HOME": str(sandbox_home / ".local/share"),
+        "XDG_STATE_HOME": str(sandbox_home / ".local/state"),
+        "WAYLAND_DISPLAY": wayland_display,
+        "XDG_SESSION_TYPE": "wayland",
+        "XDG_CURRENT_DESKTOP": "labwc:wlroots",
+        "QT_QPA_PLATFORM": "wayland",
+        "QT_QPA_PLATFORMTHEME": os.environ.get("QT_QPA_PLATFORMTHEME", "qt6ct"),
+        "QSG_RHI_BACKEND": "opengl",
+        "TMPDIR": "/tmp",
+    }
+    if acceleration_mode == "intel":
+        environment.update(
+            {
+                "DRI_PRIME": "0",
+                "LIBVA_DRIVER_NAME": "iHD",
+            }
+        )
+    elif acceleration_mode == "nvidia":
+        environment.update(
+            {
+                "GBM_BACKEND": "nvidia-drm",
+                "LIBVA_DRIVER_NAME": "nvidia",
+                "NVD_BACKEND": "direct",
+                "__GLX_VENDOR_LIBRARY_NAME": "nvidia",
+                "__NV_PRIME_RENDER_OFFLOAD": "1",
+            }
+        )
+    bus_path = session_bus_path(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
+    if bus_path is not None:
+        sandbox_bus = sandbox_runtime / "bus"
+        command.extend(["--bind", str(bus_path), str(sandbox_bus)])
+        environment["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={sandbox_bus}"
+
+    for key, value in environment.items():
+        if value:
+            command.extend(["--setenv", key, value])
+    command.append(executable)
+    command.extend(extra_args)
+    validate_no_host_audio_device_binds(command)
+    validate_no_host_display_control_binds(command)
+    return command
+
+
+def main() -> int:
+    defaults = load_defaults(DEFAULTS_PATH)
+    account, root = configured_account(defaults)
+    paths = prepare_storage(root)
+    write_config(paths["profile_home"], paths)
+    acceleration_mode, raw_launch_arguments = select_acceleration_mode(defaults, sys.argv[1:])
+    launch_arguments = prepare_launch_arguments(paths, raw_launch_arguments)
+    command = build_command(
+        account,
+        root,
+        paths["profile_home"],
+        acceleration_mode,
+        launch_arguments,
+    )
+    os.execv(command[0], command)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

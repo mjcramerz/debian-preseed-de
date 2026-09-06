@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+command -v labwc-fuzzel >/dev/null 2>&1 || {
+  printf 'fatal: labwc-fuzzel is not installed\n' >&2
+  exit 1
+}
+
+command -v powerprofilesctl >/dev/null 2>&1 || {
+  printf 'fatal: powerprofilesctl is not installed\n' >&2
+  exit 1
+}
+
+current_profile=$(powerprofilesctl get 2>/dev/null || true)
+profile_list=$(powerprofilesctl list 2>/dev/null || true)
+choices=
+
+for profile in performance balanced power-saver; do
+  case "$profile_list" in
+    *"$profile:"*)
+      label=$profile
+      [ "$profile" = "$current_profile" ] && label="${label} (current)"
+      choices="${choices}${choices:+
+}${label}"
+      ;;
+  esac
+done
+
+[ -n "$choices" ] || {
+  printf 'fatal: no power profiles are available\n' >&2
+  exit 1
+}
+
+selection=$(
+  printf '%s\n' "$choices" |
+    labwc-fuzzel menu --dmenu --prompt "CPU power profile (${current_profile:-unknown})" 2>/dev/null ||
+    true
+)
+
+[ -n "$selection" ] || exit 0
+
+case "$selection" in
+  performance*) selected_profile=performance ;;
+  balanced*) selected_profile=balanced ;;
+  power-saver*) selected_profile=power-saver ;;
+  *)
+    printf 'fatal: unsupported power profile selection: %s\n' "$selection" >&2
+    exit 1
+    ;;
+esac
+
+[ "$selected_profile" = "$current_profile" ] && exit 0
+
+exec powerprofilesctl set "$selected_profile"

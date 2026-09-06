@@ -1,0 +1,22 @@
+# Managed by installer automation for desktop/server roles.
+# Installed as __INSTALLER_ACCOUNT_USERNAME__'s ~/.ssh/config.
+
+Include /data/pki/ssh/config.d/*.conf
+
+Host *
+  AddKeysToAgent no
+  BatchMode no
+  ForwardAgent no
+  ForwardX11 no
+  HashKnownHosts yes
+  IdentitiesOnly yes
+  PasswordAuthentication no
+  PreferredAuthentications publickey
+  PubkeyAcceptedAlgorithms ssh-ed25519
+  HostKeyAlgorithms ssh-ed25519
+  KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+  Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+  MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+  ServerAliveInterval 60
+  ServerAliveCountMax 3
+  VisualHostKey yes

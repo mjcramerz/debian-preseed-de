@@ -1,0 +1,4 @@
+# Optional development-environment overrides.
+#
+# Mise loads this file only when MISE_ENV=development. Keep site-wide defaults
+# here; project settings belong in that project's mise.toml.

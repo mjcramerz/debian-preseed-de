@@ -1,0 +1,11 @@
+# Managed by unattended-installer.
+#
+# Rootless Podman keeps per-user network-namespace handles beneath the managed
+# state tree. pasta only needs to inspect those handles; do not broaden this to
+# the rest of /pool/podman.
+
+/pool/podman/ r,
+/pool/podman/*/ r,
+/pool/podman/*/run/ r,
+/pool/podman/*/run/netns/ r,
+/pool/podman/*/run/netns/netns-* r,

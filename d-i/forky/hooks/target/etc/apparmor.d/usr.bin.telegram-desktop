@@ -1,0 +1,40 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile telegram-desktop /usr/bin/telegram-desktop flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-application>
+  #include <abstractions/managed-user-documents>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /dev/video* rw,
+
+  /usr/bin/telegram-desktop mr,
+  /usr/share/{TelegramDesktop,telegram-desktop}/ r,
+  /usr/share/{TelegramDesktop,telegram-desktop}/** r,
+  /usr/share/qt6ct/colors/ r,
+  /usr/share/qt6ct/colors/** r,
+
+  owner @{HOME}/.cache/telegram-desktop/ rw,
+  owner @{HOME}/.cache/telegram-desktop/** rwk,
+  owner @{HOME}/.config/qt6ct/ r,
+  owner @{HOME}/.config/qt6ct/** r,
+  owner @{HOME}/.config/telegram-desktop/ rw,
+  owner @{HOME}/.config/telegram-desktop/** rwkl,
+  owner @{HOME}/.local/share/TelegramDesktop/ rw,
+  owner @{HOME}/.local/share/TelegramDesktop/#* rwkl,
+  owner @{HOME}/.local/share/TelegramDesktop/** rwkl,
+  owner @{HOME}/.local/share/TelegramDesktop/log.txt rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+
+  include if exists <local/usr.bin.telegram-desktop>
+}

@@ -1,0 +1,38 @@
+[Unit]
+StartLimitBurst=3
+StartLimitIntervalSec=60s
+Description=Managed Android Debug Bridge server for the Labwc session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+ConditionFileIsExecutable=/usr/local/bin/adb
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+RestartSec=5s
+Restart=on-failure
+KillMode=control-group
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=HOME=%h
+Environment=XDG_RUNTIME_DIR=%t
+SyslogIdentifier=labwc-adb
+StandardOutput=journal
+StandardError=journal
+ExecStart=/usr/local/bin/labwc-adb-action --service run
+ExecStartPost=/usr/local/bin/labwc-adb-action --service ready
+ExecStopPost=/usr/local/bin/labwc-adb-action --service cleanup
+TimeoutStartSec=35s
+TimeoutStopSec=20s
+UMask=0077
+
+# Run the real server in the foreground: its lifetime is the unit/cgroup lifetime.
+# Never kill an unrelated server by name, PID-file guess, or TCP port.
+# Preserve the existing AppArmor PUx transition; NoNewPrivileges blocks it.
+NoNewPrivileges=no
+
+# Do not add seccomp or namespace sandbox directives here without auditing the
+# AppArmor transitions: user-manager seccomp implicitly forces no_new_privs.

@@ -1,0 +1,22 @@
+[Unit]
+StartLimitBurst=10
+StartLimitIntervalSec=30s
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Description=Synchronize managed Labwc application launchers
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+
+[Service]
+KillMode=control-group
+Type=oneshot
+ExecStart=/usr/local/bin/labwc-sync-application-launchers %u %h --coalesce-seconds 2
+TimeoutStartSec=2min
+TimeoutStopSec=10s
+UMask=0077
+
+[Install]
+WantedBy=labwc-session.target

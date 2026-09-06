@@ -1,0 +1,3 @@
+# Keep diverted compatibility files current after APT, unattended-upgrades and
+# direct dpkg transactions. This reloads running buses; it NEVER restarts them.
+post-invoke=/usr/local/libexec/dbus-broker-maintain --refresh

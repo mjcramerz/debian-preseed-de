@@ -1,0 +1,200 @@
+{
+  "action_map": {
+    "2o7.net": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "adnxs.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "adroll.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "adsrvr.org": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "advertising.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "casalemedia.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "clarity.ms": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "criteo.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "criteo.net": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "demdex.net": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "doubleclick.net": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "fullstory.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "google-analytics.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "googleadservices.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "googlesyndication.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "hotjar.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "hotjar.io": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "mathtag.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "mixpanel.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "mouseflow.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "openx.net": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "outbrain.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "pubmatic.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "quantcount.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "quantserve.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "rubiconproject.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "scorecardresearch.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "smartadserver.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    },
+    "taboola.com": {
+      "dnt": false,
+      "heuristicAction": "",
+      "nextUpdateTime": 0,
+      "userAction": "user_block"
+    }
+  },
+  "fp_scripts": {},
+  "settings_map": {
+    "checkForDNTPolicy": false,
+    "disableGoogleNavErrorService": true,
+    "disableHyperlinkAuditing": true,
+    "disableNetworkPrediction": true,
+    "disableTopics": true,
+    "disabledSites": [],
+    "learnInIncognito": false,
+    "learnLocally": false,
+    "seenComic": true,
+    "sendDNTSignal": false,
+    "showCounter": true,
+    "showDisabledSitesTip": true,
+    "showExpandedTrackingSection": false,
+    "showIntroPage": false,
+    "showNonTrackingDomains": false,
+    "widgetReplacementExceptions": [],
+    "widgetSiteAllowlist": {}
+  },
+  "snitch_map": {},
+  "tracking_map": {}
+}

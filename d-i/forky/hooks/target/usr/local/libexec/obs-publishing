@@ -1,0 +1,602 @@
+#!/usr/bin/python3
+"""Account-scoped OBS/osc source-publication entrypoints."""
+
+from __future__ import annotations
+
+import configparser
+import hmac
+import json
+import os
+import pathlib
+import pwd
+import re
+import stat
+import subprocess
+import sys
+import urllib.parse
+from dataclasses import dataclass
+from typing import Callable, NoReturn
+
+
+ACCOUNT_RE = re.compile(r"[A-Za-z0-9_.@+-]+\Z")
+PACKAGE_RE = re.compile(r"[A-Za-z0-9+._-]+\Z")
+PROJECT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+._:-]*\Z")
+REPOSITORY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9+._:-]*\Z")
+KEYRING_BACKEND_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\Z")
+OSC_BINARY = pathlib.Path("/usr/local/lib/osc/bin/osc")
+COMMAND_TIMEOUT_SECONDS = 3600
+STATUS_TIMEOUT_SECONDS = 300
+MAX_CONFIG_BYTES = 1024 * 1024
+MAX_SECRET_BYTES = 8192
+
+
+class PublishingError(RuntimeError):
+    """Expected validation or publication failure."""
+
+
+@dataclass(frozen=True)
+class OscContext:
+    config: pathlib.Path
+    state_dir: pathlib.Path
+    apiurl: str
+    service: str
+    credentials_backend: str
+    project: str
+    repository: str
+    workspace: pathlib.Path
+
+
+def fail(message: str) -> NoReturn:
+    raise PublishingError(message)
+
+
+def current_account() -> tuple[str, int]:
+    uid = os.getuid()
+    try:
+        username = pwd.getpwuid(uid).pw_name
+    except KeyError:
+        fail("the current account is missing from the passwd database")
+    environment_user = os.environ.get("USER")
+    if environment_user and environment_user != username:
+        fail("USER does not identify the canonical current account")
+    if not ACCOUNT_RE.fullmatch(username):
+        fail("the current account name is unsafe for managed publication paths")
+    return username, uid
+
+
+def require_root_owned_executable(path: pathlib.Path, label: str) -> pathlib.Path:
+    try:
+        path_stat = path.lstat()
+    except FileNotFoundError:
+        fail(f"{label} is missing: {path}")
+    if path.is_symlink() or not stat.S_ISREG(path_stat.st_mode):
+        fail(f"{label} must be a regular non-symlink file: {path}")
+    if path_stat.st_uid != 0 or path_stat.st_gid != 0:
+        fail(f"{label} must be owned by root: {path}")
+    if stat.S_IMODE(path_stat.st_mode) & 0o022:
+        fail(f"{label} must not be group/world writable: {path}")
+    if not os.access(path, os.X_OK):
+        fail(f"{label} is not executable: {path}")
+    return path
+
+
+def require_private_regular_file(
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    maximum_bytes: int,
+) -> bytes:
+    flags = os.O_RDONLY
+    if not hasattr(os, "O_NOFOLLOW"):
+        fail("the kernel does not support no-follow managed-file reads")
+    flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        fail(f"{label} is missing or could not be opened safely: {path}")
+    try:
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode):
+            fail(f"{label} must be a regular non-symlink file: {path}")
+        if file_stat.st_uid != uid:
+            fail(f"{label} must be owned by the current account: {path}")
+        if stat.S_IMODE(file_stat.st_mode) != 0o600:
+            fail(f"{label} must have mode 0600: {path}")
+        if file_stat.st_size < 1 or file_stat.st_size > maximum_bytes:
+            fail(f"{label} has an invalid size: {path}")
+        chunks = []
+        remaining = maximum_bytes + 1
+        while remaining:
+            chunk = os.read(descriptor, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        final_stat = os.fstat(descriptor)
+    except OSError:
+        fail(f"{label} could not be read safely: {path}")
+    finally:
+        os.close(descriptor)
+    if (
+        len(data) != file_stat.st_size
+        or final_stat.st_size != file_stat.st_size
+        or final_stat.st_ino != file_stat.st_ino
+        or final_stat.st_dev != file_stat.st_dev
+    ):
+        fail(f"{label} changed while it was being read: {path}")
+    return data
+
+
+def require_managed_config(
+    configured_path: str,
+    expected_parent: pathlib.Path,
+    label: str,
+    uid: int,
+) -> tuple[pathlib.Path, bytes]:
+    path = pathlib.Path(configured_path)
+    if not path.is_absolute():
+        fail(f"{label} path must be absolute")
+    data = require_private_regular_file(path, label, uid, MAX_CONFIG_BYTES)
+    resolved_parent = expected_parent.resolve(strict=True)
+    resolved_path = path.resolve(strict=True)
+    try:
+        resolved_path.relative_to(resolved_parent)
+    except ValueError:
+        fail(f"{label} must remain below {resolved_parent}")
+    return resolved_path, data
+
+
+def decode_pending_secret(
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    validator: Callable[[str], bool],
+) -> str:
+    data = require_private_regular_file(path, label, uid, MAX_SECRET_BYTES)
+    try:
+        value = data.decode("utf-8")
+    except UnicodeDecodeError:
+        fail(f"{label} must be UTF-8 text")
+    if any(char in value for char in ("\x00", "\r", "\n")):
+        fail(f"{label} contains an unsupported control character")
+    if not validator(value):
+        fail(f"{label} has an invalid format")
+    return value
+
+
+def load_keyring(backend_name: str):
+    if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        fail(
+            "the managed Secret Service is unavailable; run this command inside "
+            "the graphical DevOps session"
+        )
+    try:
+        import keyring
+        import keyring.core
+    except ImportError:
+        fail("python3-keyring is unavailable")
+    try:
+        backend = keyring.core.load_keyring(backend_name)
+        keyring.set_keyring(backend)
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail("failed to initialize the managed Secret Service backend")
+    return keyring
+
+
+def pending_exists(path: pathlib.Path) -> bool:
+    return os.path.lexists(path)
+
+
+def import_pending_secret(
+    keyring_module,
+    path: pathlib.Path,
+    label: str,
+    uid: int,
+    service: str,
+    username: str,
+    validator: Callable[[str], bool],
+) -> None:
+    value = decode_pending_secret(path, label, uid, validator)
+    try:
+        keyring_module.set_password(service, username, value)
+        stored = keyring_module.get_password(service, username)
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail(f"failed to store {label} in Secret Service")
+    if stored is None or not hmac.compare_digest(stored, value):
+        fail(f"Secret Service did not preserve {label}")
+    path.unlink()
+
+
+def run_checked(
+    arguments: list[str],
+    label: str,
+    environment: dict[str, str] | None = None,
+    quiet: bool = False,
+    timeout: int = COMMAND_TIMEOUT_SECONDS,
+) -> None:
+    try:
+        result = subprocess.run(
+            arguments,
+            check=False,
+            env=environment,
+            stdin=None,
+            stdout=subprocess.DEVNULL if quiet else None,
+            stderr=subprocess.DEVNULL if quiet else None,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        fail(f"{label} exceeded its {timeout}-second timeout")
+    except OSError:
+        fail(f"{label} could not start")
+    if result.returncode != 0:
+        fail(f"{label} failed with status {result.returncode}")
+
+
+def load_osc_context() -> OscContext:
+    username, uid = current_account()
+    expected_state = pathlib.Path("/pool/db") / username / "osc"
+    expected_cache = pathlib.Path("/pool/cache") / username / "osc" / "packages"
+    expected_workspace = pathlib.Path("/pool/build") / username / "osc"
+    expected_build_root = (
+        expected_workspace / "build-root"
+    )
+    expected_cookiejar = expected_state / "cookiejar"
+    config_path, config_data = require_managed_config(
+        str(expected_state / "oscrc"),
+        expected_state,
+        "osc config",
+        uid,
+    )
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read_string(config_data.decode("utf-8"))
+    except (UnicodeDecodeError, configparser.Error) as exc:
+        fail(f"osc config is invalid: {exc}")
+    apiurl = parser.get("general", "apiurl", fallback="").strip()
+    parsed = urllib.parse.urlsplit(apiurl)
+    try:
+        api_port = parsed.port
+    except ValueError:
+        fail("osc API URL contains an invalid port")
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or api_port is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        fail("osc API URL must be one HTTPS Open Build Service origin")
+    if set(parser.sections()) != {"general", apiurl}:
+        fail("osc config must contain only the managed general and API sections")
+    if parser.get("general", "packagecachedir", fallback="").strip() != str(expected_cache):
+        fail("osc package cache does not match the managed account cache")
+    expected_build_pattern = f"{expected_build_root}/%(project)s/%(package)s/%(repo)s-%(arch)s"
+    if parser.get("general", "build-root", fallback="").strip() != expected_build_pattern:
+        fail("osc build root does not match the managed account workspace")
+    if parser.get("general", "cookiejar", fallback="").strip() != str(expected_cookiejar):
+        fail("osc cookie jar does not match the managed account state")
+    try:
+        http_retries = parser.getint("general", "http_retries")
+    except (configparser.Error, ValueError):
+        fail("osc HTTP retry policy is invalid")
+    if http_retries < 1 or http_retries > 10:
+        fail("osc HTTP retry policy is outside the managed range")
+    for option in (
+        "use_keyring",
+        "checkout_rooted",
+        "checkout_no_colon",
+        "check_filelist",
+        "do_package_tracking",
+        "show_download_progress",
+        "buildlog_strip_time",
+        "builtin_signature_check",
+    ):
+        try:
+            enabled = parser.getboolean("general", option)
+        except (configparser.Error, ValueError):
+            fail(f"osc {option} policy is invalid")
+        if not enabled:
+            fail(f"osc {option} policy must remain enabled")
+    for option in (
+        "quiet",
+        "verbose",
+        "debug",
+        "http_debug",
+        "http_full_debug",
+        "http_manual_approve",
+        "traceback",
+        "post_mortem",
+        "local_service_run",
+        "status_mtime_heuristic",
+        "no_verify",
+    ):
+        try:
+            enabled = parser.getboolean("general", option)
+        except (configparser.Error, ValueError):
+            fail(f"osc {option} policy is invalid")
+        if enabled:
+            fail(f"osc {option} policy must remain disabled")
+    try:
+        sslcertck = parser.getboolean(apiurl, "sslcertck")
+        allow_http = parser.getboolean(apiurl, "allow_http")
+    except (configparser.Error, ValueError):
+        fail("osc API transport policy is invalid")
+    if not sslcertck or allow_http:
+        fail("osc API transport must require HTTPS certificate validation")
+
+    metadata_path, metadata_data = require_managed_config(
+        str(expected_state / "managed.json"),
+        expected_state,
+        "osc managed metadata",
+        uid,
+    )
+    try:
+        metadata = json.loads(metadata_data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        fail("osc managed metadata is invalid UTF-8 JSON")
+    if not isinstance(metadata, dict) or set(metadata) != {
+        "apiURL",
+        "credentialsBackend",
+        "project",
+        "repository",
+        "schemaVersion",
+        "workspace",
+    }:
+        fail("osc managed metadata keys do not match schema")
+    if metadata.get("schemaVersion") != 1:
+        fail("osc managed policy schema must be version 1")
+    if metadata.get("apiURL") != apiurl:
+        fail("osc managed metadata API URL does not match oscrc")
+    project = metadata.get("project")
+    if not isinstance(project, str):
+        fail("osc managed project is invalid")
+    if PROJECT_RE.fullmatch(project) is None:
+        fail("osc managed project is invalid")
+    repository = metadata.get("repository")
+    if not isinstance(repository, str) or REPOSITORY_RE.fullmatch(repository) is None:
+        fail("osc managed repository is invalid")
+    if parser.get("general", "build_repository", fallback="").strip() != repository:
+        fail("osc build repository does not match managed metadata")
+    configured_workspace_value = metadata.get("workspace")
+    if not isinstance(configured_workspace_value, str):
+        fail("osc checkout workspace is invalid")
+    configured_workspace = pathlib.Path(configured_workspace_value)
+    if configured_workspace != expected_workspace:
+        fail("osc checkout workspace does not match the managed account workspace")
+    credentials_backend = metadata.get("credentialsBackend")
+    if (
+        not isinstance(credentials_backend, str)
+        or KEYRING_BACKEND_RE.fullmatch(credentials_backend) is None
+    ):
+        fail("osc managed Secret Service backend is invalid")
+    for section in parser.sections():
+        for option in ("user", "pass", "passx", "password"):
+            if parser.has_option(section, option):
+                fail("persistent osc config must not contain OBS credentials")
+    if metadata_path.parent != expected_state:
+        fail("osc managed metadata escaped the account state directory")
+    return OscContext(
+        config=config_path,
+        state_dir=expected_state,
+        apiurl=apiurl,
+        service=parsed.hostname,
+        credentials_backend=credentials_backend,
+        project=project,
+        repository=repository,
+        workspace=expected_workspace,
+    )
+
+
+def osc_environment_with_credentials(context: OscContext) -> dict[str, str]:
+    _, uid = current_account()
+    pending_dir = context.state_dir / ".credentials.pending"
+    username_path = pending_dir / "obs-username"
+    password_path = pending_dir / "obs-password"
+    identity_service = f"managed-osc:{context.service}"
+    keyring_module = load_keyring(context.credentials_backend)
+    if pending_exists(username_path):
+        import_pending_secret(
+            keyring_module,
+            username_path,
+            "OBS username",
+            uid,
+            identity_service,
+            "username",
+            lambda value: ACCOUNT_RE.fullmatch(value) is not None,
+        )
+    try:
+        obs_username = keyring_module.get_password(identity_service, "username")
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail("failed to read the OBS username from Secret Service")
+    if (
+        obs_username is None
+        or len(obs_username) > 255
+        or ACCOUNT_RE.fullmatch(obs_username) is None
+    ):
+        fail("OBS username is missing from Secret Service")
+
+    if pending_exists(password_path):
+        import_pending_secret(
+            keyring_module,
+            password_path,
+            "OBS password",
+            uid,
+            context.service,
+            obs_username,
+            lambda value: bool(value)
+            and len(value) <= 4096
+            and not any(char.isspace() for char in value),
+        )
+    try:
+        obs_password = keyring_module.get_password(context.service, obs_username)
+    except Exception:  # pragma: no cover - backend-specific failure
+        fail("failed to read the OBS password from Secret Service")
+    if (
+        obs_password is None
+        or not obs_password
+        or len(obs_password) > 4096
+        or any(char.isspace() for char in obs_password)
+    ):
+        fail("OBS password is missing from Secret Service")
+
+    environment = os.environ.copy()
+    for variable in list(environment):
+        if variable.startswith("OSC_"):
+            environment.pop(variable, None)
+    environment["OSC_USERNAME"] = obs_username
+    environment["OSC_CREDENTIALS_MGR_CLASS"] = (
+        "osc.credentials.KeyringCredentialsManager:"
+        f"{context.credentials_backend}"
+    )
+    return environment
+
+
+def osc_argv(context: OscContext, arguments: list[str]) -> list[str]:
+    return [str(OSC_BINARY), "--config", str(context.config), *arguments]
+
+
+def run_osc(arguments: list[str]) -> None:
+    for argument in arguments:
+        if argument == "--config" or argument.startswith("--config="):
+            fail("the managed osc wrapper does not accept a config override")
+        if (
+            argument in {"-A", "--apiurl"}
+            or (argument.startswith("-A") and len(argument) > 2)
+            or argument.startswith("--apiurl=")
+        ):
+            fail("the managed osc wrapper does not accept an API URL override")
+    context = load_osc_context()
+    binary = require_root_owned_executable(OSC_BINARY, "managed osc binary")
+    environment = osc_environment_with_credentials(context)
+    try:
+        os.execve(str(binary), osc_argv(context, arguments), environment)
+    except OSError:
+        fail("managed osc binary could not start")
+
+
+def osc_workspace(context: OscContext) -> pathlib.Path:
+    if context.workspace.is_symlink() or not context.workspace.is_dir():
+        fail(f"managed osc workspace is unavailable: {context.workspace}")
+    return context.workspace.resolve(strict=True)
+
+
+def obs_checkout_source(arguments: list[str]) -> None:
+    if len(arguments) != 1 or not PACKAGE_RE.fullmatch(arguments[0]):
+        fail("usage: obs-checkout-source <package>")
+    context = load_osc_context()
+    binary = require_root_owned_executable(OSC_BINARY, "managed osc binary")
+    environment = osc_environment_with_credentials(context)
+    os.chdir(osc_workspace(context))
+    try:
+        os.execve(
+            str(binary),
+            osc_argv(context, ["checkout", context.project, arguments[0]]),
+            environment,
+        )
+    except OSError:
+        fail("managed osc checkout could not start")
+
+
+def obs_publish_source(arguments: list[str]) -> None:
+    if len(arguments) != 2:
+        fail("usage: obs-publish-source <osc-working-copy> <commit-message>")
+    message = arguments[1]
+    if not message or len(message) > 4096 or any(char in message for char in ("\x00", "\r", "\n")):
+        fail("OBS commit message must be one non-empty line of at most 4096 characters")
+    context = load_osc_context()
+    require_root_owned_executable(OSC_BINARY, "managed osc binary")
+    workspace = osc_workspace(context)
+    requested_working_copy = pathlib.Path(arguments[0]).expanduser()
+    if requested_working_copy.is_symlink():
+        fail("OBS working copy must not be a symlink")
+    try:
+        working_copy = requested_working_copy.resolve(strict=True)
+    except OSError:
+        fail(f"OBS working copy is unavailable: {requested_working_copy}")
+    try:
+        working_copy.relative_to(workspace)
+    except ValueError:
+        fail(f"OBS working copy must remain below {workspace}")
+    metadata = working_copy / ".osc"
+    if metadata.is_symlink() or not metadata.is_dir():
+        fail(f"OBS working copy metadata is missing: {metadata}")
+    project_file = metadata / "_project"
+    package_file = metadata / "_package"
+    for metadata_file, label in (
+        (project_file, "OBS project metadata"),
+        (package_file, "OBS package metadata"),
+    ):
+        try:
+            metadata_stat = metadata_file.lstat()
+        except FileNotFoundError:
+            fail(f"{label} is missing: {metadata_file}")
+        if metadata_file.is_symlink() or not stat.S_ISREG(metadata_stat.st_mode):
+            fail(f"{label} must be a regular non-symlink file: {metadata_file}")
+        if metadata_stat.st_size < 1 or metadata_stat.st_size > 4096:
+            fail(f"{label} has an invalid size: {metadata_file}")
+    try:
+        working_project = project_file.read_text(encoding="utf-8").strip()
+        working_package = package_file.read_text(encoding="utf-8").strip()
+    except UnicodeError:
+        fail("OBS working-copy metadata must be UTF-8 text")
+    if working_project != context.project:
+        fail("OBS working copy does not belong to the oscrc managed project")
+    if PACKAGE_RE.fullmatch(working_package) is None:
+        fail("OBS working-copy package name is invalid")
+    environment = osc_environment_with_credentials(context)
+    run_checked(
+        osc_argv(context, ["addremove", str(working_copy)]),
+        "updating the OBS source file list",
+        environment=environment,
+    )
+    try:
+        status_result = subprocess.run(
+            osc_argv(context, ["status", str(working_copy)]),
+            check=False,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=STATUS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        fail("reading OBS working-copy status timed out")
+    except OSError:
+        fail("reading OBS working-copy status could not start")
+    if status_result.returncode != 0:
+        fail("reading OBS working-copy status failed")
+    if not status_result.stdout.strip():
+        print(f"OBS package {working_project}/{working_package} is already up to date")
+        return
+    print(status_result.stdout, end="" if status_result.stdout.endswith("\n") else "\n")
+    run_checked(
+        osc_argv(context, ["commit", "-m", message, str(working_copy)]),
+        "publishing sources to OBS",
+        environment=environment,
+    )
+
+
+def main() -> int:
+    command = pathlib.Path(sys.argv[0]).name
+    arguments = sys.argv[1:]
+    try:
+        if command == "osc":
+            run_osc(arguments)
+        elif command == "obs-checkout-source":
+            obs_checkout_source(arguments)
+        elif command == "obs-publish-source":
+            obs_publish_source(arguments)
+        else:
+            fail(f"unsupported managed OBS publication command: {command}")
+    except PublishingError as exc:
+        print(f"fatal: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

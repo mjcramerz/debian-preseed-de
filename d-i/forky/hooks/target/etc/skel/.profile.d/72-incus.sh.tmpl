@@ -1,0 +1,181 @@
+# shellcheck shell=sh
+# Managed by unattended-installer.
+#
+# The root-owned Incus daemon manages host namespaces and storage. This account
+# reaches it only through the confined `incus` group, never `incus-admin`.
+# INCUS_DIR is deliberately not exported because it selects daemon state.
+# Native client cache/configuration is confined to validated account-owned
+# roots and is reconstructed deterministically by interactive shells and Codex.
+
+incus_profile_path_is_safe_absolute() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+  case "$1" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  case "$1" in
+    *//*) return 1 ;;
+  esac
+  case "/${1#/}/" in
+    */./*|*/../*) return 1 ;;
+  esac
+  case "$1" in
+    *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./@+-]*)
+      return 1
+      ;;
+  esac
+)
+
+incus_profile_account_owned_directory_is_mode() (
+  case "$#" in
+    2) ;;
+    *) return 64 ;;
+  esac
+
+  incus_profile_directory=$1
+  incus_profile_mode=$2
+  incus_profile_path_is_safe_absolute "$incus_profile_directory" || return 1
+  case "$incus_profile_mode" in
+    ''|*[!0-7]*) return 1 ;;
+  esac
+  [ -d "$incus_profile_directory" ] &&
+    [ ! -L "$incus_profile_directory" ] &&
+    [ -r "$incus_profile_directory" ] &&
+    [ -w "$incus_profile_directory" ] &&
+    [ -x "$incus_profile_directory" ] ||
+    return 1
+
+  incus_profile_real=$(/usr/bin/readlink -f -- "$incus_profile_directory" 2>/dev/null) ||
+    return 1
+  [ "$incus_profile_real" = "$incus_profile_directory" ] || return 1
+  incus_profile_owner=$(/usr/bin/stat -c '%u' -- "$incus_profile_directory" 2>/dev/null) ||
+    return 1
+  incus_profile_actual_mode=$(/usr/bin/stat -c '%a' -- "$incus_profile_directory" 2>/dev/null) ||
+    return 1
+  incus_profile_uid=$(/usr/bin/id -u 2>/dev/null) || return 1
+  [ "$incus_profile_owner" = "$incus_profile_uid" ] &&
+    [ "$incus_profile_actual_mode" = "$incus_profile_mode" ]
+)
+
+incus_profile_ensure_private_directory() (
+  case "$#" in
+    1) ;;
+    *) return 64 ;;
+  esac
+
+  incus_profile_private_directory=$1
+  incus_profile_path_is_safe_absolute "$incus_profile_private_directory" ||
+    return 1
+  if [ ! -e "$incus_profile_private_directory" ] &&
+     [ ! -L "$incus_profile_private_directory" ]; then
+    (umask 077 && /usr/bin/mkdir -- "$incus_profile_private_directory") ||
+      return 1
+    /usr/bin/chmod 00700 -- "$incus_profile_private_directory" ||
+      return 1
+  fi
+  incus_profile_account_owned_directory_is_mode \
+    "$incus_profile_private_directory" \
+    700
+)
+
+incus_profile_validate_account() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+  case "${USER:-}" in
+    ''|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.@-]*)
+      printf '%s\n' 'incus-profile: the current account name is unsafe' >&2
+      return 1
+      ;;
+  esac
+  incus_profile_actual_user=$(/usr/bin/id -un 2>/dev/null) || {
+    printf '%s\n' 'incus-profile: cannot resolve the current account name' >&2
+    return 1
+  }
+  [ "$incus_profile_actual_user" = "$USER" ] || {
+    printf 'incus-profile: USER does not match the current account: expected=%s actual=%s\n' \
+      "$incus_profile_actual_user" "$USER" >&2
+    return 1
+  }
+)
+
+incus_profile_apply_environment() {
+  case "$#" in
+    0) ;;
+    *)
+      printf '%s\n' 'incus-profile: incus_profile_apply_environment accepts no arguments' >&2
+      return 64
+      ;;
+  esac
+
+  incus_profile_validate_account || return 1
+  incus_profile_cache_account_root="__INSTALLER_DIR_POOL_CACHE__/${USER}"
+  incus_profile_db_account_root="__INSTALLER_DIR_POOL_DB__/${USER}"
+  for incus_profile_account_root in \
+    "$incus_profile_cache_account_root" \
+    "$incus_profile_db_account_root"
+  do
+    incus_profile_account_owned_directory_is_mode \
+      "$incus_profile_account_root" 2770 || {
+      printf 'incus-profile: account work root must be a direct account-owned writable mode-2770 directory: %s\n' \
+        "$incus_profile_account_root" >&2
+      return 1
+    }
+  done
+
+  INCUS_CACHE="${incus_profile_cache_account_root}/incus"
+  INCUS_CONF="${incus_profile_db_account_root}/incus"
+  for incus_profile_private_directory in "$INCUS_CACHE" "$INCUS_CONF"; do
+    incus_profile_ensure_private_directory "$incus_profile_private_directory" || {
+      printf 'incus-profile: cannot create or validate private Incus client directory: %s\n' \
+        "$incus_profile_private_directory" >&2
+      unset INCUS_CACHE INCUS_CONF INCUS_MANAGED_ENVIRONMENT_READY
+      return 1
+    }
+  done
+
+  INCUS_MANAGED_ENVIRONMENT_READY=1
+  export INCUS_CACHE INCUS_CONF INCUS_MANAGED_ENVIRONMENT_READY
+  unset \
+    incus_profile_account_root \
+    incus_profile_cache_account_root \
+    incus_profile_db_account_root \
+    incus_profile_private_directory
+}
+
+incus_profile_environment_is_active() (
+  case "$#" in
+    0) ;;
+    *) return 64 ;;
+  esac
+
+  incus_profile_validate_account || return 1
+  incus_profile_expected_cache="__INSTALLER_DIR_POOL_CACHE__/${USER}/incus"
+  incus_profile_expected_conf="__INSTALLER_DIR_POOL_DB__/${USER}/incus"
+  [ "${INCUS_MANAGED_ENVIRONMENT_READY:-}" = 1 ] &&
+    [ "${INCUS_CACHE:-}" = "$incus_profile_expected_cache" ] &&
+    [ "${INCUS_CONF:-}" = "$incus_profile_expected_conf" ] &&
+    incus_profile_account_owned_directory_is_mode "$INCUS_CACHE" 700 &&
+    incus_profile_account_owned_directory_is_mode "$INCUS_CONF" 700
+)
+
+# Preserve the historical login-shell behavior: when the optional Incus addon
+# is installed, ordinary shells immediately receive the native client paths.
+# A failed validation leaves no partial selectors behind. Codex calls the same
+# apply/validate functions explicitly and treats failure as fatal.
+case "${INCUS_PROFILE_DEFER_APPLY:-}" in
+  1) ;;
+  '')
+    if ! incus_profile_apply_environment; then
+      unset INCUS_CACHE INCUS_CONF INCUS_MANAGED_ENVIRONMENT_READY
+    fi
+    ;;
+  *)
+    printf '%s\n' 'incus-profile: invalid deferred-apply marker' >&2
+    unset INCUS_CACHE INCUS_CONF INCUS_MANAGED_ENVIRONMENT_READY
+    ;;
+esac

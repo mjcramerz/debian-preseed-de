@@ -1,0 +1,13 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: podman
+  description: Podman container networking overlay.
+  merge_priority: 50
+containers:
+  podman:
+    enabled: true
+    allow_container_outbound: false
+    interfaces:
+    - podman0
+    - cni-podman0

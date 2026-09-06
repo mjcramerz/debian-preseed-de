@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+shutdown_mode=${1:-logout}
+
+case "$shutdown_mode" in
+  logout|power-transition)
+    ;;
+  *)
+    printf 'fatal: unsupported Labwc shutdown mode: %s\n' "$shutdown_mode" >&2
+    exit 1
+    ;;
+esac
+
+# Labwc invokes this hook asynchronously while compositor termination is already
+# in progress, so it cannot establish ordered session teardown. Normal logout
+# and authenticated power transitions stop labwc-session.target before
+# compositor teardown begins. Systemd remains the sole owner of service, socket,
+# process, and mount teardown; do not add competing stops, signals, unmounts,
+# clipboard operations, or global syncs here.
+exit 0

@@ -1,0 +1,22 @@
+[containers]
+cgroupns = "private"
+log_driver = "journald"
+utsns = "private"
+
+[engine]
+cgroup_manager = "systemd"
+events_logger = "journald"
+image_copy_tmp_dir = "__PODBIN_STATE_ROOT__/tmp"
+runtime = "crun"
+static_dir = "__PODBIN_STATE_ROOT__/libpod"
+tmp_dir = "__PODBIN_RUNTIME_TMP_DIR__"
+volume_path = "__PODBIN_STATE_ROOT__/volumes"
+
+[engine.runtimes]
+crun = ["/usr/bin/crun"]
+
+[network]
+network_backend = "netavark"
+network_config_dir = "__PODBIN_STATE_ROOT__/networks"
+firewall_driver = "nftables"
+default_rootless_network_cmd = "pasta"

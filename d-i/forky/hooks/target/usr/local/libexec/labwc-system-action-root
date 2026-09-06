@@ -1,0 +1,438 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C.UTF-8
+SYSTEMD_PAGER='cat'
+PAGER='cat'
+export PATH LC_ALL SYSTEMD_PAGER PAGER
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 ||
+    fatal "required system command is not installed: $1"
+}
+
+require_pkexec_invoker() {
+  case "${PKEXEC_UID:-}" in
+    ''|*[!0-9]*|0)
+      fatal "privileged system helper must be invoked by a non-root desktop user through pkexec"
+      ;;
+  esac
+  getent passwd "$PKEXEC_UID" >/dev/null 2>&1 ||
+    fatal "pkexec invoking account does not exist: $PKEXEC_UID"
+}
+
+validate_service_name() {
+  service_name=$1
+  case "$service_name" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@_.:-]*|*..*)
+      fatal "invalid systemd service name: ${service_name:-unset}"
+      ;;
+  esac
+  case "$service_name" in
+    *.service) ;;
+    *) fatal "systemd service name must end in .service: $service_name" ;;
+  esac
+}
+
+validate_nvme_controller() {
+  nvme_device=$1
+  require_command grep
+  require_command readlink
+
+  printf '%s\n' "$nvme_device" | grep -Eq '^/dev/nvme[0-9]+$' ||
+    fatal "invalid NVMe controller path: ${nvme_device:-unset}"
+  [ -b "$nvme_device" ] || [ -c "$nvme_device" ] ||
+    fatal "NVMe controller is unavailable: $nvme_device"
+  resolved_device=$(readlink -f -- "$nvme_device") ||
+    fatal "unable to resolve NVMe controller path: $nvme_device"
+  [ "$resolved_device" = "$nvme_device" ] ||
+    fatal "NVMe controller symlinks are not accepted: $nvme_device"
+}
+
+require_btrfs_root() {
+  require_command findmnt
+  root_fstype=$(findmnt --noheadings --raw --output FSTYPE --target /)
+  [ "$root_fstype" = btrfs ] ||
+    fatal "the root filesystem is not Btrfs: ${root_fstype:-unknown}"
+}
+
+require_confirmation() {
+  [ "$#" -eq 1 ] || fatal "managed system confirmation shape is invalid"
+  [ "$1" = confirmed-system-action ] ||
+    fatal "managed system confirmation is missing"
+}
+
+systemd_resolved_active() {
+  command -v resolvectl >/dev/null 2>&1 || return 1
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl is-active --quiet systemd-resolved.service
+}
+
+networkmanager_active() {
+  command -v nmcli >/dev/null 2>&1 || return 1
+  command -v systemctl >/dev/null 2>&1 || return 1
+  systemctl is-active --quiet NetworkManager.service
+}
+
+flush_dns_cache() {
+  if systemd_resolved_active; then
+    exec resolvectl flush-caches
+  fi
+  if networkmanager_active; then
+    exec nmcli general reload dns-full
+  fi
+  fatal "no supported active resolver service is available"
+}
+
+reset_resolver_server_features() {
+  if systemd_resolved_active; then
+    exec resolvectl reset-server-features
+  fi
+  if networkmanager_active; then
+    exec nmcli general reload dns-full
+  fi
+  fatal "no supported active resolver service is available"
+}
+
+show_resolver_statistics() {
+  if systemd_resolved_active; then
+    exec resolvectl statistics
+  fi
+  if networkmanager_active; then
+    require_command cat
+    print_heading "NetworkManager resolver status"
+    nmcli general status
+    print_heading "NetworkManager devices and DNS"
+    nmcli device status
+    nmcli --fields GENERAL.DEVICE,IP4.DNS,IP6.DNS device show
+    print_heading /etc/resolv.conf
+    cat /etc/resolv.conf
+    return 0
+  fi
+  fatal "no supported active resolver service is available"
+}
+
+print_heading() {
+  printf '\n--- %s ---\n' "$1"
+}
+
+show_top_disk_usage() {
+  usage_root=$1
+  require_command du
+  require_command head
+  require_command mktemp
+  require_command numfmt
+  require_command sort
+  require_command timeout
+
+  usage_tmp=$(mktemp /tmp/labwc-system-du.XXXXXX) ||
+    fatal "unable to create temporary disk usage report"
+  trap 'rm -f "$usage_tmp"' 0 1 2 15
+  if ! timeout 5m du -x -B1 --max-depth=1 -- "$usage_root" >"$usage_tmp" 2>/dev/null; then
+    fatal "disk usage scan failed or exceeded five minutes: $usage_root"
+  fi
+  sort -nr "$usage_tmp" |
+    head -n 30 |
+    numfmt --field=1 --to=iec-i --suffix=B --padding=8
+  rm -f "$usage_tmp"
+  trap - 0 1 2 15
+}
+
+vacuum_journal_by_time() {
+  retention=$1
+  case "$retention" in
+    3d|7d|14d|30d) ;;
+    *) fatal "unsupported journal time retention: ${retention:-unset}" ;;
+  esac
+  require_command journalctl
+  journalctl --rotate
+  journalctl "--vacuum-time=$retention"
+}
+
+vacuum_journal_by_size() {
+  retention=$1
+  case "$retention" in
+    256M|512M|1G|2G) ;;
+    *) fatal "unsupported journal size retention: ${retention:-unset}" ;;
+  esac
+  require_command journalctl
+  journalctl --rotate
+  journalctl "--vacuum-size=$retention"
+}
+
+show_system_overview() {
+  require_command hostnamectl
+  require_command timedatectl
+  require_command systemctl
+  require_command uname
+  require_command uptime
+
+  print_heading Host
+  hostnamectl
+  print_heading Kernel
+  uname -a
+  print_heading Uptime
+  uptime
+  print_heading Time
+  timedatectl
+  print_heading Systemd
+  systemctl is-system-running --wait || true
+  systemctl --failed --no-legend --no-pager || true
+}
+
+show_boot_performance() {
+  require_command systemd-analyze
+  require_command sed
+
+  print_heading Summary
+  systemd-analyze time
+  print_heading "Slowest units"
+  systemd-analyze blame --no-pager | sed -n '1,50p'
+  print_heading "Critical chain"
+  systemd-analyze critical-chain --no-pager
+}
+
+show_storage_overview() {
+  require_command df
+  require_command findmnt
+  require_command lsblk
+
+  print_heading "Block devices"
+  lsblk --fs
+  print_heading "Mounted filesystems"
+  findmnt --real --output TARGET,SOURCE,FSTYPE,OPTIONS
+  print_heading "Disk usage"
+  df -hT -x tmpfs -x devtmpfs
+}
+
+show_memory_overview() {
+  require_command free
+  require_command swapon
+
+  print_heading Memory
+  free -h
+  print_heading Swap
+  swapon --show --bytes
+  if command -v zramctl >/dev/null 2>&1; then
+    print_heading Zram
+    zramctl
+  fi
+}
+
+show_network_overview() {
+  require_command ip
+  require_command ss
+
+  print_heading Addresses
+  ip -brief address
+  print_heading Routes
+  ip route show table main
+  print_heading "Socket summary"
+  ss -s
+  if command -v nmcli >/dev/null 2>&1; then
+    print_heading NetworkManager
+    nmcli general status
+    nmcli device status
+  fi
+}
+
+show_package_health() {
+  require_command apt-get
+  require_command dpkg
+
+  print_heading "Interrupted package operations"
+  dpkg --audit
+  print_heading "Dependency check"
+  apt-get check
+}
+
+inspect_service() {
+  service_name=$1
+  validate_service_name "$service_name"
+  require_command journalctl
+  require_command systemctl
+
+  print_heading "Service status"
+  systemctl status --no-pager --full "$service_name" || true
+  print_heading "Recent service journal"
+  journalctl --unit "$service_name" --boot --no-pager --lines 200
+}
+
+[ "$(id -u)" -eq 0 ] || fatal "privileged system helper must run as root"
+require_pkexec_invoker
+[ "$#" -gt 0 ] || fatal "usage: labwc-system-action-root <action> [argument]"
+
+action=$1
+shift
+
+case "$action" in
+  system-overview)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_system_overview
+    ;;
+  failed-services)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command systemctl
+    systemctl --failed --no-pager
+    ;;
+  boot-performance)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_boot_performance
+    ;;
+  recent-errors)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command journalctl
+    exec journalctl --boot --priority err --no-pager --lines 200
+    ;;
+  kernel-warnings)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command journalctl
+    exec journalctl --dmesg --boot --priority warning --no-pager --lines 200
+    ;;
+  storage-overview)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_storage_overview
+    ;;
+  memory-overview)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_memory_overview
+    ;;
+  network-overview)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_network_overview
+    ;;
+  package-health)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_package_health
+    ;;
+  pending-upgrades)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command apt
+    exec apt list --upgradable
+    ;;
+  firmware-devices)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command fwupdmgr
+    exec fwupdmgr get-devices
+    ;;
+  refresh-firmware-metadata)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command fwupdmgr
+    exec fwupdmgr refresh --force
+    ;;
+  firmware-updates)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command fwupdmgr
+    exec fwupdmgr get-updates
+    ;;
+  apply-firmware-updates)
+    require_confirmation "$@"
+    require_command fwupdmgr
+    exec fwupdmgr update --assume-yes
+    ;;
+  upgradeable-packages)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command apt
+    exec apt list --upgradable
+    ;;
+  run-unattended-upgrades)
+    require_confirmation "$@"
+    require_command systemctl
+    exec systemctl start --wait apt-daily-upgrade.service
+    ;;
+  nvme-smart-health)
+    [ "$#" -eq 1 ] || fatal "$action requires one NVMe controller"
+    validate_nvme_controller "$1"
+    require_command nvme
+    exec nvme smart-log "$1"
+    ;;
+  nvme-firmware-slots)
+    [ "$#" -eq 1 ] || fatal "$action requires one NVMe controller"
+    validate_nvme_controller "$1"
+    require_command nvme
+    exec nvme fw-log "$1"
+    ;;
+  nvme-identify-data)
+    [ "$#" -eq 1 ] || fatal "$action requires one NVMe controller"
+    validate_nvme_controller "$1"
+    require_command nvme
+    exec nvme id-ctrl "$1"
+    ;;
+  nvme-smartctl)
+    [ "$#" -eq 1 ] || fatal "$action requires one NVMe controller"
+    validate_nvme_controller "$1"
+    require_command smartctl
+    exec smartctl --all "$1"
+    ;;
+  btrfs-usage)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_btrfs_root
+    require_command btrfs
+    exec btrfs filesystem usage /
+    ;;
+  btrfs-df)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_btrfs_root
+    require_command btrfs
+    exec btrfs filesystem df /
+    ;;
+  btrfs-scrub-status)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_btrfs_root
+    require_command btrfs
+    exec btrfs scrub status /
+    ;;
+  journal-disk-usage)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command journalctl
+    exec journalctl --disk-usage
+    ;;
+  journal-vacuum-time)
+    [ "$#" -eq 2 ] || fatal "$action requires retention and confirmation"
+    require_confirmation "$2"
+    vacuum_journal_by_time "$1"
+    ;;
+  journal-vacuum-size)
+    [ "$#" -eq 2 ] || fatal "$action requires retention and confirmation"
+    require_confirmation "$2"
+    vacuum_journal_by_size "$1"
+    ;;
+  top-disk-root)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_top_disk_usage /
+    ;;
+  top-disk-home)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_top_disk_usage /home
+    ;;
+  failed-system-units)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    require_command systemctl
+    exec systemctl --failed --no-pager
+    ;;
+  flush-dns-cache)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    flush_dns_cache
+    ;;
+  reset-resolver-features)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    reset_resolver_server_features
+    ;;
+  resolver-statistics)
+    [ "$#" -eq 0 ] || fatal "$action does not accept arguments"
+    show_resolver_statistics
+    ;;
+  inspect-service)
+    [ "$#" -eq 1 ] || fatal "$action requires one service name"
+    inspect_service "$1"
+    ;;
+  *)
+    fatal "unsupported privileged system action: ${action:-unset}"
+    ;;
+esac

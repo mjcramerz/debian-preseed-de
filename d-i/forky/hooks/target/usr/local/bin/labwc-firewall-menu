@@ -1,0 +1,271 @@
+#!/bin/sh
+set -eu
+
+STATE_FILE=/etc/nftables/firewall-security.rules
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+choose_text() {
+  prompt=$1
+  printf '\n' |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "$prompt" 2>/dev/null ||
+    true
+}
+
+choose_protocol() {
+  protocol=$(
+    choose_lines \
+      "Protocol" \
+      'TCP' \
+      'UDP' \
+      'Cancel'
+  )
+  case "$protocol" in
+    TCP) printf '%s\n' tcp ;;
+    UDP) printf '%s\n' udp ;;
+  esac
+}
+
+confirm_firewall_change() {
+  prompt=$1
+  confirmation=$(
+    choose_lines \
+      "$prompt" \
+      'Cancel' \
+      'Apply validated firewall change'
+  )
+  [ "$confirmation" = 'Apply validated firewall change' ]
+}
+
+choose_rule() {
+  [ -r "$STATE_FILE" ] || return 0
+  awk -F '\t' '
+    /^[[:space:]]*#/ || NF == 0 { next }
+    NF == 7 {
+      printf "%s  %s %s %s port %s scope=%s", $1, $2, $3, $4, $5, $6
+      if ($7 != "-") {
+        printf " cidr=%s", $7
+      }
+      printf "\n"
+    }
+  ' "$STATE_FILE" |
+    labwc-fuzzel menu \
+      --dmenu \
+      --prompt "Remove managed firewall rule" 2>/dev/null ||
+    true
+}
+
+run_firewall_action() {
+  if labwc-firewall-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: firewall action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+add_rule() {
+  direction=$1
+  verdict=$2
+  scope=$3
+
+  protocol=$(choose_protocol)
+  [ -n "$protocol" ] || return 0
+  port=$(choose_text "Port number (1-65535)")
+  [ -n "$port" ] || return 0
+
+  cidr=-
+  if [ "$scope" = ip ]; then
+    cidr=$(choose_text "IPv4 or IPv6 address/CIDR")
+    [ -n "$cidr" ] || return 0
+  fi
+
+  change_summary="${verdict} ${direction} ${protocol}/${port} scope=${scope}"
+  if [ "$cidr" != - ]; then
+    change_summary="${change_summary} cidr=${cidr}"
+  fi
+
+  if confirm_firewall_change "$change_summary"; then
+    run_firewall_action \
+      add-rule \
+      "$direction" \
+      "$verdict" \
+      "$protocol" \
+      "$port" \
+      "$scope" \
+      "$cidr" \
+      confirmed-firewall-action
+  fi
+}
+
+incoming_traffic_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Firewall — Incoming Traffic" \
+        'Allow Incoming Port from Any Source' \
+        'Allow Incoming Port from LAN' \
+        'Allow Incoming Port from IP/CIDR' \
+        'Block Incoming Port from Any Source' \
+        'Block Incoming Port from LAN' \
+        'Block Incoming Port from IP/CIDR' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Allow Incoming Port from Any Source')
+        add_rule incoming allow any
+        ;;
+      'Allow Incoming Port from LAN')
+        add_rule incoming allow lan
+        ;;
+      'Allow Incoming Port from IP/CIDR')
+        add_rule incoming allow ip
+        ;;
+      'Block Incoming Port from Any Source')
+        add_rule incoming block any
+        ;;
+      'Block Incoming Port from LAN')
+        add_rule incoming block lan
+        ;;
+      'Block Incoming Port from IP/CIDR')
+        add_rule incoming block ip
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+outgoing_traffic_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Firewall — Outgoing Traffic" \
+        'Allow Outgoing Port to Any Destination' \
+        'Allow Outgoing Port to LAN' \
+        'Allow Outgoing Port to IP/CIDR' \
+        'Block Outgoing Port to Any Destination' \
+        'Block Outgoing Port to LAN' \
+        'Block Outgoing Port to IP/CIDR' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Allow Outgoing Port to Any Destination')
+        add_rule outgoing allow any
+        ;;
+      'Allow Outgoing Port to LAN')
+        add_rule outgoing allow lan
+        ;;
+      'Allow Outgoing Port to IP/CIDR')
+        add_rule outgoing allow ip
+        ;;
+      'Block Outgoing Port to Any Destination')
+        add_rule outgoing block any
+        ;;
+      'Block Outgoing Port to LAN')
+        add_rule outgoing block lan
+        ;;
+      'Block Outgoing Port to IP/CIDR')
+        add_rule outgoing block ip
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+managed_rules_menu() {
+  while :; do
+    action=$(
+      choose_lines \
+        "Firewall — Status & Managed Rules" \
+        'Show Firewall Status' \
+        'Remove Managed Firewall Rule' \
+        'Reset Managed Firewall Rules' \
+        '← Back'
+    )
+
+    case "$action" in
+      'Show Firewall Status')
+        run_firewall_action status
+        ;;
+      'Remove Managed Firewall Rule')
+        selection=$(choose_rule)
+        rule_id=${selection%% *}
+        if [ -n "$rule_id" ] &&
+           confirm_firewall_change "Remove ${rule_id}"; then
+          run_firewall_action \
+            remove-rule \
+            "$rule_id" \
+            confirmed-firewall-action
+        fi
+        ;;
+      'Reset Managed Firewall Rules')
+        if confirm_firewall_change "Remove every managed firewall rule"; then
+          run_firewall_action reset-rules confirmed-firewall-action
+        fi
+        ;;
+      '← Back'|'')
+        return 0
+        ;;
+    esac
+  done
+}
+
+command -v labwc-fuzzel >/dev/null 2>&1 ||
+  fatal "labwc-fuzzel is not installed"
+command -v labwc-firewall-action >/dev/null 2>&1 ||
+  fatal "labwc-firewall-action is not installed"
+command -v awk >/dev/null 2>&1 || fatal "awk is not installed"
+
+[ "$(id -u)" -ne 0 ] ||
+  fatal "labwc-firewall-menu must run as the logged-in desktop user"
+
+while :; do
+  action=$(
+    choose_lines \
+      "Endpoint Security — Firewall Security" \
+      '⮞ Status & Managed Rules' \
+      '⮞ Incoming Traffic' \
+      '⮞ Outgoing Traffic' \
+      '← Back'
+  )
+
+  case "$action" in
+    '⮞ Status & Managed Rules')
+      managed_rules_menu
+      ;;
+    '⮞ Incoming Traffic')
+      incoming_traffic_menu
+      ;;
+    '⮞ Outgoing Traffic')
+      outgoing_traffic_menu
+      ;;
+    '← Back'|'')
+      exit 0
+      ;;
+  esac
+done

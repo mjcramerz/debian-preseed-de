@@ -1,0 +1,13 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: docker
+  description: Docker container networking overlay.
+  merge_priority: 50
+containers:
+  docker:
+    enabled: true
+    allow_container_outbound: false
+    interfaces:
+    - docker0
+    - br-*

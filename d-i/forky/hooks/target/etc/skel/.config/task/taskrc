@@ -1,0 +1,74 @@
+# Managed by unattended-installer.
+# Taskwarrior and taskwarrior-tui share this XDG configuration.
+
+data.location=~/.local/share/task
+hooks.location=~/.local/share/task/hooks
+
+confirmation=yes
+bulk=3
+weekstart=Monday
+dateformat=Y-M-D
+dateformat.report=Y-M-D
+default.command=pending
+
+# Workflow reports
+report.pending.description=Pending
+report.pending.columns=id,priority,project,tags,due,description.count,urgency
+report.pending.labels=ID,P,Project,Tags,Due,Description,Urg
+report.pending.sort=urgency-,due+,project+/,entry+
+report.pending.filter=status:pending -ACTIVE
+
+report.inprogress.description=In Progress
+report.inprogress.columns=id,start.age,priority,project,tags,due,description.count,urgency
+report.inprogress.labels=ID,Active,P,Project,Tags,Due,Description,Urg
+report.inprogress.sort=start-,urgency-,due+,project+/
+report.inprogress.filter=status:pending +ACTIVE
+
+report.completed.description=Completed
+report.completed.columns=id,end,project,tags,description.count
+report.completed.labels=ID,Completed,Project,Tags,Description
+report.completed.sort=end-
+report.completed.filter=status:completed
+
+# Desktop-aligned Taskwarrior colors
+color.alternate=on color234
+color.active=bold black on yellow
+color.completed=color245
+color.deleted=red
+color.overdue=bold red
+color.due.today=bold yellow
+color.due=blue
+color.scheduled=green
+color.blocked=color245
+color.blocking=magenta
+color.recurring=cyan
+color.tagged=magenta
+color.label=bold yellow
+color.label.sort=bold cyan
+color.footnote=green
+
+# taskwarrior-tui workflow and chrome
+uda.taskwarrior-tui.task-report.next.filter=pending
+uda.taskwarrior-tui.task-report.info-show=true
+uda.taskwarrior-tui.task-report.info-location=auto
+uda.taskwarrior-tui.task-report.looping=true
+uda.taskwarrior-tui.task-report.use-alternate-style=true
+uda.taskwarrior-tui.task-report.prompt-on-delete=true
+uda.taskwarrior-tui.task-report.prompt-on-done=false
+uda.taskwarrior-tui.task-report.reset-filter-on-esc=true
+uda.taskwarrior-tui.quick-tag.name=next
+uda.taskwarrior-tui.selection.indicator=▶
+uda.taskwarrior-tui.selection.bold=yes
+uda.taskwarrior-tui.mark.indicator=✔
+uda.taskwarrior-tui.style.title=bold yellow
+uda.taskwarrior-tui.style.title.border=yellow
+uda.taskwarrior-tui.style.navbar=black on yellow
+uda.taskwarrior-tui.style.command=white on color234
+uda.taskwarrior-tui.style.command.error=bold red
+uda.taskwarrior-tui.style.context.active=black on cyan
+uda.taskwarrior-tui.style.report-menu.active=black on yellow
+uda.taskwarrior-tui.style.report.selection=bold black on yellow
+uda.taskwarrior-tui.style.report.scrollbar=yellow
+uda.taskwarrior-tui.style.report.scrollbar.area=color245
+uda.taskwarrior-tui.style.calendar.title=black on yellow
+uda.taskwarrior-tui.style.calendar.today=bold black on cyan

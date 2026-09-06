@@ -1,0 +1,19 @@
+{
+  "checkForDNTPolicy": false,
+  "disableGoogleNavErrorService": true,
+  "disableHyperlinkAuditing": true,
+  "disableNetworkPrediction": true,
+  "disableTopics": true,
+  "disabledSites": [],
+  "learnInIncognito": false,
+  "learnLocally": false,
+  "seenComic": true,
+  "sendDNTSignal": true,
+  "showCounter": true,
+  "showDisabledSitesTip": true,
+  "showExpandedTrackingSection": false,
+  "showIntroPage": false,
+  "showNonTrackingDomains": false,
+  "widgetReplacementExceptions": [],
+  "widgetSiteAllowlist": {}
+}

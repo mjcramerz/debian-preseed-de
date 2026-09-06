@@ -1,0 +1,47 @@
+# Managed by unattended-installer.
+#
+# Narrow network boundary for the local Whisper server and its client. These
+# profiles are intentionally separate from managed-desktop-wrappers so that
+# interpreter wrappers retain their no-network default.
+
+#include <tunables/global>
+
+profile whisper-http-client flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/bin/curl rix,
+  network inet stream,
+  owner /run/user/[0-9]*/ rw,
+  owner /run/user/[0-9]*/.whisper-* rwk,
+  owner @{HOME}/Music/Whisper/audio/*.wav r,
+
+  include if exists <local/usr.bin.curl>
+}
+
+profile whisper-cli /{usr/local/bin/whisper-cli,data/whisper/bin/whisper-cli} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-desktop-graphics>
+
+  /usr/local/bin/whisper-cli rix,
+  /data/whisper/bin/whisper-cli rix,
+  /pool/cache/whisper/models/** r,
+  owner @{HOME}/Music/Whisper/ rw,
+  owner @{HOME}/Music/Whisper/** rwkl,
+
+  include if exists <local/whisper-cli>
+}
+
+profile whisper-server /{usr/local/bin/whisper-server,data/whisper/bin/whisper-server} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-desktop-graphics>
+
+  /usr/local/bin/whisper-server rix,
+  /data/whisper/bin/whisper-server rix,
+  /pool/cache/whisper/models/** r,
+  @{PROC}/devices r,
+  @{PROC}/sys/vm/mmap_min_addr r,
+  owner @{PROC}/@{pid}/cmdline r,
+  network inet stream,
+
+  include if exists <local/whisper-server>
+}

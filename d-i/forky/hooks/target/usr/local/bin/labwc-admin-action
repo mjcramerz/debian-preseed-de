@@ -1,0 +1,82 @@
+#!/bin/sh
+set -eu
+umask 077
+
+notify_failure() {
+  notification_message=$1
+
+  notify_send_cmd=$(command -v notify-send 2>/dev/null || true)
+  [ -n "$notify_send_cmd" ] && [ -x "$notify_send_cmd" ] || return 0
+
+  "$notify_send_cmd" \
+    -a "Desktop Power" \
+    -u critical \
+    -i system-shutdown \
+    -c x-labwc.power \
+    -t 0 \
+    "Power request failed" \
+    "$notification_message" >/dev/null 2>&1 || true
+}
+
+fatal() {
+  fatal_message=$*
+  printf 'fatal: %s\n' "$fatal_message" >&2
+  notify_failure "$fatal_message"
+  exit 1
+}
+
+require_executable() {
+  [ -x "$1" ] || fatal "required executable is not available: $1"
+}
+
+action=${1:-}
+[ "$#" -eq 1 ] && [ -n "$action" ] ||
+  fatal "usage: labwc-admin-action <suspend|reboot|poweroff>"
+
+case "$action" in
+  suspend|reboot|poweroff) ;;
+  *)
+    fatal "unsupported privileged desktop action: ${action}"
+    ;;
+esac
+
+current_uid=$(/usr/bin/id -u) ||
+  fatal "unable to resolve the invoking desktop account"
+case "$current_uid" in
+  ''|0|*[!0-9]*)
+    fatal "desktop power requests require a non-root numeric user identity"
+    ;;
+esac
+runtime_dir=${XDG_RUNTIME_DIR:-}
+if [ -z "$runtime_dir" ] ||
+   [ ! -d "$runtime_dir" ] ||
+   [ -L "$runtime_dir" ] ||
+   [ "$(/usr/bin/stat -c '%u' -- "$runtime_dir" 2>/dev/null || true)" != "$current_uid" ] ||
+   [ "$(/usr/bin/stat -c '%a' -- "$runtime_dir" 2>/dev/null || true)" != 700 ]; then
+  fatal "XDG_RUNTIME_DIR is unavailable or unsafe for the desktop power request"
+fi
+
+power_lock="${runtime_dir%/}/labwc-admin-action.lock"
+exec 9>"$power_lock"
+if ! /usr/bin/flock --nonblock 9; then
+  fatal "another desktop power request is already awaiting authorization"
+fi
+
+pkexec_cmd=/usr/bin/pkexec
+root_helper=/usr/local/libexec/labwc-admin-action-root
+require_executable "$pkexec_cmd"
+require_executable "$root_helper"
+
+# Keep authentication in this foreground desktop process so the registered
+# graphical Polkit agent can show the administrator-password prompt. The
+# dedicated rule and root helper are independent of display-manager/login1
+# active-session classification; rejected or cancelled requests leave Labwc
+# and labwc-session.target untouched.
+if "$pkexec_cmd" "$root_helper" "$action"; then
+  exit 0
+else
+  action_status=$?
+fi
+
+notify_failure "The ${action} request was cancelled or failed (status ${action_status})."
+exit "$action_status"

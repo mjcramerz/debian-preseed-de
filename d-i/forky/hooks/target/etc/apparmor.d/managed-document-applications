@@ -1,0 +1,59 @@
+# Managed by unattended-installer. Separate labels, state, and executable rights.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile managed-zathura /usr/bin/zathura flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-document-runtime>
+  /usr/bin/zathura mr,
+  /usr/lib{,/@{multiarch}}/zathura/ r,
+  /usr/lib{,/@{multiarch}}/zathura/** mr,
+  /usr/share/zathura/** r,
+  /etc/zathurarc r,
+  owner @{HOME}/.config/zathura/ rw,
+  owner @{HOME}/.config/zathura/** rwkl,
+  owner @{HOME}/.cache/zathura/ rw,
+  owner @{HOME}/.cache/zathura/** rwkl,
+  owner @{HOME}/.local/share/zathura/ rw,
+  owner @{HOME}/.local/share/zathura/** rwkl,
+  # History/bookmarks use SQLite -wal/-shm/-journal and file locks.
+  /usr/bin/{lp,lpr} rix,
+  include if exists <local/usr.bin.zathura>
+}
+
+profile managed-focuswriter /usr/bin/focuswriter flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-document-runtime>
+  /usr/bin/focuswriter mr,
+  /usr/share/focuswriter/ r,
+  /usr/share/focuswriter/** r,
+  owner @{HOME}/.{config,cache}/GottCode/ rw,
+  owner @{HOME}/.{config,cache}/GottCode/** rwklm,
+  owner @{HOME}/.local/share/GottCode/ rw,
+  owner @{HOME}/.local/share/GottCode/** rwklm,
+  # Older Qt/Hunspell dictionary and portable session locations.
+  owner @{HOME}/.hunspell_* rwkl,
+  /usr/share/enchant/** r,
+  /usr/lib/@{multiarch}/enchant-*/*.so mr,
+  include if exists <local/usr.bin.focuswriter>
+}
+
+profile managed-focuswriter-import /usr/local/bin/labwc-focuswriter-import flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/dbus-session-strict>
+  # No network and no ZIP extraction, converters, macros, or shell execution.
+  /usr/local/bin/labwc-focuswriter-import r,
+  /usr/bin/focuswriter rPx -> managed-focuswriter,
+  /usr/bin/notify-send rix,
+  /etc/passwd r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  /data/downloads/** r,
+  /pool/** r,
+  /{media,mnt}/** r,
+  owner /run/user/[0-9]*/{doc,gvfs}/** r,
+  owner /run/user/[0-9]*/bus rw,
+  owner @{HOME}/Documents/ rw,
+  owner @{HOME}/Documents/FocusWriter-import-*/ rw,
+  owner @{HOME}/Documents/FocusWriter-import-*/{text-copy.txt,IMPORT-NOTICE.txt} rw,
+  signal (send, receive) peer=managed-focuswriter,
+  include if exists <local/usr.local.bin.labwc-focuswriter-import>
+}

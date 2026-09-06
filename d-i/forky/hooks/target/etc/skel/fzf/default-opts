@@ -1,0 +1,18 @@
+# fzf defaults consumed by ~/.profile through FZF_DEFAULT_OPTS.
+--height=45%
+--layout=reverse
+--border=rounded
+--margin=1
+--padding=1,2
+--info=inline-right
+--prompt=search>
+--pointer=>
+--marker=+
+--cycle
+--multi
+--ansi
+--bind=ctrl-u:preview-half-page-up,ctrl-d:preview-half-page-down
+--bind=ctrl-a:select-all,ctrl-x:deselect-all
+--color=bg+:#171e29,bg:#0c1017,spinner:#ecb860,hl:#6dc4ed
+--color=fg:#f5efe3,header:#9aa9ba,info:#94d2bd,pointer:#ecb860
+--color=marker:#ecb860,fg+:#ffffff,prompt:#ecb860,hl+:#6dc4ed

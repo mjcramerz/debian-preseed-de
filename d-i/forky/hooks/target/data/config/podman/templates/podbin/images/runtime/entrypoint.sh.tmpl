@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+install -d -m 0755 /run/sshd
+exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config

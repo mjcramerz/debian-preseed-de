@@ -1,0 +1,62 @@
+# Managed by unattended-installer.
+#
+# Enforced Visual Studio Code attachment. Code is an IDE, so its child tools
+# may execute from the system tool path and extension tree, while file access
+# remains bounded to Code state, user configuration, and managed work roots.
+
+#include <abstractions/managed-electron-application>
+#include <abstractions/managed-pipewire-audio>
+include if exists <abstractions/consoles>
+include if exists <abstractions/user-tmp>
+include if exists <abstractions/xdg-open>
+
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+network netlink raw,
+
+/etc/shells r,
+/usr/share/code/ r,
+/usr/share/code/** mrix,
+/usr/bin/ r,
+/usr/bin/** rix,
+/usr/libexec/ r,
+/usr/libexec/** rix,
+/usr/lib/git-core/ r,
+/usr/lib/git-core/** rix,
+
+/dev/ptmx rw,
+/dev/pts/ r,
+/dev/pts/[0-9]* rw,
+
+owner /run/user/[0-9]*/vscode-ipc-*.sock rw,
+owner /run/user/[0-9]*/vscode-* rw,
+
+owner @{HOME}/.cache/Code/ rw,
+owner @{HOME}/.cache/Code/** rwk,
+owner @{HOME}/.cache/Microsoft/ rw,
+owner @{HOME}/.cache/Microsoft/DeveloperTools/ rw,
+owner @{HOME}/.cache/Microsoft/DeveloperTools/** rwkl,
+owner @{HOME}/.config/Code/ rw,
+owner @{HOME}/.config/Code/** rwkl,
+owner @{HOME}/.local/share/code/ rw,
+owner @{HOME}/.local/share/code/** rwkl,
+owner @{HOME}/.vscode/ rw,
+owner @{HOME}/.vscode/** rwklm,
+owner @{HOME}/.vscode-shared/ rw,
+owner @{HOME}/.vscode-shared/** rwklm,
+
+owner @{HOME}/.gitconfig r,
+owner @{HOME}/.config/git/ r,
+owner @{HOME}/.config/git/** r,
+owner @{HOME}/.ssh/config r,
+owner @{HOME}/.ssh/known_hosts r,
+owner @{HOME}/.ssh/known_hosts.old r,
+
+owner @{HOME}/Workspace/ rw,
+owner @{HOME}/Workspace/** rwklm,
+owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwklm,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwklm,

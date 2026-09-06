@@ -1,0 +1,354 @@
+#!/bin/sh
+set -eu
+umask 077
+
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+
+labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'
+readonly labwc_x11_environment_names
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+
+current_uid=$(/usr/bin/id -u)
+case "$current_uid" in
+  ''|0|*[!0-9]*)
+    printf 'fatal: Labwc desktop sessions require a non-root managed user\n' >&2
+    exit 1
+    ;;
+esac
+readonly current_uid
+
+greeter_user=${LABWC_GREETER_USER:-}
+case "$greeter_user" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*)
+    printf 'fatal: LABWC_GREETER_USER is missing or unsafe\n' >&2
+    exit 1
+    ;;
+esac
+if [ "${#greeter_user}" -gt 64 ]; then
+  printf 'fatal: LABWC_GREETER_USER exceeds the managed identifier limit\n' >&2
+  exit 1
+fi
+greeter_uid=$(/usr/bin/id -u -- "$greeter_user" 2>/dev/null) || {
+  printf 'fatal: the managed Labwc greeter user does not exist: %s\n' "$greeter_user" >&2
+  exit 1
+}
+case "$greeter_uid" in
+  ''|0|*[!0-9]*)
+    printf 'fatal: the managed Labwc greeter must resolve to a non-root numeric UID\n' >&2
+    exit 1
+    ;;
+esac
+if [ "$greeter_uid" = "$current_uid" ]; then
+  printf 'fatal: the managed Labwc greeter and desktop session cannot share a UID\n' >&2
+  exit 1
+fi
+readonly greeter_user greeter_uid
+
+expected_runtime_dir="/run/user/${current_uid}"
+if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] &&
+   [ -d "$expected_runtime_dir" ] &&
+   [ ! -L "$expected_runtime_dir" ] &&
+   [ "$(stat -c '%u' "$expected_runtime_dir" 2>/dev/null || true)" = "$current_uid" ] &&
+   [ "$(stat -c '%a' "$expected_runtime_dir" 2>/dev/null || true)" = 700 ]; then
+  XDG_RUNTIME_DIR=$expected_runtime_dir
+fi
+if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
+   [ ! -d "$XDG_RUNTIME_DIR" ] ||
+   [ -L "$XDG_RUNTIME_DIR" ] ||
+   [ "$(stat -c '%u' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != "$current_uid" ] ||
+   [ "$(stat -c '%a' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != 700 ]; then
+  printf 'fatal: XDG_RUNTIME_DIR is unavailable, unsafe, or not owned by the current user\n' >&2
+  exit 1
+fi
+export XDG_RUNTIME_DIR
+export LABWC_SESSION_UID="$current_uid"
+
+session_bus_path="${XDG_RUNTIME_DIR}/bus"
+session_bus_address="unix:path=${session_bus_path}"
+session_bus_attempt=1
+while [ ! -S "$session_bus_path" ] && [ "$session_bus_attempt" -le 5 ]; do
+  /usr/bin/sleep 1
+  session_bus_attempt=$((session_bus_attempt + 1))
+done
+if [ ! -S "$session_bus_path" ]; then
+  printf 'fatal: the managed D-Bus user socket is unavailable: %s\n' "$session_bus_path" >&2
+  exit 1
+fi
+DBUS_SESSION_BUS_ADDRESS=$session_bus_address
+export DBUS_SESSION_BUS_ADDRESS
+# Validate provider identity as well as socket existence before starting the compositor.
+/usr/local/libexec/dbus-broker-check --user
+
+if [ -r "$HOME/.profile" ]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.profile"
+fi
+# The user profile may configure developer tooling, but it must not restore an
+# ambient X11/Xwayland session for the Wayland-only compositor.
+# shellcheck disable=SC2086
+unset $labwc_x11_environment_names
+if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
+   [ "${DBUS_SESSION_BUS_ADDRESS:-}" != "$session_bus_address" ]; then
+  printf 'fatal: the login profile changed the managed XDG runtime or D-Bus session address\n' >&2
+  exit 1
+fi
+
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=labwc:wlroots
+export XDG_SESSION_DESKTOP=labwc
+export DESKTOP_SESSION=labwc
+export LABWC_SESSION_OWNER=desktop
+export XDG_CONFIG_DIRS="${XDG_CONFIG_DIRS:-/etc/xdg}"
+export XDG_DATA_DIRS="${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-wayland}"
+export QT_QPA_PLATFORM="${LABWC_QT_QPA_PLATFORM:-__INSTALLER_LABWC_QT_QPA_PLATFORM__}"
+export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-${LABWC_QT_PLATFORMTHEME:-__INSTALLER_LABWC_QT_PLATFORMTHEME__}}"
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+export QT_OPENGL="${QT_OPENGL:-desktop}"
+export QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}"
+export GDK_BACKEND="${LABWC_GDK_BACKEND:-__INSTALLER_LABWC_GDK_BACKEND__}"
+export GDK_DISABLE="${LABWC_GDK_DISABLE:-__INSTALLER_LABWC_GDK_DISABLE__}"
+export SDL_VIDEODRIVER="${LABWC_SDL_VIDEODRIVER:-__INSTALLER_LABWC_SDL_VIDEODRIVER__}"
+export CLUTTER_BACKEND="${LABWC_CLUTTER_BACKEND:-__INSTALLER_LABWC_CLUTTER_BACKEND__}"
+export XCURSOR_THEME="${XCURSOR_THEME:-${LABWC_CURSOR_THEME:-__INSTALLER_LABWC_CURSOR_THEME__}}"
+export XCURSOR_SIZE="${XCURSOR_SIZE:-${LABWC_CURSOR_SIZE:-__INSTALLER_LABWC_CURSOR_SIZE__}}"
+export GTK_THEME="${GTK_THEME:-${LABWC_GTK_THEME:-__INSTALLER_LABWC_GTK_THEME__}}"
+export GTK_A11Y="${GTK_A11Y:-none}"
+export NO_AT_BRIDGE="${NO_AT_BRIDGE:-1}"
+export ANGLE_DEFAULT_PLATFORM=gl
+export WGPU_BACKEND=gl
+export SDL_RENDER_DRIVER=opengl
+unset \
+  VK_ADD_DRIVER_FILES \
+  VK_ADD_LAYER_PATH \
+  VK_DRIVER_FILES \
+  VK_ICD_FILENAMES \
+  VK_INSTANCE_LAYERS \
+  VK_LAYER_PATH \
+  VK_LOADER_DEBUG \
+  VK_LOADER_DRIVERS_DISABLE \
+  VK_LOADER_DRIVERS_SELECT \
+  VK_LOADER_LAYERS_DISABLE \
+  VK_LOADER_LAYERS_ENABLE \
+  MESA_VK_DEVICE_SELECT \
+  MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE \
+  __VK_LAYER_NV_optimus
+session_wlr_renderer=${LABWC_WLR_RENDERER:-__INSTALLER_LABWC_WLR_RENDERER__}
+session_gsk_renderer=${LABWC_GSK_RENDERER:-__INSTALLER_LABWC_GSK_RENDERER__}
+session_wlr_no_hardware_cursors=${LABWC_WLR_NO_HARDWARE_CURSORS:-__INSTALLER_LABWC_WLR_NO_HARDWARE_CURSORS__}
+session_wlr_scene_disable_direct_scanout=${LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT:-__INSTALLER_LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT__}
+unset WLR_RENDERER
+[ -z "$session_wlr_renderer" ] || export WLR_RENDERER="$session_wlr_renderer"
+unset GSK_RENDERER
+[ -z "$session_gsk_renderer" ] || export GSK_RENDERER="$session_gsk_renderer"
+unset WLR_NO_HARDWARE_CURSORS
+[ -z "$session_wlr_no_hardware_cursors" ] || export WLR_NO_HARDWARE_CURSORS="$session_wlr_no_hardware_cursors"
+unset WLR_SCENE_DISABLE_DIRECT_SCANOUT
+[ -z "$session_wlr_scene_disable_direct_scanout" ] || export WLR_SCENE_DISABLE_DIRECT_SCANOUT="$session_wlr_scene_disable_direct_scanout"
+[ -x /usr/bin/flock ] || {
+  printf 'fatal: /usr/bin/flock is required to enforce one Labwc session per user\n' >&2
+  exit 1
+}
+lock_path="${XDG_RUNTIME_DIR}/labwc-session.lock"
+[ ! -L "$lock_path" ] && { [ ! -e "$lock_path" ] || [ -f "$lock_path" ]; } || {
+  printf 'fatal: unsafe Labwc session lock: %s\n' "$lock_path" >&2
+  exit 1
+}
+exec 9>>"$lock_path"
+[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$current_uid:1:600" ] || {
+  printf 'fatal: unsafe Labwc session lock ownership, mode or link count\n' >&2
+  exit 1
+}
+if /usr/bin/flock --nonblock --conflict-exit-code 75 9; then
+  :
+else
+  lock_status=$?
+  [ "$lock_status" -eq 75 ] && exit 0
+  printf 'fatal: unable to acquire the Labwc session lock\n' >&2
+  exit "$lock_status"
+fi
+
+# greetd's PAM-created manager session can outlive the greeter compositor. Do
+# not let a second seatd client start while that greeter-owned logind state is
+# still being torn down; the observed overlap revoked and re-enumerated evdev
+# devices underneath the desktop compositor.
+read_monotonic_seconds() {
+  IFS=' ' read -r uptime_seconds _ </proc/uptime || return 1
+  uptime_seconds=${uptime_seconds%%.*}
+  case "$uptime_seconds" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  printf '%s\n' "$uptime_seconds"
+}
+
+greeter_session_filter='
+def valid_session:
+  . as $row |
+  ($row | type) == "object" and
+  ($row.session | type) == "string" and
+  ($row.session | length) > 0 and
+  ($row.session | length) <= 128 and
+  ($row.uid | type) == "number" and
+  ($row.uid | floor) == $row.uid and
+  $row.uid >= 0 and
+  $row.uid <= 4294967294;
+
+if type != "array" or (all(.[]; valid_session) | not) then
+  error("invalid loginctl session inventory")
+elif (any(.[]; .uid == $current_uid) | not) then
+  error("the current desktop login is absent from the loginctl session inventory")
+elif any(.[]; .uid == $greeter_uid) then
+  "busy"
+else
+  "released"
+end
+'
+readonly greeter_session_filter
+
+wait_for_greeter_seat_release() {
+  [ -x /usr/bin/jq ] || {
+    printf 'fatal: /usr/bin/jq is required to validate the logind session inventory\n' >&2
+    exit 1
+  }
+  [ -x /usr/bin/loginctl ] || {
+    printf 'fatal: /usr/bin/loginctl is required to verify the greeter seat handoff\n' >&2
+    exit 1
+  }
+  [ -x /usr/bin/timeout ] || {
+    printf 'fatal: /usr/bin/timeout is required to bound the greeter seat handoff\n' >&2
+    exit 1
+  }
+
+  handoff_started=$(read_monotonic_seconds) || {
+    printf 'fatal: unable to read the monotonic clock for the greeter seat handoff\n' >&2
+    exit 1
+  }
+  handoff_deadline=$((handoff_started + 20))
+
+  while :; do
+    handoff_now=$(read_monotonic_seconds) || {
+      printf 'fatal: unable to read the monotonic clock during the greeter seat handoff\n' >&2
+      exit 1
+    }
+    [ "$handoff_now" -lt "$handoff_deadline" ] || break
+
+    if session_inventory=$(
+      DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket \
+      LC_ALL=C.UTF-8 \
+      SYSTEMD_COLORS=0 \
+        /usr/bin/timeout \
+          --foreground \
+          --signal=TERM \
+          --kill-after=1s \
+          2s \
+          /usr/bin/loginctl \
+            --json=short \
+            --no-ask-password \
+            --no-pager \
+            list-sessions \
+            2>/dev/null
+    ); then
+      if [ "${#session_inventory}" -gt 262144 ]; then
+        printf 'fatal: loginctl returned an oversized session inventory\n' >&2
+        exit 1
+      fi
+      if session_state=$(
+        printf '%s\n' "$session_inventory" |
+          /usr/bin/jq \
+            --exit-status \
+            --raw-output \
+            --argjson current_uid "$current_uid" \
+            --argjson greeter_uid "$greeter_uid" \
+            "$greeter_session_filter" \
+            2>/dev/null
+      ); then
+        case "$session_state" in
+          released) return 0 ;;
+          busy) ;;
+          *)
+            printf 'fatal: loginctl returned an unknown greeter handoff state\n' >&2
+            exit 1
+            ;;
+        esac
+      else
+        printf 'fatal: loginctl returned an invalid or incomplete session inventory\n' >&2
+        exit 1
+      fi
+    fi
+
+    handoff_now=$(read_monotonic_seconds) || {
+      printf 'fatal: unable to read the monotonic clock during the greeter seat handoff\n' >&2
+      exit 1
+    }
+    [ "$handoff_now" -lt "$handoff_deadline" ] || break
+    /usr/bin/sleep 0.2
+  done
+
+  printf 'fatal: the managed greeter did not release all logind sessions within 20 seconds: %s (UID %s)\n' \
+    "$greeter_user" "$greeter_uid" >&2
+  exit 1
+}
+
+wait_for_greeter_seat_release
+
+systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
+[ -n "$systemctl_cmd" ] || {
+  printf 'fatal: systemctl is required to manage the Labwc compositor session\n' >&2
+  exit 1
+}
+cleanup_environment_names="LABWC_SESSION_OWNER LABWC_SESSION_UID LABWC_PID WAYLAND_DISPLAY SWAYSOCK XDG_SESSION_TYPE XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CURRENT_DESKTOP ${labwc_x11_environment_names}"
+compositor_environment_names='PATH LABWC_SESSION_UID LABWC_SESSION_OWNER DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_DIRS XDG_DATA_DIRS MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION QT_OPENGL QSG_RHI_BACKEND GDK_BACKEND GDK_DISABLE SDL_VIDEODRIVER SDL_RENDER_DRIVER CLUTTER_BACKEND ANGLE_DEFAULT_PLATFORM WGPU_BACKEND XCURSOR_THEME XCURSOR_SIZE GTK_THEME GTK_A11Y NO_AT_BRIDGE WLR_RENDERER GSK_RENDERER WLR_NO_HARDWARE_CURSORS WLR_SCENE_DISABLE_DIRECT_SCANOUT'
+
+# The login wrapper owns the lock, never its systemctl children. A killed
+# wrapper must not leave a live compositor or stale manager activation state.
+waiter_pid=
+cleanup_labwc_session() {
+  saved_status=$?
+  trap - 0
+  trap '' HUP INT TERM
+  if /usr/bin/timeout --signal=TERM --kill-after=2s 90s \
+       "$systemctl_cmd" --user stop labwc-session.target labwc-compositor.service 9>&-; then
+    # D-Bus activation cannot unset variables; the user manager is the lifecycle
+    # authority. Do not clear its live environment until teardown completed.
+    # shellcheck disable=SC2086
+    /usr/bin/timeout --kill-after=1s 5s "$systemctl_cmd" --user \
+      unset-environment $cleanup_environment_names 9>&- || \
+      printf 'warning: unable to clear the stopped Labwc environment\n' >&2
+  else
+    printf 'fatal: Labwc teardown did not complete; manager environment retained\n' >&2
+    [ "$saved_status" -ne 0 ] || saved_status=1
+  fi
+  if [ -n "$waiter_pid" ]; then
+    kill -TERM "$waiter_pid" 2>/dev/null || true
+    wait "$waiter_pid" 2>/dev/null || true
+  fi
+  exit "$saved_status"
+}
+trap cleanup_labwc_session 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Recover an orphaned previous login before changing its environment. This is
+# idempotent for inactive units and still respects the target's stop ordering.
+/usr/bin/timeout --kill-after=2s 90s "$systemctl_cmd" --user \
+  stop labwc-session.target labwc-compositor.service 9>&- || exit 1
+# shellcheck disable=SC2086
+/usr/bin/timeout --kill-after=1s 10s "$systemctl_cmd" --user \
+  unset-environment $cleanup_environment_names 9>&- || exit 1
+# Import static values only; autostart adds the actual Wayland socket and PID.
+# shellcheck disable=SC2086
+/usr/bin/timeout --kill-after=1s 10s "$systemctl_cmd" --user \
+  import-environment $compositor_environment_names 9>&- || exit 1
+
+labwc_status=0
+"$systemctl_cmd" --user --wait start labwc-compositor.service 9>&- &
+waiter_pid=$!
+wait "$waiter_pid" || labwc_status=$?
+waiter_pid=
+exit "$labwc_status"

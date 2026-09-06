@@ -1,0 +1,36 @@
+[Unit]
+Description=First boot provisioning and validation wrapper
+Documentation=man:systemd.service(5)
+DefaultDependencies=no
+
+Requires=local-fs.target
+After=local-fs.target systemd-journald.socket
+Before=sysinit.target
+
+# The wrapper skips a successful marker under its lock. Failed legacy markers
+# must not suppress a fresh validation attempt.
+
+Conflicts=shutdown.target
+Before=shutdown.target
+
+[Service]
+# Do not use oneshot here: this early wrapper must not hold sysinit.target
+# while its diagnostics wait for services started later in the boot.
+Type=exec
+ExecStart=/usr/local/libexec/firstboot.sh
+
+StandardOutput=journal
+StandardError=journal
+
+TimeoutStartSec=30s
+RuntimeMaxSec=35min
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+KillMode=control-group
+
+User=root
+Group=root
+UMask=0077
+
+[Install]
+WantedBy=sysinit.target

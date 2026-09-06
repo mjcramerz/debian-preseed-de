@@ -1,0 +1,38 @@
+[general]
+status_path = "~/.local/state/vdirsyncer/status/"
+
+[pair fruux_calendar]
+a = "fruux_calendar_local"
+b = "fruux_calendar_remote"
+collections = [["personal", "personal", "__INSTALLER_FRUUX_CALENDAR_COLLECTION__"]]
+metadata = ["displayname", "color"]
+
+[storage fruux_calendar_local]
+type = "filesystem"
+path = "~/.local/share/calendars"
+fileext = ".ics"
+
+[storage fruux_calendar_remote]
+type = "caldav"
+url = "__INSTALLER_FRUUX_ROOT_URL__"
+username = "__INSTALLER_FRUUX_USERNAME__"
+password = "__INSTALLER_FRUUX_PASSWORD__"
+item_types = ["VEVENT"]
+
+[pair fruux_tasks]
+a = "fruux_tasks_local"
+b = "fruux_tasks_remote"
+collections = [["tasks", "tasks", "__INSTALLER_FRUUX_TASKS_COLLECTION__"]]
+metadata = ["displayname", "color"]
+
+[storage fruux_tasks_local]
+type = "filesystem"
+path = "~/.local/share/calendars"
+fileext = ".ics"
+
+[storage fruux_tasks_remote]
+type = "caldav"
+url = "__INSTALLER_FRUUX_ROOT_URL__"
+username = "__INSTALLER_FRUUX_USERNAME__"
+password = "__INSTALLER_FRUUX_PASSWORD__"
+item_types = ["VTODO"]

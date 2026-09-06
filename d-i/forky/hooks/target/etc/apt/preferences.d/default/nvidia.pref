@@ -1,0 +1,11 @@
+# Managed by the installer apt-setup preferences generator.
+# Keep the broader XanMod archive available for recovery while pinning the
+# managed NVIDIA stack to the upstream builds.
+
+Package: *
+Pin: release o=xanmod
+Pin-Priority: 100
+
+Package: nvidia-dkms-595 nvidia-kernel-common-595 nvidia-utils-595 libnvidia-gl-595 libnvidia-compute-595 nvidia-compute-utils-595 nvidia-vaapi-driver libnvidia-egl-wayland1 nvidia-firmware-595-595.84 libnvidia-common-595 libnvidia-encode-595 libnvidia-decode-595 libnvidia-extra-595 libnvidia-fbc1-595 nvidia-kernel-source-595
+Pin: release o=xanmod
+Pin-Priority: 900

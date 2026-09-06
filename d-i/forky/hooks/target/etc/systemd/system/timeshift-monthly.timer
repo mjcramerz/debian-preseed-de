@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule the managed monthly Timeshift snapshot
+
+[Timer]
+OnCalendar=*-*-01 04:00:00
+Persistent=true
+RandomizedDelaySec=45m
+Unit=timeshift-monthly.service
+
+[Install]
+WantedBy=timers.target

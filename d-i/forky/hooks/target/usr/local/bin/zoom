@@ -1,0 +1,21 @@
+#!/usr/bin/python3 -I
+import os
+import sys
+
+
+if os.geteuid() == 0:
+    print(
+        "fatal: Zoom must run as the configured desktop user, never root",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+os.execv(
+    "/usr/local/bin/labwc-managed-wayland-compat-app",
+    [
+        "/usr/local/bin/labwc-managed-wayland-compat-app",
+        "auto",
+        "zoom",
+        *sys.argv[1:],
+    ],
+)

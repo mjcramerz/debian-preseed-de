@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "type": "file",
+      "ctime": 0,
+      "path": "home.md",
+      "title": "Home"
+    },
+    {
+      "type": "file",
+      "ctime": 0,
+      "path": "inbox/welcome.md",
+      "title": "Inbox"
+    }
+  ]
+}

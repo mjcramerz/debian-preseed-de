@@ -1,0 +1,17 @@
+/var/log/managed/audit/kernel-audit.log
+{
+	daily
+	rotate 4
+	maxage 7
+	maxsize 16M
+	missingok
+	notifempty
+	compress
+	delaycompress
+	create 0640 root adm
+	su root adm
+	sharedscripts
+	postrotate
+		/usr/lib/rsyslog/rsyslog-rotate
+	endscript
+}

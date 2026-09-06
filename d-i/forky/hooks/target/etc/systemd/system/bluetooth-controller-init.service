@@ -1,0 +1,38 @@
+[Unit]
+Description=Initialize Bluetooth controllers for the managed desktop
+Documentation=man:btmgmt(1) man:bluetoothd(8)
+Wants=bluetooth.service
+After=bluetooth.service
+ConditionFileIsExecutable=/usr/bin/btmgmt
+ConditionFileIsExecutable=/usr/bin/timeout
+ConditionFileIsExecutable=/usr/local/libexec/bluetooth-controller-init
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/bluetooth-controller-init
+TimeoutStartSec=35s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_BLUETOOTH AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+{
+  "accentColor": "#43e0a6",
+  "baseFontSize": 16,
+  "baseFontSizeAction": true,
+  "cssTheme": "evergreen-notes",
+  "enabledCssSnippets": [
+    "managed-ux"
+  ],
+  "interfaceFontFamily": "Noto Sans",
+  "monospaceFontFamily": "Noto Sans Mono",
+  "nativeMenus": true,
+  "showRibbon": true,
+  "showViewHeader": true,
+  "textFontFamily": "Noto Sans",
+  "theme": "obsidian",
+  "translucency": false
+}

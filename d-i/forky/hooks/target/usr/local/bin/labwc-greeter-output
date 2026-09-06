@@ -1,0 +1,353 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Fcntl qw(:flock);
+use File::Path qw(make_path);
+use IO::Select;
+use POSIX qw(WNOHANG);
+use Time::HiRes qw(usleep);
+
+my %defaults = load_defaults('/etc/default/labwc-desktop');
+apply_env_overrides(
+    \%defaults,
+    qw(
+      LABWC_GREETER_EXTERNAL_SCALE
+      LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS
+      LABWC_GREETER_INTERNAL_SCALE
+      LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT
+      LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ
+      LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH
+      LABWC_OUTPUT_INTERNAL_PREFIXES
+    )
+);
+
+my $mode = $ARGV[0] // q{};
+if ($mode eq '--configure') {
+    my ($profile) = with_config_lock(sub { configure_outputs() });
+    print "${profile}\n";
+    exit 0;
+}
+if ($mode eq '--watch') {
+    watch_outputs();
+    exit 0;
+}
+
+print STDERR "usage: labwc-greeter-output {--configure|--watch}\n";
+exit 64;
+
+sub configure_outputs {
+    my $wlr_randr = find_command('wlr-randr');
+    die "wlr-randr is unavailable\n" if !defined $wlr_randr;
+
+    my @outputs;
+    for my $attempt (1 .. 30) {
+        @outputs = connected_outputs($wlr_randr);
+        last if @outputs;
+        usleep(100_000);
+    }
+    die "no Wayland outputs became available\n" if !@outputs;
+
+    my @hdmi = sort grep { is_hdmi_output($_) } @outputs;
+    my @internal = sort grep { is_internal_output($_) } @outputs;
+    my @other_external = sort grep {
+        !is_hdmi_output($_) && !is_internal_output($_)
+    } @outputs;
+    my $selected = $hdmi[0] // $other_external[0] // $internal[0];
+    die "no safe Wayland output name was found\n" if !defined $selected;
+
+    my $profile = is_internal_output($selected) ? 'internal' : 'external';
+    my $scale = validated_scale(
+        $profile eq 'internal'
+          ? ($defaults{LABWC_GREETER_INTERNAL_SCALE} // '1')
+          : ($defaults{LABWC_GREETER_EXTERNAL_SCALE} // '1')
+    );
+    my $mode =
+      $profile eq 'external'
+      ? external_mode_for_output($wlr_randr, $selected)
+      : undef;
+
+    my @base_args =
+      ('--output', $selected, '--on', '--scale', $scale, '--pos', '0,0');
+    if (defined $mode) {
+        system {$wlr_randr} $wlr_randr,
+          @base_args[0 .. 2],
+          '--mode', $mode,
+          @base_args[3 .. $#base_args];
+    }
+    if (!defined($mode) || $? != 0) {
+        system {$wlr_randr} $wlr_randr, @base_args;
+    }
+    die "failed to enable greeter output ${selected}\n" if $? != 0;
+
+    for my $output_name (@outputs) {
+        next if $output_name eq $selected;
+        system {$wlr_randr} $wlr_randr, '--output', $output_name, '--off';
+        die "failed to disable non-selected greeter output ${output_name}\n"
+          if $? != 0;
+    }
+
+    return ($profile, $selected);
+}
+
+sub watch_outputs {
+    my $udevadm = find_command('udevadm');
+    return if !defined $udevadm;
+
+    my $owner_pid = validated_owner_pid(
+        $ENV{LABWC_GREETER_OWNER_PID} // getppid()
+    );
+    die "greeter output watcher is not owned by its declared parent\n"
+      if getppid() != $owner_pid;
+
+    my $debounce = validated_debounce(
+        $defaults{LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS} // '0'
+    );
+    my $monitor_pid =
+      open my $monitor, '-|', $udevadm, 'monitor', '--subsystem-match=drm';
+    return if !defined $monitor_pid;
+    my $monitor_selector = IO::Select->new($monitor);
+
+    my $stop_marker = "__LABWC_GREETER_OUTPUT_STOP__\n";
+    local $SIG{HUP}  = sub { die $stop_marker };
+    local $SIG{INT}  = sub { die $stop_marker };
+    local $SIG{TERM} = sub { die $stop_marker };
+
+    my $watch_ok = eval {
+        while (getppid() == $owner_pid) {
+            my @ready = $monitor_selector->can_read(1);
+            next if !@ready;
+
+            my $line = <$monitor>;
+            last if !defined $line;
+            next if $line !~ /(?:\badd\b|\bchange\b|\bremove\b)/;
+            sleep $debounce if $debounce > 0;
+            eval { with_config_lock(sub { configure_outputs() }); 1 };
+        }
+        1;
+    };
+    my $watch_error = $@;
+
+    terminate_monitor_process($monitor_pid);
+    close $monitor;
+    return if !$watch_ok && $watch_error eq $stop_marker;
+    die $watch_error if !$watch_ok;
+}
+
+sub terminate_monitor_process {
+    my ($monitor_pid) = @_;
+    return if !defined $monitor_pid || $monitor_pid <= 0;
+
+    kill 'TERM', $monitor_pid;
+    for (1 .. 20) {
+        return if waitpid($monitor_pid, WNOHANG) == $monitor_pid;
+        usleep(50_000);
+    }
+
+    kill 'KILL', $monitor_pid;
+    waitpid($monitor_pid, 0);
+    return;
+}
+
+sub validated_owner_pid {
+    my ($value) = @_;
+    die "invalid greeter output watcher owner pid\n"
+      if !defined $value || $value !~ /\A[0-9]+\z/;
+    die "greeter output watcher owner pid must be greater than one\n"
+      if $value <= 1;
+    return int($value);
+}
+
+sub connected_outputs {
+    my ($wlr_randr) = @_;
+    my @outputs;
+
+    open my $state, '-|', $wlr_randr or return @outputs;
+    while (my $line = <$state>) {
+        next if $line =~ /^[[:space:]]/;
+        my ($output_name) = split /[[:space:]]+/, $line, 2;
+        next if !output_name_safe($output_name);
+        push @outputs, $output_name;
+    }
+    close $state;
+    return @outputs;
+}
+
+sub external_mode_for_output {
+    my ($wlr_randr, $output_name) = @_;
+    my @modes = output_modes($wlr_randr, $output_name);
+    return undef if !@modes;
+
+    my $preferred_width =
+      validated_optional_uint(
+        $defaults{LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH} // '1920',
+        640,
+        16384,
+      );
+    my $preferred_height =
+      validated_optional_uint(
+        $defaults{LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT} // '1080',
+        480,
+        8640,
+      );
+    my $preferred_hz =
+      validated_optional_uint(
+        $defaults{LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ} // '60',
+        24,
+        1000,
+      );
+    return undef if !defined $preferred_width || !defined $preferred_height;
+
+    my $preferred_size = "${preferred_width}x${preferred_height}";
+    my @size_matches = grep { $_->{size} eq $preferred_size } @modes;
+    return undef if !@size_matches;
+
+    if (defined $preferred_hz) {
+        my ($exact_mode) =
+          grep { $_->{rounded_hz} == $preferred_hz } @size_matches;
+        return $exact_mode->{value} if defined $exact_mode;
+    }
+
+    my ($connector_preferred) = grep { $_->{preferred} } @size_matches;
+    return $connector_preferred->{value} if defined $connector_preferred;
+
+    @size_matches = sort { $b->{hz} <=> $a->{hz} } @size_matches;
+    return $size_matches[0]->{value};
+}
+
+sub output_modes {
+    my ($wlr_randr, $output_name) = @_;
+    my @modes;
+    my $in_output = 0;
+
+    open my $state, '-|', $wlr_randr or return @modes;
+    while (my $line = <$state>) {
+        if ($line =~ /^\Q$output_name\E\b/) {
+            $in_output = 1;
+            next;
+        }
+        last if $line !~ /^[[:space:]]/ && $in_output;
+        next if !$in_output;
+        next
+          if $line !~
+          /^\s+(\d+)x(\d+)\s+px,\s+([0-9.]+)\s+Hz\b(.*)$/;
+
+        my ($width, $height, $hz, $flags) = ($1, $2, $3, $4 // q{});
+        push @modes, {
+            hz         => $hz + 0,
+            preferred  => ($flags =~ /preferred/) ? 1 : 0,
+            rounded_hz => int(($hz + 0) + 0.5),
+            size       => "${width}x${height}",
+            value      => sprintf('%sx%s@%sHz', $width, $height, $hz),
+        };
+    }
+    close $state;
+    return @modes;
+}
+
+sub is_internal_output {
+    my ($output_name) = @_;
+    my @prefixes = split /[[:space:]]+/,
+      ($defaults{LABWC_OUTPUT_INTERNAL_PREFIXES} // 'eDP LVDS DSI');
+
+    for my $prefix (@prefixes) {
+        next if $prefix !~ /\A[A-Za-z0-9._-]+\z/;
+        return 1 if $output_name =~ /\A\Q$prefix\E(?:-|[0-9])/;
+    }
+    return 0;
+}
+
+sub is_hdmi_output {
+    my ($output_name) = @_;
+    return defined $output_name && $output_name =~ /\AHDMI(?:-|[0-9])/;
+}
+
+sub output_name_safe {
+    my ($output_name) = @_;
+    return defined $output_name && $output_name =~ /\A[A-Za-z0-9._-]+\z/;
+}
+
+sub validated_scale {
+    my ($value) = @_;
+    die "invalid greeter output scale\n"
+      if !defined $value || $value !~ /\A(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)\z/;
+    die "greeter output scale is outside 0.5..3\n"
+      if $value < 0.5 || $value > 3;
+    return $value;
+}
+
+sub validated_debounce {
+    my ($value) = @_;
+    die "invalid greeter hotplug debounce\n"
+      if !defined $value || $value !~ /\A[0-9]+\z/;
+    die "greeter hotplug debounce is outside 0..10\n"
+      if $value > 10;
+    return $value;
+}
+
+sub validated_optional_uint {
+    my ($value, $minimum, $maximum) = @_;
+    return undef if !defined $value || $value !~ /\A[0-9]+\z/;
+    return undef if $value < $minimum || $value > $maximum;
+    return int($value);
+}
+
+sub with_config_lock {
+    my ($callback) = @_;
+    my $state_dir = $ENV{XDG_STATE_HOME} // q{};
+    return $callback->() if $state_dir eq q{};
+
+    make_path($state_dir, { mode => 0700 }) if !-d $state_dir;
+    open my $lock_fh, '>>', "${state_dir}/greeter-output.lock"
+      or return $callback->();
+    flock($lock_fh, LOCK_EX) or return $callback->();
+    my @result = $callback->();
+    close $lock_fh;
+    return @result;
+}
+
+sub find_command {
+    my ($command_name) = @_;
+    return undef if $command_name !~ /\A[A-Za-z0-9._+-]+\z/;
+
+    for my $directory (split /:/, ($ENV{PATH} // q{})) {
+        next if $directory eq q{};
+        my $candidate = "${directory}/${command_name}";
+        return $candidate if -x $candidate && !-d $candidate;
+    }
+    return undef;
+}
+
+sub load_defaults {
+    my ($path) = @_;
+    my %values;
+
+    return %values if !-r $path;
+    open my $fh, '<', $path or return %values;
+    while (my $line = <$fh>) {
+        chomp $line;
+        $line =~ s/^\s+//;
+        $line =~ s/\s+$//;
+        next if $line eq q{} || $line =~ /^#/;
+        next if $line !~ /^([A-Z0-9_]+)=(.*)$/;
+
+        my ($key, $value) = ($1, $2);
+        $value =~ s/^\s+//;
+        $value =~ s/\s+$//;
+        if ($value =~ /\A'(.*)'\z/s || $value =~ /\A"(.*)"\z/s) {
+            $value = $1;
+        }
+        $values{$key} = $value;
+    }
+    close $fh;
+    return %values;
+}
+
+sub apply_env_overrides {
+    my ($values, @keys) = @_;
+
+    for my $key (@keys) {
+        next if !exists $ENV{$key};
+        $values->{$key} = $ENV{$key};
+    }
+}

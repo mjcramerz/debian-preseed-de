@@ -1,0 +1,48 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile retroarch /usr/bin/retroarch flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-application>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/user-tmp>
+
+  capability sys_nice,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /dev/bus/usb/** rw,
+  /dev/ r,
+  /dev/hidraw* rw,
+  /dev/input/** rw,
+  /dev/shm/ r,
+  /dev/uinput rw,
+  /run/udev/data/{c13:*,+input:input*} r,
+  /sys/devices/**/power_supply/BAT[0-9]/{capacity,status,type} r,
+  @{sys}/devices/**/power_supply/hidpp_battery_[0-9]*/scope r,
+  owner @{PROC}/@{pid}/cmdline r,
+
+  /usr/bin/retroarch mr,
+  /usr/lib/@{multiarch}/libretro/ r,
+  /usr/lib/@{multiarch}/libretro/*.so mr,
+  /usr/share/{libretro,retroarch}/ r,
+  /usr/share/{libretro,retroarch}/** r,
+
+  owner @{HOME}/.cache/retroarch/ rw,
+  owner @{HOME}/.cache/retroarch/** rwk,
+  owner @{HOME}/.config/retroarch/ rw,
+  owner @{HOME}/.config/retroarch/** rwkl,
+  owner @{HOME}/.local/share/retroarch/ rw,
+  owner @{HOME}/.local/share/retroarch/** rwkl,
+  owner @{HOME}/Games/ rw,
+  owner @{HOME}/Games/** rwkl,
+  owner /run/media/*/ r,
+  owner /run/media/*/** rwkl,
+
+  include if exists <local/usr.bin.retroarch>
+}

@@ -1,0 +1,636 @@
+#!/usr/bin/python3 -I
+"""Validate and extract Discord distribution manifests and tar payloads."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import re
+import stat
+import tarfile
+import urllib.parse
+
+
+MAX_MANIFEST_BYTES = 1024 * 1024
+MAX_ARCHIVE_METADATA_BYTES = 1024 * 1024
+MAX_PATH_BYTES = 512
+MAX_HOST_MEMBERS = 20_000
+MAX_HOST_BYTES = 1536 * 1024 * 1024
+MAX_HOST_MEMBER_BYTES = 768 * 1024 * 1024
+MAX_MODULE_MEMBERS = 5_000
+MAX_MODULE_BYTES = 512 * 1024 * 1024
+MAX_MODULE_MEMBER_BYTES = 256 * 1024 * 1024
+APPROVED_DISTRO_HOSTS = {
+    "dl.discordapp.net",
+    "stable.dl2.discordapp.net",
+}
+REQUIRED_MODULES = {
+    "discord_desktop_core",
+    "discord_erlpack",
+    "discord_spellcheck",
+    "discord_utils",
+    "discord_voice",
+}
+HOST_REQUIRED_FILES = {
+    "Discord",
+    "chrome-sandbox",
+    "chrome_crashpad_handler",
+    "discord.png",
+    "libffmpeg.so",
+}
+HOST_ELF_FILES = {
+    "Discord",
+    "chrome-sandbox",
+    "chrome_crashpad_handler",
+}
+MODULE_NAME_RE = re.compile(r"discord_[a-z0-9_]{1,64}")
+PATH_COMPONENT_RE = re.compile(r"[A-Za-z0-9._@%+,:=-]{1,255}")
+VERSION_RE = re.compile(r"[0-9]+(?:\.[0-9]+){2}")
+SHA256_RE = re.compile(r"[0-9a-f]{64}")
+MANIFEST_FIELDS = {
+    "deltas",
+    "full",
+    "metadata_version",
+    "modules",
+    "required_modules",
+    "required_update",
+}
+HOST_FULL_FIELDS = {
+    "host_version",
+    "package_sha256",
+    "url",
+}
+HOST_DELTA_FIELDS = HOST_FULL_FIELDS
+MODULE_FIELDS = {
+    "deltas",
+    "full",
+}
+MODULE_FULL_FIELDS = {
+    "host_version",
+    "module_version",
+    "package_sha256",
+    "url",
+}
+MODULE_DELTA_FIELDS = MODULE_FULL_FIELDS
+MAX_DELTAS = 32
+ARCHIVE_METADATA_FILE = "delta_manifest.json"
+
+
+def fail(message: str) -> "NoReturn":
+    raise SystemExit(f"fatal: {message}")
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            fail(f"Discord JSON contains a duplicate key: {key}")
+        value[key] = item
+    return value
+
+
+def read_json_object(path: str, maximum_bytes: int) -> dict[str, object]:
+    try:
+        metadata = os.lstat(path)
+    except OSError as exc:
+        fail(f"Discord JSON is unavailable: {path}: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(f"Discord JSON must be a regular file: {path}")
+    if metadata.st_size > maximum_bytes:
+        fail(f"Discord JSON exceeds its size limit: {path}")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            value = json.load(handle, object_pairs_hook=reject_duplicate_keys)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        fail(f"Discord JSON is invalid: {path}: {exc}")
+    if not isinstance(value, dict):
+        fail(f"Discord JSON must contain an object: {path}")
+    return value
+
+
+def version_from_triple(value: object, label: str) -> str:
+    if (
+        not isinstance(value, list)
+        or len(value) != 3
+        or any(
+            isinstance(component, bool)
+            or not isinstance(component, int)
+            or component < 0
+            or component > 999_999
+            for component in value
+        )
+    ):
+        fail(f"{label} must contain a bounded three-component version")
+    version = ".".join(str(component) for component in value)
+    if VERSION_RE.fullmatch(version) is None:
+        fail(f"{label} produced an invalid version")
+    return version
+
+
+def validate_sha256(value: object, label: str) -> str:
+    if not isinstance(value, str) or SHA256_RE.fullmatch(value) is None:
+        fail(f"{label} is not a lowercase SHA-256 digest")
+    return value
+
+
+def validate_module_version(value: object, label: str) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 1
+        or value > 999_999
+    ):
+        fail(f"{label} is invalid")
+    return value
+
+
+def validate_distro_url_path(value: object, expected_path: str) -> str:
+    if not isinstance(value, str) or len(value) > 2048:
+        fail("Discord distribution URL is invalid")
+    parsed = urllib.parse.urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.hostname not in APPROVED_DISTRO_HOSTS
+        or parsed.port not in {None, 443}
+        or parsed.query
+        or parsed.fragment
+    ):
+        fail("Discord distribution URL is outside the approved HTTPS boundary")
+    if parsed.path != expected_path:
+        fail("Discord distribution URL does not match its manifest identity")
+    return value
+
+
+def validate_distro_url(
+    value: object,
+    *,
+    version: str,
+    module_name: str | None = None,
+    module_version: int | None = None,
+) -> str:
+    if module_name is None:
+        expected_path = f"/distro/app/stable/linux/x64/{version}/full.distro"
+    else:
+        expected_path = (
+            f"/distro/app/stable/linux/x64/{version}/"
+            f"{module_name}/{module_version}/full.distro"
+        )
+    return validate_distro_url_path(value, expected_path)
+
+
+def validate_host_deltas(value: object, version: str) -> None:
+    if not isinstance(value, list) or len(value) > MAX_DELTAS:
+        fail("Discord host delta metadata is invalid")
+    for delta in value:
+        if not isinstance(delta, dict) or set(delta) != HOST_DELTA_FIELDS:
+            fail("Discord host delta schema is invalid")
+        source_version = version_from_triple(
+            delta.get("host_version"),
+            "Discord host delta source version",
+        )
+        if source_version == version:
+            fail("Discord host delta cannot target the current host version")
+        validate_sha256(
+            delta.get("package_sha256"),
+            "Discord host delta digest",
+        )
+        validate_distro_url_path(
+            delta.get("url"),
+            f"/distro/app/stable/linux/x64/{version}/from/{source_version}",
+        )
+
+
+def validate_module_deltas(
+    value: object,
+    *,
+    version: str,
+    module_name: str,
+    module_version: int,
+) -> None:
+    if not isinstance(value, list) or len(value) > MAX_DELTAS:
+        fail(f"Discord module {module_name} delta metadata is invalid")
+    for delta in value:
+        if not isinstance(delta, dict) or set(delta) != MODULE_DELTA_FIELDS:
+            fail(f"Discord module {module_name} delta schema is invalid")
+        source_version = version_from_triple(
+            delta.get("host_version"),
+            f"Discord module {module_name} delta source host version",
+        )
+        source_module_version = validate_module_version(
+            delta.get("module_version"),
+            f"Discord module {module_name} delta source module version",
+        )
+        if source_version == version and source_module_version == module_version:
+            fail(f"Discord module {module_name} delta repeats the full package")
+        validate_sha256(
+            delta.get("package_sha256"),
+            f"Discord module {module_name} delta digest",
+        )
+        validate_distro_url_path(
+            delta.get("url"),
+            (
+                f"/distro/app/stable/linux/x64/{version}/"
+                f"{module_name}/{module_version}/from/"
+                f"{source_version}/{source_module_version}"
+            ),
+        )
+
+
+def validate_manifest(path: str) -> dict[str, object]:
+    manifest = read_json_object(path, MAX_MANIFEST_BYTES)
+    if set(manifest) != MANIFEST_FIELDS:
+        fail("Discord manifest top-level schema is invalid")
+
+    full = manifest.get("full")
+    modules = manifest.get("modules")
+    required_modules = manifest.get("required_modules")
+    deltas = manifest.get("deltas")
+    if (
+        not isinstance(full, dict)
+        or set(full) != HOST_FULL_FIELDS
+        or not isinstance(modules, dict)
+    ):
+        fail("Discord manifest is missing its host or module maps")
+    if not isinstance(required_modules, list) or not isinstance(deltas, list):
+        fail("Discord manifest has invalid required-module or delta metadata")
+    if len(modules) < len(REQUIRED_MODULES) or len(modules) > 32:
+        fail("Discord manifest module count is outside approved bounds")
+    if manifest.get("metadata_version") is not None and (
+        isinstance(manifest["metadata_version"], bool)
+        or not isinstance(manifest["metadata_version"], int)
+        or manifest["metadata_version"] < 0
+    ):
+        fail("Discord manifest metadata version is invalid")
+    if not isinstance(manifest.get("required_update"), bool):
+        fail("Discord manifest required-update flag is invalid")
+
+    version = version_from_triple(full.get("host_version"), "Discord host version")
+    host = {
+        "sha256": validate_sha256(
+            full.get("package_sha256"),
+            "Discord host package digest",
+        ),
+        "url": validate_distro_url(full.get("url"), version=version),
+    }
+    validate_host_deltas(deltas, version)
+
+    normalized_required: list[str] = []
+    required_seen: set[str] = set()
+    for name in required_modules:
+        if (
+            not isinstance(name, str)
+            or MODULE_NAME_RE.fullmatch(name) is None
+            or name in required_seen
+        ):
+            fail("Discord manifest required-module list is invalid")
+        required_seen.add(name)
+        normalized_required.append(name)
+    if not REQUIRED_MODULES.issubset(required_seen):
+        fail("Discord manifest omits a required stable Linux module")
+
+    normalized_modules: dict[str, object] = {}
+    for name in sorted(modules):
+        if not isinstance(name, str) or MODULE_NAME_RE.fullmatch(name) is None:
+            fail("Discord manifest contains an invalid module name")
+        package = modules[name]
+        if (
+            not isinstance(package, dict)
+            or set(package) != MODULE_FIELDS
+            or not isinstance(package.get("full"), dict)
+            or set(package["full"]) != MODULE_FULL_FIELDS
+        ):
+            fail(f"Discord module {name} lacks a full package")
+        package_full = package["full"]
+        package_version = version_from_triple(
+            package_full.get("host_version"),
+            f"Discord module {name} host version",
+        )
+        if package_version != version:
+            fail(f"Discord module {name} targets another host version")
+        module_version = validate_module_version(
+            package_full.get("module_version"),
+            f"Discord module {name} version",
+        )
+        validate_module_deltas(
+            package.get("deltas"),
+            version=version,
+            module_name=name,
+            module_version=module_version,
+        )
+        normalized_modules[name] = {
+            "required": name in required_seen,
+            "sha256": validate_sha256(
+                package_full.get("package_sha256"),
+                f"Discord module {name} package digest",
+            ),
+            "url": validate_distro_url(
+                package_full.get("url"),
+                version=version,
+                module_name=name,
+                module_version=module_version,
+            ),
+            "version": module_version,
+        }
+    if not required_seen.issubset(normalized_modules):
+        fail("Discord manifest references a missing required module")
+
+    return {
+        "host": host,
+        "modules": normalized_modules,
+        "required_modules": sorted(required_seen),
+        "version": version,
+    }
+
+
+def validate_tar_framing(path: str) -> None:
+    try:
+        metadata = os.lstat(path)
+    except OSError as exc:
+        fail(f"Discord tar payload is unavailable: {path}: {exc}")
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        fail(f"Discord tar payload must be a regular file: {path}")
+    if metadata.st_size < 1024 or metadata.st_size % 512 != 0:
+        fail("Discord tar payload has invalid block framing")
+    with open(path, "rb") as handle:
+        handle.seek(-1024, os.SEEK_END)
+        if handle.read(1024) != b"\0" * 1024:
+            fail("Discord tar payload lacks its terminal zero blocks")
+
+
+def canonical_member_path(member: tarfile.TarInfo) -> str:
+    raw_name = member.name
+    if (
+        not raw_name
+        or len(raw_name.encode("utf-8", errors="strict")) > MAX_PATH_BYTES
+        or raw_name.startswith("/")
+        or "\\" in raw_name
+        or any(character.isspace() or ord(character) < 32 for character in raw_name)
+    ):
+        fail("Discord tar contains an unsafe member path")
+    trimmed = raw_name[:-1] if raw_name.endswith("/") else raw_name
+    parts = trimmed.split("/")
+    if not parts or any(
+        part in {"", ".", ".."} or PATH_COMPONENT_RE.fullmatch(part) is None
+        for part in parts
+    ):
+        fail("Discord tar member escaped its files/ root")
+    canonical = "/".join(parts)
+    if canonical != ARCHIVE_METADATA_FILE and parts[0] != "files":
+        fail("Discord tar member escaped its files/ root")
+    return canonical
+
+
+def archive_limits(kind: str) -> tuple[int, int, int]:
+    if kind == "host":
+        return MAX_HOST_MEMBERS, MAX_HOST_BYTES, MAX_HOST_MEMBER_BYTES
+    if kind == "module":
+        return MAX_MODULE_MEMBERS, MAX_MODULE_BYTES, MAX_MODULE_MEMBER_BYTES
+    fail(f"unsupported Discord distribution kind: {kind}")
+
+
+def inspect_archive(
+    path: str,
+    *,
+    kind: str,
+    version: str,
+    module_name: str | None,
+    module_version: int | None,
+) -> tuple[tarfile.TarFile, list[tuple[tarfile.TarInfo, str]], dict[str, int]]:
+    if VERSION_RE.fullmatch(version) is None:
+        fail("Discord distribution version is invalid")
+    if kind == "module":
+        if (
+            module_name is None
+            or MODULE_NAME_RE.fullmatch(module_name) is None
+            or module_version is None
+            or module_version < 1
+            or module_version > 999_999
+        ):
+            fail("Discord module identity is invalid")
+    elif module_name is not None or module_version is not None:
+        fail("Discord host distribution received module metadata")
+
+    validate_tar_framing(path)
+    member_limit, byte_limit, member_byte_limit = archive_limits(kind)
+    try:
+        archive = tarfile.open(path, mode="r:")
+        members = archive.getmembers()
+    except (OSError, tarfile.TarError) as exc:
+        fail(f"Discord tar payload is invalid: {exc}")
+
+    if not members or len(members) > member_limit:
+        archive.close()
+        fail("Discord tar member count is outside approved bounds")
+    safe_members: list[tuple[tarfile.TarInfo, str]] = []
+    seen: set[str] = set()
+    filesystem_paths: set[str] = set()
+    regular_files: set[str] = set()
+    total_bytes = 0
+    for member in members:
+        canonical = canonical_member_path(member)
+        if canonical in seen:
+            archive.close()
+            fail("Discord tar contains a duplicate canonical member path")
+        seen.add(canonical)
+        if canonical == "files" and not member.isdir():
+            archive.close()
+            fail("Discord tar files root must be a directory")
+        if not (member.isdir() or member.isreg()) or member.issparse():
+            archive.close()
+            fail("Discord tar contains an unsupported filesystem object")
+        if member.mode & 0o7000:
+            archive.close()
+            fail("Discord tar contains unsafe set-ID or sticky mode bits")
+        if canonical == ARCHIVE_METADATA_FILE:
+            if (
+                not member.isreg()
+                or member.size < 1
+                or member.size > MAX_ARCHIVE_METADATA_BYTES
+            ):
+                archive.close()
+                fail("Discord tar metadata is outside approved bounds")
+            continue
+        parts = canonical.split("/")
+        for component_count in range(1, len(parts)):
+            filesystem_paths.add("/".join(parts[:component_count]))
+        filesystem_paths.add(canonical)
+        if len(filesystem_paths) - 1 > member_limit:
+            archive.close()
+            fail(
+                "Discord tar effective filesystem entry count exceeds "
+                "approved bounds"
+            )
+        if member.isreg():
+            if member.size < 0 or member.size > member_byte_limit:
+                archive.close()
+                fail("Discord tar member size is outside approved bounds")
+            total_bytes += member.size
+            if total_bytes > byte_limit:
+                archive.close()
+                fail("Discord tar expanded size exceeds approved bounds")
+            regular_files.add(canonical.removeprefix("files/"))
+        safe_members.append((member, canonical))
+
+    filesystem_entries = len(filesystem_paths.difference({"files"}))
+    if not regular_files or total_bytes < 1:
+        archive.close()
+        fail("Discord tar contains no nonempty regular payload files")
+    for canonical in seen:
+        parent = canonical
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            if parent.removeprefix("files/") in regular_files:
+                archive.close()
+                fail("Discord tar contains a file used as a parent directory")
+    if kind == "host":
+        missing = sorted(HOST_REQUIRED_FILES.difference(regular_files))
+        if missing:
+            archive.close()
+            fail(f"Discord host distribution is incomplete: {missing[0]}")
+        for relative_path in sorted(HOST_ELF_FILES):
+            member = archive.getmember(f"files/{relative_path}")
+            stream = archive.extractfile(member)
+            if stream is None or stream.read(4) != b"\x7fELF":
+                archive.close()
+                fail(f"Discord host executable is not ELF: {relative_path}")
+    return archive, safe_members, {
+        "filesystem_entries": filesystem_entries,
+        "members": len(members),
+        "regular_files": len(regular_files),
+        "unpacked_bytes": total_bytes,
+    }
+
+
+def extract_archive(
+    archive: tarfile.TarFile,
+    members: list[tuple[tarfile.TarInfo, str]],
+    destination: str,
+) -> None:
+    destination_path = pathlib.Path(destination)
+    try:
+        metadata = destination_path.lstat()
+    except OSError as exc:
+        archive.close()
+        fail(f"Discord extraction destination is unavailable: {destination}: {exc}")
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != 0
+        or metadata.st_gid != 0
+        or metadata.st_mode & 0o022
+        or any(destination_path.iterdir())
+    ):
+        archive.close()
+        fail("Discord extraction destination must be an empty root-owned directory")
+
+    for member, canonical in members:
+        relative = canonical.removeprefix("files/")
+        if canonical == "files":
+            continue
+        target = destination_path.joinpath(*relative.split("/"))
+        if member.isdir():
+            target.mkdir(mode=0o755, parents=True, exist_ok=True)
+            target_metadata = target.lstat()
+            if stat.S_ISLNK(target_metadata.st_mode) or not stat.S_ISDIR(
+                target_metadata.st_mode
+            ):
+                archive.close()
+                fail(f"Discord extraction directory is unsafe: {canonical}")
+            os.chown(target, 0, 0, follow_symlinks=False)
+            os.chmod(target, 0o755, follow_symlinks=False)
+            continue
+
+        target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        source = archive.extractfile(member)
+        if source is None:
+            archive.close()
+            fail(f"Discord tar member cannot be read: {canonical}")
+        descriptor = os.open(
+            target,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+        )
+        copied = 0
+        try:
+            with os.fdopen(descriptor, "wb") as output:
+                while True:
+                    chunk = source.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    copied += len(chunk)
+                    if copied > member.size:
+                        fail(f"Discord tar member exceeded its declared size: {canonical}")
+                    output.write(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+        finally:
+            source.close()
+        if copied != member.size:
+            archive.close()
+            fail(f"Discord tar member was truncated: {canonical}")
+        os.chown(target, 0, 0, follow_symlinks=False)
+        os.chmod(
+            target,
+            0o755 if member.mode & 0o111 else 0o644,
+            follow_symlinks=False,
+        )
+
+    for directory in sorted(
+        (path for path in destination_path.rglob("*") if path.is_dir()),
+        key=lambda path: len(path.parts),
+        reverse=True,
+    ):
+        os.chown(directory, 0, 0, follow_symlinks=False)
+        os.chmod(directory, 0o755, follow_symlinks=False)
+    os.chown(destination_path, 0, 0, follow_symlinks=False)
+    os.chmod(destination_path, 0o755, follow_symlinks=False)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="managed-discord-distro")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    manifest = subparsers.add_parser("manifest")
+    manifest.add_argument("--path", required=True)
+
+    for command in ("inspect", "extract"):
+        archive = subparsers.add_parser(command)
+        archive.add_argument("--path", required=True)
+        archive.add_argument("--kind", choices=("host", "module"), required=True)
+        archive.add_argument("--version", required=True)
+        archive.add_argument("--module-name")
+        archive.add_argument("--module-version", type=int)
+        if command == "extract":
+            archive.add_argument("--destination", required=True)
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    if args.command == "manifest":
+        result = validate_manifest(args.path)
+    else:
+        archive, members, result = inspect_archive(
+            args.path,
+            kind=args.kind,
+            version=args.version,
+            module_name=args.module_name,
+            module_version=args.module_version,
+        )
+        if args.command == "extract":
+            try:
+                extract_archive(archive, members, args.destination)
+            finally:
+                archive.close()
+        else:
+            archive.close()
+    print(json.dumps(result, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

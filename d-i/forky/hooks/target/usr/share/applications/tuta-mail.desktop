@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Tuta Mail
+GenericName=Email Client
+Comment=Secure encrypted email and calendar client
+Exec=__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota %U
+Icon=tuta-mail
+Terminal=false
+Categories=Network;Email;
+MimeType=x-scheme-handler/mailto;
+StartupNotify=true
+StartupWMClass=tutanota-desktop
+X-GNOME-UsesNotifications=true

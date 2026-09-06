@@ -1,0 +1,13 @@
+{
+  "browser": {
+    "custom_chrome_frame": false
+  },
+  "enable_do_not_track": false,
+  "profile": {
+    "default_content_setting_values": {
+      "notifications": 2,
+      "popups": 2,
+      "sensors": 2
+    }
+  }
+}

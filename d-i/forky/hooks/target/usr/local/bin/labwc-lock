@@ -1,0 +1,78 @@
+#!/bin/sh
+set -eu
+umask 077
+
+requested_lock_background_path=${LABWC_LOCK_BACKGROUND_PATH:-}
+if [ -r /etc/default/labwc-desktop ]; then
+  # shellcheck disable=SC1091
+  . /etc/default/labwc-desktop
+fi
+if [ -n "$requested_lock_background_path" ]; then
+  LABWC_LOCK_BACKGROUND_PATH=$requested_lock_background_path
+fi
+
+command -v swaylock >/dev/null 2>&1 || exit 1
+[ -x /usr/bin/flock ] || {
+  printf 'fatal: /usr/bin/flock is required to serialize swaylock\n' >&2
+  exit 1
+}
+
+config_path=${XDG_CONFIG_HOME:-${HOME}/.config}/swaylock/config
+lock_background_path=${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}
+
+run_swaylock() {
+  if [ -r "$config_path" ] && [ -r "$lock_background_path" ]; then
+    swaylock -f --config "$config_path" --image "$lock_background_path" --scaling fill "$@" 8>&-
+    return
+  fi
+
+  if [ -r "$config_path" ]; then
+    swaylock -f --config "$config_path" "$@" 8>&-
+    return
+  fi
+
+  if [ -r "$lock_background_path" ]; then
+    swaylock -f --image "$lock_background_path" --scaling fill "$@" 8>&-
+    return
+  fi
+
+  swaylock -f "$@" 8>&-
+}
+
+runtime_dir=${XDG_RUNTIME_DIR:-}
+uid=$(/usr/bin/id -u)
+[ "$uid" -ne 0 ] && [ "$runtime_dir" = "/run/user/$uid" ] &&
+  [ -d "$runtime_dir" ] && [ ! -L "$runtime_dir" ] &&
+  [ "$(stat -c '%u:%a' "$runtime_dir")" = "$uid:700" ] || {
+    printf 'fatal: a private, owned XDG_RUNTIME_DIR is required to lock the session\n' >&2
+    exit 1
+  }
+# The launch lock serializes the readiness handshake. The lifetime lock is
+# inherited by swaylock's daemon, and is released by the kernel on unlock/crash.
+# A concurrent before-sleep request cannot return before the first -f handshake.
+for name in labwc-swaylock.lock labwc-swaylock.launch.lock; do
+  file=$runtime_dir/$name
+  [ ! -L "$file" ] && { [ ! -e "$file" ] || { [ -f "$file" ] &&
+    [ "$(stat -c '%u' "$file")" = "$uid" ]; }; } || {
+      printf 'fatal: unsafe swaylock lock file: %s\n' "$file" >&2
+      exit 1
+    }
+done
+exec 8>>"$runtime_dir/labwc-swaylock.launch.lock"
+[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/8)" = "$uid:1:600" ] || {
+  printf 'fatal: unsafe swaylock launch lock metadata\n' >&2
+  exit 1
+}
+/usr/bin/flock -w 10 8 || { printf 'fatal: swaylock readiness timed out\n' >&2; exit 1; }
+exec 9>>"$runtime_dir/labwc-swaylock.lock"
+[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$uid:1:600" ] || {
+  printf 'fatal: unsafe swaylock lifetime lock metadata\n' >&2
+  exit 1
+}
+if /usr/bin/flock --nonblock --conflict-exit-code 75 9; then
+  run_swaylock "$@"
+else
+  status=$?
+  [ "$status" -eq 75 ] && exit 0
+  exit "$status"
+fi

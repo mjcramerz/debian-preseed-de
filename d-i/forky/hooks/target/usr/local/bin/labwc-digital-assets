@@ -1,0 +1,430 @@
+#!/bin/sh
+set -eu
+
+: "${HOME:?HOME must be set}"
+
+MAX_CANDIDATES=400
+MAX_INPUT_BYTES=209715200
+LABWC_FUZZEL_MANAGED_ICONS=1
+export LABWC_FUZZEL_MANAGED_ICONS
+catalog_path=
+
+cleanup() {
+  [ -z "$catalog_path" ] || rm -f -- "$catalog_path"
+}
+
+trap cleanup EXIT
+trap 'cleanup; exit 1' HUP INT TERM
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+choose_menu_input() {
+  prompt=$1
+
+  if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
+    printf '%s\n' "$menu_selection"
+    return 0
+  else
+    menu_status=$?
+  fi
+
+  case "$menu_status" in
+    1)
+      # Fuzzel uses status 1 when the user dismisses a dmenu picker.
+      return 0
+      ;;
+    *)
+      fatal "unable to open the ${prompt} menu (status ${menu_status})"
+      ;;
+  esac
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 ||
+    fatal "required command is not installed: $1"
+}
+
+runtime_root() {
+  active_uid=$(/usr/bin/id -u) ||
+    fatal "unable to determine the active desktop user"
+  case "$active_uid" in
+    [1-9][0-9]*) ;;
+    *) fatal "Digital Assets requires a non-root desktop user" ;;
+  esac
+
+  case "${XDG_RUNTIME_DIR:-}" in
+    /run/user/[1-9][0-9]*)
+      runtime_uid=${XDG_RUNTIME_DIR##*/}
+      [ "$runtime_uid" = "$active_uid" ] ||
+        fatal "XDG_RUNTIME_DIR does not belong to the active desktop user"
+      [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] ||
+        fatal "XDG_RUNTIME_DIR is not a real directory"
+      runtime_stat=$(/usr/bin/stat -c '%u:%a' -- "$XDG_RUNTIME_DIR") ||
+        fatal "unable to inspect XDG_RUNTIME_DIR"
+      case "$runtime_stat" in
+        "$active_uid":[0-7][0-7][0-7]|"$active_uid":[0-7][0-7][0-7][0-7]) ;;
+        *) fatal "XDG_RUNTIME_DIR ownership or mode is unsafe" ;;
+      esac
+      runtime_mode=${runtime_stat#*:}
+      [ $((runtime_mode % 100)) -eq 0 ] ||
+        fatal "XDG_RUNTIME_DIR ownership or mode is unsafe"
+      printf '%s\n' "${XDG_RUNTIME_DIR%/}"
+      ;;
+    *)
+      fatal "Digital Assets requires a non-root Wayland user runtime directory"
+      ;;
+  esac
+}
+
+ensure_wayland_session() {
+  [ -n "${WAYLAND_DISPLAY:-}" ] ||
+    fatal "Digital Assets requires an active Wayland display"
+  case "${XDG_SESSION_TYPE:-wayland}" in
+    wayland) ;;
+    *) fatal "Digital Assets must run in a Wayland session" ;;
+  esac
+}
+
+choose_lines() {
+  prompt=$1
+  shift
+
+  printf '%s\n' "$@" |
+    choose_menu_input "$prompt"
+}
+
+candidate_roots() {
+  for candidate_root in \
+    "$HOME/Downloads" \
+    "$HOME/Documents" \
+    "$HOME/Desktop"
+  do
+    [ -d "$candidate_root" ] && printf '%s\n' "$candidate_root"
+  done
+}
+
+candidate_files() {
+  asset_kind=$1
+
+  case "$asset_kind" in
+    docx|pdf|image|markdown)
+      ;;
+    *)
+      fatal "unsupported candidate asset kind: $asset_kind"
+      ;;
+  esac
+
+  candidate_roots |
+    while IFS= read -r candidate_root; do
+      # The name predicates are intentionally expanded as fixed branches below
+      # instead of evaluating a user-controlled expression.
+      case "$asset_kind" in
+        docx)
+          find "$candidate_root" \
+            -xdev -mindepth 1 -maxdepth 3 -type f \
+            -iname '*.docx' \
+            -size "-$((MAX_INPUT_BYTES + 1))c" \
+            -print 2>/dev/null
+          ;;
+        pdf)
+          find "$candidate_root" \
+            -xdev -mindepth 1 -maxdepth 3 -type f \
+            -iname '*.pdf' \
+            -size "-$((MAX_INPUT_BYTES + 1))c" \
+            -print 2>/dev/null
+          ;;
+        image)
+          find "$candidate_root" \
+            -xdev -mindepth 1 -maxdepth 3 -type f \
+            \( \
+              -iname '*.avif' -o -iname '*.bmp' -o -iname '*.gif' -o \
+              -iname '*.heic' -o -iname '*.jpeg' -o -iname '*.jpg' -o \
+              -iname '*.png' -o -iname '*.tif' -o -iname '*.tiff' -o \
+              -iname '*.webp' \
+            \) \
+            -size "-$((MAX_INPUT_BYTES + 1))c" \
+            -print 2>/dev/null
+          ;;
+        markdown)
+          find "$candidate_root" \
+            -xdev -mindepth 1 -maxdepth 3 -type f \
+            \( \
+              -iname '*.markdown' -o -iname '*.md' -o -iname '*.mdown' -o \
+              -iname '*.mkdn' \
+            \) \
+            -size "-$((MAX_INPUT_BYTES + 1))c" \
+            -print 2>/dev/null
+          ;;
+      esac
+    done |
+    sed -n "1,$((MAX_CANDIDATES * 2))p" |
+    LC_ALL=C sort -u |
+    sed -n "1,${MAX_CANDIDATES}p"
+}
+
+asset_kind_label() {
+  case "$1" in
+    docx) printf '%s\n' 'DOCX' ;;
+    pdf) printf '%s\n' 'PDF' ;;
+    image) printf '%s\n' 'Image' ;;
+    markdown) printf '%s\n' 'Markdown' ;;
+    *) fatal "unsupported candidate asset kind: $1" ;;
+  esac
+}
+
+create_candidate_list() {
+  asset_kind=$1
+  candidate_path="$(runtime_root)/labwc-digital-assets-list.XXXXXX"
+  candidate_path=$(mktemp "$candidate_path") ||
+    fatal "unable to create the private Digital Assets candidate list"
+  chmod 0600 "$candidate_path"
+  candidate_files "$asset_kind" >"$candidate_path"
+  printf '%s\n' "$candidate_path"
+}
+
+show_no_candidates() {
+  asset_kind=$1
+  selection_prompt=$2
+  asset_label=$(asset_kind_label "$asset_kind")
+
+  printf 'No %s files detected in Downloads, Documents, or Desktop\n' "$asset_label" |
+    choose_menu_input "$selection_prompt" >/dev/null
+}
+
+choose_file() {
+  asset_kind=$1
+  selection_prompt=$2
+  candidate_path=$(create_candidate_list "$asset_kind")
+
+  if [ -s "$candidate_path" ]; then
+    selection=$(
+      sed -n "1,${MAX_CANDIDATES}p" "$candidate_path" |
+        choose_menu_input "$selection_prompt"
+    )
+  else
+    show_no_candidates "$asset_kind" "$selection_prompt"
+    selection=
+  fi
+
+  rm -f -- "$candidate_path"
+  printf '%s\n' "$selection"
+}
+
+choose_multiple_files() {
+  asset_kind=$1
+  selection_prompt=$2
+  selected_count=0
+  candidate_path=$(create_candidate_list "$asset_kind")
+
+  if [ ! -s "$candidate_path" ]; then
+    rm -f -- "$candidate_path"
+    show_no_candidates "$asset_kind" "$selection_prompt"
+    return 1
+  fi
+
+  list_path="$(runtime_root)/labwc-digital-assets-list.XXXXXX"
+  list_path=$(mktemp "$list_path") ||
+    {
+      rm -f -- "$candidate_path"
+      fatal "unable to create the private Digital Assets selection list"
+    }
+  chmod 0600 "$list_path"
+
+  while :; do
+    selection=$(
+      {
+        printf '%s\n' 'Finish selection' 'Cancel'
+        sed -n "1,${MAX_CANDIDATES}p" "$candidate_path"
+      } |
+        choose_menu_input "$selection_prompt"
+    )
+
+    case "$selection" in
+      'Finish selection')
+        break
+        ;;
+      'Cancel'|'')
+        rm -f -- "$list_path"
+        rm -f -- "$candidate_path"
+        return 1
+        ;;
+      *)
+        case "$selection" in
+          *'
+'*)
+            printf '%s\n' 'warning: file names containing newlines are unsupported' >&2
+            ;;
+          *)
+            if ! grep -Fqx -- "$selection" "$list_path"; then
+              printf '%s\n' "$selection" >>"$list_path"
+              selected_count=$((selected_count + 1))
+            fi
+            ;;
+        esac
+        ;;
+    esac
+  done
+
+  [ "$selected_count" -ge 2 ] || {
+    rm -f -- "$list_path"
+    rm -f -- "$candidate_path"
+    printf '%s\n' 'warning: select at least two files before finishing' >&2
+    return 1
+  }
+
+  rm -f -- "$candidate_path"
+  printf '%s\n' "$list_path"
+}
+
+run_action() {
+  require_command labwc-digital-assets-action
+
+  if labwc-digital-assets-action "$@"; then
+    return 0
+  else
+    action_status=$?
+  fi
+
+  printf 'warning: Digital Assets action returned status %s: %s\n' \
+    "$action_status" "$1" >&2
+  return 0
+}
+
+load_menu_catalog() {
+  catalog_path="$(runtime_root)/labwc-digital-assets-catalog.XXXXXX"
+  catalog_path=$(mktemp "$catalog_path") ||
+    fatal "unable to create the private Digital Assets action catalog"
+  chmod 0600 "$catalog_path"
+
+  if ! labwc-digital-assets-action --menu-catalog >"$catalog_path"; then
+    fatal "unable to load the Digital Assets action catalog"
+  fi
+
+  if ! LC_ALL=C awk -F '	' '
+    NF != 5 ||
+    $1 !~ /^(docx|pdf|image)$/ ||
+    $2 !~ /^[a-z0-9]+(-[a-z0-9]+)*$/ ||
+    $3 !~ /^(docx|pdf|image|markdown|pdf-list|image-list)$/ ||
+    $4 == "" ||
+    $5 == "" ||
+    seen_action[$2]++ ||
+    seen_label[$1 SUBSEP $4]++ {
+      exit 1
+    }
+    {
+      count++
+    }
+    END {
+      exit count > 0 ? 0 : 1
+    }
+  ' "$catalog_path"; then
+    fatal "Digital Assets action catalog is malformed"
+  fi
+}
+
+menu_catalog_labels() {
+  menu_category=$1
+
+  LC_ALL=C awk -F '	' -v category="$menu_category" '
+    $1 == category {
+      print $4
+    }
+  ' "$catalog_path"
+}
+
+menu_catalog_entry() {
+  menu_category=$1
+  menu_label=$2
+
+  LC_ALL=C awk -F '	' -v category="$menu_category" -v label="$menu_label" '
+    $1 == category && $4 == label {
+      print
+      exit
+    }
+  ' "$catalog_path"
+}
+
+choose_catalog_action() {
+  menu_category=$1
+  menu_prompt=$2
+
+  {
+    menu_catalog_labels "$menu_category"
+    printf '%s\n' '← Back'
+  } |
+    choose_menu_input "$menu_prompt"
+}
+
+run_catalog_action() {
+  catalog_entry=$1
+  catalog_action=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $2 }')
+  catalog_selector=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $3 }')
+  catalog_prompt=$(printf '%s\n' "$catalog_entry" | awk -F '	' '{ print $5 }')
+
+  case "$catalog_selector" in
+    docx|pdf|image|markdown)
+      path=$(choose_file "$catalog_selector" "$catalog_prompt")
+      [ -n "$path" ] && run_action "$catalog_action" "$path"
+      ;;
+    pdf-list|image-list)
+      asset_kind=${catalog_selector%-list}
+      list_path=$(choose_multiple_files "$asset_kind" "$catalog_prompt") || return 0
+      run_action "$catalog_action" "$list_path"
+      rm -f -- "$list_path"
+      ;;
+    *)
+      fatal "Digital Assets action catalog has an unsupported selector"
+      ;;
+  esac
+}
+
+category_menu() {
+  menu_category=$1
+  menu_prompt=$2
+
+  while :; do
+    action_label=$(choose_catalog_action "$menu_category" "$menu_prompt")
+
+    case "$action_label" in
+      '← Back'|'')
+        return 0
+        ;;
+      *)
+        catalog_entry=$(menu_catalog_entry "$menu_category" "$action_label")
+        if [ -n "$catalog_entry" ]; then
+          run_catalog_action "$catalog_entry"
+        else
+          printf 'warning: selected Digital Assets action is unavailable\n' >&2
+        fi
+        ;;
+    esac
+  done
+}
+
+require_command labwc-fuzzel
+[ "$(/usr/bin/id -u)" -ne 0 ] ||
+  fatal "labwc-digital-assets must run as the logged-in desktop user"
+runtime_root >/dev/null
+ensure_wayland_session
+load_menu_catalog
+
+while :; do
+  category=$(
+    choose_lines \
+      "Digital Assets" \
+      'DOCX Actions' \
+      'PDF Actions' \
+      'Image Actions' \
+      '← Back'
+  )
+
+  case "$category" in
+    'DOCX Actions') category_menu docx 'DOCX Actions' ;;
+    'PDF Actions') category_menu pdf 'PDF Actions' ;;
+    'Image Actions') category_menu image 'Image Actions' ;;
+    '← Back'|'') exit 0 ;;
+  esac
+done

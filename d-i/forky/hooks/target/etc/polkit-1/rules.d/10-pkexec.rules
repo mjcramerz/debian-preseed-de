@@ -1,0 +1,35 @@
+// Managed by unattended-installer.
+// Restrict pkexec to active local sudo users; non-admin users fail closed.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function adminOnly(subject) {
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        if (action.id === "org.freedesktop.policykit.exec") {
+            return adminOnly(subject);
+        }
+
+        return polkit.Result.NOT_HANDLED;
+    });
+})();

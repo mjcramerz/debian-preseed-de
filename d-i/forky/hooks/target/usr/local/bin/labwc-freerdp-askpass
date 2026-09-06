@@ -1,0 +1,69 @@
+#!/usr/bin/python3 -I
+import os
+import sys
+
+
+MAX_PROMPT_LENGTH = 512
+MAX_SECRET_LENGTH = 4096
+
+
+def clean_prompt(arguments: list[str]) -> str:
+    prompt = " ".join(arguments).strip() or "Remote Desktop password"
+    prompt = "".join(character for character in prompt if character >= " " and character != "\x7f")
+    return prompt[:MAX_PROMPT_LENGTH]
+
+
+def main() -> int:
+    if os.getuid() == 0:
+        print("fatal: FreeRDP askpass must run as the desktop user", file=sys.stderr)
+        return 1
+
+    import gi
+
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
+
+    dialog = Gtk.Dialog(title="Remote Desktop Credentials")
+    dialog.set_modal(True)
+    dialog.set_keep_above(True)
+    dialog.set_resizable(False)
+    dialog.add_button("_Cancel", Gtk.ResponseType.CANCEL)
+    dialog.add_button("_Connect", Gtk.ResponseType.OK)
+    dialog.set_default_response(Gtk.ResponseType.OK)
+
+    content = dialog.get_content_area()
+    content.set_spacing(12)
+    content.set_border_width(18)
+
+    label = Gtk.Label(label=clean_prompt(sys.argv[1:]))
+    label.set_xalign(0)
+    label.set_line_wrap(True)
+    content.add(label)
+
+    entry = Gtk.Entry()
+    entry.set_visibility(False)
+    entry.set_invisible_char("●")
+    entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+    entry.set_activates_default(True)
+    content.add(entry)
+
+    dialog.show_all()
+    entry.grab_focus()
+    response = dialog.run()
+    secret = entry.get_text() if response == Gtk.ResponseType.OK else ""
+    dialog.destroy()
+
+    if response != Gtk.ResponseType.OK:
+        return 2
+    if not secret or len(secret) > MAX_SECRET_LENGTH or any(
+        character in secret for character in ("\n", "\r", "\0")
+    ):
+        print("fatal: invalid Remote Desktop password input", file=sys.stderr)
+        return 1
+    sys.stdout.write(secret + "\n")
+    sys.stdout.flush()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

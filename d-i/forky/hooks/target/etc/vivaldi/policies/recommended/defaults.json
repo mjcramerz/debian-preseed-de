@@ -1,0 +1,9 @@
+{
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "BackgroundModeEnabled": false,
+  "BlockThirdPartyCookies": true,
+  "NetworkPredictionOptions": 2,
+  "PasswordManagerEnabled": false,
+  "SearchSuggestEnabled": false
+}

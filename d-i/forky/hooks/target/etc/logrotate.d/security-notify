@@ -1,0 +1,21 @@
+/var/lib/labwc-notifications/security/auth.signal
+/var/lib/labwc-notifications/security/usb.signal
+/var/lib/labwc-notifications/security/storage.signal
+/var/lib/labwc-notifications/security/apparmor.signal
+/var/lib/labwc-notifications/security/firewall.signal
+{
+	daily
+	rotate 2
+	maxage 2
+	maxsize 128K
+	missingok
+	notifempty
+	compress
+	delaycompress
+	create 0640 root logreader
+	su root logreader
+	sharedscripts
+	postrotate
+		/usr/lib/rsyslog/rsyslog-rotate
+	endscript
+}

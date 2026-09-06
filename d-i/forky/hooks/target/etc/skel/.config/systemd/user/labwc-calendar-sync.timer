@@ -1,0 +1,23 @@
+[Unit]
+# Session triggers start after D-Bus, not before the user manager basic target.
+# Avoid the implicit paths.target/timers.target -> basic.target -> session cycle.
+DefaultDependencies=no
+Conflicts=shutdown.target
+Before=shutdown.target
+BindsTo=labwc-compositor.service
+Description=Periodic Fruux calendar synchronization
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+
+[Timer]
+OnActiveSec=2min
+OnUnitInactiveSec=15min
+AccuracySec=1min
+Unit=labwc-calendar-sync.service
+
+[Install]
+WantedBy=labwc-session.target

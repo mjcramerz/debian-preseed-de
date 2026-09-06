@@ -1,0 +1,58 @@
+# Managed by installer automation when the ssh class is selected.
+# Template placeholders are rendered by the selected family late hook before install.
+
+Port __INSTALLER_SSH_PORT__
+AddressFamily any
+ListenAddress 0.0.0.0
+ListenAddress ::
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKeyAlgorithms ssh-ed25519
+
+SyslogFacility AUTHPRIV
+LogLevel VERBOSE
+LoginGraceTime 20
+PermitRootLogin no
+StrictModes yes
+MaxAuthTries 3
+MaxSessions 2
+MaxStartups 3:30:10
+
+PubkeyAuthentication yes
+AuthenticationMethods publickey
+AuthorizedKeysFile __INSTALLER_ACCOUNT_HOME__/.ssh/authorized_keys
+PubkeyAcceptedAlgorithms ssh-ed25519
+PasswordAuthentication no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+HostbasedAuthentication no
+IgnoreRhosts yes
+GSSAPIAuthentication no
+UsePAM yes
+
+AllowUsers __INSTALLER_ACCOUNT_USERNAME__
+
+PermitUserEnvironment no
+PermitTTY yes
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+AllowStreamLocalForwarding no
+GatewayPorts no
+PermitTunnel no
+DisableForwarding yes
+
+TCPKeepAlive no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+Compression no
+UseDNS no
+
+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+
+AcceptEnv LANG LC_* COLORTERM NO_COLOR
+PrintMotd no
+PrintLastLog yes
+Subsystem sftp internal-sftp -f AUTHPRIV -l INFO

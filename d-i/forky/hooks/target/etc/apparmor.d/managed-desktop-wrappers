@@ -1,0 +1,3662 @@
+# Managed by unattended-installer.
+#
+# One attachment per repository-owned desktop, AppArmor, XSSH, and TPM wrapper,
+# plus bounded domains for package launchers that precede their application
+# attachment. Desktop host policy selects enforce or complain mode for this file.
+# Short-lived validation and file-manipulation helpers inherit this domain.
+# Long-running GUI, network, container, and privileged payloads transition to
+# their own AppArmor attachment when present, with an unconfined fallback only
+# where the wrapper contract must launch package-owned or operator-selected
+# programs that do not ship a profile.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile labwc-chromium-launcher /usr/bin/chromium flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  include if exists <abstractions/user-tmp>
+
+  /usr/bin/chromium rix,
+  /bin/rm rix,
+  /usr/bin/{cut,expr,find,grep,ls,mktemp,rm,sed,tr,uname} rix,
+  /usr/bin/{findmnt,gdb,man,xmessage} pux,
+  /etc/chromium.d/ r,
+  /etc/chromium.d/** r,
+  /usr/share/chromium/extensions/ r,
+  /usr/share/chromium/extensions/** r,
+  owner @{HOME}/ r,
+  owner "@{HOME}/.config/chromium/Crash Reports/pending/" rw,
+  owner "@{HOME}/.config/chromium/Crash Reports/pending/**" rwkl,
+  owner /tmp/chromiumargs.* rwk,
+  /usr/lib/chromium/chromium rPx -> chromium,
+
+  include if exists <local/usr.bin.chromium-launcher>
+}
+
+profile labwc-microsoft-edge-launcher /{usr/bin/microsoft-edge-stable,opt/microsoft/msedge/microsoft-edge} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/bin/microsoft-edge-stable rix,
+  /opt/microsoft/msedge/microsoft-edge rix,
+  /usr/bin/{cat,dirname,mkdir,readlink,touch} rix,
+  /dev/tty rw,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/mimeapps.list rwk,
+  owner @{HOME}/.local/share/applications/ rw,
+  owner @{HOME}/.local/share/applications/mimeapps.list rwk,
+  owner @{PROC}/@{pid}/fd/[0-9]* rw,
+  /opt/microsoft/msedge/msedge rPx -> microsoft-edge-stable,
+
+  include if exists <local/usr.bin.microsoft-edge-launcher>
+}
+
+profile labwc-mullvad-browser-launcher /{usr/bin/mullvad-browser,usr/lib/mullvad-browser/{start-mullvad-browser,mullvadbrowser}} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/bin/mullvad-browser rix,
+  /dev/tty rw,
+  /usr/lib/mullvad-browser/{start-mullvad-browser,mullvadbrowser,abicheck} rix,
+  /usr/bin/{cp,dirname,find,grep,id,ln,mkdir,pwd,readlink,realpath,rm,sed,shred,tee} rix,
+  /usr/bin/{gxmessage,kdialog,srm,update-desktop-database,wipe,xmessage,zenity} pux,
+  /usr/lib/mullvad-browser/ r,
+  /usr/lib/mullvad-browser/** r,
+  owner @{HOME}/.config/ibus/ r,
+  owner @{HOME}/.config/ibus/** r,
+  owner @{HOME}/.mullvad-browser/ rw,
+  owner @{HOME}/.mullvad-browser/** rwkl,
+  owner @{HOME}/mullvad-browser.log rwk,
+  /usr/lib/mullvad-browser/mullvadbrowser.real rPx -> mullvad-browser,
+
+  include if exists <local/usr.bin.mullvad-browser-launcher>
+}
+
+# Debian's package profile is labelled "vscode", while the managed launcher
+# contract uses the stable "code" label. Keep a named profile for that directed
+# transition and reuse the package-local managed application policy.
+profile code flags=(attach_disconnected) {
+  include if exists <local/code>
+}
+
+profile managed-labwc-autostart-hook /{etc/skel,home/*}/.config/labwc/autostart flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /{etc/skel,home/*}/.config/labwc/autostart rix,
+
+  include if exists <local/home.labwc.autostart>
+}
+
+profile managed-labwc-shutdown-hook /{etc/skel,home/*}/.config/labwc/shutdown flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /{etc/skel,home/*}/.config/labwc/shutdown rix,
+
+  include if exists <local/home.labwc.shutdown>
+}
+
+profile managed-waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper/pipx/venvs/waypaper/bin/waypaper} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-gui>
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/nameservice-strict>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/local/bin/waypaper rix,
+  /opt/waypaper/bin/waypaper rix,
+  /opt/waypaper/pipx/venvs/waypaper/bin/waypaper rix,
+  /opt/waypaper/pipx/venvs/waypaper/bin/python* rix,
+  /opt/waypaper/ r,
+  /opt/waypaper/** mr,
+  /usr/bin/bwrap rCx -> waypaper-bwrap,
+  /usr/bin/kill rCx -> waypaper-kill,
+  /usr/bin/ps rCx -> waypaper-ps,
+  /usr/sbin/ldconfig rCx -> waypaper-ldconfig,
+  /usr/libexec/glycin-loaders/2+/glycin-image-rs rPx -> waypaper-glycin-loader,
+  /usr/libexec/glycin-loaders/2+/glycin-svg rPx -> waypaper-glycin-loader,
+  # Waypaper is a selector only; the state helper owns controlled service restarts.
+  /usr/local/bin/labwc-wallpaper-save rPx -> managed-labwc-wallpaper-save,
+
+  / r,
+  /dev/dri/card[0-9]* r,
+  /usr/share/backgrounds/ r,
+  /usr/share/backgrounds/** r,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  /usr/share/mime/mime.cache r,
+  signal (send) set=(kill) peer=managed-waypaper//waypaper-bwrap,
+  owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/waypaper/ rw,
+  owner @{HOME}/.cache/waypaper/** rwkl,
+  owner @{HOME}/.config/user-dirs.dirs r,
+  owner @{HOME}/.config/waypaper/ rw,
+  owner @{HOME}/.config/waypaper/** rwkl,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/waypaper/ rw,
+  owner @{HOME}/.local/state/waypaper/** rwkl,
+
+  profile waypaper-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/managed-bwrap-common>
+    include if exists <abstractions/fonts>
+
+    signal (receive) set=(kill) peer=managed-waypaper,
+    ptrace (readby) peer=managed-waypaper//waypaper-ps,
+
+    /usr/bin/true rix,
+    # Bubblewrap has already set no_new_privs; loaders must inherit this child.
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/share/backgrounds/ r,
+    /usr/share/backgrounds/** r,
+    /usr/share/glycin-loaders/2+/conf.d/ r,
+    /usr/share/glycin-loaders/2+/conf.d/** r,
+
+    owner @{HOME}/.cache/fontconfig/ r,
+    owner @{HOME}/.cache/fontconfig/** r,
+    owner @{HOME}/.cache/glycin/ rw,
+    owner @{HOME}/.cache/glycin/** rwkl,
+  }
+
+  profile waypaper-ps flags=(attach_disconnected) {
+    #include <abstractions/base>
+
+    capability sys_ptrace,
+    ptrace (read, readby) peer=@{profile_name},
+    ptrace (read) peer=unconfined,
+    ptrace (read) peer=managed-waypaper,
+    ptrace (read) peer=managed-waypaper//waypaper-bwrap,
+    ptrace (read) peer=managed-labwc-session,
+    ptrace (read) peer=managed-labwc-output-watch,
+    ptrace (read) peer=managed-labwc-plans,
+
+    /usr/bin/ps mr,
+    / r,
+    /dev/pts/[0-9]* r,
+    /dev/tty[0-9]* r,
+    /etc/{ld.so.cache,nsswitch.conf,passwd} r,
+    @{PROC}/ r,
+    @{PROC}/{cpuinfo,meminfo,stat} r,
+    @{PROC}/tty/drivers r,
+    @{PROC}/sys/kernel/pid_max r,
+    @{PROC}/[0-9]*/ r,
+    @{PROC}/[0-9]*/{cmdline,environ,stat,status} r,
+    @{PROC}/[0-9]*/task/ r,
+    @{sys}/devices/system/cpu/possible r,
+    @{sys}/devices/system/node/ r,
+    /usr/share/zoneinfo/** r,
+  }
+
+  profile waypaper-kill flags=(attach_disconnected) {
+    #include <abstractions/base>
+
+    /usr/bin/kill mr,
+    signal (send) set=(kill term) peer=unconfined,
+  }
+
+  profile waypaper-ldconfig flags=(attach_disconnected) {
+    #include <abstractions/base>
+
+    /usr/sbin/ldconfig mr,
+    /dev/null rw,
+    /etc/ld.so.cache r,
+  }
+
+  include if exists <local/usr.local.bin.waypaper>
+}
+
+profile waypaper-glycin-loader flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  include if exists <abstractions/fonts>
+
+  /usr/libexec/glycin-loaders/2+/glycin-image-rs mrix,
+  /usr/libexec/glycin-loaders/2+/glycin-svg mrix,
+  /usr/share/backgrounds/ r,
+  /usr/share/backgrounds/** r,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+
+  owner /tmp/gdk-pixbuf-glycin-tmp.* r,
+  owner @{HOME}/.cache/fontconfig/ r,
+  owner @{HOME}/.cache/fontconfig/** r,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
+}
+
+profile managed-android-platform-tools /{bin/{adb,fastboot},usr/bin/{adb,fastboot},usr/local/bin/{adb,fastboot},usr/local/lib/android-sdk/platform-tools/{adb,etc1tool,fastboot,hprof-conv,make_f2fs,make_f2fs_casefold,mke2fs,sqlite3}} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+  include if exists <abstractions/user-tmp>
+
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink dgram,
+  network netlink raw,
+
+  # adb enumerates process descriptor directories to find an existing server,
+  # then reads only its own network namespace transport tables. Procfs owns
+  # these table inodes as root even when the namespace belongs to this process,
+  # so an AppArmor owner qualifier would reject the legitimate read.
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/fd/ r,
+  @{PROC}/@{pid}/net/{tcp,tcp6,udp,udp6} r,
+
+  /{bin,usr/bin}/{adb,fastboot} rix,
+  /usr/local/bin/{adb,fastboot} rix,
+  /usr/local/lib/android-sdk/platform-tools/ r,
+  /usr/local/lib/android-sdk/platform-tools/** mr,
+  /usr/local/lib/android-sdk/platform-tools/{adb,etc1tool,fastboot,hprof-conv,make_f2fs,make_f2fs_casefold,mke2fs,sqlite3} rix,
+  /dev/bus/usb/ r,
+  /dev/bus/usb/** rw,
+  /dev/usb/ r,
+  /dev/usb/** rw,
+  /run/udev/data/ r,
+  /run/udev/data/** r,
+  /sys/bus/usb/devices/ r,
+  /sys/bus/usb/devices/** r,
+  /sys/devices/**/{busnum,descriptors,devnum,idProduct,idVendor,manufacturer,product,serial,uevent} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwkl,
+  /pool/ r,
+  /pool/** rwkl,
+
+  include if exists <local/usr.local.lib.android-platform-tools>
+}
+
+profile managed-samloader /{bin/samloader,usr/bin/samloader,usr/local/bin/samloader,usr/local/lib/samloader/samloader} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+  include if exists <abstractions/user-tmp>
+
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink dgram,
+  network netlink raw,
+
+  /{bin,usr/bin}/samloader rix,
+  /usr/local/bin/samloader rix,
+  /usr/local/lib/samloader/ r,
+  /usr/local/lib/samloader/** mr,
+  /usr/local/lib/samloader/samloader rix,
+  /dev/bus/usb/ r,
+  /dev/bus/usb/** rw,
+  /dev/hidraw* rw,
+  /run/udev/data/ r,
+  /run/udev/data/** r,
+  /sys/bus/usb/devices/ r,
+  /sys/bus/usb/devices/** r,
+  /sys/devices/**/{busnum,descriptors,devnum,idProduct,idVendor,manufacturer,product,serial,uevent} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwkl,
+  /pool/ r,
+  /pool/** rwkl,
+
+  include if exists <local/usr.local.lib.samloader>
+}
+
+profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-adb-action rix,
+  /usr/local/lib/perl5/site_perl/labwc-adb/ r,
+  /usr/local/lib/perl5/site_perl/labwc-adb/** r,
+  /usr/bin/{awk,basename,cat,chmod,date,find,gawk,grep,head,id,install,mawk,mkdir,mv,nawk,readlink,rm,rmdir,sed,sha256sum,sleep,stat,systemctl,timeout,tr} rix,
+  /usr/bin/{df,notify-send,ss} pux,
+  /{bin,usr/bin}/{adb,fastboot} rPx -> managed-android-platform-tools,
+  /usr/local/bin/{adb,fastboot} rPx -> managed-android-platform-tools,
+  /usr/local/lib/android-sdk/platform-tools/{adb,fastboot} rPx -> managed-android-platform-tools,
+  /{bin,usr/bin}/samloader rPx -> managed-samloader,
+  /usr/local/bin/samloader rPx -> managed-samloader,
+  /usr/local/lib/samloader/samloader rPx -> managed-samloader,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-samsung-firmware-extract rPx -> managed-labwc-samsung-firmware-extract,
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  owner /run/user/[0-9]*/bus rw,
+  owner /run/user/[0-9]*/labwc-adb-server.managed rwk,
+  owner @{HOME}/Android/adb/ rw,
+  owner @{HOME}/Android/adb/** rwkl,
+  owner @{HOME}/Downloads/ r,
+  owner @{HOME}/Downloads/** r,
+  /sys/bus/usb/devices/ r,
+  /sys/bus/usb/devices/** r,
+  dbus send
+  bus=session
+  path=/org/freedesktop/systemd1
+  interface=org.freedesktop.systemd1.Manager
+  member={GetUnit,LoadUnit,ResetFailedUnit,StartUnit,StopUnit,RestartUnit}
+  peer=(name=org.freedesktop.systemd1),
+  dbus send
+  bus=session
+  path=/org/freedesktop/systemd1/unit/**
+  interface=org.freedesktop.DBus.Properties
+  member=Get
+  peer=(name=org.freedesktop.systemd1),
+
+  include if exists <local/usr.local.bin.labwc-adb-action>
+}
+
+profile managed-labwc-adb-menu /usr/local/bin/labwc-adb-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-adb-menu rix,
+  /usr/bin/{id,tr} rix,
+  /usr/local/bin/labwc-fuzzel-log rPx -> managed-labwc-fuzzel-log,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-adb-action rPx -> managed-labwc-adb-action,
+
+  include if exists <local/usr.local.bin.labwc-adb-menu>
+}
+
+profile managed-labwc-admin-action /usr/local/bin/labwc-admin-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-admin-action rix,
+  /usr/bin/{flock,id,stat} rix,
+  /usr/bin/{notify-send,pkexec} PUx,
+  /usr/local/libexec/labwc-admin-action-root rix,
+  owner /run/user/[0-9]*/labwc-admin-action.lock rwk,
+
+  include if exists <local/usr.local.bin.labwc-admin-action>
+}
+
+profile managed-labwc-admin-action-root /usr/local/libexec/labwc-admin-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/labwc-admin-action-root rix,
+  /usr/bin/{getent,id} rix,
+  /usr/bin/systemctl PUx,
+
+  include if exists <local/usr.local.libexec.labwc-admin-action-root>
+}
+
+profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/labwc-admin-action-worker rix,
+  /usr/bin/{getent,id,timeout} rix,
+  /usr/bin/systemctl PUx,
+
+  include if exists <local/usr.local.libexec.labwc-admin-action-worker>
+}
+
+profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/mullvad-vpn rix,
+  /usr/bin/{id,stat} rix,
+  owner /run/user/[0-9]*/wayland-[0-9]* r,
+  /usr/bin/timeout rix,
+  /usr/bin/{pkexec,systemctl} PUx,
+  /usr/local/libexec/mullvad-daemon-start rix,
+  "/opt/Mullvad VPN/mullvad-vpn" pux,
+
+  include if exists <local/usr.local.bin.mullvad-vpn>
+}
+
+profile managed-mullvad-daemon-start /usr/local/libexec/mullvad-daemon-start flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/mullvad-daemon-start rix,
+  /usr/bin/{getent,id} rix,
+  /usr/bin/systemctl PUx,
+
+  include if exists <local/usr.local.libexec.mullvad-daemon-start>
+}
+
+profile managed-mullvad-tailscale-coordinator /usr/local/libexec/mullvad-tailscale-coordinator flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/libexec/mullvad-tailscale-coordinator rix,
+  /usr/bin/systemctl PUx,
+  /run/mullvad-tailscale-coordinator/ rw,
+  /run/mullvad-tailscale-coordinator/** rwkl,
+
+  include if exists <local/usr.local.libexec.mullvad-tailscale-coordinator>
+}
+
+profile managed-labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-autostart rix,
+  /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
+  /usr/bin/{sleep,stat} rix,
+  /usr/bin/{dbus-update-activation-environment,systemctl} pux,
+  owner /run/user/[0-9]*/bus r,
+  owner @{HOME}/.config/{mako,waybar}/ r,
+  owner @{HOME}/.config/{mako,waybar}/** r,
+
+  include if exists <local/usr.local.bin.labwc-autostart>
+}
+
+profile managed-labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-bluetooth rix,
+  /usr/bin/{awk,gawk,grep,mawk,nawk,sleep} rix,
+  /usr/bin/{bluetoothctl,notify-send,systemctl} pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /run/dbus/system_bus_socket rw,
+
+  include if exists <local/usr.local.bin.labwc-bluetooth>
+}
+
+profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-brightness-control rix,
+  /usr/bin/{awk,gawk,mawk,nawk} rix,
+  /usr/bin/{brightnessctl,systemctl} pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+
+  include if exists <local/usr.local.bin.labwc-brightness-control>
+}
+
+profile managed-labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/libexec/labwc-calendar rix,
+  /usr/bin/{cat,grep,install,mkdir,rm,rmdir} rix,
+  /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  owner /run/user/[0-9]*/labwc-calendar-sync.lock/ rw,
+  owner @{HOME}/.cache/labwc-calendar-sync.lock rwk,
+  owner @{HOME}/.config/{khal,todoman,vdirsyncer}/ r,
+  owner @{HOME}/.config/{khal,todoman,vdirsyncer}/** rwkl,
+  owner @{HOME}/.local/share/calendars/ rw,
+  owner @{HOME}/.local/share/calendars/** rwkl,
+  owner @{HOME}/.local/state/vdirsyncer/ rw,
+  owner @{HOME}/.local/state/vdirsyncer/** rwkl,
+
+  include if exists <local/usr.local.libexec.labwc-calendar>
+}
+
+profile managed-labwc-calendar-entrypoint /usr/local/bin/labwc-calendar flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/bin/labwc-calendar rix,
+  /usr/local/libexec/labwc-calendar rPx -> managed-labwc-calendar,
+
+  include if exists <local/usr.local.bin.labwc-calendar>
+}
+
+profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/bin/labwc-capture rix,
+  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,stat,tr,wc} rix,
+  /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/satty rPx -> managed-satty,
+  owner /run/user/[0-9]*/labwc-capture/ rw,
+  owner /run/user/[0-9]*/labwc-capture/** rwkl,
+  owner /run/user/[0-9]*/pipewire-[0-9]* rw,
+  owner @{HOME}/.config/satty/config.toml r,
+  owner @{HOME}/.local/state/labwc-capture/ rw,
+  owner @{HOME}/.local/state/labwc-capture/** rwkl,
+  owner @{HOME}/Pictures/Screenshots/ rw,
+  owner @{HOME}/Pictures/Screenshots/** rwkl,
+  owner @{HOME}/Videos/Recordings/ rw,
+  owner @{HOME}/Videos/Recordings/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-capture>
+}
+
+profile managed-labwc-computer-management /usr/local/bin/labwc-computer-management flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-computer-management rix,
+  /usr/bin/id rix,
+  /usr/bin/pavucontrol pux,
+  /usr/bin/systemctl pux,
+  /usr/local/bin/labwc-fuzzel-log rPx -> managed-labwc-fuzzel-log,
+  # This fan-out exceeds the parser's named-transition limit. Each executable
+  # has one exact attachment below, so automatic profile lookup remains strict.
+  /usr/local/bin/labwc-adb-menu rPx,
+  /usr/local/bin/labwc-ai-copilots rPx,
+  /usr/local/bin/labwc-bluetooth rPx,
+  /usr/local/bin/labwc-brightness-control rPx,
+  /usr/local/bin/labwc-display-configuration rPx,
+  /usr/local/bin/labwc-digital-assets rPx,
+  /usr/local/bin/labwc-external-drives rPx,
+  /usr/local/bin/labwc-firewall-menu rPx,
+  /usr/local/bin/labwc-fuzzel rPx,
+  /usr/local/bin/labwc-keyboard-layout rPx,
+  /usr/local/bin/labwc-maintenance-menu rPx,
+  /usr/local/bin/labwc-network-control-menu rPx,
+  /usr/local/bin/labwc-network-scan-menu rPx,
+  /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
+  /usr/local/bin/labwc-podman-menu rPx,
+  /usr/local/bin/labwc-power-settings rPx,
+  /usr/local/bin/labwc-remote-desktop rPx,
+  /usr/local/bin/labwc-users-groups-menu rPx,
+  owner @{HOME}/.config/labwc/ r,
+  owner @{HOME}/.config/labwc/** r,
+
+  include if exists <local/usr.local.bin.labwc-computer-management>
+}
+
+profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-ai-copilots rix,
+  /dev/tty rw,
+  /usr/bin/cat rix,
+  /usr/bin/{find,fzf,id,sed,sort} rix,
+  /usr/local/bin/labwc-ai-copilots-action rPx -> managed-labwc-ai-copilots-action,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  owner @{PROC}/@{pid}/mountinfo r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/fzf/default-opts r,
+  owner @{HOME}/{Downloads,Music,Projects,Workspace,src}/ r,
+  owner @{HOME}/{Downloads,Music,Projects,Workspace,src}/** r,
+
+  include if exists <local/usr.local.bin.labwc-ai-copilots>
+}
+
+profile managed-labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+  include if exists <abstractions/dbus-session-strict>
+
+  /usr/local/bin/labwc-ai-copilots-action rix,
+  /usr/local/lib/perl5/site_perl/ai-copilots/ r,
+  /usr/local/lib/perl5/site_perl/ai-copilots/** r,
+  /usr/local/share/labwc-ai-copilots/ r,
+  /usr/local/share/labwc-ai-copilots/*.tsv r,
+  /usr/bin/{env,git,id,journalctl,notify-send,perl,systemctl,timeout,wpctl} rix,
+  /usr/bin/pkexec PUx,
+  /usr/bin/{pavucontrol,wl-copy,xdg-open} pux,
+  /usr/lib/git-core/ r,
+  /usr/lib/git-core/** rix,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/bin/labwc-wayscriber-toggle rPx -> managed-labwc-wayscriber-toggle,
+  /usr/local/libexec/labwc-ai-model-install-root rix,
+  /usr/local/libexec/labwc-ai-model-info rPx -> managed-labwc-ai-model-info,
+  /usr/local/libexec/whisper-cli-default-model rPx -> managed-whisper-cli-default-model,
+  /usr/local/libexec/whisper-record-toggle rPx -> managed-whisper-record-toggle,
+  /data/codex/lib/codex rPx -> managed-codex-wrapper,
+  /data/llama/lib/llama rPx -> managed-devops-toolchain,
+  /etc/codex/ r,
+  /etc/codex/** r,
+  /etc/llama/ r,
+  /etc/llama/llama.conf r,
+  /etc/whisper/ r,
+  /etc/whisper/whisper.conf r,
+  /data/codex/ r,
+  /data/codex/{log,runtime,usr}/ r,
+  /data/codex/log/** r,
+  /data/codex/usr/{home,skills}/ r,
+  /data/codex/usr/{home,skills}/** r,
+  /pool/ r,
+  /pool/cache/ r,
+  /pool/cache/{llama,whisper}/ r,
+  /pool/cache/llama/models/ r,
+  /pool/cache/llama/models/*.gguf r,
+  /pool/cache/whisper/models/ r,
+  /pool/cache/whisper/models/*.bin r,
+  owner @{HOME}/ rw,
+  owner @{HOME}/** r,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/labwc-ai-copilots/ rw,
+  owner @{HOME}/.config/labwc-ai-copilots/** rwkl,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/labwc-ai-copilots/ rw,
+  owner @{HOME}/.local/state/labwc-ai-copilots/** rwkl,
+  owner @{HOME}/Music/ rw,
+  owner @{HOME}/Music/Whisper/ rw,
+  owner @{HOME}/Music/Whisper/{audio,transcribed}/ rw,
+  owner @{HOME}/Music/Whisper/{audio,transcribed}/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-ai-copilots-action>
+}
+
+profile managed-labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  capability chown,
+
+  /usr/local/libexec/labwc-ai-model-install-root rix,
+  /usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelCatalog.pm r,
+  /usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelInstallRoot.pm r,
+  /usr/local/share/labwc-ai-copilots/ r,
+  /usr/local/share/labwc-ai-copilots/*.tsv r,
+  /usr/bin/{env,perl} rix,
+  /usr/bin/curl rPx -> managed-ai-copilots-model-download,
+  /pool/ r,
+  /pool/cache/ r,
+  /pool/cache/{llama,whisper}/ r,
+  /pool/cache/llama/models/ rw,
+  /pool/cache/llama/models/.installer-llama-managed r,
+  /pool/cache/llama/models/*.gguf rwk,
+  /pool/cache/llama/models/.*.gguf.lock rwk,
+  /pool/cache/llama/models/.*.gguf.partial.* rwk,
+  /pool/cache/whisper/models/ rw,
+  /pool/cache/whisper/models/.installer-whisper-managed r,
+  /pool/cache/whisper/models/*.bin rwk,
+  /pool/cache/whisper/models/.*.bin.lock rwk,
+  /pool/cache/whisper/models/.*.bin.partial.* rwk,
+
+  include if exists <local/usr.local.libexec.labwc-ai-model-install-root>
+}
+
+profile managed-ai-copilots-model-download flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+
+  network inet stream,
+  network inet6 stream,
+
+  /usr/bin/curl rix,
+  /pool/cache/llama/models/.*.gguf.partial.* rw,
+  /pool/cache/whisper/models/.*.bin.partial.* rw,
+
+  include if exists <local/usr.bin.curl.ai-copilots-model-download>
+}
+
+profile managed-labwc-ai-model-info /usr/local/libexec/labwc-ai-model-info flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/libexec/labwc-ai-model-info rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_ai_copilots/** r,
+  /pool/ r,
+  /pool/cache/ r,
+  /pool/cache/llama/ r,
+  /pool/cache/llama/models/ r,
+  /pool/cache/llama/models/*.gguf r,
+
+  include if exists <local/usr.local.libexec.labwc-ai-model-info>
+}
+
+profile managed-labwc-ai-llama-server /usr/local/libexec/labwc-ai-llama-server flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+  #include <abstractions/managed-desktop-graphics>
+
+  network unix stream,
+  network inet stream,
+  signal (receive) set=(kill term) peer=unconfined,
+
+  /usr/local/libexec/labwc-ai-llama-server rix,
+  /usr/local/lib/perl5/site_perl/ai-copilots/ r,
+  /usr/local/lib/perl5/site_perl/ai-copilots/** r,
+  /usr/bin/{env,id,perl,stat} rix,
+  /etc/llama/ r,
+  /etc/llama/llama.conf r,
+  /data/llama/ r,
+  /data/llama/lib/ r,
+  /data/llama/lib/llama rix,
+  /data/llama/share/ r,
+  /data/llama/bin/ r,
+  /data/llama/bin/llama-server mrix,
+  /pool/ r,
+  /pool/cache/ r,
+  /pool/cache/llama/ r,
+  /pool/cache/llama/models/ r,
+  /pool/cache/llama/models/*.gguf mr,
+  owner /run/user/[0-9]*/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/labwc-ai-copilots/ rw,
+  owner @{HOME}/.config/labwc-ai-copilots/** rwkl,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/labwc-ai-copilots/ rw,
+  owner @{HOME}/.local/state/labwc-ai-copilots/** rwkl,
+
+  include if exists <local/usr.local.libexec.labwc-ai-llama-server>
+}
+
+profile managed-labwc-display-configuration /usr/local/bin/labwc-display-configuration flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/bin/labwc-display-configuration rix,
+  /usr/bin/wdisplays pux,
+
+  include if exists <local/usr.local.bin.labwc-display-configuration>
+}
+
+profile managed-labwc-digital-assets /usr/local/bin/labwc-digital-assets {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-digital-assets rix,
+  /usr/bin/{awk,chmod,find,gawk,grep,id,mawk,mktemp,nawk,rm,sed,sort,stat} rix,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-digital-assets-action rPx -> managed-labwc-digital-assets-action,
+  owner @{HOME}/ r,
+  owner @{HOME}/Desktop/ r,
+  owner @{HOME}/Desktop/** r,
+  owner @{HOME}/Documents/ r,
+  owner @{HOME}/Documents/** r,
+  owner @{HOME}/Downloads/ r,
+  owner @{HOME}/Downloads/** r,
+  owner /run/user/[0-9]*/labwc-digital-assets-catalog.* rwk,
+  owner /run/user/[0-9]*/labwc-digital-assets-list.* rwk,
+
+  include if exists <local/usr.local.bin.labwc-digital-assets>
+}
+
+profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-action {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-python>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-digital-assets-action rix,
+  /usr/local/lib/perl5/site_perl/digital-assets/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /dev/log w,
+  /usr/bin/{awk,cat,chmod,cp,cut,env,find,gawk,grep,id,install,mawk,mktemp,nawk,pdftoppm,pdfimages,pdfinfo,pdfseparate,pdftotext,readlink,rm,sed,sort,stat,stty,timeout,tr} rix,
+  /usr/bin/{exiftool,fix-qdf,focuswriter,gm,jpegoptim,nano,notify-send,optipng,pandoc,qpdf} pix,
+  /usr/local/bin/{pdfcpu,typst} rPx -> managed-digital-assets-release-tools,
+  /usr/local/lib/{pdfcpu/pdfcpu,typst/typst} rPx -> managed-digital-assets-release-tools,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  owner @{HOME}/Desktop/ r,
+  owner @{HOME}/Desktop/** r,
+  owner @{HOME}/Documents/ rw,
+  owner @{HOME}/Documents/** r,
+  owner @{HOME}/Documents/Digital-Assets/ rw,
+  owner @{HOME}/Documents/Digital-Assets/** rwkl,
+  owner @{HOME}/Downloads/ r,
+  owner @{HOME}/Downloads/** r,
+  /usr/local/lib/digital-assets/ r,
+  /usr/local/lib/digital-assets/pipx/ r,
+  /usr/local/lib/digital-assets/pipx/venvs/pdf2docx/bin/python rix,
+  /usr/local/lib/digital-assets/pipx/** mr,
+  owner /run/user/[0-9]*/labwc-digital-assets-catalog.* rwk,
+  owner /run/user/[0-9]*/labwc-digital-assets-list.* r,
+  owner /run/user/[0-9]*/labwc-digital-assets.*/ rw,
+  owner /run/user/[0-9]*/labwc-digital-assets.*/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-digital-assets-action>
+}
+
+profile managed-digital-assets-release-tools /{usr/local/bin/{pdfcpu,typst},usr/local/lib/{pdfcpu/pdfcpu,typst/typst}} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  include if exists <abstractions/fonts>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+  include if exists <abstractions/user-tmp>
+
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/local/bin/{pdfcpu,typst} rix,
+  /usr/local/lib/{pdfcpu,typst}/ r,
+  /usr/local/lib/{pdfcpu,typst}/** mr,
+  /usr/local/lib/{pdfcpu/pdfcpu,typst/typst} rix,
+  /etc/fonts/ r,
+  /etc/fonts/** r,
+  /usr/share/fonts/ r,
+  /usr/share/fonts/** r,
+  /usr/share/typst/ r,
+  /usr/share/typst/** r,
+  /var/cache/fontconfig/ r,
+  /var/cache/fontconfig/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwkl,
+  /pool/ r,
+  /pool/** rwkl,
+
+  include if exists <local/usr.local.lib.digital-assets-release-tools>
+}
+
+profile managed-digital-assets-python-runtime /usr/local/lib/digital-assets/{bin/**,pipx/venvs/*/bin/**} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/fonts>
+  include if exists <abstractions/user-tmp>
+
+  /usr/local/lib/digital-assets/ r,
+  /usr/local/lib/digital-assets/** mr,
+  /usr/local/lib/digital-assets/{bin/**,pipx/venvs/*/bin/**} rix,
+  /usr/bin/{env,python3,python3.*} rix,
+  /etc/fonts/ r,
+  /etc/fonts/** r,
+  /usr/share/fonts/ r,
+  /usr/share/fonts/** r,
+  /var/cache/fontconfig/ r,
+  /var/cache/fontconfig/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwkl,
+  /pool/ r,
+  /pool/** rwkl,
+
+  include if exists <local/usr.local.lib.digital-assets-python-runtime>
+}
+
+profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-wrapper-python>
+
+  unix,
+  # The account user manager supervises the foreground wrapper. Permit only
+  # lifecycle and liveness signals from its unconfined user-manager domain.
+  signal (receive) set=(exists hup int quit kill term) peer=unconfined,
+  signal (send, receive) peer=managed-codex-wrapper//codex-bwrap,
+  signal (send) set=(exists term) peer=managed-codex-slirp4netns,
+
+  /data/ r,
+  /data/codex/ rw,
+  /data/codex/lib/ r,
+  /data/codex/lib/codex r,
+  /data/codex/share/ r,
+  /data/codex/share/bin/ r,
+  /data/codex/share/bin/codex rPx -> managed-codex-runtime,
+  /data/codex/usr/ rw,
+  owner /data/codex/usr/.git/ rw,
+  /data/codex/usr/home/ rw,
+  /data/codex/usr/home/memories/ rw,
+  /data/codex/usr/home/memories/.git r,
+  owner /data/codex/usr/home/memories/.git rwkl,
+  /data/codex/log/ rw,
+  /data/codex/runtime/ rw,
+  /data/codex/runtime/** rwkl,
+  /data/codex/sqlite/ rw,
+  /data/downloads/ rw,
+  /data/tmp/ rw,
+  /var/log/managed/ r,
+  deny /var/log/managed/ w,
+  /var/log/managed/openai/ r,
+  deny /var/log/managed/openai/ w,
+  owner /var/log/managed/openai/codex/ rw,
+  owner /var/log/managed/openai/codex/** rwkl,
+  deny /var/log/managed/openai/chatgpt/ rwkl,
+  deny /var/log/managed/openai/chatgpt/** rwkl,
+  deny /var/log/managed/openai/chatgpt/chatgpt.log rwkl,
+  /usr/bin/bwrap rCx -> codex-bwrap,
+  /usr/bin/slirp4netns rPx -> managed-codex-slirp4netns,
+  /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
+  /usr/bin/{mise,pwsh,sccache} rix,
+  /usr/lib/llvm-24/bin/ r,
+  /usr/lib/llvm-24/bin/{clang,clang++,ld.lld,lld,lldb,llvm-config} rix,
+  /usr/local/lib/node-26/bin/ r,
+  /usr/local/lib/node-26/bin/node rix,
+  /usr/local/lib/rustup/bin/ r,
+  /usr/local/lib/rustup/bin/rustup-init rix,
+  /data/llama/ r,
+  /data/llama/lib/ r,
+  /data/llama/lib/llama rix,
+  /opt/ r,
+  /dev/ r,
+  /dev/tty rw,
+  /dev/{accel,dri,nvidia-caps}/ r,
+  /dev/{accel,dri,nvidia-caps}/** r,
+  /dev/{kfd,nvidiactl,nvidia-uvm,nvidia-uvm-tools} r,
+  /dev/nvidia[0-9]* r,
+  /sys/ r,
+  /sys/{block,bus,class,devices,firmware}/ r,
+  /sys/bus/scsi/ r,
+  /sys/bus/scsi/devices/ r,
+  /sys/class/{block,dmi,net,nvme}/ r,
+  /sys/class/dmi/id/ r,
+  /sys/devices/virtual/ r,
+  /sys/devices/virtual/{block,dmi,net}/ r,
+  /sys/devices/virtual/dmi/id/ r,
+  /{boot,efi,media,mnt,root,srv}/ r,
+  /etc/{NetworkManager,netplan,ssh,systemd,systemd/network}/ r,
+  /etc/{crypttab,fstab,group,gshadow,hostid,hostname,hosts,machine-id,machine-info,nsswitch.conf,passwd,resolv.conf,shadow,subgid,subuid} r,
+  /etc/default/incus-host-managed r,
+  /etc/{incus,modprobe.d,modules-load.d,qemu}/ r,
+  /etc/{incus,modprobe.d,modules-load.d,qemu}/** r,
+  /etc/ssh/ssh_config r,
+  /etc/ssh/ssh_config.d/ r,
+  /etc/ssh/ssh_config.d/** r,
+  /etc/systemd/system/incus-host-managed.service r,
+  /etc/systemd/system/incus-user.service.d/ r,
+  /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf r,
+  /etc/tmpfiles.d/85-qemu-incus-storage.conf r,
+  /proc/{acpi,bus,driver,scsi}/ r,
+  @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/unprivileged_userns_clone r,
+  @{PROC}/sys/user/max_user_namespaces r,
+  /run/{NetworkManager,resolvconf,systemd/resolve}/ r,
+  /run/{NetworkManager,resolvconf,systemd/resolve}/** r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/credentials/ r,
+  owner /run/user/[0-9]*/credentials/codex-app-server.service/ r,
+  owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
+  owner /run/user/[0-9]*/codex-devops-environment.* rwk,
+  /usr/lib/modules/ r,
+  /var/lib/{AccountsService,NetworkManager,bluetooth,connman,dbus,iwd,systemd,systemd/rfkill}/ r,
+  /var/lib/dbus/machine-id r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.cmake/ r,
+  owner @{HOME}/.cmake/packages/ r,
+  owner @{HOME}/.config/ r,
+  owner @{HOME}/.config/Code/ r,
+  owner @{HOME}/.config/Code/User/ r,
+  owner @{HOME}/.config/Code/User/snippets/ r,
+  owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+  owner @{HOME}/.config/cargo/ r,
+  owner @{HOME}/.config/cargo/config.toml r,
+  owner @{HOME}/.config/containers/ r,
+  owner @{HOME}/.config/containers/{containers.conf,mounts.conf,policy.json,registries.conf,seccomp.json,storage.conf} r,
+  owner @{HOME}/.config/gh/ r,
+  owner @{HOME}/.config/gh/config.yml r,
+  owner @{HOME}/.config/go/ r,
+  owner @{HOME}/.config/go/env r,
+  owner @{HOME}/.config/obsidian/ r,
+  owner @{HOME}/.config/obsidian/obsidian.json r,
+  owner @{HOME}/.config/uv/ r,
+  owner @{HOME}/.config/uv/uv.toml r,
+  owner @{HOME}/.config/Code/User/{keybindings.json,settings.json} r,
+  owner @{HOME}/.config/{mimeapps.list,starship.toml,user-dirs.dirs,xdg-terminals.list} r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/{bin,lib}/ r,
+  owner @{HOME}/.local/share/ r,
+  owner @{HOME}/.local/share/powershell/ r,
+  owner @{HOME}/.local/share/powershell/Modules/ r,
+  owner @{HOME}/.profile.d/ r,
+  owner @{HOME}/.profile.d/{71-devops-de.sh,72-incus.sh,75-firmware-workspace.sh} r,
+  owner @{HOME}/.recoll/ r,
+  owner @{HOME}/.recoll/recoll.conf r,
+  owner @{HOME}/{.bash_aliases,.bash_logout,.bash_profile,.bashrc,.dircolors,.gitconfig,.gitlint,.lldbinit,.markdownlint-cli2.cjs,.markdownlint-cli2.jsonc,.markdownlint-cli2.mjs,.markdownlint-cli2.yaml,.markdownlint.json,.markdownlint.yaml,.markdownlint.yml,.profile,.ripgreprc,.rustfmt.toml,.shellcheckrc,.vimrc,.zlogin,.zlogout,.zprofile,.zsh_aliases,.zshenv,.zshrc} r,
+  owner @{HOME}/{Downloads,Workspace}/ rw,
+  /pool/ rw,
+  /pool/** rw,
+
+  profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-codex-runtime>
+    # The only credential access is the already-open read-only systemd copy.
+    owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
+    ptrace (readby) peer=managed-codex-slirp4netns,
+
+    # Bubblewrap traverses root-owned bind sources while constructing the
+    # Codex sandbox; pathname mediation still limits what it may read.
+    capability dac_read_search,
+    # The wrapper owns the child lifecycle and forwards only stop signals.
+    signal (receive) set=(hup int quit term) peer=managed-codex-wrapper,
+
+    / r,
+    /data/codex/usr/instructions/ r,
+    /data/codex/usr/instructions/** r,
+    /var/log/managed/ r,
+    deny /var/log/managed/ w,
+    /var/log/managed/openai/ r,
+    deny /var/log/managed/openai/ w,
+    owner /var/log/managed/openai/codex/ rw,
+    owner /var/log/managed/openai/codex/** rwkl,
+    deny /var/log/managed/openai/chatgpt/ rwkl,
+    deny /var/log/managed/openai/chatgpt/** rwkl,
+    deny /var/log/managed/openai/chatgpt/chatgpt.log rwkl,
+    /usr/local/lib/bazelisk/ r,
+    /usr/local/lib/bazelisk/bazel rix,
+  }
+
+  include if exists <local/data.codex.lib.codex>
+}
+
+profile managed-codex-slirp4netns flags=(attach_disconnected) {
+  # Codex uses a dedicated named transition so this least-privilege policy does
+  # not alter the package slirp4netns attachment used by rootless Podman.
+  userns,
+
+  capability net_admin,
+  capability sys_admin,
+  capability sys_ptrace,
+
+  network create unix stream,
+  network inet stream,
+  network inet dgram,
+  ptrace (read) peer=managed-codex-wrapper//codex-bwrap,
+  ptrace (read) peer=managed-codex-runtime//codex-bwrap,
+  ptrace (readby) peer=managed-devops-toolchain,
+  # aa-status may inspect the helper label, while the user manager and shell
+  # may only probe or hang up the supervised network helper.
+  ptrace (readby) peer=aa-status-reader,
+  signal (receive) set=(exists kill term) peer=managed-codex-wrapper,
+  signal (receive) set=(exists term) peer=managed-codex-runtime,
+  signal (receive) set=(exists hup) peer=unconfined,
+
+  / r,
+  /dev/null r,
+  /dev/net/tun rw,
+  /dev/urandom r,
+  /etc/ld.so.cache r,
+  /etc/resolv.conf r,
+  /run/resolvconf/resolv.conf r,
+  /run/systemd/resolve/stub-resolv.conf r,
+  /usr/bin/slirp4netns mr,
+  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
+  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+  @{PROC}/[0-9]*/ns/{net,user} r,
+  owner /data/codex/runtime/.control/launch.*/{slirp.stdout,slirp.stderr} w,
+
+  include if exists <local/usr.bin.slirp4netns-codex>
+}
+
+profile managed-codex-runtime /data/codex/share/bin/* flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-codex-runtime>
+
+  # Direct Codex entrypoints use the same confined constructor split as the
+  # repository wrapper instead of retaining Bubblewrap authority in the parent.
+  signal (send, receive) peer=managed-codex-runtime//codex-bwrap,
+  signal (send) set=(exists term) peer=managed-codex-slirp4netns,
+
+  /usr/bin/bwrap rCx -> codex-bwrap,
+  /usr/bin/slirp4netns rPx -> managed-codex-slirp4netns,
+
+  profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-codex-runtime>
+    # The only credential access is the already-open read-only systemd copy.
+    owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
+    ptrace (readby) peer=managed-codex-slirp4netns,
+
+    signal (send, receive) peer=managed-codex-runtime,
+    /usr/local/lib/bazelisk/ r,
+    /usr/local/lib/bazelisk/bazel rix,
+  }
+
+  include if exists <local/data.codex.share.bin.codex>
+}
+
+profile managed-devops-toolchain /{data/llama/lib/llama,data/llama/bin/{llama-bench,llama-cli,llama-gguf-split,llama-quantize,llama-server},usr/local/lib/bazelisk/bazel,usr/local/lib/rustup/bin/rustup-init,usr/local/lib/node-{22,24,26}/**,pool/cache/*/cargo/bin/**,pool/db/*/{bazelisk,mise,rustup}/**,pool/build/*/{cargo/{install,target}/**,npm-global/bin/**,pnpm/bin/**,yarn-global/bin/**}} flags=(attach_disconnected) {
+  #include <abstractions/managed-devops-toolchain-runtime>
+
+  # JVM tooling enumerates peer processes and updates its own core-dump policy.
+  capability sys_ptrace,
+  ptrace (read),
+
+  owner @{PROC}/[0-9]*/coredump_filter w,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+
+  /etc/llama/ r,
+  /etc/llama/llama.conf r,
+  /data/llama/ r,
+  /data/llama/lib/ r,
+  /data/llama/lib/llama rix,
+  /data/llama/share/ r,
+  /data/llama/bin/ r,
+  /data/llama/bin/{llama-bench,llama-cli,llama-gguf-split,llama-quantize,llama-server} mrix,
+
+  include if exists <local/usr.local.lib.devops-toolchain>
+}
+
+# Keep credential-bearing publication commands out of the general Node, Rust,
+# Bazel, Cargo, and Llama domain. Their inherited subprocesses retain the shared
+# account-scoped build runtime, while only this profile may reach Secret Service.
+profile managed-devops-publishing /usr/local/libexec/{aptly-publishing,aptly-publishing-bin/{aptly,aptly-publish-local,dpkg-buildpackage},obs-publishing,obs-publishing-bin/{obs-checkout-source,obs-publish-source,osc}} flags=(attach_disconnected) {
+  #include <abstractions/managed-devops-toolchain-runtime>
+  include if exists <abstractions/dbus-session-strict>
+
+  dbus (send, receive)
+  bus=session
+  peer=(name=org.freedesktop.secrets),
+
+  include if exists <local/usr.local.lib.devops-publishing>
+}
+
+profile managed-labwc-external-drives /usr/local/bin/labwc-external-drives flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  include if exists <abstractions/dbus-session-strict>
+  include if exists <abstractions/dbus-strict>
+
+  /usr/local/bin/labwc-external-drives rix,
+  /usr/bin/{awk,flock,gawk,id,mawk,mktemp,nawk,rm,rmdir,sleep,sync,timeout} rix,
+  /usr/bin/{lsblk,notify-send,udevadm,udisksctl} rix,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  signal (send) set=(kill term) peer=managed-labwc-external-drives,
+  /run/dbus/system_bus_socket rw,
+  /run/udev/ r,
+  /run/udev/control rw,
+  /run/udev/data/ r,
+  /run/udev/data/b[0-9]*:[0-9]* r,
+  /etc/udev/udev.conf r,
+  /etc/udev/udev.conf.d/ r,
+  /etc/udev/udev.conf.d/*.conf r,
+  @{PROC}/swaps r,
+  @{PROC}/@{pid}/mountinfo r,
+  /run/mount/utab r,
+  @{sys}/block/ r,
+  /sys/class/block/ r,
+  /sys/class/block/** r,
+  /sys/dev/block/ r,
+  /sys/dev/block/** r,
+  /sys/devices/** r,
+  /dev/ r,
+  /dev/** r,
+  owner /run/user/[0-9]*/bus rw,
+  owner /run/user/[0-9]*/labwc-external-drives.lock rwk,
+  owner /run/user/[0-9]*/labwc-external-drives.*/ rw,
+  owner /run/user/[0-9]*/labwc-external-drives.*/** rwkl,
+  owner /tmp/labwc-external-drives.*/ rw,
+  owner /tmp/labwc-external-drives.*/** rwkl,
+  /{media,mnt,run/media}/ r,
+  /{media,mnt,run/media}/** r,
+  dbus send
+  bus=session
+  path=/org/freedesktop/Notifications
+  interface=org.freedesktop.Notifications
+  member={GetCapabilities,GetServerInformation,Notify}
+  peer=(name=org.freedesktop.Notifications),
+  dbus send
+  bus=system
+  path=/org/freedesktop/DBus
+  interface=org.freedesktop.DBus
+  member={GetNameOwner,NameHasOwner,StartServiceByName}
+  peer=(name=org.freedesktop.DBus),
+  dbus (send, receive)
+  bus=system
+  peer=(name=org.freedesktop.UDisks2),
+
+  include if exists <local/usr.local.bin.labwc-external-drives>
+}
+
+profile managed-labwc-firewall-action /usr/local/bin/labwc-firewall-action {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-firewall-action rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_firewall/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_firewall/** r,
+  /usr/bin/python3 rix,
+  /usr/bin/{notify-send,pkexec} PUx,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-firewall-action-root rix,
+  /etc/nftables/firewall-security.rules r,
+
+  include if exists <local/usr.local.bin.labwc-firewall-action>
+}
+
+profile managed-labwc-firewall-menu /usr/local/bin/labwc-firewall-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-firewall-menu rix,
+  /usr/bin/{awk,gawk,id,mawk,nawk} rix,
+  /usr/local/bin/labwc-firewall-action rPx -> managed-labwc-firewall-action,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /etc/nftables/firewall-security.rules r,
+
+  include if exists <local/usr.local.bin.labwc-firewall-menu>
+}
+
+profile managed-labwc-freerdp-askpass /usr/local/bin/labwc-freerdp-askpass flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-gui>
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/user-tmp>
+
+  /usr/local/bin/labwc-freerdp-askpass rix,
+  /usr/bin/bwrap rCx -> freerdp-bwrap,
+  /usr/bin/true rix,
+  /usr/libexec/glycin-loaders/2+/glycin-image-rs rix,
+  /usr/libexec/glycin-loaders/2+/glycin-svg rix,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  signal (send) peer=managed-labwc-freerdp-askpass//freerdp-bwrap,
+  owner @{HOME}/.config/labwc/remote-desktop/last-session.log w,
+
+  profile freerdp-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-wrapper-gui>
+    include if exists <abstractions/user-tmp>
+
+    /usr/bin/true rix,
+    /usr/libexec/glycin-loaders/2+/glycin-image-rs rix,
+    /usr/libexec/glycin-loaders/2+/glycin-svg rix,
+    /usr/share/glycin-loaders/2+/conf.d/ r,
+    /usr/share/glycin-loaders/2+/conf.d/** r,
+  }
+
+  include if exists <local/usr.local.bin.labwc-freerdp-askpass>
+}
+
+profile managed-labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-fuzzel rix,
+  /usr/bin/{awk,cat,flock,gawk,mawk,mktemp,nawk,rm,rmdir,sed} rix,
+  /usr/bin/fuzzel rPx,
+  /usr/local/bin/labwc-fuzzel-log rPx -> managed-labwc-fuzzel-log,
+  signal (send) peer=unconfined,
+  owner @{HOME}/.config/fuzzel/ r,
+  owner @{HOME}/.config/fuzzel/** r,
+  owner /run/user/[0-9]*/labwc-external-drives.lock rw,
+  owner /run/user/[0-9]*/labwc-fuzzel.{lock,pid} rwk,
+  owner /run/user/[0-9]*/labwc-fuzzel-menu.*/ rw,
+  owner /run/user/[0-9]*/labwc-fuzzel-menu.*/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-fuzzel>
+}
+
+profile managed-labwc-fuzzel-log /usr/local/bin/labwc-fuzzel-log flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-fuzzel-log rix,
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  owner /run/user/[0-9]*/labwc-external-drives.lock rw,
+  owner /run/user/[0-9]*/labwc-fuzzel.lock rwk,
+
+  include if exists <local/usr.local.bin.labwc-fuzzel-log>
+}
+
+profile managed-labwc-greeter-output /usr/local/bin/labwc-greeter-output flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-greeter-output rix,
+  /usr/bin/{udevadm,wlr-randr} pux,
+  signal (send) peer=unconfined,
+  signal (receive) peer=managed-labwc-greeter-client,
+  /run/user/[0-9]*/labwc-greeter.*/ rw,
+  /run/user/[0-9]*/labwc-greeter.*/state/ rw,
+  /run/user/[0-9]*/labwc-greeter.*/state/** rwkl,
+  /tmp/labwc-greeter.*/ rw,
+  /tmp/labwc-greeter.*/state/ rw,
+  /tmp/labwc-greeter.*/state/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-greeter-output>
+}
+
+profile managed-labwc-greeter-power /usr/local/bin/labwc-greeter-power flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-gui>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-greeter-power rix,
+  /usr/local/sbin/greetd-power-action rPx -> managed-greetd-power-action,
+  signal (receive) peer=managed-labwc-greeter-client,
+  /etc/greetd/gtkgreet-power.css r,
+  /run/user/[0-9]*/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/ rw,
+  /run/user/[0-9]*/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/** rwkl,
+  /tmp/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/ rw,
+  /tmp/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-greeter-power>
+}
+
+profile managed-labwc-greeter-client /usr/local/libexec/labwc-greeter-client flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/libexec/labwc-greeter-client rix,
+  /usr/bin/gtkgreet pux,
+  /usr/local/bin/labwc-greeter-output rPx -> managed-labwc-greeter-output,
+  /usr/local/bin/labwc-greeter-power rPx -> managed-labwc-greeter-power,
+  signal (receive) peer=unconfined,
+  signal (send) peer=managed-labwc-greeter-output,
+  signal (send) peer=managed-labwc-greeter-power,
+  /etc/greetd/gtkgreet.css r,
+
+  include if exists <local/usr.local.libexec.labwc-greeter-client>
+}
+
+profile managed-labwc-greeter-session /usr/local/bin/labwc-greeter-session flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-greeter-session rix,
+  /usr/bin/{cat,chmod,id,install,mktemp,rm} rix,
+  /usr/bin/labwc pux,
+  /etc/xdg/labwc/ r,
+  /etc/xdg/labwc/** r,
+  /usr/local/share/labwc-greeter/ r,
+  /usr/local/share/labwc-greeter/{autostart,rc.xml} r,
+  /run/user/[0-9]*/labwc-greeter.*/ rw,
+  /run/user/[0-9]*/labwc-greeter.*/** rwkl,
+  /tmp/labwc-greeter.*/ rw,
+  /tmp/labwc-greeter.*/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-greeter-session>
+}
+
+profile managed-labwc-health-notify /usr/local/bin/labwc-health-notify flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  include if exists <abstractions/dbus-session-strict>
+
+  signal (receive) set=(hup int kill term) peer=unconfined,
+  signal (send) set=(term) peer=managed-labwc-health-notify,
+
+  /usr/local/bin/labwc-health-notify rix,
+  /usr/bin/sleep rix,
+  /usr/bin/{awk,cat,chmod,df,find,gawk,grep,id,mawk,mkdir,nawk,rm,sed,tr,wc} rix,
+  /usr/bin/notify-send rix,
+  owner /run/user/[0-9]*/wayland-[0-9]* r,
+  dbus send
+  bus=session
+  path=/org/freedesktop/Notifications
+  interface=org.freedesktop.Notifications
+  member={GetCapabilities,GetServerInformation,Notify}
+  peer=(name=org.freedesktop.Notifications),
+  /etc/nsswitch.conf r,
+  /etc/passwd r,
+  @{PROC}/[0-9]*/{cgroup,mountinfo} r,
+  /sys/class/thermal/ r,
+  /sys/class/thermal/thermal_zone*/temp r,
+  /sys/devices/virtual/thermal/thermal_zone[0-9]*/temp r,
+  @{PROC}/meminfo r,
+  /sys/class/power_supply/ r,
+  /sys/class/power_supply/** r,
+  /sys/devices/**/power_supply/ r,
+  /sys/devices/**/power_supply/*/ r,
+  /sys/devices/**/power_supply/*/{capacity,status,type} r,
+  /run/reboot-required r,
+  /var/mail/ r,
+  /var/mail/* r,
+  /var/log/unattended-upgrades/ r,
+  /var/log/unattended-upgrades/** r,
+  /var/lib/labwc-notifications/ r,
+  /var/lib/labwc-notifications/** r,
+  owner @{HOME}/.local/state/labwc-health-notify/ rw,
+  owner @{HOME}/.local/state/labwc-health-notify/** rwkl,
+  owner @{HOME}/ r,
+  /data/ r,
+  /pool/ r,
+
+  include if exists <local/usr.local.bin.labwc-health-notify>
+}
+
+profile managed-labwc-plans /usr/local/libexec/labwc-plans.pl flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/local/libexec/labwc-plans.pl rix,
+  /etc/localtime r,
+  /etc/timezone r,
+  /usr/share/zoneinfo/ r,
+  /usr/share/zoneinfo/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/Syncthing/ r,
+  owner @{HOME}/Syncthing/sleek/ r,
+  owner @{HOME}/Syncthing/sleek/*.txt r,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/labwc-plans/ rw,
+  owner @{HOME}/.local/state/labwc-plans/** rwkl,
+
+  include if exists <local/usr.local.libexec.labwc-plans.pl>
+}
+
+profile managed-telbot /usr/local/bin/telbot flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/nameservice-strict>
+  include if exists <abstractions/ssl_certs>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /usr/local/bin/telbot rix,
+  /etc/default/labwc-plans r,
+  /etc/mime.types r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  /{data,media,mnt,pool,run/media}/ r,
+  /{data,media,mnt,pool,run/media}/**/ r,
+  owner /{data,pool}/** r,
+  /{media,mnt,run/media}/** r,
+  /tmp/ r,
+  owner /tmp/** r,
+  /var/tmp/ r,
+  owner /var/tmp/** r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/** r,
+
+  include if exists <local/usr.local.bin.telbot>
+}
+
+profile managed-labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-keyboard-layout rix,
+  /usr/bin/{flock,install,mv,rm,sleep} rix,
+  /usr/bin/labwc pux,
+  owner @{HOME}/.config/labwc/environment.d/ rw,
+  owner @{HOME}/.config/labwc/environment.d/** rwkl,
+  owner @{HOME}/.local/state/labwc/ rw,
+  owner @{HOME}/.local/state/labwc/{keyboard-layout,keyboard-layout-waybar.lock} rwkl,
+  owner @{HOME}/.local/state/labwc/keyboard-layout.* rwkl,
+
+  include if exists <local/usr.local.bin.labwc-keyboard-layout>
+}
+
+profile managed-labwc-kanshi /usr/local/libexec/labwc-kanshi flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/libexec/labwc-kanshi rix,
+  /usr/bin/kanshi rPx,
+  /etc/default/labwc-desktop r,
+  owner @{HOME}/.config/kanshi/ r,
+  owner @{HOME}/.config/kanshi/config r,
+
+  include if exists <local/usr.local.libexec.labwc-kanshi>
+}
+
+profile managed-labwc-lock /usr/local/bin/labwc-lock flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-lock rix,
+  /usr/bin/flock rix,
+  /usr/bin/swaylock pux,
+  owner @{HOME}/.config/swaylock/config r,
+  /usr/share/backgrounds/login/lock-1920x1080.png r,
+  owner /run/user/[0-9]*/labwc-swaylock.lock rwk,
+
+  include if exists <local/usr.local.bin.labwc-lock>
+}
+
+profile managed-labwc-logout /usr/local/bin/labwc-logout flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-logout rix,
+  /usr/bin/systemctl pux,
+
+  include if exists <local/usr.local.bin.labwc-logout>
+}
+
+profile managed-labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-maintenance-menu rix,
+  /usr/bin/{awk,find,gawk,id,mawk,nawk,sed,sort} rix,
+  /usr/bin/systemctl pux,
+  /usr/{bin,sbin}/ip pux,
+  /usr/local/bin/labwc-external-drives rPx -> managed-labwc-external-drives,
+  /usr/local/bin/labwc-firewall-menu rPx -> managed-labwc-firewall-menu,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-recovery-action rPx -> managed-labwc-recovery-action,
+  /usr/local/bin/labwc-security-action rPx -> managed-labwc-security-action,
+  /usr/local/bin/labwc-system-action rPx -> managed-labwc-system-action,
+  /dev/ r,
+  /dev/** r,
+  /sys/class/nvme/ r,
+  /sys/class/nvme/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  /{media,mnt,run/media}/ r,
+  /{media,mnt,run/media}/** r,
+
+  include if exists <local/usr.local.bin.labwc-maintenance-menu>
+}
+
+profile managed-labwc-discord-command /usr/local/bin/discord flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/discord rix,
+  /usr/local/bin/labwc-managed-wayland-compat-app rPx -> managed-labwc-managed-wayland-compat-app,
+
+  include if exists <local/usr.local.bin.discord>
+}
+
+profile managed-labwc-chatgpt-log-runner /usr/local/libexec/labwc-chatgpt-log-runner flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-wrapper-perl>
+
+  unix,
+  signal (receive) set=(hup int kill term),
+  signal (send) set=(hup int kill term) peer=managed-labwc-chatgpt,
+  signal (send) set=(hup int kill term) peer=managed-labwc-chatgpt-log-runner,
+
+  /usr/local/libexec/labwc-chatgpt-log-runner rix,
+  /usr/bin/setsid rix,
+  /usr/local/bin/labwc-managed-app rPx -> managed-labwc-chatgpt,
+  /run/rsyslog/managed-openai/ r,
+  /run/rsyslog/managed-openai/chatgpt.sock w,
+  deny /dev/log rw,
+  deny /{,var/}run/systemd/journal/ r,
+  deny /{,var/}run/systemd/journal/** rw,
+  deny /var/log/managed/openai/ rw,
+  deny /var/log/managed/openai/** rwkl,
+
+  include if exists <local/usr.local.libexec.labwc-chatgpt-log-runner>
+}
+
+profile managed-labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/chatgpt rix,
+  /usr/local/libexec/labwc-chatgpt-log-runner rPx -> managed-labwc-chatgpt-log-runner,
+  /usr/local/bin/labwc-managed-app rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
+  # ChatGPT lifecycle events use stderr so the existing capture runner sends
+  # them only to its private rsyslog socket; generic syslog remains denied.
+  /usr/bin/bwrap rCx -> chatgpt-bwrap,
+  /usr/bin/slirp4netns rPx -> managed-chatgpt-slirp4netns,
+  /usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,
+  /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
+  /usr/bin/{mise,pwsh,sccache} rix,
+  /usr/lib/llvm-24/bin/ r,
+  /usr/lib/llvm-24/bin/{clang,clang++,ld.lld,lld,lldb,llvm-config} rix,
+  /usr/local/lib/node-26/bin/ r,
+  /usr/local/lib/node-26/bin/node rix,
+  /usr/local/lib/rustup/bin/ r,
+  /usr/local/lib/rustup/bin/rustup-init rix,
+  /opt/ r,
+  unix,
+  signal (send) set=(kill term) peer=managed-labwc-chatgpt//chatgpt-bwrap,
+  signal (send) set=(kill term) peer=managed-labwc-chatgpt//chatgpt-dbus-proxy,
+  signal (send) set=(exists kill term) peer=managed-chatgpt-slirp4netns,
+  signal (receive) set=(int) peer=managed-labwc-chatgpt-log-runner,
+  deny /dev/log rw,
+  deny /{,var/}run/systemd/journal/ r,
+  deny /{,var/}run/systemd/journal/** rw,
+  deny /run/rsyslog/managed-openai/ r,
+  deny /run/rsyslog/managed-openai/** rw,
+  /var/log/managed/ r,
+  deny /var/log/managed/ w,
+  /var/log/managed/openai/ r,
+  deny /var/log/managed/openai/ w,
+  /var/log/managed/openai/chatgpt/ r,
+  deny /var/log/managed/openai/chatgpt/ wkl,
+  owner /var/log/managed/openai/chatgpt/runtime/ rw,
+  owner /var/log/managed/openai/chatgpt/runtime/** rwkl,
+  deny /var/log/managed/openai/codex/ rwkl,
+  deny /var/log/managed/openai/codex/** rwkl,
+  deny /var/log/managed/openai/chatgpt/chatgpt.log rwkl,
+  /dev/ r,
+  /dev/kfd r,
+  /dev/accel/ r,
+  /dev/accel/** r,
+  /dev/dri/ r,
+  /dev/dri/** r,
+  owner @{PROC}/@{pid}/fd/ r,
+  include if exists <local/managed-desktop-wrappers-nvidia>
+  /etc/{alternatives,ca-certificates,codex,fonts,ld.so.conf.d,llama,pki,ssl,xdg}/ r,
+  /etc/{alternatives,ca-certificates,codex,fonts,ld.so.conf.d,llama,pki,ssl,xdg}/** r,
+  /etc/default/labwc-desktop r,
+  /etc/default/incus-host-managed r,
+  /etc/{incus,modprobe.d,modules-load.d,qemu}/ r,
+  /etc/{incus,modprobe.d,modules-load.d,qemu}/** r,
+  /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+  /etc/systemd/system/incus-host-managed.service r,
+  /etc/systemd/system/incus-user.service.d/ r,
+  /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf r,
+  /etc/tmpfiles.d/85-qemu-incus-storage.conf r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/{ansible,python}/ rw,
+  owner /run/user/[0-9]*/ansible/{pc,ssh,tmp}/ rw,
+  owner /run/user/[0-9]*/doc/ r,
+  owner /run/user/[0-9]*/doc/** r,
+  owner /run/user/[0-9]*/pulse/ r,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+  /run/resolvconf/resolv.conf r,
+  owner /run/user/[0-9]*/labwc-chatgpt-launch.lock rwk,
+  owner /run/user/[0-9]*/labwc-chatgpt-tmp/ rw,
+  owner /run/user/[0-9]*/labwc-chatgpt-tmp/** rwkl,
+  owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/ rw,
+  owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/** rwkl,
+  owner /tmp/labwc-chatgpt-sandbox-*/ rw,
+  owner /tmp/labwc-chatgpt-sandbox-*/** rwkl,
+  owner @{HOME}/ r,
+  owner @{HOME}/.cmake/ r,
+  owner @{HOME}/.cmake/packages/ r,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/Codex/ rw,
+  owner @{HOME}/.cache/Codex/** rwkl,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/Code/ r,
+  owner @{HOME}/.config/Code/User/ r,
+  owner @{HOME}/.config/Code/User/snippets/ r,
+  owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+  owner @{HOME}/.config/cargo/ r,
+  owner @{HOME}/.config/cargo/config.toml r,
+  owner @{HOME}/.config/containers/ r,
+  owner @{HOME}/.config/containers/{containers.conf,mounts.conf,policy.json,registries.conf,seccomp.json,storage.conf} r,
+  owner @{HOME}/.config/gh/ r,
+  owner @{HOME}/.config/gh/config.yml r,
+  owner @{HOME}/.config/go/ r,
+  owner @{HOME}/.config/go/env r,
+  owner @{HOME}/.config/obsidian/ r,
+  owner @{HOME}/.config/obsidian/obsidian.json r,
+  owner @{HOME}/.config/uv/ r,
+  owner @{HOME}/.config/uv/uv.toml r,
+  owner @{HOME}/.config/Code/User/{keybindings.json,settings.json} r,
+  owner @{HOME}/.config/{mimeapps.list,starship.toml,user-dirs.dirs,xdg-terminals.list} r,
+  owner @{HOME}/.config/Codex/ rw,
+  owner @{HOME}/.config/Codex/** rwkl,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/{bin,lib}/ r,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/powershell/ r,
+  owner @{HOME}/.local/share/powershell/Modules/ r,
+  owner @{HOME}/.local/share/Codex/ rw,
+  owner @{HOME}/.local/share/Codex/** rwkl,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/Codex/ rw,
+  owner @{HOME}/.local/state/Codex/** rwkl,
+  owner @{HOME}/.profile.d/ r,
+  owner @{HOME}/.profile.d/{71-devops-de.sh,72-incus.sh,75-firmware-workspace.sh} r,
+  owner @{HOME}/.recoll/ r,
+  owner @{HOME}/.recoll/recoll.conf r,
+  owner @{HOME}/{.bash_aliases,.bash_logout,.bash_profile,.bashrc,.dircolors,.gitconfig,.gitlint,.lldbinit,.markdownlint-cli2.cjs,.markdownlint-cli2.jsonc,.markdownlint-cli2.mjs,.markdownlint-cli2.yaml,.markdownlint.json,.markdownlint.yaml,.markdownlint.yml,.profile,.ripgreprc,.rustfmt.toml,.shellcheckrc,.vimrc,.zlogin,.zlogout,.zprofile,.zsh_aliases,.zshenv,.zshrc} r,
+  owner @{HOME}/{Downloads,Workspace}/ rw,
+  owner @{HOME}/{Downloads,Workspace}/** rwkl,
+  /data/ rw,
+  /data/{codex,downloads}/ rw,
+  /data/{codex,downloads}/** rwkl,
+  deny /data/codex/config.schema.json wkl,
+  /data/llama/ r,
+  /data/llama/** r,
+  /pool/ rw,
+  /pool/** rwkl,
+  /usr/lib/chatgpt/ r,
+  /usr/lib/chatgpt/** r,
+  /sys/ r,
+  /sys/{block,bus,class,devices,firmware}/ r,
+  /sys/bus/scsi/ r,
+  /sys/bus/scsi/devices/ r,
+  /sys/class/{block,net,nvme}/ r,
+  /sys/class/dmi/ r,
+  /sys/class/dmi/id/ r,
+  /sys/devices/virtual/ r,
+  /sys/devices/virtual/{block,net}/ r,
+  /sys/devices/virtual/dmi/ r,
+  /sys/devices/virtual/dmi/id/ r,
+  /var/cache/apt/ r,
+  /var/lib/apt/ r,
+  /var/lib/apt/lists/ r,
+  /var/lib/dbus/ r,
+  /var/lib/dbus/machine-id r,
+  /var/lib/dpkg/ r,
+
+  profile chatgpt-dbus-proxy flags=(attach_disconnected) {
+    #include <abstractions/base>
+
+    unix,
+    signal (receive) set=(kill term) peer=managed-labwc-chatgpt,
+
+    /usr/bin/xdg-dbus-proxy mr,
+    deny /dev/log rw,
+    deny /{,var/}run/systemd/journal/ r,
+    deny /{,var/}run/systemd/journal/** rw,
+    deny /run/rsyslog/managed-openai/ r,
+    deny /run/rsyslog/managed-openai/** rw,
+    deny /var/log/managed/openai/ rw,
+    deny /var/log/managed/openai/** rwkl,
+    owner /run/user/[0-9]*/bus rw,
+    owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/ rw,
+    owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/{session-bus,system-bus} rw,
+  }
+
+  profile chatgpt-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-bwrap-desktop-runtime>
+    #include <abstractions/managed-pipewire-audio>
+    #include <abstractions/managed-codex-runtime>
+    include if exists <abstractions/user-tmp>
+
+    capability dac_read_search,
+    unix,
+    signal (receive) set=(kill term) peer=managed-labwc-chatgpt,
+    signal (send) peer=unconfined,
+    deny /dev/log rw,
+    deny /{,var/}run/systemd/journal/ r,
+    deny /{,var/}run/systemd/journal/** rw,
+    /dev/ r,
+    /dev/kfd rw,
+    /dev/accel/ r,
+    /dev/accel/** rw,
+    /dev/dri/ r,
+    /dev/dri/** rw,
+    include if exists <local/managed-desktop-wrappers-nvidia>
+    /etc/{alternatives,ca-certificates,codex,fonts,ld.so.conf.d,llama,pki,ssl,xdg}/ r,
+    /etc/{alternatives,ca-certificates,codex,fonts,ld.so.conf.d,llama,pki,ssl,xdg}/** r,
+    /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+    deny /etc/opt/ w,
+    deny /etc/opt/chrome/ w,
+    deny /etc/opt/chrome/native-messaging-hosts/ w,
+    owner /run/user/[0-9]*/ r,
+    owner /run/user/[0-9]*/doc/ r,
+    owner /run/user/[0-9]*/doc/** r,
+    owner /run/user/[0-9]*/pulse/ rw,
+    owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+    owner /run/user/[0-9]*/labwc-chatgpt-tmp/ rw,
+    owner /run/user/[0-9]*/labwc-chatgpt-tmp/** rwkl,
+    owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/ rw,
+    owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/** rwkl,
+    owner /tmp/labwc-chatgpt-sandbox-*/ rw,
+    owner /tmp/labwc-chatgpt-sandbox-*/** rwkl,
+    owner @{HOME}/ r,
+    owner @{HOME}/.cmake/ r,
+    owner @{HOME}/.cmake/packages/ r,
+    owner @{HOME}/.cmake/packages/** r,
+    owner @{HOME}/.cache/ rw,
+    owner @{HOME}/.cache/Codex/ rw,
+    owner @{HOME}/.cache/Codex/** rwkl,
+    owner @{HOME}/.config/ rw,
+    owner @{HOME}/.config/Code/ r,
+    owner @{HOME}/.config/Code/User/ r,
+    owner @{HOME}/.config/Code/User/snippets/ r,
+    owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/ r,
+    owner @{HOME}/.config/{bat,bazel,clangd,direnv,featherpad,fzf,git,micro,mise,nano,nvim,pip,powershell,retroarch,satty,sleek,task,vim,yamllint}/** r,
+    owner @{HOME}/.config/{cargo,containers,gh,go,obsidian,uv}/ r,
+    owner @{HOME}/.config/cargo/config.toml r,
+    owner @{HOME}/.config/containers/{containers.conf,mounts.conf,policy.json,registries.conf,seccomp.json,storage.conf} r,
+    owner @{HOME}/.config/gh/config.yml r,
+    owner @{HOME}/.config/go/env r,
+    owner @{HOME}/.config/obsidian/obsidian.json r,
+    owner @{HOME}/.config/uv/uv.toml r,
+    owner @{HOME}/.config/Code/User/{keybindings.json,settings.json} r,
+    owner @{HOME}/.config/{mimeapps.list,starship.toml,user-dirs.dirs,xdg-terminals.list} r,
+    owner @{HOME}/.config/Codex/ rw,
+    owner @{HOME}/.config/Codex/** rwkl,
+    owner @{HOME}/.local/ r,
+    owner @{HOME}/.local/bin/ r,
+    owner @{HOME}/.local/bin/** mrix,
+    owner @{HOME}/.local/lib/ r,
+    owner @{HOME}/.local/lib/** mrix,
+    owner @{HOME}/.local/share/ rw,
+    owner @{HOME}/.local/share/Codex/ rw,
+    owner @{HOME}/.local/share/Codex/** rwkl,
+    owner @{HOME}/.local/state/ rw,
+    owner @{HOME}/.local/state/Codex/ rw,
+    owner @{HOME}/.local/state/Codex/** rwkl,
+    owner @{HOME}/{.bash_aliases,.bash_logout,.bash_profile,.bashrc,.dircolors,.gitconfig,.gitlint,.lldbinit,.markdownlint-cli2.cjs,.markdownlint-cli2.jsonc,.markdownlint-cli2.mjs,.markdownlint-cli2.yaml,.markdownlint.json,.markdownlint.yaml,.markdownlint.yml,.profile,.ripgreprc,.rustfmt.toml,.shellcheckrc,.vimrc,.zlogin,.zlogout,.zprofile,.zsh_aliases,.zshenv,.zshrc} r,
+    owner @{HOME}/{Downloads,Workspace}/ rw,
+    owner @{HOME}/{Downloads,Workspace}/** rwklm,
+    owner @{HOME}/{Downloads,Workspace}/** rix,
+    /data/ rw,
+    /data/codex/ rw,
+    /data/codex/** rwklm,
+    /data/codex/** rix,
+    /data/downloads/ rw,
+    /data/downloads/** rwkl,
+    /data/llama/ r,
+    /data/llama/** mr,
+    /pool/ rw,
+    /pool/** rwklm,
+    /pool/** rix,
+    /usr/bin/{bwrap,pacmd,pactl,true} rix,
+    /usr/bin/xdg-open rix,
+    /usr/bin/chatgpt rix,
+    /usr/local/lib/bazelisk/ r,
+    /usr/local/lib/bazelisk/bazel rPx -> managed-devops-toolchain,
+    /usr/lib/chatgpt/ r,
+    /usr/lib/chatgpt/** mrix,
+    /usr/lib/chatgpt/ChatGPT rix,
+    /usr/lib/chatgpt/browser_crashpad_handler rix,
+    /usr/lib/chatgpt/codex-launcher rix,
+    /usr/lib/chatgpt/resources/codex rix,
+    /usr/lib/chatgpt/resources/codex-code-mode-host rix,
+    /data/codex/lib/codex rix,
+    /data/codex/share/bin/* mrix,
+    /data/codex/config.schema.json r,
+    deny /data/codex/config.schema.json wkl,
+    /data/llama/lib/llama rix,
+    /data/llama/bin/{llama-cli,llama-server} rix,
+    /proc/self/exe rix,
+    /var/lib/dbus/ r,
+    /var/lib/dbus/machine-id r,
+    deny /run/rsyslog/managed-openai/ r,
+    deny /run/rsyslog/managed-openai/** rw,
+    /var/log/managed/ r,
+    deny /var/log/managed/ w,
+    /var/log/managed/openai/ r,
+    deny /var/log/managed/openai/ w,
+    /var/log/managed/openai/chatgpt/ r,
+    deny /var/log/managed/openai/chatgpt/ wkl,
+    owner /var/log/managed/openai/chatgpt/runtime/ rw,
+    owner /var/log/managed/openai/chatgpt/runtime/** rwkl,
+    deny /var/log/managed/openai/codex/ rwkl,
+    deny /var/log/managed/openai/codex/** rwkl,
+    deny /var/log/managed/openai/chatgpt/chatgpt.log rwkl,
+    deny /opt/xwayland/ r,
+    deny /opt/xwayland/** rxm,
+    deny /usr/bin/Xwayland rxm,
+    deny /tmp/.X11-unix/ rw,
+    deny /tmp/.X11-unix/** rw,
+    deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
+  }
+
+  include if exists <local/usr.local.bin.chatgpt>
+}
+
+profile managed-chatgpt-slirp4netns flags=(attach_disconnected) {
+  # ChatGPT uses a dedicated named transition so its network helper cannot
+  # inherit the broader package attachment used by rootless Podman or the
+  # independent managed Codex wrapper.
+  userns,
+
+  capability net_admin,
+  capability sys_admin,
+  capability sys_ptrace,
+
+  network create unix stream,
+  network inet stream,
+  network inet dgram,
+  ptrace (read) peer=managed-labwc-chatgpt//chatgpt-bwrap,
+  # Keep status inspection separate from ChatGPT's own process tracing.
+  ptrace (readby) peer=aa-status-reader,
+  signal (receive) set=(exists kill term) peer=managed-labwc-chatgpt,
+
+  / r,
+  /dev/null rw,
+  /dev/net/tun rw,
+  /dev/urandom r,
+  /etc/ld.so.cache r,
+  /etc/resolv.conf r,
+  /run/resolvconf/resolv.conf r,
+  /run/systemd/resolve/stub-resolv.conf r,
+  /usr/bin/slirp4netns mr,
+  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
+  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+  @{PROC}/[0-9]*/ns/{net,user} r,
+  owner /run/user/[0-9]*/labwc-chatgpt-sandbox-*/slirp4netns.stderr rw,
+  owner /tmp/labwc-chatgpt-sandbox-*/slirp4netns.stderr rw,
+
+  include if exists <local/usr.bin.slirp4netns-chatgpt>
+}
+
+profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-managed-app rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  deny /opt/xwayland/ r,
+  deny /opt/xwayland/** rxm,
+  deny /usr/bin/Xwayland rxm,
+  deny /tmp/.X11-unix/ rw,
+  deny /tmp/.X11-unix/** rw,
+  /usr/bin/bwrap rCx -> managed-app-bwrap,
+  # systemd-run needs the validated XDG_RUNTIME_DIR and D-Bus address to reach
+  # the active user manager. Lowercase pux preserves that fixed environment;
+  # uppercase PUx invokes secure-exec environment scrubbing.
+  /usr/bin/systemd-run rpux,
+  /usr/bin/xdg-dbus-proxy pux,
+  unix,
+  signal (send) peer=unconfined,
+  signal (send) set=(kill) peer=managed-labwc-managed-app//managed-app-bwrap,
+  /{lib32,lib64,opt,sbin}/ r,
+  /dev/ r,
+  /dev/kfd r,
+  /dev/dri/ r,
+  /dev/dri/** r,
+  /dev/video[0-9]* rw,
+  include if exists <local/managed-desktop-wrappers-nvidia>
+  /etc/{alternatives,ca-certificates,chromium,chromium.d,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+  /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+  /etc/resolv.conf r,
+  /run/systemd/resolve/stub-resolv.conf r,
+  /run/dbus/system_bus_socket rw,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/doc/ r,
+  owner /run/user/[0-9]*/doc/** r,
+  owner /run/user/[0-9]*/pulse/ r,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+  dbus send
+  bus=session
+  path=/org/freedesktop/DBus
+  interface=org.freedesktop.DBus
+  member={GetNameOwner,NameHasOwner,StartServiceByName}
+  peer=(name=org.freedesktop.DBus),
+  owner @{HOME}/ r,
+  # Bitwarden prepares only these browser-specific native-messaging listener
+  # directories. Keep creation and chmod access on the exact directory chain.
+  owner @{HOME}/.mozilla/ rw,
+  owner @{HOME}/.mozilla/native-messaging-hosts/ rw,
+  owner @{HOME}/.var/ rw,
+  owner @{HOME}/.var/app/ rw,
+  owner @{HOME}/.var/app/org.mozilla.firefox/ rw,
+  owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/ rw,
+  owner @{HOME}/.var/app/org.mozilla.firefox/.mozilla/native-messaging-hosts/ rw,
+  owner @{HOME}/.var/app/com.google.Chrome/ rw,
+  owner @{HOME}/.var/app/com.google.Chrome/config/ rw,
+  owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/ rw,
+  owner @{HOME}/.var/app/com.google.Chrome/config/google-chrome/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/org.chromium.Chromium/ rw,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/ rw,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/ rw,
+  owner @{HOME}/.var/app/org.chromium.Chromium/config/chromium/NativeMessagingHosts/ rw,
+  owner @{HOME}/.var/app/com.microsoft.Edge/ rw,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/ rw,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/ rw,
+  owner @{HOME}/.var/app/com.microsoft.Edge/config/microsoft-edge/NativeMessagingHosts/ rw,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/** rwkl,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/** rwkl,
+  owner @{HOME}/.gitconfig r,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/** rwkl,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/** rwkl,
+  owner @{HOME}/Syncthing/ rw,
+  owner @{HOME}/Syncthing/.stignore rwkl,
+  owner @{HOME}/Syncthing/keepassxc/ rw,
+  owner @{HOME}/Syncthing/keepassxc/** rwkl,
+  owner @{HOME}/Syncthing/obsidian-md/ rw,
+  owner @{HOME}/Syncthing/obsidian-md/** rwkl,
+  owner @{HOME}/Workspace/ r,
+  owner @{HOME}/Workspace/** r,
+  /pool/ r,
+  /pool/db/ r,
+  owner /pool/db/*/ rw,
+  owner /pool/db/*/qoredb/ rw,
+  owner /pool/db/*/qoredb/** rwkl,
+  /usr/local/share/labwc-managed-app/ r,
+  owner /run/user/[0-9]*/labwc-*-privacy-*/ rw,
+  owner /run/user/[0-9]*/labwc-*-privacy-*/** rwkl,
+  owner /run/user/[0-9]*/labwc-*-sandbox-*/ rw,
+  owner /run/user/[0-9]*/labwc-*-sandbox-*/** rwkl,
+  owner /tmp/labwc-*-privacy-*/ rw,
+  owner /tmp/labwc-*-privacy-*/** rwkl,
+  owner /tmp/labwc-*-sandbox-*/ rw,
+  owner /tmp/labwc-*-sandbox-*/** rwkl,
+  /dev/ r,
+  /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/ r,
+  /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/** r,
+  /usr/{lib32,lib64,sbin}/ r,
+  /usr/bin/{chromium,code,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,qoredb,retroarch,spotify,telegram-desktop,vivaldi-stable} r,
+  /var/lib/dbus/ r,
+  /var/lib/dbus/machine-id r,
+  # labwc-managed-app constructs a fixed allowlisted environment before these
+  # transitions. Preserve that environment for package-relative Electron
+  # libraries: uppercase Px invokes secure execution, strips LD_LIBRARY_PATH,
+  # and prevents $ORIGIN libffmpeg.so resolution below /opt and /usr/share.
+  /opt/Bitwarden/bitwarden rpx -> bitwarden,
+  /opt/Filen/Filen rpx -> filen,
+  /opt/Obsidian/obsidian rpx -> obsidian,
+  /opt/ledger-live/AppRun rPx,
+  /opt/postman/app/Postman rpx -> postman,
+  /opt/sleek/sleek rpx -> sleek,
+  /opt/tuta-mail/AppRun rPx,
+  /opt/vivaldi/{vivaldi,vivaldi-bin} rPx,
+  /opt/microsoft/msedge/microsoft-edge rPx -> labwc-microsoft-edge-launcher,
+  /usr/bin/{filen,filen-desktop} rpx -> filen,
+  /usr/bin/obsidian rpx -> obsidian,
+  /usr/bin/sleek rpx -> sleek,
+  /usr/bin/spotify rpx -> spotify,
+  /usr/bin/qoredb rPx,
+  /usr/share/spotify/spotify rpx -> spotify,
+  /usr/bin/code rpx -> code,
+  /usr/bin/{chromium,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,retroarch,telegram-desktop,vivaldi-stable} rPx,
+  /usr/lib/mullvad-browser/start-mullvad-browser rPx -> labwc-mullvad-browser-launcher,
+  /usr/share/code/{bin/code,code} rpx -> code,
+  /usr/local/bin/labwc-qbittorrent rPx -> managed-labwc-qbittorrent,
+
+  # Bubblewrap receives its namespace-construction permissions only in this
+  # child domain. Bubblewrap sets no_new_privs before it execs a payload, so a
+  # payload cannot gain access through a top-level profile transition. Keep
+  # payload-specific desktop runtime permissions in their dedicated
+  # abstraction and explicitly inherit execution for the fixed managed
+  # application allowlist.
+  profile managed-app-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-bwrap-desktop-runtime>
+    include if exists <abstractions/user-tmp>
+
+    unix,
+    signal (send) peer=unconfined,
+    signal (receive) set=(kill) peer=managed-labwc-managed-app,
+    /{lib32,lib64,opt,sbin}/ r,
+    /dev/ r,
+    /dev/console rw,
+    /dev/kfd r,
+    /dev/dri/ r,
+    /dev/dri/** r,
+    /dev/video[0-9]* rw,
+    include if exists <local/managed-desktop-wrappers-nvidia>
+    /etc/{alternatives,ca-certificates,chromium,chromium.d,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+    /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+    /etc/resolv.conf r,
+    /run/dbus/system_bus_socket rw,
+    owner /run/user/[0-9]*/ r,
+    owner /run/user/[0-9]*/doc/ r,
+    owner /run/user/[0-9]*/doc/** r,
+    owner /run/user/[0-9]*/pulse/ r,
+    owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+    owner @{HOME}/ r,
+    owner @{HOME}/.tmp/ rw,
+    owner @{HOME}/.tmp/** rwkl,
+    owner @{HOME}/.cache/ rw,
+    owner @{HOME}/.cache/** rwkl,
+    owner @{HOME}/.config/ rw,
+    owner @{HOME}/.config/** rwkl,
+    owner @{HOME}/.gitconfig r,
+    owner @{HOME}/.local/share/ rw,
+    owner @{HOME}/.local/share/** rwkl,
+    owner @{HOME}/.local/state/ rw,
+    owner @{HOME}/.local/state/** rwkl,
+    owner @{HOME}/Syncthing/ rw,
+    owner @{HOME}/Syncthing/.stignore rwkl,
+    owner @{HOME}/Syncthing/keepassxc/ rw,
+    owner @{HOME}/Syncthing/keepassxc/** rwkl,
+    owner @{HOME}/Syncthing/obsidian-md/ rw,
+    owner @{HOME}/Syncthing/obsidian-md/** rwkl,
+    owner @{HOME}/Workspace/ r,
+    owner @{HOME}/Workspace/** r,
+    owner /run/user/[0-9]*/labwc-*-privacy-*/ rw,
+    owner /run/user/[0-9]*/labwc-*-privacy-*/** rwkl,
+    owner /run/user/[0-9]*/labwc-*-sandbox-*/ rw,
+    owner /run/user/[0-9]*/labwc-*-sandbox-*/** rwkl,
+    owner /tmp/labwc-*-privacy-*/ rw,
+    owner /tmp/labwc-*-privacy-*/** rwkl,
+    owner /tmp/labwc-*-sandbox-*/ rw,
+    owner /tmp/labwc-*-sandbox-*/** rwkl,
+    /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/ r,
+    /opt/{Bitwarden,Filen,Obsidian,ledger-live,postman,sleek,tuta-mail}/** mrix,
+    /opt/microsoft/msedge/** mrix,
+    /opt/vivaldi/** mrix,
+    /usr/{lib32,lib64,sbin}/ r,
+    /usr/bin/ldd rix,
+    /usr/bin/{bwrap,true} rix,
+    /usr/bin/{pacmd,pactl} rix,
+    /usr/lib/mullvad-browser/** mrix,
+    /usr/share/code/** mrix,
+    /usr/share/glycin-loaders/2+/conf.d/ r,
+    /usr/share/glycin-loaders/2+/conf.d/** r,
+    /usr/bin/{chromium,code,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,retroarch,telegram-desktop,vivaldi-stable} r,
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /var/lib/dbus/ r,
+    /var/lib/dbus/machine-id r,
+    # Do not turn a non-transition into a null profile: Bubblewrap has already
+    # set no_new_privs. Each fixed payload therefore inherits this confined
+    # Bubblewrap child domain, while direct launches still use their own
+    # top-level attachment.
+    /proc/self/exe rix,
+    owner @{PROC}/[0-9]*/mem r,
+    @{PROC}/[0-9]*/statm r,
+    /opt/Bitwarden/bitwarden rix,
+    /opt/Filen/Filen rix,
+    /opt/Obsidian/obsidian rix,
+    /opt/ledger-live/AppRun rix,
+    /opt/postman/app/Postman rix,
+    /opt/sleek/sleek rix,
+    /opt/tuta-mail/AppRun rix,
+    /opt/vivaldi/{vivaldi,vivaldi-bin} rix,
+    /opt/microsoft/msedge/microsoft-edge rix,
+    /usr/bin/{filen,filen-desktop} rix,
+    /usr/bin/obsidian rix,
+    /usr/bin/sleek rix,
+    /usr/bin/spotify rix,
+    /usr/bin/{chromium,code,keepassxc,microsoft-edge-stable,mullvad-browser,qbittorrent,retroarch,telegram-desktop,vivaldi-stable} rix,
+    /usr/lib/mullvad-browser/start-mullvad-browser rix,
+    /usr/share/code/{bin/code,code} rix,
+    /usr/share/spotify/ r,
+    /usr/share/spotify/** mr,
+    /usr/share/spotify/spotify rix,
+    deny /opt/xwayland/ r,
+    deny /opt/xwayland/** rxm,
+    deny /usr/bin/Xwayland rxm,
+    deny /tmp/.X11-unix/ rw,
+    deny /tmp/.X11-unix/** rw,
+
+    # Chromium probes accelerometers opportunistically. Managed sandboxes do
+    # not receive sensor data; keep this privacy boundary explicit instead of
+    # allowing all of /sys to silence audit records.
+    deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
+  }
+
+
+  include if exists <local/usr.local.bin.labwc-managed-app>
+}
+
+profile managed-labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime flags=(attach_disconnected) {
+  #include <abstractions/base>
+
+  /usr/local/libexec/labwc-zoom-discord-compat-runtime rix,
+  deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py r,
+  deny /opt/xwayland/ r,
+  deny /opt/xwayland/** rxm,
+  deny /usr/bin/Xwayland rxm,
+
+  include if exists <local/usr.local.libexec.labwc-zoom-discord-compat-runtime>
+}
+
+profile managed-labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wayland-compat-app flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-managed-wayland-compat-app rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  /usr/bin/bwrap rCx -> managed-wayland-compat-app-bwrap,
+  /usr/bin/slirp4netns rPx -> managed-wayland-compat-slirp4netns,
+  /usr/bin/cage r,
+  # Preserve only the wrapper's validated user-manager environment while the
+  # transient service takes ownership of the complete Cage process tree.
+  /usr/bin/systemd-run rpux,
+  /usr/bin/xdg-dbus-proxy rCx -> managed-wayland-compat-dbus-proxy,
+  unix,
+  signal (send) set=(kill term) peer=managed-labwc-managed-wayland-compat-app//managed-wayland-compat-dbus-proxy,
+  signal (send) set=(exists kill term) peer=managed-wayland-compat-slirp4netns,
+  /{lib32,lib64,opt,sbin}/ r,
+  /dev/ r,
+  /dev/kfd r,
+  /dev/dri/ r,
+  /dev/dri/renderD[0-9] r,
+  /dev/dri/renderD[0-9][0-9] r,
+  /dev/dri/renderD[0-9][0-9][0-9] r,
+  deny /dev/dri/{card,controlD}[0-9]* rw,
+  deny /dev/nvidia-modeset rw,
+  /dev/{media,video}[0-9]* r,
+  /dev/v4l-subdev[0-9]* r,
+  include if exists <local/managed-desktop-wrappers-nvidia>
+  /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+  /etc/{default,group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+  /etc/default/labwc-desktop r,
+  /etc/resolv.conf r,
+  /run/dbus/system_bus_socket r,
+  owner @{PROC}/@{pid}/fd/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/doc/ r,
+  owner /run/user/[0-9]*/doc/** r,
+  owner /run/user/[0-9]*/pulse/ r,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+  owner @{HOME}/ r,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/{discord,zoom}/ rw,
+  owner @{HOME}/.cache/{discord,zoom}/** rwkl,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/{discord,zoom}/ rw,
+  owner @{HOME}/.config/{discord,zoom}/** rwkl,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/{discord,zoom}/ rw,
+  owner @{HOME}/.local/share/{discord,zoom}/** rwkl,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/discord/ rw,
+  owner @{HOME}/.local/state/discord/** rwkl,
+  owner @{HOME}/.zoom/ rw,
+  owner @{HOME}/.zoom/** rwkl,
+  owner @{HOME}/{Documents,Downloads}/ rw,
+  owner @{HOME}/{Documents,Downloads}/** rwkl,
+  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
+  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/** rwkl,
+  owner /tmp/labwc-{discord,zoom}-sandbox-*/ rw,
+  owner /tmp/labwc-{discord,zoom}-sandbox-*/** rwkl,
+  /opt/discord/ r,
+  /opt/discord/** r,
+  /opt/zoom/ r,
+  /opt/zoom/** r,
+  /opt/xwayland/ r,
+  /opt/xwayland/usr/ r,
+  /opt/xwayland/usr/bin/ r,
+  /opt/xwayland/usr/bin/Xwayland r,
+  /opt/xwayland/usr/bin/xkbcomp r,
+  /opt/xwayland/usr/lib/ r,
+  /opt/xwayland/usr/lib/xkbcomp-overlay/ r,
+  /opt/xwayland/usr/lib/xkbcomp-overlay/xkbcomp r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/ r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0.* r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1 r,
+  /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1.* r,
+  /opt/xwayland/usr/lib/xorg/ r,
+  /opt/xwayland/usr/lib/xorg/protocol.txt r,
+  /usr/local/libexec/labwc-zoom-discord-compat-runtime r,
+  /usr/{lib32,lib64,sbin}/ r,
+  /usr/bin/zoom r,
+  /var/lib/dbus/ r,
+  /var/lib/dbus/machine-id r,
+  /var/lib/software/ r,
+  /var/lib/software/state/ r,
+  /var/lib/software/state/discord.installed.json r,
+
+  profile managed-wayland-compat-dbus-proxy flags=(attach_disconnected) {
+    #include <abstractions/base>
+
+    unix,
+    signal (receive) set=(kill term) peer=managed-labwc-managed-wayland-compat-app,
+
+    /usr/bin/xdg-dbus-proxy mr,
+    /run/dbus/system_bus_socket rw,
+    owner /run/user/[0-9]*/bus rw,
+    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
+    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/{session-bus,system-bus} rw,
+  }
+
+  profile managed-wayland-compat-app-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-bwrap-desktop-runtime>
+    #include <abstractions/managed-pipewire-audio>
+    include if exists <abstractions/user-tmp>
+
+    capability dac_read_search,
+    unix,
+    signal (send) peer=unconfined,
+    signal (send, receive) peer=managed-labwc-managed-wayland-compat-app//managed-wayland-compat-app-bwrap,
+    /{lib32,lib64,opt,sbin}/ r,
+    /dev/ r,
+    /dev/kfd r,
+    /dev/dri/ r,
+    /dev/dri/renderD[0-9] rw,
+    /dev/dri/renderD[0-9][0-9] rw,
+    /dev/dri/renderD[0-9][0-9][0-9] rw,
+    deny /dev/dri/{card,controlD}[0-9]* rw,
+    deny /dev/nvidia-modeset rw,
+    /dev/console rw,
+    /dev/{media,video}[0-9]* rw,
+    /dev/v4l-subdev[0-9]* rw,
+    include if exists <local/managed-desktop-wrappers-nvidia>
+    /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+    /etc/{group,hostname,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+    /etc/resolv.conf r,
+    /run/dbus/system_bus_socket rw,
+    owner /run/user/[0-9]*/ r,
+    owner /run/user/[0-9]*/doc/ r,
+    owner /run/user/[0-9]*/doc/** r,
+    owner /run/user/[0-9]*/pulse/ rw,
+    owner /run/user/[0-9]*/{bus,wayland-[0-9]*,pipewire-[0-9]*,pulse/native} rw,
+    # Cage creates and locks a nested compositor socket inside this private
+    # runtime directory before exporting its WAYLAND_DISPLAY to the supervised
+    # Zoom or Discord process.
+    owner /run/user/[0-9]*/wayland-[0-9]*.lock rwk,
+    owner /run/user/[0-9]*/discord-ipc-[0-9]* rwkl,
+    # Xwayland creates and atomically removes this owner-only compiled keymap.
+    owner /run/user/[0-9]*/server-[0-9]*.xkm rw,
+    owner /tmp/.X11-unix/ rw,
+    owner /tmp/.X11-unix/X[0-9]* rw,
+    owner /tmp/.X[0-9]*-lock rwk,
+    owner @{HOME}/ r,
+    owner @{HOME}/.cache/ rw,
+    owner @{HOME}/.cache/{discord,zoom}/ rw,
+    owner @{HOME}/.cache/{discord,zoom}/** rwkl,
+    # Qt and Zoom use owner-only atomic state outside their named directories.
+    owner @{HOME}/.cache/qtshadercache-*/ rw,
+    owner @{HOME}/.cache/qtshadercache-*/** rwkl,
+    owner @{HOME}/.config/ rw,
+    owner @{HOME}/.config/\#* rwkl,
+    owner @{HOME}/.config/pulse/ rw,
+    owner @{HOME}/.config/{discord,zoom}/ rw,
+    owner @{HOME}/.config/{discord,zoom}/** rwkl,
+    owner @{HOME}/.config/zoom.conf* rwkl,
+    owner @{HOME}/.config/zoomus.conf* rwkl,
+    owner @{HOME}/.local/ r,
+    owner @{HOME}/.local/share/ rw,
+    owner @{HOME}/.local/share/{discord,zoom}/ rw,
+    owner @{HOME}/.local/share/{discord,zoom}/** rwkl,
+    owner @{HOME}/.local/state/ rw,
+    owner @{HOME}/.local/state/discord/ rw,
+    owner @{HOME}/.local/state/discord/** rwkl,
+    owner @{HOME}/.zoom/ rw,
+    owner @{HOME}/.zoom/** rwkl,
+    owner @{HOME}/{Documents,Downloads}/ rw,
+    owner @{HOME}/{Documents,Downloads}/** rwkl,
+    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/ rw,
+    owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/** rwkl,
+    owner /tmp/labwc-{discord,zoom}-sandbox-*/ rw,
+    owner /tmp/labwc-{discord,zoom}-sandbox-*/** rwkl,
+    /opt/discord/ r,
+    /opt/discord/** mrix,
+    /opt/zoom/ r,
+    /opt/zoom/** mrix,
+    /opt/xwayland/ r,
+    /opt/xwayland/usr/ r,
+    /opt/xwayland/usr/bin/ r,
+    # Bubblewrap sets no_new_privs before starting the payload, so Cage-owned
+    # Xwayland must inherit this already-confined child domain instead of
+    # attempting a profile transition. This child is reachable only through
+    # the fixed Discord/Zoom wrapper and private Bubblewrap namespace.
+    /opt/xwayland/usr/bin/Xwayland rix,
+    /opt/xwayland/usr/bin/xkbcomp r,
+    /opt/xwayland/usr/lib/ r,
+    /opt/xwayland/usr/lib/xkbcomp-overlay/ r,
+    /opt/xwayland/usr/lib/xkbcomp-overlay/xkbcomp r,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/ r,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXau.so.6.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXdmcp.so.6.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libXfont2.so.2.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libfontenc.so.1.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-image.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render-util.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-render.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb-util.so.1.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcb.so.1.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxcvt.so.0.* mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1 mr,
+    /opt/xwayland/usr/lib/x86_64-linux-gnu/libxshmfence.so.1.* mr,
+    /opt/xwayland/usr/lib/xorg/ r,
+    /opt/xwayland/usr/lib/xorg/protocol.txt r,
+    # Compatibility payloads may inherit only these observed fixed helpers;
+    # rix keeps every helper inside this already-confined Bubblewrap child.
+    /usr/bin/{gsettings,ls,lscpu,lspci,pgrep,pipewire} rix,
+    /usr/bin/{wl-copy,wl-paste} rix,
+    /usr/bin/{env,expr,xdg-open} rix,
+    /usr/{bin,sbin}/ip rix,
+    /usr/{bin/pidof,sbin/killall5} rix,
+    /usr/libexec/xdg-desktop-portal rix,
+    # Diagnostic helpers receive read-only access to the exact metadata they
+    # queried; the child gains no writable procfs or sysfs surface.
+    @{PROC}/bus/pci/devices r,
+    @{sys}/devices/**/power_supply/*/{capacity,online,type} r,
+    @{sys}/devices/system/cpu/cpu[0-9]*/cache/index[0-9]*/{coherency_line_size,number_of_sets,physical_line_partition,shared_cpu_map,type,ways_of_associativity} r,
+    @{sys}/devices/system/cpu/cpu[0-9]*/hotplug/state r,
+    @{sys}/devices/system/cpu/cpu[0-9]*/topology/{core_id,core_siblings,thread_siblings} r,
+    @{sys}/devices/system/cpu/cpufreq/policy[0-9]*/cpuinfo_min_freq r,
+    @{sys}/devices/system/cpu/hotplug/states r,
+    @{sys}/devices/system/cpu/vulnerabilities/ r,
+    @{sys}/devices/system/cpu/vulnerabilities/* r,
+    @{sys}/kernel/cpu_byteorder r,
+    /usr/{lib32,lib64,sbin}/ r,
+    /usr/bin/ldd rix,
+    /usr/bin/{bwrap,cage,pacmd,pactl,true} rix,
+    /usr/bin/xkbcomp rix,
+    /usr/bin/python3 rix,
+    /usr/bin/python3.[0-9]* rix,
+    /usr/local/libexec/labwc-zoom-discord-compat-runtime rix,
+    /usr/local/lib/python3.14/dist-packages/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,events,integrity,runtime,wayland_compat_runtime}.py r,
+    /usr/share/iproute2/group r,
+    /usr/share/misc/pci.ids r,
+    /usr/share/xdg-desktop-portal/portals/ r,
+    /@/usr/bin/{lsb_release,xdg-mime,xdg-open} r,
+    /@/usr/bin/chromium r,
+    # xdg-open may select Chromium. Bubblewrap has already set no_new_privs,
+    # so inherit this confined child rather than creating a null profile.
+    /usr/bin/chromium rix,
+    deny /usr/bin/Xwayland rxm,
+    /usr/bin/zoom rix,
+    /usr/lib/xorg/ r,
+    /usr/lib/xorg/protocol.txt r,
+    /usr/lib/x86_64-linux-gnu/libdecor/ r,
+    /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/ r,
+    /usr/lib/x86_64-linux-gnu/libdecor/plugins-1/libdecor-gtk.so mr,
+    /usr/share/X11/xkb/ r,
+    /usr/share/X11/xkb/** r,
+    /opt/discord/Discord rix,
+    /opt/zoom/{ZoomLauncher,zoom} rix,
+    /var/lib/dbus/ r,
+    /var/lib/dbus/machine-id r,
+    /proc/self/exe rix,
+    owner @{PROC}/[0-9]*/mem r,
+    @{sys}/devices/**/{idProduct,idVendor,interface} r,
+
+    deny @{sys}/devices/**/iio:device[0-9]*/in_accel_{offset,sampling_frequency,scale,x_raw,y_raw,z_raw} r,
+  }
+
+  include if exists <local/usr.local.bin.labwc-managed-wayland-compat-app>
+}
+
+profile managed-wayland-compat-slirp4netns flags=(attach_disconnected) {
+  # The Zoom/Discord compatibility path needs a private network namespace so
+  # wlroots cannot collide with the host Xwayland abstract Unix socket. Keep
+  # its network helper separate from ChatGPT, Codex, and rootless Podman.
+  userns,
+
+  capability net_admin,
+  capability sys_admin,
+  capability sys_ptrace,
+
+  network create unix stream,
+  network inet stream,
+  network inet dgram,
+  ptrace (read) peer=managed-labwc-managed-wayland-compat-app//managed-wayland-compat-app-bwrap,
+  signal (receive) set=(exists kill term) peer=managed-labwc-managed-wayland-compat-app,
+
+  / r,
+  /dev/null rw,
+  /dev/net/tun rw,
+  /dev/urandom r,
+  /etc/ld.so.cache r,
+  /etc/resolv.conf r,
+  /run/resolvconf/resolv.conf r,
+  /run/systemd/resolve/stub-resolv.conf r,
+  /usr/bin/slirp4netns mr,
+  /usr/lib/@{multiarch}/ld-linux-*.so* mr,
+  /usr/lib/@{multiarch}/lib{atomic,c,glib-2.0,m,pcre2-8,seccomp,slirp}.so* mr,
+  @{PROC}/[0-9]*/ns/{net,user} r,
+  owner /run/user/[0-9]*/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
+  owner /tmp/labwc-{discord,zoom}-sandbox-*/slirp4netns.stderr rw,
+
+  include if exists <local/usr.bin.slirp4netns-wayland-compat>
+}
+
+# The desktop session and ordinary applications must not start Cage or either
+# the package-owned or private Xwayland binary directly. The managed
+# Zoom/Discord Bubblewrap child above explicitly inherits its confined profile
+# and therefore does not enter these fail-closed attachments.
+profile labwc-cage-direct-exec-deny /usr/bin/cage flags=(attach_disconnected, mediate_deleted) {
+  deny /usr/bin/cage mr,
+}
+
+profile labwc-xwayland-direct-exec-deny /{opt/xwayland/usr,usr}/bin/Xwayland flags=(attach_disconnected, mediate_deleted) {
+  deny /{opt/xwayland/usr,usr}/bin/Xwayland mr,
+}
+
+profile labwc-xkbcomp-direct-exec-deny /opt/xwayland/usr/{bin,lib/xkbcomp-overlay}/xkbcomp flags=(attach_disconnected, mediate_deleted) {
+  deny /opt/xwayland/usr/{bin,lib/xkbcomp-overlay}/xkbcomp mr,
+}
+
+profile managed-labwc-zoom-command /usr/local/bin/zoom flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/zoom rix,
+  /usr/local/bin/labwc-managed-wayland-compat-app rPx -> managed-labwc-managed-wayland-compat-app,
+
+  include if exists <local/usr.local.bin.zoom>
+}
+
+profile managed-labwc-network-control-action /usr/local/bin/labwc-network-control-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-network-control-action rix,
+  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/bin/{nmcli,notify-send,pkexec,resolvectl} PUx,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-network-control-action-root rix,
+  owner @{HOME}/*.ovpn r,
+  owner @{HOME}/{Desktop,Documents,Downloads}/ r,
+  owner @{HOME}/{Desktop,Documents,Downloads}/** r,
+  /data/ r,
+  /data/config/ r,
+  /data/config/network/ r,
+  /data/config/network/wireguard/ r,
+  /data/config/network/wireguard/*.conf r,
+  /sys/class/net/ r,
+  /sys/class/net/** r,
+
+  include if exists <local/usr.local.bin.labwc-network-control-action>
+}
+
+profile managed-labwc-network-control-menu /usr/local/bin/labwc-network-control-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-network-control-menu rix,
+  /usr/bin/{awk,cut,find,gawk,grep,id,mawk,nawk,sed,sort,tr} rix,
+  /usr/bin/nmcli pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-network-control-action rPx -> managed-labwc-network-control-action,
+  owner @{HOME}/ r,
+  # find inventories directory names for the chooser; the trailing slash keeps
+  # this rule directory-only and does not grant file-content reads.
+  owner @{HOME}/**/ r,
+  owner @{HOME}/{Desktop,Documents,Downloads}/ r,
+  owner @{HOME}/{Desktop,Documents,Downloads}/** r,
+  /data/ r,
+  /data/config/ r,
+  /data/config/network/ r,
+  /data/config/network/wireguard/ r,
+  /data/config/network/wireguard/*.conf r,
+  /sys/class/net/ r,
+  /sys/class/net/** r,
+
+  include if exists <local/usr.local.bin.labwc-network-control-menu>
+}
+
+profile managed-labwc-network-scan-action /usr/local/bin/labwc-network-scan-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-network-scan-action rix,
+  /usr/local/lib/perl5/site_perl/labwc-network-scan-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-network-scan-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/bin/timeout rix,
+  /usr/bin/{dumpcap,notify-send,setsid,tcpdump,tshark,wireshark} pux,
+  /usr/bin/pkexec PUx,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-network-scan-action-root rix,
+  owner @{HOME}/Captures/network-scanning/ rw,
+  owner @{HOME}/Captures/network-scanning/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-network-scan-action>
+}
+
+profile managed-labwc-network-scan-menu /usr/local/bin/labwc-network-scan-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-network-scan-menu rix,
+  /usr/bin/{awk,find,gawk,id,mawk,nawk,sed,sort} rix,
+  /usr/bin/dumpcap PUx,
+  /usr/{bin,sbin}/ip PUx,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-network-scan-action rPx -> managed-labwc-network-scan-action,
+  owner @{HOME}/Captures/network-scanning/ rw,
+  owner @{HOME}/Captures/network-scanning/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-network-scan-menu>
+}
+
+profile managed-labwc-ocr /usr/local/bin/labwc-ocr flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-ocr rix,
+  /usr/bin/{cat,install,mktemp,rm} rix,
+  /usr/bin/{grim,notify-send,slurp,tesseract,xdg-open} pux,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  owner @{HOME}/.config/tesseract/ r,
+  owner @{HOME}/.config/tesseract/** r,
+  owner @{HOME}/Documents/OCR/ rw,
+  owner @{HOME}/Documents/OCR/** rwkl,
+  /{media,mnt,run/media}/ r,
+  /{media,mnt,run/media}/** r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/** r,
+  owner /tmp/labwc-ocr.*/ rw,
+  owner /tmp/labwc-ocr.*/** rwkl,
+  owner /tmp/** r,
+
+  include if exists <local/usr.local.bin.labwc-ocr>
+}
+
+profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/labwc-output-watch rix,
+  /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} pux,
+  /usr/bin/wayland-info pux,
+  signal (send) peer=unconfined,
+  owner /run/user/[0-9]*/labwc-fuzzel.{lock,pid} rwk,
+  owner /run/user/[0-9]*/labwc/ rw,
+  owner /run/user/[0-9]*/labwc/** rwkl,
+  owner @{HOME}/.config/waybar/ r,
+  owner @{HOME}/.config/waybar/** r,
+  owner @{HOME}/.local/state/labwc/ rw,
+  owner @{HOME}/.local/state/labwc/** rwkl,
+  owner /tmp/labwc-*/ rw,
+  owner /tmp/labwc-*/** rwkl,
+
+  include if exists <local/usr.local.libexec.labwc-output-watch>
+}
+
+profile managed-labwc-podman-menu /usr/local/bin/labwc-podman-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-podman-menu rix,
+  /usr/bin/{awk,cat,gawk,getent,grep,id,less,mawk,nawk,sed,sort} rix,
+  /usr/bin/sudo PUx,
+  /usr/local/sbin/podbin rPx -> managed-podbin,
+  /dev/tty rw,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /data/accounts/podman/users r,
+  /data/docs/podbin.md r,
+  /etc/default/podbin r,
+  /etc/subuid r,
+
+  include if exists <local/usr.local.bin.labwc-podman-menu>
+}
+
+profile managed-labwc-power-menu /usr/local/bin/labwc-power-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-power-menu rix,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-lock rPx -> managed-labwc-lock,
+  /usr/local/bin/labwc-logout rPx -> managed-labwc-logout,
+  /usr/local/bin/labwc-admin-action rPx -> managed-labwc-admin-action,
+
+  include if exists <local/usr.local.bin.labwc-power-menu>
+}
+
+profile managed-labwc-power-settings /usr/local/bin/labwc-power-settings flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-power-settings rix,
+  /usr/bin/powerprofilesctl pux,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+
+  include if exists <local/usr.local.bin.labwc-power-settings>
+}
+
+profile managed-labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-qbittorrent rix,
+  /usr/bin/bwrap rCx -> qbittorrent-bwrap,
+  /etc/default/labwc-desktop r,
+  /run/media/ r,
+  /run/media/*/ r,
+  /run/media/*/bittorrent/ rw,
+  /run/media/*/bittorrent/** rwkl,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  owner @{HOME}/.config/qBittorrent/ rw,
+  owner @{HOME}/.config/qBittorrent/** rwkl,
+  owner @{HOME}/.local/share/qBittorrent/ rw,
+  owner @{HOME}/.local/share/qBittorrent/** rwkl,
+  owner @{HOME}/.cache/qBittorrent/ rw,
+  owner @{HOME}/.cache/qBittorrent/** rwkl,
+  owner @{HOME}/imports/ r,
+  owner @{HOME}/imports/** r,
+  owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+  /dev/ r,
+  /dev/dri/ r,
+  /dev/dri/** r,
+  include if exists <local/managed-desktop-wrappers-nvidia>
+  /{lib32,lib64,opt,sbin}/ r,
+  /usr/{lib32,lib64,sbin}/ r,
+  /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+  /etc/{group,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+  /var/lib/dbus/ r,
+  /var/lib/dbus/machine-id r,
+  /usr/bin/qbittorrent rix,
+
+  # qBittorrent's Bubblewrap setup is isolated from the payload profile. A
+  # direct qBittorrent launch therefore enters the qbittorrent attachment
+  # without namespace-construction permissions.
+  profile qbittorrent-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/managed-bwrap-common>
+    #include <abstractions/managed-desktop-application>
+    include if exists <abstractions/user-tmp>
+
+    /etc/default/labwc-desktop r,
+    /run/media/ r,
+    /run/media/*/ r,
+    /run/media/*/bittorrent/ rw,
+    /run/media/*/bittorrent/** rwkl,
+    owner @{HOME}/ r,
+    owner @{HOME}/** r,
+    owner @{HOME}/.config/qBittorrent/ rw,
+    owner @{HOME}/.config/qBittorrent/** rwkl,
+    owner @{HOME}/.local/share/qBittorrent/ rw,
+    owner @{HOME}/.local/share/qBittorrent/** rwkl,
+    owner @{HOME}/.cache/qBittorrent/ rw,
+    owner @{HOME}/.cache/qBittorrent/** rwkl,
+    owner @{HOME}/imports/ r,
+    owner @{HOME}/imports/** r,
+    owner /run/user/[0-9]*/{bus,wayland-[0-9]*} rw,
+    /dev/ r,
+    /dev/dri/ r,
+    /dev/dri/** r,
+    include if exists <local/managed-desktop-wrappers-nvidia>
+    /{lib32,lib64,opt,sbin}/ r,
+    /usr/{lib32,lib64,sbin}/ r,
+    /etc/{alternatives,ca-certificates,fonts,ld.so.conf.d,pki,ssl,xdg}/ r,
+    /etc/{group,hosts,ld.so.cache,ld.so.conf,localtime,machine-id,mime.types,nsswitch.conf,passwd,resolv.conf,timezone} r,
+    /var/lib/dbus/ r,
+    /var/lib/dbus/machine-id r,
+    /usr/bin/qbittorrent rPx -> qbittorrent,
+  }
+
+  include if exists <local/usr.local.bin.labwc-qbittorrent>
+}
+
+profile managed-labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-recovery-action rix,
+  /usr/bin/id rix,
+  /usr/bin/{notify-send,pkexec,systemctl} PUx,
+  /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-recovery-action-root rix,
+
+  include if exists <local/usr.local.bin.labwc-recovery-action>
+}
+
+profile managed-labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-remote-desktop rix,
+  /usr/bin/notify-send pux,
+  /usr/bin/{freerdp-sdl,sdl-freerdp,sdl-freerdp3,thunar,wlfreerdp,xfreerdp} pux,
+  /usr/local/bin/labwc-freerdp-askpass rPx -> managed-labwc-freerdp-askpass,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  owner @{HOME}/.config/labwc/remote-desktop/ rw,
+  owner @{HOME}/.config/labwc/remote-desktop/** rwkl,
+  owner @{HOME}/.local/state/labwc/remote-desktop/ rw,
+  owner @{HOME}/.local/state/labwc/remote-desktop/** rwkl,
+  owner @{HOME}/.config/freerdp/ rw,
+  owner @{HOME}/.config/freerdp/** rwkl,
+  /run/media/ r,
+  /run/media/*/ r,
+  /run/media/*/** r,
+
+  include if exists <local/usr.local.bin.labwc-remote-desktop>
+}
+
+profile managed-labwc-run /usr/local/bin/labwc-run flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-run rix,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/bin/fuzzel rPx,
+
+  include if exists <local/usr.local.bin.labwc-run>
+}
+
+profile managed-labwc-security-action /usr/local/bin/labwc-security-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/bin/labwc-security-action rix,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /dev/log w,
+  /run/rsyslog/managed-security-scanners/ r,
+  /run/rsyslog/managed-security-scanners/scanner.sock w,
+  /usr/bin/{awk,chmod,clamscan,date,find,gawk,grep,id,mawk,mkdir,mktemp,mv,nawk,readlink,rm,sed,sha256sum,sha512sum,sort,stat,timeout,tr,wc,xargs} rix,
+  /usr/bin/{notify-send,pkexec} PUx,
+  /usr/sbin/apparmor_parser PUx,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-security-action-root rix,
+  /var/lib/clamav/ r,
+  /var/lib/clamav/** r,
+  /var/lib/apparmor/ r,
+  /var/lib/apparmor/drafts/ r,
+  /var/lib/apparmor/drafts/** r,
+  /var/lib/apparmor/easyprof/ r,
+  /var/lib/apparmor/easyprof/** r,
+  owner @{HOME}/.local/state/labwc/security-reports/ rw,
+  owner @{HOME}/.local/state/labwc/security-reports/** rwkl,
+  owner /tmp/labwc-hash-* rwk,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  /data/ r,
+  /data/** r,
+  /media/ r,
+  /media/** r,
+  /mnt/ r,
+  /mnt/** r,
+  /run/media/ r,
+  /run/media/** r,
+
+  include if exists <local/usr.local.bin.labwc-security-action>
+}
+
+profile managed-labwc-session /usr/local/bin/labwc-session flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-session rix,
+  /usr/local/libexec/dbus-broker-check rix,
+  /usr/bin/busctl rix,
+  /usr/bin/{flock,id,jq,sleep,stat} rix,
+  /usr/bin/{loginctl,systemctl,timeout} pux,
+  # The login wrapper retains the one-session lock while it waits on the
+  # user-manager-owned compositor service.
+  @{PROC}/uptime r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.profile r,
+  owner @{HOME}/.profile.d/ r,
+  owner @{HOME}/.profile.d/* r,
+  owner /run/user/[0-9]*/bus r,
+  owner /run/user/[0-9]*/labwc-session.lock rwk,
+  /etc/xdg/labwc/ r,
+  /etc/xdg/labwc/** r,
+
+  include if exists <local/usr.local.bin.labwc-session>
+}
+
+profile managed-labwc-swaybg /usr/local/libexec/labwc-swaybg flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/libexec/labwc-swaybg rix,
+  /usr/bin/swaybg rPx,
+  /usr/local/bin/labwc-wallpaper-save rPx -> managed-labwc-wallpaper-save,
+  /etc/default/labwc-desktop r,
+  /usr/share/backgrounds/desktop/ r,
+  /usr/share/backgrounds/desktop/** r,
+
+  include if exists <local/usr.local.libexec.labwc-swaybg>
+}
+
+profile managed-labwc-swayidle /usr/local/libexec/labwc-swayidle flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/libexec/labwc-swayidle rix,
+  /usr/bin/swayidle rPx,
+  /etc/default/labwc-desktop r,
+
+  include if exists <local/usr.local.libexec.labwc-swayidle>
+}
+
+profile managed-labwc-show-desktop /usr/local/bin/labwc-show-desktop flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-show-desktop rix,
+  /usr/bin/wlrctl pux,
+
+  include if exists <local/usr.local.bin.labwc-show-desktop>
+}
+
+profile managed-labwc-sync-application-launchers /usr/local/bin/labwc-sync-application-launchers flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/bin/labwc-sync-application-launchers rix,
+  /usr/bin/desktop-file-validate pux,
+  /usr/share/applications/ r,
+  /usr/share/applications/** r,
+  /usr/share/*/*.desktop r,
+  owner @{HOME}/.config/autostart/ r,
+  owner @{HOME}/.config/autostart/.bitwarden.desktop.*.desktop rwk,
+  owner @{HOME}/.config/autostart/bitwarden.desktop rwkl,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/share/ rw,
+  owner @{HOME}/.local/share/applications/ rw,
+  owner @{HOME}/.local/share/applications/** rwkl,
+
+  include if exists <local/usr.local.bin.labwc-sync-application-launchers>
+}
+
+profile managed-labwc-system-action /usr/local/bin/labwc-system-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-system-action rix,
+  /usr/bin/{notify-send,pkexec,systemctl,wpctl} PUx,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/libexec/labwc-system-action-root rix,
+
+  include if exists <local/usr.local.bin.labwc-system-action>
+}
+
+profile managed-labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-terminal rix,
+  /usr/bin/{footclient,kitty,x-terminal-emulator} pux,
+
+  include if exists <local/usr.local.bin.labwc-terminal>
+}
+
+profile managed-labwc-users-groups-menu /usr/local/bin/labwc-users-groups-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-users-groups-menu rix,
+  /usr/bin/id rix,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /usr/local/bin/labwc-security-action rPx -> managed-labwc-security-action,
+
+  include if exists <local/usr.local.bin.labwc-users-groups-menu>
+}
+
+profile managed-labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/labwc-wallpaper-save rix,
+  /usr/bin/{cat,chmod,file,find,id,install,mktemp,mv,readlink,rm,stat,wc} rix,
+  /usr/bin/systemctl pux,
+  /etc/magic r,
+  /usr/share/backgrounds/desktop/ r,
+  /usr/share/backgrounds/desktop/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/state/labwc/ rw,
+  owner @{HOME}/.local/state/labwc/.wallpaper.* rwk,
+  owner @{HOME}/.local/state/labwc/wallpaper rwkl,
+  owner @{HOME}/Pictures/ r,
+  owner @{HOME}/Pictures/** r,
+
+  include if exists <local/usr.local.bin.labwc-wallpaper-save>
+}
+
+profile managed-labwc-wayscriber-toggle /usr/local/bin/labwc-wayscriber-toggle flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+
+  /usr/local/bin/labwc-wayscriber-toggle rix,
+  /usr/bin/sleep rix,
+  /usr/bin/{systemctl,wayscriber} pux,
+
+  include if exists <local/usr.local.bin.labwc-wayscriber-toggle>
+}
+
+profile managed-labwc-mute-default-microphone /usr/local/libexec/labwc-mute-default-microphone flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-pipewire-audio>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/labwc-mute-default-microphone rix,
+  /usr/local/lib/perl5/site_perl/whisper/WhisperMode/Audio.pm r,
+  /usr/bin/wpctl ix,
+  /dev/null rw,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+
+  include if exists <local/usr.local.libexec.labwc-mute-default-microphone>
+}
+
+profile managed-whisper-cli-default-model /usr/local/libexec/whisper-cli-default-model flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-desktop-graphics>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/whisper-cli-default-model rix,
+  /usr/local/lib/perl5/site_perl/whisper/** r,
+  /data/whisper/bin/ r,
+  /data/whisper/bin/whisper-cli rix,
+  /etc/whisper/whisper.conf r,
+  /pool/cache/whisper/models/** r,
+  /dev/null rw,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  owner @{HOME}/ r,
+  owner @{HOME}/** r,
+  owner @{HOME}/Music/Whisper/transcribed/ rw,
+  owner @{HOME}/Music/Whisper/transcribed/*-launcher-[0-9]*-[0-9]*.txt rwkl,
+
+  include if exists <local/usr.local.libexec.whisper-cli-default-model>
+}
+
+profile managed-whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,timed} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-desktop-graphics>
+  #include <abstractions/managed-pipewire-audio>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/whisper-record-{toggle,timed} rix,
+  /usr/bin/timeout rix,
+  /usr/local/lib/perl5/site_perl/whisper/** r,
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  /usr/local/bin/whisper-cli rix,
+  /data/whisper/bin/whisper-cli rix,
+  # The desktop wrapper runs with NoNewPrivileges. Inherit this profile so
+  # AppArmor does not reject the child-profile transition before execution.
+  /usr/local/bin/whisper-server rix,
+  /data/whisper/bin/whisper-server rix,
+  /usr/bin/curl rix,
+  # Keep the control client inside this profile.  A PUx fallback tries to
+  # escape to unconfined, which NoNewPrivileges rejects and AppArmor logs as a
+  # denied exec even in complain mode.
+  /usr/bin/systemctl ix,
+  /usr/bin/wpctl ix,
+  /usr/bin/pw-cat rix,
+  # NoNewPrivileges is already set by the recording unit. Keep PipeWire
+  # children inside this profile instead of attempting an LSM transition.
+  /usr/bin/pw-record rix,
+  owner /run/user/[0-9]*/pipewire-[0-9]*.manager rw,
+  /etc/whisper/whisper.conf r,
+  /data/whisper/bin/ r,
+  /pool/cache/whisper/models/** r,
+  /dev/null rw,
+  @{PROC}/devices r,
+  @{PROC}/sys/vm/mmap_min_addr r,
+  owner @{PROC}/@{pid}/cmdline r,
+  network inet stream,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  owner /run/user/[0-9]*/bus rw,
+  owner /run/user/[0-9]*/ rw,
+  owner /run/user/[0-9]*/whisper-record-toggle.{lock,recording,state} rwk,
+  owner /run/user/[0-9]*/.whisper-* rwk,
+  owner @{HOME}/ r,
+  owner @{HOME}/Music/Whisper/ rw,
+  owner @{HOME}/Music/Whisper/{audio,transcribed}/ rw,
+  owner @{HOME}/Music/Whisper/{audio,transcribed}/** rwkl,
+  owner @{HOME}/Syncthing/sleek/ rw,
+  owner @{HOME}/Syncthing/sleek/.whisper.txt.lock rwk,
+  owner @{HOME}/Syncthing/sleek/whisper.txt rwk,
+  dbus send
+  bus=session
+  path=/org/freedesktop/systemd1
+  interface=org.freedesktop.systemd1.Manager
+  member={GetUnit,LoadUnit,StartUnit,StopUnit,RestartUnit,TryRestartUnit}
+  peer=(name=org.freedesktop.systemd1),
+  dbus send
+  bus=session
+  path=/org/freedesktop/systemd1/unit/**
+  interface=org.freedesktop.DBus.Properties
+  member=Get
+  peer=(name=org.freedesktop.systemd1),
+
+  profile whisper-http-client flags=(attach_disconnected) {
+    #include <abstractions/managed-wrapper-base>
+
+    /usr/bin/curl rix,
+    network inet stream,
+    owner /run/user/[0-9]*/ rw,
+    owner /run/user/[0-9]*/.whisper-* rwk,
+    owner @{HOME}/Music/Whisper/audio/*.wav r,
+  }
+
+  profile whisper-server flags=(attach_disconnected) {
+    #include <abstractions/managed-wrapper-base>
+    #include <abstractions/managed-desktop-graphics>
+
+    /usr/local/bin/whisper-server rix,
+    /data/whisper/bin/whisper-server rix,
+    /pool/cache/whisper/models/** r,
+    @{PROC}/devices r,
+    @{PROC}/sys/vm/mmap_min_addr r,
+    owner @{PROC}/@{pid}/cmdline r,
+    network inet stream,
+  }
+
+  profile whisper-record flags=(attach_disconnected) {
+    #include <abstractions/managed-wrapper-desktop>
+    #include <abstractions/managed-pipewire-audio>
+
+    /usr/bin/pw-record rix,
+    /usr/bin/pw-cat rix,
+    owner /run/user/[0-9]*/pipewire-[0-9]*.manager rw,
+    owner @{HOME}/Music/Whisper/audio/*.wav w,
+  }
+
+  include if exists <local/usr.local.libexec.whisper-record-toggle>
+}
+
+profile whisper-record flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-pipewire-audio>
+
+  /usr/bin/pw-record rix,
+  /usr/bin/pw-cat rix,
+  owner /run/user/[0-9]*/pipewire-[0-9]*.manager rw,
+  owner @{HOME}/Music/Whisper/audio/*.wav w,
+
+  include if exists <local/usr.bin.pw-record>
+}
+
+profile managed-managed-external-software-notify /usr/local/libexec/managed-external-software-notify flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/managed-wrapper-perl>
+  include if exists <abstractions/dbus-session-strict>
+
+  /usr/local/libexec/managed-external-software-notify rix,
+  /usr/local/lib/perl5/site_perl/external-managed-software/ r,
+  /usr/local/lib/perl5/site_perl/external-managed-software/** r,
+  /usr/bin/{chmod,find,grep,install,sed,tr,wc} rix,
+  /usr/bin/notify-send rix,
+  dbus send
+  bus=session
+  path=/org/freedesktop/Notifications
+  interface=org.freedesktop.Notifications
+  member={GetCapabilities,GetServerInformation,Notify}
+  peer=(name=org.freedesktop.Notifications),
+  /var/lib/software/events/ r,
+  /var/lib/software/events/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/state/managed-external-software/ rw,
+  owner @{HOME}/.local/state/managed-external-software/** rwkl,
+
+  include if exists <local/usr.local.libexec.managed-external-software-notify>
+}
+
+profile managed-satty /usr/local/bin/satty flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-desktop>
+
+  /usr/local/bin/satty rix,
+  /usr/bin/find rix,
+  owner @{HOME}/ r,
+  /opt/glibc/2.44-1/satty/ r,
+  /opt/glibc/2.44-1/satty/** r,
+  /usr/local/libexec/satty/satty r,
+  /opt/glibc/2.44-1/satty/{lib,lib64,usr/lib}/**/ld-linux-x86-64.so.2 rPx -> managed-satty-runtime,
+
+  include if exists <local/usr.local.bin.satty>
+}
+
+profile managed-satty-runtime /usr/local/libexec/satty/satty flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-application>
+  include if exists <abstractions/user-tmp>
+
+  /dev/tty rw,
+  /usr/bin/bwrap rCx -> satty-bwrap,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  /opt/glibc/2.44-1/satty/ r,
+  /opt/glibc/2.44-1/satty/** mr,
+  /usr/local/libexec/satty/satty mr,
+  /usr/lib/@{multiarch}/** mr,
+  /lib/@{multiarch}/** mr,
+  signal (send) set=(kill) peer=managed-satty-runtime//satty-bwrap,
+  owner @{PROC}/@{pid}/cmdline r,
+  owner /run/user/[0-9]*/labwc-capture/ rw,
+  owner /run/user/[0-9]*/labwc-capture/** rwkl,
+  owner @{HOME}/ r,
+  owner @{HOME}/** rwkl,
+
+  profile satty-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/managed-bwrap-common>
+    include if exists <abstractions/fonts>
+
+    signal (receive) set=(kill) peer=managed-satty-runtime,
+    /usr/bin/true rix,
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/share/glycin-loaders/2+/conf.d/ r,
+    /usr/share/glycin-loaders/2+/conf.d/** r,
+    owner /run/user/[0-9]*/labwc-capture/satty-source.*.png r,
+  }
+
+  include if exists <local/usr.local.libexec.satty-runtime>
+}
+
+profile managed-labwc-firewall-action-root /usr/local/libexec/labwc-firewall-action-root {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/libexec/labwc-firewall-action-root rix,
+  /usr/local/lib/python3.14/dist-packages/labwc_firewall/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_firewall/** r,
+  /usr/bin/{getent,python3} rix,
+  /usr/sbin/nft PUx,
+  /usr/bin/systemctl PUx,
+  /etc/nftables.conf r,
+  /etc/nftables.d/ rw,
+  /etc/nftables.d/.95-firewall-security-candidate.* rw,
+  /etc/nftables.d/.labwc-firewall-restore.* rw,
+  /etc/nftables.d/95-firewall-security.nft rw,
+  /etc/nftables/ rw,
+  /etc/nftables/.firewall-security-candidate.* rw,
+  /etc/nftables/.labwc-firewall-restore.* rw,
+  /etc/nftables/firewall-security.rules rw,
+  /run/lock/labwc-firewall-security.lock rwk,
+  owner /tmp/firewall-security-* rw,
+
+  include if exists <local/usr.local.libexec.labwc-firewall-action-root>
+}
+
+profile managed-labwc-network-control-action-root /usr/local/libexec/labwc-network-control-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/labwc-network-control-action-root rix,
+  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/bin/getent rix,
+  /usr/bin/{nmcli,resolvectl} PUx,
+  /usr/{bin,sbin}/ip PUx,
+  /usr/sbin/rfkill PUx,
+  /usr/sbin/{ifdown,ifquery,ifup} PUx,
+  /data/ r,
+  /data/config/ r,
+  /data/config/network/ r,
+  /data/config/network/wireguard/ r,
+  /data/config/network/wireguard/*.conf r,
+  /sys/class/net/ r,
+  /sys/class/net/** r,
+
+  include if exists <local/usr.local.libexec.labwc-network-control-action-root>
+}
+
+profile managed-labwc-network-scan-action-root /usr/local/libexec/labwc-network-scan-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/labwc-network-scan-action-root rix,
+  /usr/local/lib/perl5/site_perl/labwc-network-scan-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-network-scan-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/bin/{getent,timeout} rix,
+  /usr/{bin,sbin}/ip PUx,
+  /usr/bin/{nmap,ss,tcpdump} PUx,
+  /usr/local/share/nmap/scripts/ r,
+  /usr/local/share/nmap/scripts/** r,
+
+  include if exists <local/usr.local.libexec.labwc-network-scan-action-root>
+}
+
+profile managed-labwc-recovery-action-root /usr/local/libexec/labwc-recovery-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/labwc-recovery-action-root rix,
+  /usr/bin/{getent,grep,id} rix,
+  /usr/bin/{apt-get,btrfs,dpkg,findmnt,journalctl,sync,systemctl} PUx,
+  /usr/sbin/swapon PUx,
+  /usr/bin/timeshift rPx -> timeshift,
+  /usr/sbin/{grub-mkconfig,update-grub,update-initramfs} PUx,
+  /boot/grub/grub.cfg rw,
+  /proc/sys/vm/drop_caches w,
+  /dev/zram* rw,
+
+  include if exists <local/usr.local.libexec.labwc-recovery-action-root>
+}
+
+profile managed-labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-firmware-extract {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/libexec/labwc-samsung-firmware-extract rix,
+  owner @{HOME}/Android/adb/ r,
+  owner @{HOME}/Android/adb/samsung-firmware/ r,
+  owner @{HOME}/Android/adb/samsung-firmware/*.partial/ rw,
+  owner @{HOME}/Android/adb/samsung-firmware/*.partial/** rw,
+
+  include if exists <local/usr.local.libexec.labwc-samsung-firmware-extract>
+}
+
+profile managed-apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes-run flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/apparmor-managed-modes-run rix,
+  /usr/local/lib/perl5/site_perl/apparmor-managed-modes/ r,
+  /usr/local/lib/perl5/site_perl/apparmor-managed-modes/** r,
+  /dev/log w,
+  /usr/sbin/{aa-audit,aa-complain,aa-enforce,apparmor_parser} PUx,
+  /etc/apparmor/managed-modes.conf r,
+  /etc/apparmor.d/ rw,
+  /etc/apparmor.d/** rwkl,
+  /sys/kernel/security/apparmor/profiles r,
+  /tmp/apparmor-loaded-profiles.* rw,
+  /tmp/apparmor-managed-modes.* rw,
+  /tmp/apparmor-unload.* rw,
+  /tmp/apparmor-profile-mode.*/ rw,
+  /tmp/apparmor-profile-mode.*/** rwkl,
+  /tmp/apparmor-profile-names.* rw,
+  /tmp/apparmor-profile-names.*/ rw,
+  /tmp/apparmor-profile-names.*/** rwkl,
+
+  include if exists <local/usr.local.libexec.apparmor-managed-modes-run>
+}
+
+profile managed-apparmor-rule-generator /usr/local/libexec/apparmor-generate-rules flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/apparmor-generate-rules rix,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /usr/sbin/apparmor_parser PUx,
+  /etc/apparmor/parser.conf r,
+  /etc/apparmor.d/ r,
+  /etc/apparmor.d/* r,
+  /etc/apparmor.d/{abi,abstractions,tunables}/ r,
+  /etc/apparmor.d/{abi,abstractions,tunables}/** r,
+  /etc/apparmor.d/disable/ r,
+  /etc/apparmor.d/disable/** r,
+  /etc/apparmor.d/local/ rw,
+  /etc/apparmor.d/local/** rwkl,
+  /var/log/managed/apparmor/apparmor.log r,
+  /var/lib/apparmor/ r,
+  /var/lib/apparmor/generated-rule-backups/ rw,
+  /var/lib/apparmor/generated-rule-backups/** rwkl,
+
+  include if exists <local/usr.local.libexec.apparmor-generate-rules>
+}
+
+profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/libexec/labwc-security-action-root rix,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/ r,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/** r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+  # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+  signal (send) set=(hup, int, term, kill, cont),
+  /dev/log w,
+  /run/systemd/journal/dev-log w,
+  /run/rsyslog/managed-security-scanners/ r,
+  /run/rsyslog/managed-security-scanners/scanner.sock w,
+  /usr/bin/{awk,chmod,chown,cmp,cp,gawk,getent,grep,id,install,ln,mawk,mkdir,mktemp,mv,nawk,readlink,rm,rmdir,sed,sort,stat,tr,wc} rix,
+  /usr/bin/ss r,
+  /usr/bin/{aa-easyprof,aa-enabled,aa-features-abi} PUx,
+  /usr/bin/{debsecan,debsums,fwupdmgr,journalctl,rkhunter,spectre-meltdown-checker,systemctl,systemd-analyze} PUx,
+  /usr/sbin/{chkrootkit,lynis} PUx,
+  /usr/{bin,sbin}/aa-status rPx -> aa-status-reader,
+  /usr/sbin/{aa-audit,aa-autodep,aa-genprof,aa-logprof,aa-remove-unknown,aa-unconfined,apparmor_parser,visudo} PUx,
+  /usr/local/libexec/apparmor-generate-rules rPx -> managed-apparmor-rule-generator,
+  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
+  /etc/apparmor/{easyprof.conf,logprof.conf,parser.conf} r,
+  /etc/apparmor/managed-modes.conf rw,
+  /etc/apparmor/ rw,
+  /etc/apparmor/.managed-modes.* rwkl,
+  /etc/apparmor.d/ r,
+  /etc/apparmor.d/* rw,
+  /etc/apparmor.d/{abi,abstractions,local,tunables}/ r,
+  /etc/apparmor.d/disable/ r,
+  /etc/apparmor.d/disable/** r,
+  /var/lib/apparmor/ rw,
+  /var/lib/apparmor/backup/ rw,
+  /var/lib/apparmor/backup/** rwkl,
+  /var/lib/apparmor/drafts/ rw,
+  /var/lib/apparmor/drafts/** rwkl,
+  /var/lib/apparmor/easyprof/ rw,
+  /var/lib/apparmor/easyprof/** rwkl,
+  /var/log/managed/ r,
+  /var/log/managed/apparmor/ r,
+  /var/log/managed/apparmor/apparmor.log r,
+  /etc/shadow r,
+  /etc/sudoers r,
+  /etc/sudoers.d/ r,
+  /etc/sudoers.d/** r,
+
+  include if exists <local/usr.local.libexec.labwc-security-action-root>
+}
+
+profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/labwc-system-action-root rix,
+  /usr/bin/{cat,du,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
+  /usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,
+  /usr/{bin,sbin}/ip PUx,
+  /usr/sbin/{nvme,smartctl,swapon,zramctl} PUx,
+  /etc/resolv.conf r,
+  /dev/nvme* r,
+  /home/ r,
+  /home/** r,
+  owner /tmp/labwc-system-du.* rwk,
+
+  include if exists <local/usr.local.libexec.labwc-system-action-root>
+}
+
+profile managed-xssh-retrieve /usr/local/bin/xssh-retrieve flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/bin/xssh-retrieve rix,
+  /usr/bin/{cat,id} rix,
+  /usr/bin/scp pux,
+
+  include if exists <local/usr.local.bin.xssh-retrieve>
+}
+
+profile managed-xssh-send /usr/local/bin/xssh-send flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/bin/xssh-send rix,
+  /usr/bin/{cat,id} rix,
+  /usr/bin/{scp,test} pux,
+
+  include if exists <local/usr.local.bin.xssh-send>
+}
+
+profile managed-bluetooth-controller-init /usr/local/libexec/bluetooth-controller-init flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  capability net_admin,
+  capability net_raw,
+  network bluetooth raw,
+
+  /usr/local/libexec/bluetooth-controller-init rix,
+  /usr/bin/{grep,id,logger,sleep,timeout} rix,
+  /usr/bin/btmgmt rix,
+  /usr/{bin,sbin}/rfkill rix,
+  signal (send, receive) peer=managed-bluetooth-controller-init,
+  /dev/rfkill r,
+  /sys/class/bluetooth/ r,
+  /sys/class/bluetooth/hci* r,
+  /sys/devices/**/rfkill/rfkill[0-9]*/name r,
+  /sys/devices/**/rfkill[0-9]*/name r,
+
+  include if exists <local/usr.local.libexec.bluetooth-controller-init>
+}
+
+profile managed-greetd-power-action /usr/local/sbin/greetd-power-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/greetd-power-action rix,
+  /usr/bin/busctl PUx,
+
+  include if exists <local/usr.local.sbin.greetd-power-action>
+}
+
+profile managed-labwc-notify /usr/local/sbin/labwc-notify flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/labwc-notify rix,
+  /usr/bin/{cat,chmod,cut,date,find,getent,grep,id,mktemp,mv,rm,tr,wc} rix,
+  /var/lib/labwc-notifications/ r,
+  /var/lib/labwc-notifications/system/ rw,
+  /var/lib/labwc-notifications/system/** rwk,
+
+  include if exists <local/usr.local.sbin.labwc-notify>
+}
+
+profile managed-managed-clamav-signature-update /usr/local/libexec/managed-clamav-signature-update flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/managed-clamav-signature-update rix,
+  /usr/bin/{flock,id,install} rix,
+  /usr/bin/{fangfrisch,freshclam} PUx,
+  /etc/fangfrisch.conf r,
+  /var/lib/fangfrisch/ rw,
+  /var/lib/fangfrisch/db.sqlite r,
+  /var/lib/fangfrisch/update.lock rwk,
+
+  include if exists <local/usr.local.libexec.managed-clamav-signature-update>
+}
+
+profile managed-managed-bitwarden-package /usr/local/libexec/managed-bitwarden-package flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  /usr/local/libexec/managed-bitwarden-package rix,
+  /usr/bin/{dpkg,dpkg-deb} PUx,
+  /opt/Bitwarden/resources/app.asar r,
+  owner /tmp/managed-external-software-update.*/ rw,
+  owner /tmp/managed-external-software-update.*/** rwkl,
+
+  include if exists <local/usr.local.libexec.managed-bitwarden-package>
+}
+
+profile managed-managed-discord-distro /usr/local/libexec/managed-discord-distro flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+
+  capability chown,
+  capability fowner,
+
+  /usr/local/libexec/managed-discord-distro rix,
+  owner /tmp/managed-external-software-update.*/ r,
+  owner /tmp/managed-external-software-update.*/** r,
+  /opt/.discord.new.*/ rw,
+  /opt/.discord.new.*/** rwkl,
+
+  include if exists <local/usr.local.libexec.managed-discord-distro>
+}
+
+profile managed-managed-external-software-update /usr/local/libexec/managed-external-software-update flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-perl>
+  #include <abstractions/openssl>
+
+  capability chown,
+  capability fowner,
+  capability fsetid,
+  unix,
+
+  /usr/local/libexec/managed-external-software-update rix,
+  /usr/local/libexec/managed-bitwarden-package rPx -> managed-managed-bitwarden-package,
+  /usr/local/libexec/managed-discord-distro rPx -> managed-managed-discord-distro,
+  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
+  /usr/local/lib/perl5/site_perl/external-managed-software/ r,
+  /usr/local/lib/perl5/site_perl/external-managed-software/** r,
+  /dev/log w,
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/exe r,
+  /usr/bin/{awk,brotli,chmod,chown,cp,cut,date,desktop-file-validate,dirname,du,env,file,find,flock,gawk,gpg,gpg-agent,gpgv,grep,head,id,install,logger,mawk,mktemp,mv,nawk,openssl,printf,python3,readlink,rm,sed,sha256sum,sha512sum,sort,stat,tail,tar,tr,wc} rix,
+  /usr/bin/{ar,gzip,xz,zstd} rix,
+  /usr/bin/{apt-get,curl,dpkg,dpkg-deb,dpkg-divert,dpkg-query,gtk-update-icon-cache,update-desktop-database} PUx,
+
+  /usr/local/share/software/chatgpt/ r,
+  /usr/local/share/software/chatgpt/** r,
+  /usr/local/share/software/ledger/ledgerlive.pem r,
+  /usr/local/share/software/tuta/tutao-pub.pem r,
+  /etc/default/chatgpt{,.tmp.*} rw,
+  /etc/apparmor.d/chatgpt{,.tmp.*} rw,
+  /etc/apparmor.d/disable/ rw,
+  /etc/apparmor.d/disable/chatgpt{,.tmp.*} rw,
+  /etc/magic r,
+  /etc/apt/keyrings/ rw,
+  /etc/apt/keyrings/managed-external-software.gpg{,.tmp.*} rw,
+  /etc/apt/sources.list.d/ rw,
+  /etc/apt/sources.list.d/managed-external-software.list{,.tmp.*} rw,
+  /etc/apt/sources.list.d/chatgpt.{list,sources} rw,
+  /usr/share/keyrings/chatgpt-archive-keyring.gpg rw,
+  /usr/share/applications/{Filen.desktop,Zoom.desktop,bitwarden.desktop,discord.desktop,ledger-live.desktop,obsidian.desktop,postman.desktop,sleek.desktop,tuta-mail.desktop} r,
+  /usr/share/applications/chatgpt.desktop{,.tmp.*} rw,
+  /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop.png,tuta-mail.png} rw,
+  /usr/share/pixmaps/chatgpt.png{,.tmp.*} rw,
+  /usr/bin/chatgpt r,
+  /usr/bin/zoom r,
+  /usr/lib/chatgpt/ r,
+  /usr/lib/chatgpt/** r,
+  /opt/Bitwarden/{bitwarden,desktop_proxy,libffmpeg.so} r,
+  /opt/Bitwarden/chrome-sandbox rw,
+  /opt/Bitwarden/resources/app.asar r,
+  /opt/Filen/Filen r,
+  /opt/Filen/chrome-sandbox rw,
+  /opt/Obsidian/obsidian r,
+  /opt/discord/ rw,
+  /opt/discord/** rwkl,
+  /opt/postman/ rw,
+  /opt/postman/** rwkl,
+  /opt/sleek/sleek r,
+  /opt/{ledger-live,tuta-mail}/ rw,
+  /opt/{ledger-live,tuta-mail}/** rwkl,
+  /opt/.postman.previous/ rw,
+  /opt/.postman.previous/** rwkl,
+  /opt/.postman.new.*/ rw,
+  /opt/.postman.new.*/** rwkl,
+  /opt/.discord.previous/ rw,
+  /opt/.discord.previous/** rwkl,
+  /opt/.discord.new.*/ rw,
+  /opt/.discord.new.*/** rwkl,
+  /opt/.{ledger-live,tuta-mail}.previous/ rw,
+  /opt/.{ledger-live,tuta-mail}.previous/** rwkl,
+  /opt/.{ledger-live,tuta-mail}.new.*/ rw,
+  /opt/.{ledger-live,tuta-mail}.new.*/** rwkl,
+  /run/lock/managed-external-software-update.lock rwk,
+  /run/user/0/ rw,
+  /run/user/0/gnupg/ rw,
+  /run/user/0/gnupg/** rwkl,
+  /var/lib/software/ rw,
+  /var/lib/software/** rwkl,
+  owner /tmp/managed-external-software-update.*/ rw,
+  owner /tmp/managed-external-software-update.*/** rwkl,
+  owner /tmp/managed-external-software-update.*/{ledger-live-linux-x86_64.AppImage,tutanota-desktop-linux.AppImage} pux,
+
+  include if exists <local/usr.local.libexec.managed-external-software-update>
+}
+
+profile managed-incus-host-managed /usr/local/libexec/incus-host-managed flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/libexec/incus-host-managed rix,
+  /usr/bin/{curl,date,grep,incus,readlink,sleep,stat,systemd-tmpfiles} rix,
+  /etc/default/incus-host-managed r,
+  /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf r,
+  /etc/tmpfiles.d/85-qemu-incus-storage.conf r,
+  /usr/lib/systemd/system/incus{,-startup,-user}.{service,socket} r,
+  /opt/incus/lib/systemd/incusd r,
+  /opt/incus/ui/index.html r,
+  /var/lib/incus/unix.socket rw,
+  /var/lib/incus/unix.socket.user r,
+  /pool/ rw,
+  /pool/{incus,qemu}/ rw,
+  network unix stream,
+
+  include if exists <local/usr.local.libexec.incus-host-managed>
+}
+
+profile managed-tpm2-enroll-launch /usr/local/bin/tpm2-enroll-launch flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/bin/tpm2-enroll-launch rix,
+  /usr/bin/{cat,id} rix,
+  /usr/bin/sudo r,
+  /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /usr/local/sbin/tpm2-enroll.sh r,
+  /usr/local/lib/crypto/tpm2-enroll.pending r,
+
+  include if exists <local/usr.local.bin.tpm2-enroll-launch>
+}
+
+profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+
+  /usr/local/sbin/tpm2-enroll.sh rix,
+  /usr/bin/{awk,chmod,cmp,date,dirname,flock,gawk,grep,id,install,mawk,mktemp,nawk,readlink,rm,stty} rix,
+  /usr/bin/{mokutil,systemctl,systemd-cryptenroll} PUx,
+  /usr/{bin,sbin}/cryptsetup PUx,
+  /dev/tty rw,
+  /dev/disk/by-uuid/ r,
+  /dev/disk/by-uuid/* r,
+  /dev/mapper/ r,
+  /dev/mapper/* r,
+  /dev/{mmcblk[0-9]*p[0-9]*,nvme[0-9]*n[0-9]*p[0-9]*,sd[a-z][0-9]*,vd[a-z][0-9]*} r,
+  /etc/cryptsetup-keys.d/crypthome.key r,
+  /run/lock/tpm2-enroll.lock rwk,
+  owner /run/tpm2-enroll.*/ rw,
+  owner /run/tpm2-enroll.*/** rwkl,
+  /usr/local/lib/crypto/ rw,
+  /usr/local/lib/crypto/config.env r,
+  /usr/local/lib/crypto/install-passphrase rw,
+  /usr/local/lib/crypto/tpm2-enroll.complete rwk,
+  /usr/local/lib/crypto/tpm2-enroll.pending rw,
+
+  include if exists <local/usr.local.sbin.tpm2-enroll.sh>
+}

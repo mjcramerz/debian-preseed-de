@@ -1,0 +1,336 @@
+#!/bin/sh
+# Finish-install hook: modernize target apt sources and normalize generated
+# .sources filenames and Debian archive stanzas.
+set -eu
+
+RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+RUNTIME_LOG_FILE=/tmp/installer.log
+BOOTSTRAP_LIB="${RUNTIME_DIR}/bootstrap/common-lib.sh"
+CONTEXT_ENV="${RUNTIME_DIR}/state/context.env"
+TARGET=${INSTALLER_TARGET_DIR:-/target}
+SOURCES_DIR="${TARGET}/etc/apt/sources.list.d"
+DEBIAN_KEYRING=/usr/share/keyrings/debian-archive-keyring.gpg
+CUDA_LEGACY_REPO_URL=https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64
+CUDA_LEGACY_REPO_MATCH=${CUDA_LEGACY_REPO_URL#https://}
+CUDA_LEGACY_TARGET_SOURCE_PREFIX="${SOURCES_DIR}/cuda-legacy-temp"
+CUDA_LEGACY_TARGET_KEYRING="${TARGET}/etc/apt/keyrings/cuda-legacy-archive-key.asc"
+
+if [ -r "$BOOTSTRAP_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$BOOTSTRAP_LIB"
+  RUNTIME_LOG_FILE=$(installer_runtime_log_file)
+fi
+
+runtime_log_dir=$(dirname "$RUNTIME_LOG_FILE")
+[ -d "$runtime_log_dir" ] || install -d -m 0700 "$runtime_log_dir"
+: >>"$RUNTIME_LOG_FILE"
+chmod 0600 "$RUNTIME_LOG_FILE" 2>/dev/null || true
+exec >>"$RUNTIME_LOG_FILE" 2>&1
+
+log() {
+  printf '%s stage=post_install_validation level=info component=finish-install-normalize-apt %s\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf unknown-time)" \
+    "$*" >&2
+}
+
+target_is_mounted() {
+  if [ "${INSTALLER_ASSUME_TARGET_MOUNTED:-0}" = 1 ]; then
+    return 0
+  fi
+  while IFS=' ' read -r _mount_source mount_path _mount_type _mount_options _mount_rest || [ -n "${mount_path:-}" ]; do
+    [ "$mount_path" = "$TARGET" ] && return 0
+  done </proc/mounts
+  return 1
+}
+
+run_in_target() {
+  if command -v in-target >/dev/null 2>&1; then
+    in-target "$@"
+    return
+  fi
+  chroot "$TARGET" "$@"
+}
+
+append_with_separator() {
+  dest=$1
+  src=$2
+
+  [ -s "$src" ] || return 0
+  if [ -s "$dest" ]; then
+    printf '\n' >>"$dest"
+  fi
+  cat "$src" >>"$dest"
+}
+
+rewrite_apt_http_to_https() {
+  apt_dir="${TARGET}/etc/apt"
+  [ -d "$apt_dir" ] || return 0
+
+  find "$apt_dir" -type f \( -name '*.list' -o -name '*.sources' \) | while IFS= read -r src; do
+    tmp="${src}.tmp.$$"
+    sed 's#http://#https://#g' "$src" >"$tmp"
+    mv "$tmp" "$src"
+  done
+}
+
+dedupe_list_file_lines() {
+  src=$1
+  tmp="${src}.tmp.$$"
+
+  [ -f "$src" ] || return 0
+  awk '
+    /^[[:space:]]*$/ { print; next }
+    !seen[$0]++ { print }
+  ' "$src" >"$tmp"
+  mv "$tmp" "$src"
+}
+
+strip_exact_repo_from_list_file() {
+  src=$1
+  repo_url=$2
+  tmp="${src}.tmp.$$"
+
+  [ -f "$src" ] || return 0
+  awk -v repo_url="$repo_url" '
+    index($0, repo_url) == 0 { print }
+  ' "$src" >"$tmp"
+  mv "$tmp" "$src"
+}
+
+strip_exact_repo_from_sources_file() {
+  src=$1
+  repo_url=$2
+  tmp="${src}.tmp.$$"
+
+  [ -f "$src" ] || return 0
+  awk -v repo_url="$repo_url" '
+    function flush_stanza(    line_index) {
+      if (stanza_line_count == 0) {
+        return
+      }
+      if (!drop_stanza) {
+        if (wrote_stanza) {
+          print ""
+        }
+        for (line_index = 1; line_index <= stanza_line_count; line_index++) {
+          print stanza_lines[line_index]
+        }
+        wrote_stanza = 1
+      }
+      for (line_index = 1; line_index <= stanza_line_count; line_index++) {
+        delete stanza_lines[line_index]
+      }
+      stanza_line_count = 0
+      drop_stanza = 0
+    }
+    /^[[:space:]]*$/ {
+      flush_stanza()
+      next
+    }
+    {
+      stanza_lines[++stanza_line_count] = $0
+      if (index($0, repo_url) != 0) {
+        drop_stanza = 1
+      }
+    }
+    END {
+      flush_stanza()
+    }
+  ' "$src" >"$tmp"
+  mv "$tmp" "$src"
+}
+
+remove_cdrom_repo_state() {
+  sources_list="${TARGET}/etc/apt/sources.list"
+
+  strip_exact_repo_from_list_file "$sources_list" "cdrom:"
+
+  find "$SOURCES_DIR" -maxdepth 1 -type f | while IFS= read -r src; do
+    case "${src##*/}" in
+      *.list|*.list.*)
+        strip_exact_repo_from_list_file "$src" "cdrom:"
+        dedupe_list_file_lines "$src"
+        ;;
+      *.sources|*.sources.*)
+        strip_exact_repo_from_sources_file "$src" "cdrom:"
+        ;;
+    esac
+  done
+
+  log "removed any lingering cdrom apt source entries from target apt state"
+}
+
+remove_cuda_legacy_repo_state() {
+  sources_list="${TARGET}/etc/apt/sources.list"
+  remaining_source=
+
+  strip_exact_repo_from_list_file "$sources_list" "$CUDA_LEGACY_REPO_MATCH"
+
+  for src in "${CUDA_LEGACY_TARGET_SOURCE_PREFIX}".*; do
+    [ -f "$src" ] || continue
+    rm -f "$src"
+  done
+
+  find "$SOURCES_DIR" -maxdepth 1 -type f | while IFS= read -r src; do
+    case "${src##*/}" in
+      *.list|*.list.*)
+        strip_exact_repo_from_list_file "$src" "$CUDA_LEGACY_REPO_MATCH"
+        dedupe_list_file_lines "$src"
+        ;;
+      *.sources|*.sources.*)
+        strip_exact_repo_from_sources_file "$src" "$CUDA_LEGACY_REPO_MATCH"
+        ;;
+    esac
+  done
+
+  rm -f "$CUDA_LEGACY_TARGET_KEYRING"
+
+  if [ -f "$sources_list" ] && grep -F -q "$CUDA_LEGACY_REPO_MATCH" "$sources_list"; then
+    log "legacy CUDA repository remains in ${sources_list}"
+    return 1
+  fi
+  remaining_source=$(
+    find "$SOURCES_DIR" -maxdepth 1 -type f \
+      -exec grep -F -l "$CUDA_LEGACY_REPO_MATCH" {} \; |
+      sed -n '1p'
+  )
+  if [ -n "$remaining_source" ]; then
+    log "legacy CUDA repository remains in ${remaining_source}"
+    return 1
+  fi
+
+  log "removed all staged legacy CUDA Debian 12 source artifacts and keyring state"
+}
+
+normalize_backports_signed_by() {
+  src=$1
+  dest=$2
+
+  awk -v signed_by="Signed-By: ${DEBIAN_KEYRING}" '
+    BEGIN {
+      in_stanza = 0
+      have_signed_by = 0
+    }
+    /^[[:space:]]*$/ {
+      if (in_stanza && !have_signed_by) {
+        print signed_by
+      }
+      print
+      in_stanza = 0
+      have_signed_by = 0
+      next
+    }
+    {
+      in_stanza = 1
+    }
+    /^Signed-By:[[:space:]]*/ {
+      if (!have_signed_by) {
+        print signed_by
+        have_signed_by = 1
+      }
+      next
+    }
+    {
+      print
+    }
+    END {
+      if (in_stanza && !have_signed_by) {
+        print signed_by
+      }
+    }
+  ' "$src" >"$dest"
+}
+
+merge_backports_into_debian_sources() {
+  backports_src=
+  debian_sources="${SOURCES_DIR}/debian.sources"
+  temp_backports="${SOURCES_DIR}/debian-backports.normalized.$$"
+
+  if [ ! -f "$debian_sources" ] && [ -f "${TARGET}/etc/apt/debian.sources" ]; then
+    mv "${TARGET}/etc/apt/debian.sources" "$debian_sources"
+  fi
+
+  for backports_src in \
+    "${SOURCES_DIR}/debian-backports.sources" \
+    "${TARGET}/etc/apt/debian-backports.sources"
+  do
+    [ -f "$backports_src" ] || continue
+    normalize_backports_signed_by "$backports_src" "$temp_backports"
+    : >"${debian_sources}.tmp.$$"
+    if [ -f "$debian_sources" ]; then
+      cat "$debian_sources" >"${debian_sources}.tmp.$$"
+    fi
+    append_with_separator "${debian_sources}.tmp.$$" "$temp_backports"
+    mv "${debian_sources}.tmp.$$" "$debian_sources"
+    rm -f "$backports_src" "$temp_backports"
+  done
+}
+
+combine_named_sources() {
+  output_name=$1
+  match_pattern=$2
+  temp_output="${SOURCES_DIR}/${output_name}.tmp.$$"
+  found=0
+
+  : >"$temp_output"
+  for src in $(find "$SOURCES_DIR" -maxdepth 1 -type f -name "$match_pattern" | sort); do
+    found=1
+    append_with_separator "$temp_output" "$src"
+  done
+
+  if [ "$found" -eq 0 ]; then
+    rm -f "$temp_output"
+    return 0
+  fi
+
+  mv "$temp_output" "${SOURCES_DIR}/${output_name}"
+  for src in $(find "$SOURCES_DIR" -maxdepth 1 -type f -name "$match_pattern" | sort); do
+    [ "$src" = "${SOURCES_DIR}/${output_name}" ] || rm -f "$src"
+  done
+}
+
+
+install_default_release_policy() {
+  default_release_dir="${TARGET}/etc/apt/apt.conf.d"
+  default_release_file=95default-release-forky
+  default_release_suite=forky
+
+
+  install -d -m 0755 "$default_release_dir"
+  for inactive_path in \
+    "${default_release_dir}/95default-release-forky" \
+    "${default_release_dir}/95default-release-trixie"
+  do
+    [ "$inactive_path" = "${default_release_dir}/${default_release_file}" ] || rm -f "$inactive_path"
+  done
+
+  default_release_path="${default_release_dir}/${default_release_file}"
+  default_release_tmp="${default_release_path}.tmp.$$"
+  {
+    printf '%s\n' '// Managed by unattended-installer.'
+    printf '%s\n' "// Keep target-side APT candidate selection anchored to Debian ${default_release_suite}."
+    printf '\n'
+    printf 'APT::Default-Release "%s";\n' "$default_release_suite"
+  } >"$default_release_tmp"
+  chmod 0644 "$default_release_tmp"
+  mv "$default_release_tmp" "$default_release_path"
+  log "installed managed apt default-release policy for ${default_release_suite}"
+}
+
+[ -d "$TARGET" ] || exit 0
+target_is_mounted || exit 0
+[ -d "$SOURCES_DIR" ] || install -d -m 0755 "$SOURCES_DIR"
+
+rewrite_apt_http_to_https
+remove_cdrom_repo_state
+remove_cuda_legacy_repo_state
+log "running apt modernize-sources in target"
+run_in_target env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt -y modernize-sources
+
+merge_backports_into_debian_sources
+combine_named_sources cramerz.sources '*cramerz*.sources'
+combine_named_sources crowdsec.sources '*crowdsec*.sources'
+rewrite_apt_http_to_https
+install_default_release_policy
+
+log "normalized apt sources into .sources layout"

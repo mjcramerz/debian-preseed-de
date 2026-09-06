@@ -1,0 +1,269 @@
+#!/bin/sh
+# apt-setup generator: install target APT preferences before apt-setup mutates
+# target APT state.
+set -eu
+
+RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
+RUNTIME_CACHE_DIR="${RUNTIME_DIR}/cache"
+RUNTIME_LOG_FILE=/tmp/installer.log
+COMMON_LIB="${RUNTIME_DIR}/bootstrap/common-lib.sh"
+TARGET=${INSTALLER_TARGET_DIR:-/target}
+FETCH_DIR=${INSTALLER_APT_PREFERENCES_FETCH_DIR:-${RUNTIME_CACHE_DIR}/apt-setup-preferences.d}
+TARGET_DIR="${TARGET}/etc/apt/preferences.d"
+TARGET_APT_CONF_DIR="${TARGET}/etc/apt/apt.conf.d"
+NO_RECOMMENDS_POLICY_NAME=99noinstall-recommends
+NVIDIA_OPT_IN_POLICY_NAME=nvidia-opt-in.pref
+DEBUG_LOGS=1
+
+if [ -r "$COMMON_LIB" ]; then
+  # shellcheck disable=SC1090
+  . "$COMMON_LIB"
+  LOG=$(installer_runtime_log_file)
+  if command -v installer_export_logging_policy >/dev/null 2>&1; then
+    installer_export_logging_policy
+  fi
+else
+  LOG=$RUNTIME_LOG_FILE
+fi
+
+mkdir -p "$(dirname "$LOG")"
+: >>"$LOG"
+chmod 0600 "$LOG" 2>/dev/null || true
+exec >>"$LOG" 2>&1
+
+log() {
+  level=info
+  message=$*
+  case "$message" in
+    fatal:\ *) level=fatal; message=${message#fatal: } ;;
+    error:\ *) level=error; message=${message#error: } ;;
+    warn:\ *) level=warn; message=${message#warn: } ;;
+    info:\ *) level=info; message=${message#info: } ;;
+  esac
+  printf '%s stage=apt_config level=%s component=apt-setup-apt-preferences %s\n' \
+    "$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf unknown-time)" \
+    "$level" \
+    "$message" >&2
+}
+
+fatal() {
+  log "fatal: $*"
+  exit 1
+}
+
+target_is_mounted() {
+  while IFS=' ' read -r _mount_source mount_path _mount_type _mount_options _mount_rest || [ -n "${mount_path:-}" ]; do
+    [ "$mount_path" = "$TARGET" ] && return 0
+  done </proc/mounts
+  return 1
+}
+
+persist_log() {
+  return 0
+}
+
+finish_log() {
+  status=${1:-0}
+  if [ "$status" -eq 0 ]; then
+    log "info: completed target apt preferences staging during apt-setup"
+  else
+    log "error: target apt preferences staging exited with status ${status}"
+  fi
+  persist_log
+}
+
+validate_pref_name() {
+  pref_name=$1
+  case "$pref_name" in
+    ''|.*|*/*|*..*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*|*.tmp|*.bak|*.save|*.distUpgrade)
+      fatal "unsafe apt preference filename: ${pref_name:-unset}"
+      ;;
+    *.pref) ;;
+    *)
+      fatal "apt preference filename must end in .pref: $pref_name"
+      ;;
+  esac
+}
+
+validate_pref_source_path() {
+  pref_source_path=$1
+  case "$pref_source_path" in
+    *..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*)
+      fatal "unsafe apt preference source path: $pref_source_path"
+      ;;
+  esac
+}
+
+purge_target_cdrom_apt_sources() {
+  apt_dir="${TARGET}/etc/apt"
+  sources_list="${apt_dir}/sources.list"
+  sources_dir="${apt_dir}/sources.list.d"
+
+  strip_list_file() {
+    src=$1
+    [ -f "$src" ] || return 0
+    tmp="${src}.tmp.$$"
+    awk 'index($0, "cdrom:") == 0 { print }' "$src" >"$tmp"
+    mv "$tmp" "$src"
+  }
+
+  strip_sources_file() {
+    src=$1
+    [ -f "$src" ] || return 0
+    tmp="${src}.tmp.$$"
+    awk '
+      function flush_stanza(    line_index) {
+        if (stanza_line_count == 0) {
+          return
+        }
+        if (!drop_stanza) {
+          if (wrote_stanza) {
+            print ""
+          }
+          for (line_index = 1; line_index <= stanza_line_count; line_index++) {
+            print stanza_lines[line_index]
+          }
+          wrote_stanza = 1
+        }
+        for (line_index = 1; line_index <= stanza_line_count; line_index++) {
+          delete stanza_lines[line_index]
+        }
+        stanza_line_count = 0
+        drop_stanza = 0
+      }
+      /^[[:space:]]*$/ {
+        flush_stanza()
+        next
+      }
+      {
+        stanza_lines[++stanza_line_count] = $0
+        if (index($0, "cdrom:") != 0) {
+          drop_stanza = 1
+        }
+      }
+      END {
+        flush_stanza()
+      }
+    ' "$src" >"$tmp"
+    mv "$tmp" "$src"
+  }
+
+  strip_list_file "$sources_list"
+  if [ -d "$sources_dir" ]; then
+    find "$sources_dir" -maxdepth 1 -type f | while IFS= read -r src; do
+      case "${src##*/}" in
+        *.list|*.list.*) strip_list_file "$src" ;;
+        *.sources|*.sources.*) strip_sources_file "$src" ;;
+      esac
+    done
+  fi
+
+  log "info: removed cdrom apt sources before apt-setup hands the target to pkgsel"
+}
+
+fetch_and_install_pref() {
+  pref_name=$1
+  pref_source_path=
+  src="${FETCH_DIR}/${pref_name}"
+  dst="${TARGET_DIR}/${pref_name}"
+  tmp_dst="${dst}.tmp.$$"
+
+  validate_pref_name "$pref_name"
+  if ! command -v installer_current_seed_base >/dev/null 2>&1 || \
+     ! command -v installer_fetch_file >/dev/null 2>&1 || \
+     ! command -v installer_target_apt_preference_source_path >/dev/null 2>&1
+  then
+    fatal "installer common library is unavailable; cannot retrieve $pref_name"
+  fi
+
+  pref_source_path=$(installer_target_apt_preference_source_path "$pref_name")
+  validate_pref_source_path "$pref_source_path"
+  seed_base=$(installer_current_seed_base)
+  installer_fetch_file "$seed_base" "$pref_source_path" "$src" 0644
+  [ -r "$src" ] || fatal "missing retrieved apt preference source: $src"
+  [ -s "$src" ] || fatal "retrieved apt preference is empty: $src"
+  cp "$src" "$tmp_dst"
+  chmod 0644 "$tmp_dst"
+  mv "$tmp_dst" "$dst"
+  [ -r "$dst" ] || fatal "failed to install apt preference: $dst"
+  log "info: installed ${dst#"$TARGET"}"
+}
+
+stage_no_recommends_policy() {
+  policy_source_path=
+  src="${FETCH_DIR}/${NO_RECOMMENDS_POLICY_NAME}"
+  dst="${TARGET_APT_CONF_DIR}/${NO_RECOMMENDS_POLICY_NAME}"
+  tmp_dst="${dst}.tmp.$$"
+
+  if ! command -v installer_current_seed_base >/dev/null 2>&1 || \
+     ! command -v installer_fetch_file >/dev/null 2>&1
+  then
+    fatal "installer common library is unavailable; cannot retrieve ${NO_RECOMMENDS_POLICY_NAME}"
+  fi
+
+  policy_source_path=$(
+    installer_repo_join_var \
+      DIR_HOOKS_TARGET \
+      "etc/apt/apt.conf.d/${NO_RECOMMENDS_POLICY_NAME}"
+  )
+  validate_pref_source_path "$policy_source_path"
+  seed_base=$(installer_current_seed_base)
+  installer_fetch_file "$seed_base" "$policy_source_path" "$src" 0644
+  [ -r "$src" ] || fatal "missing retrieved apt policy source: $src"
+  [ -s "$src" ] || fatal "retrieved apt policy is empty: $src"
+  cp "$src" "$tmp_dst"
+  chmod 0644 "$tmp_dst"
+  mv "$tmp_dst" "$dst"
+  [ -r "$dst" ] || fatal "failed to install apt policy: $dst"
+  log "info: installed ${dst#"$TARGET"} before pkgsel"
+}
+
+stage_configured_preferences() {
+  pref_count=0
+
+  command -v installer_configured_apt_preferences >/dev/null 2>&1 ||
+    fatal "installer common library cannot parse DEBIAN_APT_PREFERENCES"
+
+  while IFS= read -r pref_name || [ -n "$pref_name" ]; do
+    [ -n "$pref_name" ] || continue
+    fetch_and_install_pref "$pref_name"
+    pref_count=$((pref_count + 1))
+  done <<EOF
+$(installer_configured_apt_preferences)
+EOF
+
+  if [ "$pref_count" -eq 0 ]; then
+    log "info: no target apt preferences configured in DEBIAN_APT_PREFERENCES"
+  else
+    log "info: staged ${pref_count} target apt preference file(s) during apt-setup"
+  fi
+}
+
+stage_nvidia_opt_in_policy() {
+  command -v installer_nvidia_addon_selected >/dev/null 2>&1 ||
+    fatal "installer common library cannot resolve NVIDIA class selection"
+  command -v installer_nvidia_gpu_detected >/dev/null 2>&1 ||
+    fatal "installer common library cannot detect NVIDIA display hardware"
+
+  if installer_nvidia_addon_selected && installer_nvidia_gpu_detected; then
+    log "info: NVIDIA class and display hardware are active; proprietary NVIDIA/CUDA package deny policy is not staged"
+    return 0
+  fi
+
+  fetch_and_install_pref "$NVIDIA_OPT_IN_POLICY_NAME"
+  log "info: staged fail-closed NVIDIA/CUDA package deny policy because no detected opt-in NVIDIA class is active"
+}
+
+trap 'finish_log "$?"' EXIT
+
+[ -d "$TARGET" ] || fatal "target directory is missing: $TARGET"
+target_is_mounted || fatal "target is not mounted during apt setup: $TARGET"
+
+install -d -m 0700 "$FETCH_DIR"
+install -d -m 0755 "$TARGET_DIR" "$TARGET_APT_CONF_DIR"
+stage_no_recommends_policy
+stage_configured_preferences
+stage_nvidia_opt_in_policy
+purge_target_cdrom_apt_sources
+
+log "info: completed configured target apt preferences during apt-setup"

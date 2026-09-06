@@ -1,0 +1,10 @@
+[Unit]
+Description=Managed rootless Podman resource slice
+
+[Slice]
+CPUWeight=__INSTALLER_PODMAN_SERVICE_SLICE_CPU_WEIGHT__
+IOAccounting=yes
+IOWeight=__INSTALLER_PODMAN_SERVICE_SLICE_IO_WEIGHT__
+MemoryAccounting=yes
+TasksAccounting=yes
+TasksMax=__INSTALLER_PODMAN_SERVICE_SLICE_TASKS_MAX__

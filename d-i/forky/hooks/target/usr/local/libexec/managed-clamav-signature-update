@@ -1,0 +1,64 @@
+#!/bin/sh
+set -eu
+
+FANGFRISCH_CONFIG=/etc/fangfrisch.conf
+FANGFRISCH_DATABASE=/var/lib/fangfrisch/db.sqlite
+LOCK_FILE=/var/lib/fangfrisch/update.lock
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+run_step() {
+  step_name=$1
+  shift
+
+  printf 'managed_clamav_update step=%s status=started\n' "$step_name"
+  if "$@"; then
+    printf 'managed_clamav_update step=%s status=completed\n' "$step_name"
+    return 0
+  else
+    step_status=$?
+  fi
+
+  overall_status=$step_status
+  printf 'managed_clamav_update step=%s status=failed exit_status=%s\n' \
+    "$step_name" "$step_status" >&2
+  return "$step_status"
+}
+
+[ "$(id -u)" -ne 0 ] || fatal "signature updates must run as the unprivileged clamav account"
+[ "$(id -un)" = clamav ] || fatal "signature updates must run as user clamav"
+[ -r "$FANGFRISCH_CONFIG" ] || fatal "Fangfrisch configuration is missing: $FANGFRISCH_CONFIG"
+
+for command_name in fangfrisch flock freshclam; do
+  command -v "$command_name" >/dev/null 2>&1 ||
+    fatal "required signature update command is missing: $command_name"
+done
+
+install -d -m 0770 /var/lib/fangfrisch
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  printf '%s\n' 'managed_clamav_update status=already-running'
+  exit 0
+fi
+
+overall_status=0
+fangfrisch_ready=true
+
+if [ ! -s "$FANGFRISCH_DATABASE" ]; then
+  if ! run_step fangfrisch-initdb \
+    fangfrisch --conf "$FANGFRISCH_CONFIG" initdb; then
+    fangfrisch_ready=false
+  fi
+fi
+
+run_step freshclam freshclam --stdout || true
+if [ "$fangfrisch_ready" = true ]; then
+  run_step fangfrisch-refresh \
+    fangfrisch --conf "$FANGFRISCH_CONFIG" refresh ||
+    true
+fi
+
+exit "$overall_status"

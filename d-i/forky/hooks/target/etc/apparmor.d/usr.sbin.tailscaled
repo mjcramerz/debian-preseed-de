@@ -1,0 +1,89 @@
+# Managed by unattended-installer.
+#
+# The daemon owns network, state, TPM, and packet-filter access. The CLI has a
+# separate attachment limited to the local API, bounded diagnostics, and the
+# installer-staged bootstrap key. Both profiles are enforced after review of
+# fresh-install daemon and bootstrap activity.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile usr.sbin.tailscaled /usr/sbin/tailscaled flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Network and packet-filter administration remain confined to this daemon.
+  capability net_admin,
+  capability net_raw,
+  capability dac_override,
+  capability sys_ptrace,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network inet raw,
+  network netlink raw,
+  ptrace (read) peer=unconfined,
+
+  /usr/sbin/tailscaled rix,
+  /usr/sbin/{ip6tables,ip6tables-restore,ip6tables-save,iptables,iptables-restore,iptables-save,xtables-nft-multi} rix,
+  /usr/sbin/resolvconf rix,
+  /{,usr/}bin/{flock,sed} rix,
+  /usr/share/doc/resolvconf/copyright r,
+  /dev/net/tun rw,
+  /dev/tpmrm0 rw,
+  /run/resolvconf/run-lock rwk,
+  /run/xtables.lock rwk,
+
+  /etc/ r,
+  /etc/**/ r,
+  /etc/debian_version r,
+  /etc/default/tailscaled r,
+  /etc/resolvconf/update-libc.d/ rw,
+  /etc/resolvconf/update-libc.d/tailscale rw,
+  /etc/resolvconf/update-libc.d/tailscale.tmp[0-9]* rw,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /run/tailscale/ rw,
+  /run/tailscale/** rwkl,
+  /var/lib/tailscale/ rw,
+  /var/lib/tailscale/** rwkl,
+
+  owner @{PROC}/@{pid}/{cgroup,mountinfo,mounts} r,
+  owner @{PROC}/@{pid}/net/unix r,
+  @{PROC}/1/{cgroup,stat} r,
+  @{PROC}/modules r,
+  @{PROC}/net/{ip6_tables_names,ip_tables_names} r,
+  @{PROC}/sys/net/core/somaxconn r,
+  @{PROC}/sys/net/ipv6/conf/ r,
+  @{PROC}/sys/net/ipv6/conf/*/ r,
+  @{PROC}/sys/net/ipv6/conf/*/{disable_ipv6,disable_policy} r,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,product_name,sys_vendor} r,
+  @{sys}/fs/cgroup/system.slice/tailscaled.service/cpu.max r,
+
+  include if exists <local/usr.sbin.tailscaled>
+}
+
+profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/bin/tailscale rix,
+  /etc/debian_version r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /run/tailscale/ r,
+  /run/tailscale/tailscaled.sock rw,
+  /usr/local/lib/tailscale/auth.key r,
+  /usr/local/lib/tailscale/bootstrap.log a,
+  owner @{PROC}/@{pid}/{cgroup,mountinfo} r,
+  @{sys}/fs/cgroup/system.slice/tailscale-managed-bootstrap.service/cpu.max r,
+
+  include if exists <local/usr.bin.tailscale>
+}

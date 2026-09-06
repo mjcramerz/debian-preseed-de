@@ -1,0 +1,977 @@
+#!/bin/sh
+set -eu
+umask 077
+
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+
+coalesce_pid=
+
+# Invoked indirectly by the signal trap installed below.
+# shellcheck disable=SC2329
+cancel_coalescing() {
+  trap '' HUP INT TERM
+  if [ -n "$coalesce_pid" ]; then
+    kill -TERM "$coalesce_pid" 2>/dev/null || true
+    wait "$coalesce_pid" 2>/dev/null || true
+  fi
+  exit 0
+}
+
+# A target stop may arrive immediately after a path or timer activation. Install
+# cancellation before argument parsing, preflight, or the coalescing delay so
+# every expected session-stop SIGTERM exits successfully.
+trap cancel_coalescing HUP INT TERM
+
+usage() {
+  printf 'usage: labwc-health-notify [--coalesce-seconds 0..60]\n' >&2
+  exit 64
+}
+
+coalesce_seconds=0
+case "$#" in
+  0)
+    ;;
+  2)
+    [ "$1" = --coalesce-seconds ] || usage
+    coalesce_seconds=$2
+    case "$coalesce_seconds" in
+      ''|*[!0-9]*) usage ;;
+    esac
+    [ "${#coalesce_seconds}" -le 2 ] || usage
+    [ "$coalesce_seconds" -le 60 ] || usage
+    ;;
+  *)
+    usage
+    ;;
+esac
+
+APP_NAME="Desktop Health"
+NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+
+[ -n "$NOTIFY_SEND" ] || exit 0
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] || exit 0
+[ "${XDG_SESSION_TYPE:-}" = wayland ] || exit 0
+[ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || exit 0
+case "${XDG_RUNTIME_DIR:-}" in
+  /*) ;;
+  *) exit 0 ;;
+esac
+case "${WAYLAND_DISPLAY:-}" in
+  /*) wayland_socket=$WAYLAND_DISPLAY ;;
+  '') exit 0 ;;
+  *) wayland_socket="${XDG_RUNTIME_DIR%/}/${WAYLAND_DISPLAY}" ;;
+esac
+[ -S "$wayland_socket" ] || exit 0
+
+if [ "$coalesce_seconds" -gt 0 ]; then
+  /usr/bin/sleep "$coalesce_seconds" &
+  coalesce_pid=$!
+  if wait "$coalesce_pid"; then
+    :
+  else
+    coalesce_status=$?
+    coalesce_pid=
+    case "$coalesce_status" in
+      129|130|143)
+        exit 0
+        ;;
+      *)
+        exit "$coalesce_status"
+        ;;
+    esac
+  fi
+  coalesce_pid=
+fi
+
+STATE_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}"
+STATE_DIR="${STATE_ROOT}/labwc-health-notify"
+CURRENT_USER=$(id -un 2>/dev/null || true)
+case "$CURRENT_USER" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*) exit 0 ;;
+esac
+MAILBOX="${MAIL:-/var/mail/${CURRENT_USER}}"
+NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+TIMESHIFT_EVENT_DIR=${TIMESHIFT_EVENT_DIR:-/var/lib/labwc-notifications/timeshift}
+TIMESHIFT_SEEN_DIR=${TIMESHIFT_SEEN_DIR:-"${STATE_DIR}/timeshift-seen"}
+TIMESHIFT_EVENT_OWNER_UID=${TIMESHIFT_EVENT_OWNER_UID:-0}
+UNATTENDED_EVENT_DIR=${UNATTENDED_EVENT_DIR:-/var/lib/labwc-notifications/unattended-upgrades}
+UNATTENDED_SEEN_DIR=${UNATTENDED_SEEN_DIR:-"${STATE_DIR}/unattended-upgrades-seen"}
+SYSTEM_EVENT_DIR=${SYSTEM_EVENT_DIR:-/var/lib/labwc-notifications/system}
+SYSTEM_SEEN_DIR=${SYSTEM_SEEN_DIR:-"${STATE_DIR}/system-seen"}
+SYSTEM_EVENT_OWNER_UID=${SYSTEM_EVENT_OWNER_UID:-0}
+SECURITY_SIGNAL_DIR=${SECURITY_SIGNAL_DIR:-/var/lib/labwc-notifications/security}
+SECURITY_SIGNAL_STATE_DIR=${SECURITY_SIGNAL_STATE_DIR:-"${STATE_DIR}/security-signals"}
+ROOT_EVENT_OWNER_UID=${ROOT_EVENT_OWNER_UID:-0}
+MEMINFO_FILE=${MEMINFO_FILE:-/proc/meminfo}
+POWER_SUPPLY_DIR=${POWER_SUPPLY_DIR:-/sys/class/power_supply}
+REBOOT_REQUIRED_FILE=${REBOOT_REQUIRED_FILE:-/run/reboot-required}
+
+umask 077
+case "$ROOT_EVENT_OWNER_UID" in
+  ''|*[!0-9]*) exit 0 ;;
+esac
+case "$TIMESHIFT_EVENT_OWNER_UID" in
+  ''|*[!0-9]*) exit 0 ;;
+esac
+case "$SYSTEM_EVENT_OWNER_UID" in
+  ''|*[!0-9]*) exit 0 ;;
+esac
+
+# Validate the whole directory chain before creating private user state. Never
+# follow a redirected state directory or share acknowledgement files with peers.
+ensure_state_dir() (
+  directory=$1
+  case "$directory" in
+    /*) ;;
+    *) printf 'invalid state directory\n' >&2; exit 1 ;;
+  esac
+  case "/${directory#/}/" in
+    */../*|*/./*|*//*) printf 'non-canonical state directory\n' >&2; exit 1 ;;
+  esac
+  parent=${directory%/*}
+  [ -n "$parent" ] || parent=/
+  [ -d "$parent" ] || ensure_state_dir "$parent"
+  ancestor=$parent
+  while [ "$ancestor" != / ]; do
+    [ ! -L "$ancestor" ] && [ -d "$ancestor" ] || exit 1
+    owner=$(/usr/bin/stat -c %u -- "$ancestor")
+    [ "$owner" = 0 ] || [ "$owner" = "$USER_UID" ] || exit 1
+    # A world-writable ancestor can redirect future operations even when the
+    # leaf is private. Desktop state belongs under a trusted home/state root.
+    [ -z "$(/usr/bin/find "$ancestor" -maxdepth 0 -perm /022 -print)" ] || exit 1
+    ancestor=${ancestor%/*}
+    [ -n "$ancestor" ] || ancestor=/
+  done
+  if [ ! -e "$directory" ] && [ ! -L "$directory" ]; then
+    /usr/bin/mkdir -m 0700 -- "$directory" || [ -d "$directory" ]
+  fi
+  [ -d "$directory" ] && [ ! -L "$directory" ] || exit 1
+  [ "$(/usr/bin/stat -c %u -- "$directory")" = "$USER_UID" ] || exit 1
+  /usr/bin/chmod 0700 -- "$directory"
+)
+
+USER_UID=$(/usr/bin/id -u)
+for managed_directory in "$STATE_DIR" "$TIMESHIFT_SEEN_DIR" "$UNATTENDED_SEEN_DIR" "$SYSTEM_SEEN_DIR" "$SECURITY_SIGNAL_STATE_DIR"; do
+  ensure_state_dir "$managed_directory" || {
+    printf 'unsafe notification state directory: %s\n' "$managed_directory" >&2
+    exit 1
+  }
+done
+notification_lock="$STATE_DIR/notify.lock"
+[ ! -L "$notification_lock" ] && { [ ! -e "$notification_lock" ] || [ -f "$notification_lock" ]; } || exit 1
+exec 9>>"$notification_lock"
+[ "$(/usr/bin/stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$USER_UID:1:600" ] || exit 1
+/usr/bin/flock --exclusive --nonblock --conflict-exit-code 75 9 || {
+  lock_status=$?
+  [ "$lock_status" -eq 75 ] && exit 0
+  exit "$lock_status"
+}
+
+# Subshells keep temporary names and cleanup traps local to each transaction.
+atomic_state() (
+  destination=$1
+  [ ! -L "$destination" ] || exit 1
+  [ ! -e "$destination" ] || [ -f "$destination" ] || exit 1
+  temporary=$(/usr/bin/mktemp "${destination}.XXXXXXXX") || exit 1
+  trap '/usr/bin/rm -f -- "$temporary"' EXIT
+  trap 'exit 143' HUP INT TERM
+  /usr/bin/cat >"$temporary" || exit 1
+  /usr/bin/chmod 0600 -- "$temporary" || exit 1
+  /usr/bin/mv -fT -- "$temporary" "$destination"
+)
+
+read_state() (
+  source=$1
+  [ -e "$source" ] || { [ ! -L "$source" ] && exit 0; exit 1; }
+  [ ! -L "$source" ] && [ -f "$source" ] || exit 1
+  [ "$(/usr/bin/stat -c '%u:%h:%a' -- "$source")" = "$USER_UID:1:600" ] || exit 1
+  [ "$(/usr/bin/stat -c %s -- "$source")" -le 4096 ] || exit 1
+  /usr/bin/head -c 4096 -- "$source"
+)
+
+notify() {
+  /usr/bin/timeout --kill-after=1s 3s "$NOTIFY_SEND" "$@" 9>&-
+}
+
+prune_seen() (
+  seen_directory=$1
+  event_directory=$2
+  for seen_path in "$seen_directory"/*.seen; do
+    [ -f "$seen_path" ] && [ ! -L "$seen_path" ] || continue
+    event_name=${seen_path##*/}
+    event_name=${event_name%.seen}
+    [ -e "$event_directory/$event_name" ] || /usr/bin/rm -f -- "$seen_path"
+  done
+)
+notification_failures=0
+
+send_notification() {
+  key=$1
+  urgency=$2
+  icon=$3
+  category=$4
+  timeout_ms=$5
+  summary=$6
+  body=$7
+  notification_state_file="${STATE_DIR}/${key}.state"
+  notification_payload=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$urgency" "$icon" "$category" "$timeout_ms" "$summary" "$body")
+  previous_notification_payload=$(read_state "$notification_state_file")
+
+  [ "$previous_notification_payload" = "$notification_payload" ] && return 0
+
+  if [ -n "$category" ]; then
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -c "$category" -t "$timeout_ms" -- "$summary" "$body" >/dev/null 2>&1 || return 1
+  else
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -t "$timeout_ms" -- "$summary" "$body" >/dev/null 2>&1 || return 1
+  fi
+
+  printf '%s' "$notification_payload" | atomic_state "$notification_state_file"
+}
+
+clear_notification_state() {
+  key=$1
+  summary=$2
+  body=$3
+  notification_state_file="${STATE_DIR}/${key}.state"
+
+  [ -s "$notification_state_file" ] || return 0
+  if [ -n "$summary" ]; then
+    notify -a "$APP_NAME" -u normal -i dialog-information -t 8000 -- "$summary" "$body" >/dev/null 2>&1 || return 1
+  fi
+  rm -f -- "$notification_state_file"
+}
+
+format_gib() {
+  awk -v kib="$1" 'BEGIN { printf "%.1f", kib / 1048576 }'
+}
+
+check_disk_usage() {
+  key=$1
+  path=$2
+  warn_percent=$3
+  critical_percent=$4
+
+  [ -e "$path" ] || return 0
+
+  df_record=$(/usr/bin/timeout --kill-after=1s 5s /usr/bin/df -Pk -- "$path" 2>/dev/null | awk 'NR == 2 { print $5 " " $4 " " $6 }')
+  [ -n "$df_record" ] || return 0
+
+  usage_percent=${df_record%% *}
+  usage_percent=${usage_percent%\%}
+  remaining_record=${df_record#* }
+  available_kib=${remaining_record%% *}
+  mount_point=${remaining_record#* }
+
+  case "$usage_percent" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+  case "$available_kib" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+
+  available_gib=$(format_gib "$available_kib")
+
+  if [ "$usage_percent" -ge "$critical_percent" ]; then
+    send_notification \
+      "$key" critical dialog-error device.error 0 \
+      "Critical disk pressure on ${mount_point}" \
+      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free."
+    return 0
+  fi
+
+  if [ "$usage_percent" -ge "$warn_percent" ]; then
+    send_notification \
+      "$key" normal dialog-warning device.error 12000 \
+      "Disk pressure warning on ${mount_point}" \
+      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free."
+    return 0
+  fi
+
+  clear_notification_state \
+    "$key" \
+    "Disk pressure resolved on ${mount_point}" \
+    "${mount_point} now has ${available_gib} GiB free."
+}
+
+check_temperature() {
+  max_temp_millic=0
+
+  for thermal_file in /sys/class/thermal/thermal_zone*/temp; do
+    [ -r "$thermal_file" ] || continue
+    temp_value=$(sed -n '1p' "$thermal_file" 2>/dev/null || true)
+    case "$temp_value" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    [ "$temp_value" -gt "$max_temp_millic" ] && max_temp_millic=$temp_value
+  done
+
+  [ "$max_temp_millic" -gt 0 ] || return 0
+
+  max_temp_c=$((max_temp_millic / 1000))
+
+  if [ "$max_temp_c" -ge 85 ]; then
+    send_notification \
+      thermal critical dialog-error device.error 0 \
+      "Critical system temperature" \
+      "The hottest thermal zone is reporting ${max_temp_c}C."
+    return 0
+  fi
+
+  if [ "$max_temp_c" -ge 75 ]; then
+    send_notification \
+      thermal normal dialog-warning device.error 12000 \
+      "High system temperature" \
+      "The hottest thermal zone is reporting ${max_temp_c}C."
+    return 0
+  fi
+
+  clear_notification_state \
+    thermal \
+    "System temperature back to normal" \
+    "The hottest thermal zone is now ${max_temp_c}C."
+}
+
+check_memory_pressure() {
+  [ -r "$MEMINFO_FILE" ] || return 0
+
+  memory_record=$(
+    awk '
+      $1 == "MemTotal:" { total = $2 }
+      $1 == "MemAvailable:" { available = $2 }
+      END {
+        if (total ~ /^[0-9]+$/ && available ~ /^[0-9]+$/ && total > 0) {
+          print total, available
+        }
+      }
+    ' "$MEMINFO_FILE" 2>/dev/null || true
+  )
+  [ -n "$memory_record" ] || return 0
+
+  total_kib=${memory_record%% *}
+  available_kib=${memory_record#* }
+  case "$total_kib:$available_kib" in
+    *[!0-9:]*|:*) return 0 ;;
+  esac
+  [ "$available_kib" -le "$total_kib" ] || return 0
+
+  available_percent=$((available_kib * 100 / total_kib))
+  available_mib=$((available_kib / 1024))
+
+  if [ "$available_percent" -le 5 ]; then
+    send_notification \
+      memory critical dialog-error system.memory 0 \
+      "Critical memory pressure" \
+      "Only ${available_mib} MiB (${available_percent}%) of memory is available."
+    return 0
+  fi
+
+  if [ "$available_percent" -le 10 ]; then
+    send_notification \
+      memory normal dialog-warning system.memory 12000 \
+      "High memory pressure" \
+      "Only ${available_mib} MiB (${available_percent}%) of memory is available."
+    return 0
+  fi
+
+  clear_notification_state \
+    memory \
+    "Memory pressure resolved" \
+    "${available_mib} MiB (${available_percent}%) of memory is now available."
+}
+
+check_battery() {
+  [ -d "$POWER_SUPPLY_DIR" ] || return 0
+
+  battery_found=false
+  minimum_discharging_capacity=101
+  for supply_path in "$POWER_SUPPLY_DIR"/*; do
+    [ -e "$supply_path" ] || continue
+    [ -r "$supply_path/type" ] || continue
+    supply_type=$(sed -n '1p' "$supply_path/type" 2>/dev/null || true)
+    [ "$supply_type" = Battery ] || continue
+    battery_found=true
+
+    [ -r "$supply_path/capacity" ] || continue
+    [ -r "$supply_path/status" ] || continue
+    capacity=$(sed -n '1p' "$supply_path/capacity" 2>/dev/null || true)
+    status=$(sed -n '1p' "$supply_path/status" 2>/dev/null || true)
+    case "$capacity" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    [ "$capacity" -le 100 ] || continue
+    [ "$status" = Discharging ] || continue
+    [ "$capacity" -lt "$minimum_discharging_capacity" ] &&
+      minimum_discharging_capacity=$capacity
+  done
+
+  [ "$battery_found" = true ] || return 0
+
+  if [ "$minimum_discharging_capacity" -le 10 ]; then
+    send_notification \
+      battery critical battery-caution system.battery 0 \
+      "Critical battery level" \
+      "Battery charge is ${minimum_discharging_capacity}% and still discharging."
+    return 0
+  fi
+
+  if [ "$minimum_discharging_capacity" -le 20 ]; then
+    send_notification \
+      battery normal battery-low system.battery 12000 \
+      "Low battery level" \
+      "Battery charge is ${minimum_discharging_capacity}% and still discharging."
+    return 0
+  fi
+
+  if [ "$minimum_discharging_capacity" -le 100 ]; then
+    clear_notification_state \
+      battery \
+      "Battery level recovered" \
+      "Battery charge is ${minimum_discharging_capacity}%."
+  else
+    clear_notification_state \
+      battery \
+      "Battery warning cleared" \
+      "The battery is no longer discharging below the warning threshold."
+  fi
+}
+
+check_reboot_required() {
+  if [ -f "$REBOOT_REQUIRED_FILE" ] && [ ! -L "$REBOOT_REQUIRED_FILE" ]; then
+    send_notification \
+      reboot-required normal system-reboot system.reboot 0 \
+      "System restart required" \
+      "Installed package or maintenance changes require a restart to take full effect."
+    return 0
+  fi
+
+  clear_notification_state reboot-required "" ""
+}
+
+check_mailbox() {
+  [ -n "$MAILBOX" ] || return 0
+  [ -r "$MAILBOX" ] || return 0
+
+  mail_count=$(/usr/bin/timeout --kill-after=1s 5s /usr/bin/grep -c '^From ' -- "$MAILBOX" 2>/dev/null || true)
+  case "$mail_count" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+
+  mail_count_state_file="${STATE_DIR}/mail-count.state"
+  previous_count=$(read_state "$mail_count_state_file")
+  case "$previous_count" in
+    ''|*[!0-9]*) previous_count=0 ;;
+  esac
+
+  if [ "$mail_count" -gt "$previous_count" ] && [ "$mail_count" -gt 0 ]; then
+    send_notification \
+      mailbox normal mail-unread email.arrived 10000 \
+      "New local mail for ${CURRENT_USER}" \
+      "${MAILBOX} now contains ${mail_count} message(s)."
+  fi
+
+  printf '%s\n' "$mail_count" | atomic_state "$mail_count_state_file"
+}
+
+check_timeshift_events() {
+  [ -d "$TIMESHIFT_EVENT_DIR" ] && [ ! -L "$TIMESHIFT_EVENT_DIR" ] || return 0
+
+  trusted_event_dir=$(
+    /usr/bin/find "$TIMESHIFT_EVENT_DIR" \
+      -maxdepth 0 \
+      -type d \
+      -uid "$TIMESHIFT_EVENT_OWNER_UID" \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_event_dir" = "$TIMESHIFT_EVENT_DIR" ] || return 0
+
+  prune_seen "$TIMESHIFT_SEEN_DIR" "$TIMESHIFT_EVENT_DIR"
+
+  for event_path in "$TIMESHIFT_EVENT_DIR"/*.event; do
+    [ -e "$event_path" ] || continue
+    event_name=${event_path##*/}
+    printf '%s\n' "$event_name" |
+      /usr/bin/grep -Eq '^[0-9]{10}-[0-9]{10}-[0-9]{4}\.event$' ||
+      continue
+    marker_path="${TIMESHIFT_SEEN_DIR}/${event_name}.seen"
+    [ -e "$marker_path" ] && continue
+
+    trusted_event_file=$(
+      /usr/bin/find "$event_path" \
+        -maxdepth 0 \
+        -type f \
+        -uid "$TIMESHIFT_EVENT_OWNER_UID" \
+        ! -perm /022 \
+        -size -257c \
+        -print \
+        -quit 2>/dev/null || true
+    )
+    [ "$trusted_event_file" = "$event_path" ] || continue
+    [ "$(/usr/bin/wc -l <"$event_path" | /usr/bin/tr -d '[:space:]')" = 1 ] ||
+      continue
+
+    event_line=$(/usr/bin/sed -n '1p' "$event_path")
+    event_status=${event_line%%|*}
+    remaining=${event_line#*|}
+    [ "$remaining" != "$event_line" ] || continue
+    snapshot_kind=${remaining%%|*}
+    event_detail=${remaining#*|}
+    [ "$event_detail" != "$remaining" ] || continue
+    case "$event_detail" in
+      *'|'*) continue ;;
+    esac
+    case "$snapshot_kind" in
+      daily|weekly|monthly) ;;
+      *) continue ;;
+    esac
+
+    case "$event_status" in
+      started)
+        [ "$event_detail" = - ] || continue
+        urgency=normal
+        icon=drive-harddisk
+        timeout_ms=8000
+        summary="Timeshift ${snapshot_kind} snapshot started"
+        body="The managed ${snapshot_kind} Btrfs snapshot is being created."
+        ;;
+      completed)
+        [ "$event_detail" = - ] || continue
+        urgency=normal
+        icon=drive-harddisk
+        timeout_ms=12000
+        summary="Timeshift ${snapshot_kind} snapshot completed"
+        body="The managed ${snapshot_kind} Btrfs snapshot completed successfully."
+        ;;
+      failed)
+        case "$event_detail" in
+          ''|*[!0-9]*) continue ;;
+        esac
+        [ "$event_detail" -le 255 ] || continue
+        urgency=critical
+        icon=dialog-error
+        timeout_ms=0
+        summary="Timeshift ${snapshot_kind} snapshot failed"
+        body="The managed ${snapshot_kind} Btrfs snapshot failed with status ${event_detail}."
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if notify \
+      -a Timeshift \
+      -u "$urgency" \
+      -i "$icon" \
+      -c system.backup \
+      -t "$timeout_ms" \
+      -- "$summary" \
+      "$body" >/dev/null 2>&1
+    then
+      atomic_state "$marker_path" </dev/null
+    else
+      notification_failures=1
+    fi
+  done
+}
+
+check_unattended_upgrade_events() {
+  [ -d "$UNATTENDED_EVENT_DIR" ] && [ ! -L "$UNATTENDED_EVENT_DIR" ] || return 0
+
+  trusted_event_dir=$(
+    /usr/bin/find "$UNATTENDED_EVENT_DIR" \
+      -maxdepth 0 \
+      -type d \
+      -uid "$ROOT_EVENT_OWNER_UID" \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_event_dir" = "$UNATTENDED_EVENT_DIR" ] || return 0
+
+  prune_seen "$UNATTENDED_SEEN_DIR" "$UNATTENDED_EVENT_DIR"
+
+  for event_path in "$UNATTENDED_EVENT_DIR"/*.event; do
+    [ -e "$event_path" ] || continue
+    event_name=${event_path##*/}
+    printf '%s\n' "$event_name" |
+      /usr/bin/grep -Eq '^[0-9]{10}-[0-9]{10}-[0-9]{4}\.event$' ||
+      continue
+    marker_path="${UNATTENDED_SEEN_DIR}/${event_name}.seen"
+    [ -e "$marker_path" ] && continue
+
+    trusted_event_file=$(
+      /usr/bin/find "$event_path" \
+        -maxdepth 0 \
+        -type f \
+        -uid "$ROOT_EVENT_OWNER_UID" \
+        ! -perm /022 \
+        -size -257c \
+        -print \
+        -quit 2>/dev/null || true
+    )
+    [ "$trusted_event_file" = "$event_path" ] || continue
+    [ "$(/usr/bin/wc -l <"$event_path" | /usr/bin/tr -d '[:space:]')" = 1 ] ||
+      continue
+
+    event_line=$(/usr/bin/sed -n '1p' "$event_path")
+    event_status=${event_line%%|*}
+    remaining=${event_line#*|}
+    [ "$remaining" != "$event_line" ] || continue
+    service_result=${remaining%%|*}
+    remaining_next=${remaining#*|}
+    [ "$remaining_next" != "$remaining" ] || continue
+    exit_code=${remaining_next%%|*}
+    exit_status=${remaining_next#*|}
+    [ "$exit_status" != "$remaining_next" ] || continue
+    case "$exit_status" in
+      *'|'*) continue ;;
+    esac
+
+    case "$event_status" in
+      started)
+        [ "$service_result" = none ] &&
+          [ "$exit_code" = none ] &&
+          [ "$exit_status" = none ] ||
+          continue
+        urgency=normal
+        icon=software-update-available
+        timeout_ms=8000
+        summary="Automatic package maintenance started"
+        body="APT is checking the approved Debian and vendor repositories for eligible unattended upgrades."
+        ;;
+      completed)
+        [ "$service_result" = success ] || continue
+        case "$exit_code" in
+          exited|unknown) ;;
+          *) continue ;;
+        esac
+        case "$exit_status" in
+          0|unknown) ;;
+          *) continue ;;
+        esac
+        urgency=normal
+        icon=software-update-urgent
+        timeout_ms=12000
+        summary="Automatic package maintenance completed"
+        body="The unattended upgrade job completed successfully. Sensitive boot, kernel, GPU, firmware, and audio packages remained excluded."
+        ;;
+      failed)
+        case "$service_result" in
+          protocol|timeout|exit-code|signal|core-dump|watchdog|start-limit-hit|resources|oom-kill|exec-condition|unknown) ;;
+          *) continue ;;
+        esac
+        case "$exit_code" in
+          exited|killed|dumped|unknown) ;;
+          *) continue ;;
+        esac
+        case "$exit_status" in
+          unknown) ;;
+          ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*) continue ;;
+        esac
+        [ "${#exit_status}" -le 64 ] || continue
+        urgency=critical
+        icon=dialog-error
+        timeout_ms=0
+        summary="Automatic package maintenance failed"
+        body="The unattended upgrade job failed (result ${service_result}, exit ${exit_code}/${exit_status}). Review the system journal and /var/log/unattended-upgrades/."
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if notify \
+      -a "Unattended Upgrades" \
+      -u "$urgency" \
+      -i "$icon" \
+      -c system.software-update \
+      -t "$timeout_ms" \
+      -- "$summary" \
+      "$body" >/dev/null 2>&1
+    then
+      atomic_state "$marker_path" </dev/null
+    else
+      notification_failures=1
+    fi
+  done
+}
+
+validate_queued_notification_text() {
+  notification_value=$1
+  notification_maximum=$2
+  notification_required=$3
+
+  case "$notification_value" in
+    *'|'*) return 1 ;;
+  esac
+  if [ "$notification_required" = yes ] && [ -z "$notification_value" ]; then
+    return 1
+  fi
+  notification_length=$(
+    printf '%s' "$notification_value" |
+      /usr/bin/wc -c |
+      /usr/bin/tr -d '[:space:]'
+  )
+  case "$notification_length" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$notification_length" -le "$notification_maximum" ] || return 1
+
+  line_break_count=$(
+    printf '%s' "$notification_value" |
+      /usr/bin/tr -cd '\012\015' |
+      /usr/bin/wc -c |
+      /usr/bin/tr -d '[:space:]'
+  )
+  [ "$line_break_count" = 0 ] || return 1
+  [ -n "$notification_value" ] || return 0
+  printf '%s\n' "$notification_value" | /usr/bin/grep -Eq '^[ -~]+$'
+}
+
+validate_queued_notification_app_name() {
+  validate_queued_notification_text "$1" 64 yes || return 1
+  printf '%s\n' "$1" |
+    /usr/bin/grep -Eq '^[A-Za-z0-9][A-Za-z0-9 ._-]*$'
+}
+
+validate_queued_notification_token() {
+  queued_token=$1
+  queued_token_maximum=$2
+  validate_queued_notification_text "$queued_token" "$queued_token_maximum" yes ||
+    return 1
+  printf '%s\n' "$queued_token" |
+    /usr/bin/grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+}
+
+check_system_events() {
+  [ -d "$SYSTEM_EVENT_DIR" ] && [ ! -L "$SYSTEM_EVENT_DIR" ] || return 0
+
+  trusted_event_dir=$(
+    /usr/bin/find "$SYSTEM_EVENT_DIR" \
+      -maxdepth 0 \
+      -type d \
+      -uid "$SYSTEM_EVENT_OWNER_UID" \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_event_dir" = "$SYSTEM_EVENT_DIR" ] || return 0
+
+  prune_seen "$SYSTEM_SEEN_DIR" "$SYSTEM_EVENT_DIR"
+
+  for event_path in "$SYSTEM_EVENT_DIR"/*.event; do
+    [ -e "$event_path" ] || continue
+    event_name=${event_path##*/}
+    printf '%s\n' "$event_name" |
+      /usr/bin/grep -Eq '^[0-9]{10}-[0-9]{10}-[0-9]{4}\.event$' ||
+      continue
+    marker_path="${SYSTEM_SEEN_DIR}/${event_name}.seen"
+    [ -e "$marker_path" ] && continue
+
+    trusted_event_file=$(
+      /usr/bin/find "$event_path" \
+        -maxdepth 0 \
+        -type f \
+        -uid "$SYSTEM_EVENT_OWNER_UID" \
+        ! -perm /022 \
+        -size -1025c \
+        -print \
+        -quit 2>/dev/null || true
+    )
+    [ "$trusted_event_file" = "$event_path" ] || continue
+    [ "$(/usr/bin/wc -l <"$event_path" | /usr/bin/tr -d '[:space:]')" = 1 ] ||
+      continue
+
+    event_line=$(/usr/bin/sed -n '1p' "$event_path")
+    event_app_name=${event_line%%|*}
+    remaining=${event_line#*|}
+    [ "$remaining" != "$event_line" ] || continue
+    event_urgency=${remaining%%|*}
+    next_remaining=${remaining#*|}
+    [ "$next_remaining" != "$remaining" ] || continue
+    remaining=$next_remaining
+    event_icon=${remaining%%|*}
+    next_remaining=${remaining#*|}
+    [ "$next_remaining" != "$remaining" ] || continue
+    remaining=$next_remaining
+    event_category=${remaining%%|*}
+    next_remaining=${remaining#*|}
+    [ "$next_remaining" != "$remaining" ] || continue
+    remaining=$next_remaining
+    event_timeout_ms=${remaining%%|*}
+    next_remaining=${remaining#*|}
+    [ "$next_remaining" != "$remaining" ] || continue
+    remaining=$next_remaining
+    event_summary=${remaining%%|*}
+    next_remaining=${remaining#*|}
+    [ "$next_remaining" != "$remaining" ] || continue
+    event_body=$next_remaining
+    case "$event_body" in
+      *'|'*) continue ;;
+    esac
+
+    validate_queued_notification_app_name "$event_app_name" || continue
+    case "$event_urgency" in
+      low|normal|critical) ;;
+      *) continue ;;
+    esac
+    validate_queued_notification_token "$event_icon" 64 || continue
+    validate_queued_notification_token "$event_category" 96 || continue
+    case "$event_timeout_ms" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    [ "${#event_timeout_ms}" -le 6 ] || continue
+    [ "$event_timeout_ms" -le 600000 ] || continue
+    validate_queued_notification_text "$event_summary" 160 yes || continue
+    validate_queued_notification_text "$event_body" 512 no || continue
+
+    if notify \
+      -a "$event_app_name" \
+      -u "$event_urgency" \
+      -i "$event_icon" \
+      -c "$event_category" \
+      -t "$event_timeout_ms" \
+      -- \
+      "$event_summary" \
+      "$event_body" >/dev/null 2>&1
+    then
+      atomic_state "$marker_path" </dev/null
+    else
+      notification_failures=1
+    fi
+  done
+}
+
+check_security_signal() {
+  signal_name=$1
+  urgency=$2
+  icon=$3
+  category=$4
+  timeout_ms=$5
+  summary=$6
+  log_path=$7
+  signal_path="${SECURITY_SIGNAL_DIR}/${signal_name}.signal"
+  state_path="${SECURITY_SIGNAL_STATE_DIR}/${signal_name}.count"
+
+  trusted_signal_file=$(
+    /usr/bin/find "$signal_path" \
+      -maxdepth 0 \
+      -type f \
+      -uid "$ROOT_EVENT_OWNER_UID" \
+      ! -perm /022 \
+      -size -1048577c \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_signal_file" = "$signal_path" ] || return 0
+
+  current_identity=$(
+    /usr/bin/find "$signal_path" \
+      -maxdepth 0 \
+      -type f \
+      -printf '%D:%i\n' \
+      -quit 2>/dev/null || true
+  )
+  case "$current_identity" in
+    *:*) ;;
+    *) return 0 ;;
+  esac
+
+  current_count=$(/usr/bin/wc -l <"$signal_path" | /usr/bin/tr -d '[:space:]')
+  case "$current_count" in
+    ''|*[!0-9]*) return 0 ;;
+  esac
+
+  previous_state=$(read_state "$state_path")
+  previous_identity=${previous_state%%|*}
+  previous_count=${previous_state#*|}
+  if [ "$previous_count" = "$previous_state" ]; then
+    previous_identity=
+    previous_count=0
+  fi
+  case "$previous_count" in
+    ''|*[!0-9]*) previous_count=0 ;;
+  esac
+  if [ "$current_identity" != "$previous_identity" ] ||
+     [ "$current_count" -lt "$previous_count" ]; then
+    previous_count=0
+  fi
+  if [ "$current_count" -le "$previous_count" ]; then
+    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path"
+    return 0
+  fi
+
+  new_count=$((current_count - previous_count))
+  if [ "$new_count" -eq 1 ]; then
+    body="1 new event was recorded. Review ${log_path}."
+  else
+    body="${new_count} new events were recorded. Review ${log_path}."
+  fi
+
+  if notify \
+    -a "Desktop Security" \
+    -u "$urgency" \
+    -i "$icon" \
+    -c "$category" \
+    -t "$timeout_ms" \
+    -- "$summary" \
+    "$body" >/dev/null 2>&1
+  then
+    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path"
+  else
+    notification_failures=1
+  fi
+}
+
+check_security_signals() {
+  [ -d "$SECURITY_SIGNAL_DIR" ] && [ ! -L "$SECURITY_SIGNAL_DIR" ] || return 0
+
+  trusted_signal_dir=$(
+    /usr/bin/find "$SECURITY_SIGNAL_DIR" \
+      -maxdepth 0 \
+      -type d \
+      -uid "$ROOT_EVENT_OWNER_UID" \
+      ! -perm /022 \
+      -print \
+      -quit 2>/dev/null || true
+  )
+  [ "$trusted_signal_dir" = "$SECURITY_SIGNAL_DIR" ] || return 0
+
+  check_security_signal \
+    auth normal dialog-password system.security.auth 12000 \
+    "Authentication activity detected" \
+    /var/log/managed/auth/auth.log
+  check_security_signal \
+    usb normal drive-removable-media device.added 12000 \
+    "USB or hardware hotplug activity detected" \
+    /var/log/managed/hardware/usb.log
+  check_security_signal \
+    storage critical dialog-error device.error 0 \
+    "Storage error detected" \
+    /var/log/managed/storage/storage.log
+  check_security_signal \
+    apparmor critical security-high system.security 0 \
+    "AppArmor policy denial detected" \
+    /var/log/managed/apparmor/apparmor.log
+  check_security_signal \
+    firewall normal security-medium system.security.network 12000 \
+    "Firewall blocked network traffic" \
+    /var/log/managed/nftables/firewall.log
+}
+
+check_system_events
+check_timeshift_events
+check_unattended_upgrade_events
+check_security_signals
+check_disk_usage disk-home "$HOME" 90 95
+check_disk_usage disk-data /data 90 95
+check_disk_usage disk-pool /pool 90 95
+check_temperature
+check_memory_pressure
+check_battery
+check_reboot_required
+check_mailbox
+
+exit "$notification_failures"

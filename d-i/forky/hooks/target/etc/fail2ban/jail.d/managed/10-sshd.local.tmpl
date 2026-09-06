@@ -1,0 +1,18 @@
+# Managed by unattended-installer.
+[DEFAULT]
+bantime = 24h
+findtime = 10m
+maxretry = 10
+usedns = no
+ignoreself = true
+ignoreip = 127.0.0.1/8 ::1
+banaction = nftables[type=multiport, table=fail2ban, blocktype=drop]
+banaction_allports = nftables[type=allports, table=fail2ban, blocktype=drop]
+chain = fail2ban_input
+
+[sshd]
+enabled = true
+backend = systemd
+mode = normal
+port = __INSTALLER_SSH_PORT__
+protocol = tcp

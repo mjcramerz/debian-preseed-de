@@ -1,0 +1,18 @@
+[Unit]
+Description=Refresh the managed GRUB BTRFS snapshot menu
+ConditionPathExists=/usr/local/libexec/grub-btrfs-refresh
+ConditionPathExists=/etc/default/grub-profiles.conf
+ConditionPathExists=/etc/default/grub-btrfs/config
+After=local-fs.target
+RequiresMountsFor=/boot
+
+[Service]
+Type=oneshot
+TimeoutStartSec=10m
+Nice=19
+IOSchedulingClass=idle
+PrivateMounts=yes
+RuntimeDirectory=grub-btrfs-refresh
+RuntimeDirectoryMode=0700
+Environment=SKIP_MOK_SIGNING=1
+ExecStart=/usr/local/libexec/grub-btrfs-refresh --wait

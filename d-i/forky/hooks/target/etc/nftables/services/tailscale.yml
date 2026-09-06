@@ -1,0 +1,75 @@
+apiVersion: cybops.nftables/v1
+kind: NftablesServiceOverlay
+metadata:
+  name: tailscale
+  description: Tailscale transport and Tailscale SSH overlay.
+  merge_priority: 50
+services:
+  tailscale_udp:
+    enabled: true
+    direction: inbound
+    protocols:
+    - udp
+    ports:
+    - __INSTALLER_TAILSCALE_UDP_PORT__
+    allow:
+      ipv4:
+      - 0.0.0.0/0
+      ipv6:
+      - ::/0
+      interfaces:
+      - eth0
+      - en*
+      - __INSTALLER_MANAGED_NETWORK_ETHERNET_IFACE__
+      - wlan0
+      - wl*
+      - __INSTALLER_MANAGED_NETWORK_WIFI_IFACE__
+  tailscale_ssh:
+    enabled: __INSTALLER_TAILSCALE_RUN_SSH_SERVER__
+    direction: inbound
+    protocols:
+    - tcp
+    ports:
+    - 22
+    allow:
+      ipv4: __INSTALLER_NFTABLES_TAILSCALE_ALLOW_IPV4__
+      ipv6: __INSTALLER_NFTABLES_TAILSCALE_ALLOW_IPV6__
+      interfaces: __INSTALLER_NFTABLES_TAILSCALE_ALLOW_INTERFACES__
+    sensitive: true
+    log: false
+egress:
+  rules:
+    tailscale_control_https:
+      enabled: true
+      protocols:
+      - tcp
+      ports:
+      - 80
+      - 443
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+    tailscale_stun:
+      enabled: true
+      protocols:
+      - udp
+      ports:
+      - 3478
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0
+    tailscale_direct:
+      enabled: true
+      protocols:
+      - udp
+      source_ports:
+      - __INSTALLER_TAILSCALE_UDP_PORT__
+      allow_to:
+        ipv4:
+        - 0.0.0.0/0
+        ipv6:
+        - ::/0

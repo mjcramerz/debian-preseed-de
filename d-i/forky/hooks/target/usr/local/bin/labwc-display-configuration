@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  exit 1
+}
+
+[ -n "${WAYLAND_DISPLAY:-}" ] ||
+  fatal 'Display Configuration requires an active Wayland display'
+case "${XDG_SESSION_TYPE:-wayland}" in
+  wayland) ;;
+  *) fatal 'Display Configuration must run in a Wayland session' ;;
+esac
+[ -x /usr/bin/wdisplays ] ||
+  fatal '/usr/bin/wdisplays is not installed'
+
+# wdisplays is a GTK3 client. Request the compositor-provided titlebar rather
+# than GTK's default client-side decorations for this Labwc session.
+GDK_BACKEND=wayland
+GTK_CSD=0
+export GDK_BACKEND GTK_CSD
+
+exec /usr/bin/wdisplays "$@"

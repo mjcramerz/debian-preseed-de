@@ -1,0 +1,47 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile sqlitebrowser /usr/bin/sqlitebrowser flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-desktop-application>
+  #include <abstractions/managed-user-documents>
+  include if exists <abstractions/user-tmp>
+
+  network inet dgram,
+  network netlink dgram,
+
+  /usr/bin/sqlitebrowser mr,
+  /usr/lib/ r,
+  /usr/lib64/ r,
+  /usr/local/lib/ r,
+  /usr/share/sqlitebrowser/ r,
+  /usr/share/sqlitebrowser/** r,
+
+  # AppArmor's short-form write permission covers the audit operations for
+  # creation and deletion; link and lock remain explicit.
+  owner @{HOME}/.config/QtProject.conf rwkl,
+  owner @{HOME}/.config/QtProject.conf.lock rwkl,
+  owner @{HOME}/.config/#[0-9]* rwkl,
+  owner @{HOME}/.cache/sqlitebrowser/ rw,
+  owner @{HOME}/.cache/sqlitebrowser/** rwk,
+  owner @{HOME}/.config/sqlitebrowser/ rw,
+  owner @{HOME}/.config/sqlitebrowser/** rwkl,
+  owner @{HOME}/.config/sqlitebrowser/#[0-9]* rwkl,
+  owner @{HOME}/.config/sqlitebrowser/sqlitebrowser.conf rwkl,
+  owner @{HOME}/.local/share/sqlitebrowser/ rw,
+  owner @{HOME}/.local/share/sqlitebrowser/** rwk,
+  # Qt startup observes these exact user-owned shell preference files. Do not
+  # grant a broad read rule for the rest of the home-directory dotfiles.
+  owner @{HOME}/.{bash_aliases,bash_profile,bashrc,dircolors,profile,sudo_as_admin_successful,vimrc,zlogout,zprofile,zsh_aliases,zshenv,zshrc} r,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
+  owner @{HOME}/Templates/ r,
+  owner @{HOME}/Workspace/ rw,
+  owner @{HOME}/Workspace/** rwkl,
+
+  include if exists <local/usr.bin.sqlitebrowser>
+}

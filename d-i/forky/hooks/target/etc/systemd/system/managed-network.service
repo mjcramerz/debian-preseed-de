@@ -1,0 +1,40 @@
+[Unit]
+Description=Validate managed static networking for installed adapters
+Documentation=man:interfaces(5) man:systemd.service(5)
+DefaultDependencies=no
+
+Requires=local-fs.target
+After=local-fs.target systemd-udev-trigger.service systemd-udev-settle.service
+Wants=systemd-udev-settle.service network-pre.target
+Before=network-pre.target networking.service NetworkManager.service systemd-networkd.service
+
+ConditionPathExists=/usr/local/libexec/managed-network-run
+ConditionPathExists=/etc/default/managed-network
+ConditionPathExists=/etc/default/system-runtime
+ConditionPathExists=/etc/network/interfaces.d/50-managed-network
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/system-runtime
+ExecStart=/usr/local/libexec/managed-network-run validate
+RemainAfterExit=yes
+TimeoutStartSec=20s
+TimeoutStopSec=10s
+
+StandardOutput=journal
+StandardError=journal
+
+User=root
+Group=root
+UMask=0022
+
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=sysinit.target

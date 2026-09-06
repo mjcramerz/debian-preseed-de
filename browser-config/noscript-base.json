@@ -1,0 +1,126 @@
+{
+  "exportMeta": {
+    "version": "13.6.20",
+    "knownCapabilities": [
+      "script",
+      "object",
+      "media",
+      "frame",
+      "font",
+      "wasm",
+      "webgl",
+      "fetch",
+      "ping",
+      "noscript",
+      "lazy_load",
+      "unchecked_css",
+      "lan",
+      "other"
+    ]
+  },
+  "policy": {
+    "DEFAULT": {
+      "capabilities": [
+        "frame",
+        "noscript",
+        "other"
+      ],
+      "temp": false
+    },
+    "TRUSTED": {
+      "capabilities": [
+        "script",
+        "object",
+        "media",
+        "frame",
+        "font",
+        "wasm",
+        "webgl",
+        "fetch",
+        "ping",
+        "noscript",
+        "lazy_load",
+        "unchecked_css",
+        "lan",
+        "other"
+      ],
+      "temp": false
+    },
+    "UNTRUSTED": {
+      "capabilities": [],
+      "temp": false
+    },
+    "sites": {
+      "trusted": [
+        "\u00a7:addons.mozilla.org",
+        "\u00a7:afx.ms",
+        "\u00a7:ajax.aspnetcdn.com",
+        "\u00a7:ajax.googleapis.com",
+        "\u00a7:bootstrapcdn.com",
+        "\u00a7:code.jquery.com",
+        "\u00a7:firstdata.com",
+        "\u00a7:firstdata.lv",
+        "\u00a7:gfx.ms",
+        "\u00a7:google.com",
+        "\u00a7:googlevideo.com",
+        "\u00a7:gstatic.com",
+        "\u00a7:hotmail.com",
+        "\u00a7:live.com",
+        "\u00a7:live.net",
+        "\u00a7:maps.googleapis.com",
+        "\u00a7:mozilla.net",
+        "\u00a7:netflix.com",
+        "\u00a7:nflxext.com",
+        "\u00a7:nflximg.com",
+        "\u00a7:nflxvideo.net",
+        "\u00a7:noscript.net",
+        "\u00a7:outlook.com",
+        "\u00a7:passport.com",
+        "\u00a7:passport.net",
+        "\u00a7:passportimages.com",
+        "\u00a7:paypal.com",
+        "\u00a7:paypalobjects.com",
+        "\u00a7:securecode.com",
+        "\u00a7:securesuite.net",
+        "\u00a7:sfx.ms",
+        "\u00a7:tinymce.cachefly.net",
+        "\u00a7:wlxrs.com",
+        "\u00a7:yahoo.com",
+        "\u00a7:yahooapis.com",
+        "\u00a7:yimg.com",
+        "\u00a7:youtube.com",
+        "\u00a7:ytimg.com"
+      ],
+      "untrusted": [],
+      "custom": {}
+    },
+    "enforced": true,
+    "autoAllowTop": false
+  },
+  "contextStore": {
+    "enabled": false,
+    "policies": {}
+  },
+  "local": {
+    "debug": false,
+    "showCtxMenuItem": true,
+    "showCountBadge": true,
+    "showFullAddresses": false,
+    "showProbePlaceholders": true,
+    "amnesticUpdates": false,
+    "autoReload": true,
+    "gestureEnabled": false,
+    "storage": "local"
+  },
+  "sync": {
+    "global": false,
+    "xss": true,
+    "TabGuardMode": "global",
+    "TabGuardPrompt": "post",
+    "cascadePermissions": false,
+    "cascadeRestrictions": false,
+    "overrideTorBrowserPolicy": false,
+    "clearclick": true,
+    "storage": "sync"
+  }
+}

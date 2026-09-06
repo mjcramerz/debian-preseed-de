@@ -1,0 +1,78 @@
+# Managed fresh-install defaults. See zathurarc(5).
+# Drag with the left mouse button to select text; paste with Ctrl+V.
+# Use the toolkit's Wayland clipboard, not a shell or a clipboard-history daemon.
+# Shift+drag highlighting is distinct from selecting/copying text.
+set selection-clipboard clipboard
+set selection-notification true
+
+# Preserve the PDF's real colors by default. Ctrl+R toggles readable night mode
+# while retaining image colors. Never recolor a document's saved content.
+set recolor false
+set recolor-darkcolor "#e8eaed"
+set recolor-lightcolor "#202124"
+set recolor-keephue true
+set recolor-reverse-video true
+set default-bg "#202124"
+set default-fg "#e8eaed"
+set statusbar-bg "#292b2f"
+set statusbar-fg "#e8eaed"
+set inputbar-bg "#292b2f"
+set inputbar-fg "#ffffff"
+set completion-bg "#202124"
+set completion-fg "#e8eaed"
+set completion-group-bg "#292b2f"
+set completion-group-fg "#a8c7fa"
+set completion-highlight-bg "#a8c7fa"
+set completion-highlight-fg "#202124"
+set index-bg "#202124"
+set index-fg "#e8eaed"
+set index-active-bg "#a8c7fa"
+set index-active-fg "#202124"
+set highlight-color "rgba(255, 214, 102, 0.45)"
+set highlight-active-color "rgba(138, 180, 248, 0.55)"
+set highlight-fg "#171717"
+set notification-bg "#292b2f"
+set notification-fg "#e8eaed"
+set notification-error-bg "#8c1d18"
+set notification-error-fg "#ffffff"
+set notification-warning-bg "#694f00"
+set notification-warning-fg "#ffffff"
+set render-loading-bg "#ffffff"
+set render-loading-fg "#202124"
+
+# Bounded rendering memory; thumbnail size is pixels, not bytes.
+set page-cache-size 10
+set page-thumbnail-size 1048576
+set adjust-open width
+set pages-per-row 1
+set first-page-column "1:2"
+set page-v-padding 8
+set page-h-padding 8
+set zoom-min 10
+set zoom-max 800
+set zoom-step 10
+set zoom-center true
+set scroll-step 40
+set scroll-full-overlap 0.1
+set scroll-wrap false
+set incremental-search true
+set link-zoom true
+set double-click-follow true
+
+# Persistent positions/bookmarks, without a database write on every page turn.
+set database sqlite
+set continuous-hist-save false
+set open-first-page false
+set filemonitor glib
+set show-hidden false
+set show-recent 10
+set statusbar-home-tilde true
+set window-title-basename true
+set window-title-page true
+set window-icon-document false
+
+# Forward SyncTeX remains available. No implicit external shell/editor command.
+set dbus-service true
+set synctex true
+set synctex-editor-command ""
+# Standard mouse bindings remain intact (selection and wheel scrolling).

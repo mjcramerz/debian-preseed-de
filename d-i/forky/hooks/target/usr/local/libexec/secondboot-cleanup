@@ -1,0 +1,280 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+umask 077
+
+SECONDBOOT_ROOT=${SECONDBOOT_ROOT:-/}
+
+case "$SECONDBOOT_ROOT" in
+  /*) ;;
+  *)
+    printf 'fatal: SECONDBOOT_ROOT must be absolute\n' >&2
+    exit 1
+    ;;
+esac
+[ -d "$SECONDBOOT_ROOT" ] || {
+  printf 'fatal: SECONDBOOT_ROOT is not a directory: %s\n' "$SECONDBOOT_ROOT" >&2
+  exit 1
+}
+SECONDBOOT_ROOT=$(CDPATH='' cd -P -- "$SECONDBOOT_ROOT" && pwd -P) || {
+  printf 'fatal: failed to resolve SECONDBOOT_ROOT: %s\n' "$SECONDBOOT_ROOT" >&2
+  exit 1
+}
+
+if [ "$SECONDBOOT_ROOT" = / ] && [ "$(id -u)" -ne 0 ]; then
+  printf 'fatal: secondboot cleanup must run as root\n' >&2
+  exit 1
+fi
+
+root_prefix=${SECONDBOOT_ROOT%/}
+
+root_path() {
+  case "${1:-}" in
+    /*) printf '%s%s\n' "$root_prefix" "$1" ;;
+    *)
+      printf 'fatal: secondboot path must be absolute: %s\n' "${1:-unset}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+log() {
+  printf '[secondboot] %s\n' "$*"
+}
+
+remove_transient_secret() {
+  secret_path=$1
+  [ -e "$secret_path" ] || [ -L "$secret_path" ] || return 0
+  if [ -f "$secret_path" ] && [ ! -L "$secret_path" ]; then
+    chmod 0600 "$secret_path" 2>/dev/null || true
+    : >"$secret_path" 2>/dev/null || true
+  fi
+  rm -f -- "$secret_path"
+}
+
+regular_file_exists() {
+  [ -f "$1" ] && [ ! -L "$1" ]
+}
+
+firstboot_completed_successfully() {
+  regular_file_exists "$1" &&
+    grep -F -x -q 'status=0' "$1"
+}
+
+cleanup_deferred=false
+
+defer_cleanup() {
+  cleanup_deferred=true
+  log "deferring full cleanup: $1"
+}
+
+disable_remove_unit() {
+  unit_name=$1
+  case "$unit_name" in
+    firstboot.service|crowdsec-firstboot.service|tailscale-managed-bootstrap.service|secondboot.service) ;;
+    *)
+      printf 'fatal: refusing unexpected cleanup unit: %s\n' "$unit_name" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
+    case "$unit_name" in
+      secondboot.service)
+        systemctl disable "$unit_name" >/dev/null 2>&1 || true
+        ;;
+      *)
+        systemctl disable --now "$unit_name" >/dev/null 2>&1 || true
+        ;;
+    esac
+  fi
+
+  systemd_dir=$(root_path /etc/systemd/system)
+  for link_dir in "$systemd_dir"/*.wants "$systemd_dir"/*.requires; do
+    [ -d "$link_dir" ] || continue
+    rm -f -- "${link_dir}/${unit_name}"
+  done
+  rm -f -- "${systemd_dir}/${unit_name}"
+}
+
+cleanup_crowdsec_bootstrap() {
+  crowdsec_state_dir=$(root_path /usr/local/lib/crowdsec)
+  crowdsec_token="${crowdsec_state_dir}/enroll.token"
+  crowdsec_complete="${crowdsec_state_dir}/complete"
+  crowdsec_defaults=$(root_path /etc/default/crowdsec-firstboot)
+  crowdsec_helper=$(root_path /usr/local/libexec/crowdsec-firstboot)
+  crowdsec_unit=$(root_path /etc/systemd/system/crowdsec-firstboot.service)
+
+  if ! regular_file_exists "$crowdsec_complete"; then
+    if [ -e "$crowdsec_defaults" ] ||
+       [ -e "$crowdsec_helper" ] ||
+       [ -e "$crowdsec_unit" ] ||
+       [ -e "$crowdsec_token" ]; then
+      defer_cleanup "CrowdSec bootstrap has not completed"
+    fi
+    return 0
+  fi
+
+  remove_transient_secret "$crowdsec_token"
+  disable_remove_unit crowdsec-firstboot.service
+  rm -f -- \
+    "$crowdsec_defaults" \
+    "$crowdsec_helper" \
+    "$crowdsec_complete" \
+    "${crowdsec_state_dir}/status.env" \
+    "${crowdsec_state_dir}/bootstrap.log"
+  rmdir "$crowdsec_state_dir" 2>/dev/null || true
+  log "removed completed CrowdSec bootstrap artifacts"
+}
+
+cleanup_tailscale_bootstrap() {
+  tailscale_state_dir=$(root_path /usr/local/lib/tailscale)
+  tailscale_complete="${tailscale_state_dir}/complete"
+  tailscale_auth_key="${tailscale_state_dir}/auth.key"
+  tailscale_defaults=$(root_path /etc/default/tailscale-managed)
+  tailscale_helper=$(root_path /usr/local/libexec/tailscale-managed-up)
+  tailscale_unit=$(root_path /etc/systemd/system/tailscale-managed-bootstrap.service)
+
+  if regular_file_exists "$tailscale_complete"; then
+    remove_transient_secret "$tailscale_auth_key"
+    disable_remove_unit tailscale-managed-bootstrap.service
+    rm -f -- \
+      "$tailscale_defaults" \
+      "$tailscale_helper" \
+      "$tailscale_complete" \
+      "${tailscale_state_dir}/status.env" \
+      "${tailscale_state_dir}/bootstrap.log"
+    rmdir "$tailscale_state_dir" 2>/dev/null || true
+    log "removed completed Tailscale bootstrap artifacts"
+    return 0
+  fi
+
+  if [ -e "$tailscale_defaults" ] ||
+     [ -e "$tailscale_helper" ] ||
+     [ -e "$tailscale_unit" ] ||
+     [ -e "$tailscale_auth_key" ]; then
+    defer_cleanup "Tailscale bootstrap has not completed"
+  fi
+}
+
+cleanup_tpm2_enrollment() {
+  if [ -e "$crypto_pending" ]; then
+    defer_cleanup "TPM2 enrollment is still pending"
+    return 0
+  fi
+  if [ -e "$crypto_config" ] && ! regular_file_exists "$crypto_complete"; then
+    defer_cleanup "TPM2 enrollment completion marker is missing"
+    return 0
+  fi
+
+  rm -f -- \
+    "$crypto_config" \
+    "$crypto_install_passphrase" \
+    "$crypto_pending" \
+    "$crypto_complete" \
+    "$(root_path /etc/profile.d/tpm2-enroll-prompt.sh)" \
+    "$(root_path /etc/xdg/autostart/tpm2-enroll.desktop)" \
+    "$(root_path /usr/local/sbin/tpm2-enroll.sh)" \
+    "$(root_path /usr/local/bin/tpm2-enroll-launch)" \
+    "$(root_path /run/lock/tpm2-enroll.lock)"
+  rmdir "$(root_path /usr/local/lib/crypto)" 2>/dev/null || true
+  log "removed completed TPM2 enrollment artifacts"
+}
+
+remove_initramfs_health_hooks() {
+  initramfs_root=$(root_path /etc/initramfs-tools/scripts)
+  initramfs_changed=0
+
+  for hook_path in \
+    "${initramfs_root}/installer-health-common" \
+    "${initramfs_root}/init-top/90-installer-health" \
+    "${initramfs_root}/init-premount/90-installer-health" \
+    "${initramfs_root}/local-top/90-installer-health" \
+    "${initramfs_root}/local-block/90-installer-health" \
+    "${initramfs_root}/local-premount/90-installer-health" \
+    "${initramfs_root}/local-bottom/90-installer-health" \
+    "${initramfs_root}/init-bottom/90-installer-health" \
+    "${initramfs_root}/init-top/health-init-top" \
+    "${initramfs_root}/local-top/health-local-top" \
+    "${initramfs_root}/local-premount/health-local-premount" \
+    "${initramfs_root}/local-bottom/health-local-bottom" \
+    "${initramfs_root}/init-bottom/health-init-bottom"
+  do
+    [ -e "$hook_path" ] || [ -L "$hook_path" ] || continue
+    rm -f -- "$hook_path"
+    initramfs_changed=1
+  done
+
+  if [ "$SECONDBOOT_ROOT" = / ] && [ "$initramfs_changed" -eq 1 ]; then
+    [ -x /usr/sbin/update-initramfs ] || {
+      printf 'fatal: update-initramfs is required after removing staged hooks\n' >&2
+      exit 1
+    }
+    /usr/sbin/update-initramfs -u -k all
+  fi
+}
+
+installer_state=$(root_path /var/lib/installer-state)
+firstboot_complete="${installer_state}/firstboot/complete"
+crypto_config=$(root_path /usr/local/lib/crypto/config.env)
+crypto_install_passphrase=$(root_path /usr/local/lib/crypto/install-passphrase)
+crypto_pending=$(root_path /usr/local/lib/crypto/tpm2-enroll.pending)
+crypto_complete=$(root_path /usr/local/lib/crypto/tpm2-enroll.complete)
+
+[ -e "$firstboot_complete" ] || [ -L "$firstboot_complete" ] || {
+  printf 'fatal: firstboot completion marker is missing: %s\n' "$firstboot_complete" >&2
+  exit 1
+}
+regular_file_exists "$firstboot_complete" || {
+  printf 'fatal: firstboot completion marker must be a regular non-symlink file: %s\n' "$firstboot_complete" >&2
+  exit 1
+}
+
+# Enrollment helpers can finish independently of unrelated first-boot
+# diagnostics. Remove each completed bootstrap surface immediately; retain only
+# components that still lack their own completion marker.
+cleanup_crowdsec_bootstrap
+cleanup_tailscale_bootstrap
+
+if ! firstboot_completed_successfully "$firstboot_complete"; then
+  log "retained first-boot artifacts because firstboot did not complete successfully"
+  exit 0
+fi
+
+cleanup_tpm2_enrollment
+
+disable_remove_unit firstboot.service
+remove_initramfs_health_hooks
+
+rm -f -- \
+  "$(root_path /usr/local/libexec/firstboot.sh)"
+rm -rf -- \
+  "$(root_path /usr/local/lib/firstboot.d)" \
+  "$(root_path /run/installer-initramfs-health)"
+
+if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload
+  systemctl reset-failed \
+    firstboot.service \
+    crowdsec-firstboot.service \
+    tailscale-managed-bootstrap.service >/dev/null 2>&1 || true
+fi
+
+if [ "$cleanup_deferred" = true ]; then
+  if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+  log "removed completed first-boot artifacts; retained pending enrollment artifacts and secondboot retry service"
+  exit 0
+fi
+
+rm -f -- "$(root_path /usr/local/libexec/secondboot-cleanup)"
+disable_remove_unit secondboot.service
+
+if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+log "removed completed first-boot artifacts and retained installer-state logs"

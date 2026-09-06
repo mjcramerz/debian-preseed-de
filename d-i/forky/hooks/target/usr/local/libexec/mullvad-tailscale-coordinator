@@ -1,0 +1,336 @@
+#!/usr/bin/python3 -I
+"""Serialize the managed Mullvad daemon and Tailscale service lifecycles."""
+
+from __future__ import annotations
+
+import contextlib
+import fcntl
+import os
+from pathlib import Path
+import stat
+import subprocess
+import sys
+from typing import Callable, Iterator
+
+sys.dont_write_bytecode = True
+
+SYSTEMCTL = "/usr/bin/systemctl"
+RUNTIME_DIRECTORY = Path("/run/mullvad-tailscale-coordinator")
+LOCK_NAME = "lock"
+MULLVAD_ACTIVE_MARKER = "mullvad-active"
+TAILSCALE_RESTORE_MARKER = "restore-tailscale"
+MULLVAD_UNIT = "mullvad-daemon.service"
+TAILSCALE_UNIT = "tailscaled.service"
+MAX_SYSTEMCTL_OUTPUT_BYTES = 4096
+SYSTEMCTL_TIMEOUT_SECONDS = 90
+ACTIVE_SERVICE_STATES = frozenset(
+    {"active", "activating", "deactivating", "reloading"}
+)
+KNOWN_SERVICE_STATES = ACTIVE_SERVICE_STATES | frozenset({"failed", "inactive"})
+MANAGED_ENVIRONMENT = {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "TZ": "UTC",
+}
+
+
+class CoordinationError(RuntimeError):
+    """A fail-closed Mullvad/Tailscale coordination error."""
+
+
+SystemctlRunner = Callable[[list[str]], tuple[int, str, str]]
+
+
+def run_systemctl(arguments: list[str]) -> tuple[int, str, str]:
+    try:
+        completed = subprocess.run(
+            [SYSTEMCTL, *arguments],
+            check=False,
+            cwd="/",
+            env=MANAGED_ENVIRONMENT,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=SYSTEMCTL_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise CoordinationError(f"systemctl failed: {exc}") from exc
+    return completed.returncode, completed.stdout, completed.stderr
+
+
+class Coordinator:
+    def __init__(
+        self,
+        *,
+        runtime_directory: Path = RUNTIME_DIRECTORY,
+        expected_uid: int = 0,
+        expected_gid: int = 0,
+        systemctl_runner: SystemctlRunner = run_systemctl,
+    ) -> None:
+        self.runtime_directory = runtime_directory
+        self.expected_uid = expected_uid
+        self.expected_gid = expected_gid
+        self.systemctl_runner = systemctl_runner
+
+    def _require_runtime_directory(self) -> None:
+        try:
+            metadata = self.runtime_directory.lstat()
+        except OSError as exc:
+            raise CoordinationError(
+                f"coordination runtime directory is unavailable: {exc}"
+            ) from exc
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != self.expected_uid
+            or metadata.st_gid != self.expected_gid
+            or stat.S_IMODE(metadata.st_mode) != 0o700
+        ):
+            raise CoordinationError("coordination runtime directory is unsafe")
+
+    def _path(self, name: str) -> Path:
+        if name not in {
+            LOCK_NAME,
+            MULLVAD_ACTIVE_MARKER,
+            TAILSCALE_RESTORE_MARKER,
+        }:
+            raise CoordinationError("coordination state name is invalid")
+        return self.runtime_directory / name
+
+    @contextlib.contextmanager
+    def locked(self) -> Iterator[None]:
+        self._require_runtime_directory()
+        lock_path = self._path(LOCK_NAME)
+        flags = os.O_CREAT | os.O_RDWR | os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            lock_fd = os.open(lock_path, flags, 0o600)
+        except OSError as exc:
+            raise CoordinationError(f"cannot open coordination lock: {exc}") from exc
+        try:
+            os.fchmod(lock_fd, 0o600)
+            metadata = os.fstat(lock_fd)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != self.expected_uid
+                or metadata.st_gid != self.expected_gid
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_nlink != 1
+            ):
+                raise CoordinationError("coordination lock is unsafe")
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            yield
+        except OSError as exc:
+            raise CoordinationError(f"cannot lock coordination state: {exc}") from exc
+        finally:
+            os.close(lock_fd)
+
+    def _marker_exists(self, name: str) -> bool:
+        marker_path = self._path(name)
+        try:
+            metadata = marker_path.lstat()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            raise CoordinationError(f"cannot inspect coordination marker: {exc}") from exc
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != self.expected_uid
+            or metadata.st_gid != self.expected_gid
+            or stat.S_IMODE(metadata.st_mode) != 0o600
+            or metadata.st_nlink != 1
+        ):
+            raise CoordinationError("coordination marker is unsafe")
+        try:
+            marker_value = marker_path.read_bytes()
+        except OSError as exc:
+            raise CoordinationError(f"cannot read coordination marker: {exc}") from exc
+        if marker_value != b"1\n":
+            raise CoordinationError("coordination marker has invalid content")
+        return True
+
+    def _write_marker(self, name: str) -> None:
+        self._marker_exists(name)
+        marker_path = self._path(name)
+        temporary_path = self.runtime_directory / f".{name}.{os.getpid()}"
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_CLOEXEC
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        temporary_fd: int | None = None
+        try:
+            temporary_fd = os.open(temporary_path, flags, 0o600)
+            os.fchmod(temporary_fd, 0o600)
+            if os.write(temporary_fd, b"1\n") != 2:
+                raise CoordinationError("cannot write complete coordination marker")
+            os.fsync(temporary_fd)
+            os.close(temporary_fd)
+            temporary_fd = None
+            os.replace(temporary_path, marker_path)
+        except OSError as exc:
+            raise CoordinationError(f"cannot publish coordination marker: {exc}") from exc
+        finally:
+            if temporary_fd is not None:
+                os.close(temporary_fd)
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                raise CoordinationError(
+                    f"cannot remove temporary coordination marker: {exc}"
+                ) from exc
+
+    def _remove_marker(self, name: str) -> None:
+        if not self._marker_exists(name):
+            return
+        try:
+            self._path(name).unlink()
+        except OSError as exc:
+            raise CoordinationError(f"cannot remove coordination marker: {exc}") from exc
+
+    def _systemctl(self, arguments: list[str]) -> str:
+        returncode, stdout, stderr = self.systemctl_runner(arguments)
+        encoded_bytes = len(stdout.encode("utf-8")) + len(stderr.encode("utf-8"))
+        if encoded_bytes > MAX_SYSTEMCTL_OUTPUT_BYTES:
+            raise CoordinationError("systemctl output exceeded the managed limit")
+        if returncode != 0:
+            diagnostic = stderr.strip() or stdout.strip() or f"status {returncode}"
+            raise CoordinationError(f"systemctl {' '.join(arguments)} failed: {diagnostic}")
+        return stdout.strip()
+
+    def _service_property(self, unit: str, property_name: str) -> str:
+        if unit not in {MULLVAD_UNIT, TAILSCALE_UNIT}:
+            raise CoordinationError("service unit is not allowlisted")
+        if property_name not in {"ActiveState", "LoadState"}:
+            raise CoordinationError("service property is not allowlisted")
+        value = self._systemctl(
+            ["show", "--property", property_name, "--value", unit]
+        )
+        if not value or "\n" in value or "\r" in value:
+            raise CoordinationError(f"{unit} returned an invalid {property_name}")
+        return value
+
+    def _tailscale_available(self) -> bool:
+        return self._service_property(TAILSCALE_UNIT, "LoadState") != "not-found"
+
+    def _tailscale_state(self) -> str:
+        state = self._service_property(TAILSCALE_UNIT, "ActiveState")
+        if state not in KNOWN_SERVICE_STATES:
+            raise CoordinationError(f"tailscaled returned an unknown state: {state}")
+        return state
+
+    def _stop_tailscale(self) -> None:
+        self._systemctl(["stop", TAILSCALE_UNIT])
+        if self._tailscale_state() not in {"failed", "inactive"}:
+            raise CoordinationError("tailscaled remained active after its stop job")
+
+    def _start_tailscale(self) -> None:
+        self._systemctl(["start", TAILSCALE_UNIT])
+        if self._tailscale_state() not in {"active", "reloading"}:
+            raise CoordinationError("tailscaled did not become active after restoration")
+
+    def _restore_tailscale_if_recorded(self) -> None:
+        with self.locked():
+            restore_tailscale = self._marker_exists(TAILSCALE_RESTORE_MARKER)
+        if not restore_tailscale:
+            return
+        if not self._tailscale_available():
+            raise CoordinationError(
+                "tailscaled became unavailable before its recorded restoration"
+            )
+        self._start_tailscale()
+        with self.locked():
+            # A new Mullvad start can race the completed Tailscale start after
+            # its ExecCondition has passed. Preserve the marker in that case;
+            # the new exclusion owns the next restoration.
+            if not self._marker_exists(MULLVAD_ACTIVE_MARKER):
+                self._remove_marker(TAILSCALE_RESTORE_MARKER)
+
+    def enter_mullvad(self) -> None:
+        restore_after_failure = False
+        try:
+            with self.locked():
+                self._write_marker(MULLVAD_ACTIVE_MARKER)
+                if not self._tailscale_available():
+                    self._remove_marker(TAILSCALE_RESTORE_MARKER)
+                    return
+                tailscale_state = self._tailscale_state()
+                restore_after_failure = tailscale_state in ACTIVE_SERVICE_STATES
+                if restore_after_failure:
+                    self._write_marker(TAILSCALE_RESTORE_MARKER)
+                    self._stop_tailscale()
+                else:
+                    self._remove_marker(TAILSCALE_RESTORE_MARKER)
+        except Exception as exc:
+            rollback_error: Exception | None = None
+            try:
+                with self.locked():
+                    self._remove_marker(MULLVAD_ACTIVE_MARKER)
+                    if not restore_after_failure:
+                        self._remove_marker(TAILSCALE_RESTORE_MARKER)
+                if restore_after_failure:
+                    self._restore_tailscale_if_recorded()
+            except Exception as rollback_exc:
+                rollback_error = rollback_exc
+            if rollback_error is not None:
+                raise CoordinationError(
+                    f"Mullvad exclusion failed ({exc}); Tailscale rollback also failed: "
+                    f"{rollback_error}"
+                ) from exc
+            raise
+
+    def tailscale_start_allowed(self) -> bool:
+        with self.locked():
+            if not self._marker_exists(MULLVAD_ACTIVE_MARKER):
+                return True
+            self._write_marker(TAILSCALE_RESTORE_MARKER)
+            return False
+
+    def leave_mullvad(self) -> None:
+        with self.locked():
+            self._remove_marker(MULLVAD_ACTIVE_MARKER)
+        self._restore_tailscale_if_recorded()
+
+
+def main(arguments: list[str] | None = None) -> int:
+    requested = list(arguments if arguments is not None else sys.argv[1:])
+    if os.geteuid() != 0:
+        raise CoordinationError("Mullvad/Tailscale coordinator must run as root")
+    if len(requested) != 1 or requested[0] not in {
+        "mullvad-start",
+        "mullvad-stop",
+        "tailscale-start",
+    }:
+        raise CoordinationError(
+            "usage: mullvad-tailscale-coordinator "
+            "{mullvad-start|mullvad-stop|tailscale-start}"
+        )
+
+    coordinator = Coordinator()
+    if requested[0] == "mullvad-start":
+        coordinator.enter_mullvad()
+        return 0
+    if requested[0] == "mullvad-stop":
+        coordinator.leave_mullvad()
+        return 0
+    if coordinator.tailscale_start_allowed():
+        return 0
+    print(
+        "Tailscale start deferred while the managed Mullvad daemon is active",
+        file=sys.stderr,
+    )
+    return 1
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except CoordinationError as exc:
+        print(f"fatal: {exc}", file=sys.stderr)
+        raise SystemExit(1)

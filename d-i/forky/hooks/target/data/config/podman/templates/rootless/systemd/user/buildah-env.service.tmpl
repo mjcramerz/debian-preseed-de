@@ -1,0 +1,17 @@
+[Unit]
+Description=Managed rootless Buildah environment for __INSTALLER_PODMAN_SERVICE_USER__
+
+[Service]
+Type=oneshot
+TimeoutStartSec=15s
+TimeoutStopSec=15s
+KillMode=control-group
+UMask=0077
+RemainAfterExit=yes
+Environment=BUILDAH_ISOLATION=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_ISOLATION__
+Environment=BUILDAH_TMPDIR=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_TMPDIR__
+ExecStart=/usr/bin/systemctl --user set-environment BUILDAH_ISOLATION=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_ISOLATION__ BUILDAH_TMPDIR=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_TMPDIR__
+ExecStop=/usr/bin/systemctl --user unset-environment BUILDAH_ISOLATION BUILDAH_TMPDIR
+
+[Install]
+WantedBy=default.target

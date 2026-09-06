@@ -1,0 +1,10 @@
+# Managed by unattended-installer.
+#
+# Wayland socket access for wrappers that directly inspect the active display
+# or render their own surface. Wrappers that merely launch a Wayland client do
+# not inherit this abstraction.
+
+#include <abstractions/managed-wrapper-desktop>
+include if exists <abstractions/wayland>
+
+include if exists <local/managed-wrapper-wayland>

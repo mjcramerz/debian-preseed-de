@@ -1,0 +1,13 @@
+[Unit]
+Description=Schedule managed external software download checks
+Documentation=man:systemd.timer(5)
+
+[Timer]
+OnCalendar=Sun *-*-* 01:30:00
+Persistent=true
+RandomizedDelaySec=30min
+AccuracySec=15m
+Unit=managed-external-software-download.service
+
+[Install]
+WantedBy=timers.target

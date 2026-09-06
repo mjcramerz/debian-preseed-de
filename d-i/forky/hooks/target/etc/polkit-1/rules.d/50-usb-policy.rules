@@ -1,0 +1,90 @@
+// Managed by unattended-installer.
+// Routine and explicitly-confirmed USB desktop media operations require
+// usbmedia membership. Encrypted, system-scope, and other UDisks operations
+// require usbadmin membership plus sudo administrator authentication.
+
+(function() {
+    var ADMIN_GROUP = "sudo";
+    var USB_MEDIA_GROUP = "usbmedia";
+    var USB_ADMIN_GROUP = "usbadmin";
+
+    function isRoot(subject) {
+        return subject.user === "root";
+    }
+
+    function startsWith(value, prefix) {
+        return typeof value === "string" && value.indexOf(prefix) === 0;
+    }
+
+    function lookupString(action, key) {
+        var value = action.lookup(key);
+        if (value === undefined || value === null) {
+            return "";
+        }
+
+        return String(value);
+    }
+
+    function activeLocal(subject) {
+        return subject.active === true && subject.local === true;
+    }
+
+    function isUDisksAction(actionId) {
+        return startsWith(actionId, "org.freedesktop.udisks2.") ||
+            startsWith(actionId, "org.freedesktop.UDisks2.");
+    }
+
+    function isRemovableUsbStorage(action) {
+        return lookupString(action, "drive.removable") === "true" &&
+            lookupString(action, "drive.removable.bus") === "usb";
+    }
+
+    function isDailyUsbMediaAction(actionId) {
+        // UDisks does not authorize a normal same-owner unmount through
+        // polkit. When authorization is required, the real UDisks2 action is
+        // filesystem-unmount-others; filesystem-unmount is not an action ID.
+        var dailyActions = {
+            "org.freedesktop.udisks2.filesystem-mount": true,
+            "org.freedesktop.udisks2.filesystem-unmount-others": true,
+            "org.freedesktop.udisks2.eject-media": true,
+            "org.freedesktop.udisks2.power-off-drive": true
+        };
+
+        return dailyActions[actionId] === true;
+    }
+
+    function usbAdminOnly(subject) {
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(USB_ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        if (!subject.isInGroup(ADMIN_GROUP)) {
+            return polkit.Result.NO;
+        }
+        return polkit.Result.AUTH_ADMIN;
+    }
+
+    polkit.addRule(function(action, subject) {
+        if (!isUDisksAction(action.id)) {
+            return polkit.Result.NOT_HANDLED;
+        }
+
+        if (isRoot(subject)) {
+            return polkit.Result.YES;
+        }
+
+        if (!activeLocal(subject)) {
+            return polkit.Result.NO;
+        }
+
+        if (isDailyUsbMediaAction(action.id) &&
+            isRemovableUsbStorage(action) &&
+            subject.isInGroup(USB_MEDIA_GROUP)) {
+            return polkit.Result.YES;
+        }
+
+        return usbAdminOnly(subject);
+    });
+})();

@@ -1,0 +1,134 @@
+# Managed by unattended-installer. Profiles attach at exec, including user
+# services; systemd AppArmorProfile= is not supported by the user manager.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
+  # Do not include managed-desktop-graphics: its client policy denies primary
+  # DRM nodes. Only this compositor domain owns the seat/input/card interfaces.
+  #include <abstractions/base>
+  include if exists <abstractions/fonts>
+  include if exists <abstractions/dbus-session>
+  include if exists <abstractions/nameservice-strict>
+  unix,
+  network netlink raw,
+  network netlink dgram,
+  capability sys_nice,
+  /usr/bin/labwc mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /etc/{labwc,xdg,fonts}/** r,
+  /etc/{passwd,group,nsswitch.conf,localtime,machine-id,drirc,libva.conf} r,
+  /etc/{vulkan,glvnd}/** r,
+  /sys/ r,
+  /sys/** r,
+  /proc/ r,
+  /proc/{cpuinfo,meminfo,stat,uptime,sys/kernel/osrelease,sys/dev/i915/perf_stream_paranoid} r,
+  owner /proc/[0-9]*/{comm,status,stat,fd/,fd/*} rw,
+  /proc/driver/nvidia/** r,
+  /dev/{dri,input}/ r,
+  /dev/{dri,input}/** rw,
+  /dev/nvidia* rw,
+  /dev/nvidia-caps/** rw,
+  /dev/{tty,tty[0-9]*,udmabuf} rw,
+  /dev/shm/ r,
+  owner /dev/shm/** rwkl,
+  /run/seatd.sock rw,
+  /run/udev/data/** r,
+  owner /run/user/[0-9]*/ rw,
+  owner /run/user/[0-9]*/{wayland-*,bus,labwc*} rwkl,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/labwc/ r,
+  owner @{HOME}/.config/labwc/** r,
+  owner @{HOME}/.config/labwc/{autostart,shutdown} rix,
+  owner @{HOME}/.config/{gtk-3.0,gtk-4.0}/** r,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/ rw,
+  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/** rwkl,
+  owner @{HOME}/.nv/ rw,
+  owner @{HOME}/.nv/** rwkl,
+  /{,usr/}bin/{sh,dash,bash} rix,
+  /usr/bin/{false,systemctl,dbus-update-activation-environment} rix,
+  /usr/local/{bin,sbin,libexec}/** rPx,
+  /usr/bin/* rPx,
+  # Lifecycle signals are delivered by the user manager/session controller.
+  signal (send, receive),
+  include if exists <local/usr.bin.labwc>
+}
+
+profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
+  #include <abstractions/managed-session-client>
+  owner @{HOME}/.config/waybar/ r,
+  owner @{HOME}/.config/waybar/** r,
+  owner @{HOME}/.cache/waybar/ rw,
+  owner @{HOME}/.cache/waybar/** rwkl,
+  # Network/weather modules can use the network, without reading credentials.
+  network inet stream,
+  network inet6 stream,
+  signal (receive) set=(usr2) peer=managed-labwc-session-check,
+  include if exists <local/usr.bin.waybar>
+}
+
+profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected) {
+  #include <abstractions/managed-session-client>
+  owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
+  owner "@{HOME}/.config/Crystal Dock*" rwkl,
+  owner @{HOME}/.config/crystal-dock/** rwkl,
+  owner "@{HOME}/.config/Crystal Dock/**" rwkl,
+  owner @{HOME}/.local/share/{crystal-dock,applications}/ r,
+  owner @{HOME}/.local/share/crystal-dock/** rwkl,
+  owner @{HOME}/.local/share/applications/** r,
+  owner @{HOME}/.cache/crystal-dock/ rw,
+  owner @{HOME}/.cache/crystal-dock/** rwkl,
+  include if exists <local/usr.bin.crystal-dock>
+}
+
+profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-runtime>
+  include if exists <abstractions/user-tmp>
+  unix,
+  /usr/bin/ksecretd mr,
+  /usr/bin/gpg{,2,conf} rix,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /etc/{gcrypt,gnupg}/** r,
+  owner @{HOME}/.config/{kwallet*,ksecret*,kdeglobals}* rwkl,
+  owner @{HOME}/.local/share/{kwalletd,ksecretd}/ rw,
+  owner @{HOME}/.local/share/{kwalletd,ksecretd}/** rwklm,
+  owner @{HOME}/.gnupg/ rw,
+  owner @{HOME}/.gnupg/** rwklm,
+  owner /run/user/[0-9]*/{bus,gnupg/**,kwallet*} rwkl,
+  owner /dev/shm/** rwkl,
+  include if exists <local/usr.bin.ksecretd>
+}
+
+profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,gammastep,wayscriber,mako,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected) {
+  #include <abstractions/managed-session-client>
+  #include <abstractions/managed-user-documents>
+  include if exists <abstractions/authentication>
+  /etc/{pam.d,security}/** r,
+  # authentication abstraction supplies the dedicated unix_chkpwd transition.
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/ rw,
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/** rwkl,
+  owner @{HOME}/.config/{pavucontrol.ini,qt6ct.conf,gtkrc-2.0}* rwkl,
+  owner @{HOME}/.local/share/{labwc,wayscriber}/ rw,
+  owner @{HOME}/.local/share/{labwc,wayscriber}/** rwkl,
+  owner @{HOME}/.cache/{nwg-look,qt6ct}/ rw,
+  owner @{HOME}/.cache/{nwg-look,qt6ct}/** rwkl,
+  /etc/default/labwc-desktop r,
+  include if exists <local/managed-session-controls>
+}
+
+profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/libexec/labwc-session-check r,
+  /usr/bin/{systemctl,busctl} rix,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
+  owner @{HOME}/.config/labwc/rc.xml r,
+  owner /proc/[0-9]*/ r,
+  owner /proc/[0-9]*/comm r,
+  signal (send) set=(usr2) peer=managed-waybar,
+  include if exists <local/usr.local.libexec.labwc-session-check>
+}

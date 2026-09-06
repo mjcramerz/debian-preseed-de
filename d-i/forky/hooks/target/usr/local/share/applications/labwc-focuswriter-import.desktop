@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FocusWriter (import DOCX text copy)
+Comment=Import main-body text into a new draft; keep the Word document unchanged
+Exec=/usr/local/bin/labwc-focuswriter-import %F
+TryExec=/usr/local/bin/labwc-focuswriter-import
+Icon=focuswriter
+Terminal=false
+StartupNotify=true
+Categories=Office;WordProcessor;
+MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document;

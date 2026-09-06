@@ -1,0 +1,126 @@
+# Managed by unattended-installer.
+#
+# Shared hardware-accelerated desktop graphics access for repository-managed
+# applications and the small set of wrappers that render their own GUI.
+# Primary DRM card/control nodes remain compositor-only; clients receive
+# unprivileged render nodes. NVIDIA's common driver interface is available to
+# confined graphics and CUDA workloads; selected NVIDIA hardware adds only
+# module-parameter reads through local/managed-desktop-graphics.
+
+#include <abstractions/dri-enumerate>
+#include <abstractions/nvidia>
+
+network netlink dgram,
+network netlink raw,
+
+# Mesa and vendor libraries inspect these interfaces while selecting a render
+# device and constructing the GL/EGL driver stack.
+@{PROC}/sys/dev/i915/perf_stream_paranoid r,
+@{PROC}/driver/nvidia/ r,
+@{PROC}/driver/nvidia/** r,
+@{sys}/devices/pci[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/**/{revision,config} r,
+@{sys}/devices/pci[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/**/{irq,resource} r,
+@{sys}/devices/pci[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/ r,
+@{sys}/devices/pci[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]/**/ r,
+@{sys}/bus/ r,
+@{sys}/bus/*/devices/ r,
+@{sys}/bus/pci/devices/ r,
+@{sys}/bus/usb/devices/ r,
+@{sys}/class/ r,
+@{sys}/class/*/ r,
+@{sys}/devices/**/drm/ r,
+@{sys}/devices/**/{bConfigurationValue,busnum,class,descriptors,device,devnum,manufacturer,numa_node,product,serial,subsystem_device,subsystem_vendor,uevent,vendor} r,
+@{sys}/devices/system/cpu/{online,possible} r,
+@{sys}/devices/system/cpu/{kernel_max,present} r,
+@{sys}/devices/system/cpu/cpufreq/policy[0-9]*/cpuinfo_max_freq r,
+@{sys}/devices/system/cpu/cpufreq/policy[0-9]*/scaling_cur_freq r,
+@{sys}/devices/system/cpu/cpufreq/policy[0-9]*/scaling_max_freq r,
+@{sys}/devices/system/cpu/cpu[0-9]*/cache/index[0-9]*/{id,level} r,
+@{sys}/devices/system/cpu/cpu[0-9]*/cache/index[0-9]*/size r,
+@{sys}/devices/system/cpu/cpu[0-9]*/cpu_capacity r,
+@{sys}/devices/system/cpu/cpu[0-9]*/microcode/version r,
+@{sys}/devices/system/cpu/cpu[0-9]*/topology/{core_cpus,physical_package_id} r,
+@{sys}/devices/system/memory/block_size_bytes r,
+@{sys}/devices/system/node/ r,
+@{sys}/devices/system/node/node[0-9]*/cpumap r,
+@{sys}/devices/virtual/dmi/id/{product_name,product_sku,sys_vendor} r,
+@{sys}/devices/virtual/tty/tty[0-9]*/active r,
+# Unprivileged DRM render nodes are sufficient for normal Wayland clients.
+/dev/dri/ r,
+# Primary DRM nodes remain compositor-owned.  GUI clients use render nodes;
+# make opportunistic primary-node probes quiet and fail closed in enforce mode.
+deny /dev/dri/card[0-9]* rw,
+/dev/dri/renderD[0-9] rw,
+/dev/dri/renderD[0-9][0-9] rw,
+/dev/dri/renderD[0-9][0-9][0-9] rw,
+/dev/dri/by-path/ r,
+/dev/dri/by-path/pci-[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F].[0-7]-render r,
+/dev/nvidia[0-9]* rw,
+/dev/nvidia-caps/ r,
+/dev/nvidia-caps/** rw,
+deny /dev/nvidia-modeset rw,
+/dev/nvidia-uvm rw,
+/dev/nvidia-uvm-tools rw,
+/dev/nvidiactl rw,
+/dev/char/ r,
+/dev/char/195:* rw,
+/dev/char/226:* rw,
+/dev/char/5[0-9][0-9]:* rw,
+/dev/char/511:* rw,
+deny /dev/char/{195,226,5[0-9][0-9]}:* l,
+/dev/udmabuf rw,
+
+# Read-only libudev records used to enumerate DRM devices.
+/run/udev/data/c195:* r,
+/run/udev/data/c226:[0-9] r,
+/run/udev/data/c226:[0-9][0-9] r,
+/run/udev/data/c226:[0-9][0-9][0-9] r,
+/run/udev/data/+drm:card[0-9]* r,
+
+# GL, GLES, EGL, GBM, DRI, VA-API, and vendor-selection assets.
+/usr/lib/@{multiarch}/dri/ r,
+/usr/lib/@{multiarch}/dri/*.so mr,
+/usr/lib/@{multiarch}/lib{EGL,GL,GLESv1_CM,GLESv2,GLX,OpenGL,gbm}.so* mr,
+/usr/lib/@{multiarch}/libvulkan.so* mr,
+# Llama and Whisper releases may be rebuilt against any retained CUDA version.
+# Keep this version-independent but narrower than the complete CUDA toolchain:
+# only the runtime, cuBLAS, and OpenCL libraries needed by the managed AI
+# workloads are executable mappings.
+/usr/local/cuda-*/targets/x86_64-linux/lib/lib{cublas,cublasLt,cudart}.so* mr,
+/usr/local/cuda-*/targets/*/lib/libOpenCL.so* mr,
+/usr/share/libdrm/ r,
+/usr/share/libdrm/*.ids r,
+/etc/libva.conf r,
+/etc/drirc r,
+/usr/share/drirc.d/ r,
+/usr/share/drirc.d/*.conf r,
+/etc/glvnd/egl_vendor.d/ r,
+/etc/glvnd/egl_vendor.d/*.json r,
+/usr/share/glvnd/egl_vendor.d/ r,
+/usr/share/glvnd/egl_vendor.d/*.json r,
+/usr/share/egl/egl_external_platform.d/ r,
+/usr/share/egl/egl_external_platform.d/*.json r,
+# Vulkan ICD/layer discovery is read-only, not privileged device access.
+/{etc,usr/share}/vulkan/ r,
+/{etc,usr/share}/vulkan/** r,
+/usr/lib/@{multiarch}/libvulkan_*.so mr,
+/usr/lib/@{multiarch}/libVkLayer_*.so mr,
+owner @{HOME}/.libva r,
+owner @{HOME}/.drirc r,
+
+# Shared vendor shader caches prevent every confined GUI process from
+# recompiling the same shaders and eliminate repeated cache denials.
+owner @{HOME}/.cache/mesa_shader_cache/ rw,
+owner @{HOME}/.cache/mesa_shader_cache/** rwkl,
+owner @{HOME}/.cache/mesa_shader_cache_db/ rw,
+owner @{HOME}/.cache/mesa_shader_cache_db/** rwkl,
+owner @{HOME}/.cache/nvidia/ rw,
+owner @{HOME}/.cache/nvidia/** rwkl,
+owner @{HOME}/.nv/ rw,
+owner @{HOME}/.nv/** rwkl,
+
+include if exists <local/managed-desktop-graphics>
+
+# Mesa has both single-file and multi-file cache backends.
+owner @{HOME}/.cache/mesa_shader_cache_sf/ rw,
+owner @{HOME}/.cache/mesa_shader_cache_sf/** rwkl,

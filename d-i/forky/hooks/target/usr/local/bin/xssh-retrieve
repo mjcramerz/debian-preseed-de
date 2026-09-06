@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+PROG=${0##*/}
+CR=$(printf '\r')
+
+die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
+usage() { printf 'usage: %s --remote-ip <ip-or-host> --port <ssh-port> [--user <remote-user>] <remote-path> [local-path]\n' "$PROG" >&2; }
+require_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
+require_value() { [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"; }
+validate_host() { case $1 in ''|*[!A-Za-z0-9:.%-]*) die 'host must contain only letters, digits, dots, dashes, percent signs, and colons';; esac; }
+validate_port() {
+  case $1 in ''|*[!0-9]*) die 'port must be numeric';; esac
+  [ "${#1}" -le 5 ] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ] 2>/dev/null || die 'port must be in range 1..65535'
+}
+validate_user() { case $1 in ''|[!a-z_]*|*[!a-z0-9_-]*) die "remote user is invalid: ${1:-unset}";; esac; }
+validate_remote_path() {
+  remote_value=$1
+  [ -n "$remote_value" ] || die 'remote path must not be empty'
+  case $remote_value in -*) die 'remote path must not start with -';; *"$CR"*|*"
+"*) die 'remote path contains control characters';; esac
+}
+
+remote_user=${USER:-$(id -un)}
+local_path=.
+remote_host=
+port=
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --remote-ip) require_value "$@"; remote_host=$2; shift 2;;
+    --port) require_value "$@"; port=$2; shift 2;;
+    --user) require_value "$@"; remote_user=$2; shift 2;;
+    --help|-h) usage; exit 0;;
+    --) shift; break;;
+    -*) usage; die "unsupported option: $1";;
+    *) break;;
+  esac
+done
+remote_path=${1:-}
+[ -n "$remote_path" ] || { usage; exit 2; }
+shift
+[ "$#" -le 1 ] || { usage; exit 2; }
+[ "$#" -eq 0 ] || local_path=$1
+[ -n "$remote_host" ] || die '--remote-ip is required'
+[ -n "$port" ] || die '--port is required'
+validate_host "$remote_host"
+validate_port "$port"
+validate_user "$remote_user"
+validate_remote_path "$remote_path"
+case $local_path in -*) die 'local path must not start with -';; esac
+require_cmd scp
+printf '%s: retrieving %s@%s:%s to %s\n' "$PROG" "$remote_user" "$remote_host" "$remote_path" "$local_path" >&2
+scp -r -P "$port" "${remote_user}@${remote_host}:${remote_path}" "$local_path"
+printf '%s: retrieve completed: %s@%s:%s -> %s\n' "$PROG" "$remote_user" "$remote_host" "$remote_path" "$local_path" >&2

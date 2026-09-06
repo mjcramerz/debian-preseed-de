@@ -1,0 +1,43 @@
+[Unit]
+BindsTo=labwc-compositor.service
+After=labwc-compositor.service labwc-session.target
+Description=Keep the selected Whisper model loaded for the Labwc session
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+StartLimitIntervalSec=10min
+StartLimitBurst=3
+
+[Service]
+KillMode=control-group
+Type=exec
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+SyslogIdentifier=whisper-record-toggle
+StandardOutput=journal
+StandardError=journal
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecCondition=/usr/local/libexec/whisper-record-toggle server-enabled
+ExecStart=/usr/local/libexec/whisper-record-toggle server
+ExecStartPost=/usr/local/libexec/whisper-record-toggle server-ready
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=2min
+TimeoutStopSec=5s
+# The server and health client enter narrower AppArmor child domains with rCx.
+# no_new_privs rejects those transitions because the child domains deliberately
+# own network access that the controller lacks; keep the unit unprivileged and
+# let AppArmor enforce the intended domain separation instead.
+NoNewPrivileges=false
+# Per-user filesystem namespace directives implicitly enable PrivateUsers=,
+# which hides host-root ownership behind the overflow UID. Keep the generated
+# root-owned configuration verifiable and rely on this unit's AppArmor domain
+# plus the fixed read-only system paths instead.
+UMask=0077
+
+[Install]
+WantedBy=labwc-session.target
+
+# Do not add seccomp or namespace sandbox directives here without auditing the
+# AppArmor transitions: user-manager seccomp implicitly forces no_new_privs.

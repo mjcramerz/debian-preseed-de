@@ -1,0 +1,20 @@
+# Managed by unattended-installer.
+#
+# Minimal runtime for repository-owned interpreted wrappers. This abstraction
+# deliberately contains no network, home-directory, desktop, or privileged
+# command access. Individual wrapper profiles grant only their own data paths
+# and executable transitions.
+
+#include <abstractions/base>
+
+/{,usr/}bin/{bash,dash,sh} rix,
+/usr/bin/env rix,
+
+# Package-owned identity helpers and GNU coreutils inspect these read-only
+# system databases and cgroup CPU limits while remaining inside the wrapper
+# profile.
+/etc/{group,nsswitch.conf,passwd} r,
+@{PROC}/[0-9]*/cgroup r,
+@{sys}/fs/cgroup/**/cpu.max r,
+
+include if exists <local/managed-wrapper-base>

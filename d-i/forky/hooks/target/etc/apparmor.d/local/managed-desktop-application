@@ -1,0 +1,39 @@
+# Copied into the explicitly enumerated optional vendor GUI local includes.
+# Keep package attachment and sandbox transitions; supply actual application
+# data, extensions, downloads, TLS, audio, and child-runtime requirements.
+#include <abstractions/managed-electron-runtime>
+#include <abstractions/managed-user-documents>
+#include <abstractions/managed-pipewire-audio>
+include if exists <abstractions/user-tmp>
+network inet stream,
+network inet6 stream,
+network inet dgram,
+network inet6 dgram,
+userns,
+capability sys_admin,
+capability sys_chroot,
+# Namespace-local sandbox setup; no capability is granted by AppArmor itself.
+owner @{PROC}/[0-9]*/{uid_map,gid_map,setgroups} rw,
+/usr/lib/** mr,
+/opt/** mr,
+# Package profiles already control vendor executables. Helpers remain confined.
+/usr/bin/{dirname,readlink,realpath,which,xdg-mime,xdg-settings} rix,
+/usr/bin/xdg-open rPUx,
+owner @{HOME}/.{config,cache}/{1Password,BraveSoftware,google-chrome,Element,element-desktop,github-desktop,Keybase,keybase,opera,qutebrowser,Signal,signal-desktop,Slack,slack,Steam,steam}/ rw,
+owner @{HOME}/.{config,cache}/{1Password,BraveSoftware,google-chrome,Element,element-desktop,github-desktop,Keybase,keybase,opera,qutebrowser,Signal,signal-desktop,Slack,slack,Steam,steam}/** rwklm,
+owner "@{HOME}/.config/GitHub Desktop/" rw,
+owner "@{HOME}/.config/GitHub Desktop/**" rwklm,
+owner "@{HOME}/.cache/GitHub Desktop/" rw,
+owner "@{HOME}/.cache/GitHub Desktop/**" rwklm,
+owner @{HOME}/.local/share/{1Password,BraveSoftware,google-chrome,Element,keybase,opera,qutebrowser,Signal,Slack,Steam}/ rw,
+owner @{HOME}/.local/share/{1Password,BraveSoftware,google-chrome,Element,keybase,opera,qutebrowser,Signal,Slack,Steam}/** rwklm,
+owner @{HOME}/.mozilla/ rw,
+owner @{HOME}/.mozilla/** rwklm,
+owner @{HOME}/.cache/mozilla/ rw,
+owner @{HOME}/.cache/mozilla/** rwklm,
+owner @{HOME}/.steam/ rw,
+owner @{HOME}/.steam/** rwklm,
+# User-installed Steam games are executable software, not just document data.
+owner @{HOME}/.local/share/Steam/** rix,
+owner @{HOME}/.steam/** rix,
+owner /run/user/[0-9]*/{app-*,keybase*,Singleton*} rwkl,

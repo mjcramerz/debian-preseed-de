@@ -1,0 +1,30 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile qoredb /usr/bin/qoredb flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-desktop-application>
+  #include <abstractions/managed-user-documents>
+  #include <abstractions/managed-webkit-runtime>
+  include if exists <abstractions/user-tmp>
+
+  unix,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+
+  /usr/bin/qoredb mr,
+
+  # The launcher maps QoreDB's XDG state and native QOREDB_CONFIG_DIR below
+  # the current account's database root. Owner mediation prevents one desktop
+  # account from opening another account's databases through the shared pool.
+  /pool/ r,
+  /pool/db/ r,
+  owner /pool/db/*/ rw,
+  owner /pool/db/*/** rwkl,
+
+  include if exists <local/usr.bin.qoredb>
+}

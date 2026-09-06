@@ -1,93 +1,241 @@
 # debian-preseed-de
 
+Debian unattended-install repository for **desktop systems**, refactored on
+2026-09-06. It retains the supplied desktop layout and all 13 original hardware
+profiles, while correcting CUDA transport/authentication, DKMS handling and
+browser policy/export deployment. It is not a generic disk-safe installer.
 
+Start with **[the refactor report](docs/REFACTOR-2026-09-06.md)** and
+**[validation evidence and remaining acceptance work](docs/VALIDATION.md)**.
+The complete validation pipeline passed 271 tests, with no skipped tests. This
+is not a claim that a real installer boot or every bookmarked site was tested.
 
-## Getting started
+**Private build:** browser configuration and coverage data contain personal
+bookmarks. Do not publish this personalized tree to a public repository or an
+unrestricted web server. No reusable credentials are supplied by this refactor.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+The Labwc desktop, desktop application classes, workstation developer tools, and their user units stay here. GitLab Runner, server-suite, web/database service classes and server-only profiles are not included. SSH, Podman, CrowdSec and workstation Aptly publishing remain where the original desktop used them.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Build before publishing
 
-## Add your files
+The supplied snapshot is already built. After changing **any** runtime file,
+profile, class, installer script or target asset, run from this repository root:
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
+```sh
+python3 -B tools/build.py
+python3 -B tools/validate.py
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/computes/system/debian-preseed-de.git
-git branch -M mcr/main
-git push -uf origin mcr/main
+
+Builds require Python 3.11 or newer and a POSIX shell on the publishing host.
+The installer transport itself does not require Python or curl.
+
+Commit or deploy the entire repository, including these generated files:
+
+```text
+d-i/forky/preseed.cfg
+d-i/forky/payload.manifest
+d-i/forky/payload.tar.gz
 ```
 
-## Integrate with your tools
+The generated preseed pins the bootstrap transport and complete payload with
+SHA-256 hashes. Publish them together; do not deploy individual edited files over
+a running installation, omit the payload, or replace the payload with a Git LFS
+pointer. `python3 -B tools/build.py --check` detects stale generated files.
+The complete pinned snapshot is fetched and validated before partitioning. Later
+phases read its local cache instead of repeatedly downloading repository files.
+The browser generator runs as part of this build. Its editable inputs are in
+`browser-config/`; generated policies and exports live under `hooks/target/`.
+This revision also changes security-sensitive target policy: review the report
+before deploying. The temporary CUDA certificate compatibility exception expires
+on **2027-02-01**, and is not a global APT authentication bypass.
 
-* [Set up project integrations](https://gitlab.com/computes/system/debian-preseed-de/-/settings/integrations)
+## Repository layout
 
-## Collaborate with your team
+```text
+.
+|-- README.md
+|-- SECURITY.md
+|-- Makefile
+|-- browser-config/            # private normalized bookmark and export inputs
+|-- tools/                     # deterministic build and validation
+|-- docs/                      # migration ledger, architecture and validation notes
+|-- validation/                # actual offline test and audit results
+`-- d-i/forky/
+    |-- repo.env               # role, defaults and repository path contract
+    |-- preseed.cfg            # generated entry point; do not edit directly
+    |-- payload.manifest       # generated per-file SHA-256 inventory
+    |-- payload.tar.gz         # generated immutable runtime source snapshot
+    |-- common.cfg
+    |-- fragments/
+    |-- classes/
+    |   `-- configs/target-assets.tsv
+    |-- hosts/
+    |   |-- installer/         # shared identity, runtime, account, layout and boot envs
+    |   `-- profiles/          # all profile .env files, without family subdirectories
+    |-- hooks/
+    |   |-- installer/
+    |   |   |-- apt-setup/
+    |   |   |-- base-stage.d/
+    |   |   |-- d-i/
+    |   |   |-- finish-install.d/
+    |   |   |-- partman/
+    |   |   |-- pre-pkgsel.d/
+    |   |   `-- late_command.sh
+    |   `-- target/            # shared + this role + hardware payloads
+    |-- scripts/               # common, preseed, early, partman, late, runtime, firstboot
+    `-- tests/
+```
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+Desktop build/install helpers additionally live in `scripts/desktop/`.
 
-## Test and Deploy
+## Serve over a trusted lab network
 
-Use the built-in continuous integration in GitLab.
+Prefer validated HTTPS on a private installation network, or trusted local media.
+The following HTTP example is only for an isolated, trusted lab. It authenticates
+neither the initial preseed nor its replacement by a network attacker; SHA-256
+pins inside that preseed cannot repair that trust boundary. Restrict access to
+installation clients and publish one complete snapshot atomically.
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+```sh
+python3 -m http.server --bind 0.0.0.0 8000 --directory .
+```
 
-***
+For the example lab server, the source portion of the installer boot arguments is:
 
-# Editing this README
+```text
+auto=true priority=critical url=http://192.168.50.122:8000/d-i/forky/preseed.cfg
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Add the appropriate original class selection and deployment-specific account,
+network and storage configuration. These source examples are not a claim that an
+arbitrary host can safely use a fixed-disk profile. The current role default is:
 
-## Suggestions for a good README
+```text
+classes=prod;desktop;standard;static;software;timeshift;podman;crowdsec;whisper;btrfs-de
+```
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+An explicit minimal role selection suitable for a bootstrap smoke test is:
 
-## Name
-Choose a self-explaining name for your project.
+```text
+classes=prod;desktop;standard;dhcp;ssh
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+Hardware detection and profile constraints still apply. Enter boot arguments in
+the bootloader, not as an unquoted shell command containing semicolons.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Local media (`file=`)
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Copy the **whole tree**, not just `preseed.cfg`, onto the mounted media:
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```text
+auto=true priority=critical file=/hd-media/debian-preseed-de/d-i/forky/preseed.cfg
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+`preseed/file=` is also supported. `file=` names an absolute preseed file, not a
+directory. Repository-relative includes are staged as absolute `file:///...`
+locations. Local profile edits without rebuilding fail early instead of silently
+installing an old snapshot. Use local paths without spaces or shell metacharacters.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+## Required private deployment configuration
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Review `d-i/forky/hosts/installer/` and the selected disk profile before booting.
+The original desktop integrations still require deployment-specific credentials,
+including the account password, primary GPG passphrase, Fruux username/password
+and Telegram token/chat ID when that desktop setup runs. This refactor does not
+invent credentials, remove integration requirements, or make late desktop checks
+happen before partitioning.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Supply trusted shell assignments through `/preseed.env` in a private initrd,
+owned by root and mode **0400 or 0600**. The installer rejects other owners/modes
+before sourcing it. Recognized names include `PRESEED_ROOT_PASSWORD`,
+`PRESEED_PRIMARY_PASSWORD`, `PRESEED_PRIMARY_GPG_PASSPHRASE`,
+`PRESEED_FRUUX_USERNAME`, `PRESEED_FRUUX_PASSWORD`, `PRESEED_TELEGRAM_API_KEY`
+and `PRESEED_TELEGRAM_CHAT_ID`. Optional integrations have additional fields;
+consult `installer_cmdline_value` in `scripts/common/lib.sh` for the complete
+mapping. Use single-quoted shell assignments with proper escaping; this is a
+trusted shell file, not an untrusted data import. Keep secrets out of source
+control, public URLs, command lines and the distributable payload.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+After installation, the three extension exports, `bookmark-coverage.json` and
+`BROWSER-IMPORTS.md` are staged as user-owned, mode-0600 files in the configured
+account's Downloads directory. Import the three exports through the extensions'
+own interfaces. See `d-i/forky/hooks/target/usr/local/share/browser-imports/`.
+Use `browser-devtools vivaldi --port 9222` as the ordinary user for an isolated,
+loopback-only debug profile; Chromium, Edge and Chrome are also supported.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## GitHub raw URLs and redirects
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+For a sanitized, non-personalized build, a public raw URL can point to a matching
+repository snapshot; the
+full path prefix, including slash-containing refs, is retained. For example:
 
-## License
-For open source projects, say how it is licensed.
+```text
+url=https://raw.githubusercontent.com/mjcramerz/debian-preseed-de/refs/heads/mcr/main/d-i/forky/preseed.cfg
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This is a URL-shape example, not a verified live deployment. Standard HTTP
+redirect links are supported: the effective final **preseed file** URL determines
+the sibling asset base, not the shortener's domain. For example:
+
+```text
+url=https://tinyurl.com/fdsgdf5
+```
+
+The short link must actually redirect to the published generated preseed; HTML
+preview, JavaScript, login or CAPTCHA pages are not installer sources. Redirect
+loops, non-HTTP(S) destinations and HTTPS-to-HTTP downgrades are rejected before
+fetched content is accepted. Initial network setup and the first preseed download
+are performed by the Debian installer image, before repository code can run.
+
+TLS verification is enabled by default. When deliberately required for your lab,
+this repository's fetch layer recognizes:
+
+```text
+allow_unauthenticated_ssl=true
+```
+
+It also recognizes the bare flag and
+`debian-installer/allow_unauthenticated_ssl=true`. Configure the initial image's
+native downloader separately as required by that image; repository code cannot
+change a TLS decision made before the first preseed is loaded. Prefer valid CA
+trust and a correct clock over bypassing verification. See `SECURITY.md`.
+
+## Profiles
+
+All existing values, including sizing and hardware policy variables, remain in:
+
+```text
+d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+d-i/forky/hosts/profiles/btrfs-de-dual.env
+d-i/forky/hosts/profiles/btrfs-de-flex.env
+d-i/forky/hosts/profiles/btrfs-de-main.env
+d-i/forky/hosts/profiles/btrfs-de.env
+d-i/forky/hosts/profiles/btrfs-desktop.env
+d-i/forky/hosts/profiles/f2fs-de-cbook.env
+d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+d-i/forky/hosts/profiles/f2fs-de-dual.env
+d-i/forky/hosts/profiles/f2fs-de.env
+d-i/forky/hosts/profiles/f2fs-desktop.env
+d-i/forky/hosts/profiles/vm-desktop.env
+```
+
+The logical `override-<name>` identifier remains compatible internally, although
+its physical source is now `hosts/profiles/<name>.env`. Baseline profiles retain
+`btrfs-desktop.env`, `f2fs-desktop.env` and `vm-desktop.env` fallback names. See
+`d-i/forky/hosts/README.md` for the unchanged environment precedence.
+
+## Diagnostics and validation limits
+
+Bootstrap failures print a `[repository] fatal:` message to stderr and the
+installer diagnostic console when available. Inspect `/tmp/installer.log`,
+`/tmp/install-runtime/bootstrap/`, and private `*.fetch-error` response logs.
+No `preflight.ok` marker is written on repository/class/profile preflight failure.
+Early, partitioning and late phase runners require that marker.
+
+The delivered validation reports cover regression tests, loopback HTTP/HTTPS
+transport, complete generated bootstrap commands, relocation integrity and
+syntax/inventory checks. They do **not** certify a booted Debian installer,
+partitioning, package downloads, graphical login, Secure Boot, GPU suspend or
+systemd/AppArmor behavior on real hardware. See `docs/VALIDATION.md` and run the
+hardware acceptance matrix before deployment to valuable disks.

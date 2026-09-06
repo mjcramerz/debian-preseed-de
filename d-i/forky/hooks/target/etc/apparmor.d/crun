@@ -1,0 +1,11 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile crun /usr/bin/crun flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-crun-runtime>
+
+  /usr/bin/crun mr,
+}

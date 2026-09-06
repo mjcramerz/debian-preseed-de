@@ -1,0 +1,452 @@
+@define-color panel rgba(8, 17, 31, 0.94);
+@define-color panel_alt rgba(16, 29, 51, 0.92);
+@define-color panel_hover rgba(28, 44, 70, 0.96);
+@define-color border rgba(236, 184, 96, 0.24);
+@define-color border_strong rgba(236, 184, 96, 0.74);
+@define-color text #f5efe3;
+@define-color muted #aeb7c6;
+@define-color amber #ecb860;
+@define-color royalpurple #7851A9;
+@define-color marineblue #4166F5;
+@define-color emeraldgreen #50C878;
+@define-color cinnamon #D2691E;
+@define-color tutamagenta #e56b8f;
+@define-color notescyan #22D3EE;
+@define-color amber_soft rgba(236, 184, 96, 0.18);
+@define-color mint #9fd2bf;
+@define-color rose #f6a09a;
+@define-color red #f87171;
+
+* {
+  border: none;
+  border-radius: 0;
+  font-family: "Noto Sans", "Noto Color Emoji", "Symbola", "Font Awesome 6 Free";
+  font-size: __INSTALLER_LABWC_WAYBAR_FONT_SIZE__px;
+  min-height: 0;
+  font-feature-settings: "tnum";
+}
+
+window#waybar {
+  background: @panel;
+  border: 1px solid @border;
+  border-radius: 18px;
+  color: @text;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+window#waybar.internal,
+window#waybar.internal * {
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+}
+
+tooltip {
+  background: rgba(8, 17, 31, 0.98);
+  border: 1px solid @border_strong;
+  border-radius: 14px;
+  color: @text;
+  padding: __INSTALLER_LABWC_WAYBAR_TOOLTIP_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_TOOLTIP_PADDING_X__px;
+}
+
+tooltip label {
+  font-size: __INSTALLER_LABWC_WAYBAR_TOOLTIP_FONT_SIZE__px;
+  font-family: "Noto Sans Mono", "Noto Color Emoji", "Symbola";
+}
+
+#workspaces {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+#custom-launcher,
+#custom-wayscriber,
+#custom-apps,
+#custom-app-terminal,
+#custom-app-files,
+#custom-app-tuta,
+#custom-app-notes,
+#custom-app-sleek,
+#taskbar button,
+#workspaces button,
+#clock,
+#pulseaudio,
+#custom-backlight,
+#battery,
+#disk,
+#cpu,
+#memory,
+#tray,
+#custom-lock,
+#custom-power {
+  margin: 5px 3px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: @panel_alt;
+  border: 1px solid @border;
+  color: @text;
+}
+
+#workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding: 0 __INSTALLER_LABWC_WAYBAR_WORKSPACE_BUTTON_PADDING_X__px;
+  font-weight: 700;
+}
+
+#workspaces button.active,
+#taskbar button.active,
+#custom-launcher:hover,
+#workspaces button:hover,
+#taskbar button:hover,
+#custom-wayscriber:hover,
+#custom-apps:hover,
+#custom-app-terminal:hover,
+#custom-app-files:hover,
+#custom-app-tuta:hover,
+#custom-app-notes:hover,
+#custom-app-sleek:hover,
+#custom-power:hover {
+  background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  border-color: @border_strong;
+  color: #08111f;
+  box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
+}
+
+#workspaces button.urgent {
+  background: rgba(68, 25, 33, 0.78);
+  border-color: rgba(246, 173, 173, 0.34);
+  color: @rose;
+}
+
+#workspaces button.hidden {
+  color: @muted;
+}
+
+#custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_MIN_WIDTH__px;
+  padding: 0 __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_PADDING_X__px;
+  color: @amber;
+  font-weight: 700;
+}
+
+#apps {
+  background: transparent;
+}
+
+#custom-apps {
+  min-width: 28px;
+  padding: 0 7px;
+  color: @royalpurple;
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+  font-weight: 700;
+}
+
+#custom-wayscriber {
+  min-width: 28px;
+  padding: 0 7px;
+  color: @marineblue;
+  font-weight: 700;
+}
+
+#custom-app-terminal,
+#custom-app-files,
+#custom-app-tuta,
+#custom-app-notes,
+#custom-app-sleek {
+  min-width: 28px;
+  padding: 0 7px;
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+  font-weight: 900;
+}
+
+#custom-app-terminal {
+  color: @emeraldgreen;
+}
+
+#custom-app-files {
+  color: @cinnamon;
+}
+
+#custom-app-tuta {
+  color: @tutamagenta;
+}
+
+#custom-app-notes {
+  color: @notescyan;
+}
+
+#custom-app-sleek {
+  color: @mint;
+}
+
+#taskbar {
+  min-width: 0;
+}
+
+#taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: 0 __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+#taskbar button image {
+  margin: 0;
+}
+
+#taskbar button.minimized {
+  color: @muted;
+}
+
+#quick-controls,
+#quick-controls-internal {
+  margin: 5px 1px;
+  padding: 0;
+  border-radius: 999px;
+  background: @panel_alt;
+  border: 1px solid @border;
+  color: @text;
+}
+
+#quick-controls > *,
+#quick-controls-internal > * {
+  margin: 0;
+  padding: 0;
+}
+
+#quick-controls #custom-system,
+#quick-controls #network,
+#quick-controls #custom-bluetooth,
+#quick-controls #custom-keyboard,
+#quick-controls #custom-screenshot,
+#quick-controls-internal #custom-system,
+#quick-controls-internal #network,
+#quick-controls-internal #custom-bluetooth,
+#quick-controls-internal #custom-keyboard,
+#quick-controls-internal #custom-screenshot {
+  margin: 0;
+  padding: 0 8px;
+  min-width: 28px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font-size: __INSTALLER_LABWC_WAYBAR_FONT_SIZE__px;
+}
+
+#quick-controls #custom-system:hover,
+#quick-controls #network:hover,
+#quick-controls #custom-bluetooth:hover,
+#quick-controls #custom-keyboard:hover,
+#quick-controls #custom-screenshot:hover,
+#quick-controls-internal #custom-system:hover,
+#quick-controls-internal #network:hover,
+#quick-controls-internal #custom-bluetooth:hover,
+#quick-controls-internal #custom-keyboard:hover,
+#quick-controls-internal #custom-screenshot:hover {
+  background: @panel_hover;
+  border-color: @border;
+}
+
+#pulseaudio,
+#custom-backlight,
+#battery,
+#disk,
+#cpu,
+#memory,
+#tray,
+#custom-lock,
+#custom-power {
+  margin-left: 1px;
+  margin-right: 1px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+#pulseaudio,
+#custom-backlight,
+#battery,
+#disk,
+#cpu,
+#memory {
+  min-width: 56px;
+}
+
+#custom-lock,
+#custom-power {
+  min-width: 28px;
+}
+
+window#waybar.internal #pulseaudio,
+window#waybar.internal #custom-backlight,
+window#waybar.internal #battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory,
+window#waybar.internal #tray,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+window#waybar.internal #pulseaudio,
+window#waybar.internal #custom-backlight,
+window#waybar.internal #battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+}
+
+window#waybar.internal #quick-controls-internal {
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+}
+
+window#waybar.internal #quick-controls-internal #custom-system,
+window#waybar.internal #quick-controls-internal #network,
+window#waybar.internal #quick-controls-internal #custom-bluetooth,
+window#waybar.internal #quick-controls-internal #custom-keyboard,
+window#waybar.internal #quick-controls-internal #custom-screenshot {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+}
+
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+#custom-keyboard {
+  color: @mint;
+  font-weight: 700;
+}
+
+#custom-system {
+  color: @amber;
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+  font-weight: 900;
+}
+
+#custom-screenshot {
+  color: @text;
+  font-weight: 700;
+}
+
+#custom-screenshot.recording {
+  color: @red;
+}
+
+#custom-bluetooth {
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+#custom-bluetooth.disabled,
+#custom-bluetooth.unavailable,
+#custom-backlight.unavailable {
+  color: @amber;
+}
+
+#custom-bluetooth.connected,
+#custom-backlight.available {
+  color: @mint;
+}
+
+#custom-lock {
+  background: rgba(203, 213, 225, 0.14);
+  border-color: rgba(203, 213, 225, 0.46);
+  color: #d8dee9;
+  font-weight: 700;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+#custom-lock:hover {
+  background: linear-gradient(135deg, rgba(226, 232, 240, 0.84), rgba(148, 163, 184, 0.84));
+  border-color: rgba(226, 232, 240, 0.78);
+  color: #08111f;
+  box-shadow: 0 10px 26px rgba(203, 213, 225, 0.18);
+}
+
+#custom-power {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.66);
+  color: @red;
+  font-weight: 700;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+#custom-power:hover {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.92), rgba(246, 160, 154, 0.92));
+  border-color: rgba(248, 113, 113, 0.86);
+  color: #08111f;
+  box-shadow: 0 10px 26px rgba(248, 113, 113, 0.22);
+}
+
+#network.disconnected,
+#network.disabled,
+#pulseaudio.muted {
+  color: @amber;
+}
+
+#clock {
+  font-weight: 700;
+  color: @amber;
+}
+
+#battery.charging,
+#battery.full {
+  color: @mint;
+}
+
+#battery.warning {
+  color: @amber;
+}
+
+#battery.critical,
+#disk.critical,
+#cpu.critical,
+#memory.critical {
+  color: @red;
+}
+
+#disk.warning,
+#cpu.warning,
+#memory.warning {
+  color: @amber;
+}

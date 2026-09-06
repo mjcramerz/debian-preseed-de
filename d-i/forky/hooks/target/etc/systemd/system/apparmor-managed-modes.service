@@ -1,0 +1,58 @@
+[Unit]
+Description=Apply managed AppArmor profile modes
+Documentation=man:apparmor(7) man:aa-enforce(8) man:aa-complain(8)
+Requires=apparmor.service
+After=apparmor.service
+Before=systemd-user-sessions.service display-manager.service multi-user.target
+ReloadPropagatedFrom=apparmor.service
+
+ConditionPathExists=/etc/apparmor/managed-modes.conf
+ConditionFileIsExecutable=/usr/local/libexec/apparmor-managed-modes-run
+
+[Service]
+Type=oneshot
+# The helper is already governed by the managed-apparmor-managed-modes profile.
+# Its writable policy and cache trees are explicitly declared below, so the
+# command must remain inside this unit's filesystem namespace.
+ExecStart=/usr/local/libexec/apparmor-managed-modes-run
+ExecReload=/usr/local/libexec/apparmor-managed-modes-run
+RemainAfterExit=yes
+TimeoutStartSec=2min
+TimeoutStopSec=15s
+
+StandardOutput=journal
+StandardError=journal
+
+User=root
+Group=root
+UMask=0077
+
+# The managed helper profile deliberately transitions into the package-owned
+# AppArmor mode and parser tools. NoNewPrivileges would reject those transitions.
+NoNewPrivileges=false
+PrivateDevices=true
+PrivateNetwork=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+# AppArmor policy loading writes only the securityfs control files beneath
+# this path. Keep every other kernel-tunable path read-only.
+ReadWritePaths=/sys/kernel/security/apparmor
+ReadWritePaths=/etc/apparmor.d /var/cache/apparmor
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectProc=invisible
+ProcSubset=pid
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

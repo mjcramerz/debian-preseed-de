@@ -1,0 +1,49 @@
+# Managed by unattended-installer.
+#
+# Toolkit resources for the few repository-owned wrappers that render their
+# own GTK window instead of transitioning into a separate GUI application.
+
+#include <abstractions/managed-wrapper-wayland>
+#include <abstractions/managed-desktop-graphics>
+include if exists <abstractions/dbus-session-strict>
+
+/etc/dconf/ r,
+/etc/dconf/** r,
+/etc/fonts/ r,
+/etc/fonts/** r,
+/etc/gtk-{3,4}.0/ r,
+/etc/gtk-{3,4}.0/** r,
+/etc/xdg/gtk-3.0/settings.ini r,
+
+/usr/local/share/fonts/ r,
+/usr/local/share/fonts/** r,
+/usr/local/share/icons/ r,
+/usr/local/share/icons/** r,
+/usr/share/fontconfig/conf.avail/ r,
+/usr/share/fontconfig/conf.avail/** r,
+/usr/share/fonts/ r,
+/usr/share/fonts/** r,
+/usr/share/glib-2.0/schemas/gschemas.compiled r,
+/usr/share/gtk-{3,4}.0/ r,
+/usr/share/gtk-{3,4}.0/** r,
+/usr/share/icons/ r,
+/usr/share/icons/** r,
+/usr/share/pixmaps/ r,
+/usr/share/pixmaps/** r,
+/usr/share/themes/ r,
+/usr/share/themes/** r,
+/usr/share/xkeyboard-config-*/ r,
+/usr/share/xkeyboard-config-*/** r,
+
+/var/cache/fontconfig/ r,
+/var/cache/fontconfig/** mr,
+
+owner /run/user/[0-9]*/dconf/user rw,
+owner @{HOME}/.cache/fontconfig/ r,
+owner @{HOME}/.cache/fontconfig/** r,
+owner @{HOME}/.config/dconf/user r,
+owner @{HOME}/.config/gtk-3.0/settings.ini r,
+owner @{HOME}/.local/share/gvfs-metadata/ r,
+owner @{HOME}/.local/share/gvfs-metadata/** r,
+
+include if exists <local/managed-wrapper-gui>

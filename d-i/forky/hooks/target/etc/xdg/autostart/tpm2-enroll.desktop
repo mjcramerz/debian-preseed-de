@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=TPM2 Disk Enrollment
+Comment=Enroll encrypted root and home volumes with TPM2 and a recovery passphrase
+Exec=/usr/local/bin/tpm2-enroll-launch
+Terminal=false
+X-GNOME-Autostart-enabled=true

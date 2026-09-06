@@ -1,0 +1,41 @@
+# Managed by unattended-installer.
+
+abi "/usr/share/apparmor-features/features",
+
+#include <tunables/global>
+
+profile obsidian /{usr/bin/obsidian,opt/Obsidian/obsidian} flags=(attach_disconnected) {
+  #include <abstractions/managed-electron-application>
+  #include <abstractions/managed-user-documents>
+  include if exists <abstractions/user-tmp>
+
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+
+  /usr/bin/obsidian mr,
+  /usr/bin/{basename,cut,dbus-send,grep,head,mawk,realpath,tr,uname,xdg-mime,xdg-settings,xprop} rix,
+  /opt/Obsidian/ r,
+  /opt/Obsidian/** mrix,
+
+  owner @{HOME}/.cache/obsidian/ rw,
+  owner @{HOME}/.cache/obsidian/** rwk,
+  owner @{HOME}/.config/obsidian/ rw,
+  owner @{HOME}/.config/obsidian/** rwkl,
+  owner @{HOME}/.local/share/obsidian/ rw,
+  owner @{HOME}/.local/share/obsidian/** rwkl,
+  owner /run/user/[0-9]*/.obsidian-cli.sock rw,
+  owner @{HOME}/Notes/ rw,
+  owner @{HOME}/Notes/** rwkl,
+  owner @{HOME}/Obsidian/ rw,
+  owner @{HOME}/Obsidian/** rwkl,
+  owner @{HOME}/Syncthing/ r,
+  owner @{HOME}/Syncthing/obsidian-md/ rw,
+  owner @{HOME}/Syncthing/obsidian-md/** rwkl,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/ rw,
+  owner @{HOME}/@{XDG_DOCUMENTS_DIR}/** rwkl,
+
+  include if exists <local/obsidian>
+}

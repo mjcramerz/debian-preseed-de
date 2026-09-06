@@ -1,0 +1,11 @@
+[Default Applications]
+inode/directory=thunar.desktop;
+application/x-directory=thunar.desktop;
+x-directory/normal=thunar.desktop;
+x-scheme-handler/file=thunar.desktop;
+
+[Added Associations]
+inode/directory=thunar.desktop;
+application/x-directory=thunar.desktop;
+x-directory/normal=thunar.desktop;
+x-scheme-handler/file=thunar.desktop;

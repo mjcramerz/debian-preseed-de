@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+choice=$(
+  printf '%s\n' 'Lock screen' 'Logout session' Suspend Reboot 'Power off' |
+    labwc-fuzzel menu --dmenu --prompt power 2>/dev/null || true
+)
+
+case "$choice" in
+  'Lock screen')
+    exec labwc-lock
+    ;;
+  'Logout session')
+    exec labwc-logout
+    ;;
+  Suspend)
+    exec labwc-admin-action suspend
+    ;;
+  Reboot)
+    exec labwc-admin-action reboot
+    ;;
+  'Power off')
+    exec labwc-admin-action poweroff
+    ;;
+esac
+
+exit 0

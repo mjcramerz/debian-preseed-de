@@ -1,0 +1,685 @@
+#!/usr/bin/python3 -I
+import configparser
+import fcntl
+import signal
+import time
+import os
+import pathlib
+import pwd
+import shlex
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+
+
+SYSTEM_APPLICATION_DIR = "/usr/share/applications"
+DEFAULTS_PATH = "/etc/default/labwc-desktop"
+MANAGED_DIRECTORY_MODE = 0o700
+MANAGED_FILE_MODE = 0o600
+MAX_DESKTOP_FILE_BYTES = 65536
+MANAGED_APP_DEFAULT_EXEC = "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__"
+CHATGPT_MANAGED_APP = "/usr/local/bin/chatgpt"
+WAYLAND_COMPAT_MANAGED_APP = "/usr/local/bin/labwc-managed-wayland-compat-app"
+WAYLAND_COMPAT_APPS = {"discord", "zoom"}
+DEDICATED_MANAGED_APPS = {
+    "chatgpt": CHATGPT_MANAGED_APP,
+}
+ACCELERATION_DEFAULT_KEYS = {
+    "LABWC_INTEL_ACCELERATION_AVAILABLE",
+    "LABWC_NVIDIA_ACCELERATION_AVAILABLE",
+}
+
+
+APP_CONFIG = (
+    {
+        "desktop_names": ("chromium.desktop",),
+        "action_app": "chromium",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": (
+            "microsoft-edge.desktop",
+            "microsoft-edge-stable.desktop",
+            "com.microsoft.Edge.desktop",
+        ),
+        "action_app": "microsoft-edge",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": (
+            "vivaldi-stable.desktop",
+            "vivaldi.desktop",
+            "com.vivaldi.Vivaldi.desktop",
+        ),
+        "action_app": "vivaldi",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": ("code.desktop",),
+        "action_app": "code",
+        "field_code": "%F",
+    },
+    {
+        "desktop_names": (
+            "bitwarden.desktop",
+            "com.bitwarden.Bitwarden.desktop",
+        ),
+        "action_app": "bitwarden",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": ("chatgpt.desktop",),
+        "action_app": "chatgpt",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+        "default_mode": "auto",
+    },
+    {
+        "desktop_names": ("obsidian.desktop",),
+        "action_app": "obsidian",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("QoreDB.desktop",),
+        "action_app": "qoredb",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("postman.desktop",),
+        "action_app": "postman",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("sleek.desktop",),
+        "action_app": "sleek",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("spotify.desktop",),
+        "action_app": "spotify",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": (
+            "tuta-mail.desktop",
+            "appimagekit-tutanota-desktop.desktop",
+            "com.tutanota.Tutanota.desktop",
+        ),
+        "action_app": "tutanota",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": (
+            "org.keepassxc.KeePassXC.desktop",
+            "keepassxc.desktop",
+        ),
+        "action_app": "keepassxc",
+        "field_code": "%f",
+    },
+    {
+        "desktop_names": (
+            "Zoom.desktop",
+            "zoom.desktop",
+        ),
+        "action_app": "zoom",
+        "field_code": "--url=%U",
+    },
+    {
+        "desktop_names": (
+            "Filen.desktop",
+            "filen.desktop",
+        ),
+        "action_app": "filen",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": ("discord.desktop",),
+        "action_app": "discord",
+        "field_code": "%U",
+        "actions": ("IntelAccelerated", "NvidiaAccelerated"),
+    },
+    {
+        "desktop_names": ("ledger-live.desktop",),
+        "action_app": "ledger-live",
+        "field_code": "%U",
+        "actions": (),
+    },
+    {
+        "desktop_names": (
+            "org.telegram.desktop.desktop",
+            "telegramdesktop.desktop",
+        ),
+        "action_app": "telegram-desktop",
+        "field_code": "-- %u",
+    },
+    {
+        "desktop_names": ("mullvad-browser.desktop",),
+        "action_app": "mullvad-browser",
+        "field_code": "%u",
+    },
+    {
+        "desktop_names": ("org.qbittorrent.qBittorrent.desktop",),
+        "action_app": "qbittorrent",
+        "field_code": "%U",
+    },
+    {
+        "desktop_names": ("retroarch.desktop",),
+        "action_app": "retroarch",
+        "field_code": "%U",
+    },
+)
+
+ACTION_SPECS = {
+    "IntelAccelerated": ("intel", "IntelAccelerated"),
+    "NvidiaAccelerated": ("nvidia", "NvidiaAccelerated"),
+    "PurePrivacy": ("pure-privacy", "PurePrivacy"),
+}
+
+
+def read_regular_text(path: str, owners: set[int]) -> str:
+    """Open the checked inode, not a symlink swapped in after lstat."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as handle:
+        metadata = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid not in owners
+                or metadata.st_mode & 0o022 or metadata.st_size > MAX_DESKTOP_FILE_BYTES):
+            raise RuntimeError(f"unsafe or oversized managed input: {path}")
+        data = handle.read(MAX_DESKTOP_FILE_BYTES + 1)
+        if len(data) > MAX_DESKTOP_FILE_BYTES:
+            raise RuntimeError(f"managed input grew beyond its size limit: {path}")
+        return data.decode("utf-8")
+
+
+def acquire_lock(directory: str, uid: int, gid: int):
+    path = os.path.join(directory, ".labwc-launcher-sync.lock")
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    handle = os.fdopen(fd, "r+")
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                or metadata.st_uid not in {0, uid} or metadata.st_mode & 0o077):
+            raise RuntimeError(f"unsafe synchronization lock: {path}")
+        if os.geteuid() == 0:
+            os.fchown(fd, uid, gid)
+        deadline = time.monotonic() + 15
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return handle
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError("another launcher synchronization is still running")
+                time.sleep(0.1)
+    except BaseException:
+        handle.close()
+        raise
+
+
+def load_acceleration_availability(path: str) -> dict[str, bool]:
+    try:
+        metadata = os.lstat(path)
+    except OSError as exc:
+        raise RuntimeError(f"managed desktop defaults are unavailable: {path}: {exc}") from exc
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError(f"managed desktop defaults must be a regular file: {path}")
+    if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise RuntimeError(
+            "managed desktop defaults must be root-owned and not writable by "
+            f"group or others: {path}"
+        )
+    if metadata.st_size > MAX_DESKTOP_FILE_BYTES:
+        raise RuntimeError(
+            f"managed desktop defaults exceed {MAX_DESKTOP_FILE_BYTES} bytes: {path}"
+        )
+
+    values: dict[str, str] = {}
+    try:
+        lines = read_regular_text(path, {0}).splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise RuntimeError(f"failed to read managed desktop defaults: {path}: {exc}") from exc
+    for line_number, raw_line in enumerate(lines, start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, raw_value = line.split("=", 1)
+        key = key.strip()
+        if key not in ACCELERATION_DEFAULT_KEYS:
+            continue
+        try:
+            parsed = shlex.split(raw_value, comments=False, posix=True)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"invalid {key} assignment on line {line_number}: {exc}"
+            ) from exc
+        if len(parsed) != 1:
+            raise RuntimeError(f"invalid {key} assignment on line {line_number}")
+        values[key] = parsed[0]
+
+    availability: dict[str, bool] = {}
+    for mode, key in (
+        ("intel", "LABWC_INTEL_ACCELERATION_AVAILABLE"),
+        ("nvidia", "LABWC_NVIDIA_ACCELERATION_AVAILABLE"),
+    ):
+        value = values.get(key, "")
+        if value not in {"true", "false"}:
+            raise RuntimeError(f"{key} must be true or false in managed desktop defaults")
+        availability[mode] = value == "true"
+    return availability
+
+
+def available_actions(
+    requested_actions: tuple[str, ...],
+    availability: dict[str, bool],
+) -> tuple[str, ...]:
+    filtered: list[str] = []
+    for action in requested_actions:
+        if action not in ACTION_SPECS:
+            raise RuntimeError(f"unknown managed desktop action: {action}")
+        mode, _display_name = ACTION_SPECS[action]
+        if mode in {"intel", "nvidia"} and not availability[mode]:
+            continue
+        filtered.append(action)
+    return tuple(filtered)
+
+
+def ensure_user_directory(path: str, uid: int, gid: int) -> None:
+    try:
+        metadata = os.lstat(path)
+    except FileNotFoundError:
+        try:
+            os.mkdir(path, MANAGED_DIRECTORY_MODE)
+        except FileExistsError:
+            pass
+        metadata = os.lstat(path)
+
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise RuntimeError(f"managed user path is not a directory: {path}")
+    if metadata.st_uid not in {0, uid}:
+        raise RuntimeError(f"managed user directory has an unexpected owner: {path}")
+    if (metadata.st_uid, metadata.st_gid) != (uid, gid):
+        os.chown(path, uid, gid)
+    os.chmod(path, MANAGED_DIRECTORY_MODE)
+
+
+def validate_account_context(account_user: str, account_home: str) -> tuple[int, int]:
+    try:
+        account = pwd.getpwnam(account_user)
+    except KeyError as exc:
+        raise RuntimeError(f"account is unavailable: {account_user}") from exc
+
+    if os.geteuid() not in {0, account.pw_uid}:
+        raise RuntimeError("must run as the target user or root")
+    normalized_home = os.path.normpath(account_home)
+    if (
+        not os.path.isabs(account_home)
+        or normalized_home != account_home
+        or normalized_home == "/"
+        or account.pw_dir != account_home
+    ):
+        raise RuntimeError(f"account home does not match passwd: {account_home}")
+
+    metadata = os.lstat(account_home)
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
+        raise RuntimeError(f"account home is not a directory: {account_home}")
+    if metadata.st_uid != account.pw_uid:
+        raise RuntimeError(f"account home owner does not match passwd: {account_home}")
+    return account.pw_uid, account.pw_gid
+
+
+def write_desktop_file(
+    path: str,
+    parser: configparser.ConfigParser,
+    uid: int,
+    gid: int,
+    validate: str | None,
+) -> bool:
+    destination_dir = os.path.dirname(path)
+    destination_name = os.path.basename(path)
+    content = "".join(
+        f"[{section}]\n" + "".join(f"{key}={value}\n" for key, value in parser[section].items()) + "\n"
+        for section in parser.sections()
+    )
+    try:
+        old_content = read_regular_text(path, {uid, 0})
+        metadata = os.lstat(path)
+        if old_content == content and stat.S_IMODE(metadata.st_mode) == MANAGED_FILE_MODE and metadata.st_uid == uid:
+            return False
+    except FileNotFoundError:
+        pass
+    file_descriptor, temporary_path = tempfile.mkstemp(
+        prefix=f".{destination_name}.",
+        suffix=".desktop",
+        dir=destination_dir,
+        text=True,
+    )
+    try:
+        with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), MANAGED_FILE_MODE)
+            if os.geteuid() == 0:
+                os.fchown(handle.fileno(), uid, gid)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        if validate:
+            result = subprocess.run(
+                [validate, temporary_path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"desktop-file-validate rejected {destination_name}")
+        os.replace(temporary_path, path)
+        directory_fd = os.open(destination_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        return True
+    finally:
+        try:
+            os.unlink(temporary_path)
+        except FileNotFoundError:
+            pass
+
+
+def remove_unmanaged_tuta_launchers(account_home: str, uid: int) -> int:
+    removed = 0
+    for directory in (
+        os.path.join(account_home, ".local", "share", "applications"),
+        os.path.join(account_home, ".config", "autostart"),
+    ):
+        try:
+            directory_metadata = os.lstat(directory)
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(directory_metadata.st_mode) or not stat.S_ISDIR(directory_metadata.st_mode):
+            continue
+
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if "tuta" not in entry.name.casefold():
+                    continue
+                try:
+                    metadata = entry.stat(follow_symlinks=False)
+                except FileNotFoundError:
+                    continue
+                if (
+                    not stat.S_ISREG(metadata.st_mode)
+                    or metadata.st_uid not in {0, uid}
+                    or metadata.st_size > MAX_DESKTOP_FILE_BYTES
+                ):
+                    continue
+
+                parser = configparser.ConfigParser(interpolation=None, strict=False)
+                parser.optionxform = str
+                try:
+                    parser.read_string(read_regular_text(entry.path, {0, uid}))
+                except (OSError, RuntimeError, configparser.Error, UnicodeError):
+                    continue
+                if not parser.has_section("Desktop Entry"):
+                    continue
+                executable = parser["Desktop Entry"].get("Exec", "").strip()
+                if executable.startswith("/opt/tuta") or "AooRun" in executable:
+                    os.unlink(entry.path)
+                    removed += 1
+    return removed
+
+
+def synchronize_bitwarden_autostart(
+    account_home: str,
+    uid: int,
+    gid: int,
+    validate: str | None,
+) -> bool:
+    autostart_path = os.path.join(
+        account_home,
+        ".config",
+        "autostart",
+        "bitwarden.desktop",
+    )
+    try:
+        metadata = os.lstat(autostart_path)
+    except FileNotFoundError:
+        return False
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid not in {0, uid}
+        or metadata.st_size > MAX_DESKTOP_FILE_BYTES
+    ):
+        raise RuntimeError(f"Bitwarden autostart entry is unsafe: {autostart_path}")
+
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    parser.optionxform = str
+    try:
+        parser.read_string(read_regular_text(autostart_path, {0, uid}))
+    except (OSError, configparser.Error, UnicodeError) as exc:
+        raise RuntimeError(
+            f"Bitwarden autostart entry is invalid: {autostart_path}: {exc}"
+        ) from exc
+    if not parser.has_section("Desktop Entry"):
+        raise RuntimeError(
+            f"Bitwarden autostart entry lacks [Desktop Entry]: {autostart_path}"
+        )
+
+    entry = parser["Desktop Entry"]
+    managed_command = managed_default_exec("bitwarden", "--autostart")
+    changed = normalize_managed_launch_metadata(entry)
+    if entry.get("Exec", "").strip() != managed_command:
+        entry["Exec"] = managed_command
+        changed = True
+    if not changed:
+        return False
+    write_desktop_file(autostart_path, parser, uid, gid, validate)
+    return True
+
+
+def managed_exec(mode: str, app_name: str, field_code: str) -> str:
+    dedicated_executable = DEDICATED_MANAGED_APPS.get(app_name)
+    if dedicated_executable is not None:
+        return f"{dedicated_executable} {mode} {field_code}"
+    executable = (
+        WAYLAND_COMPAT_MANAGED_APP
+        if app_name in WAYLAND_COMPAT_APPS
+        else "/usr/local/bin/labwc-managed-app"
+    )
+    return f"{executable} {mode} {app_name} {field_code}"
+
+
+def managed_default_exec(
+    app_name: str,
+    field_code: str,
+    default_mode: str | None = None,
+) -> str:
+    if default_mode is not None:
+        return managed_exec(default_mode, app_name, field_code)
+    if app_name in WAYLAND_COMPAT_APPS:
+        return managed_exec("auto", app_name, field_code)
+    return f"{MANAGED_APP_DEFAULT_EXEC} {app_name} {field_code}"
+
+
+def normalize_managed_launch_metadata(entry: configparser.SectionProxy) -> bool:
+    # Managed launchers must execute the rewritten wrapper command. Retaining a
+    # vendor D-Bus activation flag lets desktop launchers bypass Exec entirely,
+    # while startup notification cannot follow the wrapper's systemd/bwrap
+    # process handoff and can leave the compositor-side launch pipe unusable.
+    changed = (
+        entry.get("DBusActivatable", "").strip().lower() != "false"
+        or entry.get("StartupNotify", "").strip().lower() != "false"
+    )
+    entry["DBusActivatable"] = "false"
+    entry["StartupNotify"] = "false"
+    return changed
+
+
+def add_actions(
+    parser: configparser.ConfigParser,
+    app_name: str,
+    field_code: str,
+    enabled_actions: tuple[str, ...] = tuple(ACTION_SPECS),
+) -> None:
+    entry = parser["Desktop Entry"]
+    managed_actions = set(ACTION_SPECS)
+    actions = list(
+        dict.fromkeys(
+            item.strip()
+            for item in entry.get("Actions", "").split(";")
+            if item.strip() and item.strip() not in managed_actions
+        )
+    )
+    for action in managed_actions:
+        parser.remove_section(f"Desktop Action {action}")
+    for action in enabled_actions:
+        if action not in ACTION_SPECS:
+            raise RuntimeError(f"unknown managed desktop action: {action}")
+        if action not in actions:
+            actions.append(action)
+    if actions:
+        entry["Actions"] = ";".join(actions) + ";"
+    else:
+        entry.pop("Actions", None)
+
+    for action in enabled_actions:
+        mode, display_name = ACTION_SPECS[action]
+        section = f"Desktop Action {action}"
+        if not parser.has_section(section):
+            parser.add_section(section)
+        parser[section]["Name"] = display_name
+        parser[section]["Exec"] = managed_exec(mode, app_name, field_code)
+
+
+def find_desktop_file(desktop_names: tuple[str, ...]) -> tuple[str, str] | None:
+    for desktop_name in desktop_names:
+        source_path = os.path.join(SYSTEM_APPLICATION_DIR, desktop_name)
+        if os.path.exists(source_path):
+            return desktop_name, source_path
+    return None
+
+
+def main() -> int:
+    if len(sys.argv) not in {3, 5}:
+        print("usage: labwc-sync-application-launchers <user> <home> [--coalesce-seconds 0..60]", file=sys.stderr)
+        return 2
+
+    delay = 0
+    if len(sys.argv) == 5:
+        if sys.argv[3] != "--coalesce-seconds" or not sys.argv[4].isascii() or not sys.argv[4].isdigit() or len(sys.argv[4]) > 2:
+            return 2
+        delay = int(sys.argv[4])
+        if delay > 60:
+            return 2
+    os.umask(0o077)
+    account_user = sys.argv[1]
+    account_home = sys.argv[2]
+    try:
+        uid, gid = validate_account_context(account_user, account_home)
+        acceleration_availability = load_acceleration_availability(DEFAULTS_PATH)
+    except (OSError, RuntimeError) as exc:
+        print(f"fatal: {exc}", file=sys.stderr)
+        return 1
+
+    local_dir = os.path.join(account_home, ".local")
+    data_dir = os.path.join(local_dir, "share")
+    desktop_dir = os.path.join(account_home, ".local", "share", "applications")
+    for directory in (local_dir, data_dir, desktop_dir):
+        try:
+            ensure_user_directory(directory, uid, gid)
+        except (OSError, RuntimeError) as exc:
+            print(f"fatal: {exc}", file=sys.stderr)
+            return 1
+
+    # Keep the descriptor alive until this invocation exits; never unlink locks.
+    synchronization_lock = acquire_lock(desktop_dir, uid, gid)
+    if delay:
+        time.sleep(delay)
+    validate = shutil.which("desktop-file-validate")
+    processed = 0
+    skipped_missing = 0
+    removed_unmanaged_tuta = 0
+    synchronized_bitwarden_autostart = 0
+
+    for config in APP_CONFIG:
+        resolved_desktop = find_desktop_file(config["desktop_names"])
+        if resolved_desktop is None:
+            skipped_missing += 1
+            continue
+        desktop_name, source_path = resolved_desktop
+        destination_path = os.path.join(desktop_dir, desktop_name)
+
+        parser = configparser.ConfigParser(interpolation=None, strict=False)
+        parser.optionxform = str
+        parser.read_string(read_regular_text(source_path, {0}))
+        if not parser.has_section("Desktop Entry"):
+            print(f"warning: skipped {desktop_name}: missing [Desktop Entry]", file=sys.stderr)
+            skipped_missing += 1
+            continue
+        entry = parser["Desktop Entry"]
+        entry["Exec"] = managed_default_exec(
+            config["action_app"],
+            config["field_code"],
+            config.get("default_mode"),
+        )
+        normalize_managed_launch_metadata(entry)
+        add_actions(
+            parser,
+            config["action_app"],
+            config["field_code"],
+            available_actions(
+                config.get("actions", tuple(ACTION_SPECS)),
+                acceleration_availability,
+            ),
+        )
+        try:
+            processed += int(write_desktop_file(destination_path, parser, uid, gid, validate))
+        except (OSError, RuntimeError) as exc:
+            print(f"fatal: failed to publish {desktop_name}: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        removed_unmanaged_tuta = remove_unmanaged_tuta_launchers(account_home, uid)
+        synchronized_bitwarden_autostart = int(
+            synchronize_bitwarden_autostart(
+                account_home,
+                uid,
+                gid,
+                validate,
+            )
+        )
+    except OSError as exc:
+        print(f"fatal: failed to synchronize managed launchers: {exc}", file=sys.stderr)
+        return 1
+    except RuntimeError as exc:
+        print(f"fatal: failed to synchronize managed launchers: {exc}", file=sys.stderr)
+        return 1
+
+    print(
+        f"desktop_launcher_sync user={account_user} home={account_home} processed={processed} "
+        f"skipped_missing={skipped_missing} removed_unmanaged_tuta={removed_unmanaged_tuta} "
+        f"synchronized_bitwarden_autostart={synchronized_bitwarden_autostart}"
+    )
+    return 0
+
+
+def interrupted(signum, _frame):
+    raise SystemExit(128 + signum)
+
+
+if __name__ == "__main__":
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, interrupted)
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, configparser.Error, UnicodeError, subprocess.TimeoutExpired) as exc:
+        print(f"fatal: launcher synchronization failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)
