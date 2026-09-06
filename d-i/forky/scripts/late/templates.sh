@@ -21,7 +21,6 @@ render_target_template_placeholder_map() {
   [ -n "$zram_backing_raw_partuuid" ] || installer_fatal "unable to determine PARTUUID for zram backing device ${ZRAM_BACKING_RAW_DEVICE}"
   zram_backing_raw_device="/dev/disk/by-partuuid/${zram_backing_raw_partuuid}"
   account_username=${ACCOUNT_USERNAME:-}
-  podman_service_user=${PODMAN_SERVICE_USER:-}
 
   cat <<EOF
 DIR_RUN_SYSCTL=$DIR_RUN_SYSCTL
@@ -60,7 +59,6 @@ DIR_POOL_APTLY=$DIR_POOL_APTLY
 DIR_POLKIT_LOCAL_RULES_D=${DIR_POLKIT_LOCAL_RULES_D:-}
 DIR_POLKIT_RUNTIME_RULES_D=${DIR_POLKIT_RUNTIME_RULES_D:-}
 ACCOUNT_USERNAME=$account_username
-PODMAN_SERVICE_USER=$podman_service_user
 SYSTEM_HOSTNAME=${SYSTEM_HOSTNAME:-}
 SYSTEM_DOMAIN=${SYSTEM_DOMAIN:-}
 INSTALLER_DEBUG_LOGS=${INSTALLER_DEBUG_LOGS:-0}

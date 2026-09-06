@@ -1,0 +1,102 @@
+#!/usr/bin/python3 -I
+"""Unprivileged Podman/Docker dispatch; no sudo, shell evaluation or UID change."""
+from __future__ import annotations
+import grp
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+
+SOCKET = Path('/data/accounts/devops/run/podman.sock')
+URI = 'unix://' + str(SOCKET)
+CLIENT_CONFIG = '/etc/podman-devops/client.conf'
+SELECTORS = ('CONTAINER_CONNECTION', 'CONTAINER_SSHKEY', 'CONTAINERS_CONF_OVERRIDE',
+             'CONTAINERS_CONF_MODULES', 'CONTAINERS_STORAGE_CONF', 'STORAGE_DRIVER',
+             'STORAGE_OPTS', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH')
+
+
+def environment(source: dict[str, str]) -> dict[str, str]:
+    env = {key: value for key, value in source.items() if key not in SELECTORS}
+    env.update(CONTAINER_HOST=URI, DOCKER_HOST=URI, CONTAINERS_CONF=CLIENT_CONFIG,
+               PODMAN_COMPOSE_PROVIDER='/usr/local/bin/docker-compose',
+               DOCKER_BUILDKIT='0', COMPOSE_BAKE='false')
+    # Registry credentials remain client-owned. Never borrow devops HOME/XDG/bus.
+    home = env.get('HOME', '')
+    if home.startswith('/'):
+        env.setdefault('DOCKER_CONFIG', str(Path(env.get('XDG_CONFIG_HOME') or home + '/.config') / 'docker'))
+        env.setdefault('REGISTRY_AUTH_FILE', str(Path(env.get('XDG_CONFIG_HOME') or home + '/.config') / 'containers/auth.json'))
+    return env
+
+
+def command(tool: str, arguments: list[str]) -> list[str]:
+    if tool not in ('podman', 'docker', 'docker-compose'):
+        raise ValueError('supported clients: podman, docker, docker-compose')
+    # Catch common accidental endpoint overrides. Deliberate different engines
+    # use /usr/bin/podman or /usr/bin/docker explicitly, not this managed entry.
+    value_options = ({'--config', '--identity', '--log-level', '--cdi-spec-dir',
+                      '--cgroup-manager', '--conmon', '--events-backend', '--hooks-dir',
+                      '--imagestore', '--module', '--network-config-dir', '--out',
+                      '--root', '--runroot', '--runtime', '--runtime-flag', '--ssh',
+                      '--storage-driver', '--storage-opt', '--tls-ca', '--tls-cert',
+                      '--tls-details', '--tls-key', '--tmpdir', '--volumepath'}
+                     if tool == 'podman' else
+                     {'--config', '--log-level', '-l', '--tlscacert', '--tlscert',
+                      '--tlskey', '--file', '-f', '--project-name', '-p',
+                      '--project-directory', '--env-file', '--profile', '--parallel',
+                      '--ansi', '--progress'})
+    denied = ({'--url', '--connection', '--remote', '-c', '-r'} if tool == 'podman'
+              else {'--host', '--context', '-H', '-c'})
+    index = 0
+    while index < len(arguments):
+        arg = arguments[index]
+        if arg == '--' or not arg.startswith('-'):
+            break
+        option = arg.split('=', 1)[0]
+        short_endpoint = (arg.startswith('-c') and not arg.startswith('--')) or (
+            tool != 'podman' and arg.startswith('-H'))
+        if option in denied or short_endpoint:
+            raise ValueError('endpoint overrides are not accepted by the managed client')
+        # A separate value is not the subcommand. Continue checking later global
+        # options, e.g. --log-level debug --url=... . Never scan container argv.
+        if option in value_options and '=' not in arg:
+            if index + 1 >= len(arguments):
+                raise ValueError(f'{option} requires a value')
+            index += 1
+        index += 1
+    if tool == 'podman':
+        return ['/usr/bin/podman', '--remote', '--url=' + URI, *arguments]
+    if tool == 'docker':
+        return ['/usr/bin/docker', '--host=' + URI, *arguments]
+    return ['/usr/bin/docker-compose', *arguments]
+
+
+def validate_access() -> None:
+    if os.geteuid() == 0:
+        raise ValueError('run as the desktop account without sudo; rootful access is deliberately not a fallback')
+    user, group = pwd.getpwnam('devops'), grp.getgrnam('devops')
+    if group.gr_gid not in {*os.getgroups(), os.getegid()}:
+        raise ValueError('current session lacks group devops; log out and log back in after provisioning')
+    for path in [SOCKET, *SOCKET.parents]:
+        if path.is_symlink():
+            raise ValueError(f'indirect socket path rejected: {path}')
+    meta = SOCKET.stat()
+    if not stat.S_ISSOCK(meta.st_mode) or (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (user.pw_uid, group.gr_gid, 0o660):
+        raise ValueError('the devops socket has unsafe ownership/type/permissions')
+
+
+def main(arguments: list[str]) -> int:
+    if not arguments:
+        raise ValueError('a client name is required')
+    argv = command(arguments[0], arguments[1:])
+    validate_access()
+    os.execve(argv[0], argv, environment(dict(os.environ)))
+    return 127
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, KeyError) as exc:
+        print(f'container client: {exc}\nInspect: systemctl status podman-devops-bootstrap.service', file=sys.stderr)
+        sys.exit(125)

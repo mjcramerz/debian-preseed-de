@@ -1,0 +1,8 @@
+.................................podman-devops: user-manager preflight verified
+.......incus-host-managed: install-time storage prepared; no Incus daemon activation
+....incus-host-managed: static configuration verified; no daemon calls or filesystem changes
+.................................
+----------------------------------------------------------------------
+Ran 77 tests in 0.135s
+
+OK

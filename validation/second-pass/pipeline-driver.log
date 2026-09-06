@@ -1,0 +1,11 @@
+[browser-check] running; log: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/preseed-check.log
+[preseed-check] PASS (0)
+[tests] running; log: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/tests.log
+[tests] FAIL (1)
+[audit] running; log: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/second-pass/debian-preseed-de/validation/second-pass/pipeline/summary.json

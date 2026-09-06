@@ -30,6 +30,7 @@ IgnoreRhosts yes
 GSSAPIAuthentication no
 UsePAM yes
 
+DenyUsers devops
 AllowUsers __INSTALLER_ACCOUNT_USERNAME__
 
 PermitUserEnvironment no

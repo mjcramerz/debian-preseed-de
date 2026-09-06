@@ -149,7 +149,7 @@ export PATH
 for package_name in \
   qemu-system-x86 qemu-system-modules-opengl qemu-utils qemu-block-extra \
   ovmf swtpm swtpm-tools virtiofsd passt incus incus-client \
-  incus-ui-canonical uidmap libosinfo-bin genisoimage
+  incus-ui-canonical uidmap libosinfo-bin genisoimage python3
 do
   package_status=$(dpkg-query -W -f="\${db:Status-Abbrev}" "$package_name" 2>/dev/null || true)
   [ "$package_status" = "ii " ] || {

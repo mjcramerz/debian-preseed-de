@@ -49,33 +49,45 @@ symlink escapes are rejected. The snapshot is regular-file-only. Full initial
 URL schemes and absolute local filenames are required by this repository;
 installer shorthand such as a bare hostname is not its source contract.
 
-## External vendor artifacts and CUDA authentication
+## External vendor artifacts and the CUDA-legacy trust exception
 
-External HTTPS data and pinned repository members are separate APIs. A missing
-validated payload member still fails closed; it cannot silently fetch from a
-moving repository. NVIDIA's public key is fetched through the external-data API,
-which does not inherit the repository's optional TLS verification bypass.
+External HTTPS data and checksum-pinned repository members are separate APIs.
+A missing validated payload member still fails closed; it cannot silently fetch
+from a moving repository. External-data fetches do not inherit the optional
+repository transport TLS bypass. These APIs remain unchanged in this pass.
 
-The temporary CUDA Debian 12 repository uses `Signed-By` with a dedicated keyring
-and the full fingerprint `EB693B3035CD5710E231E123A4B469963BF863CC`. It no longer
-uses `trusted=yes`, `allow-insecure=yes` or `allow-weak=yes`. ASCII-armored public
-key boundary/size checks are diagnostics, not cryptographic authentication; APT's
-signature and full-fingerprint verification supply authentication.
+Explicit `addon/cuda-legacy` selection authorizes a different policy for exactly
+`https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/`, suite
+`/`, architecture `amd64`. Its temporary source has `trusted=yes`,
+`allow-insecure=yes`, `allow-weak=yes`, `allow-downgrade-to-insecure=yes`,
+`check-valid-until=no` and `check-date=no`. It has no Signed-By restriction, key
+fetch, default-policy probe or Sequoia policy-file prerequisite. The legacy
+strict-first/fingerprint/self-certification fallback and its deadline are removed.
+APT may emit a verification warning, but repository authentication is not a
+prerequisite for accepting that source or downloading its packages unattended.
 
-Modern APT can reject this legacy key's SHA-1 self-certification. The installer
-first attempts an ordinary strict update. Only a diagnostic naming this exact
-fingerprint, SHA1 and the certificate binding/PositiveCertification failure can
-trigger a second, single-source update with a temporary Sequoia policy. That
-policy extends second-preimage acceptance only until **2027-02-01** and still
-rejects SHA-1 data/Release signatures. It preserves the other baseline rules.
-An unrecognized baseline or another failure does not trigger a broad retry.
+**This removes archive authentication and metadata freshness protection for that
+source.** Missing, weak or rejected signatures are intentionally tolerated.
+HTTPS certificate validation and available package checksums are still enabled,
+and missing indexes, transport failures and corrupt package bytes still fail.
+Checksums from unauthenticated metadata are not proof of publisher identity;
+HTTPS alone is not equivalent to signed archive verification. A compromised
+origin or trusted TLS interception can supply executable packages to the target.
+This is the operator-requested compatibility tradeoff, not a secure SHA-1 upgrade.
 
-This is an explicit, bounded cryptographic compatibility tradeoff, not a claim
-that SHA-1 is generally safe. Prefer a corrected upstream certificate as soon as
-available; do not extend the deadline without review. Neither the system policy
-nor general Debian updates inherit the exception. TLS errors, wrong signing keys,
-modified metadata and expired signatures still fail. The temporary source is
-hidden during general updates and removed after legacy CUDA repair.
+The exception is in one source entry, not system-wide APT options or Sequoia
+policy. The source renderer rejects other origins/suites/components. The hook
+stages it only when the class is selected; explicit selection does not require
+NVIDIA hardware detection. Updates for this source are isolated from other
+sources. General late-command updates temporarily hide it while retaining its
+cached package indexes. The source and obsolete dedicated key are removed after
+package repair; finish-install also removes legacy source remnants before source
+modernization. No permanent insecure NVIDIA source is installed by this change.
+An administrator intentionally re-enabling it later must review the same risk.
+
+See `docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md` and the real-APT regression fixtures
+for scope, behavior and limitations. Ordinary signed sources still reject the
+wrong key; an ordinary unsigned source fails even alongside the trusted fixture.
 
 ## Credentials and personalized browser data
 
@@ -126,8 +138,9 @@ passwords, private keys, tokens or production network secrets to a public repo.
 Perl syntax checking can execute BEGIN blocks. Run the test/audit tools only on
 trusted code in a disposable Linux environment. The included audits report
 missing Perl dependencies and unrendered templates separately; neither is a
-passing runtime test. Systemd checks are structural, not `systemd-analyze verify`
-on a booted target.
+passing runtime test. The general audit performs structural systemd checks; seven rendered container
+units additionally pass isolated `systemd-analyze verify` with dependency fixtures.
+Neither check activates services or proves installed-target startup.
 
 Upstream references consulted (2026-09-06):
 - Debian installer, Using preseeding:
@@ -140,10 +153,10 @@ Upstream references consulted (2026-09-06):
   https://www.gnu.org/software/wget/manual/html_node/HTTPS-_0028SSL_002fTLS_0029-Options.html
 
 Additional primary implementation references (consulted 2026-09-06):
-- NVIDIA key identity: https://packages.nvidia.com/keys/
-- Legacy certificate issue: https://github.com/NVIDIA/cuda-repo-management/issues/34
-- APT verifier: https://raw.githubusercontent.com/Debian/apt/main/methods/sqv.cc
-- Sequoia crypto policy: https://docs.rs/sequoia-policy-config/latest/index.html
+- APT source-local security options: https://manpages.debian.org/testing/apt/sources.list.5.en.html
+- APT archive authentication: https://manpages.debian.org/testing/apt/apt-secure.8.en.html
+- APT insecure acquisition implementation: https://raw.githubusercontent.com/Debian/apt/main/apt-pkg/acquire-item.cc
+- systemd filesystem restrictions and AF_UNIX: https://manpages.debian.org/testing/systemd/systemd.exec.5.en.html
 - Chrome debug-profile boundary: https://developer.chrome.com/blog/remote-debugging-port
 - uBOL managed settings: https://github.com/uBlockOrigin/uBOL-home/wiki/Managed-settings
 - Privacy Badger managed schema: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/data/schema.json

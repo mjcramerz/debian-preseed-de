@@ -7,5 +7,6 @@ and class set. If a helper is not installed, its guide is not copied here.
 Current guide names:
 
 - `nft-policy-generate.md`
-- `podbin.md`
+- `podman-devops.md`
+- `podbin.md` (legacy interface notice)
 - `podbin-service-bridge.md`

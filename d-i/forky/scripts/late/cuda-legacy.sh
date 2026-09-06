@@ -14,8 +14,7 @@ cuda_legacy_target_source_path() {
 }
 
 cuda_legacy_target_apt_required() {
-  installer_cuda_legacy_selected || return 1
-  installer_nvidia_gpu_detected
+  installer_cuda_legacy_selected
 }
 
 cuda_legacy_fetch_fragment() {
@@ -37,10 +36,6 @@ cuda_legacy_fragment_field_value() {
 
 cuda_legacy_repository_value() {
   cuda_legacy_fragment_field_value repository
-}
-
-cuda_legacy_key_url() {
-  cuda_legacy_fragment_field_value key
 }
 
 cuda_legacy_repository_url() {
@@ -69,52 +64,25 @@ cuda_legacy_repository_components() {
   printf '%s\n' "$*"
 }
 
-cuda_legacy_fetch_remote_url() {
-  installer_fetch_cuda_key "$1" "$2" "$3"
-}
-
 cuda_legacy_target_repo_line() {
-  repo_url=$(cuda_legacy_repository_url)
-  repo_suite=$(cuda_legacy_repository_suite)
-  repo_components=$(cuda_legacy_repository_components)
-  keyring_path=$(cuda_legacy_target_keyring_path)
-
-  installer_cuda_source_line "$keyring_path" "$repo_url" "$repo_suite" "$repo_components"
+  installer_cuda_source_line \
+    "$(cuda_legacy_repository_url)" "$(cuda_legacy_repository_suite)" "$(cuda_legacy_repository_components)"
 }
 
 cuda_legacy_target_repo_present() {
-  repo_url=$1
-  source_path="/target$(cuda_legacy_target_source_path)"
-
+  source_path="${INSTALLER_TARGET_DIR:-/target}$(cuda_legacy_target_source_path)"
   [ -r "$source_path" ] || return 1
-  grep -F -q "$repo_url" "$source_path"
-}
-
-cuda_legacy_stage_target_keyring() {
-  key_url=$(cuda_legacy_key_url)
-  key_cache_path="${TMP_ENV_DIR:-/tmp/install-env-late}/cuda-legacy-archive-key.asc"
-  target_keyring_path="/target$(cuda_legacy_target_keyring_path)"
-
-  cuda_legacy_fetch_remote_url "$key_url" "$key_cache_path" 0644
-  install -d -m 0755 "$(dirname "$target_keyring_path")"
-  installer_copy_path_with_mode "$key_cache_path" "$target_keyring_path" 0644 "cuda-legacy apt keyring"
+  grep -F -x -q "$(cuda_legacy_target_repo_line)" "$source_path"
 }
 
 cuda_legacy_stage_target_repo_source() {
-  repo_line=$(cuda_legacy_target_repo_line)
-  repo_cache_path="${TMP_ENV_DIR:-/tmp/install-env-late}/cuda-legacy-temp.list"
-  target_source_path="/target$(cuda_legacy_target_source_path)"
-
-  install -d -m 0755 "$(dirname "$target_source_path")"
-  printf '%s\n' "$repo_line" >"$repo_cache_path"
-  chmod 0644 "$repo_cache_path"
-  installer_copy_path_with_mode "$repo_cache_path" "$target_source_path" 0644 "cuda-legacy apt source"
+  installer_cuda_stage_target_source \
+    "$(cuda_legacy_repository_url)" "$(cuda_legacy_repository_suite)" "$(cuda_legacy_repository_components)"
 }
 
 cuda_legacy_prepare_target_apt_state() {
   repo_url=$(cuda_legacy_repository_url)
 
-  cuda_legacy_stage_target_keyring
   cuda_legacy_stage_target_repo_source
   cuda_legacy_target_repo_present "$repo_url" ||
     installer_fatal "cuda-legacy failed to stage ${repo_url} in the target before pkgsel/include repair"
@@ -123,8 +91,8 @@ cuda_legacy_prepare_target_apt_state() {
 }
 
 cuda_legacy_cleanup_target_apt_state() {
-  target_source_path="/target$(cuda_legacy_target_source_path)"
-  target_keyring_path="/target$(cuda_legacy_target_keyring_path)"
+  target_source_path="${INSTALLER_TARGET_DIR:-/target}$(cuda_legacy_target_source_path)"
+  target_keyring_path="${INSTALLER_TARGET_DIR:-/target}$(cuda_legacy_target_keyring_path)"
 
   rm -f "$target_source_path" "$target_keyring_path"
   installer_info "removed legacy CUDA target APT source and keyring after pkgsel/include repair"

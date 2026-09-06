@@ -1,0 +1,186 @@
+{
+  "revision": "CUDA-legacy and Podman/Incus second pass, 2026-09-06",
+  "pipeline": {
+    "repository": "debian-preseed-de",
+    "utc": "2026-09-06T17:32:59.331997+00:00",
+    "stages": [
+      {
+        "stage": "browser-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 0.718,
+        "log": "browser-check.log"
+      },
+      {
+        "stage": "build-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 2.392,
+        "log": "build-check.log"
+      },
+      {
+        "stage": "preseed-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 0.668,
+        "log": "preseed-check.log"
+      },
+      {
+        "stage": "tests",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 57.172,
+        "log": "tests.log",
+        "tests_run": 401,
+        "skipped": 0
+      },
+      {
+        "stage": "audit",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 1.633,
+        "log": "audit.log"
+      }
+    ],
+    "success": true,
+    "audit_check_counts": {
+      "blocked-dependency": 154,
+      "inventory-only": 475,
+      "pass": 404,
+      "structure-pass": 113,
+      "template-needs-render": 2
+    },
+    "runtime_product_sha256": {
+      "preseed.cfg": "79cc85cb6145569eee3b22431ad52f5bb784980f93422a15e718ff7324b7f11c",
+      "payload.manifest": "db636cf35c0a676db1e319a953a16c50e82ccdc3e4ea6bd178e72910f51f206f",
+      "payload.tar.gz": "a36ed550452375ca29f5521779083ed4fd5d8c32f38a31a944916936bff11aaa"
+    },
+    "limits": [
+      "Offline/loopback checks, not a booted Debian installer.",
+      "Systemd unit checks are lexical structure only.",
+      "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+      "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+      "Browser export coverage is static, not live site testing or GUI import acceptance."
+    ]
+  },
+  "focused_checks": {
+    "cuda": {
+      "tests": 28,
+      "lifecycle_and_hooks": 16,
+      "real_apt": 12,
+      "pass": true
+    },
+    "podman_incus": {
+      "tests": 81,
+      "pass": true
+    },
+    "security_regressions": {
+      "tests": 26,
+      "pass": true
+    },
+    "rendered_systemd_units": {
+      "count": 7,
+      "verify_pass": true,
+      "activated": false
+    }
+  },
+  "environment": {
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "apt": "3.0.3",
+    "sqv": "1.3.0",
+    "sequoia_openpgp": "2.0.0",
+    "other_apt_versions_tested": false
+  },
+  "preservation": {
+    "cuda_packages_unchanged": true,
+    "cuda_package_count": 68,
+    "original_hardware_profiles": [
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+        "identical": false,
+        "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+        "identical": false,
+        "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+        "identical": false,
+        "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+        "identical": false,
+        "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+        "identical": false,
+        "sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+        "identical": false,
+        "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+        "identical": false,
+        "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+        "identical": false,
+        "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+        "identical": false,
+        "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+        "identical": false,
+        "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+        "identical": false,
+        "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+        "identical": false,
+        "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+        "identical_to_first_pass_input": true
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+        "identical": false,
+        "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+        "identical_to_first_pass_input": true
+      }
+    ],
+    "note": "ZIP comparisons are historical: some profiles were already changed before this second pass. All 13 profiles are unchanged relative to this pass input, the first Podman/Incus archive."
+  },
+  "additional_limits": [
+    "All focused tests are included in, not added to, the full suite count.",
+    "No live NVIDIA package availability or dependency solve was tested.",
+    "Real APT fixtures download inert packages only; none are installed.",
+    "No booted installer, container execution, Incus activation, or reboot acceptance was performed.",
+    "APT source authentication and metadata freshness are deliberately disabled for selected CUDA-legacy only."
+  ]
+}

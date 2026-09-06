@@ -7819,91 +7819,117 @@
       "destination": "d-i/forky/hosts/profiles/btrfs-desktop.env",
       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
       "destination": "d-i/forky/hosts/profiles/f2fs-desktop.env",
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de-main.env",
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de.env",
       "destination": "d-i/forky/hosts/profiles/btrfs-de.env",
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
       "destination": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
       "destination": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
       "destination": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
       "destination": "d-i/forky/hosts/profiles/f2fs-de.env",
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
       "destination": "d-i/forky/hosts/profiles/vm-desktop.env",
       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/shared/account.env",

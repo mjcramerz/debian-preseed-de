@@ -71,14 +71,15 @@ class ConfigSafetyTests(unittest.TestCase):
         self.assertIn('ProtectSystem=strict', text)
         self.assertIn('TimeoutStartSec=2min', text)
 
-    def test_podman_api_vendor_container_lifecycle_is_not_overridden(self):
-        base = SHARED / 'data/config/podman/templates/rootless/systemd/user'
-        api = (base / 'podman.service.d/10-podman-service-managed.conf').read_text()
-        self.assertNotIn('KillMode=', api)
-        self.assertIn('Delegate=true', api)
-        self.assertIn('SocketMode=0600', (base / 'podman.socket.d/10-podman-socket-managed.conf').read_text())
-        for name in ('buildah-env.service.tmpl', 'podman-api-env.service.tmpl'):
-            self.assertIn('TimeoutStartSec=15s', (base / name).read_text())
+    def test_podman_api_preserves_container_lifecycle_and_rootless_helpers(self):
+        base = SHARED / 'data/config/podman/templates/devops'
+        api = (base / 'podman.service.tmpl').read_text()
+        self.assertIn('KillMode=process', api)
+        self.assertIn('Delegate=yes', api)
+        self.assertNotIn('NoNewPrivileges=yes', api)
+        self.assertIn('SocketMode=0660', (base / 'podman.socket').read_text())
+        self.assertIn('RemoveOnStop=yes', (base / 'podman.socket').read_text())
+        self.assertIn('TimeoutStopSec=30', api)
 
     def test_syncthing_preparation_never_runs_with_root_credentials(self):
         unit = (SHARED / 'etc/systemd/system/managed-syncthing.service.tmpl').read_text()

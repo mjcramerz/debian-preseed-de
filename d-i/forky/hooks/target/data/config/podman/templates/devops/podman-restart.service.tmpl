@@ -1,0 +1,30 @@
+[Unit]
+Description=Restore devops containers with a persistent restart policy
+Documentation=man:podman-start(1)
+After=podman.socket
+Wants=podman.socket
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=HOME=/data/accounts/devops
+Environment=XDG_RUNTIME_DIR=/run/user/@UID@
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@UID@/bus
+Environment=CONTAINERS_CONF=/data/accounts/devops/.config/containers/containers.conf
+Environment=CONTAINERS_STORAGE_CONF=/data/accounts/devops/.config/containers/storage.conf
+Environment=TMPDIR=/pool/podman/tmp
+UnsetEnvironment=CONTAINER_HOST CONTAINER_CONNECTION DOCKER_HOST CONTAINERS_CONF_OVERRIDE
+ExecStartPre=/usr/bin/install -d -m 0700 /run/user/@UID@/containers /run/user/@UID@/libpod/tmp
+ExecStart=/usr/bin/podman start --all --filter should-start-on-boot=true
+ExecStop=/usr/bin/podman stop --service --all --ignore --time 20
+Delegate=yes
+KillMode=process
+TimeoutStartSec=180
+TimeoutStopSec=90
+Restart=on-failure
+RestartSec=30
+UMask=0077
+
+[Install]
+WantedBy=default.target

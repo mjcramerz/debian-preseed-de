@@ -1,0 +1,85 @@
+{
+  "cuda_packages_unchanged": true,
+  "cuda_package_count": 68,
+  "original_hardware_profiles": [
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "identical": false,
+      "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "identical": false,
+      "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "identical": false,
+      "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "identical": false,
+      "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "identical": false,
+      "sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "identical": false,
+      "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "identical": false,
+      "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "identical": false,
+      "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "identical": false,
+      "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "identical": false,
+      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "identical": false,
+      "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "identical": false,
+      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "identical_to_first_pass_input": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "identical": false,
+      "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+      "identical_to_first_pass_input": true
+    }
+  ],
+  "note": "ZIP comparisons are historical: some profiles were already changed before this second pass. All 13 profiles are unchanged relative to this pass input, the first Podman/Incus archive."
+}

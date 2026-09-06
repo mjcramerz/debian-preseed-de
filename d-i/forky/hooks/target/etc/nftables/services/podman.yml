@@ -2,12 +2,12 @@ apiVersion: cybops.nftables/v1
 kind: NftablesServiceOverlay
 metadata:
   name: podman
-  description: Podman container networking overlay.
+  description: Rootless Podman uses pasta; no host bridge forwarding exception.
   merge_priority: 50
 containers:
   podman:
-    enabled: true
+    # Netavark bridges live inside the rootless namespace, not on the host.
+    # Published ports remain subject to the normal host firewall policy.
+    enabled: false
     allow_container_outbound: false
-    interfaces:
-    - podman0
-    - cni-podman0
+    interfaces: []

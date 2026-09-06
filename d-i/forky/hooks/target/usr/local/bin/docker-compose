@@ -1,0 +1,3 @@
+#!/bin/sh
+# Managed rootless client; never a sudo or login-account bridge.
+exec /usr/local/libexec/podman-devops-client docker-compose "$@"

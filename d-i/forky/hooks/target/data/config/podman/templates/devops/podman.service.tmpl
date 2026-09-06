@@ -1,0 +1,38 @@
+[Unit]
+Description=Devops rootless Podman API (Unix socket only)
+Documentation=man:podman-system-service(1)
+Requires=podman.socket
+After=podman.socket
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+[Service]
+Type=exec
+Environment=HOME=/data/accounts/devops
+Environment=XDG_CONFIG_HOME=/data/accounts/devops/.config
+Environment=XDG_DATA_HOME=/data/accounts/devops/.local/share
+Environment=XDG_CACHE_HOME=/data/accounts/devops/.cache
+Environment=XDG_RUNTIME_DIR=/run/user/@UID@
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/@UID@/bus
+Environment=CONTAINERS_CONF=/data/accounts/devops/.config/containers/containers.conf
+Environment=CONTAINERS_STORAGE_CONF=/data/accounts/devops/.config/containers/storage.conf
+Environment=TMPDIR=/pool/podman/tmp
+UnsetEnvironment=CONTAINER_HOST CONTAINER_CONNECTION CONTAINER_SSHKEY DOCKER_HOST DOCKER_CONTEXT CONTAINERS_CONF_OVERRIDE
+WorkingDirectory=/pool/podman/workspace
+ExecStartPre=/usr/bin/install -d -m 0700 /run/user/@UID@/containers /run/user/@UID@/libpod/tmp
+ExecStart=/usr/bin/podman --log-level=info system service --time=0
+Delegate=yes
+# Deliberately preserve running containers when the API process is restarted.
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStartSec=90
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=3
+UMask=0077
+LimitNOFILE=65536
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=podman-devops
+# Do NOT set NoNewPrivileges, PrivateUsers, or a capability bounding set here:
+# rootless newuidmap/newgidmap must retain their distribution privilege helpers.

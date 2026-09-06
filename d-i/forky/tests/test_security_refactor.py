@@ -2,7 +2,7 @@
 """Regression coverage for the 2026-09-06 installer/browser security repair.
 
 All network fixtures use loopback; no real vendor or bookmarked site is visited.
-Crypto checks generate disposable keys and invoke actual GnuPG and Sequoia.
+CUDA lifecycle/real-APT checks are in test_cuda_legacy_apt.py.
 """
 from __future__ import annotations
 import argparse
@@ -27,9 +27,6 @@ TARGET = SEED / 'hooks/target'
 LIB = SEED / 'scripts/common/lib.sh'
 SOURCE = SEED / 'scripts/common/source.sh'
 EXPORT = TARGET / 'usr/local/share/browser-imports'
-FP = 'EB693B3035CD5710E231E123A4B469963BF863CC'
-REPO = 'https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/'
-KEYRING = '/etc/apt/keyrings/cuda-legacy-archive-key.asc'
 
 
 def module(name, file):
@@ -106,167 +103,6 @@ class ExternalVendorTransportTests(TransportFixture):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(dst.read_text(), 'do not replace')
         self.assertFalse(list(self.root.glob('out.external.*')))
-
-
-class CudaLifecycleTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='cuda-regression-')
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
-        self.env = {'INSTALLER_TARGET_DIR':str(self.root)}
-        (self.root/'usr/share/apt').mkdir(parents=True)
-        self.baseline = self.root/'usr/share/apt/default-sequoia.config'
-        self.baseline.write_text('[hash_algorithms]\nsha1.second_preimage_resistance = 2026-02-01\nsha224 = 2026-02-01\n')
-
-    def test_source_uses_full_fingerprint_and_no_authentication_bypass(self):
-        result = shell(f'installer_cuda_source_line {KEYRING} {REPO} /')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f'signed-by={KEYRING},{FP}', result.stdout)
-        for bad in ('trusted=yes','allow-insecure','allow-weak','http://'):
-            self.assertNotIn(bad, result.stdout)
-        for repo in (REPO.replace('https:','http:'), REPO.replace('debian12','debian13')):
-            self.assertNotEqual(shell(f'installer_cuda_source_line {KEYRING} {repo} /').returncode, 0)
-
-    def test_key_download_rejects_unknown_origin_before_fetch(self):
-        result = shell('installer_fetch_url() { exit 88; }; '
-                       f'installer_fetch_cuda_key https://example.invalid/key.asc {self.root}/key 0644')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotEqual(result.returncode, 88)
-        self.assertFalse((self.root/'key').exists())
-
-    def test_key_download_rejects_html_without_replacing_old_key(self):
-        dst = self.root/'key'; dst.write_text('existing')
-        result = shell('installer_fetch_url() { printf "<html>error</html>" >"$3"; }; '
-                       f'installer_fetch_cuda_key {REPO}3bf863cc.pub {dst} 0644')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(dst.read_text(), 'existing')
-
-    def test_compat_policy_preserves_other_rules_and_fails_unknown_baseline(self):
-        output = self.root/'compat'
-        result = shell(f'installer_cuda_compat_policy {self.baseline} {output}')
-        self.assertEqual(result.returncode, 0, result.stderr)
-        text = output.read_text()
-        self.assertIn('sha224 = 2026-02-01', text)
-        self.assertIn('sha1.collision_resistance = 1970-01-01', text)
-        self.assertIn('sha1.second_preimage_resistance = 2027-02-01', text)
-        self.baseline.write_text('[hash_algorithms]\nsha256 = "always"\n')
-        self.assertNotEqual(shell(f'installer_cuda_compat_policy {self.baseline} {output}').returncode, 0)
-        self.assertFalse(output.exists())
-
-    def refresh(self, strict_error, strict_status=1):
-        log = self.root/'calls'
-        script = f'''run_in_target() {{
-  printf '%s\\n' "$*" >>{shlex.quote(str(log))}
-  case "$1" in
-    *default*) printf '%s\\n' {shlex.quote(strict_error)}; exit {strict_status} ;;
-    *) case "$*" in *APT_SEQUOIA_CRYPTO_POLICY=*) : ;; *) exit 66;; esac ;;
-  esac
-}}
-installer_cuda_refresh_target_apt
-'''
-        return shell(script, self.env), log
-
-    def test_retry_isolated_from_run_in_target_exit_and_scoped_to_cuda(self):
-        result, log = self.refresh(f'{FP}: SHA1 rejected PositiveCertification binding signature')
-        self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-        calls = log.read_text().splitlines()
-        self.assertEqual(len(calls), 2)
-        self.assertNotIn('APT_SEQUOIA_CRYPTO_POLICY', calls[0])
-        self.assertIn('Dir::Etc::sourceparts=-', calls[1])
-        self.assertIn('Dir::Etc::sourcelist=/etc/apt/sources.list.d/cuda-legacy-temp.list', calls[1])
-        self.assertIn('Acquire::AllowInsecureRepositories=false', calls[1])
-        self.assertFalse(list((self.root/'run').glob('cuda-legacy-verify.*')))
-
-    def test_strict_success_does_not_use_exception(self):
-        result, log = self.refresh('metadata authenticated normally', 0)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(log.read_text().splitlines()), 1)
-
-    def test_tls_wrong_key_expiry_and_tampering_do_not_trigger_exception(self):
-        for reason in ('TLS certificate rejected', FP+': bad signature',
-                       'WRONGKEY SHA1 PositiveCertification', FP+': key expired'):
-            with self.subTest(reason=reason):
-                (self.root/'calls').unlink(missing_ok=True)
-                result, log = self.refresh(reason)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertEqual(len(log.read_text().splitlines()), 1)
-                self.assertFalse(list((self.root/'run').glob('cuda-legacy-verify.*')))
-
-    def test_general_refresh_restores_cuda_source_on_success_and_exit(self):
-        source = self.root/'etc/apt/sources.list.d/cuda-legacy-temp.list'
-        source.parent.mkdir(parents=True)
-        source.write_text('reviewed CUDA source\n')
-        for status in (0, 7):
-            result = shell(f'''. {shlex.quote(str(SEED/'scripts/late/storage-maintenance.sh'))}
-run_in_target() {{
-  [ ! -e {shlex.quote(str(source))} ] || exit 81
-  [ -f {shlex.quote(str(source))}.installer-disabled ] || exit 82
-  exit {status}
-}}
-refresh_non_cuda_target_metadata apt-get update
-''', self.env)
-            self.assertEqual(result.returncode, status, result.stderr)
-            self.assertEqual(source.read_text(), 'reviewed CUDA source\n')
-            self.assertFalse(Path(str(source)+'.installer-disabled').exists())
-
-
-class RealSignatureTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        if not shutil.which('gpg') or not shutil.which('sqv'):
-            raise unittest.SkipTest('GnuPG and Sequoia sqv are required for actual cryptographic verification')
-        if '--policy-as-of' not in subprocess.run(['sqv','--help'],capture_output=True,text=True).stdout:
-            raise unittest.SkipTest('sqv version lacks deterministic policy-date testing')
-        cls.temp = tempfile.TemporaryDirectory(prefix='cuda-crypto-')
-        cls.addClassCleanup(cls.temp.cleanup)
-        cls.root = Path(cls.temp.name); cls.root.chmod(0o700)
-        cls.gpg = ['gpg','--homedir',str(cls.root),'--batch','--yes',
-                   '--pinentry-mode','loopback','--passphrase','']
-        subprocess.run(cls.gpg+['--faked-system-time','1740000000','--cert-digest-algo','SHA1',
-                       '--quick-generate-key','Offline fixture <nobody@example.invalid>','rsa3072','sign','0'],
-                       check=True, capture_output=True, timeout=30)
-        cls.addClassCleanup(subprocess.run, ['gpgconf','--homedir',str(cls.root),'--kill','gpg-agent'],
-                            capture_output=True, timeout=10)
-        cls.release = cls.root/'Release'; cls.release.write_text('Origin: Offline fixture\nSuite: test\n')
-        for digest in ('SHA256','SHA1'):
-            subprocess.run(cls.gpg+['--digest-algo',digest,'--detach-sign','-o',
-                           str(cls.root/digest),str(cls.release)], check=True,
-                           capture_output=True, timeout=15)
-        key = subprocess.run(cls.gpg+['--armor','--export'],check=True,capture_output=True).stdout
-        (cls.root/'key.asc').write_bytes(key)
-        cls.baseline = cls.root/'strict.config'
-        cls.baseline.write_text('[hash_algorithms]\nsha1.second_preimage_resistance = 2026-02-01\n')
-        cls.compat = cls.root/'compat.config'
-        result = shell(f'installer_cuda_compat_policy {cls.baseline} {cls.compat}')
-        if result.returncode:
-            raise RuntimeError(result.stderr)
-
-    def verify(self, digest='SHA256', compat=True, data=None, date='2026-09-06'):
-        return subprocess.run(['sqv','--policy-as-of',date,'--keyring',str(self.root/'key.asc'),
-                               '--signature-file',str(self.root/digest),str(data or self.release)],
-                              env={**os.environ,'SEQUOIA_CRYPTO_POLICY':str(self.compat if compat else self.baseline)},
-                              capture_output=True,text=True,timeout=10)
-
-    def test_actual_sha1_certificate_rejected_by_strict_policy(self):
-        result = self.verify(compat=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('SHA1', result.stderr)
-
-    def test_sha256_release_with_legacy_certificate_authenticates(self):
-        result = self.verify()
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_sha1_release_data_signature_still_rejected(self):
-        result = self.verify('SHA1')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('SHA1', result.stderr)
-
-    def test_modified_release_rejected(self):
-        tampered = self.root/'tampered'; tampered.write_text('Origin: Attacker\nSuite: test\n')
-        self.assertNotEqual(self.verify(data=tampered).returncode, 0)
-
-    def test_certificate_exception_expires(self):
-        self.assertNotEqual(self.verify(date='2027-02-02').returncode, 0)
 
 
 class BrowserConfigurationTests(unittest.TestCase):
@@ -496,8 +332,8 @@ class AdditionalProductionRegressions(unittest.TestCase):
     @unittest.skipUnless(os.geteuid()==0 and shutil.which('apt-get') and shutil.which('gpg') and shutil.which('sqv'),
                          'isolated APT/Sequoia integration fixture requires root and apt/gpg/sqv')
     def test_actual_apt_signed_by_full_fingerprint_and_strong_signature(self):
-        # RealSignatureTests owns the temporary key; create a separate fixture
-        # here rather than relying on unittest class execution order.
+        # Ordinary repositories must retain signature and fingerprint checks.
+        # CUDA's explicit trust exception must not alter their verifier policy.
         import hashlib
         import email.utils
         import datetime
@@ -505,7 +341,7 @@ class AdditionalProductionRegressions(unittest.TestCase):
             root = Path(tmp); root.chmod(0o755)
             keyhome = root/'gnupg'; keyhome.mkdir(mode=0o700)
             gpg = ['gpg','--homedir',str(keyhome),'--batch','--yes','--pinentry-mode','loopback','--passphrase','']
-            subprocess.run(gpg+['--faked-system-time','1740000000','--cert-digest-algo','SHA1',
+            subprocess.run(gpg+['--faked-system-time','1740000000','--cert-digest-algo','SHA256',
                            '--quick-generate-key','APT fixture <test@example.invalid>','rsa3072','sign','0'],
                            check=True,capture_output=True,timeout=30)
             try:
@@ -523,25 +359,23 @@ class AdditionalProductionRegressions(unittest.TestCase):
                 source.write_text(f'deb [arch=amd64 signed-by={key},{fingerprint}] file:{repo} /\n')
                 (root/'lists/partial').mkdir(parents=True)
                 (root/'cache/archives/partial').mkdir(parents=True)
-                strict = root/'strict'; strict.write_text('[hash_algorithms]\nsha1.second_preimage_resistance = 1970-01-01\n')
-                compat = root/'compat'
-                self.assertEqual(shell(f'installer_cuda_compat_policy {strict} {compat}').returncode,0)
-                command = ['apt-get','-o','Dir::Etc::sourcelist='+str(source),'-o','Dir::Etc::sourceparts=-',
+                config = root/'apt.conf'; config.write_text('')
+                command = ['apt-get','-o','Dir::Etc::main=-','-o','Dir::Etc::parts=-',
+                           '-o','Dir::Etc::sourcelist='+str(source),'-o','Dir::Etc::sourceparts=-',
                            '-o','Dir::State::lists='+str(root/'lists'),'-o','Dir::Cache='+str(root/'cache'),
                            '-o','APT::Update::Error-Mode=any','-o','Debug::NoLocking=1',
                            '-o','APT::Get::List-Cleanup=0','-o','APT::Sandbox::User=root','update']
-                def update(policy):
-                    return subprocess.run(command,env={**os.environ,'LC_ALL':'C',
-                                          'APT_SEQUOIA_CRYPTO_POLICY':str(policy),'SEQUOIA_CRYPTO_POLICY':str(policy)},
-                                          capture_output=True,text=True,timeout=15)
-                strict_result = update(strict)
-                self.assertNotEqual(strict_result.returncode,0)
-                result = update(compat)
+                def update():
+                    env = {**os.environ, 'LC_ALL': 'C', 'APT_CONFIG': str(config)}
+                    env.pop('APT_SEQUOIA_CRYPTO_POLICY', None)
+                    env.pop('SEQUOIA_CRYPTO_POLICY', None)
+                    return subprocess.run(command, env=env, capture_output=True, text=True, timeout=15)
+                result = update()
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
                 # A valid signature made by a key not selected in Signed-By
                 # must still fail; a TLS key download is not the trust anchor.
                 source.write_text(f'deb [arch=amd64 signed-by={key},{"0"*40}] file:{repo} /\n')
-                self.assertNotEqual(update(compat).returncode,0)
+                self.assertNotEqual(update().returncode,0)
             finally:
                 subprocess.run(['gpgconf','--homedir',str(keyhome),'--kill','gpg-agent'],capture_output=True,timeout=10)
 

@@ -2,8 +2,9 @@
 # Managed by unattended-installer.
 #
 # DevOps tooling is deliberately opt-in for ordinary terminals. Sourcing this
-# fragment defines the environment and toggle functions only; it does not alter
-# PATH or export DevOps state. `devops_de_apply_environment` is the authoritative
+# fragment defines the environment and toggle functions; the optional managed
+# Podman client section at the end also exports its ordinary-shell endpoints.
+# Sourcing does not alter PATH or activate the broader DevOps toolchain. `devops_de_apply_environment` is the authoritative
 # noninteractive environment used when managed Codex CLI and ChatGPT/Codex
 # desktop-app launches do not already inherit an active DevOps shell. An active
 # shell is marked only after construction completes so Codex can preserve its
@@ -777,3 +778,65 @@ case "${DEVOPS_DE_BAZELISK_ENABLED:-}" in
 esac
 
 devops_de_enable_zsh_terminal_title
+
+# Managed Podman/Docker is available in ordinary terminals as well as the
+# opt-in DevOps shell. These are CLIENT settings, not the devops user's daemon
+# environment. Do not change HOME, USER, XDG_RUNTIME_DIR or the desktop D-Bus
+# address to impersonate the service account.
+podman_devops_apply_environment() {
+  [ -r /etc/podman-devops/client.conf ] &&
+    [ -x /usr/local/libexec/podman-devops-client ] || return 0
+
+  # Native Podman and Docker client selectors.
+  CONTAINER_HOST=unix:///data/accounts/devops/run/podman.sock
+  DOCKER_HOST=$CONTAINER_HOST
+  CONTAINERS_CONF=/etc/podman-devops/client.conf
+  PODMAN_COMPOSE_PROVIDER=/usr/local/bin/docker-compose
+  # Podman's Docker-compatible API is not a Docker BuildKit/Swarm daemon.
+  DOCKER_BUILDKIT=0
+  COMPOSE_BAKE=false
+  REGISTRY_AUTH_FILE=${REGISTRY_AUTH_FILE:-${XDG_CONFIG_HOME:-${HOME}/.config}/containers/auth.json}
+  DOCKER_CONFIG=${DOCKER_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/docker}
+  unset CONTAINER_CONNECTION CONTAINER_SSHKEY CONTAINERS_CONF_OVERRIDE \
+    CONTAINERS_CONF_MODULES CONTAINERS_STORAGE_CONF STORAGE_DRIVER STORAGE_OPTS \
+    DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+  export CONTAINER_HOST DOCKER_HOST CONTAINERS_CONF PODMAN_COMPOSE_PROVIDER \
+    DOCKER_BUILDKIT COMPOSE_BAKE REGISTRY_AUTH_FILE DOCKER_CONFIG
+
+  # Discoverable paths below are managed metadata, NOT native Podman switches.
+  PODMAN_SERVICE_USER=devops
+  PODMAN_SERVICE_HOME=/data/accounts/devops
+  PODMAN_SOCKET=/data/accounts/devops/run/podman.sock
+  PODMAN_POOL=/pool/podman
+  PODMAN_STORAGE_ROOT=/pool/podman/storage
+  PODMAN_VOLUME_ROOT=/pool/podman/volumes
+  PODMAN_NETWORK_ROOT=/pool/podman/networks
+  PODMAN_WORKSPACE=/pool/podman/workspace
+  PODMAN_SERVER_CONTAINERS_CONF=/data/accounts/devops/.config/containers/containers.conf
+  PODMAN_SERVER_STORAGE_CONF=/data/accounts/devops/.config/containers/storage.conf
+  PODMAN_SERVER_REGISTRIES_CONF=/data/accounts/devops/.config/containers/registries.conf
+  PODMAN_QUADLET_ROOT=/data/accounts/devops/.config/containers/systemd
+  export PODMAN_SERVICE_USER PODMAN_SERVICE_HOME PODMAN_SOCKET PODMAN_POOL \
+    PODMAN_STORAGE_ROOT PODMAN_VOLUME_ROOT PODMAN_NETWORK_ROOT PODMAN_WORKSPACE \
+    PODMAN_SERVER_CONTAINERS_CONF PODMAN_SERVER_STORAGE_CONF \
+    PODMAN_SERVER_REGISTRIES_CONF PODMAN_QUADLET_ROOT
+
+  # The daemon alone uses CONTAINERS_STORAGE_CONF and its private XDG runtime
+  # runroot under /run/user/<devops-uid>. Do not export that storage configuration
+  # into a desktop client or alias buildah/unshare/mount to the remote API.
+  alias podman='/usr/local/bin/podman'
+  alias docker='/usr/local/bin/docker'
+  alias docker-compose='/usr/local/bin/docker-compose'
+  alias pps='/usr/local/bin/podman ps --all'
+  alias pimages='/usr/local/bin/podman images'
+  alias pvolumes='/usr/local/bin/podman volume ls'
+  alias pnetworks='/usr/local/bin/podman network ls'
+  alias pbuild='/usr/local/bin/podman build'
+  alias plogs='/usr/local/bin/podman logs --follow'
+  alias pstats='/usr/local/bin/podman stats'
+  alias pcompose='/usr/local/bin/docker-compose'
+  alias pinfo='/usr/local/bin/podman info'
+  alias pcontainers='/usr/local/bin/labwc-podman-menu'
+}
+
+podman_devops_apply_environment

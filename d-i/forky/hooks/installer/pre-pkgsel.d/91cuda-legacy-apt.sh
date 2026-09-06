@@ -3,12 +3,10 @@ set -eu
 
 RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
 BOOTSTRAP_LIB=${INSTALLER_BOOTSTRAP_LIB:-${RUNTIME_DIR}/bootstrap/bootstrap.sh}
-TMP_ENV_DIR=/tmp/install-env-pre-pkgsel/cuda-legacy
+TMP_ENV_DIR=${INSTALLER_CUDA_PREPKGSEL_ENV_DIR:-/tmp/install-env-pre-pkgsel/cuda-legacy}
 LOG=
 
 CUDA_FRAGMENT_REL=classes/class-addon/cuda-legacy.cfg
-CUDA_KEYRING_REL=/etc/apt/keyrings/cuda-legacy-archive-key.asc
-CUDA_SOURCE_REL=/etc/apt/sources.list.d/cuda-legacy-temp.list
 cuda_prepkgsel_fatal() {
   printf '[pre-pkgsel:cuda-legacy] fatal: %s\n' "$*" >&2
   exit 1
@@ -38,18 +36,12 @@ if ! installer_cuda_legacy_selected 2>/dev/null; then
   exit 0
 fi
 
-if ! installer_nvidia_gpu_detected 2>/dev/null; then
-  installer_info "skipping legacy CUDA pre-pkgsel bootstrap because no NVIDIA PCI display adapter was detected"
-  exit 0
-fi
+# CUDA userspace/compiler packages are useful on build hosts without a GPU.
+# Explicit class selection is authoritative; PCI detection must not skip them.
 
 install -d -m 0700 "$TMP_ENV_DIR"
 bootstrap_source_common_support_libs "$SEED_BASE" "$TMP_ENV_DIR" fetch hook target || {
   cuda_prepkgsel_fatal "failed to source shared installer helper libraries"
-}
-
-cuda_fetch_remote_url() {
-  installer_fetch_cuda_key "$1" "$2" "$3"
 }
 
 cuda_fragment_path() {
@@ -98,35 +90,9 @@ cuda_repository_components() {
   printf '%s\n' "$*"
 }
 
-cuda_key_url() {
-  cuda_fragment_field_value key
-}
-
-cuda_source_line() {
-  repo_url=$(cuda_repository_url)
-  repo_suite=$(cuda_repository_suite)
-  repo_components=$(cuda_repository_components)
-
-  installer_cuda_source_line "$CUDA_KEYRING_REL" "$repo_url" "$repo_suite" "$repo_components"
-}
-
-cuda_target_sourcelist_name() {
-  printf '%s\n' "${CUDA_SOURCE_REL#/etc/apt/}"
-}
-
 stage_cuda_legacy_source() {
-  key_cache="${TMP_ENV_DIR}/cuda-legacy-archive-key.asc"
-  source_cache="${TMP_ENV_DIR}/cuda-legacy.list"
-  target_keyring="/target${CUDA_KEYRING_REL}"
-  target_source="/target${CUDA_SOURCE_REL}"
-
-  cuda_fetch_remote_url "$(cuda_key_url)" "$key_cache" 0644
-  printf '%s\n' "$(cuda_source_line)" >"$source_cache"
-  chmod 0644 "$source_cache"
-
-  install -d -m 0755 "$(dirname "$target_keyring")" "$(dirname "$target_source")"
-  installer_copy_path_with_mode "$key_cache" "$target_keyring" 0644 "legacy CUDA apt keyring"
-  installer_copy_path_with_mode "$source_cache" "$target_source" 0644 "legacy CUDA apt source"
+  installer_cuda_stage_target_source \
+    "$(cuda_repository_url)" "$(cuda_repository_suite)" "$(cuda_repository_components)"
 }
 
 prepare_cuda_legacy_target_apt_dirs() {

@@ -5,7 +5,8 @@ Debian unattended-install repository for **desktop systems**, refactored on
 profiles, while correcting CUDA transport/authentication, DKMS handling and
 browser policy/export deployment. It is not a generic disk-safe installer.
 
-Start with **[the initrd credentials/root-login repair](docs/INITRD-CREDENTIAL-FIX-2026-09-06.md)**,
+Start with **[the CUDA-legacy and Podman second-pass corrections](docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md)**,
+**[the initrd credentials/root-login repair](docs/INITRD-CREDENTIAL-FIX-2026-09-06.md)**,
 **[the original refactor report](docs/REFACTOR-2026-09-06.md)** and
 **[validation evidence and remaining acceptance work](docs/VALIDATION.md)**.
 Current completed results and test counts are in `validation/summary.json`.
@@ -47,8 +48,12 @@ phases read its local cache instead of repeatedly downloading repository files.
 The browser generator runs as part of this build. Its editable inputs are in
 `browser-config/`; generated policies and exports live under `hooks/target/`.
 This revision also changes security-sensitive target policy: review the report
-before deploying. The temporary CUDA certificate compatibility exception expires
-on **2027-02-01**, and is not a global APT authentication bypass.
+before deploying. Explicit selection of `addon/cuda-legacy` now authorizes an
+**unauthenticated, source-local APT exception** for the NVIDIA Debian 12 amd64
+archive. It needs no signing-key fetch or Sequoia policy file and has no crypto
+policy expiration date. Other repositories retain their authentication policy.
+The temporary legacy source is removed after package repair and at finish-install;
+see the second-pass report for the security tradeoff and deployment checks.
 
 ## Repository layout
 

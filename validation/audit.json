@@ -1,25 +1,25 @@
 {
   "scope_counts": {
-    "hooks/target": 1031,
+    "hooks/target": 1025,
     "hooks/installer": 26
   },
-  "requested_unique_files": 1057,
-  "total_with_installers_and_hosts": 1154,
+  "requested_unique_files": 1051,
+  "total_with_installers_and_hosts": 1148,
   "check_counts": {
     "blocked-dependency": 154,
-    "inventory-only": 479,
-    "pass": 403,
-    "structure-pass": 116,
+    "inventory-only": 475,
+    "pass": 404,
+    "structure-pass": 113,
     "template-needs-render": 2
   },
   "kind_counts": {
-    "config-or-data": 479,
+    "config-or-data": 475,
     "javascript": 11,
     "json": 41,
     "perl": 176,
-    "python": 65,
-    "shell": 249,
-    "systemd-structure": 116,
+    "python": 69,
+    "shell": 246,
+    "systemd-structure": 113,
     "toml": 9,
     "xml": 8
   },
@@ -37,10 +37,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 12,
-      "bytes": 631,
+      "lines": 11,
+      "bytes": 596,
       "mode": "0o640",
-      "sha256": "0870dceb752401563819b3ce26d9d6c8522870a26ea21a83ffd31621cb4fa43b",
+      "sha256": "d3697266c353ae2f551b5c45657479520ec82a532226baf970f6c6a3f31ad25c",
       "placeholder_count": 0
     },
     {
@@ -349,10 +349,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 149,
-      "bytes": 4770,
+      "lines": 115,
+      "bytes": 3730,
       "mode": "0o640",
-      "sha256": "71e73eab624b60975013c8db50961e6fe80fb0143ad7df2ed59b7e708e355a74",
+      "sha256": "5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b",
       "placeholder_count": 0
     },
     {
@@ -382,238 +382,33 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/containers.conf.tmpl",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/client.conf",
       "requested_scope": true,
       "kind": "config-or-data",
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 22,
-      "bytes": 541,
-      "mode": "0o640",
-      "sha256": "6c1663432db2bf28ccc5b839d351ad770b1b0eb5dd1e2fe5112947e3adea9eff",
-      "placeholder_count": 5
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/Containerfile.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 51,
-      "bytes": 2106,
-      "mode": "0o640",
-      "sha256": "9e95f2b706a5436f2c4c2a0367a8bafbfdd1f362ce31da566c28ec66367eec43",
-      "placeholder_count": 20
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/entrypoint.sh.tmpl",
-      "requested_scope": true,
-      "kind": "shell",
-      "check": "pass",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 5,
-      "bytes": 98,
-      "mode": "0o640",
-      "sha256": "030438f9a23fa73b58289161660ac363fcbecc71db42005424920f5271d9a71e",
+      "lines": 8,
+      "bytes": 297,
+      "mode": "0o644",
+      "sha256": "cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035",
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/sshd_config.tmpl",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl",
       "requested_scope": true,
       "kind": "config-or-data",
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
       "lines": 26,
-      "bytes": 627,
-      "mode": "0o640",
-      "sha256": "9b89efdcbdbaa3e49778a87e92864e81cfde74acb619cf1ed00a0b1ddfdc908b",
-      "placeholder_count": 1
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/metadata.env.tmpl",
-      "requested_scope": true,
-      "kind": "shell",
-      "check": "pass",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 14,
-      "bytes": 610,
-      "mode": "0o640",
-      "sha256": "b5756323770165cd0f80d107a749f6e054b4a48f7f1f0061f82812922d604811",
-      "placeholder_count": 14
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/registries.conf",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 2,
-      "bytes": 64,
-      "mode": "0o640",
-      "sha256": "a1b20ddef774dc6003465258bfd0f2787c2ffbf0eb84adbb7b5523598747006b",
+      "bytes": 700,
+      "mode": "0o644",
+      "sha256": "231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68",
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/storage.conf.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 8,
-      "bytes": 217,
-      "mode": "0o640",
-      "sha256": "64edacd956661fb9a76b0c883116679062631c767bb1b5a8cd3edc7c9799b005",
-      "placeholder_count": 4
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/user/podbin-rootless.slice",
-      "requested_scope": true,
-      "kind": "systemd-structure",
-      "check": "structure-pass",
-      "detail": "",
-      "unit_facts": {
-        "Slice.TasksMax": [
-          "8192"
-        ]
-      },
-      "lines": 10,
-      "bytes": 168,
-      "mode": "0o640",
-      "sha256": "036e883cd6e2c4c6d1ba8f951bc5286cfa94c7793f86b94779a8f8f1a490d686",
-      "placeholder_count": 0
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/users/container.container.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 30,
-      "bytes": 1113,
-      "mode": "0o640",
-      "sha256": "6d577f1a731468626da522265df44d141cf6751f206f368250698a227be3b833",
-      "placeholder_count": 22
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/users/container.d/10-podbin-managed.conf",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 3,
-      "bytes": 58,
-      "mode": "0o640",
-      "sha256": "841147a81d3117a727e552f67a157b96c7337650739eb8ce1faf32621752753c",
-      "placeholder_count": 0
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/user.env.tmpl",
-      "requested_scope": true,
-      "kind": "shell",
-      "check": "pass",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 3,
-      "bytes": 113,
-      "mode": "0o640",
-      "sha256": "c980d64b098603e8a7c1f341215d3fd150caf72c80f44b2162865f902497322a",
-      "placeholder_count": 3
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/containers/systemd/container.d/10-podman-managed.conf.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 4,
-      "bytes": 105,
-      "mode": "0o640",
-      "sha256": "24c2cfab1979223030c41d8ba82fa5f548abf04bbdff892600248b244116ac4e",
-      "placeholder_count": 1
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/containers.conf.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 22,
-      "bytes": 877,
-      "mode": "0o640",
-      "sha256": "0188f2458097273b651788016141720b93c1e0c1f7d85e08d1ebce6a58d01115",
-      "placeholder_count": 14
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/environment.d/90-podman-api.conf.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 1,
-      "bytes": 40,
-      "mode": "0o640",
-      "sha256": "c4dc428f8ea02fb7c0f5fef2366c151350b3b40141afe6695afa2b39a2962b18",
-      "placeholder_count": 1
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/storage.conf.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 8,
-      "bytes": 263,
-      "mode": "0o640",
-      "sha256": "7850e6e2e552e898dce0ce69e4890c57fecbb634f45d25a16231b122680a8333",
-      "placeholder_count": 4
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/buildah-env.service.tmpl",
-      "requested_scope": true,
-      "kind": "systemd-structure",
-      "check": "structure-pass",
-      "detail": "",
-      "unit_facts": {
-        "Service.Type": [
-          "oneshot"
-        ],
-        "Service.TimeoutStartSec": [
-          "15s"
-        ],
-        "Service.TimeoutStopSec": [
-          "15s"
-        ],
-        "Service.KillMode": [
-          "control-group"
-        ],
-        "Service.ExecStart": [
-          "/usr/bin/systemctl --user set-environment BUILDAH_ISOLATION=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_ISOLATION__ BUILDAH_TMPDIR=__INSTALLER_PODMAN_ROOTLESS_BUILDAH_TMPDIR__"
-        ],
-        "Service.ExecStop": [
-          "/usr/bin/systemctl --user unset-environment BUILDAH_ISOLATION BUILDAH_TMPDIR"
-        ]
-      },
-      "lines": 17,
-      "bytes": 660,
-      "mode": "0o640",
-      "sha256": "96a381b34edb13586b424beb42f674c537433006aef80acc1f177005f28624a4",
-      "placeholder_count": 5
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman-api-env.service.tmpl",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-restart.service.tmpl",
       "requested_scope": true,
       "kind": "systemd-structure",
       "check": "structure-pass",
@@ -628,77 +423,144 @@
         "Service.Type": [
           "oneshot"
         ],
-        "Service.TimeoutStartSec": [
-          "15s"
-        ],
-        "Service.TimeoutStopSec": [
-          "15s"
-        ],
-        "Service.KillMode": [
-          "control-group"
+        "Service.ExecStartPre": [
+          "/usr/bin/install -d -m 0700 /run/user/@UID@/containers /run/user/@UID@/libpod/tmp"
         ],
         "Service.ExecStart": [
-          "/usr/bin/systemctl --user set-environment __INSTALLER_PODMAN_API_SET_ENV_ARGS__"
+          "/usr/bin/podman start --all --filter should-start-on-boot=true"
         ],
         "Service.ExecStop": [
-          "/usr/bin/systemctl --user unset-environment __INSTALLER_PODMAN_API_UNSET_ENV_NAMES__"
-        ]
-      },
-      "lines": 18,
-      "bytes": 524,
-      "mode": "0o640",
-      "sha256": "d26350f98e0c31563a96febfebffc1bec723ad525cfc6aa98c81bc18554a9bbf",
-      "placeholder_count": 4
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman-rootless.slice.tmpl",
-      "requested_scope": true,
-      "kind": "systemd-structure",
-      "check": "structure-pass",
-      "detail": "",
-      "unit_facts": {
-        "Slice.TasksMax": [
-          "__INSTALLER_PODMAN_SERVICE_SLICE_TASKS_MAX__"
-        ]
-      },
-      "lines": 10,
-      "bytes": 289,
-      "mode": "0o640",
-      "sha256": "bf28c9a7325d21f72d30a82113b12914464fe7bbf60a2290459bf95d01ee34ef",
-      "placeholder_count": 3
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman.service.d/10-podman-service-managed.conf",
-      "requested_scope": true,
-      "kind": "systemd-structure",
-      "check": "structure-pass",
-      "detail": "",
-      "unit_facts": {
+          "/usr/bin/podman stop --service --all --ignore --time 20"
+        ],
         "Service.Delegate": [
-          "true"
+          "yes"
+        ],
+        "Service.KillMode": [
+          "process"
+        ],
+        "Service.TimeoutStartSec": [
+          "180"
+        ],
+        "Service.TimeoutStopSec": [
+          "90"
+        ],
+        "Service.Restart": [
+          "on-failure"
+        ]
+      },
+      "lines": 30,
+      "bytes": 1051,
+      "mode": "0o644",
+      "sha256": "2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.service.tmpl",
+      "requested_scope": true,
+      "kind": "systemd-structure",
+      "check": "structure-pass",
+      "detail": "",
+      "unit_facts": {
+        "Unit.Requires": [
+          "podman.socket"
+        ],
+        "Unit.After": [
+          "podman.socket"
+        ],
+        "Service.Type": [
+          "exec"
+        ],
+        "Service.ExecStartPre": [
+          "/usr/bin/install -d -m 0700 /run/user/@UID@/containers /run/user/@UID@/libpod/tmp"
         ],
         "Service.ExecStart": [
-          "",
-          "/usr/bin/podman $LOGGING system service --time=0"
+          "/usr/bin/podman --log-level=info system service --time=0"
+        ],
+        "Service.Delegate": [
+          "yes"
+        ],
+        "Service.KillMode": [
+          "process"
+        ],
+        "Service.TimeoutStartSec": [
+          "90"
+        ],
+        "Service.TimeoutStopSec": [
+          "30"
+        ],
+        "Service.Restart": [
+          "on-failure"
         ]
       },
-      "lines": 8,
-      "bytes": 278,
-      "mode": "0o640",
-      "sha256": "e1d9d221143124d9de83290ba7b70215bdb0a9a5eb744060070ea7ea5e943597",
-      "placeholder_count": 2
+      "lines": 38,
+      "bytes": 1537,
+      "mode": "0o644",
+      "sha256": "5ff8ab5465139638da9818b5ec49496a43ad038df24587d5e8e77e49dc01116b",
+      "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman.socket.d/10-podman-socket-managed.conf",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.socket",
       "requested_scope": true,
       "kind": "systemd-structure",
       "check": "structure-pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 3,
-      "bytes": 44,
-      "mode": "0o640",
-      "sha256": "fbdbec2a31e67e202d504ad9c2d26a0cfab149c58f45668a78e7147e6575cc91",
+      "lines": 15,
+      "bytes": 381,
+      "mode": "0o644",
+      "sha256": "a44946fe92abddaa3c4d0b12a0e0f4f608037566a284d3ff0115036d8933b215",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/registries.conf",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 4,
+      "bytes": 205,
+      "mode": "0o644",
+      "sha256": "99c48fce184cd3c4cdae0a648b11574be4b0af68765b65c1c53333ce88b64760",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/storage.conf.tmpl",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 7,
+      "bytes": 226,
+      "mode": "0o644",
+      "sha256": "21aa39e294b5834d8338b346a7d10bdda97513d599815928d28a5bb22db0d81b",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-manager.conf.tmpl",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 10,
+      "bytes": 341,
+      "mode": "0o644",
+      "sha256": "0641a7b691393da3debf0436745c49242c6557e234052a980ff08d23e10eb9b7",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-slice.conf.tmpl",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 11,
+      "bytes": 271,
+      "mode": "0o644",
+      "sha256": "88e863cca33360920dc32f53f4a9ef3af19a2c9c1d8c7bdafabb79c3b779eb73",
       "placeholder_count": 0
     },
     {
@@ -708,10 +570,10 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 11,
-      "bytes": 364,
+      "lines": 12,
+      "bytes": 411,
       "mode": "0o640",
-      "sha256": "6bc902b919a168620bdb8520276907c152934867a7c4e86a90d76b977140d81a",
+      "sha256": "f54ca05563b9886512e643c20717c5450e193b49b51e5aa6f7871ab7f9292139",
       "placeholder_count": 0
     },
     {
@@ -734,10 +596,10 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 105,
-      "bytes": 3271,
+      "lines": 8,
+      "bytes": 424,
       "mode": "0o640",
-      "sha256": "6020bbd05c3a1618f4ec028670709decfe6ac96eef370db3b108f7d886acb891",
+      "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
       "placeholder_count": 0
     },
     {
@@ -747,10 +609,23 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 304,
-      "bytes": 11639,
+      "lines": 8,
+      "bytes": 424,
       "mode": "0o640",
-      "sha256": "d044a8782a03e9c935d946febf61fca8331f3b801eb4592057853d9de2b82842",
+      "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/docs/podman-devops.md",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 311,
+      "bytes": 18367,
+      "mode": "0o644",
+      "sha256": "725d135b6c228ebfe878c091e5df579a2ee061de0c3eb08ff13e6936cf53c2ed",
       "placeholder_count": 0
     },
     {
@@ -1332,10 +1207,10 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 11,
-      "bytes": 349,
+      "lines": 6,
+      "bytes": 319,
       "mode": "0o640",
-      "sha256": "3538590f270a6a5ac78154e8a025565b860737f8f17f71c7ab2208767ea324e3",
+      "sha256": "00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c",
       "placeholder_count": 0
     },
     {
@@ -1384,10 +1259,10 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 3662,
-      "bytes": 145898,
+      "lines": 3674,
+      "bytes": 146247,
       "mode": "0o640",
-      "sha256": "42da47784549b6b96408de6d6cec08c0387bbb7d1e56815bd053f7b55cb7f116",
+      "sha256": "e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa",
       "placeholder_count": 0
     },
     {
@@ -1423,10 +1298,10 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 930,
-      "bytes": 28163,
+      "lines": 885,
+      "bytes": 27297,
       "mode": "0o640",
-      "sha256": "4d2395ebc445155797345c9ba1f8d03b2996e336b5103c3aa036bf4882ba8e8f",
+      "sha256": "8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9",
       "placeholder_count": 0
     },
     {
@@ -2231,7 +2106,7 @@
       "unit_facts": {},
       "lines": 1,
       "bytes": 3,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "placeholder_count": 0
     },
@@ -2244,7 +2119,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 258,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
       "placeholder_count": 0
     },
@@ -2257,7 +2132,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 247,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
       "placeholder_count": 0
     },
@@ -2270,7 +2145,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 245,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
       "placeholder_count": 0
     },
@@ -2767,19 +2642,6 @@
       "mode": "0o640",
       "sha256": "f989dfea5cf78ef93f50b85ead9997d908888e88d61c0dcea424298df2d69fef",
       "placeholder_count": 9
-    },
-    {
-      "path": "d-i/forky/hooks/target/etc/default/podbin.tmpl",
-      "requested_scope": true,
-      "kind": "config-or-data",
-      "check": "inventory-only",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 30,
-      "bytes": 1754,
-      "mode": "0o640",
-      "sha256": "d4106960284d1161356a3bd7db9b1824e53026dc6741175dc090223292cc0977",
-      "placeholder_count": 27
     },
     {
       "path": "d-i/forky/hooks/target/etc/default/secure-boot.conf.tmpl",
@@ -4154,9 +4016,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 13,
-      "bytes": 282,
+      "bytes": 431,
       "mode": "0o640",
-      "sha256": "79bf04775f4961a335023c9e5555534010531552cde59f43ffd2d22436298228",
+      "sha256": "b7a2bb95a50e0d478c2c6f630928b3bd64db986d0b3a174c245d39fd4ec41b3b",
       "placeholder_count": 0
     },
     {
@@ -4350,7 +4212,7 @@
       "unit_facts": {},
       "lines": 1,
       "bytes": 3,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "placeholder_count": 0
     },
@@ -4363,7 +4225,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 258,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
       "placeholder_count": 0
     },
@@ -4376,7 +4238,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 247,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
       "placeholder_count": 0
     },
@@ -4389,7 +4251,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 245,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
       "placeholder_count": 0
     },
@@ -4402,7 +4264,7 @@
       "unit_facts": {},
       "lines": 1,
       "bytes": 3,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "placeholder_count": 0
     },
@@ -4415,7 +4277,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 214,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "82155b5a4985880cfbd44e771ab5c3e6cc895ddc4e0c8373170b1c705d6400be",
       "placeholder_count": 0
     },
@@ -4428,7 +4290,7 @@
       "unit_facts": {},
       "lines": 4,
       "bytes": 72,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "69aa0c3f5802d50d78280d143d2f32e13351011e5f2f1571311f51fb9704e156",
       "placeholder_count": 0
     },
@@ -4441,7 +4303,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 245,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
       "placeholder_count": 0
     },
@@ -5091,7 +4953,7 @@
       "unit_facts": {},
       "lines": 13,
       "bytes": 218,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "placeholder_count": 0
     },
@@ -5429,7 +5291,7 @@
       "unit_facts": {},
       "lines": 13,
       "bytes": 218,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "placeholder_count": 0
     },
@@ -6923,7 +6785,7 @@
       "unit_facts": {},
       "lines": 13,
       "bytes": 218,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "placeholder_count": 0
     },
@@ -7259,10 +7121,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 779,
-      "bytes": 26523,
+      "lines": 842,
+      "bytes": 29856,
       "mode": "0o640",
-      "sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
+      "sha256": "2147f2c711a01aa6173ddb4894692c515260d915641bd01a430023c853ff1cf1",
       "placeholder_count": 0
     },
     {
@@ -7708,16 +7570,29 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/hooks/target/etc/ssh/sshd_config.d/00-devops-nologin.conf",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 3,
+      "bytes": 172,
+      "mode": "0o644",
+      "sha256": "1a1637096026f634b8ae4b3f01f15c7990c29706ddc396f7cece207fc99b6368",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/sudoers.d/account.tmpl",
       "requested_scope": true,
       "kind": "config-or-data",
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 63,
-      "bytes": 3136,
+      "lines": 25,
+      "bytes": 1102,
       "mode": "0o640",
-      "sha256": "e1092f88a585ab3fc00e26c07d4e13e51c5d828de36e4b04a848ce2b41ed4f97",
+      "sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
       "placeholder_count": 7
     },
     {
@@ -7773,17 +7648,17 @@
       "placeholder_count": 2
     },
     {
-      "path": "d-i/forky/hooks/target/etc/sysctl.d/90-podman-rootless.conf.tmpl",
+      "path": "d-i/forky/hooks/target/etc/sysctl.d/90-podman-rootless.conf",
       "requested_scope": true,
       "kind": "config-or-data",
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 3,
-      "bytes": 186,
-      "mode": "0o640",
-      "sha256": "853cbb49f00ff63073a19e418dd793a6fe7a942077b9b0b676ae3690c1babafc",
-      "placeholder_count": 2
+      "lines": 4,
+      "bytes": 225,
+      "mode": "0o644",
+      "sha256": "dceb3de09712e22bd8a40c30a9403840777912a300deddf73cc62537c9764b10",
+      "placeholder_count": 0
     },
     {
       "path": "d-i/forky/hooks/target/etc/sysctl.d/profiles/balanced/40-balanced.conf",
@@ -8430,7 +8305,13 @@
           "on-failure"
         ],
         "Service.TimeoutStartSec": [
-          "180"
+          "240"
+        ],
+        "Service.TimeoutStopSec": [
+          "15"
+        ],
+        "Service.KillMode": [
+          "control-group"
         ],
         "Service.User": [
           "root"
@@ -8439,10 +8320,10 @@
           "true"
         ]
       },
-      "lines": 38,
-      "bytes": 1049,
+      "lines": 39,
+      "bytes": 1066,
       "mode": "0o640",
-      "sha256": "686834117824d407d0a0ad29ae662170972a20644ded1ef6da91ec3db5f5677a",
+      "sha256": "d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f",
       "placeholder_count": 0
     },
     {
@@ -8921,45 +8802,45 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/etc/systemd/system/podman-rootless-linger.service.tmpl",
+      "path": "d-i/forky/hooks/target/etc/systemd/system/podman-devops-bootstrap.service",
       "requested_scope": true,
       "kind": "systemd-structure",
       "check": "structure-pass",
       "detail": "",
       "unit_facts": {
-        "Unit.After": [
-          "systemd-user-sessions.service"
-        ],
         "Unit.Wants": [
-          "systemd-user-sessions.service"
+          "systemd-logind.service"
+        ],
+        "Unit.After": [
+          "systemd-logind.service systemd-user-sessions.service systemd-tmpfiles-setup.service"
         ],
         "Service.Type": [
           "oneshot"
         ],
+        "Service.ExecStart": [
+          "/usr/local/libexec/podman-devops-host start"
+        ],
+        "Service.Restart": [
+          "on-failure"
+        ],
         "Service.TimeoutStartSec": [
-          "2min"
+          "180"
         ],
         "Service.TimeoutStopSec": [
-          "30s"
+          "15"
         ],
         "Service.KillMode": [
           "control-group"
         ],
-        "Service.ExecStart": [
-          "/usr/bin/loginctl enable-linger __INSTALLER_PODMAN_SERVICE_USER__",
-          "/usr/bin/systemctl start user@__INSTALLER_PODMAN_SERVICE_UID__.service",
-          "/bin/sh -eu -c 'i=0; while [ ! -S /run/user/__INSTALLER_PODMAN_SERVICE_UID__/bus ]; do i=$((i + 1)); [ \"$i\" -lt 31 ] || exit 1; sleep 1; done'",
-          "/usr/sbin/runuser -u __INSTALLER_PODMAN_SERVICE_USER__ -- /usr/bin/env HOME=__INSTALLER_PODMAN_SERVICE_HOME__ XDG_RUNTIME_DIR=/run/user/__INSTALLER_PODMAN_SERVICE_UID__ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__INSTALLER_PODMAN_SERVICE_UID__/bus PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/systemctl --user daemon-reload",
-          "/usr/sbin/runuser -u __INSTALLER_PODMAN_SERVICE_USER__ -- /usr/bin/env HOME=__INSTALLER_PODMAN_SERVICE_HOME__ XDG_RUNTIME_DIR=/run/user/__INSTALLER_PODMAN_SERVICE_UID__ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__INSTALLER_PODMAN_SERVICE_UID__/bus PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/systemctl --user start buildah-env.service",
-          "/usr/sbin/runuser -u __INSTALLER_PODMAN_SERVICE_USER__ -- /usr/bin/env HOME=__INSTALLER_PODMAN_SERVICE_HOME__ XDG_RUNTIME_DIR=/run/user/__INSTALLER_PODMAN_SERVICE_UID__ DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__INSTALLER_PODMAN_SERVICE_UID__/bus PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /usr/bin/systemctl --user start __INSTALLER_PODMAN_API_START_UNITS__",
-          "/bin/sh -eu -c 'install -d -m 0700 \"$(dirname \"$1\")\"; t=$(mktemp \"$1.XXXXXXXX\"); trap \"rm -f -- \\\"$t\\\"\" EXIT; trap \"exit 143\" TERM; trap \"exit 130\" INT; trap \"exit 129\" HUP; chmod 0600 \"$t\"; mv -fT -- \"$t\" \"$1\"' _ __INSTALLER_PODMAN_LINGER_MARKER__"
+        "Service.NoNewPrivileges": [
+          "yes"
         ]
       },
-      "lines": 23,
-      "bytes": 2082,
-      "mode": "0o640",
-      "sha256": "c6cb6866d5d0ac582bd4f6e72acdbe89aa0c0eb65915eb5b34f4313a5d7bfb95",
-      "placeholder_count": 18
+      "lines": 41,
+      "bytes": 1224,
+      "mode": "0o644",
+      "sha256": "8c78679708e43a9c97e80e419a33f280afa393403bad01222b61aace68a1a36d",
+      "placeholder_count": 0
     },
     {
       "path": "d-i/forky/hooks/target/etc/systemd/system/rsyslog.service.d/30-managed-security-scanner-socket.conf",
@@ -10106,10 +9987,10 @@
       "detail": "",
       "unit_facts": {},
       "lines": 27,
-      "bytes": 1880,
+      "bytes": 1845,
       "mode": "0o640",
-      "sha256": "7b39f29f581887b5dc400312d36abc3900665885fb518fd0274f3883bb972136",
-      "placeholder_count": 42
+      "sha256": "186404d773fe3dff0bf7b69d0a559acc0e2134e530d012dfd3c4dd7f5bc2ac08",
+      "placeholder_count": 39
     },
     {
       "path": "d-i/forky/hooks/target/etc/tmpfiles.d/20-data-run.conf.tmpl",
@@ -10575,7 +10456,7 @@
       "unit_facts": {},
       "lines": 33,
       "bytes": 1034,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "1039d2a6fe87e313388812da0936f6fefcc22f77e6d7d2907362d347a508a3f9",
       "placeholder_count": 0
     },
@@ -10588,7 +10469,7 @@
       "unit_facts": {},
       "lines": 1,
       "bytes": 3,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "placeholder_count": 0
     },
@@ -10601,7 +10482,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 258,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "e47568f10a5b540a2909bcc5f79b6a7fc8a784c3103b744ba54d8b1475f982bc",
       "placeholder_count": 0
     },
@@ -10614,7 +10495,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 247,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "d4594330af395bf8f04cc79a6a7df92f6aaa7baf279e2a6528ad7ba373e12445",
       "placeholder_count": 0
     },
@@ -10627,7 +10508,7 @@
       "unit_facts": {},
       "lines": 9,
       "bytes": 245,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cfa952f119950398ba7b0bf00fcea6dc4f7bdf0e91d6a1b3e59c66cbcb968943",
       "placeholder_count": 0
     },
@@ -10796,7 +10677,7 @@
       "unit_facts": {},
       "lines": 90,
       "bytes": 3842,
-      "mode": "0o755",
+      "mode": "0o750",
       "sha256": "679b03263a45bb3fdf7db0ec1a4c5f0a9b3d9ea170adc9983e504d97ae610c09",
       "placeholder_count": 0
     },
@@ -10837,6 +10718,32 @@
       "bytes": 409,
       "mode": "0o750",
       "sha256": "8340c62ef1d9c240ea82a66d45d58bb4c27cf3ad4e79c0abc61851ae423bd724",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/docker",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 3,
+      "bytes": 132,
+      "mode": "0o755",
+      "sha256": "01229d0780a3c1ed90bbf1fc2e2802bf04fa8a9617e0e7a2c3fa11ac4f00c383",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/docker-compose",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 3,
+      "bytes": 140,
+      "mode": "0o755",
+      "sha256": "ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde",
       "placeholder_count": 0
     },
     {
@@ -11310,14 +11217,14 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu",
       "requested_scope": true,
-      "kind": "shell",
+      "kind": "python",
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 635,
-      "bytes": 20616,
-      "mode": "0o750",
-      "sha256": "5c9eb57bc6a96c4032569375b932a0d1837f7333dff37dea49f287406de3a7c8",
+      "lines": 325,
+      "bytes": 13262,
+      "mode": "0o755",
+      "sha256": "80b172ec1f4448edb56d6bb23d31d4df83a80ba2d0cccf05301efb22874d2b81",
       "placeholder_count": 0
     },
     {
@@ -11526,6 +11433,19 @@
       "bytes": 3666,
       "mode": "0o640",
       "sha256": "e582597877702f9fb8e76cb5d830a9a53e51a628a5a9fdb2d925667d123913cd",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/podman",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 3,
+      "bytes": 132,
+      "mode": "0o755",
+      "sha256": "d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f",
       "placeholder_count": 0
     },
     {
@@ -14118,14 +14038,14 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/incus-host-managed",
       "requested_scope": true,
-      "kind": "shell",
+      "kind": "python",
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 260,
-      "bytes": 10019,
-      "mode": "0o750",
-      "sha256": "9ac45b879e193593f4fff3f78f1384160a653e6b9fad7ef0a00a0293e60809b0",
+      "lines": 421,
+      "bytes": 19014,
+      "mode": "0o755",
+      "sha256": "57621c5ab5b847ca2098894128d78e9ab61624fb0c1d9786d7e8b16226e03a99",
       "placeholder_count": 0
     },
     {
@@ -14137,7 +14057,7 @@
       "unit_facts": {},
       "lines": 119,
       "bytes": 4813,
-      "mode": "0o755",
+      "mode": "0o750",
       "sha256": "46266bcaffefc8869a1d26b66f5355ae59c9ec966d2450d1ad9f9c9f53b52dcb",
       "placeholder_count": 0
     },
@@ -14584,6 +14504,32 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-client",
+      "requested_scope": true,
+      "kind": "python",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 102,
+      "bytes": 5106,
+      "mode": "0o755",
+      "sha256": "dfd3ddf0ed539af398fee6da1633b37b4acf6d56fbfb3279a5314e5dbe3d8dd4",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
+      "requested_scope": true,
+      "kind": "python",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 589,
+      "bytes": 27445,
+      "mode": "0o755",
+      "sha256": "8d8bb4895ed4d771c876439bfaa2527fc9bebf236696f3dcd62afcf6f0efae79",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/usr/local/libexec/rsyslog-managed-openai-socket",
       "requested_scope": true,
       "kind": "shell",
@@ -14857,19 +14803,6 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hooks/target/usr/local/sbin/podbin.tmpl",
-      "requested_scope": true,
-      "kind": "shell",
-      "check": "pass",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 2267,
-      "bytes": 78000,
-      "mode": "0o640",
-      "sha256": "0ffdb62bd8f479d23e365c6a546d02b0c1a268814a474d31d6b2eaa3dae69d77",
-      "placeholder_count": 0
-    },
-    {
       "path": "d-i/forky/hooks/target/usr/local/sbin/tpm2-enroll.sh",
       "requested_scope": true,
       "kind": "shell",
@@ -14930,7 +14863,7 @@
       "unit_facts": {},
       "lines": 141,
       "bytes": 8443,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "8bf412f8f9e4373d55a8263df7fb0a0cce1ced9677f4c3743490eb64d71e7bc5",
       "placeholder_count": 0
     },
@@ -14943,7 +14876,7 @@
       "unit_facts": {},
       "lines": 200,
       "bytes": 4690,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "c5e13d6d3fbbe1748231885bbbbf5142c1ffacb939180f975920f8754f75efbf",
       "placeholder_count": 0
     },
@@ -14956,7 +14889,7 @@
       "unit_facts": {},
       "lines": 21424,
       "bytes": 540780,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "ba62cb1815e7f6f68f296c795f60f38bbc86a4df0ce7ede8e330760f586bde1e",
       "placeholder_count": 0
     },
@@ -14969,7 +14902,7 @@
       "unit_facts": {},
       "lines": 21,
       "bytes": 375,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "cc876fd1d809d26f9f014b070d54c5b796f3169c7d4dbb64066676ad04ba0594",
       "placeholder_count": 0
     },
@@ -14982,7 +14915,7 @@
       "unit_facts": {},
       "lines": 9072,
       "bytes": 220248,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "36602c9061c00dbf4261e761e9c3603cce0b2fea785a91381d40ecead6a12535",
       "placeholder_count": 0
     },
@@ -15630,10 +15563,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 964,
-      "bytes": 45076,
+      "lines": 932,
+      "bytes": 44059,
       "mode": "0o640",
-      "sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+      "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
       "placeholder_count": 0
     },
     {
@@ -15643,10 +15576,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 963,
-      "bytes": 45004,
+      "lines": 931,
+      "bytes": 43987,
       "mode": "0o640",
-      "sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+      "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
       "placeholder_count": 0
     },
     {
@@ -15656,10 +15589,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 961,
-      "bytes": 44781,
+      "lines": 929,
+      "bytes": 43764,
       "mode": "0o640",
-      "sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+      "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
       "placeholder_count": 0
     },
     {
@@ -15669,10 +15602,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 961,
-      "bytes": 44852,
+      "lines": 929,
+      "bytes": 43835,
       "mode": "0o640",
-      "sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+      "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
       "placeholder_count": 0
     },
     {
@@ -15682,10 +15615,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 966,
-      "bytes": 45185,
+      "lines": 934,
+      "bytes": 44168,
       "mode": "0o640",
-      "sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+      "sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
       "placeholder_count": 0
     },
     {
@@ -15695,10 +15628,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 961,
-      "bytes": 44807,
+      "lines": 929,
+      "bytes": 43790,
       "mode": "0o640",
-      "sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+      "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
       "placeholder_count": 0
     },
     {
@@ -15708,10 +15641,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 961,
-      "bytes": 44781,
+      "lines": 929,
+      "bytes": 43764,
       "mode": "0o640",
-      "sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+      "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
       "placeholder_count": 0
     },
     {
@@ -15721,10 +15654,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 951,
-      "bytes": 44409,
+      "lines": 919,
+      "bytes": 43392,
       "mode": "0o640",
-      "sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+      "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
       "placeholder_count": 0
     },
     {
@@ -15734,10 +15667,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 952,
-      "bytes": 44457,
+      "lines": 920,
+      "bytes": 43440,
       "mode": "0o640",
-      "sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+      "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
       "placeholder_count": 0
     },
     {
@@ -15747,10 +15680,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 951,
-      "bytes": 44359,
+      "lines": 919,
+      "bytes": 43342,
       "mode": "0o640",
-      "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
     {
@@ -15760,10 +15693,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 951,
-      "bytes": 44365,
+      "lines": 919,
+      "bytes": 43348,
       "mode": "0o640",
-      "sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+      "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
       "placeholder_count": 0
     },
     {
@@ -15773,10 +15706,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 951,
-      "bytes": 44359,
+      "lines": 919,
+      "bytes": 43342,
       "mode": "0o640",
-      "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
     {
@@ -15786,10 +15719,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 961,
-      "bytes": 44559,
+      "lines": 929,
+      "bytes": 43542,
       "mode": "0o640",
-      "sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+      "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
       "placeholder_count": 0
     },
     {
@@ -15814,7 +15747,7 @@
       "unit_facts": {},
       "lines": 163,
       "bytes": 7470,
-      "mode": "0o644",
+      "mode": "0o640",
       "sha256": "f63fa92f1bce2b522b798bad24c85e87856342da732357c33098c2c355b3086c",
       "placeholder_count": 0
     },
@@ -15851,10 +15784,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 4373,
-      "bytes": 159629,
+      "lines": 4322,
+      "bytes": 157321,
       "mode": "0o750",
-      "sha256": "240f57c5bd80c5e241e195f8199145bbf3a32cc60f784a2bcefdacdeb29095f4",
+      "sha256": "d4d6a006a211b45a63b24622756881c81e90424d7884f2db3917098b516abca1",
       "placeholder_count": 2
     },
     {
@@ -16254,10 +16187,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 131,
-      "bytes": 4487,
+      "lines": 99,
+      "bytes": 3475,
       "mode": "0o750",
-      "sha256": "00003ef183a187a63d8dcef70e0722a1182ee41ca70446bd502498f5a3dd51b4",
+      "sha256": "1d23f84f69f9d72db63d99d8a1b364d746e41f79bd16118b3859b752341132c4",
       "placeholder_count": 0
     },
     {
@@ -16436,11 +16369,11 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 1468,
-      "bytes": 63024,
-      "mode": "0o750",
-      "sha256": "2fb9f64cb84c2ddae9f2b4d60157c11fb278b2486afbf5e5ddf9e0f2d7c08e27",
-      "placeholder_count": 2
+      "lines": 100,
+      "bytes": 4946,
+      "mode": "0o755",
+      "sha256": "6061a4f6ef729785427d57a3294ecba7ebb8ed43013ec4cc1dc4622a05aa1696",
+      "placeholder_count": 0
     },
     {
       "path": "d-i/forky/scripts/late/qemu.sh",
@@ -16450,9 +16383,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 281,
-      "bytes": 10240,
+      "bytes": 10248,
       "mode": "0o750",
-      "sha256": "e84d678041914e41925bf5fa77a33381f73eec1a08beb85c517d06322a41b455",
+      "sha256": "8155ab51fc13979071162e6064d3f2b324c2205a54809108b911c4c4a1c848bd",
       "placeholder_count": 0
     },
     {
@@ -16501,10 +16434,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 316,
-      "bytes": 13043,
+      "lines": 317,
+      "bytes": 13121,
       "mode": "0o750",
-      "sha256": "7f369a925c21fa0c532d72148bccaafcc83ff900b3768833186f3da42294bc60",
+      "sha256": "13fd184e8db47f40d117b920c6ec4658c87abd183cda20b9d038f27dcca278d8",
       "placeholder_count": 0
     },
     {
@@ -16579,10 +16512,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 387,
-      "bytes": 18077,
+      "lines": 385,
+      "bytes": 17989,
       "mode": "0o750",
-      "sha256": "226872205b248b0053d0db92f45e599b50f2c2fcdcadd7947385becfb370ba58",
+      "sha256": "8f0f081572b49bd830b6b6404cbc5f47f31d24e2a398d674223de1025e3df02c",
       "placeholder_count": 0
     },
     {
@@ -16670,10 +16603,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 1246,
-      "bytes": 45155,
+      "lines": 1251,
+      "bytes": 45343,
       "mode": "0o750",
-      "sha256": "e4ee919f76730b3f91a6e3f894e7800dc6a41c653183ba4db36bc11fb5e62f78",
+      "sha256": "a4e23a2ce8e1444542c681aa6b1ea9a8380017b7162a1264e59ce48850449238",
       "placeholder_count": 0
     },
     {

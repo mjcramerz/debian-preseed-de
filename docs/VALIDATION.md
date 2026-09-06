@@ -1,128 +1,70 @@
-# Validation: 2026-09-06 initrd credentials/root-login revision
+# Validation: CUDA-legacy and Podman/Incus second pass
 
-This records actual checks of the delivered revision. The fresh complete pipeline
-returned zero; `validation/summary.json` records its five stages and runtime-product
-hashes. This is not a certification of a booted Debian installation.
+Completed: 2026-09-06T17:32:59.331997+00:00. The current five-stage pipeline returned zero.
+This is offline/loopback source validation, not a booted unattended installation.
 
-## Completed checks
-
-| Check | Actual result |
+| Check | Result |
 | --- | --- |
-| Browser generation / `--check` | PASS |
-| Deterministic payload and preseed pin currentness | PASS |
-| Isolated debconf preseed check | 58 files; PASS |
-| Full retained suite plus 34 new initrd/target-tool regressions | 305 tests; PASS; 0 skipped |
-| Unit-suite measured runtime | 91.593 seconds |
-| Syntax/inventory audit | 1,154 files; no hard audit failures |
-| Original hardware profile preservation | 13 profiles; byte-identical to uploaded ZIP |
-| Supplementary AppArmor compilation | Historical preceding-release evidence only; profiles unchanged; not rerun here. |
+| Browser currentness | PASS |
+| Payload and preseed pins | PASS; 1,219 payload files |
+| Debconf preseed checks | 58 files; PASS |
+| Full suite | **401 tests; PASS; 0 skipped**; 56.400 seconds |
+| CUDA-focused suite | 28 tests: 16 lifecycle/hook, 12 real APT; included above |
+| Podman/Incus-focused suite | 81 tests; included above |
+| Seven rendered systemd units | `systemd-analyze verify` with isolated dependency fixtures; PASS |
+| Hardware profiles | All 13 unchanged from this pass's input archive |
 
-Do not add inventory checks to the executed test count. The preceding archive
-contained 271 tests; this revision adds 24 credential and 10 target-tool/diagnostic
-tests. Existing root-login tests were corrected to model an initrd without stat.
-Run logs are included, not reconstructed from expected outcomes. The pipeline's outer test-stage elapsed
-time is slightly larger than the unittest runtime because it includes process
-startup and reporting. `validation/run-status.txt` contains the completed run's
-exit status; it is not evidence for any later local edit.
+See [the second-pass report](CUDA-LEGACY-SECOND-PASS-2026-09-06.md) for the exact
+source policy, tested cases, the startup/client corrections and security tradeoff.
+CUDA metadata authenticity and freshness are intentionally not enforced for the
+explicitly selected legacy source. HTTPS and available package checksums remain;
+other repositories' signature validation remains intact.
 
-## What was exercised
+## Evidence and classification
 
-The retained tests execute generated bootstrap commands with local media and
-loopback HTTP/HTTPS, redirect chains, GNU/BusyBox wget, full source prefixes,
-normal TLS trust and the explicit repository-only bypass. They test corrupted
-pins, missing members, traversal, duplicate/symlink archive entries, stale local
-sources, role/class/profile errors, credential handling, storage-policy fixtures,
-path relocations and payload/cache integrity. They do not contact real GitHub,
-TinyURL or NVIDIA endpoints.
+`validation/summary.json`, `tests.log` and sibling stage logs are the current run.
+Runtime product hashes in the summary match the regenerated files. Additional
+logs in `validation/second-pass/` are not extra distinct tests. Its earlier
+policy-transition failure is retained and labeled, not presented as success.
+`validation/podman-incus-initial/` and the other previous-release folders are
+historical evidence, not current validation.
 
-New tests execute an external-key fetch over a trusted loopback HTTPS server while
-the validated-payload ready marker exists. They prove that absent snapshot members
-still fail, external data cannot inherit the TLS bypass, failed downloads preserve
-the destination, unsafe modes/URLs are rejected, and the source line constrains
-the full signing fingerprint without APT authentication bypass options.
+| Audit classification | Count |
+| --- | ---: |
+| Syntax/parser pass | 404 |
+| Lexical systemd structure pass | 113 |
+| Inventory only | 475 |
+| Blocked by missing dependencies | 154 |
+| Template needs rendering | 2 |
 
-Cryptographic fixtures generate a disposable RSA key with a SHA-1 certificate
-self-signature and SHA-256-signed Release data. Real `sqv` rejects the certificate
-under strict policy, accepts that SHA-256 fixture with the bounded exception,
-rejects a SHA-1 data signature, rejects modified signed data, and rejects the
-exception after its cutoff. A real isolated `apt-get update` uses a local flat
-repository and private state/cache: strict policy rejects, the scoped policy
-accepts, and the wrong Signed-By fingerprint rejects. No packages are installed;
-no validation-host APT source, trust policy or package database is changed.
-
-Production-wrapper fixtures test a `run_in_target` that exits, not just returns;
-retry scope, cleanup, general-update source restoration, unrelated failures and
-strict-first behavior are covered. DKMS tests verify missing-real-binary failure
-instead of recursion, diversion with rename, and argument forwarding. Credential
-reader tests reject unsafe ownership/write modes and harden extra read bits before
-sourcing trusted shell content. Both readers are tested for every supplied mapping,
-absent/present/empty command-line parameters, literal punctuation, BOM/CRLF,
-malformed syntax, missing stat and non-disclosing errors. Root account rendering
-is exercised through a real isolated debconf database and in a BusyBox chroot with
-no stat command. Additional tests execute the Podman filesystem selector and four
-Codex metadata expressions with a stubbed target chroot; no real Podman/Codex
-installation is claimed. The diagnostic tool is exercised without real credentials.
-
-Browser tests validate reproducible generation, all bookmark/exclusion accounting,
-NoScript contextual grants and UUID removal, the actual selected uBOL IDs, no
-unfiltered bookmark bypass, Privacy Badger explicit actions/no fabricated learning,
-policy editability, supported recommendation placement, private debug directories,
-loopback/sandbox flags, root refusal, and staging of owned private exports.
-Staging tests cover repeated runs, preservation of user edits, Downloads symlinks,
-FIFOs, inappropriate homes and ownership. No extension GUI or website task is run.
-
-In the PRECEDING release, two real Vivaldi AppArmor parent profiles were compiled
-with `apparmor_parser -Q
--K` and the repository include directory. The parser exits zero; it warns that a
-kernel interface is unavailable. `-Q` prevents loading. The Chromium and Edge local
-include files have regression checks but were not compiled within real installed
-vendor parent profiles. No AppArmor enforcement or browser launch is claimed. Those historical logs are
-now in `validation/previous-release/`; this revision's preserved target asset bytes
-are checked in `validation/root-env-fix/release-check.json`.
-
-## Audit outcomes
-
-| Outcome | Count | Meaning |
-| --- | ---: | --- |
-| `pass` | 403 | Available syntax/parser check passed; not semantic proof. |
-| `structure-pass` | 116 | Systemd lexical structure only, not activation or full systemd-analyze verify. |
-| `inventory-only` | 479 | Data/configuration asset recorded, not executed. |
-| `blocked-dependency` | 154 | Perl compilation check could not finish without dependencies. |
-| `template-needs-render` | 2 | Runtime-substituted template not validated in final form. |
-
-Most blocked Perl checks require `Moo.pm`, not installed in this container; the
-retained target package list includes `libmoo-perl`. One also needs the generated
-`LabwcNetworkScanAction/Root.pm`. The two unrendered templates are
-`hooks/target/etc/greetd/config.toml.tmpl` and
-`hooks/target/etc/skel/.config/cargo/config.toml.tmpl` below `d-i/forky/`.
-These 154 blocked checks are not fixed, passed or silently omitted. Perl `-c`
-can execute BEGIN blocks, so only validate trusted code in a disposable system.
+The last three categories are not executed runtime successes. The independent
+seven-unit check uses executable/dependency fixtures and does not activate services.
+AppArmor files are unchanged this pass; historical compilation logs are retained,
+but no new kernel policy load or enforcement test was performed.
 
 ## Reproduce
 
-    python3 -B tools/build.py
-    python3 -B tools/validate.py
+```sh
+python3 -B tools/build.py
+python3 -B tools/validate.py
+python3 -B -m unittest discover -v -s d-i/forky/tests -p test_cuda_legacy_apt.py
+python3 -B -m unittest discover -v -s d-i/forky/tests -p test_podman_incus_redesign.py
+python3 -B validation/podman-incus/verify-rendered-units.py
+```
 
-The publishing tools need Python 3.11+. Full fixture coverage additionally needs
-POSIX sh, Bash, Perl, GNU wget, BusyBox, OpenSSL, Node.js, GnuPG, `sqv`, APT and
-`debconf-set-selections`; a missing tool can cause a test to skip or fail, which
-must be reviewed. The completed run here had zero skips. Supplementary profile
-compilation needs AppArmor parser. Installer transport itself needs neither Python
-nor curl; installed-target helpers use the target's existing Python package.
+Use a disposable Linux environment. Perl syntax checks can execute BEGIN blocks.
+The host used Debian 13, APT 3.0.3 and sqv 1.3.0. Tests use local/loopback fixtures
+and disposable keys; the inert APT fixture package is downloaded, not installed.
+No host sources, trust policy or package database are modified. Full fixture
+coverage needs the tools named in each test's prerequisite guards. This run had
+zero skips. `CUDA_TEST_APT_ROOT` can select a separately extracted APT/libapt tree;
+that alternate-version run was not performed here.
 
-## Acceptance work NOT performed
+## Remaining installed-system acceptance
 
-| Area | Required real-system acceptance |
-| --- | --- |
-| d-i | Boot the actual image, native initial source trust, network setup, real redirects and complete phase ordering. |
-| Storage | Disposable disks for each selected Btrfs/F2FS/VM profile; verify intended disk identity, capacity, boot/encryption and recovery. |
-| Package sources | Live Debian and NVIDIA metadata/signatures, package availability, actual CUDA dependencies and version selection. |
-| NVIDIA | Actual DKMS build against chosen kernel/headers, module load, Secure Boot enrollment, GPU workloads and suspend/resume. |
-| Desktop | Reboot/login, Labwc/wlroots, input/output devices, D-Bus/session units, networking, integration credentials and first boot. |
-| Browser | Installed-version policy recognition/precedence, extension installation/import/re-export, localhost DevTools, AppArmor denials. |
-| Sites | Authenticated login/payment/CAPTCHA/video and other real bookmark workflows with blocked-request inspection. |
-
-A coverage entry is not a successfully tested website. None of the 543 eligible
-web bookmarks has live workflow acceptance in this run. Other managed browser
-policy sources can override local JSON. Initial preseed SHA-256 pins do not prove
-the authenticity of a maliciously replaced preseed. See `SECURITY.md`.
+No real d-i boot, live upstream package dependency solve, CUDA package installation,
+DKMS build/module loading, Secure Boot, GPU workload, partitioning, desktop launch,
+container runtime execution, Incus activation, AppArmor enforcement or reboot
+recovery was tested. Current Forky package behavior needs acceptance on the actual
+installer image. Browser and site coverage remains static/fixture coverage, not
+successful live websites. These boundaries apply regardless of a green unit suite.

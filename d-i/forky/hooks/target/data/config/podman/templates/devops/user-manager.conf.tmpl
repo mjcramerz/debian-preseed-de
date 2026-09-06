@@ -1,0 +1,10 @@
+[Unit]
+RequiresMountsFor=/data/accounts/devops /pool/podman
+After=systemd-tmpfiles-setup.service
+
+[Service]
+# A persistent linger must never bypass the ownership/mapping preflight.
+# The + prefix runs only this root-owned, read-only preflight as root.
+ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start
+UMask=0077
+Delegate=yes

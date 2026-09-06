@@ -1,5 +1,10 @@
 # Initrd credentials and root-login repair - 2026-09-06
 
+> Historical revision report. CUDA authentication descriptions and any prior
+> test counts are superseded by the [second-pass report](CUDA-LEGACY-SECOND-PASS-2026-09-06.md).
+> Current evidence is `validation/summary.json`; the second pass also corrects
+> the Podman bootstrap sandbox and client global-option handling.
+
 ## Scope and root cause
 
 This is an amendment to the complete security/browser refactor, not a replacement

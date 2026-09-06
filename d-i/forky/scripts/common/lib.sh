@@ -4263,111 +4263,60 @@ installer_load_source_library() {
   installer_fatal 'repository transport is missing; start with the generated preseed.cfg'
 }
 
-# One trust anchor and source renderer shared by every legacy CUDA lifecycle.
-# Pin the full primary fingerprint, not the eight-character filename/key ID.
-installer_cuda_key_fingerprint() {
-  printf '%s\n' EB693B3035CD5710E231E123A4B469963BF863CC
-}
-
+# The explicitly selected CUDA-legacy archive is an operator-authorized APT
+# authentication exception. Never export this policy globally or use it for
+# Debian, other NVIDIA archives, or any unrelated third-party source.
+# APT may still report a signature warning; verification is NOT a prerequisite
+# for fetching metadata or installing packages from this one source.
 installer_cuda_source_line() (
   set -eu
-  keyring=$1; repository=$2; suite=$3; components=${4:-}
-  [ "$keyring" = /etc/apt/keyrings/cuda-legacy-archive-key.asc ] || exit 1
+  repository=$1; suite=$2; components=${3:-}
   [ "$repository" = https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ ] || {
-    installer_fatal 'legacy CUDA repository changed: review the trust anchor before changing the URL'; exit 1;
+    installer_fatal 'legacy CUDA authentication exception is limited to the Debian 12 amd64 archive'; exit 1;
   }
   [ "$suite" = / ] && [ -z "$components" ] || {
-    installer_fatal 'legacy CUDA must use the reviewed flat repository'; exit 1;
+    installer_fatal 'legacy CUDA must use the flat Debian 12 archive'; exit 1;
   }
-  printf 'deb [arch=amd64 signed-by=%s,%s] %s /\n' \
-    "$keyring" "$(installer_cuda_key_fingerprint)" "$repository"
+  printf 'deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] %s /\n' "$repository"
 )
 
-# Preserve the target APT cryptographic baseline, changing ONLY the legacy
-# certificate's SHA-1 second-preimage deadline. SHA-1 DATA signatures remain
-# forbidden. This policy is used for ONE pinned CUDA source, NEVER globally.
-# The exception expires 2027-02-01; it cannot repair an expired/revoked key.
-installer_cuda_compat_policy() (
+# One atomic source publisher for both pre-pkgsel and late-command repair.
+# No signing-key download, Signed-By pin, Sequoia baseline or crypto-policy
+# expiry is needed. The installer payload itself remains checksum-verified.
+installer_cuda_stage_target_source() (
   set -eu
-  baseline=$1; destination=$2
-  [ -s "$baseline" ] || { installer_fatal 'missing target APT Sequoia baseline'; exit 1; }
-  awk '
-    /^[[:space:]]*sha1[.]second_preimage_resistance[[:space:]]*=/ {
-      n++; print "sha1.second_preimage_resistance = 2027-02-01";
-      print "sha1.collision_resistance = 1970-01-01"; next
-    }
-    /^[[:space:]]*sha1[.]collision_resistance[[:space:]]*=/ { next }
-    { print }
-    END { if (n != 1) exit 1 }
-  ' "$baseline" >"$destination" || {
-    rm -f "$destination"; installer_fatal 'unrecognized APT baseline; refusing crypto-policy fallback'; exit 1;
+  umask 077
+  line=$(installer_cuda_source_line "$@")
+  target=${INSTALLER_TARGET_DIR:-/target}
+  source_dir="$target/etc/apt/sources.list.d"
+  source="$source_dir/cuda-legacy-temp.list"
+  install -d -m 0755 "$source_dir"
+  [ ! -L "$source_dir" ] && [ ! -L "$source" ] || {
+    installer_fatal 'indirect legacy CUDA source path'; exit 1;
   }
-  chmod 0644 "$destination"
+  work=$(mktemp "$source_dir/.cuda-legacy.XXXXXX")
+  trap 'rm -f "$work"' 0
+  trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
+  printf '%s\n' "$line" >"$work"
+  chmod 0644 "$work"
+  mv -f "$work" "$source"
+  # Remove our obsolete key only; never alter system/vendor trust stores.
+  rm -f "$target/etc/apt/keyrings/cuda-legacy-archive-key.asc"
 )
 
 installer_cuda_refresh_target_apt() (
   set -eu
-  umask 077
-  target=${INSTALLER_TARGET_DIR:-/target}
-  install -d -m 0755 "$target/run"
-  work=$(mktemp -d "$target/run/cuda-legacy-verify.XXXXXX")
-  chmod 0755 "$work"
-  trap 'rm -rf "$work"' 0
-  trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
-  policy_target=${work#"$target"}/sequoia.config
-  # An absolute, single-source selection prevents the compatibility policy
-  # from authenticating Debian, browser or any other vendor repositories.
-  set -- apt-get \
+  installer_warn 'CUDA-legacy ONLY: archive authentication and metadata-date checks are disabled by explicit class selection; HTTPS and package checksums remain enabled'
+  # Source-local options are also honored by pkgsel and subsequent ordinary
+  # apt-get install calls. There is no strict-first attempt or Sequoia fallback.
+  # Retain other lists and fail for genuine transport/index errors, rather than
+  # reporting success with stale or missing package metadata.
+  run_in_target 'refresh explicitly trusted legacy CUDA metadata' \
+    env -u APT_SEQUOIA_CRYPTO_POLICY -u SEQUOIA_CRYPTO_POLICY \
+    LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get \
     -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/cuda-legacy-temp.list \
     -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 \
     -o APT::Update::Error-Mode=any \
-    -o Acquire::AllowInsecureRepositories=false \
-    -o Acquire::AllowWeakRepositories=false \
-    -o APT::Get::AllowUnauthenticated=false \
     -o Acquire::Retries=3 -o Acquire::http::Timeout=45 \
     -o Acquire::https::Timeout=45 -o DPkg::Use-Pty=0 update
-  if ( run_in_target 'verify legacy CUDA metadata with default APT policy' \
-      env LC_ALL=C DEBIAN_FRONTEND=noninteractive "$@" ) >"$work/strict.log" 2>&1; then
-    cat "$work/strict.log"
-    exit 0
-  fi
-  cat "$work/strict.log"
-  # Do not retry arbitrary signature, TLS, repository, expiry or hash failures
-  # under a relaxed certificate policy. The known self-certification failure
-  # must identify our exact pinned key and SHA-1 binding signature.
-  grep -Fq "$(installer_cuda_key_fingerprint)" "$work/strict.log" &&
-    grep -Fq SHA1 "$work/strict.log" &&
-    grep -Eq 'PositiveCertification|binding signature' "$work/strict.log" || {
-      installer_fatal 'CUDA metadata authentication failed (not the reviewed legacy certificate case)'; exit 1;
-    }
-  installer_cuda_compat_policy "$target/usr/share/apt/default-sequoia.config" "$work/sequoia.config"
-  installer_warn 'CUDA-only legacy SHA-1 certificate exception through 2027-02-01; SHA-1 Release signatures remain forbidden'
-  run_in_target 'verify pinned CUDA source using bounded legacy certificate policy' \
-    env LC_ALL=C DEBIAN_FRONTEND=noninteractive \
-    APT_SEQUOIA_CRYPTO_POLICY="$policy_target" SEQUOIA_CRYPTO_POLICY="$policy_target" "$@"
-)
-
-# Dedicated trust-material downloader. Syntax checks are only an early error
-# diagnostic: APT must still authenticate Release using the full Signed-By pin.
-installer_fetch_cuda_key() (
-  set -eu
-  url=$1; destination=$2; mode=${3:-0644}
-  expected=https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/3bf863cc.pub
-  [ "$url" = "$expected" ] || { installer_fatal 'unexpected legacy CUDA key URL'; exit 1; }
-  case "$mode" in 0600|0644) ;; *) installer_fatal 'invalid CUDA key mode'; exit 1 ;; esac
-  mkdir -p "$(dirname "$destination")"
-  work=$(mktemp -d "${destination}.key.XXXXXX")
-  trap 'rm -rf "$work"' 0
-  trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
-  ( ulimit -f 128
-    installer_fetch_url "${url%/*}" "${url##*/}" "$work/key.asc" 0600
-  )
-  bytes=$(wc -c <"$work/key.asc")
-  [ "$bytes" -ge 256 ] && [ "$bytes" -le 65536 ] &&
-    grep -qx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$work/key.asc" &&
-    grep -qx -- '-----END PGP PUBLIC KEY BLOCK-----' "$work/key.asc" || {
-      installer_fatal 'invalid ASCII-armored CUDA key; refusing HTML/empty/oversized content'; exit 1;
-    }
-  chmod "$mode" "$work/key.asc"
-  mv -f "$work/key.asc" "$destination"
 )

@@ -1,0 +1,589 @@
+#!/usr/bin/python3 -I
+"""Install/validate the one locked devops engine; never a desktop privilege broker.
+
+setup is for an offline, quiescent installation target. start is repeatable at
+boot. Neither mode renames accounts, migrates live stores, recursively chowns
+container data, accepts commands from clients, or executes user-owned files.
+"""
+from __future__ import annotations
+
+import argparse
+from contextlib import contextmanager
+import fcntl
+import grp
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+from typing import Iterator
+
+USER = 'devops'
+HOME = Path('/data/accounts/devops')
+POOL = Path('/pool/podman')
+CONFIG = Path('/etc/podman-devops')
+TEMPLATES = Path('/usr/local/share/podman-devops')
+SOCKET = HOME / 'run/podman.sock'
+ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+       'LC_ALL': 'C.UTF-8', 'HOME': '/root'}
+MAX_ID = 4294967294
+
+
+class Failure(RuntimeError):
+    """A failed invariant that needs operator attention, not a silent fallback."""
+
+
+def log(message: str) -> None:
+    print(f'podman-devops: {message}', file=sys.stderr, flush=True)
+
+
+def run(argv: list[str], timeout: float = 30) -> str:
+    """Bound subprocesses and terminate their process group on timeout/signal."""
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, env=ENV, start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except BaseException:
+        # A reaped leader does not mean that its descendants closed our pipes.
+        for sig, grace in ((signal.SIGTERM, 3), (signal.SIGKILL, 2)):
+            try:
+                os.killpg(proc.pid, sig)
+            except ProcessLookupError:
+                pass
+            try:
+                proc.communicate(timeout=grace)
+                break
+            except subprocess.TimeoutExpired:
+                continue
+        else:
+            for stream in (proc.stdout, proc.stderr):
+                if stream is not None:
+                    stream.close()
+        raise
+    if proc.returncode:
+        raise Failure(f'{argv[0]} exited {proc.returncode}: {err.strip()[-2000:]}')
+    return out.strip()
+
+
+def direct_path(path: Path, *, missing_leaf: bool = False) -> None:
+    """Reject indirect paths; all root-written parents are root-owned below."""
+    if not path.is_absolute() or '..' in path.parts:
+        raise Failure(f'unsafe path: {path}')
+    current = Path('/')
+    for part in path.parts[1:]:
+        current /= part
+        try:
+            meta = current.lstat()
+        except FileNotFoundError:
+            if missing_leaf and current == path:
+                return
+            raise Failure(f'missing parent/path: {current}') from None
+        if stat.S_ISLNK(meta.st_mode):
+            raise Failure(f'symlink not permitted: {current}')
+        if current != path and not stat.S_ISDIR(meta.st_mode):
+            raise Failure(f'non-directory parent: {current}')
+
+
+def trusted_parent(path: Path) -> None:
+    direct_path(path.parent)
+    for parent in [path.parent, *path.parent.parents]:
+        meta = parent.stat()
+        # A root-owned sticky pool permits work directories without letting a
+        # group member replace root-owned managed storage entries.
+        if meta.st_uid != 0 or (meta.st_mode & 0o022 and not meta.st_mode & stat.S_ISVTX):
+            raise Failure(f'root-managed parent is writable or not root-owned: {parent}')
+
+
+def directory(path: Path, mode: int, uid: int = 0, gid: int = 0) -> None:
+    trusted_parent(path)
+    try:
+        os.mkdir(path, mode)
+    except FileExistsError:
+        pass
+    direct_path(path)
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        meta = os.fstat(fd)
+        if meta.st_uid not in (0, uid):
+            raise Failure(f'refusing to take over unrelated directory: {path}')
+        os.fchown(fd, uid, gid)
+        os.fchmod(fd, mode)
+    finally:
+        os.close(fd)
+
+
+def read_root_file(path: Path) -> bytes:
+    direct_path(path)
+    trusted_parent(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or meta.st_mode & 0o022:
+            raise Failure(f'expected direct, root-owned, non-writable regular file: {path}')
+        with os.fdopen(fd, 'rb', closefd=False) as stream:
+            data = stream.read(4 * 1024 * 1024 + 1)
+            if len(data) > 4 * 1024 * 1024:
+                raise Failure(f'root-managed file exceeds size limit: {path}')
+            return data
+    finally:
+        os.close(fd)
+
+
+def atomic_write(path: Path, data: bytes, mode: int = 0o644, gid: int = 0) -> bool:
+    """Publish one durable file; do not expose a half-written configuration."""
+    trusted_parent(path)
+    direct_path(path, missing_leaf=True)
+    if path.exists():
+        previous = read_root_file(path)
+        meta = path.stat()
+        if previous == data and stat.S_IMODE(meta.st_mode) == mode and meta.st_gid == gid:
+            return False
+    fd, temporary = tempfile.mkstemp(prefix=f'.{path.name}.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fchown(stream.fileno(), 0, gid)
+            os.fchmod(stream.fileno(), mode)
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+    return True
+
+
+def atomic_link(path: Path, target: str) -> None:
+    trusted_parent(path)
+    if path.is_symlink():
+        if os.readlink(path) == target:
+            return
+        raise Failure(f'refusing to replace a different unit link: {path}')
+    if path.exists():
+        raise Failure(f'refusing to replace a non-link unit: {path}')
+    # The directory is root-owned and not group writable. os.symlink is atomic.
+    os.symlink(target, path)
+    parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+
+
+@contextmanager
+def locked() -> Iterator[None]:
+    directory(Path('/run/lock/podman-devops'), 0o700)
+    path = Path('/run/lock/podman-devops/host.lock')
+    fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o600:
+            raise Failure('unsafe provisioning lock')
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise Failure('another provisioning/activation process holds the lock') from None
+                time.sleep(0.1)
+        yield
+    finally:
+        # Never unlink a flock file: another waiter may already have it open.
+        os.close(fd)
+
+
+def subid_rows(text: str) -> list[tuple[str, int, int]]:
+    result = []
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        fields = line.split(':')
+        if len(fields) != 3 or not fields[1].isdecimal() or not fields[2].isdecimal():
+            raise Failure('malformed subordinate-ID database')
+        start, count = int(fields[1]), int(fields[2])
+        if start < 1 or count < 1 or start + count - 1 > MAX_ID:
+            raise Failure('invalid subordinate-ID range')
+        result.append((fields[0], start, count))
+    return result
+
+
+def choose_subids(rows: list[tuple[str, int, int]], uid: int,
+                  actual_ids: set[int]) -> tuple[int, int, bool]:
+    names = {USER, str(uid)}
+    own = [row for row in rows if row[0] in names]
+    if len(own) > 1:
+        raise Failure('devops must have exactly one subordinate-ID range per database')
+    if own:
+        _, start, count = own[0]
+        if start < 100000 or count < 65536:
+            raise Failure('existing devops subordinate-ID range is too small/low')
+        if any(start < other + size and other < start + count
+               for name, other, size in rows if name not in names):
+            raise Failure('devops subordinate-ID range overlaps another account')
+        new = False
+    else:
+        start = max([100000] + [other + size for _, other, size in rows])
+        start = ((start + 65535) // 65536) * 65536
+        count, new = 65536, True
+        while any(start <= number < start + count for number in actual_ids):
+            start += count
+    if start + count - 1 > MAX_ID or any(start <= number < start + count for number in actual_ids):
+        raise Failure('subordinate-ID range collides with a real account or exceeds the ID space')
+    return start, count, new
+
+
+def ensure_subids(uid: int) -> dict[str, list[int]]:
+    selected = {}
+    for name, option, actual in (
+            ('subuid', '--add-subuids', {p.pw_uid for p in pwd.getpwall()}),
+            ('subgid', '--add-subgids', {g.gr_gid for g in grp.getgrall()})):
+        path = Path('/etc') / name
+        rows = subid_rows(read_root_file(path).decode()) if path.exists() else []
+        start, count, new = choose_subids(rows, uid, actual)
+        if new:
+            # shadow-utils owns its database locking/atomic replacement. Our
+            # outer lock serializes installer invocations. Setup must not run
+            # concurrently with unrelated account provisioning.
+            run(['/usr/sbin/usermod', option, f'{start}-{start + count - 1}', USER])
+        check = choose_subids(subid_rows(read_root_file(path).decode()), uid, actual)
+        if check != (start, count, False):
+            raise Failure(f'{name} allocation did not verify')
+        selected[name] = [start, count]
+    return selected
+
+
+def password_locked() -> bool:
+    for line in read_root_file(Path('/etc/shadow')).decode().splitlines():
+        fields = line.split(':')
+        if fields[0] == USER:
+            return fields[1].startswith(('!', '*'))
+    return False
+
+
+def account(create: bool = False) -> tuple[int, int]:
+    try:
+        pwd.getpwnam('podsvc')
+    except KeyError:
+        pass
+    else:
+        raise Failure('legacy podsvc account found; export/migrate its workloads offline first; no account or data was deleted')
+    try:
+        group = grp.getgrnam(USER)
+    except KeyError:
+        if not create:
+            raise Failure('devops group is missing') from None
+        run(['/usr/sbin/groupadd', '--system', USER])
+        group = grp.getgrnam(USER)
+    if group.gr_gid == 0:
+        raise Failure('devops primary group must not be root')
+    try:
+        user = pwd.getpwnam(USER)
+    except KeyError:
+        if not create:
+            raise Failure('devops service account is missing') from None
+        run(['/usr/sbin/useradd', '--system', '--gid', USER, '--no-create-home',
+             '--home-dir', str(HOME), '--shell', '/usr/sbin/nologin',
+             '--comment', 'Locked rootless container service', '--no-log-init', USER])
+        user = pwd.getpwnam(USER)
+    if user.pw_uid == 0 or user.pw_dir != str(HOME) or user.pw_shell != '/usr/sbin/nologin':
+        raise Failure('refusing to take over a login account or unexpected devops home')
+    groups = set(os.getgrouplist(USER, user.pw_gid))
+    if create and (user.pw_gid != group.gr_gid or groups != {group.gr_gid} or not password_locked()):
+        run(['/usr/sbin/usermod', '--gid', USER, '--groups', '', '--lock', USER])
+        user = pwd.getpwnam(USER)
+        groups = set(os.getgrouplist(USER, user.pw_gid))
+    if user.pw_gid != group.gr_gid or groups != {group.gr_gid} or not password_locked():
+        raise Failure('devops must be locked with primary group devops and no supplementary groups')
+    return user.pw_uid, group.gr_gid
+
+
+def driver_for(filesystem: str, requested: str) -> str:
+    if requested not in ('auto', 'overlay', 'btrfs'):
+        raise Failure('supported storage drivers: auto, overlay, btrfs')
+    if filesystem not in ('btrfs', 'ext2/ext3', 'xfs', 'f2fs'):
+        raise Failure(f'unsupported local backing filesystem: {filesystem}; no fallback store is created')
+    if requested == 'btrfs' and filesystem != 'btrfs':
+        raise Failure('btrfs storage driver requires a Btrfs filesystem')
+    # Modern Debian kernels support native rootless OverlayFS on these local
+    # filesystems. A failed runtime capability check is fatal, never a reset.
+    return 'overlay' if requested == 'auto' else requested
+
+
+def render(name: str, values: dict[str, str]) -> bytes:
+    text = read_root_file(TEMPLATES / name).decode()
+    for key, value in values.items():
+        text = text.replace(f'@{key}@', value)
+    if re.search(r'@[A-Z_]+@', text):
+        raise Failure(f'unresolved template token in {name}')
+    return text.encode()
+
+
+def require_podman_version() -> None:
+    version = run(['/usr/bin/podman', '--version'])
+    match = re.search(r'\b(\d+)\.(\d+)\.(\d+)(?:\D|$)', version)
+    if not match or tuple(map(int, match.groups())) < (5, 8, 6):
+        raise Failure('Podman >= 5.8.6 is required for boot-state-aware stop --service semantics')
+
+
+def setup(args: argparse.Namespace) -> None:
+    try:
+        desktop = pwd.getpwnam(args.desktop_user)
+    except KeyError:
+        raise Failure('the installer desktop account does not exist') from None
+    if desktop.pw_uid < 1000 or desktop.pw_name == USER:
+        raise Failure('desktop account must be a separate unprivileged login account')
+    for binary in ('/usr/bin/podman', '/usr/bin/docker', '/usr/bin/docker-compose',
+                   '/usr/bin/crun', '/usr/bin/newuidmap', '/usr/bin/newgidmap',
+                   '/usr/bin/pasta', '/usr/bin/loginctl', '/usr/sbin/nologin'):
+        if not os.access(binary, os.X_OK):
+            raise Failure(f'required executable is missing: {binary}')
+    # Never start services from setup: an installer chroot has no own PID 1.
+    if Path('/run/systemd/system').exists():
+        try:
+            user = pwd.getpwnam(USER)
+        except KeyError:
+            pass
+        else:
+            active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet',
+                                     f'user@{user.pw_uid}.service'], env=ENV,
+                                    timeout=10, check=False).returncode == 0
+            if active:
+                raise Failure('setup requires a stopped devops user manager; use start for live validation')
+    require_podman_version()
+    uid, gid = account(create=True)
+    mappings = ensure_subids(uid)
+    directory(CONFIG, 0o755)
+    state_path = CONFIG / 'layout.json'
+    previous = json.loads(read_root_file(state_path)) if state_path.exists() else None
+    for parent in (Path('/data'), Path('/data/accounts')):
+        directory(parent, 0o755)
+    # The generic layout already grants devops write access to /pool. Add the
+    # sticky bit, preserving all other access, to protect root-owned pool roots.
+    direct_path(Path('/pool'))
+    pool_meta = Path('/pool').stat()
+    if pool_meta.st_uid != 0:
+        raise Failure('/pool must be root-owned')
+    os.chmod('/pool', stat.S_IMODE(pool_meta.st_mode) | stat.S_ISVTX)
+    directory(POOL, 0o711)
+    filesystem = run(['/usr/bin/stat', '-f', '-c', '%T', '--', str(POOL)])
+    driver = driver_for(filesystem, args.storage_driver)
+    identity = {'version': 1, 'uid': uid, 'gid': gid, 'home': str(HOME),
+                'pool': str(POOL), 'driver': driver, **mappings}
+    if previous and any(previous.get(key) != value for key, value in identity.items()):
+        raise Failure('existing storage identity/driver/mappings differ; automatic migration is forbidden')
+    if not previous:
+        for leaf in ('storage', 'volumes', 'networks', 'libpod', 'imagestore'):
+            path = POOL / leaf
+            direct_path(path, missing_leaf=True)
+            if path.exists() and (not path.is_dir() or any(path.iterdir())):
+                raise Failure(f'unmanaged data in {path}; back up and migrate explicitly')
+    directory(HOME, 0o710, gid=gid)
+    for relative in ('.config', '.config/containers', '.config/containers/registries.conf.d',
+                     '.config/containers/certs.d', '.config/containers/systemd',
+                     '.config/systemd', '.config/systemd/user',
+                     '.config/systemd/user/sockets.target.wants',
+                     '.config/systemd/user/default.target.wants', '.local'):
+        directory(HOME / relative, 0o750, gid=gid)
+    # Private leaf directories are not recursively changed on a subsequent run.
+    for relative in ('.cache', '.local/share', 'run'):
+        directory(HOME / relative, 0o710 if relative == 'run' else 0o700, uid, gid)
+    directory(HOME / '.ssh', 0o700)
+    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp'):
+        directory(POOL / leaf, 0o700, uid, gid)
+    directory(POOL / 'workspace', 0o2770, uid, gid)
+    if gid not in os.getgrouplist(desktop.pw_name, desktop.pw_gid):
+        run(['/usr/sbin/usermod', '--append', '--groups', USER, desktop.pw_name])
+    values = {'UID': str(uid), 'DRIVER': driver, 'CPU_WEIGHT': str(args.cpu_weight),
+              'IO_WEIGHT': str(args.io_weight), 'TASKS_MAX': str(args.tasks_max),
+              'MEMORY_HIGH': args.memory_high, 'MEMORY_MAX': args.memory_max}
+    managed = {}
+    for name, destination, mode, file_gid in (
+            ('containers.conf.tmpl', HOME / '.config/containers/containers.conf', 0o640, gid),
+            ('storage.conf.tmpl', HOME / '.config/containers/storage.conf', 0o640, gid),
+            ('registries.conf', HOME / '.config/containers/registries.conf', 0o640, gid),
+            ('podman.service.tmpl', HOME / '.config/systemd/user/podman.service', 0o640, gid),
+            ('podman.socket', HOME / '.config/systemd/user/podman.socket', 0o640, gid),
+            ('podman-restart.service.tmpl', HOME / '.config/systemd/user/podman-restart.service', 0o640, gid),
+            ('client.conf', CONFIG / 'client.conf', 0o644, 0)):
+        data = render(name, values)
+        atomic_write(destination, data, mode, file_gid)
+        managed[str(destination)] = hashlib.sha256(data).hexdigest()
+    for name, unit in (('user-manager.conf.tmpl', f'user@{uid}.service'),
+                       ('user-slice.conf.tmpl', f'user-{uid}.slice')):
+        parent = Path('/etc/systemd/system') / (unit + '.d')
+        directory(parent, 0o755)
+        data = render(name, values)
+        destination = parent / '50-podman-devops.conf'
+        atomic_write(destination, data)
+        managed[str(destination)] = hashlib.sha256(data).hexdigest()
+    units = HOME / '.config/systemd/user'
+    atomic_link(units / 'sockets.target.wants/podman.socket', '../podman.socket')
+    atomic_link(units / 'default.target.wants/podman-restart.service', '../podman-restart.service')
+    # Explicitly exclude rootful APIs. No Docker daemon is installed by this addon.
+    for unit in ('podman.socket', 'podman.service', 'docker.socket', 'docker.service'):
+        path = Path('/etc/systemd/system') / unit
+        if path.is_symlink() and os.readlink(path) == '/dev/null':
+            continue
+        if path.exists() or path.is_symlink():
+            raise Failure(f'pre-existing rootful unit override requires review: {path}')
+        atomic_link(path, '/dev/null')
+    wants = Path('/etc/systemd/system/multi-user.target.wants')
+    directory(wants, 0o755)
+    atomic_link(wants / 'podman-devops-bootstrap.service', '../podman-devops-bootstrap.service')
+    # No one-shot success stamp: activation revalidates actual state every boot.
+    state = {**identity, 'desktop_user': desktop.pw_name, 'managed_files': managed}
+    atomic_write(state_path, (json.dumps(state, indent=2, sort_keys=True) + '\n').encode())
+    log(f'configured uid={uid} gid={gid} driver={driver} socket={SOCKET}; activation deferred to boot')
+
+
+def load_and_validate() -> dict:
+    require_podman_version()
+    state = json.loads(read_root_file(CONFIG / 'layout.json'))
+    uid, gid = account()
+    if state.get('uid') != uid or state.get('gid') != gid or state.get('version') != 1:
+        raise Failure('service identity changed since provisioning')
+    for path in (HOME, POOL):
+        direct_path(path)
+        trusted_parent(path)
+        if path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
+            raise Failure(f'managed root is no longer protected: {path}')
+    for name, actual in (('subuid', {p.pw_uid for p in pwd.getpwall()}),
+                         ('subgid', {g.gr_gid for g in grp.getgrall()})):
+        start, count, new = choose_subids(subid_rows(read_root_file(Path('/etc') / name).decode()), uid, actual)
+        if new or state.get(name) != [start, count]:
+            raise Failure(f'{name} mapping changed; refusing to use existing storage')
+    for value, digest in state['managed_files'].items():
+        if hashlib.sha256(read_root_file(Path(value))).hexdigest() != digest:
+            raise Failure(f'managed configuration changed; run offline setup to reconcile: {value}')
+    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp', 'workspace'):
+        path = POOL / leaf
+        direct_path(path)
+        meta = path.stat()
+        expected = 0o2770 if leaf == 'workspace' else 0o700
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != uid or meta.st_gid != gid or stat.S_IMODE(meta.st_mode) != expected:
+            raise Failure(f'storage owner/mode is invalid: {path}')
+    runtime = HOME / 'run'
+    direct_path(runtime)
+    meta = runtime.stat()
+    if (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (uid, gid, 0o710):
+        raise Failure('socket directory metadata is unsafe')
+    for unit in ('podman.socket', 'podman.service', 'docker.socket', 'docker.service'):
+        path = Path('/etc/systemd/system') / unit
+        if not path.is_symlink() or os.readlink(path) != '/dev/null':
+            raise Failure(f'rootful API mask removed: {unit}')
+    return state
+
+
+def user_command(uid: int, command: list[str], timeout: float = 30) -> str:
+    return run(['/usr/sbin/runuser', '--user', USER, '--', '/usr/bin/env', '-i',
+                'PATH=/usr/bin:/bin', 'LANG=C.UTF-8', f'HOME={HOME}',
+                f'XDG_RUNTIME_DIR=/run/user/{uid}',
+                f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus', *command], timeout)
+
+
+def start() -> None:
+    state = load_and_validate()
+    uid, gid = state['uid'], state['gid']
+    if not Path('/sys/fs/cgroup/cgroup.controllers').is_file():
+        raise Failure('unified cgroup v2 is required')
+    run(['/usr/bin/loginctl', 'enable-linger', USER])
+    run(['/usr/bin/systemctl', 'start', f'user@{uid}.service'], timeout=60)
+    user_command(uid, ['/usr/bin/systemctl', '--user', 'daemon-reload'])
+    user_command(uid, ['/usr/bin/systemctl', '--user', 'reset-failed', 'podman.service', 'podman.socket'])
+    user_command(uid, ['/usr/bin/systemctl', '--user', 'start', 'podman.socket'])
+    direct_path(SOCKET)
+    meta = SOCKET.stat()
+    if not stat.S_ISSOCK(meta.st_mode) or (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (uid, gid, 0o660):
+        raise Failure('API socket has incorrect type/owner/group/mode')
+    # Query through the actual socket as devops, not as root. This also proves
+    # user namespaces/storage initialize; it does not pull images or run code.
+    info = json.loads(user_command(uid, ['/usr/bin/podman', '--remote',
+                                         f'--url=unix://{SOCKET}', 'info', '--format=json'], 60))
+    host = info.get('host', {})
+    store = info.get('store', {})
+    if host.get('security', {}).get('rootless') is not True:
+        raise Failure('API did not report a rootless engine')
+    if host.get('cgroupVersion') != 'v2' or host.get('cgroupManager') != 'systemd':
+        raise Failure('API did not report systemd-managed cgroup v2')
+    if (store.get('graphRoot'), store.get('graphDriverName'), store.get('volumePath')) != (
+            str(POOL / 'storage'), state['driver'], str(POOL / 'volumes')):
+        raise Failure('API reported unexpected storage paths/driver')
+    if host.get('networkBackend') != 'netavark':
+        raise Failure('API did not report the configured netavark backend')
+    log(f'ready uid={uid} rootless=true cgroup=v2 graphroot={store["graphRoot"]} socket={SOCKET}')
+
+
+def percentage(value: str) -> str:
+    if not re.fullmatch(r'(?:[1-9][0-9]?|100)%', value):
+        raise argparse.ArgumentTypeError('use an integer percentage from 1% to 100%')
+    return value
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description=__doc__)
+    sub = result.add_subparsers(dest='mode', required=True)
+    install = sub.add_parser('setup', help='offline installer target only')
+    install.add_argument('--desktop-user', required=True)
+    install.add_argument('--storage-driver', choices=('auto', 'overlay', 'btrfs'), default='auto')
+    install.add_argument('--cpu-weight', type=int, default=100)
+    install.add_argument('--io-weight', type=int, default=100)
+    install.add_argument('--tasks-max', type=int, default=8192)
+    install.add_argument('--memory-high', type=percentage, default='70%')
+    install.add_argument('--memory-max', type=percentage, default='85%')
+    sub.add_parser('start', help='validate actual state and activate through systemd')
+    sub.add_parser('check', help='read-only offline ownership/configuration checks')
+    sub.add_parser('verify-start', help='read-only user-manager preflight; no lock or mutation')
+    return result
+
+
+def main() -> int:
+    args = parser().parse_args()
+    if os.geteuid() != 0:
+        raise Failure('host provisioning is root-only; desktop management uses podman/docker, never this helper')
+    if args.mode == 'setup':
+        if not 1 <= args.cpu_weight <= 10000 or not 1 <= args.io_weight <= 10000 or not 256 <= args.tasks_max <= 1048576:
+            raise Failure('CPU/IO weights must be 1..10000 and TasksMax must be 256..1048576')
+        if int(args.memory_high[:-1]) >= int(args.memory_max[:-1]):
+            raise Failure('MemoryHigh must be below MemoryMax')
+    if args.mode == 'verify-start':
+        # Called by user@UID ExecStartPre as root. Do not take the outer
+        # activation lock: start can be waiting for this manager to come up.
+        load_and_validate()
+        log('user-manager preflight verified')
+        return 0
+    with locked():
+        if args.mode == 'setup':
+            setup(args)
+        elif args.mode == 'start':
+            start()
+        else:
+            load_and_validate()
+            log('offline invariants verified')
+    return 0
+
+
+if __name__ == '__main__':
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
+    try:
+        sys.exit(main())
+    except (Failure, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as exc:
+        log(f'ERROR {exc}')
+        sys.exit(1)

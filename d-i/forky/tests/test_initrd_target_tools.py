@@ -37,7 +37,7 @@ class TargetToolTests(unittest.TestCase):
 
     def test_podman_uses_target_stat_without_host_applet(self):
         for shell in SHELLS:
-            for fs,expected in [('btrfs','btrfs'),('xfs','overlay'),('ext2/ext3','overlay'),('f2fs','overlay')]:
+            for fs,expected in [('btrfs','overlay'),('xfs','overlay'),('ext2/ext3','overlay'),('f2fs','overlay')]:
                 with self.subTest(shell=shell,fs=fs):
                     p=self.run_driver(fs=fs,shell=shell)
                     self.assertEqual(p.returncode,0,p.stderr)
@@ -53,7 +53,7 @@ class TargetToolTests(unittest.TestCase):
         self.assertEqual(p.stdout,'')
 
     def test_podman_preserves_approved_filesystem_policy(self):
-        for request,fs in [('auto','overlayfs'),('overlay','btrfs'),('btrfs','xfs'),('unknown','xfs')]:
+        for request,fs in [('auto','overlayfs'),('overlay','nfs'),('btrfs','xfs'),('unknown','xfs')]:
             with self.subTest(request=request,fs=fs):
                 self.assertNotEqual(self.run_driver(request,fs).returncode,0)
 

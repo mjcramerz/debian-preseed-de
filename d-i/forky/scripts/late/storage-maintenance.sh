@@ -300,7 +300,8 @@ apply_apt_refresh_placeholders() {
 }
 
 # A subshell guarantees restoration even if the general update fails or is
-# interrupted. Keep CUDA lists: their strong signatures were checked above.
+# interrupted. Preserve the selected CUDA lists without extending its explicit
+# authentication exception to the ordinary Debian/vendor metadata refresh.
 refresh_non_cuda_target_metadata() (
   set -eu
   source="${INSTALLER_TARGET_DIR:-/target}/etc/apt/sources.list.d/cuda-legacy-temp.list"

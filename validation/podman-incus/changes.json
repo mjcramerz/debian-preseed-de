@@ -1,0 +1,1022 @@
+{
+  "baseline": "Uploaded debian-preseed-de(1).zip",
+  "scope": "Complete file-content and mode differences, including generated products and validation evidence",
+  "excluded_self": [
+    "validation/podman-incus/changes.json"
+  ],
+  "counts": {
+    "added": 28,
+    "modified": 45,
+    "deleted": 24
+  },
+  "changes": [
+    {
+      "path": "PODMAN-INCUS-REFACTOR.md",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "6f705ef80ad9867e17459b380314cb9f6e569e24eea16f0a191a43a4b0c10e8a",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/classes/class-addon/podman.cfg",
+      "status": "modified",
+      "before": {
+        "sha256": "319c68fa3b97148fa1ec2bcbab1e4a07d2846b2db4a938cb4e4d5a5e1d998d7a",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "e18f51fc50707d184f3e45f902096ee551a4e78813b8c81a1ffabd64a6024d49",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/classes/class-addon/qemu.cfg",
+      "status": "modified",
+      "before": {
+        "sha256": "6eed3abbe1053111de0a36f2668a447fc6e2043353f0159dd0103c288aa46ec4",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "e7101a98d966a4be4cdc07a421d1ff268e11cea8e298325960bdbbb552308776",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/client.conf",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-restart.service.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.service.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "5ff8ab5465139638da9818b5ec49496a43ad038df24587d5e8e77e49dc01116b",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.socket",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "a44946fe92abddaa3c4d0b12a0e0f4f608037566a284d3ff0115036d8933b215",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/registries.conf",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "99c48fce184cd3c4cdae0a648b11574be4b0af68765b65c1c53333ce88b64760",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/storage.conf.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "21aa39e294b5834d8338b346a7d10bdda97513d599815928d28a5bb22db0d81b",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-manager.conf.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "0641a7b691393da3debf0436745c49242c6557e234052a980ff08d23e10eb9b7",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-slice.conf.tmpl",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "88e863cca33360920dc32f53f4a9ef3af19a2c9c1d8c7bdafabb79c3b779eb73",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/containers.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "6c1663432db2bf28ccc5b839d351ad770b1b0eb5dd1e2fe5112947e3adea9eff",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/Containerfile.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "9e95f2b706a5436f2c4c2a0367a8bafbfdd1f362ce31da566c28ec66367eec43",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/entrypoint.sh.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "030438f9a23fa73b58289161660ac363fcbecc71db42005424920f5271d9a71e",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/images/runtime/sshd_config.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "9b89efdcbdbaa3e49778a87e92864e81cfde74acb619cf1ed00a0b1ddfdc908b",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/metadata.env.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "b5756323770165cd0f80d107a749f6e054b4a48f7f1f0061f82812922d604811",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/registries.conf",
+      "status": "deleted",
+      "before": {
+        "sha256": "a1b20ddef774dc6003465258bfd0f2787c2ffbf0eb84adbb7b5523598747006b",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/storage.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "64edacd956661fb9a76b0c883116679062631c767bb1b5a8cd3edc7c9799b005",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/user/podbin-rootless.slice",
+      "status": "deleted",
+      "before": {
+        "sha256": "036e883cd6e2c4c6d1ba8f951bc5286cfa94c7793f86b94779a8f8f1a490d686",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/users/container.container.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "6d577f1a731468626da522265df44d141cf6751f206f368250698a227be3b833",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/systemd/users/container.d/10-podbin-managed.conf",
+      "status": "deleted",
+      "before": {
+        "sha256": "841147a81d3117a727e552f67a157b96c7337650739eb8ce1faf32621752753c",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/podbin/user.env.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "c980d64b098603e8a7c1f341215d3fd150caf72c80f44b2162865f902497322a",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/containers.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "0188f2458097273b651788016141720b93c1e0c1f7d85e08d1ebce6a58d01115",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/containers/systemd/container.d/10-podman-managed.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "24c2cfab1979223030c41d8ba82fa5f548abf04bbdff892600248b244116ac4e",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/environment.d/90-podman-api.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "c4dc428f8ea02fb7c0f5fef2366c151350b3b40141afe6695afa2b39a2962b18",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/storage.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "7850e6e2e552e898dce0ce69e4890c57fecbb634f45d25a16231b122680a8333",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/buildah-env.service.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "96a381b34edb13586b424beb42f674c537433006aef80acc1f177005f28624a4",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman-api-env.service.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "d26350f98e0c31563a96febfebffc1bec723ad525cfc6aa98c81bc18554a9bbf",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman-rootless.slice.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "bf28c9a7325d21f72d30a82113b12914464fe7bbf60a2290459bf95d01ee34ef",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman.service.d/10-podman-service-managed.conf",
+      "status": "deleted",
+      "before": {
+        "sha256": "e1d9d221143124d9de83290ba7b70215bdb0a9a5eb744060070ea7ea5e943597",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/rootless/systemd/user/podman.socket.d/10-podman-socket-managed.conf",
+      "status": "deleted",
+      "before": {
+        "sha256": "fbdbec2a31e67e202d504ad9c2d26a0cfab149c58f45668a78e7147e6575cc91",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/docs/README.md",
+      "status": "modified",
+      "before": {
+        "sha256": "6bc902b919a168620bdb8520276907c152934867a7c4e86a90d76b977140d81a",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "f54ca05563b9886512e643c20717c5450e193b49b51e5aa6f7871ab7f9292139",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/docs/podbin-service-bridge.md",
+      "status": "modified",
+      "before": {
+        "sha256": "6020bbd05c3a1618f4ec028670709decfe6ac96eef370db3b108f7d886acb891",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/docs/podbin.md",
+      "status": "modified",
+      "before": {
+        "sha256": "d044a8782a03e9c935d946febf61fca8331f3b801eb4592057853d9de2b82842",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/data/docs/podman-devops.md",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "c08db7a2d1d6f13aa36cc876c6c92a001d542b183da7fcbf241dcfeded2edb51",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/usr.bin.pasta",
+      "status": "modified",
+      "before": {
+        "sha256": "3538590f270a6a5ac78154e8a025565b860737f8f17f71c7ab2208767ea324e3",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "status": "modified",
+      "before": {
+        "sha256": "42da47784549b6b96408de6d6cec08c0387bbb7d1e56815bd053f7b55cb7f116",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "status": "modified",
+      "before": {
+        "sha256": "4d2395ebc445155797345c9ba1f8d03b2996e336b5103c3aa036bf4882ba8e8f",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/default/podbin.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "d4106960284d1161356a3bd7db9b1824e53026dc6741175dc090223292cc0977",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/nftables/services/podman.yml",
+      "status": "modified",
+      "before": {
+        "sha256": "79bf04775f4961a335023c9e5555534010531552cde59f43ffd2d22436298228",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "b7a2bb95a50e0d478c2c6f630928b3bd64db986d0b3a174c245d39fd4ec41b3b",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel/.profile.d/71-devops-de.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "2147f2c711a01aa6173ddb4894692c515260d915641bd01a430023c853ff1cf1",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/ssh/sshd_config.d/00-devops-nologin.conf",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "1a1637096026f634b8ae4b3f01f15c7990c29706ddc396f7cece207fc99b6368",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/sudoers.d/account.tmpl",
+      "status": "modified",
+      "before": {
+        "sha256": "e1092f88a585ab3fc00e26c07d4e13e51c5d828de36e4b04a848ce2b41ed4f97",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/sysctl.d/90-podman-rootless.conf",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "dceb3de09712e22bd8a40c30a9403840777912a300deddf73cc62537c9764b10",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/sysctl.d/90-podman-rootless.conf.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "853cbb49f00ff63073a19e418dd793a6fe7a942077b9b0b676ae3690c1babafc",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/incus-host-managed.service",
+      "status": "modified",
+      "before": {
+        "sha256": "686834117824d407d0a0ad29ae662170972a20644ded1ef6da91ec3db5f5677a",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/podman-devops-bootstrap.service",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "3b92a07588284b596fd0deb8e8aa46dd0c4f7db26f6b1eb2558b2a8a6a36e26c",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/podman-rootless-linger.service.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "c6cb6866d5d0ac582bd4f6e72acdbe89aa0c0eb65915eb5b34f4313a5d7bfb95",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/tmpfiles.d/10-runtime-storage-roots.conf",
+      "status": "modified",
+      "before": {
+        "sha256": "7b39f29f581887b5dc400312d36abc3900665885fb518fd0274f3883bb972136",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "186404d773fe3dff0bf7b69d0a559acc0e2134e530d012dfd3c4dd7f5bc2ac08",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/docker",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "01229d0780a3c1ed90bbf1fc2e2802bf04fa8a9617e0e7a2c3fa11ac4f00c383",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/docker-compose",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu",
+      "status": "modified",
+      "before": {
+        "sha256": "5c9eb57bc6a96c4032569375b932a0d1837f7333dff37dea49f287406de3a7c8",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "80b172ec1f4448edb56d6bb23d31d4df83a80ba2d0cccf05301efb22874d2b81",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/podman",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/incus-host-managed",
+      "status": "modified",
+      "before": {
+        "sha256": "9ac45b879e193593f4fff3f78f1384160a653e6b9fad7ef0a00a0293e60809b0",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "57621c5ab5b847ca2098894128d78e9ab61624fb0c1d9786d7e8b16226e03a99",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-client",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "47fb1e6fcb0bee3b712d7996822a07dad19c71ca5a8d65b624c7aa9ef51db3e0",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "8d8bb4895ed4d771c876439bfaa2527fc9bebf236696f3dcd62afcf6f0efae79",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/sbin/podbin.tmpl",
+      "status": "deleted",
+      "before": {
+        "sha256": "0ffdb62bd8f479d23e365c6a546d02b0c1a268814a474d31d6b2eaa3dae69d77",
+        "mode": "0o640"
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "status": "modified",
+      "before": {
+        "sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "status": "modified",
+      "before": {
+        "sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "status": "modified",
+      "before": {
+        "sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "status": "modified",
+      "before": {
+        "sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "status": "modified",
+      "before": {
+        "sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "status": "modified",
+      "before": {
+        "sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "status": "modified",
+      "before": {
+        "sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "status": "modified",
+      "before": {
+        "sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "status": "modified",
+      "before": {
+        "sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "status": "modified",
+      "before": {
+        "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "status": "modified",
+      "before": {
+        "sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "status": "modified",
+      "before": {
+        "sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "status": "modified",
+      "before": {
+        "sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "status": "modified",
+      "before": {
+        "sha256": "10e9991ee0023610012784ac2730d55fe3618bf4db25c773373b3b48f77a6aae",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "e39112b07b821c2f2c8fba7ad29caddd495d2d01f202862d0946c251711bd6b6",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "status": "modified",
+      "before": {
+        "sha256": "90511448a8d8c63d80694763ba9c435b3c582d6903202b6afd297ec9c66730aa",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "d019bf5dfa528ef85694769e3b9713219f7763f2567a40e0ea16e83e97eb1aeb",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "status": "modified",
+      "before": {
+        "sha256": "3d0199eb610575e24864660c79f546596a820ec85c4dd96f2c1db25cdf192a38",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "426c7d7d58bf55351ff964c17eef2fe35fccc152b606fcef607ef39d2112e719",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/podman.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "2fb9f64cb84c2ddae9f2b4d60157c11fb278b2486afbf5e5ddf9e0f2d7c08e27",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "6061a4f6ef729785427d57a3294ecba7ebb8ed43013ec4cc1dc4622a05aa1696",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/qemu.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "e84d678041914e41925bf5fa77a33381f73eec1a08beb85c517d06322a41b455",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "8155ab51fc13979071162e6064d3f2b324c2205a54809108b911c4c4a1c848bd",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/templates.sh",
+      "status": "modified",
+      "before": {
+        "sha256": "226872205b248b0053d0db92f45e599b50f2c2fcdcadd7947385becfb370ba58",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "8f0f081572b49bd830b6b6404cbc5f47f31d24e2a398d674223de1025e3df02c",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/ssh/sshd_config",
+      "status": "modified",
+      "before": {
+        "sha256": "aae77ef9062faf314adb1d7d407914558267ca8e86c3f784f73f8cd9983ded23",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "2b865847557d9cdc3689b046e7ee0ea589561886c05c1daf6472c07a812703da",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_config_safety.py",
+      "status": "modified",
+      "before": {
+        "sha256": "90bd43bbf6fe763b90c7cc63aae00a81bcdb2e37cad25129b4c8bfacb93d7a1f",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "e130b784efd049587cd260480f5cfa952264fefea73c955e34752e9494da9e55",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_initrd_target_tools.py",
+      "status": "modified",
+      "before": {
+        "sha256": "f3429026cf7926109c37907ef38731deefe91f47242ff51ae9a2a6729c5eb201",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "7b67ef16ab1e2a4144b0b7c0bd63a0937351336ed5007606b26d2be0f8d4d4be",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_podman_incus_redesign.py",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "27fe89e4c3f7025b9e3445e26bd1a71b72070aabaa297b5d4a96a2c52a5dd844",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_repository_integrity.py",
+      "status": "modified",
+      "before": {
+        "sha256": "2c2f1bb42d4f9a5b747ccbac7cb430100f903980d888019bc039643501b02f02",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "91dc1be611fd7a86c9327ec125eddb8c6ca46004fed58f6ee7fff7b9f0b76bbb",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_root_login.py",
+      "status": "modified",
+      "before": {
+        "sha256": "1d8714e0c7041ad72bb424b9422f7833915ea1c12769493629e8faa14f30fdbe",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "00999b304add8cd0df2ef84c9dad05c9bda718f6146c32b73b3831e7b9507230",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "docs/migration-map.json",
+      "status": "modified",
+      "before": {
+        "sha256": "78554637789ca9c1d1daf124adb417322917b51ba73ed9323b9dd8a2a2966e25",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "cb17592a02a0e1ff3e9309a34ce21c322d508190949c4e54fbebc1e1ab62f434",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "tools/podman-incus-smoke.py",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "fa9c7c4e3f20e55a4526e41a8d5ef9362c3b8083fab65099e03ce19bcf46829a",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "validation/audit.json",
+      "status": "modified",
+      "before": {
+        "sha256": "921472d1f86f45660e712c45fee178904a353f0db8fa54ea2dea18eb73253e1e",
+        "mode": "0o600"
+      },
+      "after": {
+        "sha256": "c30ba1e499a7405c0aee810c599ca3aa0a6e9076f31721ef3afbec5c0130c37b",
+        "mode": "0o600"
+      }
+    },
+    {
+      "path": "validation/audit.log",
+      "status": "modified",
+      "before": {
+        "sha256": "63cde93d0f66da15657ee9193b99d0d0f4531bc0f30638b883ed836883c46a9d",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "85564a076070e3fddae4fe1bcc4f52a3884ed32fdbd843dd533ab37a2cbf0129",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "validation/podman-incus/apparmor-desktop.log",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "45bd9940df71498a9ead2fa0552fda8abe23c0fcf930109a60c62bba11a4a389",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/apparmor-system.log",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "45bd9940df71498a9ead2fa0552fda8abe23c0fcf930109a60c62bba11a4a389",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/baseline-tests.log",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "8fd358308dd1c61c24a300ad367e227ff427e25924d83929950ff480c10af8e7",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/focused-tests.log",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "a6c535c31d88076797d080d43ae134a3b4d3ee66e89120349c14762682f6fc9b",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/summary.json",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "2c65ad7ce13f96414d11873ae381cb3fba021f7eb41b690ccc7ebeb987742f19",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/systemd-units.log",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "01acffa57914cedd59a78bd608e42742b38bc3233f8a05fa03153c04cfc77edf",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "validation/podman-incus/verify-rendered-units.py",
+      "status": "added",
+      "before": null,
+      "after": {
+        "sha256": "9f26dbbb880fe66cad2889af0879933eff8025583ef9cc14b41360871aa211de",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "validation/summary.json",
+      "status": "modified",
+      "before": {
+        "sha256": "b456ab2378b038e938ee26e5a01469d36704ad995d9b059f39e06e8f095f09f4",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "486f2e085fb2bf3ce809a1a5a41a635e689e6f5f391a7cf96621eae10848c439",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "validation/tests.log",
+      "status": "modified",
+      "before": {
+        "sha256": "7d13821cce70995a960801c7e1cc84788a293cd698150927f3622aca0b2842c5",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "599a3021a2e7f80a98b0beace4e7d4d818bc368f9a95d42e232e18b3ae292920",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "validation/validate.log",
+      "status": "modified",
+      "before": {
+        "sha256": "d9b5260cbf5c425b293c73630cd033a1142f22714b8b8403d22dbbf39e06e492",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "0feddc394bff08c91c8d8383e53f5e8c791dfa2a9d4e5830ab546c70026f28ee",
+        "mode": "0o640"
+      }
+    }
+  ]
+}

@@ -1,11 +1,6 @@
-# Managed by unattended-installer.
-#
-# Rootless Podman keeps per-user network-namespace handles beneath the managed
-# state tree. pasta only needs to inspect those handles; do not broaden this to
-# the rest of /pool/podman.
-
-/pool/podman/ r,
-/pool/podman/*/ r,
-/pool/podman/*/run/ r,
-/pool/podman/*/run/netns/ r,
-/pool/podman/*/run/netns/netns-* r,
+# Managed rootless network namespaces are volatile, never stored on /pool.
+# Keep the rest of Podman storage private. UID is checked by ordinary DAC.
+owner /run/user/[0-9]*/netns/ r,
+owner /run/user/[0-9]*/netns/netns-* r,
+owner /run/user/[0-9]*/containers/networks/ r,
+owner /run/user/[0-9]*/containers/networks/** r,

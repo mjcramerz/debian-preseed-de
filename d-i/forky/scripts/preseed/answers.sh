@@ -635,7 +635,12 @@ selected_fragment_applies_to_detected_hardware() {
   cuda_legacy_fragment=classes/class-addon/cuda-legacy.cfg
 
   case "$rel_path" in
-    "$nvidia_fragment"|"$cuda_fragment"|"$nvidia_legacy_fragment"|"$cuda_legacy_fragment")
+    "$cuda_legacy_fragment")
+      # Selection explicitly requests the compiler/userspace stack, including
+      # on a headless build host or when installer PCI detection is unavailable.
+      return 0
+      ;;
+    "$nvidia_fragment"|"$cuda_fragment"|"$nvidia_legacy_fragment")
       installer_nvidia_gpu_detected
       ;;
     *)

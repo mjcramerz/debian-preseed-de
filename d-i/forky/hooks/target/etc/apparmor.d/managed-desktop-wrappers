@@ -2632,18 +2632,20 @@ profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(
 
 profile managed-labwc-podman-menu /usr/local/bin/labwc-podman-menu flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-desktop>
+  #include <abstractions/python>
+  #include <abstractions/nameservice>
 
   /usr/local/bin/labwc-podman-menu rix,
-  /usr/bin/{awk,cat,gawk,getent,grep,id,less,mawk,nawk,sed,sort} rix,
-  /usr/bin/sudo PUx,
-  /usr/local/sbin/podbin rPx -> managed-podbin,
-  /dev/tty rw,
+  /usr/bin/python3* rix,
+  /usr/local/bin/{podman,docker,docker-compose} rPx -> managed-podman-client,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
-  /data/accounts/podman/users r,
-  /data/docs/podbin.md r,
-  /etc/default/podbin r,
-  /etc/subuid r,
+  /dev/tty rw,
+  owner /run/user/[0-9]*/labwc-podman-menu.lock rwk,
+  owner @{HOME}/** r,
+  /pool/podman/workspace/ r,
+  /pool/podman/workspace/** r,
+  signal (send, receive),
 
   include if exists <local/usr.local.bin.labwc-podman-menu>
 }
@@ -3604,9 +3606,13 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
 
 profile managed-incus-host-managed /usr/local/libexec/incus-host-managed flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-base>
+  #include <abstractions/python>
+  #include <abstractions/nameservice>
 
   /usr/local/libexec/incus-host-managed rix,
-  /usr/bin/{curl,date,grep,incus,readlink,sleep,stat,systemd-tmpfiles} rix,
+  /usr/bin/python3* rix,
+  /usr/bin/incus r,
+  /usr/bin/systemd-tmpfiles rix,
   /etc/default/incus-host-managed r,
   /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf r,
   /etc/tmpfiles.d/85-qemu-incus-storage.conf r,
@@ -3617,7 +3623,13 @@ profile managed-incus-host-managed /usr/local/libexec/incus-host-managed flags=(
   /var/lib/incus/unix.socket.user r,
   /pool/ rw,
   /pool/{incus,qemu}/ rw,
+  /run/lock/incus-host-managed/ rw,
+  /run/lock/incus-host-managed/bootstrap.lock rwk,
+  capability chown,
+  capability fowner,
+  capability dac_override,
   network unix stream,
+  signal (send, receive),
 
   include if exists <local/usr.local.libexec.incus-host-managed>
 }

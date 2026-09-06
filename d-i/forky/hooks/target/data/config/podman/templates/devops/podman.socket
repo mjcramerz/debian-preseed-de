@@ -1,0 +1,15 @@
+[Unit]
+Description=Devops rootless Podman and Docker-compatible API socket
+Documentation=man:podman-system-service(1)
+
+[Socket]
+ListenStream=/data/accounts/devops/run/podman.sock
+# A user manager cannot chown to arbitrary groups. Its primary group is devops.
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=yes
+Backlog=128
+Service=podman.service
+
+[Install]
+WantedBy=sockets.target

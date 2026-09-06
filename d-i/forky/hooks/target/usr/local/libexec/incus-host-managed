@@ -1,260 +1,421 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -I
+"""Reconcile local Incus storage/network/profile without shell or YAML evaluation.
 
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-LANG=C.UTF-8
-LC_ALL=C.UTF-8
-TZ=UTC
-export LANG LC_ALL PATH TZ
+Confined clients stay on unix.socket.user (group incus). Only this root-owned
+bootstrap talks to the administrator socket. All API operations are bounded;
+partial initialization is repaired without replacing existing workloads.
+"""
+from __future__ import annotations
+import argparse
+from contextlib import contextmanager
+import fcntl
+import http.client
+import ipaddress
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import socket
+import stat
+import subprocess
+import sys
+import time
 
-CONFIG_FILE=/etc/default/incus-host-managed
-INCUS_ADMIN_SOCKET=/var/lib/incus/unix.socket
-INCUS_USER_SOCKET=/var/lib/incus/unix.socket.user
-MODE=${1:-}
+CONFIG_FILE = Path('/etc/default/incus-host-managed')
+ADMIN_SOCKET = Path('/var/lib/incus/unix.socket')
+USER_SOCKET = Path('/var/lib/incus/unix.socket.user')
+KEYS = {'INCUS_MANAGED_POOL_NAME', 'INCUS_MANAGED_POOL_PATH',
+        'INCUS_MANAGED_BRIDGE_NAME', 'INCUS_MANAGED_BRIDGE_IPV4',
+        'INCUS_MANAGED_BRIDGE_IPV6', 'INCUS_MANAGED_WAIT_SECONDS',
+        'INCUS_MANAGED_RETRY_DELAY_SECONDS'}
 
-log() {
-  printf '[incus-host-managed] %s\n' "$*" >&2
-}
 
-fatal() {
-  log "fatal: $*"
-  exit 1
-}
+class Failure(RuntimeError):
+    pass
 
-case "$MODE" in
-  ''|--prepare-install|--validate-config) ;;
-  *) fatal "unsupported mode: ${MODE}" ;;
-esac
 
-validate_abs_path() {
-  case "${2:-}" in
-    /*) ;;
-    *) fatal "$1 must be an absolute path: ${2:-unset}" ;;
-  esac
-  case "$2" in
-    /|*..*|*//*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@%:+,-]*)
-      fatal "$1 contains unsupported path syntax: $2"
-      ;;
-  esac
-}
+class HTTPFailure(Failure):
+    def __init__(self, status: int, message: str):
+        self.status = status
+        super().__init__(f'Incus API HTTP {status}: {message}')
 
-validate_simple_name() {
-  case "${2:-}" in
-    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
-      fatal "$1 contains unsupported characters: ${2:-unset}"
-      ;;
-  esac
-}
 
-validate_non_negative_integer() {
-  case "${2:-}" in
-    ''|*[!0-9]*) fatal "$1 must be a non-negative integer: ${2:-unset}" ;;
-  esac
-}
+def log(message: str) -> None:
+    print(f'incus-host-managed: {message}', file=sys.stderr, flush=True)
 
-validate_positive_integer() {
-  validate_non_negative_integer "$1" "$2"
-  [ "$2" -ge 1 ] || fatal "$1 must be greater than zero"
-}
 
-validate_root_owned_regular_file() {
-  label=$1
-  value=$2
-  expected_mode=$3
-  validate_abs_path "$label" "$value"
-  [ -f "$value" ] && [ ! -L "$value" ] && [ -r "$value" ] ||
-    fatal "$label is unavailable or indirect: $value"
-  value_real=$(readlink -f -- "$value") || fatal "cannot resolve $label: $value"
-  [ "$value_real" = "$value" ] || fatal "$label must not traverse symlinks: $value"
-  value_owner=$(stat -c '%u' -- "$value") || fatal "cannot inspect $label ownership"
-  value_mode=$(stat -c '%a' -- "$value") || fatal "cannot inspect $label mode"
-  [ "$value_owner:$value_mode" = "0:${expected_mode}" ] ||
-    fatal "$label must be root-owned mode ${expected_mode}: $value"
-}
+def direct_path(path: Path) -> None:
+    if not path.is_absolute() or '..' in path.parts:
+        raise Failure(f'unsafe path: {path}')
+    for current in [*reversed(path.parents), path]:
+        if current.is_symlink():
+            raise Failure(f'indirect path: {current}')
 
-validate_static_contract() {
-  validate_root_owned_regular_file "managed Incus config" "$CONFIG_FILE" 644
-  validate_root_owned_regular_file \
-    "managed QEMU/Incus tmpfiles policy" \
-    /etc/tmpfiles.d/85-qemu-incus-storage.conf \
-    644
-  validate_root_owned_regular_file \
-    "managed Incus user activation drop-in" \
-    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf \
-    644
-  [ -x /usr/bin/incus ] || fatal "Incus client is missing"
-  [ -x /opt/incus/lib/systemd/incusd ] || fatal "Incus systemd wrapper is missing"
-  [ -r /opt/incus/ui/index.html ] || fatal "Incus Web UI payload is missing"
-  grep -Fq 'INCUS_UI=/opt/incus/ui/' /opt/incus/lib/systemd/incusd ||
-    fatal "Incus systemd wrapper does not export the packaged UI path"
-  for unit in \
-    incus.service incus.socket incus-user.service incus-user.socket \
-    incus-startup.service
-  do
-    [ -r "/usr/lib/systemd/system/${unit}" ] || fatal "Incus unit is missing: $unit"
-  done
-  for socket_unit in incus.socket incus-user.socket; do
-    grep -Eq '^[[:space:]]*SocketMode=0660[[:space:]]*$' \
-      "/usr/lib/systemd/system/${socket_unit}" ||
-      fatal "Incus socket must be group-only mode 0660: $socket_unit"
-  done
-  grep -Eq '^[[:space:]]*SocketGroup=incus-admin[[:space:]]*$' \
-    /usr/lib/systemd/system/incus.socket ||
-    fatal "incus.socket must remain restricted to incus-admin"
-  grep -Eq '^[[:space:]]*SocketGroup=incus[[:space:]]*$' \
-    /usr/lib/systemd/system/incus-user.socket ||
-    fatal "incus-user.socket must grant only the confined incus group"
-  grep -Eq '^[[:space:]]*ListenStream=/var/lib/incus/unix\.socket[[:space:]]*$' \
-    /usr/lib/systemd/system/incus.socket ||
-    fatal "incus.socket must listen only on the administrator socket"
-  grep -Eq '^[[:space:]]*ListenStream=/var/lib/incus/unix\.socket\.user[[:space:]]*$' \
-    /usr/lib/systemd/system/incus-user.socket ||
-    fatal "incus-user.socket must use a distinct user socket"
-  if grep -Eq '^[[:space:]]*Service=' /usr/lib/systemd/system/incus-user.socket; then
-    grep -Eq '^[[:space:]]*Service=incus-user\.service[[:space:]]*$' \
-      /usr/lib/systemd/system/incus-user.socket ||
-      fatal "incus-user.socket must activate only incus-user.service"
-  fi
-  grep -Fq 'ExecStart=/opt/incus/lib/systemd/incusd' /usr/lib/systemd/system/incus.service ||
-    fatal "incus.service does not execute the packaged UI-aware wrapper"
-  grep -Eq '^[[:space:]]*ExecStart=[^[:space:]]*/incus-user([[:space:]]|$)' \
-    /usr/lib/systemd/system/incus-user.service ||
-    fatal "incus-user.service does not execute the restricted user broker"
-  grep -Fxq 'Requires=incus-host-managed.service' \
-    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf ||
-    fatal "incus-user.service must require managed Incus bootstrap"
-  grep -Fxq 'After=incus-host-managed.service' \
-    /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf ||
-    fatal "incus-user.service must wait for managed Incus bootstrap"
-}
 
-validate_live_socket() {
-  label=$1
-  socket_path=$2
-  expected_group=$3
-  [ -S "$socket_path" ] || fatal "$label is missing: $socket_path"
-  socket_metadata=$(stat -c '%u:%G:%a' -- "$socket_path") ||
-    fatal "cannot inspect $label: $socket_path"
-  [ "$socket_metadata" = "0:$expected_group:660" ] ||
-    fatal "$label must be root-owned $expected_group mode 0660, found $socket_metadata"
-}
+def root_file(path: Path, mode: int = 0o644) -> str:
+    direct_path(path)
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != mode:
+            raise Failure(f'expected root-owned mode {mode:o} regular file: {path}')
+        with os.fdopen(fd, closefd=False) as stream:
+            data = stream.read(1048577)
+            if len(data) > 1048576:
+                raise Failure(f'configuration exceeds size limit: {path}')
+            return data
+    finally:
+        os.close(fd)
 
-validate_live_sockets() {
-  validate_live_socket "Incus administrator socket" "$INCUS_ADMIN_SOCKET" incus-admin
-  validate_live_socket "Incus restricted user socket" "$INCUS_USER_SOCKET" incus
-}
 
-wait_for_incus() {
-  deadline=$(( $(date +%s) + INCUS_MANAGED_WAIT_SECONDS ))
-  while :; do
-    incus --force-local info >/dev/null 2>&1 && return 0
-    [ "$(date +%s)" -lt "$deadline" ] || break
-    sleep "$INCUS_MANAGED_RETRY_DELAY_SECONDS"
-  done
-  fatal "Incus did not become ready within ${INCUS_MANAGED_WAIT_SECONDS}s"
-}
+def parse_config(text: str) -> dict[str, str]:
+    config = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        match = re.fullmatch(r'([A-Z][A-Z0-9_]*)="([^"\r\n]*)"\s*', line)
+        if not match or match[1] not in KEYS or match[1] in config:
+            raise Failure('malformed, duplicate, or unknown Incus configuration assignment')
+        config[match[1]] = match[2]
+    if set(config) != KEYS:
+        raise Failure('managed Incus configuration is incomplete')
+    for name in ('POOL_NAME', 'BRIDGE_NAME'):
+        if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,62}', config['INCUS_MANAGED_' + name]):
+            raise Failure(f'invalid Incus {name}')
+    path = config['INCUS_MANAGED_POOL_PATH']
+    if not re.fullmatch(r'/pool/[A-Za-z0-9_./-]+', path) or any(p in ('', '.', '..') for p in path.split('/')[1:]):
+        raise Failure('Incus pool must be a direct non-root path under /pool')
+    for version in (4, 6):
+        value = config[f'INCUS_MANAGED_BRIDGE_IPV{version}']
+        if value not in ('auto', 'none'):
+            try:
+                address = ipaddress.ip_interface(value)
+            except ValueError:
+                raise Failure(f'invalid IPv{version} bridge address') from None
+            if address.version != version:
+                raise Failure('bridge address family mismatch')
+    for key, minimum, maximum in (('WAIT_SECONDS', 1, 120), ('RETRY_DELAY_SECONDS', 1, 10)):
+        value = config['INCUS_MANAGED_' + key]
+        if not value.isdecimal() or not minimum <= int(value) <= maximum:
+            raise Failure(f'{key} must be {minimum}..{maximum}')
+    return config
 
-verify_managed_state() {
-  pool_source=$(incus --force-local storage get "$INCUS_MANAGED_POOL_NAME" source 2>/dev/null || true)
-  [ "$pool_source" = "$INCUS_MANAGED_POOL_PATH" ] ||
-    fatal "Incus pool source is ${pool_source:-unset}, expected ${INCUS_MANAGED_POOL_PATH}"
-  incus --force-local network show "$INCUS_MANAGED_BRIDGE_NAME" >/dev/null 2>&1 ||
-    fatal "Incus bridge is missing: ${INCUS_MANAGED_BRIDGE_NAME}"
-  incus --force-local profile show default | grep -F "network: ${INCUS_MANAGED_BRIDGE_NAME}" >/dev/null ||
-    fatal "Incus default profile does not use ${INCUS_MANAGED_BRIDGE_NAME}"
-  incus --force-local profile show default | grep -F "pool: ${INCUS_MANAGED_POOL_NAME}" >/dev/null ||
-    fatal "Incus default profile does not use ${INCUS_MANAGED_POOL_NAME}"
-  profile_privileged=$(
-    incus --force-local profile get default security.privileged 2>/dev/null || true
-  )
-  [ "$profile_privileged" = false ] ||
-    fatal "Incus default profile must set security.privileged=false"
-  current_https=$(incus --force-local config get core.https_address 2>/dev/null || true)
-  [ -z "$current_https" ] || fatal "Incus remote API unexpectedly listens on ${current_https}"
-}
 
-ensure_incus_initialized() {
-  if incus --force-local storage show "$INCUS_MANAGED_POOL_NAME" >/dev/null 2>&1; then
-    verify_managed_state
+def validate_static() -> dict[str, str]:
+    config = parse_config(root_file(CONFIG_FILE))
+    root_file(Path('/etc/tmpfiles.d/85-qemu-incus-storage.conf'))
+    dropin = root_file(Path('/etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf'))
+    for expected in ('Requires=incus-host-managed.service', 'After=incus-host-managed.service'):
+        if expected not in dropin.splitlines():
+            raise Failure('restricted Incus broker must wait for managed bootstrap')
+    for executable in ('/usr/bin/incus', '/opt/incus/lib/systemd/incusd'):
+        if not os.access(executable, os.X_OK):
+            raise Failure(f'missing Incus package executable: {executable}')
+    if not Path('/opt/incus/ui/index.html').is_file():
+        raise Failure('Incus Web UI package payload is missing')
+    if 'INCUS_UI=/opt/incus/ui/' not in Path('/opt/incus/lib/systemd/incusd').read_text():
+        raise Failure('Incus package wrapper does not select the packaged Web UI')
+    for unit, group, path in (('incus.socket', 'incus-admin', ADMIN_SOCKET),
+                              ('incus-user.socket', 'incus', USER_SOCKET)):
+        contents = Path('/usr/lib/systemd/system', unit).read_text()
+        for key, expected in (('SocketMode', '0660'), ('SocketGroup', group), ('ListenStream', str(path))):
+            values = re.findall(r'^\s*' + key + r'=(.*?)\s*$', contents, re.M)
+            if values != [expected]:
+                raise Failure(f'unsafe vendor socket contract: {unit} {key}')
+    for unit in ('incus.service', 'incus-user.service', 'incus-startup.service'):
+        if not Path('/usr/lib/systemd/system', unit).is_file():
+            raise Failure(f'missing Incus unit: {unit}')
+    return config
+
+
+@contextmanager
+def locked():
+    directory = Path('/run/lock/incus-host-managed')
+    direct_path(directory)
+    directory.mkdir(mode=0o700, exist_ok=True)
+    meta = directory.stat()
+    if meta.st_uid != 0 or stat.S_IMODE(meta.st_mode) != 0o700:
+        raise Failure('unsafe Incus bootstrap lock directory')
+    fd = os.open(directory / 'bootstrap.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o600:
+            raise Failure('unsafe Incus bootstrap lock')
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise Failure('another Incus bootstrap owns the lock') from None
+                time.sleep(0.1)
+        yield
+    finally:
+        os.close(fd)
+
+
+def prepare_storage(config: dict[str, str]) -> None:
+    path = Path(config['INCUS_MANAGED_POOL_PATH'])
+    direct_path(path)
+    if path.exists() and (not path.is_dir() or path.stat().st_uid != 0):
+        raise Failure('refusing to take over an unrelated Incus storage root')
+    for parent in [path.parent, *path.parent.parents]:
+        meta = parent.stat()
+        if meta.st_uid != 0:
+            raise Failure(f'Incus storage ancestor is not root-owned: {parent}')
+        if meta.st_mode & 0o022 and not meta.st_mode & stat.S_ISVTX:
+            if parent != Path('/pool'):
+                raise Failure(f'Incus storage ancestor is writable: {parent}')
+            os.chmod(parent, stat.S_IMODE(meta.st_mode) | stat.S_ISVTX)
+    # This retains the existing direct-QEMU preparation contract. tmpfiles only
+    # adjusts the top-level directories; there is no recursive ownership change.
+    process = subprocess.Popen(['/usr/bin/systemd-tmpfiles', '--create',
+                                '/etc/tmpfiles.d/85-qemu-incus-storage.conf'],
+                               env={'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8'},
+                               start_new_session=True)
+    try:
+        status = process.wait(timeout=20)
+    except BaseException:
+        if process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        raise
+    if status:
+        raise Failure(f'tmpfiles preparation failed: {status}')
+    meta = path.stat()
+    if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or stat.S_IMODE(meta.st_mode) != 0o711:
+        raise Failure('Incus storage root must be root-owned mode 0711')
+
+
+def validate_sockets() -> None:
+    import grp
+    for path, group in ((ADMIN_SOCKET, 'incus-admin'), (USER_SOCKET, 'incus')):
+        direct_path(path)
+        meta = path.stat()
+        if not stat.S_ISSOCK(meta.st_mode) or (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (0, grp.getgrnam(group).gr_gid, 0o660):
+            raise Failure(f'unsafe live Incus socket: {path}')
+
+
+class UnixHTTP(http.client.HTTPConnection):
+    def __init__(self, path: Path, timeout: float):
+        super().__init__('localhost', timeout=timeout)
+        self.path = path
+
+    def connect(self) -> None:
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(str(self.path))
+
+
+class API:
+    def __init__(self, path: Path = ADMIN_SOCKET):
+        self.path = path
+
+    def request(self, method: str, path: str, payload: dict | None = None,
+                etag: str | None = None) -> tuple[dict, str | None]:
+        connection = UnixHTTP(self.path, timeout=10)
+        headers = {'Content-Type': 'application/json'}
+        if etag is not None:
+            headers['If-Match'] = etag
+        body = json.dumps(payload).encode() if payload is not None else None
+        try:
+            connection.request(method, path, body=body, headers=headers)
+            response = connection.getresponse()
+            raw = response.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024:
+                raise Failure('Incus API response exceeded the bootstrap size limit')
+            parsed = json.loads(raw)
+            if not isinstance(parsed, dict):
+                raise Failure('malformed Incus API object')
+            if response.status >= 400:
+                raise HTTPFailure(response.status, str(parsed.get('error', 'request failed'))[:1000])
+            if not isinstance(parsed, dict) or 'metadata' not in parsed:
+                raise Failure('malformed Incus API response')
+            return parsed, response.getheader('ETag')
+        finally:
+            connection.close()
+
+    def get(self, path: str) -> tuple[dict, str | None]:
+        response, etag = self.request('GET', path)
+        if not isinstance(response['metadata'], dict):
+            raise Failure(f'expected object metadata for {path}')
+        return response['metadata'], etag
+
+    def exists(self, path: str) -> dict | None:
+        try:
+            return self.get(path)[0]
+        except HTTPFailure as exc:
+            if exc.status == 404:
+                return None
+            raise
+
+    def mutate(self, method: str, path: str, payload: dict, etag: str | None = None) -> None:
+        response, _ = self.request(method, path, payload, etag)
+        if response.get('type') != 'async':
+            return
+        operation = response.get('operation', '')
+        if not re.fullmatch(r'/1\.0/operations/[a-fA-F0-9-]+', operation):
+            raise Failure('unexpected Incus operation path')
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            state, _ = self.get(operation)
+            code = state.get('status_code', 0)
+            if code == 200:
+                return
+            if code >= 400:
+                raise Failure(f'Incus operation failed: {state.get("err", "unknown error")}')
+            time.sleep(0.5)
+        raise Failure('Incus asynchronous operation did not complete within 60 seconds')
+
+    def create(self, endpoint: str, payload: dict) -> None:
+        try:
+            self.mutate('POST', endpoint, payload)
+        except HTTPFailure as exc:
+            if exc.status != 409:
+                raise
+            # A concurrent creator may have won. The caller MUST verify it.
+
+
+def verify_network(network: dict, config: dict[str, str]) -> None:
+    if network.get('type') != 'bridge' or network.get('managed') is not True:
+        raise Failure('configured Incus network is not a managed bridge')
+    actual = network.get('config', {})
+    for version in (4, 6):
+        expected = config[f'INCUS_MANAGED_BRIDGE_IPV{version}']
+        found = actual.get(f'ipv{version}.address', '')
+        if expected == 'auto':
+            try:
+                address = ipaddress.ip_interface(found)
+            except ValueError:
+                raise Failure('Incus auto bridge address has not been allocated') from None
+            if address.version != version:
+                raise Failure('allocated bridge address has the wrong family')
+        elif found != expected:
+            raise Failure(f'existing Incus IPv{version} bridge address differs from policy')
+    if config['INCUS_MANAGED_BRIDGE_IPV4'] != 'none' and actual.get('ipv4.nat') != 'true':
+        raise Failure('managed Incus IPv4 bridge must use NAT')
+
+
+def reconcile(api: API, config: dict[str, str]) -> None:
+    server, _ = api.get('/1.0')
+    if server.get('config', {}).get('core.https_address'):
+        raise Failure('remote Incus API is enabled; refusing to treat this as a local-only host')
+    pool_name, path = config['INCUS_MANAGED_POOL_NAME'], config['INCUS_MANAGED_POOL_PATH']
+    pool_url = '/1.0/storage-pools/' + pool_name
+    pool = api.exists(pool_url)
+    if pool is None:
+        api.create('/1.0/storage-pools', {'name': pool_name, 'driver': 'dir', 'config': {'source': path}})
+        pool, _ = api.get(pool_url)
+    if pool.get('driver') != 'dir' or pool.get('config', {}).get('source') != path:
+        raise Failure('existing Incus storage driver/source conflicts with policy; no migration attempted')
+    bridge = config['INCUS_MANAGED_BRIDGE_NAME']
+    network_url = '/1.0/networks/' + bridge
+    network = api.exists(network_url)
+    if network is None:
+        network_config = {'ipv4.address': config['INCUS_MANAGED_BRIDGE_IPV4'],
+                          'ipv6.address': config['INCUS_MANAGED_BRIDGE_IPV6']}
+        if network_config['ipv4.address'] != 'none':
+            network_config['ipv4.nat'] = 'true'
+        api.create('/1.0/networks', {'name': bridge, 'type': 'bridge', 'config': network_config})
+        network, _ = api.get(network_url)
+    verify_network(network, config)
+    expected_devices = {'root': {'type': 'disk', 'path': '/', 'pool': pool_name},
+                        'eth0': {'type': 'nic', 'name': 'eth0', 'network': bridge}}
+    for attempt in range(3):
+        profile, etag = api.get('/1.0/profiles/default')
+        settings = dict(profile.get('config', {}))
+        if settings.get('security.privileged', 'false') != 'false':
+            raise Failure('existing default profile enables privileged containers')
+        settings['security.privileged'] = 'false'
+        devices = dict(profile.get('devices', {}))
+        for name, expected in expected_devices.items():
+            current = dict(devices.get(name, {}))
+            if any(key in current and current[key] != value for key, value in expected.items()):
+                raise Failure(f'existing Incus default device conflicts with managed {name}')
+            if name == 'eth0' and ('parent' in current or 'nictype' in current):
+                raise Failure('existing eth0 uses a different network attachment model')
+            devices[name] = {**current, **expected}
+        if settings == profile.get('config', {}) and devices == profile.get('devices', {}):
+            break
+        if not etag:
+            raise Failure('Incus profile response lacks an ETag; unsafe update refused')
+        try:
+            api.mutate('PUT', '/1.0/profiles/default',
+                       {'description': profile.get('description', ''), 'config': settings, 'devices': devices}, etag)
+        except HTTPFailure as exc:
+            if exc.status == 412 and attempt < 2:
+                continue
+            raise
+        # Re-read on the next pass and verify an acknowledged write.
+    final, _ = api.get('/1.0/profiles/default')
+    if final.get('config', {}).get('security.privileged') != 'false':
+        raise Failure('default profile privilege policy did not verify')
+    for name, expected in expected_devices.items():
+        if any(final.get('devices', {}).get(name, {}).get(k) != v for k, v in expected.items()):
+            raise Failure('default profile device reconciliation did not verify')
+
+
+def wait_ready(api: API, config: dict[str, str]) -> None:
+    deadline = time.monotonic() + int(config['INCUS_MANAGED_WAIT_SECONDS'])
+    last = None
+    while time.monotonic() < deadline:
+        try:
+            api.get('/1.0')
+            return
+        except (OSError, http.client.HTTPException, Failure, ValueError) as exc:
+            last = exc
+            time.sleep(min(int(config['INCUS_MANAGED_RETRY_DELAY_SECONDS']), max(0, deadline - time.monotonic())))
+    raise Failure(f'Incus readiness deadline exceeded: {last}')
+
+
+def verify_ui(api: API) -> None:
+    connection = UnixHTTP(api.path, timeout=10)
+    try:
+        connection.request('GET', '/ui/')
+        response = connection.getresponse()
+        if response.status != 200:
+            raise Failure(f'local Incus Web UI returned HTTP {response.status}')
+    finally:
+        connection.close()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--prepare-install', action='store_true')
+    modes.add_argument('--validate-config', action='store_true')
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        raise Failure('bootstrap is root-only; desktop clients must use the confined incus socket')
+    config = validate_static()
+    if args.validate_config:
+        log('static configuration verified; no daemon calls or filesystem changes')
+        return 0
+    with locked():
+        prepare_storage(config)
+        if args.prepare_install:
+            log('install-time storage prepared; no Incus daemon activation')
+            return 0
+        api = API()
+        validate_sockets()
+        wait_ready(api, config)
+        reconcile(api, config)
+        verify_ui(api)
+        log('ready local-only=true unprivileged-default=true confined-group=incus')
     return 0
-  fi
 
-  seed_input_option=pre
-  seed_input_option="${seed_input_option}seed"
-  cat <<EOF | incus --force-local admin init "--${seed_input_option}" >/dev/null
-config: {}
-storage_pools:
-- name: ${INCUS_MANAGED_POOL_NAME}
-  driver: dir
-  config:
-    source: ${INCUS_MANAGED_POOL_PATH}
-networks:
-- name: ${INCUS_MANAGED_BRIDGE_NAME}
-  type: bridge
-  config:
-    ipv4.address: ${INCUS_MANAGED_BRIDGE_IPV4}
-    ipv6.address: ${INCUS_MANAGED_BRIDGE_IPV6}
-profiles:
-- name: default
-  description: Default Incus profile
-  config:
-    security.privileged: "false"
-  devices:
-    eth0:
-      name: eth0
-      network: ${INCUS_MANAGED_BRIDGE_NAME}
-      type: nic
-    root:
-      path: /
-      pool: ${INCUS_MANAGED_POOL_NAME}
-      type: disk
-EOF
-  verify_managed_state
-}
 
-verify_web_ui() {
-  ui_status=$(curl --silent --show-error --max-time 10 \
-    --unix-socket "$INCUS_ADMIN_SOCKET" \
-    --output /dev/null \
-    --write-out '%{http_code}' \
-    http://localhost/ui/) || fatal "Incus Web UI request over the local socket failed"
-  [ "$ui_status" = 200 ] || fatal "Incus Web UI returned HTTP ${ui_status} over the local socket"
-}
-
-validate_static_contract
-# shellcheck disable=SC1090,SC1091
-. "$CONFIG_FILE"
-
-: "${INCUS_MANAGED_POOL_NAME:?INCUS_MANAGED_POOL_NAME must be set}"
-: "${INCUS_MANAGED_POOL_PATH:?INCUS_MANAGED_POOL_PATH must be set}"
-: "${INCUS_MANAGED_BRIDGE_NAME:?INCUS_MANAGED_BRIDGE_NAME must be set}"
-: "${INCUS_MANAGED_BRIDGE_IPV4:?INCUS_MANAGED_BRIDGE_IPV4 must be set}"
-: "${INCUS_MANAGED_BRIDGE_IPV6:?INCUS_MANAGED_BRIDGE_IPV6 must be set}"
-: "${INCUS_MANAGED_WAIT_SECONDS:?INCUS_MANAGED_WAIT_SECONDS must be set}"
-: "${INCUS_MANAGED_RETRY_DELAY_SECONDS:?INCUS_MANAGED_RETRY_DELAY_SECONDS must be set}"
-
-validate_simple_name INCUS_MANAGED_POOL_NAME "$INCUS_MANAGED_POOL_NAME"
-validate_abs_path INCUS_MANAGED_POOL_PATH "$INCUS_MANAGED_POOL_PATH"
-validate_simple_name INCUS_MANAGED_BRIDGE_NAME "$INCUS_MANAGED_BRIDGE_NAME"
-validate_non_negative_integer INCUS_MANAGED_WAIT_SECONDS "$INCUS_MANAGED_WAIT_SECONDS"
-validate_positive_integer INCUS_MANAGED_RETRY_DELAY_SECONDS "$INCUS_MANAGED_RETRY_DELAY_SECONDS"
-case "$INCUS_MANAGED_BRIDGE_IPV4" in
-  auto|none|[0-9]*.[0-9]*.[0-9]*.[0-9]*/[0-9]*) ;;
-  *) fatal "unsupported INCUS_MANAGED_BRIDGE_IPV4: $INCUS_MANAGED_BRIDGE_IPV4" ;;
-esac
-case "$INCUS_MANAGED_BRIDGE_IPV6" in
-  auto|none|[0-9a-fA-F:]*/*[0-9]*) ;;
-  *) fatal "unsupported INCUS_MANAGED_BRIDGE_IPV6: $INCUS_MANAGED_BRIDGE_IPV6" ;;
-esac
-
-systemd-tmpfiles --create /etc/tmpfiles.d/85-qemu-incus-storage.conf
-if [ "$MODE" = --prepare-install ]; then
-  log "prepared direct QEMU and Incus install-time storage"
-  exit 0
-fi
-
-wait_for_incus
-validate_live_sockets
-ensure_incus_initialized
-verify_web_ui
-log "validated confined local Incus storage, network, and Web UI"
+if __name__ == '__main__':
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        signal.signal(sig, lambda number, _frame: sys.exit(128 + number))
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, KeyError, Failure, http.client.HTTPException, subprocess.TimeoutExpired) as exc:
+        log(f'ERROR {exc}')
+        sys.exit(1)

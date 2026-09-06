@@ -256,11 +256,11 @@ class RootAccountTests(RootFixture):
     def test_ssh_policy_remains_root_denied(self):
         for relative in (
             "ssh/sshd_config",
-            "hooks/target/data/config/podman/templates/podbin/images/runtime/sshd_config.tmpl",
         ):
             text = (FORKY / relative).read_text()
             values = re.findall(r"(?mi)^\s*PermitRootLogin\s+(\S+)", text)
             self.assertEqual(values, ["no"], relative)
+            self.assertIn("DenyUsers devops", text)
 
     def test_every_storage_family_uses_shared_account_preseed(self):
         early = (FORKY / "hooks/installer/d-i/early.sh").read_text()

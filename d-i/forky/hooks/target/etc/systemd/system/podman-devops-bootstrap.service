@@ -1,0 +1,41 @@
+[Unit]
+Description=Validate and activate the locked devops rootless container engine
+Documentation=file:/data/docs/podman-devops.md
+RequiresMountsFor=/data/accounts/devops /pool/podman
+Wants=systemd-logind.service
+After=systemd-logind.service systemd-user-sessions.service systemd-tmpfiles-setup.service
+ConditionPathExists=/etc/podman-devops/layout.json
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/podman-devops-host start
+Restart=on-failure
+RestartSec=30
+TimeoutStartSec=180
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+# The bootstrap connects to /run/user/<uid>/bus as devops. ProtectHome=yes
+# hides that bus and makes every user-manager command fail. Read-only keeps
+# filesystem protection while allowing AF_UNIX connections to the live bus.
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+LockPersonality=yes
+ReadWritePaths=/run/lock
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=podman-devops-bootstrap
+
+[Install]
+WantedBy=multi-user.target
