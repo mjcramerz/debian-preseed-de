@@ -66,10 +66,20 @@ runtime_account_apply_home_paths() {
 runtime_apply_account_from_cmdline() {
   [ "${RUNTIME_ACCOUNT_CMDLINE_READY:-0}" = 1 ] && return 0
 
-  primary_user_raw=$(runtime_cmdline_value primary_user 2>/dev/null || true)
-  primary_password_raw=$(runtime_cmdline_value primary_password 2>/dev/null || true)
-  primary_gpg_passphrase_raw=$(runtime_cmdline_value primary_gpg_passphrase 2>/dev/null || true)
-  root_password_raw=$(runtime_cmdline_value root_password 2>/dev/null || true)
+  # Resolve root first and preserve loader errors. The former stderr/status
+  # suppression turned a missing d-i stat applet into "password required".
+  if root_password_raw=$(runtime_cmdline_value root_password); then
+    [ -n "$root_password_raw" ] || runtime_fatal "root_password is present but empty on the installer command line; remove the parameter to use PRESEED_ROOT_PASSWORD in /preseed.env, or provide a non-empty override"
+  else
+    root_password_status=$?
+    if [ "$root_password_status" -ne 1 ]; then
+      runtime_fatal "cannot load root password from the initrd credential file; see the preceding [credentials] error (no password was logged)"
+    fi
+    runtime_fatal "root password is required: root_password is absent and PRESEED_ROOT_PASSWORD is missing or empty in the installer credential file (/preseed.env by default); check the booted initrd, not /target/preseed.env"
+  fi
+  primary_user_raw=$(runtime_cmdline_value primary_user || true)
+  primary_password_raw=$(runtime_cmdline_value primary_password || true)
+  primary_gpg_passphrase_raw=$(runtime_cmdline_value primary_gpg_passphrase || true)
 
   if [ -n "$primary_user_raw" ]; then
     runtime_validate_printable_single_line primary_user "$primary_user_raw"
@@ -184,6 +194,8 @@ runtime_write_account_answers() {
     printf 'd-i passwd/username string %s\n' "$ACCOUNT_USERNAME"
     printf 'd-i passwd/username seen true\n'
     if [ "${ACCOUNT_PASSWORD_IS_PLAIN:-false}" = true ]; then
+      printf 'd-i passwd/user-password-crypted password\n'
+      printf 'd-i passwd/user-password-crypted seen true\n'
       printf 'd-i passwd/user-password password %s\n' "$ACCOUNT_PASSWORD"
       printf 'd-i passwd/user-password seen true\n'
       printf 'd-i passwd/user-password-again password %s\n' "$ACCOUNT_PASSWORD"

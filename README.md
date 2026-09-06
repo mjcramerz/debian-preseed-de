@@ -5,10 +5,11 @@ Debian unattended-install repository for **desktop systems**, refactored on
 profiles, while correcting CUDA transport/authentication, DKMS handling and
 browser policy/export deployment. It is not a generic disk-safe installer.
 
-Start with **[the refactor report](docs/REFACTOR-2026-09-06.md)** and
+Start with **[the initrd credentials/root-login repair](docs/INITRD-CREDENTIAL-FIX-2026-09-06.md)**,
+**[the original refactor report](docs/REFACTOR-2026-09-06.md)** and
 **[validation evidence and remaining acceptance work](docs/VALIDATION.md)**.
-The complete validation pipeline passed 271 tests, with no skipped tests. This
-is not a claim that a real installer boot or every bookmarked site was tested.
+Current completed results and test counts are in `validation/summary.json`.
+This is not a claim that a real installer boot or every bookmarked site was tested.
 
 **Private build:** browser configuration and coverage data contain personal
 bookmarks. Do not publish this personalized tree to a public repository or an
@@ -146,14 +147,18 @@ invent credentials, remove integration requirements, or make late desktop checks
 happen before partitioning.
 
 Supply trusted shell assignments through `/preseed.env` in a private initrd,
-owned by root and mode **0400 or 0600**. The installer rejects other owners/modes
-before sourcing it. Recognized names include `PRESEED_ROOT_PASSWORD`,
+owned by root and preferably mode **0400 or 0600**. Root-owned files with extra
+read bits (such as 0644) are made private before loading; unsafe ownership, links,
+write/execute permissions or parent directories are rejected. The reader uses d-i
+applets without requiring `stat`. Recognized names include `PRESEED_ROOT_PASSWORD`,
 `PRESEED_PRIMARY_PASSWORD`, `PRESEED_PRIMARY_GPG_PASSPHRASE`,
 `PRESEED_FRUUX_USERNAME`, `PRESEED_FRUUX_PASSWORD`, `PRESEED_TELEGRAM_API_KEY`
 and `PRESEED_TELEGRAM_CHAT_ID`. Optional integrations have additional fields;
-consult `installer_cmdline_value` in `scripts/common/lib.sh` for the complete
-mapping. Use single-quoted shell assignments with proper escaping; this is a
-trusted shell file, not an untrusted data import. Keep secrets out of source
+consult `d-i/forky/scripts/common/credentials.sh` for the complete mapping. Use single-quoted shell assignments with proper escaping; this is a
+trusted shell file, not an untrusted data import. An exact command-line parameter
+always overrides its corresponding env value; absent parameters use `/preseed.env`.
+An explicitly empty root_password is an error, not permission to ignore the override.
+Local root login is enabled; SSH root login remains prohibited. Keep secrets out of source
 control, public URLs, command lines and the distributable payload.
 
 After installation, the three extension exports, `bookmark-coverage.json` and

@@ -59,12 +59,12 @@ desktop_install_codex_standalone() (
   [ -f "$installer_host_path" ] && [ ! -L "$installer_host_path" ] &&
     [ -x "$installer_host_path" ] ||
     fatal "target Codex standalone installer is missing or unsafe: $installer_helper"
-  [ "$(stat -c '%u:%g:%a' -- "$installer_host_path")" = 0:0:755 ] ||
+  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c '%u:%g:%a' -- "$installer_helper")" = 0:0:755 ] ||
     fatal "target Codex standalone installer ownership or mode is invalid: $installer_helper"
   [ -f "$session_host_path" ] && [ ! -L "$session_host_path" ] &&
     [ -x "$session_host_path" ] ||
     fatal "temporary Codex installer supervisor is missing or unsafe: $session_helper"
-  [ "$(stat -c '%u:%g:%a' -- "$session_host_path")" = 0:0:700 ] ||
+  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c '%u:%g:%a' -- "$session_helper")" = 0:0:700 ] ||
     fatal "temporary Codex installer supervisor ownership or mode is invalid: $session_helper"
 
   cleanup_codex_installer_supervisor() {

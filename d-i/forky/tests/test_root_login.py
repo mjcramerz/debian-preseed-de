@@ -406,8 +406,10 @@ class InstallerRootFilesystemTests(RootFixture):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, dest)
             dest.chmod(0o755)
-        for applet in ("cat", "id", "stat"):
+        for applet in ("sh", "cat", "id", "ls", "chmod", "mktemp", "sed", "rm"):
             (root / "bin" / applet).symlink_to("busybox")
+        (root / "tmp").mkdir(mode=0o1777)
+        (root / "tmp").chmod(0o1777)
         (root / "proc").mkdir()
         (root / "dev").mkdir()
         # A regular sink suffices for stderr redirection in this isolated fixture.

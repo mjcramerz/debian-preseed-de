@@ -49,7 +49,19 @@ podman_resolve_native_storage_driver() {
   requested_driver=$1
   storage_path=$2
   [ -d "$storage_path" ] || podman_fatal "Podman storage path is missing: $storage_path"
-  storage_fstype=$(stat -f -c '%T' "$storage_path" 2>/dev/null || true)
+  # This function runs in busybox-udeb, which has no stat applet. Query the
+  # installed target's coreutils using a path relative to its chroot instead.
+  storage_target_root=${INSTALLER_TARGET_DIR:-/target}
+  storage_target_root=${storage_target_root%/}
+  [ -n "$storage_target_root" ] || podman_fatal "Podman target root must not be /"
+  case "$storage_path" in
+    "$storage_target_root"/*) storage_target_path=${storage_path#"$storage_target_root"} ;;
+    *) podman_fatal "Podman storage path is outside the installation target" ;;
+  esac
+  podman_require_abs_path "Podman storage path" "$storage_target_path"
+  storage_fstype=$(chroot "$storage_target_root" /usr/bin/stat -f -c '%T' -- \
+    "$storage_target_path" 2>/dev/null) ||
+    podman_fatal "target coreutils could not inspect the Podman storage filesystem"
   [ -n "$storage_fstype" ] || podman_fatal "failed to detect filesystem for Podman storage: $storage_path"
   case "$requested_driver" in
     auto)

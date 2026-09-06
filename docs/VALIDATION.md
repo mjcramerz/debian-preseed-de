@@ -1,4 +1,4 @@
-# Validation: 2026-09-06 security/browser refactor
+# Validation: 2026-09-06 initrd credentials/root-login revision
 
 This records actual checks of the delivered revision. The fresh complete pipeline
 returned zero; `validation/summary.json` records its five stages and runtime-product
@@ -11,15 +11,16 @@ hashes. This is not a certification of a booted Debian installation.
 | Browser generation / `--check` | PASS |
 | Deterministic payload and preseed pin currentness | PASS |
 | Isolated debconf preseed check | 58 files; PASS |
-| Full retained suite plus 39 new security regressions | 271 tests; PASS; 0 skipped |
-| Unit-suite measured runtime | 88.700 seconds |
-| Syntax/inventory audit | 1,153 files; no hard audit failures |
+| Full retained suite plus 34 new initrd/target-tool regressions | 305 tests; PASS; 0 skipped |
+| Unit-suite measured runtime | 91.593 seconds |
+| Syntax/inventory audit | 1,154 files; no hard audit failures |
 | Original hardware profile preservation | 13 profiles; byte-identical to uploaded ZIP |
-| Supplementary AppArmor offline compilation | 2 actual Vivaldi parent profiles; PASS; no kernel load |
+| Supplementary AppArmor compilation | Historical preceding-release evidence only; profiles unchanged; not rerun here. |
 
-Do not add inventory checks to the executed test count. The original supplied
-role-specific suite had 232 tests; this revision adds 39. Run logs are included,
-not reconstructed from expected outcomes. The pipeline's outer test-stage elapsed
+Do not add inventory checks to the executed test count. The preceding archive
+contained 271 tests; this revision adds 24 credential and 10 target-tool/diagnostic
+tests. Existing root-login tests were corrected to model an initrd without stat.
+Run logs are included, not reconstructed from expected outcomes. The pipeline's outer test-stage elapsed
 time is slightly larger than the unittest runtime because it includes process
 startup and reporting. `validation/run-status.txt` contains the completed run's
 exit status; it is not evidence for any later local edit.
@@ -53,7 +54,14 @@ Production-wrapper fixtures test a `run_in_target` that exits, not just returns;
 retry scope, cleanup, general-update source restoration, unrelated failures and
 strict-first behavior are covered. DKMS tests verify missing-real-binary failure
 instead of recursion, diversion with rename, and argument forwarding. Credential
-reader tests prove wrong permission modes do not execute shell content.
+reader tests reject unsafe ownership/write modes and harden extra read bits before
+sourcing trusted shell content. Both readers are tested for every supplied mapping,
+absent/present/empty command-line parameters, literal punctuation, BOM/CRLF,
+malformed syntax, missing stat and non-disclosing errors. Root account rendering
+is exercised through a real isolated debconf database and in a BusyBox chroot with
+no stat command. Additional tests execute the Podman filesystem selector and four
+Codex metadata expressions with a stubbed target chroot; no real Podman/Codex
+installation is claimed. The diagnostic tool is exercised without real credentials.
 
 Browser tests validate reproducible generation, all bookmark/exclusion accounting,
 NoScript contextual grants and UUID removal, the actual selected uBOL IDs, no
@@ -63,17 +71,20 @@ loopback/sandbox flags, root refusal, and staging of owned private exports.
 Staging tests cover repeated runs, preservation of user edits, Downloads symlinks,
 FIFOs, inappropriate homes and ownership. No extension GUI or website task is run.
 
-Two real Vivaldi AppArmor parent profiles were compiled with `apparmor_parser -Q
+In the PRECEDING release, two real Vivaldi AppArmor parent profiles were compiled
+with `apparmor_parser -Q
 -K` and the repository include directory. The parser exits zero; it warns that a
 kernel interface is unavailable. `-Q` prevents loading. The Chromium and Edge local
 include files have regression checks but were not compiled within real installed
-vendor parent profiles. No AppArmor enforcement or browser launch is claimed.
+vendor parent profiles. No AppArmor enforcement or browser launch is claimed. Those historical logs are
+now in `validation/previous-release/`; this revision's preserved target asset bytes
+are checked in `validation/root-env-fix/release-check.json`.
 
 ## Audit outcomes
 
 | Outcome | Count | Meaning |
 | --- | ---: | --- |
-| `pass` | 402 | Available syntax/parser check passed; not semantic proof. |
+| `pass` | 403 | Available syntax/parser check passed; not semantic proof. |
 | `structure-pass` | 116 | Systemd lexical structure only, not activation or full systemd-analyze verify. |
 | `inventory-only` | 479 | Data/configuration asset recorded, not executed. |
 | `blocked-dependency` | 154 | Perl compilation check could not finish without dependencies. |

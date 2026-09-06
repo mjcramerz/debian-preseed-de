@@ -1,32 +1,32 @@
 test_target_installer_runs_after_desktop_home_population (test_codex_installer_session.CodexDeploymentContractTests.test_target_installer_runs_after_desktop_home_population) ... ok
-test_actual_uid_drop_and_private_runtime_cleanup (test_codex_installer_session.CodexSessionTests.test_actual_uid_drop_and_private_runtime_cleanup) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-4lmooh4e/runtime/65534.khz23h3u
+test_actual_uid_drop_and_private_runtime_cleanup (test_codex_installer_session.CodexSessionTests.test_actual_uid_drop_and_private_runtime_cleanup) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-xsl2nxyf/runtime/65534.3my6_f3u
 codex-installer-session: installer finished with status=0
 ok
-test_child_exit_status_propagates_and_runtime_is_removed (test_codex_installer_session.CodexSessionTests.test_child_exit_status_propagates_and_runtime_is_removed) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-qyspx539/runtime/65534.6gqiw45k
+test_child_exit_status_propagates_and_runtime_is_removed (test_codex_installer_session.CodexSessionTests.test_child_exit_status_propagates_and_runtime_is_removed) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-ziit3zdu/runtime/65534.pxkvs5zv
 codex-installer-session: installer finished with status=37
 ok
 test_concurrent_account_installation_rejected (test_codex_installer_session.CodexSessionTests.test_concurrent_account_installation_rejected) ... ok
-test_deadline_kills_term_ignoring_process_group (test_codex_installer_session.CodexSessionTests.test_deadline_kills_term_ignoring_process_group) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-_h6zht07/runtime/65534.wc9ozmte
+test_deadline_kills_term_ignoring_process_group (test_codex_installer_session.CodexSessionTests.test_deadline_kills_term_ignoring_process_group) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-wws9jya9/runtime/65534.kgdhbwhf
 codex-installer-session: installer deadline exceeded; stopping installer process group
 codex-installer-session: installer finished with status=124
 ok
 test_group_writable_nonsticky_helper_parent_rejected (test_codex_installer_session.CodexSessionTests.test_group_writable_nonsticky_helper_parent_rejected) ... ok
-test_helper_in_deployed_root_owned_sticky_group_directory (test_codex_installer_session.CodexSessionTests.test_helper_in_deployed_root_owned_sticky_group_directory) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-7ykp59hu/runtime/65534.rgfepuel
+test_helper_in_deployed_root_owned_sticky_group_directory (test_codex_installer_session.CodexSessionTests.test_helper_in_deployed_root_owned_sticky_group_directory) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-_j7om9sm/runtime/65534.idopcpd1
 codex-installer-session: installer finished with status=0
 ok
 test_indirect_runtime_parent_rejected (test_codex_installer_session.CodexSessionTests.test_indirect_runtime_parent_rejected) ... ok
-test_leftover_child_is_terminated_on_success (test_codex_installer_session.CodexSessionTests.test_leftover_child_is_terminated_on_success) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-k0s5x8cv/runtime/65534.eijcwo7b
+test_leftover_child_is_terminated_on_success (test_codex_installer_session.CodexSessionTests.test_leftover_child_is_terminated_on_success) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-638t9ps_/runtime/65534.f9epnp3j
 codex-installer-session: installer finished with status=0
 ok
 test_missing_account_has_actionable_error (test_codex_installer_session.CodexSessionTests.test_missing_account_has_actionable_error) ... ok
-test_private_runtime_is_unique_and_lock_inode_is_persistent (test_codex_installer_session.CodexSessionTests.test_private_runtime_is_unique_and_lock_inode_is_persistent) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-krrh0ft7/runtime/65534.idf3fnqm
+test_private_runtime_is_unique_and_lock_inode_is_persistent (test_codex_installer_session.CodexSessionTests.test_private_runtime_is_unique_and_lock_inode_is_persistent) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-sxxnx6sq/runtime/65534.0zen4n0y
 codex-installer-session: installer finished with status=0
-codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-krrh0ft7/runtime/65534.plw13mxb
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-sxxnx6sq/runtime/65534.5ik0kfub
 codex-installer-session: installer finished with status=0
 ok
-test_real_standalone_idempotent_path_needs_no_login_runtime (test_codex_installer_session.CodexSessionTests.test_real_standalone_idempotent_path_needs_no_login_runtime) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-dcc8a2i_/runtime/65534.70_rd8xs
+test_real_standalone_idempotent_path_needs_no_login_runtime (test_codex_installer_session.CodexSessionTests.test_real_standalone_idempotent_path_needs_no_login_runtime) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-b22o9xmh/runtime/65534.23qcygl3
 codex-installer-session: installer finished with status=0
-codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-dcc8a2i_/runtime/65534.l_30byil
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-b22o9xmh/runtime/65534.o4rvdu6k
 codex-installer-session: installer finished with status=0
 ok
 test_repeated_signals_stop_child_and_clean_runtime (test_codex_installer_session.CodexSessionTests.test_repeated_signals_stop_child_and_clean_runtime) ... ok
@@ -141,6 +141,40 @@ test_empty_block_is_removed (test_hardware_restore.TemplateBlockTests.test_empty
 test_invalid_module_preserves_input_and_fails (test_hardware_restore.TemplateBlockTests.test_invalid_module_preserves_input_and_fails) ... ok
 test_malformed_scalar_map_fails (test_hardware_restore.TemplateBlockTests.test_malformed_scalar_map_fails) ... ok
 test_scalar_values_are_literal_and_not_recursive (test_hardware_restore.TemplateBlockTests.test_scalar_values_are_literal_and_not_recursive) ... ok
+test_both_embedded_readers_are_identical_to_canonical_source (test_initrd_credentials.InitrdCredentialTests.test_both_embedded_readers_are_identical_to_canonical_source) ... ok
+test_both_resolvers_accept_explicit_cmdline_file (test_initrd_credentials.InitrdCredentialTests.test_both_resolvers_accept_explicit_cmdline_file) ... ok
+test_chmod_failure_is_reported_not_missing_password (test_initrd_credentials.InitrdCredentialTests.test_chmod_failure_is_reported_not_missing_password) ... ok
+test_cmdline_success_does_not_source_broken_env_file (test_initrd_credentials.InitrdCredentialTests.test_cmdline_success_does_not_source_broken_env_file) ... ok
+test_cmdline_success_never_requires_env_file (test_initrd_credentials.InitrdCredentialTests.test_cmdline_success_never_requires_env_file) ... ok
+test_crlf_and_bom_and_empty_other_fields_are_supported (test_initrd_credentials.InitrdCredentialTests.test_crlf_and_bom_and_empty_other_fields_are_supported) ... ok
+test_default_fallback_does_not_inherit_exported_secrets (test_initrd_credentials.InitrdCredentialTests.test_default_fallback_does_not_inherit_exported_secrets) ... ok
+test_env_fallback_works_without_stat_in_all_shells (test_initrd_credentials.InitrdCredentialTests.test_env_fallback_works_without_stat_in_all_shells) ... ok
+test_every_mapping_cmdline_overrides_env (test_initrd_credentials.InitrdCredentialTests.test_every_mapping_cmdline_overrides_env) ... ok
+test_every_mapping_empty_cmdline_is_not_absence (test_initrd_credentials.InitrdCredentialTests.test_every_mapping_empty_cmdline_is_not_absence) ... ok
+test_full_supplied_env_format_all_mappings_all_shells (test_initrd_credentials.InitrdCredentialTests.test_full_supplied_env_format_all_mappings_all_shells) ... ok
+test_invalid_syntax_is_redacted (test_initrd_credentials.InitrdCredentialTests.test_invalid_syntax_is_redacted) ... ok
+test_known_alias_does_not_reenable_fallback_of_another_alias (test_initrd_credentials.InitrdCredentialTests.test_known_alias_does_not_reenable_fallback_of_another_alias) ... ok
+test_ls_failure_is_reported_without_weakening_checks (test_initrd_credentials.InitrdCredentialTests.test_ls_failure_is_reported_without_weakening_checks) ... ok
+test_read_only_shared_bits_are_hardened_before_source (test_initrd_credentials.InitrdCredentialTests.test_read_only_shared_bits_are_hardened_before_source) ... ok
+test_root_account_validation_precedes_disk_discovery (test_initrd_credentials.InitrdCredentialTests.test_root_account_validation_precedes_disk_discovery) ... ok
+test_shell_quoted_apostrophes_and_metacharacters_are_literal (test_initrd_credentials.InitrdCredentialTests.test_shell_quoted_apostrophes_and_metacharacters_are_literal) ... ok
+test_source_stdout_and_stderr_do_not_contaminate_password (test_initrd_credentials.InitrdCredentialTests.test_source_stdout_and_stderr_do_not_contaminate_password) ... ok
+test_symlink_hardlink_and_fifo_rejected (test_initrd_credentials.InitrdCredentialTests.test_symlink_hardlink_and_fifo_rejected) ... ok
+test_symlinked_parent_is_rejected (test_initrd_credentials.InitrdCredentialTests.test_symlinked_parent_is_rejected) ... ok
+test_unsafe_modes_fail_closed (test_initrd_credentials.InitrdCredentialTests.test_unsafe_modes_fail_closed) ... ok
+test_writable_nonsticky_parent_is_rejected (test_initrd_credentials.InitrdCredentialTests.test_writable_nonsticky_parent_is_rejected) ... ok
+test_wrong_owner_is_rejected (test_initrd_credentials.InitrdCredentialTests.test_wrong_owner_is_rejected) ... ok
+test_plaintext_user_password_clears_stale_hash_in_rendered_answers (test_initrd_credentials.UserHashPrecedenceTests.test_plaintext_user_password_clears_stale_hash_in_rendered_answers) ... ok
+test_invalid_shell_file_reports_error_without_contents (test_initrd_target_tools.DiagnosticTests.test_invalid_shell_file_reports_error_without_contents) ... ok
+test_missing_env_is_a_nonzero_diagnostic (test_initrd_target_tools.DiagnosticTests.test_missing_env_is_a_nonzero_diagnostic) ... ok
+test_reports_empty_override_as_failure (test_initrd_target_tools.DiagnosticTests.test_reports_empty_override_as_failure) ... ok
+test_reports_override_without_printing_it (test_initrd_target_tools.DiagnosticTests.test_reports_override_without_printing_it) ... ok
+test_reports_presence_not_secrets (test_initrd_target_tools.DiagnosticTests.test_reports_presence_not_secrets) ... ok
+test_codex_checks_invoke_target_stat_with_target_relative_paths (test_initrd_target_tools.TargetToolTests.test_codex_checks_invoke_target_stat_with_target_relative_paths) ... ok
+test_podman_preserves_approved_filesystem_policy (test_initrd_target_tools.TargetToolTests.test_podman_preserves_approved_filesystem_policy) ... ok
+test_podman_rejects_paths_outside_target (test_initrd_target_tools.TargetToolTests.test_podman_rejects_paths_outside_target) ... ok
+test_podman_rejects_target_stat_failure (test_initrd_target_tools.TargetToolTests.test_podman_rejects_target_stat_failure) ... ok
+test_podman_uses_target_stat_without_host_applet (test_initrd_target_tools.TargetToolTests.test_podman_uses_target_stat_without_host_applet) ... ok
 test_custom_target_and_private_parent_mode (test_lifecycle.AssetTests.test_custom_target_and_private_parent_mode) ... ok
 test_dotdot_rejected (test_lifecycle.AssetTests.test_dotdot_rejected) ... ok
 test_failed_fetch_preserves_old_file (test_lifecycle.AssetTests.test_failed_fetch_preserves_old_file) ... ok
@@ -253,7 +287,7 @@ test_symlinked_preseed_env_is_rejected (test_root_login.RootAccountTests.test_sy
 test_actual_apt_signed_by_full_fingerprint_and_strong_signature (test_security_refactor.AdditionalProductionRegressions.test_actual_apt_signed_by_full_fingerprint_and_strong_signature) ... ok
 test_apparmor_allows_only_each_browsers_dedicated_debug_state (test_security_refactor.AdditionalProductionRegressions.test_apparmor_allows_only_each_browsers_dedicated_debug_state) ... ok
 test_dkms_wrapper_fails_instead_of_recursing_and_preserves_arguments (test_security_refactor.AdditionalProductionRegressions.test_dkms_wrapper_fails_instead_of_recursing_and_preserves_arguments) ... ok
-test_private_secret_files_only_in_both_resolvers (test_security_refactor.AdditionalProductionRegressions.test_private_secret_files_only_in_both_resolvers) ... ok
+test_secret_files_harden_read_bits_but_reject_other_writers (test_security_refactor.AdditionalProductionRegressions.test_secret_files_harden_read_bits_but_reject_other_writers) ... ok
 test_all_bookmarks_accounted_for_with_nested_exclusions (test_security_refactor.BrowserConfigurationTests.test_all_bookmarks_accounted_for_with_nested_exclusions) ... ok
 test_devtools_and_extension_settings_are_available (test_security_refactor.BrowserConfigurationTests.test_devtools_and_extension_settings_are_available) ... ok
 test_generated_files_are_reproducible_and_current (test_security_refactor.BrowserConfigurationTests.test_generated_files_are_reproducible_and_current) ... ok
@@ -291,7 +325,7 @@ test_sha1_release_data_signature_still_rejected (test_security_refactor.RealSign
 test_sha256_release_with_legacy_certificate_authenticates (test_security_refactor.RealSignatureTests.test_sha256_release_with_legacy_certificate_authenticates) ... ok
 
 ----------------------------------------------------------------------
-Ran 271 tests in 88.700s
+Ran 305 tests in 91.593s
 
 OK
 dbus_broker_compatibility=refreshed

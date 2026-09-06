@@ -175,6 +175,33 @@ d-i clock-setup/ntp seen true
         text += f'd-i {question} string /bin/sh -c {shlex.quote(runner)}\n'
     return text.encode()
 
+def sync_credential_helpers(check: bool) -> None:
+    """Embed one canonical reader in early/standalone libs without boot deps."""
+    begin = '# BEGIN EMBEDDED INITRD CREDENTIALS\n'
+    end = '# END EMBEDDED INITRD CREDENTIALS\n'
+    canonical = (SEED / 'scripts/common/credentials.sh').read_text()
+    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):
+        path = SEED / name
+        text = path.read_text()
+        if text.count(begin) != 1 or text.count(end) != 1:
+            raise ValueError(f'credential embedding markers invalid: {name}')
+        before, rest = text.split(begin, 1)
+        _, after = rest.split(end, 1)
+        expected = before + begin + canonical + end + after
+        if text == expected:
+            continue
+        if check:
+            raise ValueError(f'stale embedded credentials in {name}; run tools/build.py')
+        fd, temporary = tempfile.mkstemp(prefix='.credentials.', dir=path.parent)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                stream.write(expected)
+            os.chmod(temporary, path.stat().st_mode & 0o777)
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+
 def build() -> dict[str, bytes]:
     paths = payload_files()
     validate(paths)
@@ -201,6 +228,7 @@ def main() -> int:
     try:
         subprocess.run([sys.executable, '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
+        sync_credential_helpers(args.check)
         products = build()
         stale = [name for name, data in products.items() if not (SEED / name).is_file() or (SEED / name).read_bytes() != data]
         if args.check:

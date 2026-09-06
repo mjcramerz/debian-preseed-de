@@ -81,9 +81,21 @@ hidden during general updates and removed after legacy CUDA repair.
 
 `/preseed.env` is trusted executable shell configuration. Both installer and
 runtime readers require a regular non-symlink file owned by the effective
-installation account (root in d-i), mode 0400 or 0600. Tests use the invoking UID
-for isolated non-root fixtures. These checks do not make arbitrary shell content
-safe. Do not deploy a file written by an untrusted party.
+installation account (root in d-i), with one hard link and safe parent directories.
+Mode 0400 or 0600 is preferred. Extra group/other read bits (including 0644) are
+reduced to 0600 before sourcing; group/other writes, executable/special modes,
+untrusted owners, symlinks and unsafe parents are rejected. A failed chmod is
+fatal, never an authentication bypass. The checks use d-i-supported numeric ls
+rather than the absent stat applet. Tests use the invoking UID for isolated
+non-root fixtures. Prior exposure cannot be undone by changing mode.
+
+An initial BOM and CRLF endings are normalized in a private temporary copy;
+source output and syntax diagnostics are suppressed to avoid secret disclosure.
+This remains trusted shell code, NOT a safe importer for malicious data. Do not
+deploy a file written by an untrusted party or run with xtrace. Missing root
+credentials fail before early disk planning; a blank root_password parameter is
+an explicit invalid override, not an instruction to fall back. See
+`docs/INITRD-CREDENTIAL-FIX-2026-09-06.md` for precedence and deployment.
 
 Normalized bookmarks, contextual site grants and coverage reports are private
 information even after tracking histories and the NoScript instance UUID are

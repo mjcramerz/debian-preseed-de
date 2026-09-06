@@ -4264,13 +4264,13 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   [ ! -L "${target_root}${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}" ] &&
   [ -x "${target_root}${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}" ] ||
   devops_fatal "target Codex standalone installer is missing or unsafe"
-[ "$(stat -c '%u:%g:%a' -- "${target_root}${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}")" = 0:0:755 ] ||
+[ "$(chroot "$target_root" /usr/bin/stat -c '%u:%g:%a' -- "${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}")" = 0:0:755 ] ||
   devops_fatal "target Codex standalone installer ownership or mode is invalid"
 [ -f "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] &&
   [ ! -L "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] &&
   [ -x "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] ||
   devops_fatal "temporary Codex installer supervisor is missing or unsafe"
-[ "$(stat -c '%u:%g:%a' -- "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}")" = 0:0:700 ] ||
+[ "$(chroot "$target_root" /usr/bin/stat -c '%u:%g:%a' -- "${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}")" = 0:0:700 ] ||
   devops_fatal "temporary Codex installer supervisor ownership or mode is invalid"
 [ -r "${target_root}${DEVOPS_CODEX_APP_SERVER_ENVIRONMENT}" ] ||
   devops_fatal "Codex app-server environment policy is missing after installation"

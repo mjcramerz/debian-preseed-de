@@ -140,6 +140,10 @@ family_d_i_early_main() {
   # shellcheck disable=SC1090,SC1091
   . "$TMP_ENV_DIR/account.env"
 
+  # Validate credentials before disk discovery, partition tooling or storage
+  # planning. /preseed.env belongs to the running initrd, never the target.
+  runtime_validate_account_settings
+
   write_crypto_answers=false
   if command -v runtime_crypto_answers_required >/dev/null 2>&1; then
     if runtime_crypto_answers_required; then

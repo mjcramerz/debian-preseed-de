@@ -468,19 +468,21 @@ class AdditionalProductionRegressions(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(result.stdout,'test argument\n')
 
-    def test_private_secret_files_only_in_both_resolvers(self):
+    def test_secret_files_harden_read_bits_but_reject_other_writers(self):
         with tempfile.TemporaryDirectory(prefix='private-preseed-') as tmp:
             file = Path(tmp)/'preseed.env'
             marker = Path(tmp)/'executed'
             file.write_text(f'touch {marker}\nPRESEED_ROOT_PASSWORD=fixture-only\n')
             for script,prefix in [(LIB,'installer'),(SEED/'scripts/runtime/common.sh','runtime')]:
-                for mode,expected in [(0o644,False),(0o660,False),(0o600,True),(0o400,True)]:
+                for mode,expected in [(0o644,True),(0o660,False),(0o600,True),(0o400,True)]:
                     marker.unlink(missing_ok=True); file.chmod(mode)
                     result = subprocess.run(['/bin/sh','-eu','-c',f'. {script}; {prefix}_preseed_env_value root_password'],
                                             env={**os.environ,'INSTALLER_PRESEED_ENV_FILE':str(file)},
                                             text=True,capture_output=True,timeout=5)
                     self.assertEqual(result.returncode==0,expected,result.stderr)
                     self.assertEqual(marker.exists(),expected)
+                    if mode == 0o644:
+                        self.assertEqual(file.stat().st_mode & 0o777, 0o600)
 
     def test_apparmor_allows_only_each_browsers_dedicated_debug_state(self):
         for file,browser in [('chromium','chromium'),('microsoft-edge-stable','edge'),('vivaldi-bin','vivaldi')]:
