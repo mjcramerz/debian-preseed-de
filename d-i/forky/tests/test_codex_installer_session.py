@@ -261,6 +261,161 @@ sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r})
         self.assert_clean()
 
 
+class CodexLayoutTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='codex-layout-test-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.fake_bin = self.root / 'bin'
+        self.fake_bin.mkdir()
+        self.codex_root = self.root / 'data/codex'
+        self.log_dir = self.codex_root / 'log'
+        self.sqlite_home = self.codex_root / 'sqlite'
+        self.runtime_root = self.codex_root / 'runtime'
+        self.account = pwd.getpwuid(os.getuid()).pw_name
+
+        self.write_command('getent', '''
+if [ "$1" = group ] && [ "$2" = devops ]; then
+  printf 'devops:x:%s:\\n' "$TEST_GID"
+  exit 0
+fi
+exec /usr/bin/getent "$@"
+''')
+        self.write_command('install', '''
+[ "$1" = -d ] || exec /usr/bin/install "$@"
+shift
+mode=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -m) mode=$2; shift 2 ;;
+    -o|-g) shift 2 ;;
+    --) shift; break ;;
+    -*) exit 2 ;;
+    *) break ;;
+  esac
+done
+[ -n "$mode" ]
+for destination in "$@"; do
+  mkdir -p -- "$destination"
+  chmod "$mode" "$destination"
+done
+''')
+        self.write_command('stat', '''
+path=
+for argument in "$@"; do path=$argument; done
+mode=$(/usr/bin/stat -c %a -- "$path")
+case "$path" in
+  "$TEST_CODEX_ROOT")
+    if [ -n "${TEST_CODEX_ROOT_STAT:-}" ]; then
+      printf '%s\\n' "$TEST_CODEX_ROOT_STAT"
+      exit 0
+    fi
+    printf '0:%s:%s\\n' "$TEST_GID" "$mode"
+    ;;
+  "$TEST_CODEX_ROOT/share"|"$TEST_CODEX_ROOT/share/bin"|"$TEST_CODEX_ROOT/lib")
+    printf '0:0:%s\\n' "$mode"
+    ;;
+  *)
+    printf '%s:%s:%s\\n' "$TEST_UID" "$TEST_GID" "$mode"
+    ;;
+esac
+''')
+
+        devops = (FORKY / 'scripts/late/devops.sh').read_text()
+        layout = devops.split('devops_prepare_codex_layout() {', 1)[1].split(
+            '\n}\n\ndevops_apply_codex_tmpfiles() {', 1
+        )[0]
+        self.script = f'''\
+set -eu
+ACCOUNT_USERNAME=$TEST_ACCOUNT_USERNAME
+DEVOPS_CODEX_ROOT=$TEST_CODEX_ROOT
+DEVOPS_CODEX_LOG_DIR=$TEST_CODEX_LOG_DIR
+DEVOPS_CODEX_SQLITE_HOME=$TEST_CODEX_SQLITE_HOME
+DEVOPS_CODEX_RUNTIME_ROOT=$TEST_CODEX_RUNTIME_ROOT
+run_in_target() {{
+  shift
+  "$@"
+}}
+devops_prepare_codex_layout() {{
+{layout}
+}}
+'''
+        self.env = dict(
+            os.environ,
+            PATH=f'{self.fake_bin}:/usr/bin:/bin',
+            TEST_ACCOUNT_USERNAME=self.account,
+            TEST_CODEX_ROOT=str(self.codex_root),
+            TEST_CODEX_LOG_DIR=str(self.log_dir),
+            TEST_CODEX_SQLITE_HOME=str(self.sqlite_home),
+            TEST_CODEX_RUNTIME_ROOT=str(self.runtime_root),
+            TEST_UID=str(os.getuid()),
+            TEST_GID=str(os.getgid()),
+        )
+
+    def write_command(self, name, body):
+        command = self.fake_bin / name
+        command.write_text('#!/bin/sh\nset -eu\n' + body)
+        command.chmod(0o755)
+
+    def run_layout(self, body='devops_prepare_codex_layout\n', **environment):
+        return subprocess.run(
+            ['/bin/sh', '-c', self.script + body],
+            env={**self.env, **environment},
+            text=True,
+            capture_output=True,
+            timeout=5,
+        )
+
+    def test_exact_prepared_layout_is_idempotent(self):
+        result = self.run_layout(
+            'devops_prepare_codex_layout\n'
+            'devops_prepare_codex_layout\n'
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected_modes = {
+            self.codex_root: 0o3770,
+            self.codex_root / 'share': 0o755,
+            self.codex_root / 'share/bin': 0o755,
+            self.codex_root / 'lib': 0o755,
+            self.log_dir: 0o2770,
+            self.sqlite_home: 0o2770,
+            self.runtime_root: 0o2770,
+        }
+        for directory, expected_mode in expected_modes.items():
+            with self.subTest(directory=directory):
+                self.assertTrue(directory.is_dir())
+                self.assertFalse(directory.is_symlink())
+                self.assertEqual(stat.S_IMODE(directory.stat().st_mode), expected_mode)
+
+    def test_existing_root_with_wrong_metadata_is_rejected(self):
+        self.codex_root.mkdir(parents=True, mode=0o770)
+        result = self.run_layout(TEST_CODEX_ROOT_STAT=f'{os.getuid()}:{os.getgid()}:770')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unexpected ownership or mode', result.stderr)
+        self.assertFalse((self.codex_root / 'share').exists())
+
+    def test_symlink_root_is_rejected_without_touching_destination(self):
+        outside = self.root / 'outside'
+        outside.mkdir()
+        self.codex_root.parent.mkdir(parents=True)
+        self.codex_root.symlink_to(outside, target_is_directory=True)
+        result = self.run_layout()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('must not be a symlink', result.stderr)
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_symlink_child_is_rejected_without_touching_destination(self):
+        outside = self.root / 'outside'
+        outside.mkdir()
+        self.codex_root.mkdir(parents=True)
+        self.codex_root.chmod(0o3770)
+        (self.codex_root / 'share').symlink_to(outside, target_is_directory=True)
+        result = self.run_layout()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('must not be a symlink', result.stderr)
+        self.assertEqual(list(outside.iterdir()), [])
+
+
 class CodexDeploymentContractTests(unittest.TestCase):
     def test_target_installer_runs_after_desktop_home_population(self):
         text = STANDALONE.read_text()

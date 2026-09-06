@@ -2981,7 +2981,7 @@ codex_log_dir=$3
 codex_sqlite_home=$4
 codex_runtime_root=$5
 
-for required_command in getent install; do
+for required_command in chmod getent id install stat; do
   command -v "$required_command" >/dev/null 2>&1 || {
     printf "fatal: required Codex target command is unavailable: %s\n" "$required_command" >&2
     exit 1
@@ -2991,9 +2991,59 @@ getent passwd "$account_user" >/dev/null 2>&1 || {
   printf "fatal: required Codex account is missing: %s\n" "$account_user" >&2
   exit 1
 }
-getent group devops >/dev/null 2>&1 || {
+devops_group_record=$(getent group devops) || {
   printf "fatal: required target group is missing: devops\n" >&2
   exit 1
+}
+account_uid=$(id -u "$account_user")
+devops_gid=${devops_group_record#*:}
+devops_gid=${devops_gid#*:}
+devops_gid=${devops_gid%%:*}
+case "$account_uid:$devops_gid" in
+  *[!0123456789:]*|:*|*:)
+    printf "fatal: unable to resolve Codex account or devops group ids\n" >&2
+    exit 1
+    ;;
+esac
+
+codex_prepare_directory() {
+  directory_label=$1
+  directory_path=$2
+  expected_uid=$3
+  expected_gid=$4
+  expected_mode=$5
+  expected_metadata="${expected_uid}:${expected_gid}:${expected_mode}"
+
+  if [ -L "$directory_path" ]; then
+    printf "fatal: Codex %s must not be a symlink: %s\n" \
+      "$directory_label" "$directory_path" >&2
+    exit 1
+  fi
+  if [ -e "$directory_path" ]; then
+    [ -d "$directory_path" ] || {
+      printf "fatal: Codex %s is not a directory: %s\n" \
+        "$directory_label" "$directory_path" >&2
+      exit 1
+    }
+    actual_metadata=$(stat -c "%u:%g:%a" -- "$directory_path")
+    [ "$actual_metadata" = "$expected_metadata" ] || {
+      printf "fatal: existing Codex %s has unexpected ownership or mode: expected %s, found %s\n" \
+        "$directory_label" "$expected_metadata" "$actual_metadata" >&2
+      exit 1
+    }
+    return 0
+  fi
+
+  install -d -m "$expected_mode" -o "$expected_uid" -g "$expected_gid" \
+    "$directory_path"
+  chmod a-s -- "$directory_path"
+  chmod "$expected_mode" -- "$directory_path"
+  actual_metadata=$(stat -c "%u:%g:%a" -- "$directory_path")
+  [ "$actual_metadata" = "$expected_metadata" ] || {
+    printf "fatal: prepared Codex %s has unexpected ownership or mode: expected %s, found %s\n" \
+      "$directory_label" "$expected_metadata" "$actual_metadata" >&2
+    exit 1
+  }
 }
 
 [ -d /data ] || install -d -m 0755 -o root -g root /data
@@ -3001,31 +3051,16 @@ getent group devops >/dev/null 2>&1 || {
   printf "fatal: /data must not be a symlink\n" >&2
   exit 1
 }
-[ ! -e "$codex_root" ] && [ ! -L "$codex_root" ] || {
-  printf "fatal: Codex root already exists; this fresh-install helper will not replace it: %s\n" "$codex_root" >&2
-  exit 1
-}
 
-install -d -m 3770 -o root -g devops "$codex_root"
-install -d -m 0755 -o root -g root \
-  "$codex_root/share" \
-  "$codex_root/share/bin" \
-  "$codex_root/lib"
-install -d -m 2770 -o "$account_user" -g devops \
-  "$codex_log_dir" \
-  "$codex_sqlite_home" \
-  "$codex_runtime_root"
-chmod a-s -- \
-  "$codex_root/share" \
-  "$codex_root/share/bin" \
-  "$codex_root/lib" \
-  "$codex_log_dir" \
-  "$codex_sqlite_home" \
-  "$codex_runtime_root"
-chmod g+s -- \
-  "$codex_log_dir" \
-  "$codex_sqlite_home" \
-  "$codex_runtime_root"
+# A resumed late stage may revisit this installer-owned skeleton. Reuse only
+# directories whose type, owner, group, and mode exactly match the contract.
+codex_prepare_directory root "$codex_root" 0 "$devops_gid" 3770
+codex_prepare_directory share "$codex_root/share" 0 0 755
+codex_prepare_directory binary "$codex_root/share/bin" 0 0 755
+codex_prepare_directory library "$codex_root/lib" 0 0 755
+codex_prepare_directory log "$codex_log_dir" "$account_uid" "$devops_gid" 2770
+codex_prepare_directory SQLite "$codex_sqlite_home" "$account_uid" "$devops_gid" 2770
+codex_prepare_directory runtime "$codex_runtime_root" "$account_uid" "$devops_gid" 2770
 ' sh \
     "$ACCOUNT_USERNAME" \
     "$DEVOPS_CODEX_ROOT" \
