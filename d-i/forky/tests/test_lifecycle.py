@@ -186,6 +186,99 @@ fetch_hook() {{ cp "$1" "$2"; }}
         self.assertFalse((self.target / "file").is_symlink())
 
 
+class PublishingEntrypointTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory(prefix="publishing-entrypoints-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name)
+        self.target = self.path / "target"
+        self.target.mkdir()
+        source = (FORKY / "scripts/late/devops.sh").read_text()
+        link_helper = source.split(
+            "devops_stage_publishing_command_link() (", 1
+        )[1].split("\n)\n\ndevops_stage_publishing_entrypoints() {", 1)[0]
+        stage_helper = source.split(
+            "devops_stage_publishing_entrypoints() {", 1
+        )[1].split("\n}\n\ndevops_install_pending_credential() {", 1)[0]
+        self.script = f'''\
+set -eu
+target_root=$TEST_TARGET_ROOT
+tmp_env_dir=$TEST_TMP_ENV_DIR
+devops_fatal() {{ printf 'fatal: %s\\n' "$*" >&2; exit 1; }}
+installer_repo_join_var() {{ printf '%s\\n' "$2"; }}
+devops_stage_target_asset() {{
+  : > "${{target_root}}$2"
+  chmod "$3" "${{target_root}}$2"
+}}
+chown() {{ :; }}
+devops_stage_publishing_command_link() (
+{link_helper}
+)
+devops_stage_publishing_entrypoints() {{
+{stage_helper}
+}}
+'''
+        self.env = dict(
+            os.environ,
+            TEST_TARGET_ROOT=str(self.target),
+            TEST_TMP_ENV_DIR=str(self.path),
+        )
+
+    def run_stage(
+        self, body: str = "devops_stage_publishing_entrypoints"
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["/bin/sh", "-c", self.script + body],
+            env=self.env,
+            text=True,
+            capture_output=True,
+            timeout=5,
+        )
+
+    def test_retry_accepts_exact_managed_links(self) -> None:
+        result = self.run_stage(
+            "devops_stage_publishing_entrypoints\n"
+            "devops_stage_publishing_entrypoints\n"
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = {
+            "aptly-publishing-bin/aptly": "../aptly-publishing",
+            "aptly-publishing-bin/aptly-publish-local": "../aptly-publishing",
+            "aptly-publishing-bin/dpkg-buildpackage": "../aptly-publishing",
+            "obs-publishing-bin/obs-checkout-source": "../obs-publishing",
+            "obs-publishing-bin/obs-publish-source": "../obs-publishing",
+            "obs-publishing-bin/osc": "../obs-publishing",
+        }
+        libexec = self.target / "usr/local/libexec"
+        for relative_path, target in expected.items():
+            with self.subTest(path=relative_path):
+                link = libexec / relative_path
+                self.assertTrue(link.is_symlink())
+                self.assertEqual(os.readlink(link), target)
+
+    def test_wrong_symlink_is_rejected_without_replacement(self) -> None:
+        link = self.target / "usr/local/libexec/aptly-publishing-bin/aptly"
+        link.parent.mkdir(parents=True)
+        link.symlink_to("../unexpected")
+        result = self.run_stage()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("has an unexpected target", result.stderr)
+        self.assertEqual(os.readlink(link), "../unexpected")
+
+    def test_regular_file_collision_is_rejected_without_replacement(self) -> None:
+        link = self.target / "usr/local/libexec/aptly-publishing-bin/aptly"
+        link.parent.mkdir(parents=True)
+        link.write_text("unmanaged\n")
+        result = self.run_stage()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "managed Aptly publication entrypoint already exists: "
+            "/usr/local/libexec/aptly-publishing-bin/aptly",
+            result.stderr,
+        )
+        self.assertEqual(link.read_text(), "unmanaged\n")
+
+
 class CleanupAndUnitTests(unittest.TestCase):
     def test_tmpfs_cleanup_preserves_symlink_destination(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pre-clean-") as name:

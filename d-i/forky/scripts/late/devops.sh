@@ -1671,6 +1671,25 @@ assert metadata == {"apiURL": apiurl, "credentialsBackend": backend, "project": 
     "$metadata_rendered_tmp"
 }
 
+devops_stage_publishing_command_link() (
+  publishing_label=$1
+  publishing_link=$2
+  publishing_target=$3
+  publishing_display_path=${publishing_link#"$target_root"}
+
+  # A resumed late stage can revisit links created before a later failure.
+  # Only the exact managed target is idempotent; never replace a collision.
+  if [ -L "$publishing_link" ]; then
+    [ "$(readlink "$publishing_link")" = "$publishing_target" ] ||
+      devops_fatal "managed ${publishing_label} publication entrypoint has an unexpected target: ${publishing_display_path}"
+  elif [ -e "$publishing_link" ]; then
+    devops_fatal "managed ${publishing_label} publication entrypoint already exists: ${publishing_display_path}"
+  else
+    ln -s "$publishing_target" "$publishing_link"
+  fi
+  chown -h root:root "$publishing_link"
+)
+
 devops_stage_publishing_entrypoints() {
   aptly_publishing_program=/usr/local/libexec/aptly-publishing
   aptly_publishing_bin_dir=/usr/local/libexec/aptly-publishing-bin
@@ -1704,9 +1723,10 @@ devops_stage_publishing_entrypoints() {
     dpkg-buildpackage
   do
     publishing_link="${target_root}${aptly_publishing_bin_dir}/${aptly_publishing_command}"
-    [ ! -e "$publishing_link" ] && [ ! -L "$publishing_link" ] ||
-      devops_fatal "managed Aptly publication entrypoint already exists: ${aptly_publishing_bin_dir}/${aptly_publishing_command}"
-    ln -s ../aptly-publishing "$publishing_link"
+    devops_stage_publishing_command_link \
+      Aptly \
+      "$publishing_link" \
+      ../aptly-publishing
   done
   for obs_publishing_command in \
     obs-checkout-source \
@@ -1714,9 +1734,10 @@ devops_stage_publishing_entrypoints() {
     osc
   do
     publishing_link="${target_root}${obs_publishing_bin_dir}/${obs_publishing_command}"
-    [ ! -e "$publishing_link" ] && [ ! -L "$publishing_link" ] ||
-      devops_fatal "managed OBS publication entrypoint already exists: ${obs_publishing_bin_dir}/${obs_publishing_command}"
-    ln -s ../obs-publishing "$publishing_link"
+    devops_stage_publishing_command_link \
+      OBS \
+      "$publishing_link" \
+      ../obs-publishing
   done
   unset \
     aptly_publishing_command \
