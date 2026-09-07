@@ -1022,7 +1022,7 @@ repair_kernel() {
 
   [ -f "$kernel_image" ] || return 0
   if kernel_image_has_debian_signature "$kernel_image"; then
-    if [ "$modules_changed" -eq 1 ]; then
+    if [ "$modules_changed" -eq 1 ] || [ ! -s "/boot/initrd.img-$kernelver" ]; then
       refresh_initramfs_for_kernel "$kernelver"
     fi
     log "info: leaving Debian-signed kernel image untouched for $kernelver"

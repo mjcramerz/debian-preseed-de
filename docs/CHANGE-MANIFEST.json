@@ -1,0 +1,368 @@
+{
+  "source_archive": "debian-preseed-de.zip",
+  "source_archive_sha256": "2a0dd94b2f2a3f6ce01428b197dda1b10326dbd185a529c774cc2a748b433f91",
+  "profiles_verified_unchanged": 13,
+  "changes": [
+    {
+      "path": "README.md",
+      "baseline_sha256": "ee4f6f7490e7b109e98bd21330b06e306e67d7088502a3a2fe2cdd9c27582da6",
+      "release_sha256": "5a69f79e6235cd186ad4cff6f2cf562476996a37912f62ef6bdc3a8800514461",
+      "change": "modified"
+    },
+    {
+      "path": "SECURITY.md",
+      "baseline_sha256": "03f015426d9dfa2ea65f74e530abbbab14c830afa2d505ec206d0cc945ffa0b1",
+      "release_sha256": "ee2d6e64abd549793c7f81ab7d72d86f4a7c63fd60314a9f81c4c2d196253eff",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/classes/class-addon/crowdsec.cfg",
+      "baseline_sha256": "b65022912d7419bf1e4ad1f47c8442ac8b29670f0e9f4f75d5f2e856a24ce06d",
+      "release_sha256": "6654884fd7b1f239bd7442e40723cb82a23426515775fe281e20ad1e70f4a39d",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/classes/class-auto/cpu/generic-arm64.cfg",
+      "baseline_sha256": null,
+      "release_sha256": "2de47f22877617f6618b5dacb3fe697fff8611bd4f6ac968e7dad23ba410ac1d",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/classes/configs/hardware.cfg",
+      "baseline_sha256": "5647d6c81b8f3df5d61f3553762d2c7116d91b2b2be94923971bf715c1b4a8fe",
+      "release_sha256": "17b88d862b9870e4d5427921425437b0538dc902ad3a5df1f40b137eb0e6a937",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/classes/configs/target-assets.tsv",
+      "baseline_sha256": "9cc738de831b50be8d9427e187af16bd0590e73440e82a06ecee123288467eca",
+      "release_sha256": "435b64a39ea056abc03b4208ca471ea833f8d4aaee7618627cafef832864297c",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
+      "baseline_sha256": "d3697266c353ae2f551b5c45657479520ec82a532226baf970f6c6a3f31ad25c",
+      "release_sha256": "e9248c61a1728ae9dee3422a0dee4d1bdcaa99509dbb2839b7cffccc13515ffa",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/apt-setup/generators/99-apt-preferences",
+      "baseline_sha256": "83b0cc96bb52617ac221910533bc5981e57119dda887b6ba9cdc2ae84d82b28d",
+      "release_sha256": "5123da04b47f61851b00164d8b131c8ac35b757e7ed98c837a50edb21cdfcb7e",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/d-i/early.sh",
+      "baseline_sha256": "16dea17a764161ad8812b6326a662dad521c1bdb0f833fb2611aff5b0f024ffc",
+      "release_sha256": "33adff7a207f96816c6eee496636b2fc8bd2855db1169678a69ec4f19c0a2acf",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/finish-install.d/00-installer-guard",
+      "baseline_sha256": null,
+      "release_sha256": "12c46783e382fd838b8bd1f70097a6aa27d03c5f07acfbc4ee4f923b18477e04",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/finish-install.d/94zz-99-validate-target",
+      "baseline_sha256": null,
+      "release_sha256": "9bdd79965ab3cab5897ab6bc76a00ce2290c1666e1538a0c4da7de8b14824c3c",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/installer/late_command.sh",
+      "baseline_sha256": "b807c26e532e153589cf97f33a4d46e83519655d3c49eb777b4d344f9453dd20",
+      "release_sha256": "3196c2586ff96116edb15e896d9dae65b56ced347fc58c10775d25129bbc1436",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/default/grub.d/80-cpu-profile-flags.generic-arm64.cfg",
+      "baseline_sha256": null,
+      "release_sha256": "9f86be9717ab741070d6322dbee2c8d555c2ee31f60f1416711984630f8d3edd",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/modules-load.d/37-virt-host.generic-arm64.conf",
+      "baseline_sha256": null,
+      "release_sha256": "2abbed8acc1d7ca500ff470aa92ffff225d0b4835cb8f0c1a7866371318cf265",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/crowdsec-firstboot.service",
+      "baseline_sha256": "c127fa1353d49e1105f3261b58bfc38a480b6cd2e29e8c8eef9766336845f4c9",
+      "release_sha256": "2674ef85c530f7041a84292d611d9681950e0d4c220e0da28a6a50ee0b1334b9",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-apparmor.service",
+      "baseline_sha256": null,
+      "release_sha256": "73ae5e0d9c30de3e7536e1a1afa9be4cae5c17be1e87a35b3fae630ddff3f8b8",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf",
+      "baseline_sha256": null,
+      "release_sha256": "0a1f63574d08b58be5883b097e2d897a274257ad9a3e11e816eafc8a7e2b7362",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl",
+      "baseline_sha256": "38353c2ffa4fecf12d5e8c6e36a90be5d44bbc17cba8d324789abfaff65d38be",
+      "release_sha256": "24172f9c6aadac502717beb13812164c95e3939344ec80eaf2c1085102c42036",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl",
+      "baseline_sha256": "5b6a538d2a5dbd4054e2a222af24da04d086a79702389d4d7cbe30f6cc773e59",
+      "release_sha256": "74011053e7472623943b6bdcdf773fef227d89c3d7fb0a22d4272fb69fc28d71",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/crowdsec-bouncer-verify",
+      "baseline_sha256": null,
+      "release_sha256": "6859e95a28bfee1cc85f3d1707a2e197acfef6e0317be7e5397be4a06c6bd4cb",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/crowdsec-firstboot",
+      "baseline_sha256": "33969dcdd4d75a6403107d223e7577886a70c4af90902c31e31f446e2b69e440",
+      "release_sha256": "bfed8af5d56e867566092ab5d982a8015ec7b27463b146f67da6ec8f1cbff8fc",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "baseline_sha256": "78878311464a81c6b2ef1aea7385a862505ea65d71ffb5c9e43a4620c0d12666",
+      "release_sha256": "5cf3ba11b0078fdfa521294049ce6bd8ad0b33cd60f8b0c04ef5b53d11d4df51",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "baseline_sha256": "4cb53c7b25bc9513769c4a049b3c78e5d5538ed8c65b9c8e8c44f99769131292",
+      "release_sha256": "2dd0b6d068e97de5f0f1936ec5286f3b12b346141359879712241bc5c8f160d7",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "baseline_sha256": "5a1a2aaaee059593e2f3fe5d3fda6a2c5501f10cc3393e551bcefece96b622bd",
+      "release_sha256": "173988614adfcd43de5148a2e30cd696c63e5a816b9f3cd73ee7091297c6ed73",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/common/apt-sources.sh",
+      "baseline_sha256": null,
+      "release_sha256": "7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/common/fetch.sh",
+      "baseline_sha256": "2f507154ba95884cb752d5aeab7c24ea8cf47453f2f9c1a4267e4344496f13f2",
+      "release_sha256": "bc681eb7c3b3fb3a9849ac06c18e63993736a2d6272b8d26911444917b77e0bc",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/common/hook.sh",
+      "baseline_sha256": "0dc530d520efee68a92d476bf365e0aa9d0bb401f1d2dfa2fddb4f14730fe370",
+      "release_sha256": "f10742a00d82a5aa22dc66f7d208d6e9d2dcfa448ced2c7c6f22b3471010c642",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/common/lib.sh",
+      "baseline_sha256": "d4d6a006a211b45a63b24622756881c81e90424d7884f2db3917098b516abca1",
+      "release_sha256": "1e290cfb28f84e42a6ea7b79ab29ea9f6eb50b0a061b02f9cd21f2609abee636",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/common/lifecycle.sh",
+      "baseline_sha256": null,
+      "release_sha256": "f99d57efd119d117119f24baecc426e83d49b91d17c8207a041c71f6d241ed53",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/common/source.sh",
+      "baseline_sha256": "14f8b05a8047f1d214d4c4ae60a10c8e851abeae7f01c53e99266c2de6b644bf",
+      "release_sha256": "3798c20945eb75ae2e040239cfb1a669a0cc18ffab2f4749a57472825d038e09",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/common/target.sh",
+      "baseline_sha256": "55e8beca9d42c628b0a3aa9033980cfefc9f371fdeabf791b92f5d1b63b97723",
+      "release_sha256": "6a62bccfd2d71a9e0f2a9afde47ddd308a1346521fa2c3ab92fe86315219326f",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/btrfs-family.sh",
+      "baseline_sha256": "84e58a1c7858dd840d52cc73bc5572fc8b3e42f4e8f149932861b338694aed68",
+      "release_sha256": "0d1b5921b764885266565b3377789d65d77e8821ef5ef47969c85f3451922798",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/codex-state.py",
+      "baseline_sha256": null,
+      "release_sha256": "084d40104edaece281c80891c220ce84cb556e284289cc87d40b2cb4aeb87f96",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/late/core.sh",
+      "baseline_sha256": "b938e6703b0eb9dc3689f4fc7f35cdcd5417197b73b662fd7defb7b83d901198",
+      "release_sha256": "11ae51519b142d1094b7e0e088b0d76a984543efc074611ead8cf96dda394340",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/crowdsec.sh",
+      "baseline_sha256": "ef2e38474e2613a2335827ffcb9f714af3319774c6429c6e4e2d4708bdefc199",
+      "release_sha256": "ba279edcdb0f90f5fdefcf3e705a169935ca4fb6a245e57db1a59d0410648368",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/devops.sh",
+      "baseline_sha256": "a536b11d06ea4805dfdd5d028eb6b2abd2d37fcc329c4f4607f502f881a87bf0",
+      "release_sha256": "23a62567e50c2a03de89eb14ae4eb811576cf94547af05745d81e2050736c6de",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/dispatch.sh",
+      "baseline_sha256": "ba4cdc2b9e9c721a3c0274cfb6de96a3f67d66244f6dd6e44e516887f9d99995",
+      "release_sha256": "631462a86f4e9e56605def8c5b6590c57177e07f150058ece175fa2cff20c097",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/f2fs-family.sh",
+      "baseline_sha256": "deacca619bd49d29d3f1f1ac9571a55a2020cf22ef48d84b1fb5dbd80f1e4cd1",
+      "release_sha256": "d5307bb79d33746554b883132f11b083405461c9d6f0f6718dc2d536ab7db600",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/mullvad.sh",
+      "baseline_sha256": "e7d372a3bdb672322362b18111f2f5db216a9c9d05c50e92d82300afcb5e6e73",
+      "release_sha256": "bc98c36193bc328f95b77a710766fa73e714d2be862b49ef016e055a4e88f8e8",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/late/storage-maintenance.sh",
+      "baseline_sha256": "13fd184e8db47f40d117b920c6ec4658c87abd183cda20b9d038f27dcca278d8",
+      "release_sha256": "7a8f897e47fc36602c565848d87ce30a7422e8579f24f7731f8a256052c9d319",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/partman/detect-disk.sh",
+      "baseline_sha256": "bbfdfb8a18bce812891dcae47bffd97abe9cf7ae739e91306a6bc425705cb289",
+      "release_sha256": "69e235b9a1a66968bfb028d7e0cc28d99e4931ee8eaa244e5783e9c2dee6c355",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/base-apt-adapter.sh",
+      "baseline_sha256": null,
+      "release_sha256": "80ee77f73d356e4e6e7e0ae389012dcd1d1c59cf3ac1fee97ba948dc20da7484",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/bootstrap-entry.sh",
+      "baseline_sha256": "b3d08b005089eb0761886632f33cb1d4d1eb0a5d37a3d7f28e2040138ed60fc1",
+      "release_sha256": "cb7224847b9cb2e86d466cebcbe13db50775079050922d053b4e6703ecb58d21",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/class-auto.sh",
+      "baseline_sha256": "dc3d98fd8141c41c99fc91ad0a0ab409be5f4a719ea88e371e50dd178e1b46bc",
+      "release_sha256": "5427410edb73c06b88b9ce0518757cbf52a1e5c2bfb9549b21987644392ad881",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/guard-hook.sh",
+      "baseline_sha256": null,
+      "release_sha256": "08bbddf91cfc89b9871dd587b7f2e0be4d2859a04269c39ac09718ad0fa26fd2",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/network-apt.sh",
+      "baseline_sha256": null,
+      "release_sha256": "0b325a55840b8d9facd934ac494352ed0ee4d96affc72f89bad6d2a9314c97b4",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/process_fixture.py",
+      "baseline_sha256": null,
+      "release_sha256": "e3559b87ed3de689de2e8946637cafa593972ed69e779eebe8cddc612fa4a3fd",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/test_codex_installer_session.py",
+      "baseline_sha256": "2acc361cfa9f64b851d86277590102a9b8c33f41ce9ba194f5221e83da8caf19",
+      "release_sha256": "58d36a7ce8e0eb5f7546ed7e63aa35ac6dd9e2134fc88f3f78fc648fcc1495dc",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/tests/test_cuda_legacy_apt.py",
+      "baseline_sha256": "42cdf26c9e104288ab489923e95a5e3410ee46919aeaf6e5362d938761cf62ba",
+      "release_sha256": "11e41ef0ffcd7daf852caa7a2879fc0419d7cf0ff059ee86053d733c2e184043",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/tests/test_hardware_restore.py",
+      "baseline_sha256": "51c384767e169560f483b272c5210d28dd90b5aa5f26fa89201251fa5c8b75e0",
+      "release_sha256": "9d3746bfd757363e9c239457a247bb83c026be97035e2532d92ac0ceb0eb5be4",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/tests/test_installer_hardening.py",
+      "baseline_sha256": null,
+      "release_sha256": "df5af538042a7a2e32ef0ea8739fc1e0f845afdd512cadd64a0404825390b933",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/test_repository_transport.py",
+      "baseline_sha256": "184aaec78489d58936361e8b4c37300ca1f78b704ed179a96ee1aa6ab4d6e164",
+      "release_sha256": "d7257d40b74e03923bd099f44b248b723c87f77b90355321b6ba18923587fdb4",
+      "change": "modified"
+    },
+    {
+      "path": "docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md",
+      "baseline_sha256": "72edb6209519cb753af65d19028996e5bea564356a198cdacb69ca94cecc8977",
+      "release_sha256": "ed12cfd7566043d5ca4134ae222676caeb8bc5c17bb02dd506de899d7c00cd4d",
+      "change": "modified"
+    },
+    {
+      "path": "docs/INCIDENT-2026-09-07.md",
+      "baseline_sha256": null,
+      "release_sha256": "e66eac219c072c8a3a9f4a1c7951ebbd52dacb1fb680828d83e11ba880fffbd5",
+      "change": "added"
+    },
+    {
+      "path": "docs/INSTALLER-HARDENING-2026-09-07.md",
+      "baseline_sha256": null,
+      "release_sha256": "5ca9aa239a1645bddf2fcbbbb84849e9b7fd3233c86d1c2f3861ab3cde2e9397",
+      "change": "added"
+    },
+    {
+      "path": "docs/REFACTOR-2026-09-06.md",
+      "baseline_sha256": "9574fd725809bd15ea2d44516ed96813eae0c8eb2b8f1cea3a6ffa1db1582552",
+      "release_sha256": "4f7ba4750154a84705d8aef258d3f7efef2f3e03821a7178dff622c4ec1287e3",
+      "change": "modified"
+    },
+    {
+      "path": "docs/VALIDATION.md",
+      "baseline_sha256": "ba96548e63aebe1c57b0fe51fa36d45ceb5be389c5644fc510083b040fdc19cc",
+      "release_sha256": "69e72015cb7578a9e09abedcd46d24f54e1632dd4a5f766f84e143ffa88af573",
+      "change": "modified"
+    },
+    {
+      "path": "docs/migration-map.json",
+      "baseline_sha256": "cb17592a02a0e1ff3e9309a34ce21c322d508190949c4e54fbebc1e1ab62f434",
+      "release_sha256": "0e5eeff2b4aeb130344e86c24c8fa92773f73ca4d07f4f9e1876c2e18db2e19f",
+      "change": "modified"
+    },
+    {
+      "path": "tools/build.py",
+      "baseline_sha256": "c6ce6a55866f0ba3d31836c4dd0a81a887125deb8c97717456f258004ebd1251",
+      "release_sha256": "5cd774beb724977825c95cc425bf02913316aeb9aabb66d42cec86729cd7c4c4",
+      "change": "modified"
+    },
+    {
+      "path": "tools/release_audit.py",
+      "baseline_sha256": null,
+      "release_sha256": "02779a56fc5d939762d9f1f6f69d07c8f47942326f66ffd8d6938c7bf75e3720",
+      "change": "added"
+    }
+  ],
+  "note": "Generated validation evidence and this provenance/report file are outside the source-change list. No original upload was modified."
+}

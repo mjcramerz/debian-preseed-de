@@ -17,13 +17,11 @@ compromised initial URL, or deliberate TLS verification bypass can compromise
 the entire installer. Authenticate the initial source out of band or use trusted
 media / correctly validated HTTPS. Prefer immutable Git commit URLs for releases.
 
-The repository fetch layer verifies TLS unless explicitly given
-`allow_unauthenticated_ssl` (bare or a true value) or
-`debian-installer/allow_unauthenticated_ssl=true`. False values retain verification;
-invalid boolean values fail. This flag is not an APT signature bypass and does
-not change third-party application download policy. Initial preseed retrieval is
-owned by the installer image; its trust settings must be correct before this code
-can execute.
+The repository fetch layer requires HTTPS certificate verification. Explicit
+legacy TLS bypass requests are rejected, not silently honored. An installer
+wget without usable certificate validation also fails closed. The initial
+preseed retrieval belongs to the installer image; validate its trust settings
+before this code can execute.
 
 Redirects are resolved from response headers. Non-HTTP(S) final sources, excessive
 redirects and HTTPS downgrades are not accepted. Because wget follows redirects
@@ -49,45 +47,60 @@ symlink escapes are rejected. The snapshot is regular-file-only. Full initial
 URL schemes and absolute local filenames are required by this repository;
 installer shorthand such as a bare hostname is not its source contract.
 
-## External vendor artifacts and the CUDA-legacy trust exception
+## External vendor artifacts and repository authentication
 
-External HTTPS data and checksum-pinned repository members are separate APIs.
-A missing validated payload member still fails closed; it cannot silently fetch
-from a moving repository. External-data fetches do not inherit the optional
-repository transport TLS bypass. These APIs remain unchanged in this pass.
+Payload members and external vendor data remain separate APIs. A missing pinned
+payload member cannot fall back to a moving URL. Codex binary archives retain
+their configured SHA-256 and size bounds; the repository revision is pinned.
+Mullvad retains verification against its pinned code-signing key fingerprint.
 
-Explicit `addon/cuda-legacy` selection authorizes a different policy for exactly
-`https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/`, suite
-`/`, architecture `amd64`. Its temporary source has `trusted=yes`,
-`allow-insecure=yes`, `allow-weak=yes`, `allow-downgrade-to-insecure=yes`,
-`check-valid-until=no` and `check-date=no`. It has no Signed-By restriction, key
-fetch, default-policy probe or Sequoia policy-file prerequisite. The legacy
-strict-first/fingerprint/self-certification fallback and its deadline are removed.
-APT may emit a verification warning, but repository authentication is not a
-prerequisite for accepting that source or downloading its packages unattended.
+The explicit `addon/cuda-legacy` class is architecture-limited to amd64 and uses
+exactly the NVIDIA Debian 12 x86_64 CUDA archive. It fetches a dedicated public
+key over validated HTTPS, publishes it privately then as root-readable public
+key data, and constrains APT Signed-By to the full fingerprint
+`EB693B3035CD5710E231E123A4B469963BF863CC`. APT performs the cryptographic key and
+Release verification; an armored file alone is not accepted as identity proof.
+A changed or expired signing key requires an intentional reviewed pin update.
 
-**This removes archive authentication and metadata freshness protection for that
-source.** Missing, weak or rejected signatures are intentionally tolerated.
-HTTPS certificate validation and available package checksums are still enabled,
-and missing indexes, transport failures and corrupt package bytes still fail.
-Checksums from unauthenticated metadata are not proof of publisher identity;
-HTTPS alone is not equivalent to signed archive verification. A compromised
-origin or trusted TLS interception can supply executable packages to the target.
-This is the operator-requested compatibility tradeoff, not a secure SHA-1 upgrade.
+No trusted=yes, weak/insecure repository authorization, unauthenticated package
+option, metadata-date override or weakened Sequoia policy is used. The isolated
+legacy update and the normal updates both retain default cryptographic policy.
+The temporary source and key are removed after the installer package work.
+Real loopback APT fixtures exercise signed acceptance and unsigned, wrong-key,
+weak-signature, expired-signature and tampered-package rejection.
 
-The exception is in one source entry, not system-wide APT options or Sequoia
-policy. The source renderer rejects other origins/suites/components. The hook
-stages it only when the class is selected; explicit selection does not require
-NVIDIA hardware detection. Updates for this source are isolated from other
-sources. General late-command updates temporarily hide it while retaining its
-cached package indexes. The source and obsolete dedicated key are removed after
-package repair; finish-install also removes legacy source remnants before source
-modernization. No permanent insecure NVIDIA source is installed by this change.
-An administrator intentionally re-enabling it later must review the same risk.
+The intentional Debian suite priorities remain Forky 900, Trixie 400, Sid 100 and
+Experimental 1. Existing package-specific exceptions remain explicit in
+`hooks/target/etc/apt/preferences.d/default/`; they are not a reproducible full
+package lock. Repository availability, dependency resolution and package scripts
+must be accepted against the particular deployment snapshot. Serve immutable
+source snapshots and retain resolved package versions with deployment evidence.
 
-See `docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md` and the real-APT regression fixtures
-for scope, behavior and limitations. Ordinary signed sources still reject the
-wrong key; an ordinary unsigned source fails even alongside the trusted fixture.
+## Terminal failures and privileged publication
+
+`common/lifecycle.sh` is the single fatal-state implementation, embedded before
+bootstrap network access. First-failure records are atomically linked once with
+mode 0600 in a private runtime directory. Fatal supervisors never return to d-i:
+they stop the actual main-menu ancestor and wait without customization or reboot.
+An already-fatal or interrupted mandatory phase cannot automatically resume.
+Signals stop the supervised child tree before the terminal hold; no host-wide
+process kill or PID-1 action is used. Do not SIGCONT the menu after failure.
+
+A failure before writable target storage exists can only be retained in initrd
+RAM and on the console. After a mounted target exists, diagnostics are also
+copied privately to `/var/log/installer`. Power loss can destroy RAM-only evidence;
+serial-console capture is an external deployment responsibility. The terminal
+hold does not automatically unmount filesystems or close encryption mappings;
+it avoids unsafe cleanup against uncertain partial state. Stop all work, export
+evidence, and recover from trusted rescue media before re-provisioning.
+
+Codex components are privately staged and validated before atomic publication.
+Existing state is compared without running Git or code from that existing tree.
+Only defined runtime-owned files/directories and managed links are allowed to
+differ. Ownership, modes, hardlinks, revision and immutable contents remain checked.
+Rollback removes only paths created by that transaction, never unrelated data.
+The release record is published last. An interrupted installer is still terminal;
+component convergence is not authorization to restart destructive phases.
 
 ## Credentials and personalized browser data
 

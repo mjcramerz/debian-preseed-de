@@ -35,6 +35,8 @@ d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__ 2770 __INSTALLER_ACCOUNT_USERNAME__ de
 # root is shared with the managed devops group.
 d __INSTALLER_DEVOPS_CODEX_RUNTIME_ROOT__/.control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 
+L __INSTALLER_DEVOPS_CODEX_HOME__/packages - __INSTALLER_ACCOUNT_USERNAME__ devops - __INSTALLER_DEVOPS_CODEX_ROOT__/packages
+
 # Official standalone package state exists only for ChatGPT installer and
 # discovery compatibility. The service executable remains the repository-built
 # Codex behind /data/codex/lib/codex.

@@ -347,9 +347,9 @@ last_target_command_failure_label() {
 run_phase() {
   seed_base=$1
 
-  # shellcheck disable=SC1090,SC1091
-  . "$BOOTSTRAP_LIB"
-  if bootstrap_run_preseed_phase "$phase" "$seed_base"; then
+  # A new shell is essential: testing a same-shell function in `if` disables
+  # errexit recursively throughout its sourced helpers in POSIX shells.
+  if installer_run_supervised /bin/sh -eu -c '. "$1"; bootstrap_run_preseed_phase "$2" "$3"' sh "$BOOTSTRAP_LIB" "$phase" "$seed_base"; then
     return 0
   else
     phase_status=$?
@@ -372,12 +372,19 @@ run_phase() {
       ;;
   esac
   . "$BOOTSTRAP_DIR/source.sh"
-  source_error "${phase} failed (status ${phase_status}); see ${log_path} and /tmp/install-runtime"
+  log "fatal: ${phase} failed (status ${phase_status}); see ${log_path}"
+  installer_record_failure "$phase_status" "$phase" "${failed_target_command:-phase command failed}" || :
   exit "$phase_status"
 }
 
 [ -n "$phase" ] || usage
 [ -s "$BOOTSTRAP_DIR/source.sh" ] || fatal 'transport missing before installer bootstrap'
+. "$BOOTSTRAP_DIR/source.sh"
+if installer_lifecycle_begin "$phase"; then :; else
+  phase_status=$?
+  [ "$phase_status" -eq 10 ] && exit 0
+  exit "$phase_status"
+fi
 case "$phase" in
   prepare-context) ;;
   *) [ -f "$BOOTSTRAP_DIR/preflight.ok" ] || fatal 'preflight did not complete; refusing installer phase' ;;
@@ -399,5 +406,5 @@ log "info: starting ${phase}"
 seed_base=$(resolve_seed_base "$requested_seed_base")
 persist_seed_base "$seed_base"
 refresh_bootstrap_lib "$seed_base"
-rm -f "$TARGET_COMMAND_FAILURE_STATE"
 run_phase "$seed_base"
+installer_lifecycle_complete

@@ -70,7 +70,12 @@ target_enable_bridge=false
 INITRAMFS_PLATFORM_MODULES=
 GRAPHICS_INITRAMFS_MODULES=
 
-case "${CPU_CLASS:-intel}" in
+case "${CPU_CLASS:-}" in
+  generic-arm64)
+    # arm64 KVM has no vendor-specific kvm_intel/kvm_amd module.
+    CPU_KVM_MODULE=""
+    CPU_CRC32C_MODULE="crc32c_generic"
+    ;;
   amd)
     CPU_KVM_MODULE="kvm_amd"
     CPU_CRC32C_MODULE="crc32c_generic"
@@ -197,10 +202,12 @@ late_command_shared_init "$requested_seed_base" "$requested_host_profile" "$HOOK
 late_command_fetch_common_assets "$(installer_repo_join_var DIR_SCRIPTS_RUNTIME btrfs.sh)"
 fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/grub-profiles.tmpl)" "$TMP_ENV_DIR/grub-profiles"
 late_command_load_runtime_env true
-late_command_load_host_env
-install_target_runtime_defaults
-install_target_wpa_supplicant_runtime_policy
-late_command_require_class_policy_env
+late_command_load_host_env || return $?
+# Architecture policy owns the required EFI placeholders and must exist before
+# *any* renderer (including the unrelated runtime defaults) is called.
+late_command_require_class_policy_env || return $?
+install_target_runtime_defaults || return $?
+install_target_wpa_supplicant_runtime_policy || return $?
 installer_ensure_context_loaded "${SEED_BASE:-}"
 CPU_CLASS=$(installer_selected_class_for_purpose cpu 2>/dev/null || printf '%s' "${INSTALLER_CPU_CLASS:-}")
 DISK_CLASS=$(installer_selected_class_for_purpose storage 2>/dev/null || printf '%s' "${INSTALLER_DISK_CLASS:-}")
@@ -732,6 +739,8 @@ set_target_default_unit
 disable_stock_kernel_menu
 
 if target_exec_available; then
+  # Regenerate signed kernels/initrds BEFORE discovering boot menu entries.
+  repair_target_installed_kernels
   require_target_grub_installed
   install_target_grub_profiles
   if [ "$TIMESHIFT_ADDON_SELECTED" = true ]; then
@@ -742,7 +751,6 @@ if target_exec_available; then
   if reset_target_secure_boot_mok_state; then
     queue_target_grub_mok_enrollment_boot_for_reset
   fi
-  repair_target_installed_kernels
   sync_target_secure_boot_bundle_to_installer_usb
   close_target_secure_boot_state
 fi

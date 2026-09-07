@@ -216,7 +216,12 @@ target_record_command_failure() {
   target_failure_label=$1
   target_failure_status=$2
   target_failure_state_path=$(target_command_failure_state_path)
-  target_failure_state_tmp="${target_failure_state_path}.tmp.$$"
+  if [ "${INSTALLER_LIFECYCLE_ACTIVE:-0}" = 1 ]; then
+    installer_record_failure "$target_failure_status" in-target "$target_failure_label" || :
+  fi
+  [ ! -e "$target_failure_state_path" ] || return 0
+  install -d -m 0700 "$(dirname "$target_failure_state_path")" || return 1
+  target_failure_state_tmp=$(mktemp "${target_failure_state_path}.XXXXXX") || return 1
   target_failure_state_dir=$(dirname "$target_failure_state_path")
   target_failure_label=$(printf '%s' "$target_failure_label" | tr '\r\n' '  ')
 
@@ -230,7 +235,8 @@ target_record_command_failure() {
     printf 'label=%s\n' "$target_failure_label"
   } >"$target_failure_state_tmp"
   chmod 0600 "$target_failure_state_tmp" 2>/dev/null || true
-  mv "$target_failure_state_tmp" "$target_failure_state_path"
+  ln "$target_failure_state_tmp" "$target_failure_state_path" 2>/dev/null || :
+  rm -f "$target_failure_state_tmp"
 }
 
 print_command() {
@@ -291,7 +297,6 @@ target_output_line_count() {
 }
 
 target_log_command_start() {
-  target_clear_command_failure_state
   target_log_route_for_label "$1"
   TARGET_LOG_START_EPOCH=$(target_log_epoch)
   installer_append_log_category "$TARGET_LOG_CATEGORY" "$TARGET_LOG_STAGE" info in-target "start $1" || true
@@ -332,7 +337,7 @@ run_in_target() {
 
   installer_error "in-target failed during ${label} (status ${code}):"
   if target_log_should_emit error; then
-    print_command "$@" >&2
+    : # Do not log argv: it can contain passwords, keys or inline secret material.
     cat "$output" >&2
   fi
   target_log_command_failure "$label" "$code" error "$output"
@@ -360,7 +365,7 @@ attempt_in_target() {
 
   installer_warn "in-target failed during ${label} (status ${code}):"
   if target_log_should_emit warning; then
-    print_command "$@" >&2
+    : # Do not log argv: it can contain passwords, keys or inline secret material.
     cat "$output" >&2
   fi
   target_log_command_failure "$label" "$code" warning "$output"
@@ -385,7 +390,7 @@ run_in_target_quiet() {
 
   installer_error "in-target failed during ${label} (status ${code}):"
   if target_log_should_emit error; then
-    print_command "$@" >&2
+    : # Do not log argv: it can contain passwords, keys or inline secret material.
     cat "$output" >&2
   fi
   target_log_command_failure "$label" "$code" error "$output"
@@ -412,7 +417,7 @@ run_in_target_interactive() {
 
   installer_error "in-target interactive command failed during ${label} (status ${code}):"
   if target_log_should_emit error; then
-    print_command "$@" >&2
+    : # Do not log argv: it can contain passwords, keys or inline secret material.
   fi
   target_log_command_failure "$label" "$code" error /dev/null
   exit "$code"
@@ -438,7 +443,7 @@ capture_in_target() {
   fi
 
   installer_error "in-target failed during ${label} (status ${code}):"
-  print_command "$@" >&2
+  # Do not log argv: command labels provide non-sensitive attribution.
   cat "$stderr_file" >&2
   installer_append_log_category "$TARGET_LOG_CATEGORY" "$TARGET_LOG_STAGE" error in-target "failed ${label} status=${code}" || true
   target_record_command_failure "$label" "$code"

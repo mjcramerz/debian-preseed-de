@@ -190,11 +190,14 @@ LC_ALL=C /usr/bin/grep -Eq \
   "^[[:space:]]*nameserver[[:space:]]+[^#[:space:]]+" \
   "$resolver_path"
 
-resolver_snapshot_tmp="${resolver_snapshot}.tmp.$$"
+resolver_snapshot_tmp=$(mktemp "${resolver_snapshot}.XXXXXX")
 cleanup_resolver_snapshot() {
   [ -z "$resolver_snapshot_tmp" ] || /bin/rm -f -- "$resolver_snapshot_tmp"
 }
-trap cleanup_resolver_snapshot 0 1 2 15
+trap cleanup_resolver_snapshot 0
+trap "exit 129" 1
+trap "exit 130" 2
+trap "exit 143" 15
 umask 077
 /bin/cat -- "$resolver_path" >"$resolver_snapshot_tmp"
 /bin/chown 0:0 "$resolver_snapshot_tmp"
@@ -284,11 +287,14 @@ resolver_path=$(/usr/bin/readlink -m /etc/resolv.conf)
 [ ! -L "$resolved_stub" ]
 
 /usr/bin/install -d -o 0 -g 0 -m 0755 -- "$(/usr/bin/dirname "$resolved_stub")"
-resolved_stub_tmp="${resolved_stub}.tmp.$$"
+resolved_stub_tmp=$(mktemp "${resolved_stub}.XXXXXX")
 cleanup_resolved_stub() {
   [ -z "$resolved_stub_tmp" ] || /bin/rm -f -- "$resolved_stub_tmp"
 }
-trap cleanup_resolved_stub 0 1 2 15
+trap cleanup_resolved_stub 0
+trap "exit 129" 1
+trap "exit 130" 2
+trap "exit 143" 15
 /bin/cat -- "$resolver_source" >"$resolved_stub_tmp"
 /bin/chown 0:0 "$resolved_stub_tmp"
 /bin/chmod 0644 "$resolved_stub_tmp"
@@ -383,6 +389,27 @@ install_target_systemd_resolved_for_mullvad() {
   mullvad_seed_target_resolved_stub systemd-resolved-installation
 }
 
+mullvad_validate_and_defer_apparmor() {
+  # The vendor postinst installs this profile but cannot load target kernel
+  # policy from d-i. Compilation is mandatory now; activation is boot-only.
+  run_in_target_quiet "validate Mullvad AppArmor profile without loading installer policy" /bin/sh -eu -c '
+profile=/etc/apparmor.d/mullvad
+[ -s /etc/apparmor.d/abi/4.0 ]
+[ -f "$profile" ] && [ ! -L "$profile" ]
+[ "$(stat -c %u:%g:%h "$profile")" = 0:0:1 ]
+case "$(stat -c %a "$profile")" in 600|640|644) ;; *) exit 1 ;; esac
+cmp -s "$profile" "/opt/Mullvad VPN/resources/apparmor_mullvad"
+apparmor_parser --skip-kernel-load --skip-cache "$profile"
+' sh || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-apparmor.service)" \
+    /etc/systemd/system/mullvad-apparmor.service 0644 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf)" \
+    /etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf 0644 || return $?
+  run_in_target_quiet "enable checked Mullvad AppArmor activation at first boot" \
+    systemctl --root=/ enable mullvad-apparmor.service || return $?
+  installer_info "Mullvad AppArmor policy compiled; kernel activation deferred to mullvad-apparmor.service"
+}
+
 install_target_mullvad_vpn_if_selected() (
   set -eu
 
@@ -402,7 +429,10 @@ install_target_mullvad_vpn_if_selected() (
     esac
     rm -f -- "$mullvad_resolver_host_path"
   }
-  trap mullvad_cleanup EXIT HUP INT TERM
+  trap 'mullvad_status=$?; trap - 0; mullvad_cleanup; exit "$mullvad_status"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   install_target_systemd_resolved_for_mullvad
 
   mullvad_existing_status=$(mullvad_installed_package_status mullvad-vpn)
@@ -417,6 +447,7 @@ install_target_mullvad_vpn_if_selected() (
       installer_fatal "installed mullvad-vpn package does not provide mullvad-daemon.service"
     installer_info \
       "Mullvad VPN is already installed version=${mullvad_existing_version} unit=${mullvad_existing_unit}"
+    mullvad_validate_and_defer_apparmor
     exit 0
   fi
 
@@ -647,4 +678,5 @@ mv -f -- "$temporary" "$destination"
 
   installer_info \
     "installed verified Mullvad VPN package version=${mullvad_installed_version} architecture=${mullvad_target_arch} sha256=${mullvad_package_sha256} unit=${mullvad_daemon_unit}"
+  mullvad_validate_and_defer_apparmor
 )

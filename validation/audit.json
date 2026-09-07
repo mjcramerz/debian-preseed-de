@@ -1,25 +1,25 @@
 {
   "scope_counts": {
-    "hooks/target": 1025,
-    "hooks/installer": 26
+    "hooks/target": 1030,
+    "hooks/installer": 28
   },
-  "requested_unique_files": 1051,
-  "total_with_installers_and_hosts": 1148,
+  "requested_unique_files": 1058,
+  "total_with_installers_and_hosts": 1161,
   "check_counts": {
     "blocked-dependency": 154,
-    "inventory-only": 475,
-    "pass": 404,
-    "structure-pass": 113,
+    "inventory-only": 476,
+    "pass": 414,
+    "structure-pass": 115,
     "template-needs-render": 2
   },
   "kind_counts": {
-    "config-or-data": 475,
+    "config-or-data": 476,
     "javascript": 11,
     "json": 41,
     "perl": 176,
-    "python": 69,
-    "shell": 246,
-    "systemd-structure": 113,
+    "python": 71,
+    "shell": 254,
+    "systemd-structure": 115,
     "toml": 9,
     "xml": 8
   },
@@ -38,9 +38,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 11,
-      "bytes": 596,
-      "mode": "0o640",
-      "sha256": "d3697266c353ae2f551b5c45657479520ec82a532226baf970f6c6a3f31ad25c",
+      "bytes": 591,
+      "mode": "0o660",
+      "sha256": "e9248c61a1728ae9dee3422a0dee4d1bdcaa99509dbb2839b7cffccc13515ffa",
       "placeholder_count": 0
     },
     {
@@ -50,10 +50,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 269,
-      "bytes": 8193,
+      "lines": 207,
+      "bytes": 6689,
       "mode": "0o750",
-      "sha256": "83b0cc96bb52617ac221910533bc5981e57119dda887b6ba9cdc2ae84d82b28d",
+      "sha256": "5123da04b47f61851b00164d8b131c8ac35b757e7ed98c837a50edb21cdfcb7e",
       "placeholder_count": 0
     },
     {
@@ -89,10 +89,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 201,
-      "bytes": 9018,
+      "lines": 221,
+      "bytes": 10606,
       "mode": "0o640",
-      "sha256": "16dea17a764161ad8812b6326a662dad521c1bdb0f833fb2611aff5b0f024ffc",
+      "sha256": "33adff7a207f96816c6eee496636b2fc8bd2855db1169678a69ec4f19c0a2acf",
       "placeholder_count": 0
     },
     {
@@ -106,6 +106,32 @@
       "bytes": 153,
       "mode": "0o640",
       "sha256": "bbfe769d8616a4a062895aa59d3804c1d2cf2fc6aff48f2b33efbb3dce703e31",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/installer/finish-install.d/00-installer-guard",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 21,
+      "bytes": 727,
+      "mode": "0o755",
+      "sha256": "12c46783e382fd838b8bd1f70097a6aa27d03c5f07acfbc4ee4f923b18477e04",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/installer/finish-install.d/94zz-99-validate-target",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 65,
+      "bytes": 2474,
+      "mode": "0o755",
+      "sha256": "9bdd79965ab3cab5897ab6bc76a00ce2290c1666e1538a0c4da7de8b14824c3c",
       "placeholder_count": 0
     },
     {
@@ -142,9 +168,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 43,
-      "bytes": 944,
+      "bytes": 991,
       "mode": "0o640",
-      "sha256": "b807c26e532e153589cf97f33a4d46e83519655d3c49eb777b4d344f9453dd20",
+      "sha256": "3196c2586ff96116edb15e896d9dae65b56ced347fc58c10775d25129bbc1436",
       "placeholder_count": 0
     },
     {
@@ -351,7 +377,7 @@
       "unit_facts": {},
       "lines": 115,
       "bytes": 3730,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b",
       "placeholder_count": 0
     },
@@ -390,7 +416,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 297,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035",
       "placeholder_count": 0
     },
@@ -403,7 +429,7 @@
       "unit_facts": {},
       "lines": 26,
       "bytes": 700,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68",
       "placeholder_count": 0
     },
@@ -450,7 +476,7 @@
       },
       "lines": 30,
       "bytes": 1051,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c",
       "placeholder_count": 0
     },
@@ -494,7 +520,7 @@
       },
       "lines": 38,
       "bytes": 1537,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "5ff8ab5465139638da9818b5ec49496a43ad038df24587d5e8e77e49dc01116b",
       "placeholder_count": 0
     },
@@ -507,7 +533,7 @@
       "unit_facts": {},
       "lines": 15,
       "bytes": 381,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "a44946fe92abddaa3c4d0b12a0e0f4f608037566a284d3ff0115036d8933b215",
       "placeholder_count": 0
     },
@@ -520,7 +546,7 @@
       "unit_facts": {},
       "lines": 4,
       "bytes": 205,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "99c48fce184cd3c4cdae0a648b11574be4b0af68765b65c1c53333ce88b64760",
       "placeholder_count": 0
     },
@@ -533,7 +559,7 @@
       "unit_facts": {},
       "lines": 7,
       "bytes": 226,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "21aa39e294b5834d8338b346a7d10bdda97513d599815928d28a5bb22db0d81b",
       "placeholder_count": 0
     },
@@ -546,7 +572,7 @@
       "unit_facts": {},
       "lines": 10,
       "bytes": 341,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "0641a7b691393da3debf0436745c49242c6557e234052a980ff08d23e10eb9b7",
       "placeholder_count": 0
     },
@@ -559,7 +585,7 @@
       "unit_facts": {},
       "lines": 11,
       "bytes": 271,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "88e863cca33360920dc32f53f4a9ef3af19a2c9c1d8c7bdafabb79c3b779eb73",
       "placeholder_count": 0
     },
@@ -572,7 +598,7 @@
       "unit_facts": {},
       "lines": 12,
       "bytes": 411,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "f54ca05563b9886512e643c20717c5450e193b49b51e5aa6f7871ab7f9292139",
       "placeholder_count": 0
     },
@@ -598,7 +624,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 424,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
       "placeholder_count": 0
     },
@@ -611,7 +637,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 424,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
       "placeholder_count": 0
     },
@@ -624,7 +650,7 @@
       "unit_facts": {},
       "lines": 311,
       "bytes": 18367,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "725d135b6c228ebfe878c091e5df579a2ee061de0c3eb08ff13e6936cf53c2ed",
       "placeholder_count": 0
     },
@@ -1209,7 +1235,7 @@
       "unit_facts": {},
       "lines": 6,
       "bytes": 319,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c",
       "placeholder_count": 0
     },
@@ -1261,7 +1287,7 @@
       "unit_facts": {},
       "lines": 3674,
       "bytes": 146247,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa",
       "placeholder_count": 0
     },
@@ -1300,7 +1326,7 @@
       "unit_facts": {},
       "lines": 885,
       "bytes": 27297,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9",
       "placeholder_count": 0
     },
@@ -2540,6 +2566,19 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/hooks/target/etc/default/grub.d/80-cpu-profile-flags.generic-arm64.cfg",
+      "requested_scope": true,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 4,
+      "bytes": 433,
+      "mode": "0o644",
+      "sha256": "9f86be9717ab741070d6322dbee2c8d555c2ee31f60f1416711984630f8d3edd",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/default/grub.d/80-cpu-profile-flags.intel.cfg",
       "requested_scope": true,
       "kind": "shell",
@@ -3775,6 +3814,19 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/hooks/target/etc/modules-load.d/37-virt-host.generic-arm64.conf",
+      "requested_scope": true,
+      "kind": "config-or-data",
+      "check": "inventory-only",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 5,
+      "bytes": 103,
+      "mode": "0o644",
+      "sha256": "2abbed8acc1d7ca500ff470aa92ffff225d0b4835cb8f0c1a7866371318cf265",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/modules-load.d/40-zram.conf",
       "requested_scope": true,
       "kind": "config-or-data",
@@ -4017,7 +4069,7 @@
       "unit_facts": {},
       "lines": 13,
       "bytes": 431,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "b7a2bb95a50e0d478c2c6f630928b3bd64db986d0b3a174c245d39fd4ec41b3b",
       "placeholder_count": 0
     },
@@ -7123,7 +7175,7 @@
       "unit_facts": {},
       "lines": 842,
       "bytes": 29856,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "2147f2c711a01aa6173ddb4894692c515260d915641bd01a430023c853ff1cf1",
       "placeholder_count": 0
     },
@@ -7578,7 +7630,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 172,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "1a1637096026f634b8ae4b3f01f15c7990c29706ddc396f7cece207fc99b6368",
       "placeholder_count": 0
     },
@@ -7591,7 +7643,7 @@
       "unit_facts": {},
       "lines": 25,
       "bytes": 1102,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
       "placeholder_count": 7
     },
@@ -7656,7 +7708,7 @@
       "unit_facts": {},
       "lines": 4,
       "bytes": 225,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "dceb3de09712e22bd8a40c30a9403840777912a300deddf73cc62537c9764b10",
       "placeholder_count": 0
     },
@@ -8041,10 +8093,10 @@
           "root"
         ]
       },
-      "lines": 26,
-      "bytes": 740,
+      "lines": 27,
+      "bytes": 769,
       "mode": "0o640",
-      "sha256": "c127fa1353d49e1105f3261b58bfc38a480b6cd2e29e8c8eef9766336845f4c9",
+      "sha256": "2674ef85c530f7041a84292d611d9681950e0d4c220e0da28a6a50ee0b1334b9",
       "placeholder_count": 0
     },
     {
@@ -8322,7 +8374,7 @@
       },
       "lines": 39,
       "bytes": 1066,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f",
       "placeholder_count": 0
     },
@@ -8633,6 +8685,58 @@
       "placeholder_count": 9
     },
     {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-apparmor.service",
+      "requested_scope": true,
+      "kind": "systemd-structure",
+      "check": "structure-pass",
+      "detail": "",
+      "unit_facts": {
+        "Unit.Requires": [
+          "apparmor.service"
+        ],
+        "Unit.After": [
+          "apparmor.service"
+        ],
+        "Unit.Before": [
+          "mullvad-daemon.service"
+        ],
+        "Service.Type": [
+          "oneshot"
+        ],
+        "Service.ExecStart": [
+          "/usr/sbin/apparmor_parser --replace --skip-cache /etc/apparmor.d/mullvad"
+        ],
+        "Service.TimeoutStartSec": [
+          "60"
+        ]
+      },
+      "lines": 14,
+      "bytes": 334,
+      "mode": "0o644",
+      "sha256": "73ae5e0d9c30de3e7536e1a1afa9be4cae5c17be1e87a35b3fae630ddff3f8b8",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf",
+      "requested_scope": true,
+      "kind": "systemd-structure",
+      "check": "structure-pass",
+      "detail": "",
+      "unit_facts": {
+        "Unit.Requires": [
+          "mullvad-apparmor.service"
+        ],
+        "Unit.After": [
+          "mullvad-apparmor.service"
+        ]
+      },
+      "lines": 3,
+      "bytes": 72,
+      "mode": "0o644",
+      "sha256": "0a1f63574d08b58be5883b097e2d897a274257ad9a3e11e816eafc8a7e2b7362",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-daemon.service.d/20-managed-dns.conf",
       "requested_scope": true,
       "kind": "systemd-structure",
@@ -8838,7 +8942,7 @@
       },
       "lines": 41,
       "bytes": 1224,
-      "mode": "0o644",
+      "mode": "0o660",
       "sha256": "8c78679708e43a9c97e80e419a33f280afa393403bad01222b61aace68a1a36d",
       "placeholder_count": 0
     },
@@ -9988,7 +10092,7 @@
       "unit_facts": {},
       "lines": 27,
       "bytes": 1845,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "186404d773fe3dff0bf7b69d0a559acc0e2134e530d012dfd3c4dd7f5bc2ac08",
       "placeholder_count": 39
     },
@@ -10259,11 +10363,11 @@
       "check": "inventory-only",
       "detail": "",
       "unit_facts": {},
-      "lines": 47,
-      "bytes": 3641,
+      "lines": 49,
+      "bytes": 3768,
       "mode": "0o640",
-      "sha256": "38353c2ffa4fecf12d5e8c6e36a90be5d44bbc17cba8d324789abfaff65d38be",
-      "placeholder_count": 56
+      "sha256": "24172f9c6aadac502717beb13812164c95e3939344ec80eaf2c1085102c42036",
+      "placeholder_count": 59
     },
     {
       "path": "d-i/forky/hooks/target/etc/tmpfiles.d/85-qemu-incus-storage.conf.tmpl",
@@ -10650,9 +10754,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 1214,
-      "bytes": 37059,
+      "bytes": 37101,
       "mode": "0o640",
-      "sha256": "5b6a538d2a5dbd4054e2a222af24da04d086a79702389d4d7cbe30f6cc773e59",
+      "sha256": "74011053e7472623943b6bdcdf773fef227d89c3d7fb0a22d4272fb69fc28d71",
       "placeholder_count": 0
     },
     {
@@ -10729,7 +10833,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 132,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "01229d0780a3c1ed90bbf1fc2e2802bf04fa8a9617e0e7a2c3fa11ac4f00c383",
       "placeholder_count": 0
     },
@@ -10742,7 +10846,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 140,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde",
       "placeholder_count": 0
     },
@@ -11223,7 +11327,7 @@
       "unit_facts": {},
       "lines": 325,
       "bytes": 13262,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "80b172ec1f4448edb56d6bb23d31d4df83a80ba2d0cccf05301efb22874d2b81",
       "placeholder_count": 0
     },
@@ -11444,7 +11548,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 132,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f",
       "placeholder_count": 0
     },
@@ -13984,6 +14088,19 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/crowdsec-bouncer-verify",
+      "requested_scope": true,
+      "kind": "python",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 83,
+      "bytes": 3558,
+      "mode": "0o755",
+      "sha256": "6859e95a28bfee1cc85f3d1707a2e197acfef6e0317be7e5397be4a06c6bd4cb",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/hooks/target/usr/local/libexec/crowdsec-firstboot",
       "requested_scope": true,
       "kind": "shell",
@@ -13991,9 +14108,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 419,
-      "bytes": 12502,
+      "bytes": 12904,
       "mode": "0o640",
-      "sha256": "33969dcdd4d75a6403107d223e7577886a70c4af90902c31e31f446e2b69e440",
+      "sha256": "bfed8af5d56e867566092ab5d982a8015ec7b27463b146f67da6ec8f1cbff8fc",
       "placeholder_count": 0
     },
     {
@@ -14044,7 +14161,7 @@
       "unit_facts": {},
       "lines": 421,
       "bytes": 19014,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "57621c5ab5b847ca2098894128d78e9ab61624fb0c1d9786d7e8b16226e03a99",
       "placeholder_count": 0
     },
@@ -14512,7 +14629,7 @@
       "unit_facts": {},
       "lines": 102,
       "bytes": 5106,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "dfd3ddf0ed539af398fee6da1633b37b4acf6d56fbfb3279a5314e5dbe3d8dd4",
       "placeholder_count": 0
     },
@@ -14525,7 +14642,7 @@
       "unit_facts": {},
       "lines": 589,
       "bytes": 27445,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "8d8bb4895ed4d771c876439bfaa2527fc9bebf236696f3dcd62afcf6f0efae79",
       "placeholder_count": 0
     },
@@ -15565,7 +15682,7 @@
       "unit_facts": {},
       "lines": 932,
       "bytes": 44059,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
       "placeholder_count": 0
     },
@@ -15578,7 +15695,7 @@
       "unit_facts": {},
       "lines": 931,
       "bytes": 43987,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
       "placeholder_count": 0
     },
@@ -15591,7 +15708,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43764,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
       "placeholder_count": 0
     },
@@ -15604,7 +15721,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43835,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
       "placeholder_count": 0
     },
@@ -15617,8 +15734,8 @@
       "unit_facts": {},
       "lines": 934,
       "bytes": 44168,
-      "mode": "0o640",
-      "sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
+      "mode": "0o660",
+      "sha256": "6193e7b54be70ee9eef513c51bcd5d49e100644f823cb5d6f321e0e32c40a1a3",
       "placeholder_count": 0
     },
     {
@@ -15630,7 +15747,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43790,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
       "placeholder_count": 0
     },
@@ -15643,7 +15760,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43764,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
       "placeholder_count": 0
     },
@@ -15656,7 +15773,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43392,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
       "placeholder_count": 0
     },
@@ -15669,7 +15786,7 @@
       "unit_facts": {},
       "lines": 920,
       "bytes": 43440,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
       "placeholder_count": 0
     },
@@ -15682,7 +15799,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43342,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
@@ -15695,7 +15812,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43348,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
       "placeholder_count": 0
     },
@@ -15708,7 +15825,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43342,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
@@ -15721,8 +15838,21 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43542,
-      "mode": "0o640",
+      "mode": "0o660",
       "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/scripts/common/apt-sources.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 71,
+      "bytes": 2833,
+      "mode": "0o644",
+      "sha256": "7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3",
       "placeholder_count": 0
     },
     {
@@ -15758,10 +15888,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 81,
-      "bytes": 1877,
+      "lines": 89,
+      "bytes": 2351,
       "mode": "0o750",
-      "sha256": "2f507154ba95884cb752d5aeab7c24ea8cf47453f2f9c1a4267e4344496f13f2",
+      "sha256": "bc681eb7c3b3fb3a9849ac06c18e63993736a2d6272b8d26911444917b77e0bc",
       "placeholder_count": 0
     },
     {
@@ -15771,10 +15901,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 249,
-      "bytes": 7235,
+      "lines": 216,
+      "bytes": 6555,
       "mode": "0o750",
-      "sha256": "0dc530d520efee68a92d476bf365e0aa9d0bb401f1d2dfa2fddb4f14730fe370",
+      "sha256": "f10742a00d82a5aa22dc66f7d208d6e9d2dcfa448ced2c7c6f22b3471010c642",
       "placeholder_count": 0
     },
     {
@@ -15784,11 +15914,24 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 4322,
-      "bytes": 157321,
-      "mode": "0o750",
-      "sha256": "d4d6a006a211b45a63b24622756881c81e90424d7884f2db3917098b516abca1",
+      "lines": 4667,
+      "bytes": 172744,
+      "mode": "0o770",
+      "sha256": "1e290cfb28f84e42a6ea7b79ab29ea9f6eb50b0a061b02f9cd21f2609abee636",
       "placeholder_count": 2
+    },
+    {
+      "path": "d-i/forky/scripts/common/lifecycle.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 253,
+      "bytes": 12278,
+      "mode": "0o644",
+      "sha256": "f99d57efd119d117119f24baecc426e83d49b91d17c8207a041c71f6d241ed53",
+      "placeholder_count": 0
     },
     {
       "path": "d-i/forky/scripts/common/source.sh",
@@ -15797,10 +15940,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 275,
-      "bytes": 17139,
+      "lines": 535,
+      "bytes": 29784,
       "mode": "0o750",
-      "sha256": "14f8b05a8047f1d214d4c4ae60a10c8e851abeae7f01c53e99266c2de6b644bf",
+      "sha256": "3798c20945eb75ae2e040239cfb1a669a0cc18ffab2f4749a57472825d038e09",
       "placeholder_count": 0
     },
     {
@@ -15823,10 +15966,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 463,
-      "bytes": 13105,
+      "lines": 468,
+      "bytes": 13692,
       "mode": "0o750",
-      "sha256": "55e8beca9d42c628b0a3aa9033980cfefc9f371fdeabf791b92f5d1b63b97723",
+      "sha256": "6a62bccfd2d71a9e0f2a9afde47ddd308a1346521fa2c3ab92fe86315219326f",
       "placeholder_count": 0
     },
     {
@@ -16096,10 +16239,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 754,
-      "bytes": 36231,
+      "lines": 762,
+      "bytes": 36654,
       "mode": "0o750",
-      "sha256": "84e58a1c7858dd840d52cc73bc5572fc8b3e42f4e8f149932861b338694aed68",
+      "sha256": "0d1b5921b764885266565b3377789d65d77e8821ef5ef47969c85f3451922798",
       "placeholder_count": 0
     },
     {
@@ -16142,6 +16285,19 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/scripts/late/codex-state.py",
+      "requested_scope": false,
+      "kind": "python",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 262,
+      "bytes": 11627,
+      "mode": "0o644",
+      "sha256": "084d40104edaece281c80891c220ce84cb556e284289cc87d40b2cb4aeb87f96",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/scripts/late/core.sh",
       "requested_scope": false,
       "kind": "shell",
@@ -16149,9 +16305,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 545,
-      "bytes": 25617,
+      "bytes": 25929,
       "mode": "0o750",
-      "sha256": "b938e6703b0eb9dc3689f4fc7f35cdcd5417197b73b662fd7defb7b83d901198",
+      "sha256": "11ae51519b142d1094b7e0e088b0d76a984543efc074611ead8cf96dda394340",
       "placeholder_count": 0
     },
     {
@@ -16161,10 +16317,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 196,
-      "bytes": 7495,
+      "lines": 230,
+      "bytes": 9312,
       "mode": "0o750",
-      "sha256": "ef2e38474e2613a2335827ffcb9f714af3319774c6429c6e4e2d4708bdefc199",
+      "sha256": "ba279edcdb0f90f5fdefcf3e705a169935ca4fb6a245e57db1a59d0410648368",
       "placeholder_count": 0
     },
     {
@@ -16189,7 +16345,7 @@
       "unit_facts": {},
       "lines": 99,
       "bytes": 3475,
-      "mode": "0o750",
+      "mode": "0o770",
       "sha256": "1d23f84f69f9d72db63d99d8a1b364d746e41f79bd16118b3859b752341132c4",
       "placeholder_count": 0
     },
@@ -16252,10 +16408,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 4583,
-      "bytes": 208917,
-      "mode": "0o750",
-      "sha256": "f604d12ad1c55d5d4eb1b7c7837115d1d9c7b5f8013c27a3e8f93429563edb51",
+      "lines": 4805,
+      "bytes": 218683,
+      "mode": "0o770",
+      "sha256": "23a62567e50c2a03de89eb14ae4eb811576cf94547af05745d81e2050736c6de",
       "placeholder_count": 0
     },
     {
@@ -16266,9 +16422,9 @@
       "detail": "",
       "unit_facts": {},
       "lines": 108,
-      "bytes": 4338,
+      "bytes": 4346,
       "mode": "0o750",
-      "sha256": "ba4cdc2b9e9c721a3c0274cfb6de96a3f67d66244f6dd6e44e516887f9d99995",
+      "sha256": "631462a86f4e9e56605def8c5b6590c57177e07f150058ece175fa2cff20c097",
       "placeholder_count": 0
     },
     {
@@ -16291,10 +16447,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 285,
-      "bytes": 14948,
+      "lines": 288,
+      "bytes": 15235,
       "mode": "0o750",
-      "sha256": "deacca619bd49d29d3f1f1ac9571a55a2020cf22ef48d84b1fb5dbd80f1e4cd1",
+      "sha256": "d5307bb79d33746554b883132f11b083405461c9d6f0f6718dc2d536ab7db600",
       "placeholder_count": 0
     },
     {
@@ -16343,10 +16499,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 650,
-      "bytes": 24737,
+      "lines": 682,
+      "bytes": 26352,
       "mode": "0o750",
-      "sha256": "e7d372a3bdb672322362b18111f2f5db216a9c9d05c50e92d82300afcb5e6e73",
+      "sha256": "bc98c36193bc328f95b77a710766fa73e714d2be862b49ef016e055a4e88f8e8",
       "placeholder_count": 0
     },
     {
@@ -16371,7 +16527,7 @@
       "unit_facts": {},
       "lines": 100,
       "bytes": 4946,
-      "mode": "0o755",
+      "mode": "0o770",
       "sha256": "6061a4f6ef729785427d57a3294ecba7ebb8ed43013ec4cc1dc4622a05aa1696",
       "placeholder_count": 0
     },
@@ -16384,7 +16540,7 @@
       "unit_facts": {},
       "lines": 281,
       "bytes": 10248,
-      "mode": "0o750",
+      "mode": "0o770",
       "sha256": "8155ab51fc13979071162e6064d3f2b324c2205a54809108b911c4c4a1c848bd",
       "placeholder_count": 0
     },
@@ -16434,10 +16590,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 317,
-      "bytes": 13121,
-      "mode": "0o750",
-      "sha256": "13fd184e8db47f40d117b920c6ec4658c87abd183cda20b9d038f27dcca278d8",
+      "lines": 332,
+      "bytes": 13871,
+      "mode": "0o770",
+      "sha256": "7a8f897e47fc36602c565848d87ce30a7422e8579f24f7731f8a256052c9d319",
       "placeholder_count": 0
     },
     {
@@ -16514,7 +16670,7 @@
       "unit_facts": {},
       "lines": 385,
       "bytes": 17989,
-      "mode": "0o750",
+      "mode": "0o770",
       "sha256": "8f0f081572b49bd830b6b6404cbc5f47f31d24e2a398d674223de1025e3df02c",
       "placeholder_count": 0
     },
@@ -16564,10 +16720,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 64,
-      "bytes": 1446,
+      "lines": 158,
+      "bytes": 6069,
       "mode": "0o750",
-      "sha256": "bbfdfb8a18bce812891dcae47bffd97abe9cf7ae739e91306a6bc425705cb289",
+      "sha256": "69e235b9a1a66968bfb028d7e0cc28d99e4931ee8eaa244e5783e9c2dee6c355",
       "placeholder_count": 0
     },
     {
@@ -16605,7 +16761,7 @@
       "unit_facts": {},
       "lines": 1251,
       "bytes": 45343,
-      "mode": "0o750",
+      "mode": "0o770",
       "sha256": "a4e23a2ce8e1444542c681aa6b1ea9a8380017b7162a1264e59ce48850449238",
       "placeholder_count": 0
     },
@@ -16623,16 +16779,29 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/scripts/preseed/base-apt-adapter.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 32,
+      "bytes": 1307,
+      "mode": "0o755",
+      "sha256": "80ee77f73d356e4e6e7e0ae389012dcd1d1c59cf3ac1fee97ba948dc20da7484",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/scripts/preseed/bootstrap-entry.sh",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 403,
-      "bytes": 11295,
+      "lines": 410,
+      "bytes": 11700,
       "mode": "0o750",
-      "sha256": "b3d08b005089eb0761886632f33cb1d4d1eb0a5d37a3d7f28e2040138ed60fc1",
+      "sha256": "cb7224847b9cb2e86d466cebcbe13db50775079050922d053b4e6703ecb58d21",
       "placeholder_count": 0
     },
     {
@@ -16642,10 +16811,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 629,
-      "bytes": 14652,
+      "lines": 631,
+      "bytes": 14718,
       "mode": "0o750",
-      "sha256": "dc3d98fd8141c41c99fc91ad0a0ab409be5f4a719ea88e371e50dd178e1b46bc",
+      "sha256": "5427410edb73c06b88b9ce0518757cbf52a1e5c2bfb9549b21987644392ad881",
       "placeholder_count": 0
     },
     {
@@ -16659,6 +16828,32 @@
       "bytes": 1080,
       "mode": "0o750",
       "sha256": "94d4deed3df4d0f6ffaf95a6ad415ae66732886ba917ee0dfe8572a5f4e82126",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/guard-hook.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 62,
+      "bytes": 2850,
+      "mode": "0o755",
+      "sha256": "08bbddf91cfc89b9871dd587b7f2e0be4d2859a04269c39ac09718ad0fa26fd2",
+      "placeholder_count": 0
+    },
+    {
+      "path": "d-i/forky/scripts/preseed/network-apt.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 26,
+      "bytes": 1250,
+      "mode": "0o755",
+      "sha256": "0b325a55840b8d9facd934ac494352ed0ee4d96affc72f89bad6d2a9314c97b4",
       "placeholder_count": 0
     },
     {

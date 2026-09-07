@@ -32,7 +32,15 @@ fetch_hook_file() {
   src=$1
   dest=$2
   fetch_resolve_seed_base
-  installer_fetch_file "$FETCH_SEED_BASE" "$src" "$dest" 0755
+  installer_fetch_file "$FETCH_SEED_BASE" "$src" "$dest" 0755 || return $?
+  case "$dest" in
+    /usr/lib/base-installer.d/*) installer_guard_hook "$dest" base ;;
+    /usr/lib/post-base-installer.d/*) installer_guard_hook "$dest" post-base ;;
+    /usr/lib/pre-pkgsel.d/*) installer_guard_hook "$dest" pre-pkgsel ;;
+    /usr/lib/apt-setup/generators/*) installer_guard_hook "$dest" apt ;;
+    /usr/lib/finish-install.d/*) installer_guard_hook "$dest" finish ;;
+    /lib/partman/finish.d/*) installer_guard_hook "$dest" partman ;;
+  esac
 }
 
 fetch_ssh_asset() {

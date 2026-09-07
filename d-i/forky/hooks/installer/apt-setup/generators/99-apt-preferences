@@ -95,69 +95,7 @@ validate_pref_source_path() {
 }
 
 purge_target_cdrom_apt_sources() {
-  apt_dir="${TARGET}/etc/apt"
-  sources_list="${apt_dir}/sources.list"
-  sources_dir="${apt_dir}/sources.list.d"
-
-  strip_list_file() {
-    src=$1
-    [ -f "$src" ] || return 0
-    tmp="${src}.tmp.$$"
-    awk 'index($0, "cdrom:") == 0 { print }' "$src" >"$tmp"
-    mv "$tmp" "$src"
-  }
-
-  strip_sources_file() {
-    src=$1
-    [ -f "$src" ] || return 0
-    tmp="${src}.tmp.$$"
-    awk '
-      function flush_stanza(    line_index) {
-        if (stanza_line_count == 0) {
-          return
-        }
-        if (!drop_stanza) {
-          if (wrote_stanza) {
-            print ""
-          }
-          for (line_index = 1; line_index <= stanza_line_count; line_index++) {
-            print stanza_lines[line_index]
-          }
-          wrote_stanza = 1
-        }
-        for (line_index = 1; line_index <= stanza_line_count; line_index++) {
-          delete stanza_lines[line_index]
-        }
-        stanza_line_count = 0
-        drop_stanza = 0
-      }
-      /^[[:space:]]*$/ {
-        flush_stanza()
-        next
-      }
-      {
-        stanza_lines[++stanza_line_count] = $0
-        if (index($0, "cdrom:") != 0) {
-          drop_stanza = 1
-        }
-      }
-      END {
-        flush_stanza()
-      }
-    ' "$src" >"$tmp"
-    mv "$tmp" "$src"
-  }
-
-  strip_list_file "$sources_list"
-  if [ -d "$sources_dir" ]; then
-    find "$sources_dir" -maxdepth 1 -type f | while IFS= read -r src; do
-      case "${src##*/}" in
-        *.list|*.list.*) strip_list_file "$src" ;;
-        *.sources|*.sources.*) strip_sources_file "$src" ;;
-      esac
-    done
-  fi
-
+  installer_apt_strip_cdrom "$TARGET" || return $?
   log "info: removed cdrom apt sources before apt-setup hands the target to pkgsel"
 }
 

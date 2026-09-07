@@ -1,70 +1,53 @@
-# Validation: CUDA-legacy and Podman/Incus second pass
+# Validation evidence - 2026-09-07 repair
 
-Completed: 2026-09-06T17:32:59.331997+00:00. The current five-stage pipeline returned zero.
-This is offline/loopback source validation, not a booted unattended installation.
+Current machine-readable results are `validation/release-checks.json`,
+`validation/summary.json`, `validation/audit.json`, and
+`validation/whole-tree.json`. The release report records actual return codes;
+blocked dependency checks and source inventories are not runtime passes.
 
-| Check | Result |
-| --- | --- |
-| Browser currentness | PASS |
-| Payload and preseed pins | PASS; 1,219 payload files |
-| Debconf preseed checks | 58 files; PASS |
-| Full suite | **401 tests; PASS; 0 skipped**; 56.400 seconds |
-| CUDA-focused suite | 28 tests: 16 lifecycle/hook, 12 real APT; included above |
-| Podman/Incus-focused suite | 81 tests; included above |
-| Seven rendered systemd units | `systemd-analyze verify` with isolated dependency fixtures; PASS |
-| Hardware profiles | All 13 unchanged from this pass's input archive |
+The untouched baseline ran 410 tests with one failing profile-provenance
+assertion. Build/check and audit completed; baseline validate also failed that
+assertion. The migration ledger now records the correct supplied file hash
+without changing that profile. The repaired suite adds fault injection and
+regressions for terminal d-i failure, original status retention, early renderer
+failure in Btrfs/F2FS/VM, both EFI architectures, Codex publication/ownership,
+early APT normalization, signed CUDA metadata, storage media exclusion, kernel
+repair and udeb tool availability. No original profile was removed.
 
-See [the second-pass report](CUDA-LEGACY-SECOND-PASS-2026-09-06.md) for the exact
-source policy, tested cases, the startup/client corrections and security tradeoff.
-CUDA metadata authenticity and freshness are intentionally not enforced for the
-explicitly selected legacy source. HTTPS and available package checksums remain;
-other repositories' signature validation remains intact.
-
-## Evidence and classification
-
-`validation/summary.json`, `tests.log` and sibling stage logs are the current run.
-Runtime product hashes in the summary match the regenerated files. Additional
-logs in `validation/second-pass/` are not extra distinct tests. Its earlier
-policy-transition failure is retained and labeled, not presented as success.
-`validation/podman-incus-initial/` and the other previous-release folders are
-historical evidence, not current validation.
-
-| Audit classification | Count |
-| --- | ---: |
-| Syntax/parser pass | 404 |
-| Lexical systemd structure pass | 113 |
-| Inventory only | 475 |
-| Blocked by missing dependencies | 154 |
-| Template needs rendering | 2 |
-
-The last three categories are not executed runtime successes. The independent
-seven-unit check uses executable/dependency fixtures and does not activate services.
-AppArmor files are unchanged this pass; historical compilation logs are retained,
-but no new kernel policy load or enforcement test was performed.
-
-## Reproduce
+Run all entrypoints from the repository root:
 
 ```sh
-python3 -B tools/build.py
-python3 -B tools/validate.py
-python3 -B -m unittest discover -v -s d-i/forky/tests -p test_cuda_legacy_apt.py
-python3 -B -m unittest discover -v -s d-i/forky/tests -p test_podman_incus_redesign.py
-python3 -B validation/podman-incus/verify-rendered-units.py
+make build
+make check
+make test
+make audit
+make validate
+python3 -B tools/release_audit.py
 ```
 
-Use a disposable Linux environment. Perl syntax checks can execute BEGIN blocks.
-The host used Debian 13, APT 3.0.3 and sqv 1.3.0. Tests use local/loopback fixtures
-and disposable keys; the inert APT fixture package is downloaded, not installed.
-No host sources, trust policy or package database are modified. Full fixture
-coverage needs the tools named in each test's prerequisite guards. This run had
-zero skips. `CUDA_TEST_APT_ROOT` can select a separately extracted APT/libapt tree;
-that alternate-version run was not performed here.
+`make validate` includes the generated browser/preseed/payload checks, the complete
+suite, and the repository audit. The separate `make test` and validate test runs
+are repetitions, not additive counts. The release report states the count of
+unique tests in one run. Test counts inside historical reports apply only to
+those earlier revisions.
 
-## Remaining installed-system acceptance
+The full-tree supplemental audit includes every source/document/configuration
+file outside `.git` and generated validation evidence. It checks ordinary shell
+sources with the POSIX shell and BusyBox syntax parsers and Python with AST
+parsing. Template files are identified, not falsely marked rendered. The existing
+repository audit includes available Perl compilation checks; absent dependencies
+are explicitly BLOCKED. ShellCheck is NOT RUN when its executable is absent.
+Systemd lexical or isolated fixture checks do not establish running service
+behavior on a real target.
 
-No real d-i boot, live upstream package dependency solve, CUDA package installation,
-DKMS build/module loading, Secure Boot, GPU workload, partitioning, desktop launch,
-container runtime execution, Incus activation, AppArmor enforcement or reboot
-recovery was tested. Current Forky package behavior needs acceptance on the actual
-installer image. Browser and site coverage remains static/fixture coverage, not
-successful live websites. These boundaries apply regardless of a green unit suite.
+APT tests use private loopback repositories and test keys: they do not install
+packages on this host or turn off the host's APT authentication. Storage tests
+use private fake sysfs/device files and never format host disks. Process tests
+terminate only spawned fixture processes, including a fixture named main-menu.
+Actual d-i hooks/packages, physical UEFI/MOK enrollment, NVIDIA/DKMS activation,
+first-boot services and live mixed-suite dependency resolution still require
+acceptance on the exact deployment image and hardware. See the operations guide.
+
+Raw supplied logs, earlier validation logs and private intermediate diagnostics
+are excluded from the release. JSON results are retained; rerunning validation
+creates the detailed stage log filenames referenced in `summary.json`.

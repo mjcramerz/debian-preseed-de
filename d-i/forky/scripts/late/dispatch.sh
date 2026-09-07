@@ -47,14 +47,14 @@ case "$hook_family" in
     INSTALLER_BOOTSTRAP_LIB=$BOOTSTRAP_LIB \
     INSTALLER_LATE_MODULE_DIR=$shared_module_dir \
     SHARED_LATE_COMMAND=$shared_hook_dest \
-      /bin/sh -c '. "$SHARED_LATE_COMMAND"; run_btrfs_family_late_command "$@"' sh \
+      /bin/sh -eu -c '. "$SHARED_LATE_COMMAND"; run_btrfs_family_late_command "$@"' sh \
       "$hook_family" "$seed_base" "$host_profile"
     ;;
   f2fs)
     INSTALLER_BOOTSTRAP_LIB=$BOOTSTRAP_LIB \
     INSTALLER_LATE_MODULE_DIR=$shared_module_dir \
     SHARED_LATE_COMMAND=$shared_hook_dest \
-      /bin/sh -c '. "$SHARED_LATE_COMMAND"; run_f2fs_family_late_command "$@"' sh \
+      /bin/sh -eu -c '. "$SHARED_LATE_COMMAND"; run_f2fs_family_late_command "$@"' sh \
       "$seed_base" "$host_profile"
     ;;
   *)

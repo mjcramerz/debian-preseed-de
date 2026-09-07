@@ -119,9 +119,29 @@ family_d_i_early_main() {
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_PRE_PKGSEL_D 91cuda-legacy-apt.sh)" "/usr/lib/pre-pkgsel.d/91cuda-legacy-apt"
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_PRE_PKGSEL_D 92nvidia-legacy-dkms.sh)" "/usr/lib/pre-pkgsel.d/92nvidia-legacy-dkms"
   chmod 0755 /usr/lib/pre-pkgsel.d/49nvidia-opt-in-firmware
-  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 95-normalize-apt)" "/usr/lib/finish-install.d/95-normalize-apt"
-  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 99-normalize-finish)" "/usr/lib/finish-install.d/99-normalize-finish"
-  chmod 0755 /usr/lib/finish-install.d/95-normalize-apt /usr/lib/finish-install.d/99-normalize-finish
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 95-normalize-apt)" "/usr/lib/finish-install.d/94zz-10-normalize-apt"
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 99-normalize-finish)" "/usr/lib/finish-install.d/94zz-20-normalize-finish"
+  chmod 0755 /usr/lib/finish-install.d/94zz-10-normalize-apt /usr/lib/finish-install.d/94zz-20-normalize-finish
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 00-installer-guard)" /usr/lib/finish-install.d/00-installer-guard
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 94zz-99-validate-target)" /usr/lib/finish-install.d/94zz-99-validate-target
+  # Interpose on the first base-installer APT update, not on the later
+  # apt-setup generator. The adapter rejects unknown d-i waypoint layouts.
+  fetch_hook_file scripts/common/apt-sources.sh "$RUNTIME_DIR/bootstrap/apt-sources.sh"
+  fetch_hook_file scripts/preseed/network-apt.sh "$RUNTIME_DIR/bootstrap/network-apt.sh"
+  fetch_hook_file scripts/preseed/base-apt-adapter.sh "$RUNTIME_DIR/bootstrap/base-apt-adapter.sh"
+  /bin/sh -eu "$RUNTIME_DIR/bootstrap/base-apt-adapter.sh" \
+    /var/lib/dpkg/info/bootstrap-base.postinst "$RUNTIME_DIR/bootstrap/network-apt.sh"
+  # anna has loaded these mandatory components before preseed/early_command.
+  # Refuse an installer image missing them rather than run an unguarded phase.
+  for component in bootstrap-base apt-setup-udeb pkgsel grub-installer finish-install partman-base; do
+    installer_guard_hook "/var/lib/dpkg/info/$component.postinst" component ||
+      installer_fatal "cannot supervise mandatory d-i component: $component"
+  done
+  # base-installer itself treats post-base hook failures as warnings.
+  for base_hook in /usr/lib/post-base-installer.d/*; do
+    [ -x "$base_hook" ] || continue
+    installer_guard_hook "$base_hook" post-base || installer_fatal 'cannot supervise post-base hook'
+  done
   fetch_hook_file "scripts/runtime/common.sh" "$TMP_ENV_DIR/runtime-common.sh"
   fetch_hook_file "$runtime_script_path" "$TMP_ENV_DIR/runtime.sh"
   fetch_hook_file "scripts/runtime/account.sh" "$TMP_ENV_DIR/account.sh"

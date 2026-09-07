@@ -48,3 +48,5 @@ gpu	nvidia	etc/systemd/system/systemd-suspend-then-hibernate.service.d/20-nvidia
 gpu	nvidia	etc/systemd/system/systemd-suspend.service.d/20-nvidia-preserve.conf	etc/systemd/system/systemd-suspend.service.d/20-nvidia-preserve.conf
 gpu	nvidia	etc/tmpfiles.d/70-nvidia-vram.conf	etc/tmpfiles.d/70-nvidia-vram.conf
 gpu	nvidia	usr/local/libexec/nvidia-vram-check	usr/local/libexec/nvidia-vram-check
+cpu	generic-arm64	etc/default/grub.d/80-cpu-profile-flags.cfg	etc/default/grub.d/80-cpu-profile-flags.generic-arm64.cfg
+cpu	generic-arm64	etc/modules-load.d/37-virt-host.conf	etc/modules-load.d/37-virt-host.generic-arm64.conf

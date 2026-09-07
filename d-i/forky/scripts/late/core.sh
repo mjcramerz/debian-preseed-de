@@ -107,27 +107,27 @@ late_command_ensure_env_paths() {
 }
 
 late_command_host_env_path() {
-  late_command_ensure_env_paths
+  late_command_ensure_env_paths || return $?
   printf '%s\n' "$LATE_COMMAND_HOST_ENV"
 }
 
 late_command_account_env_path() {
-  late_command_ensure_env_paths
+  late_command_ensure_env_paths || return $?
   printf '%s\n' "$LATE_COMMAND_ACCOUNT_ENV"
 }
 
 late_command_ensure_host_policy_envs() {
-  late_command_ensure_env_paths
+  late_command_ensure_env_paths || return $?
   late_command_host_env=$LATE_COMMAND_HOST_ENV
   late_command_account_env=$LATE_COMMAND_ACCOUNT_ENV
 
   if [ ! -s "$late_command_host_env" ]; then
-    installer_fetch_host_env "$SEED_BASE" "$HOST_PROFILE" "$late_command_host_env" 0600
+    installer_fetch_host_env "$SEED_BASE" "$HOST_PROFILE" "$late_command_host_env" 0600 || return $?
     LATE_COMMAND_PROFILE_ENV_LOADED=0
   fi
 
   if [ ! -s "$late_command_account_env" ]; then
-    installer_fetch_account_env "$SEED_BASE" "$late_command_account_env" 0600
+    installer_fetch_account_env "$SEED_BASE" "$late_command_account_env" 0600 || return $?
     LATE_COMMAND_ACCOUNT_ENV_LOADED=0
   fi
 }
@@ -135,37 +135,37 @@ late_command_ensure_host_policy_envs() {
 late_command_load_profile_env() {
   [ "${LATE_COMMAND_PROFILE_ENV_LOADED:-0}" = 1 ] && return 0
 
-  late_command_ensure_host_policy_envs
+  late_command_ensure_host_policy_envs || return $?
   late_command_host_env=$LATE_COMMAND_HOST_ENV
   [ -r "$late_command_host_env" ] || installer_fatal "host policy env is missing: ${late_command_host_env}"
   # shellcheck disable=SC1090,SC1091
-  . "$late_command_host_env"
-  validate_installed_log_levels
+  . "$late_command_host_env" || return $?
+  validate_installed_log_levels || return $?
   LATE_COMMAND_PROFILE_ENV_LOADED=1
 }
 
 late_command_load_account_env() {
   [ "${LATE_COMMAND_ACCOUNT_ENV_LOADED:-0}" = 1 ] && return 0
 
-  late_command_ensure_host_policy_envs
+  late_command_ensure_host_policy_envs || return $?
   late_command_account_env=$LATE_COMMAND_ACCOUNT_ENV
   [ -r "$late_command_account_env" ] || installer_fatal "account policy env is missing: ${late_command_account_env}"
   # shellcheck disable=SC1090,SC1091
-  . "$late_command_account_env"
+  . "$late_command_account_env" || return $?
   [ -r "$TMP_ENV_DIR/runtime-common.sh" ] || installer_fatal "runtime common helper is missing: ${TMP_ENV_DIR}/runtime-common.sh"
   RUNTIME_COMMON_LIB="$TMP_ENV_DIR/runtime-common.sh"
   export RUNTIME_COMMON_LIB
   [ -r "$TMP_ENV_DIR/account-runtime.sh" ] || installer_fatal "runtime account helper is missing: ${TMP_ENV_DIR}/account-runtime.sh"
   # shellcheck disable=SC1090,SC1091
-  . "$TMP_ENV_DIR/account-runtime.sh"
-  runtime_apply_account_from_cmdline
+  . "$TMP_ENV_DIR/account-runtime.sh" || return $?
+  runtime_apply_account_from_cmdline || return $?
   LATE_COMMAND_ACCOUNT_ENV_LOADED=1
 }
 
 late_command_fetch_common_assets() {
   runtime_script_path=$1
 
-  late_command_ensure_host_policy_envs
+  late_command_ensure_host_policy_envs || return $?
   fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_RUNTIME common.sh)" "$TMP_ENV_DIR/runtime-common.sh"
   fetch_hook "$runtime_script_path" "$TMP_ENV_DIR/runtime.sh"
   fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_RUNTIME account.sh)" "$TMP_ENV_DIR/account-runtime.sh"
@@ -188,7 +188,7 @@ late_command_fetch_common_assets() {
 late_command_load_runtime_env() {
   capture_dualboot_layout=${1:-false}
 
-  late_command_load_profile_env
+  late_command_load_profile_env || return $?
   RUNTIME_COMMON_LIB="$TMP_ENV_DIR/runtime-common.sh"
   export RUNTIME_COMMON_LIB
   # shellcheck disable=SC1090,SC1091
@@ -248,15 +248,15 @@ validate_installed_log_levels() {
 }
 
 late_command_load_host_env() {
-  late_command_load_profile_env
-  late_command_load_account_env
+  late_command_load_profile_env || return $?
+  late_command_load_account_env || return $?
 }
 
 install_target_runtime_defaults() {
   : "${FILE_LOGIND_OVERRIDE_CONF:?FILE_LOGIND_OVERRIDE_CONF must be set}"
 
-  validate_installed_log_levels
-  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/system-runtime.tmpl)" /etc/default/system-runtime 0644
+  validate_installed_log_levels || return $?
+  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/system-runtime.tmpl)" /etc/default/system-runtime 0644 || return $?
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/logind.conf.d/override.conf)" \
     "${FILE_LOGIND_OVERRIDE_CONF}" \
@@ -273,19 +273,19 @@ install_target_wpa_supplicant_runtime_policy() {
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/wpa_supplicant/wpa_supplicant.conf)" \
     "${FILE_WPA_SUPPLICANT_CONF}" \
-    0644
+    0644 || return $?
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/wpa_supplicant/p2p-device.conf)" \
     "${FILE_WPA_SUPPLICANT_P2P_DEVICE_CONF}" \
-    0644
+    0644 || return $?
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/wpa_supplicant.service.d/override.conf)" \
     "${FILE_WPA_SUPPLICANT_DBUS_SERVICE_OVERRIDE}" \
-    0644
+    0644 || return $?
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/80-managed-link-privacy.conf)" \
     "${FILE_NETWORKMANAGER_LINK_PRIVACY_CONF}" \
-    0644
+    0644 || return $?
 
   [ -r "/target${FILE_WPA_SUPPLICANT_CONF}" ] ||
     installer_fatal "staged wpa_supplicant config is missing"
@@ -318,7 +318,7 @@ install_target_wpa_supplicant_runtime_policy() {
   if command -v target_systemd_unit_path >/dev/null 2>&1 &&
     target_systemd_unit_path wpa_supplicant.service system >/dev/null 2>&1
   then
-    stage_target_systemd_unit_enabled wpa_supplicant.service system
+    stage_target_systemd_unit_enabled wpa_supplicant.service system || return $?
     [ -L "/target${FILE_WPA_SUPPLICANT_DBUS_SERVICE_ALIAS}" ] ||
       installer_fatal "wpa_supplicant D-Bus systemd alias is missing: ${FILE_WPA_SUPPLICANT_DBUS_SERVICE_ALIAS}"
   fi
@@ -371,7 +371,7 @@ late_command_require_class_policy_env() {
   INSTALL_POLICY_ENV=$(installer_class_policy_env_path)
   [ -r "$INSTALL_POLICY_ENV" ] || installer_fatal "installer install policy env is missing: ${INSTALL_POLICY_ENV}"
   # shellcheck disable=SC1090,SC1091
-  . "$INSTALL_POLICY_ENV"
+  . "$INSTALL_POLICY_ENV" || return $?
   [ -n "${INSTALLER_PKGSEL_INCLUDE:-}" ] || installer_fatal "INSTALLER_PKGSEL_INCLUDE is missing from ${INSTALL_POLICY_ENV}"
   [ -n "${INSTALLER_SECURE_BOOT_BOOT_CHAIN_PACKAGES:-}" ] || installer_fatal "INSTALLER_SECURE_BOOT_BOOT_CHAIN_PACKAGES is missing from ${INSTALL_POLICY_ENV}"
   [ -n "${INSTALLER_SECURE_BOOT_TARGET_PACKAGES:-}" ] || installer_fatal "INSTALLER_SECURE_BOOT_TARGET_PACKAGES is missing from ${INSTALL_POLICY_ENV}"

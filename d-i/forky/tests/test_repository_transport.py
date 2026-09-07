@@ -21,6 +21,7 @@ import tarfile
 import tempfile
 import threading
 import unittest
+from process_fixture import stop_test_tree, wait_file
 from urllib.parse import urlsplit, unquote
 
 FORKY = Path(__file__).resolve().parents[1]
@@ -194,7 +195,7 @@ installer_seed_path_exists {p(web.base)} repo.env
             header.write_text('  Location: ' + location + '\n')
             result = self.shell(f'source_effective_url https://host/seed.cfg {shlex.quote(str(header))}')
             self.assertNotEqual(result.returncode, 0)
-    def test_tls_verification_default_and_explicit_bypass(self):
+    def test_tls_verification_default_and_bypass_is_rejected(self):
         if not shutil.which('openssl'):
             self.skipTest('openssl needed to generate a local self-signed certificate')
         cert, key = self.root / 'cert.pem', self.root / 'key.pem'
@@ -211,7 +212,8 @@ installer_seed_path_exists {p(web.base)} repo.env
         for flag in ('allow_unauthenticated_ssl', 'allow_unauthenticated_ssl=true',
                      'debian-installer/allow_unauthenticated_ssl=true'):
             result = self.shell(command, env={'INSTALLER_CMDLINE': flag})
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotEqual(result.returncode, 0, result.stderr)
+            self.assertIn("bypass is forbidden", result.stderr)
         explicit_false = self.shell(command, env={'INSTALLER_CMDLINE': 'allow_unauthenticated_ssl=false'})
         self.assertNotEqual(explicit_false.returncode, 0)
     def test_busybox_wget_redirects(self):
@@ -348,10 +350,20 @@ class RealBootstrapTests(TransportFixture):
         self.assertEqual(sum(web.counts.values()), 5)
     def test_opposite_role_fails_before_preflight_marker(self):
         other = 'desktop' if ROLE == 'server' else 'server'
-        result = self.include(f'file={FORKY}/preseed.cfg classes=prod;{other};standard;dhcp')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.runtime / 'bootstrap/preflight.ok').exists())
-        self.assertIn('preflight failed', result.stderr)
+        text = (FORKY / 'preseed.cfg').read_text().replace('\\\n', '')
+        line = next(line for line in text.splitlines() if line.startswith('d-i preseed/include_command string '))
+        command = line.split(' string ', 1)[1]
+        process = subprocess.Popen(['/bin/sh', '-c', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True,
+            env={**self.env, 'INSTALLER_CMDLINE': f'file={FORKY}/preseed.cfg classes=prod;{other};standard;dhcp'})
+        try:
+            failure = self.runtime / 'state/first-failure'
+            self.assertTrue(wait_file(failure), 'bootstrap did not retain its fatal record')
+            self.assertIsNone(process.poll(), 'fatal bootstrap returned to the installer')
+            self.assertFalse((self.runtime / 'bootstrap/preflight.ok').exists())
+            self.assertIn('state=FATAL', failure.read_text())
+        finally:
+            stop_test_tree(process)
 
 if __name__ == '__main__':
     unittest.main()

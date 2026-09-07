@@ -1,0 +1,68 @@
+{
+  "utc": "2026-09-07T14:10:16.561389+00:00",
+  "executed": [
+    {
+      "validation": "make build",
+      "command": [
+        "make",
+        "build"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 2.291
+    },
+    {
+      "validation": "make check",
+      "command": [
+        "make",
+        "check"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 2.235
+    },
+    {
+      "validation": "make test",
+      "command": [
+        "make",
+        "test"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 68.068
+    },
+    {
+      "validation": "make audit",
+      "command": [
+        "make",
+        "audit"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 1.95
+    },
+    {
+      "validation": "make validate",
+      "command": [
+        "make",
+        "validate"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 74.205
+    },
+    {
+      "validation": "whole-tree syntax/security inventory",
+      "command": [
+        "python3",
+        "-B",
+        "tools/release_audit.py"
+      ],
+      "returncode": 0,
+      "result": "PASS",
+      "seconds": 1.721
+    }
+  ],
+  "complete": true,
+  "success": true
+}

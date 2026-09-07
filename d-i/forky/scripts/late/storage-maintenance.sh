@@ -11,14 +11,29 @@ repair_target_pkgsel_include_packages() {
 set -eu
 packages=$1
 [ -n "$packages" ] || exit 0
-for pkg in $packages; do
-  query_pkg=${pkg%%/*}
-  [ -n "$query_pkg" ] || query_pkg=$pkg
-  pkg_status=$(dpkg-query -W -f=\${Status} "$query_pkg" 2>/dev/null || true)
-  if [ "$pkg_status" != "install ok installed" ]; then
-    printf "%s\n" "$pkg"
-  fi
-done
+# One checked database read also accounts for virtual packages (for example
+# mesa-utils-extra provided by mesa-utils). Do not call apt for an installed
+# provider merely because the virtual name has no standalone dpkg record.
+installed=$(dpkg-query -W -f="\${Status}\t\${binary:Package}\t\${Provides}\t\${Version}\n")
+printf "%s\n" "$installed" | awk -F "\t" -v requested="$packages" '\''
+$1 == "install ok installed" {
+  present[$2] = 1; versions[$2] = $4
+  name = $2; sub(/:.*/, "", name); present[name] = 1; versions[name] = $4
+  n = split($3, providers, ",")
+  for (i = 1; i <= n; i++) {
+    name = providers[i]; sub(/^[ \t]+/, "", name); sub(/[ \t:(].*$/, "", name)
+    if (name != "") present[name] = 1
+  }
+}
+END {
+  n = split(requested, pkgs, /[ \t\n]+/)
+  for (i = 1; i <= n; i++) {
+    name = pkgs[i]; sub(/\/.*/, "", name)
+    count = split(name, wanted, "="); name = wanted[1]
+    if (name != "" && (!(name in present) || (count == 2 && versions[name] != wanted[2]))) print pkgs[i]
+  }
+}'\''
+
 ' sh "${INSTALLER_PKGSEL_INCLUDE}")
 
   legacy_cuda_repair_active=false

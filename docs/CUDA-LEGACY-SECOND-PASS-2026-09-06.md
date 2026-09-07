@@ -1,3 +1,6 @@
+> Historical report, superseded by [the 2026-09-07 repair](INSTALLER-HARDENING-2026-09-07.md).
+> Its TLS/CUDA exceptions, hook ordering and validation counts are NOT current instructions.
+
 # CUDA-legacy and Podman/Incus second pass
 
 Date: 2026-09-06. Input: the complete first-pass `debian-preseed-de-refactored.tar.gz`.

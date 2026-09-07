@@ -11,10 +11,12 @@ late_command_shared_init "$requested_seed_base" "$requested_host_profile" "$HOOK
 late_command_fetch_common_assets "$(installer_repo_join_var DIR_SCRIPTS_RUNTIME f2fs.sh)"
 fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/grub-profiles.tmpl)" "$TMP_ENV_DIR/grub-profiles"
 late_command_load_runtime_env false
-late_command_load_host_env
-install_target_runtime_defaults
-install_target_wpa_supplicant_runtime_policy
-late_command_require_class_policy_env
+late_command_load_host_env || return $?
+# Architecture policy owns the required EFI placeholders and must exist before
+# *any* renderer (including the unrelated runtime defaults) is called.
+late_command_require_class_policy_env || return $?
+install_target_runtime_defaults || return $?
+install_target_wpa_supplicant_runtime_policy || return $?
 installer_ensure_context_loaded "${SEED_BASE:-}"
 CPU_CLASS=$(installer_selected_class_for_purpose cpu 2>/dev/null || printf '%s' "${INSTALLER_CPU_CLASS:-}")
 DISK_CLASS=$(installer_selected_class_for_purpose storage 2>/dev/null || printf '%s' "${INSTALLER_DISK_CLASS:-}")
@@ -57,8 +59,8 @@ target_enable_nvidia=false
 target_enable_nvme_tunables=false
 target_enable_emmc_storage=false
 
-case "${CPU_CLASS:-intel}" in
-  amd) ;;
+case "${CPU_CLASS:-}" in
+  generic-arm64|amd) ;;
   intel)
     target_enable_intel_platform=true
     ;;
@@ -266,6 +268,8 @@ disable_stock_kernel_menu
 
 if target_exec_available; then
   sign_target_installed_kernel_modules
+  # Regenerate signed kernels/initrds BEFORE discovering boot menu entries.
+  repair_target_installed_kernels
   require_target_grub_installed
   install_target_grub_profiles
   require_target_dualboot_os_prober_package
@@ -273,7 +277,6 @@ if target_exec_available; then
   if reset_target_secure_boot_mok_state; then
     queue_target_grub_mok_enrollment_boot_for_reset
   fi
-  repair_target_installed_kernels
   sync_target_secure_boot_bundle_to_installer_usb
   close_target_secure_boot_state
 fi

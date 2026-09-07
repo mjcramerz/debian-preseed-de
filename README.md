@@ -1,16 +1,16 @@
 # debian-preseed-de
 
-Debian unattended-install repository for **desktop systems**, refactored on
-2026-09-06. It retains the supplied desktop layout and all 13 original hardware
-profiles, while correcting CUDA transport/authentication, DKMS handling and
-browser policy/export deployment. It is not a generic disk-safe installer.
+Debian unattended-install repository for desktop systems. The 2026-09-07 repair
+retains all 13 supplied profiles and the intentional mixed-suite package policy.
+Partitioning remains destructive: only an explicit safe device or a unique safe
+candidate is accepted. Read the deployment prerequisites before using real disks.
 
-Start with **[the CUDA-legacy and Podman second-pass corrections](docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md)**,
-**[the initrd credentials/root-login repair](docs/INITRD-CREDENTIAL-FIX-2026-09-06.md)**,
-**[the original refactor report](docs/REFACTOR-2026-09-06.md)** and
-**[validation evidence and remaining acceptance work](docs/VALIDATION.md)**.
-Current completed results and test counts are in `validation/summary.json`.
-This is not a claim that a real installer boot or every bookmarked site was tested.
+Start with **[the repair and operations guide](docs/INSTALLER-HARDENING-2026-09-07.md)**,
+**[the sanitized incident inventory](docs/INCIDENT-2026-09-07.md)**, and
+**[the security boundary](SECURITY.md)**. Executed validation results are in
+`validation/summary.json` and `validation/release-checks.json`.
+The earlier dated reports are historical, not current deployment instructions.
+No physical installation or firmware acceptance result is implied by local tests.
 
 **Private build:** browser configuration and coverage data contain personal
 bookmarks. Do not publish this personalized tree to a public repository or an
@@ -47,13 +47,11 @@ The complete pinned snapshot is fetched and validated before partitioning. Later
 phases read its local cache instead of repeatedly downloading repository files.
 The browser generator runs as part of this build. Its editable inputs are in
 `browser-config/`; generated policies and exports live under `hooks/target/`.
-This revision also changes security-sensitive target policy: review the report
-before deploying. Explicit selection of `addon/cuda-legacy` now authorizes an
-**unauthenticated, source-local APT exception** for the NVIDIA Debian 12 amd64
-archive. It needs no signing-key fetch or Sequoia policy file and has no crypto
-policy expiration date. Other repositories retain their authentication policy.
-The temporary legacy source is removed after package repair and at finish-install;
-see the second-pass report for the security tradeoff and deployment checks.
+Explicit `addon/cuda-legacy` selection uses the NVIDIA Debian 12 amd64 archive
+with a dedicated Signed-By keyring and full pinned signing fingerprint. Missing,
+wrong, expired, weak or rejected signatures are fatal; no authentication or
+metadata-date bypass is enabled. The temporary source is removed after package
+repair and at finish-install. Other repositories retain their independent policy.
 
 ## Repository layout
 
@@ -197,18 +195,11 @@ loops, non-HTTP(S) destinations and HTTPS-to-HTTP downgrades are rejected before
 fetched content is accepted. Initial network setup and the first preseed download
 are performed by the Debian installer image, before repository code can run.
 
-TLS verification is enabled by default. When deliberately required for your lab,
-this repository's fetch layer recognizes:
-
-```text
-allow_unauthenticated_ssl=true
-```
-
-It also recognizes the bare flag and
-`debian-installer/allow_unauthenticated_ssl=true`. Configure the initial image's
-native downloader separately as required by that image; repository code cannot
-change a TLS decision made before the first preseed is loaded. Prefer valid CA
-trust and a correct clock over bypassing verification. See `SECURITY.md`.
+TLS certificate validation is mandatory for repository HTTPS fetches. Legacy
+`allow_unauthenticated_ssl=true` and equivalent bypass requests now fail closed.
+Provision the installer image with correct CA trust and clock. Initial preseed
+retrieval is performed by the image before this repository executes; this code
+cannot retroactively authenticate an insecure initial download. See `SECURITY.md`.
 
 ## Profiles
 

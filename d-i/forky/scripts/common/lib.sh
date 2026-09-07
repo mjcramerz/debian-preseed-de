@@ -1,4 +1,332 @@
 #!/bin/sh
+# BEGIN EMBEDDED LIFECYCLE
+#!/bin/sh
+# Canonical d-i lifecycle. Embedded in source.sh before the first network fetch.
+# Explicit delimiters also permit embedding in a single preseed command.
+# Numeric ls is available in busybox-udeb; stat is deliberately not built.
+# Only fixed metadata columns are parsed, never the filename or its whitespace.
+installer_metadata_value() (
+  set -f;
+  lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1;
+  lc_field=$2;
+  set -- $lc_metadata;
+  [ "$#" -ge 4 ] || exit 1;
+  case "$2:$3" in *[!0-9:]*|:*) exit 1 ;; esac;
+  case "$lc_field" in
+    uid) printf '%s\n' "$3" ;;
+    links) printf '%s\n' "$2" ;;
+    mode)
+      printf '%s\n' "$1" | awk '
+        length($0) < 10 {exit 1}
+        { special=0; value=0;
+          for (i=2; i<=10; i++) {
+            c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1));
+            if (c!="-") {
+              if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1;
+              if (c!="S" && c!="T") value+=bit;
+              if (c=="s" || c=="S") special+=(i==4 ? 4 : 2);
+              if (c=="t" || c=="T") special+=1;
+            };
+            if (i==4 || i==7) value*=8;
+          };
+          printf "%o\n", special*512+value;
+        }' ;;
+    *) exit 1 ;;
+  esac;
+);
+installer_lifecycle_paths() {
+  LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime};
+  LC_STATE=$LC_ROOT/state;
+  case "$LC_ROOT" in /*) ;; *) return 1 ;; esac;
+  case "/${LC_ROOT#/}/" in *'/../'*|*'/./'*|*'//'*) return 1 ;; esac;
+  [ "$LC_ROOT" != / ] || return 1;
+  lc_path=$LC_STATE;
+  while [ "$lc_path" != / ]; do
+    [ ! -L "$lc_path" ] || return 1;
+    lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/;
+  done;
+  (umask 077; mkdir -p "$LC_STATE") || return 1;
+  [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1;
+  [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1;
+  chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1;
+};
+installer_record_failure() (
+  # Atomic first-writer-wins publication, never replaced by cleanup errors.
+  set +e; umask 077;
+  installer_lifecycle_paths || exit 1;
+  lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified};
+  case "$lc_status" in ''|*[!0-9]*|0) lc_status=1 ;; esac;
+  rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated";
+  [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0;
+  lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1;
+  trap 'rm -f "$lc_tmp"' 0;
+  { printf 'format=1\nstate=FATAL\nstatus=%s\n' "$lc_status";
+    printf 'phase=%s\ncomponent=%s\n' "${INSTALLER_PHASE:-unknown}" "$lc_component";
+    printf 'timestamp=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')";
+    printf 'detail=%s\n' "$(printf '%s' "$lc_detail" | tr '\r\n' '  ')";
+  } >"$lc_tmp" || exit 1;
+  chmod 0600 "$lc_tmp" || exit 1;
+  ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ];
+);
+installer_preserve_failure() (
+  set +e; umask 077;
+  installer_lifecycle_paths || exit 1;
+  lc_target=${INSTALLER_TARGET_DIR:-/target};
+  # Never write into the installer's uncovered /target directory after unmount.
+  awk -v p="$lc_target" '$2==p {found=1} END {exit !found}' /proc/mounts || exit 0;
+  lc_path=$lc_target/var/log/installer;
+  while [ "$lc_path" != / ]; do
+    [ ! -L "$lc_path" ] || exit 1;
+    lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/;
+  done;
+  mkdir -p "$lc_target/var/log/installer" || exit 1;
+  chmod 0700 "$lc_target/var/log/installer" || exit 1;
+  for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do
+    [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue;
+    lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1;
+    if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then
+      mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1;
+    else rm -f "$lc_tmp"; exit 1; fi;
+  done;
+);
+installer_terminal_hold() {
+  # A nonzero late_command is NOT terminal: preseed_command may swallow it,
+  # and finish-install logs most hook failures then continues toward reboot.
+  # Do not return to either caller. SIGSTOP the actual main-menu ancestor too,
+  # so killing this leaf cannot restart unattended installation work.
+  trap '' HUP INT TERM; trap - 0;
+  set +e;
+  installer_preserve_failure;
+  printf '\nINSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\nDiagnostics: %s/state/first-failure and /tmp/installer.log\n' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2;
+  if [ -c /dev/console ] && [ -w /dev/console ]; then
+    printf '\nINSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\n' >/dev/console;
+  fi;
+  lc_pid=$$; lc_depth=0;
+  while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do
+    lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null);
+    if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi;
+    lc_pid=$(awk '/^PPid:/ {print $2}' "/proc/$lc_pid/status" 2>/dev/null);
+    case "$lc_pid" in ''|*[!0-9]*) break ;; esac;
+    lc_depth=$((lc_depth + 1));
+  done;
+  sync;
+  # This is an intentional terminal wait, not a retry loop. No commands that
+  # customize the target, run a phase, or reboot occur inside it.
+  while :; do sleep 3600; done;
+};
+# Freeze the owned child before enumerating descendants. Frozen parents cannot
+# reap/reuse their child PIDs or launch subsequent installer commands. No process
+# group, host-wide kill, setsid, Python, or stat applet is needed in busybox-udeb.
+installer_stop_tree() (
+  lc_stop_pid=$1; lc_stop_depth=${2:-0};
+  case "$lc_stop_pid" in ''|*[!0-9]*|0|1) exit 1 ;; esac;
+  [ "$lc_stop_depth" -lt 128 ] || exit 1;
+  [ -d "/proc/$lc_stop_pid" ] || exit 0;
+  kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0;
+  lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || {
+    # Some kernels omit CONFIG_CHECKPOINT_RESTORE and therefore children.
+    lc_children=;
+    for lc_proc_status in /proc/[0-9]*/status; do
+      lc_proc_parent=$(awk '/^PPid:/ {print $2}' "$lc_proc_status" 2>/dev/null) || continue;
+      [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue;
+      lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/};
+      lc_children="$lc_children $lc_proc_id";
+    done;
+  };
+  for lc_child in $lc_children; do
+    case "$lc_child" in ''|*[!0-9]*) continue ;; esac;
+    lc_parent=$(awk '/^PPid:/ {print $2}' "/proc/$lc_child/status" 2>/dev/null);
+    [ "$lc_parent" = "$lc_stop_pid" ] || continue;
+    installer_stop_tree "$lc_child" "$((lc_stop_depth + 1))" || :;
+  done;
+  kill -KILL "$lc_stop_pid" 2>/dev/null || :;
+);
+
+# External commands run as a direct child, with responsive signal traps while
+# waiting. Shell child statuses are retained, not replaced by diagnostic output.
+installer_run_supervised() {
+  "$@" <&0 &
+  LC_CHILD_PID=$!;
+  if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi;
+  LC_CHILD_PID=;
+  return "$lc_child_status";
+};
+
+# Udeb has sleep (including fractional intervals), but neither timeout nor
+# setsid. Poll only our direct child and enforce a finite number of sleeps.
+# This subshell confines traps and variables to this one network operation.
+installer_run_bounded() (
+  lc_limit=$1; shift;
+  case "$lc_limit" in ''|*[!0-9]*) exit 125 ;; esac;
+  [ "$lc_limit" -ge 1 ] && [ "$lc_limit" -le 900 ] || exit 125;
+  "$@" <&0 &
+  lc_bounded_pid=$!;
+  trap 'installer_stop_tree "$lc_bounded_pid"; exit 129' HUP;
+  trap 'installer_stop_tree "$lc_bounded_pid"; exit 130' INT;
+  trap 'installer_stop_tree "$lc_bounded_pid"; exit 143' TERM;
+  lc_ticks=0; lc_max_ticks=$((lc_limit * 5));
+  while kill -0 "$lc_bounded_pid" 2>/dev/null; do
+    if [ "$lc_ticks" -ge "$lc_max_ticks" ]; then
+      installer_stop_tree "$lc_bounded_pid";
+      wait "$lc_bounded_pid" 2>/dev/null || :;
+      exit 124;
+    fi;
+    sleep 0.2;
+    lc_ticks=$((lc_ticks + 1));
+  done;
+  if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi;
+  exit "$lc_bounded_status";
+);
+
+installer_lifecycle_signal() {
+  lc_signal_status=$1;
+  trap '' HUP INT TERM;
+  installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" 'supervisor received a termination signal' || :;
+  if [ -n "${LC_CHILD_PID:-}" ]; then
+    installer_stop_tree "$LC_CHILD_PID" || :;
+    wait "$LC_CHILD_PID" 2>/dev/null || :;
+    LC_CHILD_PID=;
+  fi;
+  exit "$lc_signal_status";
+};
+
+installer_lifecycle_abort() {
+  installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :;
+  installer_terminal_hold;
+};
+installer_lifecycle_exit() {
+  lc_exit=$1; trap - 0;
+  if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" 'phase exited unsuccessfully'; fi;
+  if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi;
+  [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" 'phase exited without explicit completion';
+};
+installer_lifecycle_arm() {
+  INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0;
+  export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE;
+  case "$INSTALLER_PHASE" in ''|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle 'invalid phase identifier' ;; esac;
+  installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle 'unsafe or unavailable lifecycle state directory';
+  trap 'installer_lifecycle_exit "$?"' 0;
+  trap 'installer_lifecycle_signal 129' HUP; trap 'installer_lifecycle_signal 130' INT; trap 'installer_lifecycle_signal 143' TERM;
+  [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold;
+};
+installer_lifecycle_begin() {
+  installer_lifecycle_arm "$1";
+  # A completed phase is a no-op; an interrupted phase must never be guessed
+  # resumable (particularly partman). Both decisions precede target changes.
+  if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then
+    INSTALLER_LIFECYCLE_COMPLETE=1; return 10;
+  fi;
+  mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" 'interrupted or concurrent invocation';
+};
+installer_lifecycle_complete() {
+  installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle 'cannot publish completion';
+  [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold;
+  lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle 'cannot stage completion';
+  printf 'phase=%s\nstate=complete\n' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle 'cannot write completion';
+  chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle 'cannot publish completion';
+  rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :;
+  INSTALLER_LIFECYCLE_COMPLETE=1;
+};
+installer_guard_hook() (
+  set -eu; umask 077;
+  lc_hook=$1; lc_group=$2;
+  installer_lifecycle_paths || exit 1;
+  case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac;
+  lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name;
+  case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac;
+  [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1;
+  if grep -Fqx '# INSTALLER_GUARDED_HOOK_V1' "$lc_hook"; then exit 0; fi;
+  lc_runner=$LC_ROOT/bootstrap/guard-hook.sh;
+  [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1;
+  lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id;
+  lc_backup=$lc_backup_dir/$lc_name;
+  mkdir -p "$lc_backup_dir" || exit 1;
+  chmod 0700 "$lc_backup_dir" || exit 1;
+  if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then
+    [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1;
+  else
+    lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1;
+    cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1;
+  fi;
+  lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1;
+  trap 'rm -f "$lc_tmp"' 0;
+  printf '#!/bin/sh\n# INSTALLER_GUARDED_HOOK_V1\nexec "%s" "%s" "%s" "$@"\n' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1;
+  chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1;
+);
+# END EMBEDDED LIFECYCLE
+# BEGIN EMBEDDED APT SOURCES
+#!/bin/sh
+# APT source publication shared by early bootstrap and apt-setup. No APT update
+# is safe until this has run; a Pre-Invoke hook would be too late for source parsing.
+installer_apt_safe_path() (
+  set -eu
+  p=$1
+  case "$p" in /*) ;; *) exit 1 ;; esac
+  case "/${p#/}/" in *'/../'*|*'/./'*|*'//'*) exit 1 ;; esac
+  while [ "$p" != / ]; do
+    [ ! -L "$p" ] || exit 1
+    if [ -e "$p" ]; then
+      [ "$(installer_metadata_value "$p" uid)" = "$(id -u)" ] || exit 1
+      mode=$(installer_metadata_value "$p" mode)
+      [ "$((0$mode & 0022))" -eq 0 ] || { [ -d "$p" ] && [ "$((0$mode & 01000))" -ne 0 ]; } || exit 1
+    fi
+    p=${p%/*}; [ -n "$p" ] || p=/
+  done
+)
+
+installer_apt_strip_cdrom() (
+  set -eu
+  umask 077
+  target=$1
+  installer_apt_safe_path "$target/etc/apt/sources.list.d"
+  for src in "$target/etc/apt/sources.list" "$target/etc/apt/sources.list.d/"*; do
+    [ -e "$src" ] || [ -L "$src" ] || continue
+    case "$src" in *.list|*.list.*|*.sources|*.sources.*) ;; *) continue ;; esac
+    installer_apt_safe_path "$src"
+    [ -f "$src" ] && [ "$(installer_metadata_value "$src" links)" = 1 ] || exit 1
+    tmp=$(mktemp "${src%/*}/.installer-source.XXXXXX")
+    trap 'rm -f "$tmp"' 0
+    case "$src" in
+      *.sources|*.sources.*)
+        awk 'BEGIN {RS=""; ORS="\n\n"} index($0,"cdrom:")==0 {print}' "$src" >"$tmp" ;;
+      *) awk 'index($0,"cdrom:")==0 {print}' "$src" >"$tmp" ;;
+    esac
+    chmod "$(installer_metadata_value "$src" mode)" "$tmp"
+    mv -f "$tmp" "$src"
+  done
+)
+
+installer_apt_bootstrap_source() (
+  set -eu
+  umask 077
+  target=$1; protocol=$2; host=$3; directory=$4; suite=$5
+  case "$protocol" in http|https) ;; *) exit 1 ;; esac
+  case "$host" in ''|*[!A-Za-z0-9.:-]*) exit 1 ;; esac
+  case "$directory" in /*) ;; *) exit 1 ;; esac
+  case "$directory" in *[!A-Za-z0-9/_-]*|*..*|*//*) exit 1 ;; esac
+  case "$suite" in ''|*[!A-Za-z0-9_-]*) exit 1 ;; esac
+  installer_apt_safe_path "$target/etc/apt/sources.list"
+  installer_apt_safe_path "$target/etc/apt/apt.conf.d"
+  [ -s "$target/usr/share/keyrings/debian-archive-keyring.gpg" ] || exit 1
+  mkdir -p "$target/etc/apt/sources.list.d" "$target/etc/apt/apt.conf.d"
+  installer_apt_strip_cdrom "$target"
+  tmp=$(mktemp "$target/etc/apt/.installer-bootstrap.XXXXXX")
+  trap 'rm -f "$tmp"' 0
+  printf 'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] %s://%s%s %s main contrib non-free non-free-firmware\n' \
+    "$protocol" "$host" "$directory" "$suite" >"$tmp"
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$target/etc/apt/sources.list"
+  tmp=$(mktemp "$target/etc/apt/apt.conf.d/.installer-network.XXXXXX")
+  cat >"$tmp" <<'EOF'
+Acquire::Retries "3";
+Acquire::http::Timeout "45";
+Acquire::https::Timeout "45";
+APT::Update::Error-Mode "any";
+EOF
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$target/etc/apt/apt.conf.d/99installer-network"
+)
+# END EMBEDDED APT SOURCES
 
 installer_runtime_dir() {
   printf '%s\n' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}"
@@ -799,6 +1127,9 @@ installer_finalize_log() {
     installer_info "completed ${log_context}${log_duration}"
   else
     installer_error "${log_context} exited with status ${exit_code}${log_duration}"
+    if [ "${INSTALLER_LIFECYCLE_ACTIVE:-0}" = 1 ]; then
+      installer_record_failure "$exit_code" "$log_context" 'mandatory operation failed; see preceding diagnostics' || :
+    fi
   fi
 
   if installer_bool_is_true "${INSTALLER_ARCHIVE_LOGS_ON_FINALIZE:-false}"; then
@@ -808,6 +1139,9 @@ installer_finalize_log() {
 
 installer_fatal() {
   installer_log_record error "$*"
+  if [ "${INSTALLER_LIFECYCLE_ACTIVE:-0}" = 1 ]; then
+    installer_record_failure 1 "${INSTALLER_LOG_CONTEXT:-unknown}" "$*" || :
+  fi
   exit 1
 }
 
@@ -3373,7 +3707,7 @@ installer_auto_group_from_token() {
 
   case "$token_name" in
     amd64|arm64) printf '%s\n' arch ;;
-    amd|intel) printf '%s\n' cpu ;;
+    amd|intel|generic-arm64) printf '%s\n' cpu ;;
     amd-radeon|generic|intel-uhd) printf '%s\n' gpu ;;
     emmc|nvme|vm) printf '%s\n' disk ;;
     *) return 1 ;;
@@ -4263,26 +4597,44 @@ installer_load_source_library() {
   installer_fatal 'repository transport is missing; start with the generated preseed.cfg'
 }
 
-# The explicitly selected CUDA-legacy archive is an operator-authorized APT
-# authentication exception. Never export this policy globally or use it for
-# Debian, other NVIDIA archives, or any unrelated third-party source.
-# APT may still report a signature warning; verification is NOT a prerequisite
-# for fetching metadata or installing packages from this one source.
+# Legacy means package compatibility, not unauthenticated content. APT itself
+# selects this full primary-key fingerprint (including its signing subkeys),
+# avoiding a dependency on gpg being installed before pkgsel.
 installer_cuda_source_line() (
   set -eu
   repository=$1; suite=$2; components=${3:-}
   [ "$repository" = https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ ] || {
-    installer_fatal 'legacy CUDA authentication exception is limited to the Debian 12 amd64 archive'; exit 1;
+    installer_fatal 'legacy CUDA is limited to the Debian 12 amd64 archive'; exit 1;
   }
   [ "$suite" = / ] && [ -z "$components" ] || {
     installer_fatal 'legacy CUDA must use the flat Debian 12 archive'; exit 1;
   }
-  printf 'deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] %s /\n' "$repository"
+  printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/cuda-legacy-archive-key.asc,EB693B3035CD5710E231E123A4B469963BF863CC] %s /\n' "$repository"
 )
 
-# One atomic source publisher for both pre-pkgsel and late-command repair.
-# No signing-key download, Signed-By pin, Sequoia baseline or crypto-policy
-# expiry is needed. The installer payload itself remains checksum-verified.
+installer_fetch_cuda_key() (
+  set -eu
+  umask 077
+  target=${INSTALLER_TARGET_DIR:-/target}
+  keydir=$target/etc/apt/keyrings
+  key=$keydir/cuda-legacy-archive-key.asc
+  installer_apt_safe_path "$key"
+  mkdir -p "$keydir"
+  chmod 0755 "$keydir"
+  work=$(mktemp -d "$keydir/.cuda-key.XXXXXX")
+  trap 'rm -rf "$work"' 0
+  installer_load_source_library
+  # Resource-limit the public-key download as well as bounding network time.
+  (ulimit -f 2048; source_fetch_external \
+    https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 \
+    3bf863cc.pub "$work/key.asc" 0600)
+  [ "$(wc -c <"$work/key.asc")" -le 1048576 ]
+  grep -qx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$work/key.asc"
+  grep -qx -- '-----END PGP PUBLIC KEY BLOCK-----' "$work/key.asc"
+  chmod 0644 "$work/key.asc"
+  mv -f "$work/key.asc" "$key"
+)
+
 installer_cuda_stage_target_source() (
   set -eu
   umask 077
@@ -4290,28 +4642,21 @@ installer_cuda_stage_target_source() (
   target=${INSTALLER_TARGET_DIR:-/target}
   source_dir="$target/etc/apt/sources.list.d"
   source="$source_dir/cuda-legacy-temp.list"
+  installer_apt_safe_path "$source"
   install -d -m 0755 "$source_dir"
-  [ ! -L "$source_dir" ] && [ ! -L "$source" ] || {
-    installer_fatal 'indirect legacy CUDA source path'; exit 1;
-  }
+  installer_fetch_cuda_key
   work=$(mktemp "$source_dir/.cuda-legacy.XXXXXX")
   trap 'rm -f "$work"' 0
   trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
   printf '%s\n' "$line" >"$work"
   chmod 0644 "$work"
   mv -f "$work" "$source"
-  # Remove our obsolete key only; never alter system/vendor trust stores.
-  rm -f "$target/etc/apt/keyrings/cuda-legacy-archive-key.asc"
 )
 
 installer_cuda_refresh_target_apt() (
   set -eu
-  installer_warn 'CUDA-legacy ONLY: archive authentication and metadata-date checks are disabled by explicit class selection; HTTPS and package checksums remain enabled'
-  # Source-local options are also honored by pkgsel and subsequent ordinary
-  # apt-get install calls. There is no strict-first attempt or Sequoia fallback.
-  # Retain other lists and fail for genuine transport/index errors, rather than
-  # reporting success with stale or missing package metadata.
-  run_in_target 'refresh explicitly trusted legacy CUDA metadata' \
+  installer_info 'authenticating legacy CUDA with its source-scoped pinned NVIDIA key and the default APT crypto/date policy'
+  run_in_target 'refresh authenticated legacy CUDA metadata' \
     env -u APT_SEQUOIA_CRYPTO_POLICY -u SEQUOIA_CRYPTO_POLICY \
     LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get \
     -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/cuda-legacy-temp.list \

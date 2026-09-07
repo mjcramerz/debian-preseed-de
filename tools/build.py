@@ -139,7 +139,7 @@ def generate_preseed(archive_sha: str, manifest_sha: str, source_sha: str) -> by
     # only. The syntax check here catches an accidental non-embeddable edit.
     core = ' '.join(line.strip() for line in core.splitlines() if line.strip() and not line.lstrip().startswith('#'))
     command = ('set -eu; umask 077; ' + core +
-        ' base=$(source_resolve_seed) || exit 1; '
+        ' installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit 1; '
         'boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; '
         'cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; '
         f'if [ "${{cached_hash%% *}}" != {source_sha} ]; then '
@@ -147,7 +147,7 @@ def generate_preseed(archive_sha: str, manifest_sha: str, source_sha: str) -> by
         'actual=$(source_hash <"$boot/source.sh"); '
         f'[ "${{actual%% *}}" = {source_sha} ] || {{ source_error "transport checksum differs from preseed pin"; exit 1; }}; '
         '. "$boot/source.sh"; '
-        f'source_bootstrap "$base" {archive_sha} {manifest_sha}')
+        f'source_bootstrap "$base" {archive_sha} {manifest_sha}; installer_lifecycle_complete')
     subprocess.run(['/bin/sh', '-n', '-c', command], check=True)
     # Generate one logical command. The readable implementation lives in
     # scripts/common/source.sh; never hand-maintain its quoted bootstrap copy.
@@ -168,12 +168,25 @@ d-i clock-setup/ntp seen true
     text += 'd-i preseed/include_command string /bin/sh -c ' + quoted + '\n\n'
     text += 'd-i preseed/run string file:///tmp/install-runtime/bootstrap/preseed-apply.sh\n\n'
     for question, phase in [('preseed/early_command', 'early'), ('partman/early_command', 'partman'), ('preseed/late_command', 'late')]:
-        runner = ('set -eu; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; '
+        runner = ('set -eu; ' + core + f' installer_lifecycle_arm entry-{phase}; boot=${{INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}}/bootstrap; '
                   '[ -f "$boot/preflight.ok" ] && [ -x "$boot/preseed-bootstrap-entry.sh" ] || '
                   '{ echo "fatal: installer repository preflight did not complete" >&2; exit 1; }; '
-                  f'exec "$boot/preseed-bootstrap-entry.sh" {phase} /tmp/installer.log')
+                  f'installer_run_supervised "$boot/preseed-bootstrap-entry.sh" {phase} /tmp/installer.log; installer_lifecycle_complete')
         text += f'd-i {question} string /bin/sh -c {shlex.quote(runner)}\n'
     return text.encode()
+
+def sync_apt_helpers(check: bool) -> None:
+    begin = '# BEGIN EMBEDDED APT SOURCES\n'
+    end = '# END EMBEDDED APT SOURCES\n'
+    path = SEED / 'scripts/common/lib.sh'
+    text = path.read_text()
+    before, rest = text.split(begin, 1)
+    _, after = rest.split(end, 1)
+    expected = before + begin + (SEED / 'scripts/common/apt-sources.sh').read_text() + end + after
+    if expected != text:
+        if check:
+            raise ValueError('stale APT source helper embedding')
+        path.write_text(expected)
 
 def sync_credential_helpers(check: bool) -> None:
     """Embed one canonical reader in early/standalone libs without boot deps."""
@@ -202,6 +215,20 @@ def sync_credential_helpers(check: bool) -> None:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
+def sync_lifecycle_helpers(check: bool) -> None:
+    begin, end = '# BEGIN EMBEDDED LIFECYCLE\n', '# END EMBEDDED LIFECYCLE\n'
+    canonical = (SEED / 'scripts/common/lifecycle.sh').read_text()
+    for name in ('scripts/common/source.sh', 'scripts/common/lib.sh'):
+        path = SEED / name
+        text = path.read_text()
+        before, rest = text.split(begin, 1)
+        _, after = rest.split(end, 1)
+        expected = before + begin + canonical + end + after
+        if text != expected:
+            if check:
+                raise ValueError(f'stale lifecycle embedding: {name}')
+            path.write_text(expected)
+
 def build() -> dict[str, bytes]:
     paths = payload_files()
     validate(paths)
@@ -229,6 +256,8 @@ def main() -> int:
         subprocess.run([sys.executable, '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)
+        sync_lifecycle_helpers(args.check)
+        sync_apt_helpers(args.check)
         products = build()
         stale = [name for name, data in products.items() if not (SEED / name).is_file() or (SEED / name).read_bytes() != data]
         if args.check:

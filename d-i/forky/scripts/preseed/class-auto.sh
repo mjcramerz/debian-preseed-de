@@ -106,7 +106,9 @@ cpu_amd() {
 }
 
 cpu_class() {
-  if cpu_intel; then
+  if [ "$(arch_class)" = arm64 ]; then
+    printf generic-arm64
+  elif cpu_intel; then
     printf intel
   elif cpu_amd; then
     printf amd

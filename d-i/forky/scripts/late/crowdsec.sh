@@ -2,7 +2,7 @@
 set -eu
 
 target_root=${1:-/target}
-[ -d "$target_root" ] || exit 0
+[ -d "$target_root" ] || { printf 'fatal: missing CrowdSec target root\n' >&2; exit 1; }
 
 crowdsec_fatal() {
   printf 'fatal: %s\n' "$*" >&2
@@ -18,6 +18,8 @@ crowdsec_validate_abs_target_path() {
     /*) ;;
     *) crowdsec_fatal "target path must be absolute: ${1:-unset}" ;;
   esac
+  case "$1" in *'/../'*|*'/./'*|*/..|*/.) crowdsec_fatal "unsafe target path" ;; esac
+  installer_apt_safe_path "${target_root}${1}" || crowdsec_fatal "unsafe target path ownership or link"
 }
 
 crowdsec_normalize_token() {
@@ -50,8 +52,8 @@ crowdsec_cmdline_token() {
     [ -n "$crowdsec_token" ] && break
   done
   [ -n "$crowdsec_token" ] || return 1
-  crowdsec_token=$(crowdsec_normalize_token "$crowdsec_token")
-  [ "${#crowdsec_token}" -le 512 ] || crowdsec_fatal "crowdsec_token must be 512 characters or fewer"
+  crowdsec_token=$(crowdsec_normalize_token "$crowdsec_token") || return 2
+  [ "${#crowdsec_token}" -le 512 ] || return 2
   printf '%s\n' "$crowdsec_token"
 }
 
@@ -74,17 +76,19 @@ crowdsec_stage_target_asset() {
   repo_path=$1
   target_path=$2
   mode=$3
-  tmp_asset="${tmp_env_dir}/$(basename "$target_path").$$"
   target_host_path="${target_root}${target_path}"
-
   crowdsec_validate_abs_target_path "$target_path"
-  bootstrap_fetch_seed_file "$seed_base" "$repo_path" "$tmp_asset" 0600 "crowdsec asset ${repo_path}"
   target_normalize_systemd_config_parent_modes "$target_path" "$target_root"
-  install -d -m 0755 "${target_root}$(dirname "$target_path")"
-  chmod 0755 "${target_root}$(dirname "$target_path")"
-  install -m "$mode" "$tmp_asset" "$target_host_path"
-  chmod "$mode" "$target_host_path"
-  rm -f "$tmp_asset"
+  install -d -m 0755 "${target_host_path%/*}"
+  tmp_asset=$(mktemp "${target_host_path%/*}/.crowdsec-asset.XXXXXX") || return $?
+  if bootstrap_fetch_seed_file "$seed_base" "$repo_path" "$tmp_asset" 0600 "crowdsec asset ${repo_path}"; then
+    chmod "$mode" "$tmp_asset" || return $?
+    mv -f "$tmp_asset" "$target_host_path" || return $?
+  else
+    status=$?
+    rm -f "$tmp_asset"
+    return "$status"
+  fi
 }
 
 crowdsec_remove_target_asset() {
@@ -113,6 +117,22 @@ host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
 [ -r "$host_env" ] || installer_fetch_host_env "$seed_base" "$host_profile" "$host_env" 0600
 # shellcheck disable=SC1090,SC1091
 . "$host_env"
+
+# dpkg may configure packages in dependency order rather than pkgsel text order.
+# The upstream bouncer does not depend on a fully initialized local engine.
+run_in_target "verify CrowdSec engine before bouncer enrollment" /bin/sh -eu -c '
+[ "$(dpkg-query -W -f="${Status}" crowdsec)" = "install ok installed" ]
+[ -s /etc/crowdsec/config.yaml ] && [ ! -L /etc/crowdsec/config.yaml ]
+cscli config show --key Config.Common.LogMedia -o raw >/dev/null
+' sh
+run_in_target "install CrowdSec bouncer after engine configuration" env DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
+run_in_target "validate CrowdSec bouncer package configuration" /bin/sh -eu -c '
+[ "$(dpkg-query -W -f="${Status}" crowdsec-firewall-bouncer-nftables)" = "install ok installed" ]
+config=/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+[ -s "$config" ] && [ ! -L "$config" ] && [ "$(stat -c %h "$config")" = 1 ]
+chown root:root "$config"
+chmod 0600 "$config"
+' sh
 
 host_variant=$(crowdsec_host_variant)
 : "${FILE_CROWDSEC_ENROLL_TOKEN:?FILE_CROWDSEC_ENROLL_TOKEN must be set}"
@@ -166,31 +186,45 @@ crowdsec_stage_target_asset \
   /etc/systemd/system/crowdsec-firstboot.service \
   0644
 
+crowdsec_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/crowdsec-bouncer-verify)" \
+  /usr/local/libexec/crowdsec-bouncer-verify \
+  0755
+run_in_target "validate CrowdSec enrollment without activating target services" \
+  /usr/local/libexec/crowdsec-bouncer-verify --offline
+
 if crowdsec_token=$(crowdsec_cmdline_token 2>/dev/null); then
-  printf '%s\n' "$crowdsec_token" >"${target_root}${token_file}"
-  chmod 0600 "${target_root}${token_file}" 2>/dev/null || true
+  token_tmp=$(mktemp "${target_root}${token_file}.XXXXXX")
+  printf '%s\n' "$crowdsec_token" >"$token_tmp"
+  chmod 0600 "$token_tmp"
+  mv -f "$token_tmp" "${target_root}${token_file}"
   crowdsec_info "staged optional console enrollment token for deferred post-boot enrollment"
 else
+  token_status=$?
+  [ "$token_status" -eq 1 ] || crowdsec_fatal "invalid supplied CrowdSec enrollment token"
   rm -f "${target_root}${token_file}"
   crowdsec_info "crowdsec_token not provided on kernel cmdline or in /preseed.env; deferred enrollment stays disabled"
 fi
 unset crowdsec_token 2>/dev/null || true
 
 install -d -m 0755 "${target_root}$(dirname "$firstboot_env_file")"
+env_tmp=$(mktemp "${target_root}${firstboot_env_file}.XXXXXX")
 {
   write_shell_config_var CROWDSEC_HOST_VARIANT "$host_variant"
   write_shell_config_var CROWDSEC_ENROLL_TOKEN_FILE "$token_file"
   write_shell_config_var CROWDSEC_COMPLETE_FILE "$complete_file"
   write_shell_config_var CROWDSEC_STATUS_FILE "$status_file"
   write_shell_config_var CROWDSEC_LOG_FILE "$log_file"
-} >"${target_root}${firstboot_env_file}"
-chmod 0644 "${target_root}${firstboot_env_file}" 2>/dev/null || true
+} >"$env_tmp"
+chmod 0644 "$env_tmp"
+mv -f "$env_tmp" "${target_root}${firstboot_env_file}"
 
 run_in_target "enable crowdsec target units" /bin/sh -eu -c '
-systemctl --root=/ disable crowdsec.service crowdsec-firewall-bouncer.service >/dev/null 2>&1 || true
+systemctl --root=/ disable crowdsec.service crowdsec-firewall-bouncer.service >/dev/null
 systemctl --root=/ enable crowdsec-firstboot.service >/dev/null
 systemctl --root=/ is-enabled crowdsec-firstboot.service >/dev/null
 ! systemctl --root=/ is-enabled crowdsec.service >/dev/null 2>&1
+! systemctl --root=/ is-enabled crowdsec-firewall-bouncer.service >/dev/null 2>&1
 ' sh
 
 crowdsec_info "staged CrowdSec target assets for host_variant=${host_variant}"

@@ -36,7 +36,7 @@ do
   late_command_source_module "$late_module"
 done
 
-if installer_selected_class_reference_is_selected addon/cuda-legacy 2>/dev/null; then
+if [ -r "${INSTALLER_LATE_MODULE_DIR:-${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/late-modules}/cuda-legacy.sh" ]; then
   late_command_source_module cuda-legacy
 fi
 

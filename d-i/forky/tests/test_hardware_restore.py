@@ -148,6 +148,16 @@ printf 'vfio=%s\nnvme=%s\nnvidia=%s\nmodules=%s\n' "$FILE_MODPROBE_VFIO" "$FILE_
         self.assertIn('vfio=\n', text)
         self.assertIn('nvme=/etc/modprobe.d/nvme.conf', text)
 
+    def test_arm64_has_no_x86_platform_or_microcode_policy(self):
+        text = self.policy(cpu='generic-arm64', nvidia=False)
+        self.assertIn('vfio=\n', text)
+        result=run_shell(self.preamble(cpu='generic-arm64',nvidia=False)+
+                         'printf "%s\n" "$VIRT_HOST_INITRAMFS_MODULES"')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('kvm_intel',result.stdout)
+        self.assertNotIn('kvm_amd',result.stdout)
+        self.assertTrue((FORKY/'classes/class-auto/cpu/generic-arm64.cfg').is_file())
+
     def test_vm_does_not_get_nvme_or_platform_vfio(self):
         text = self.policy(disk='vm', family='vm', nvidia=False)
         self.assertIn('vfio=\n', text)

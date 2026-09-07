@@ -3497,14 +3497,12 @@ codex_tree_matches() {
   [ -d "$actual_tree" ] && [ ! -L "$actual_tree" ] || return 1
   rm -f -- "$expected_snapshot" "$actual_snapshot"
   if [ "$exclude_root_git" = 1 ]; then
-    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
-      --exclude="./.git" --exclude="./.git/*" \
-      -cf "$expected_snapshot" -C "$expected_tree" . ||
-      codex_fatal "unable to snapshot staged Codex repository tree"
-    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
-      --exclude="./.git" --exclude="./.git/*" \
-      -cf "$actual_snapshot" -C "$actual_tree" . ||
-      codex_fatal "unable to snapshot existing Codex repository tree"
+    # Runtime state is explicitly typed, scoped and permission checked. Never
+    # run Git against account-writable configuration from a privileged shell.
+    python3 "$state_helper_path" --expected "$expected_tree" --actual "$actual_tree" \
+      --uid "$account_uid" --gid "$devops_gid" --commit "$repository_commit" \
+      --url "$repository_url" --codex-root "$codex_root"
+    return $?
   else
     tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
       -cf "$expected_snapshot" -C "$expected_tree" . ||
@@ -3674,6 +3672,7 @@ for required_command in \
   sha256sum \
   stat \
   tar \
+  timeout \
   tr \
   wc
 do
@@ -3705,6 +3704,12 @@ esac
 [ "$(stat -c "%u:%g:%a" -- "$archive_helper_path")" = 0:0:700 ] ||
   codex_fatal "staged Codex archive helper has unexpected ownership or mode"
 
+state_helper_path="${archive_helper_path%/*}/.installer-codex-state.py"
+[ -f "$state_helper_path" ] && [ ! -L "$state_helper_path" ] ||
+  codex_fatal "Codex state verifier is missing or indirect"
+[ "$(stat -c "%u:%g:%a" -- "$state_helper_path")" = 0:0:700 ] ||
+  codex_fatal "Codex state verifier has unsafe ownership or mode"
+
 staging_dir=
 config_staging=
 publication_committed=0
@@ -3733,9 +3738,9 @@ cleanup() {
   if [ -n "$config_staging" ]; then
     rm -rf -- "$config_staging"
   fi
-  rm -f -- "$archive_helper_path"
+  rm -f -- "$archive_helper_path" "$state_helper_path"
 }
-trap cleanup EXIT
+trap '"'"'cleanup_status=$?; trap - EXIT; set +e; cleanup; exit "$cleanup_status"'"'"' EXIT
 trap "exit 129" HUP
 trap "exit 130" INT
 trap "exit 143" TERM
@@ -3816,7 +3821,7 @@ codex_chmod_without_special_bits 0755 "$extracted_binary_dir"
 candidate_binary_path="$extracted_binary_dir/codex"
 [ -x "$candidate_binary_path" ] && [ ! -L "$candidate_binary_path" ] ||
   codex_fatal "managed Codex archive is missing its required entrypoint"
-version_output=$("$candidate_binary_path" --version 2>/dev/null || true)
+version_output=$(timeout --kill-after=5 30 "$candidate_binary_path" --version 2>/dev/null) || codex_fatal "pinned Codex binary failed its version check"
 case "$version_output" in
   *"$codex_version"*) ;;
   *) codex_fatal "Codex version verification failed for staged release" ;;
@@ -3830,7 +3835,9 @@ codex_chmod_without_special_bits 0644 "$extracted_schema_path"
 unset first_extracted_binary hidden_extracted_binary unsafe_extracted_binary
 
 repository_staging="${staging_dir}/repository"
-git clone \
+export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+timeout --signal=TERM --kill-after=10 180 git clone \
+  --no-checkout \
   --depth 1 \
   --no-hardlinks \
   --single-branch \
@@ -3842,7 +3849,7 @@ git clone \
 actual_repository_url=$(git -C "$repository_staging" remote get-url origin)
 [ "$actual_repository_url" = "$repository_url" ] ||
   codex_fatal "cloned Codex home repository remote does not match policy"
-git -C "$repository_staging" fetch \
+timeout --signal=TERM --kill-after=10 180 git -C "$repository_staging" fetch \
   --quiet \
   --no-tags \
   --depth 1 \
@@ -3928,6 +3935,26 @@ install -m 0660 -o "$account_user" -g devops /dev/null \
   [ ! -L "$candidate_memories_path/.git" ] ||
   codex_fatal "staged Codex memories .git marker is not a direct regular file"
 
+# Stage the same policy that tmpfiles applies after publication. Previously the
+# publication omitted runtime links and changed modes only AFTER the commit.
+chmod 0750 "$repository_staging/agents" "$repository_staging/skills"
+install -m 0600 -o "$account_user" -g devops /dev/null "$candidate_home_path/auth.json"
+printf "{}\n" >"$candidate_home_path/auth.json"
+install -d -m 0700 -o "$account_user" -g devops "$candidate_home_path/app-server-control"
+install -m 0600 -o "$account_user" -g devops /dev/null \
+  "$candidate_home_path/app-server-control/app-server-startup.lock"
+ln -s -- "$codex_root/packages" "$candidate_home_path/packages"
+ln -s -- "$codex_root/sockets/app-server-control.sock" \
+  "$candidate_home_path/app-server-control/app-server-control.sock"
+chown -h "$account_user:devops" "$candidate_home_path/packages" \
+  "$candidate_home_path/app-server-control/app-server-control.sock"
+# Validate the private candidate too, so no unsafe repository symlink or Git
+# configuration is ever published. The same check defines safe resume.
+python3 "$state_helper_path" --expected "$repository_staging" --actual "$repository_staging" \
+  --uid "$account_uid" --gid "$devops_gid" --commit "$repository_commit" \
+  --url "$repository_url" --codex-root "$codex_root" ||
+  codex_fatal "staged Codex repository violates publication policy"
+
 config_staging=$(mktemp -d "/etc/.codex.XXXXXXXX") ||
   codex_fatal "unable to allocate Codex system configuration staging directory"
 cp -a -- "$repository_staging/etc/." "$config_staging/"
@@ -3956,8 +3983,8 @@ candidate_release_marker="${staging_dir}/managed-codex-release"
 chmod 0644 "$candidate_release_marker"
 chown root:root "$candidate_release_marker"
 
-# Reuse only byte-for-byte and metadata-identical state from a prior interrupted
-# run. Anything else remains fatal and is never replaced or taken over.
+# Resume verified immutable components and separately validated mutable account
+# state. Conflicts remain fatal; no unrelated destination is removed or adopted.
 publish_binary_directory=0
 existing_binary_entry=$(find "$codex_root/share/bin" \
   -mindepth 1 -maxdepth 1 -print -quit)
@@ -3982,35 +4009,7 @@ publish_repository=0
 if [ -e "$user_root" ] || [ -L "$user_root" ]; then
   codex_tree_matches "$repository_staging" "$user_root" 1 ||
     codex_fatal "existing Codex repository tree conflicts with the pinned revision"
-  existing_repository_git="$user_root/.git"
-  [ -d "$existing_repository_git" ] && [ ! -L "$existing_repository_git" ] ||
-    codex_fatal "existing Codex repository metadata is missing or indirect"
-  unsafe_existing_git_entry=$(find "$existing_repository_git" -xdev \
-    \( \
-      \( ! -type d ! -type f \) -o \
-      \( -type d \( ! -uid "$account_uid" -o ! -gid "$devops_gid" -o ! -perm 0750 \) \) -o \
-      \( -type f \( ! -uid "$account_uid" -o ! -gid "$devops_gid" -o ! -perm 0640 -o ! -links 1 \) \) \
-    \) -print -quit)
-  [ -z "$unsafe_existing_git_entry" ] ||
-    codex_fatal "existing Codex repository metadata has unsafe ownership, mode, or type"
-  existing_repository_url=$(git -c "safe.directory=$user_root" \
-    -C "$user_root" remote get-url origin)
-  [ "$existing_repository_url" = "$repository_url" ] ||
-    codex_fatal "existing Codex repository remote conflicts with policy"
-  existing_repository_commit=$(git -c "safe.directory=$user_root" \
-    -C "$user_root" rev-parse HEAD)
-  [ "$existing_repository_commit" = "$repository_commit" ] ||
-    codex_fatal "existing Codex repository commit conflicts with policy"
-  existing_repository_changes=$(git -c "safe.directory=$user_root" \
-    -C "$user_root" status --porcelain --untracked-files=all)
-  [ -z "$existing_repository_changes" ] ||
-    codex_fatal "existing Codex repository contains uncommitted state"
-  unset \
-    existing_repository_changes \
-    existing_repository_commit \
-    existing_repository_git \
-    existing_repository_url \
-    unsafe_existing_git_entry
+
 else
   publish_repository=1
 fi
@@ -4065,7 +4064,7 @@ fi
 
 [ -x "$binary_path" ] && [ ! -L "$binary_path" ] ||
   codex_fatal "published Codex entrypoint is missing or indirect"
-version_output=$("$binary_path" --version 2>/dev/null || true)
+version_output=$(timeout --kill-after=5 30 "$binary_path" --version 2>/dev/null) || codex_fatal "published Codex binary failed its version check"
 case "$version_output" in
   *"$codex_version"*) ;;
   *) codex_fatal "published Codex version verification failed" ;;
@@ -4446,6 +4445,12 @@ devops_stage_target_asset \
   0700 \
   codex-archive-helper
 chown root:root "${target_root}${devops_codex_archive_helper_path}"
+devops_stage_target_asset \
+  "$(installer_repo_join_var DIR_SCRIPTS_LATE codex-state.py)" \
+  "${DEVOPS_CODEX_ROOT}/.installer-codex-state.py" \
+  0700 \
+  codex-state-verifier
+chown root:root "${target_root}${DEVOPS_CODEX_ROOT}/.installer-codex-state.py"
 devops_install_pinned_codex
 devops_apply_codex_tmpfiles
 devops_stage_codex_app_server

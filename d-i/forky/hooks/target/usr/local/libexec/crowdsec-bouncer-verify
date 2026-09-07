@@ -1,0 +1,83 @@
+#!/usr/bin/python3
+"""Validate the package-enrolled local bouncer without exposing its API key."""
+import argparse
+import json
+import os
+from pathlib import Path
+import stat
+import sys
+import urllib.error
+import urllib.request
+import yaml
+
+
+def read_config(path: Path) -> dict:
+    for parent in (path.parent, *path.parents):
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError("unsafe configuration directory")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != 0o600 or info.st_size > 1024 * 1024):
+            raise ValueError("unsafe configuration file")
+        data = yaml.safe_load(stream.read(1024 * 1024 + 1))
+    if not isinstance(data, dict):
+        raise ValueError("invalid configuration mapping")
+    return data
+
+
+def effective_config(base: Path) -> dict:
+    config = read_config(base)
+    local = base.with_name(base.name + ".local")
+    if os.path.lexists(local):
+        config.update(read_config(local))
+    key = config.get("api_key")
+    if (not isinstance(key, str) or not 24 <= len(key) <= 512
+            or any(not c.isascii() or not (c.isalnum() or c in "-_+/=") for c in key)):
+        raise ValueError("missing or malformed enrolled API key")
+    if config.get("api_url") not in ("http://127.0.0.1:8080", "http://127.0.0.1:8080/"):
+        raise ValueError("bouncer must authenticate to the managed loopback LAPI")
+    if config.get("mode") != "nftables":
+        raise ValueError("unexpected firewall backend")
+    return config
+
+
+def verify(config: dict) -> None:
+    request = urllib.request.Request("http://127.0.0.1:8080/v1/decisions",
+                                     headers={"X-Api-Key": config["api_key"]})
+    # No environment proxy and no redirects: credentials must remain loopback.
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+    with opener.open(request, timeout=10) as response:
+        if response.status != 200:
+            raise ValueError("LAPI authentication failed")
+        body = response.read(4 * 1024 * 1024 + 1)
+        if len(body) > 4 * 1024 * 1024:
+            raise ValueError("LAPI response exceeds verification limit")
+        data = json.loads(body)
+        if data is not None and not isinstance(data, list):
+            raise ValueError("unexpected LAPI response")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--offline", action="store_true")
+    args = parser.parse_args()
+    try:
+        config = effective_config(Path("/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml"))
+        if not args.offline:
+            verify(config)
+    except (OSError, ValueError, yaml.YAMLError, urllib.error.URLError):
+        # Do not render exceptions: YAML/HTTP exceptions can contain credentials.
+        print("CrowdSec bouncer verification failed; inspect private configuration and local LAPI", file=sys.stderr)
+        return 1
+    print("CrowdSec bouncer configuration verified" if args.offline else "CrowdSec bouncer authentication verified")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

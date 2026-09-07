@@ -162,51 +162,6 @@ hook_nvme_install_disk_candidates() {
   fi
 }
 
-hook_nvme_controller_present() {
-  hook_pci_root=${INSTALLER_PCI_DEVICES_ROOT:-/sys/bus/pci/devices}
-
-  for hook_pci_path in "$hook_pci_root"/*; do
-    [ -d "$hook_pci_path" ] || continue
-    [ -r "$hook_pci_path/class" ] || continue
-    hook_pci_class=$(cat "$hook_pci_path/class" 2>/dev/null || true)
-    case "$hook_pci_class" in
-      0x010802*) return 0 ;;
-    esac
-  done
-  return 1
-}
-
-hook_detect_install_disk() {
-  hook_detect_disk_helper=$1
-  hook_host_profile=$2
-  hook_candidates=$3
-
-  INSTALL_DISK_CANDIDATES="$hook_candidates" DEV_INSTALL_DISK='' "$hook_detect_disk_helper" "$hook_host_profile" 2>/dev/null || true
-}
-
-hook_resolve_nvme_install_disk() {
-  hook_detect_disk_helper=$1
-  hook_host_profile=$2
-  hook_nvme_candidates=$(hook_nvme_install_disk_candidates "${INSTALL_DISK_CANDIDATES:-}")
-
-  for hook_attempt in 1 2 3 4 5; do
-    detected_disk=$(hook_detect_install_disk "$hook_detect_disk_helper" "$hook_host_profile" "$hook_nvme_candidates")
-    if [ -n "$detected_disk" ] && [ -b "$detected_disk" ]; then
-      DEV_INSTALL_DISK=$detected_disk
-      installer_info "auto-detected NVMe install disk ${DEV_INSTALL_DISK} for ${hook_host_profile}"
-      return 0
-    fi
-    [ "$hook_attempt" -eq 5 ] && break
-    hook_storage_probe_settle
-    sleep 2
-  done
-
-  if hook_nvme_controller_present; then
-    installer_fatal "selected disk class is nvme and an NVMe PCI controller is present, but no /dev/nvme* install disk is available; refusing to fall back to non-NVMe candidates"
-  fi
-  return 1
-}
-
 hook_preload_partition_tooling() {
   hook_preload_installer_command parted parted-udeb || true
   hook_preload_installer_udeb fdisk-udeb || true
@@ -225,25 +180,37 @@ hook_resolve_install_disk() {
   detect_disk_helper=$1
   host_profile=$2
   explicit_install_disk=${DEV_INSTALL_DISK:-}
-
   installer_resolve_install_target_defaults
-  if [ -n "$explicit_install_disk" ] && [ -b "$explicit_install_disk" ]; then
-    DEV_INSTALL_DISK=$explicit_install_disk
+  hook_storage_probe_settle
+  storage_class=$(hook_selected_storage_class)
+  disk_candidates=${INSTALL_DISK_CANDIDATES:-}
+  if [ "$storage_class" = nvme ] && [ -z "$explicit_install_disk" ]; then
+    disk_candidates=$(hook_nvme_install_disk_candidates "$disk_candidates")
+  fi
+  # A policy default is not an explicit override. Validate every path, including
+  # explicit devices and the disk selected by the earlier phase.
+  if detected_disk=$(INSTALL_DISK_CANDIDATES="$disk_candidates" \
+      DEV_INSTALL_DISK="$explicit_install_disk" "$detect_disk_helper" "$host_profile"); then
+    [ -n "$detected_disk" ] || installer_fatal 'disk detector returned an empty selection'
   else
-    hook_storage_probe_settle
-    storage_class=$(hook_selected_storage_class)
-    if [ "$storage_class" = nvme ]; then
-      hook_resolve_nvme_install_disk "$detect_disk_helper" "$host_profile" || true
-    fi
+    disk_status=$?
+    installer_fatal "install disk selection rejected (status $disk_status); no destructive operation is permitted"
   fi
-
-  if [ -z "${DEV_INSTALL_DISK:-}" ] || [ ! -b "${DEV_INSTALL_DISK}" ]; then
-    detected_disk=$(hook_detect_install_disk "$detect_disk_helper" "$host_profile" "${INSTALL_DISK_CANDIDATES:-}")
-    if [ -n "$detected_disk" ] && [ -b "$detected_disk" ]; then
-      DEV_INSTALL_DISK=$detected_disk
-      installer_info "auto-detected install disk ${DEV_INSTALL_DISK} for ${host_profile}"
-    fi
+  DEV_INSTALL_DISK=$detected_disk
+  export DEV_INSTALL_DISK
+  disk_identity=$("$detect_disk_helper" --identity "$DEV_INSTALL_DISK") ||
+    installer_fatal 'cannot verify selected disk identity'
+  installer_lifecycle_paths || installer_fatal 'cannot create private disk identity state'
+  disk_record=$LC_STATE/selected-disk.identity
+  disk_temp=$(mktemp "$LC_STATE/.disk-identity.XXXXXX") || installer_fatal 'cannot stage disk identity'
+  printf '%s\n' "$disk_identity" >"$disk_temp" || installer_fatal 'cannot record disk identity'
+  if [ -e "$disk_record" ] || [ -L "$disk_record" ]; then
+    [ -f "$disk_record" ] && [ ! -L "$disk_record" ] && cmp -s "$disk_temp" "$disk_record" ||
+      installer_fatal 'selected disk identity changed between installer phases'
+    rm -f "$disk_temp"
+  else
+    chmod 0600 "$disk_temp"
+    mv "$disk_temp" "$disk_record"
   fi
-  [ -n "${DEV_INSTALL_DISK:-}" ] || installer_fatal "DEV_INSTALL_DISK must be set by the selected host policy env"
-  installer_info "using install disk ${DEV_INSTALL_DISK}"
+  installer_info "using validated install disk ${DEV_INSTALL_DISK}"
 }

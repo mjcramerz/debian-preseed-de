@@ -5,8 +5,8 @@ Wants=network-online.target nss-lookup.target time-sync.target auditd.service
 After=network-online.target nss-lookup.target time-sync.target auditd.service
 ConditionPathExists=!/usr/local/lib/crowdsec/complete
 OnSuccess=secondboot.service
-StartLimitIntervalSec=15min
-StartLimitBurst=12
+StartLimitIntervalSec=infinity
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
@@ -17,6 +17,7 @@ StandardOutput=journal
 StandardError=journal
 Restart=on-failure
 RestartSec=30s
+RestartPreventExitStatus=2
 TimeoutStartSec=10min
 User=root
 Group=root

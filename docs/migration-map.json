@@ -7874,8 +7874,9 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "19e58cac6b1a8da30a805fc24910801a4e35bfc093e64895116dcfbee8740dc4",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "6193e7b54be70ee9eef513c51bcd5d49e100644f823cb5d6f321e0e32c40a1a3",
+      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained",
+      "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de.env",
