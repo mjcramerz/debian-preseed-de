@@ -3425,8 +3425,8 @@ devops_stage_codex_app_server() {
 }
 
 devops_install_pinned_codex() {
-  # The payload runs inside /target during the installer late command. The
-  # wrapper is staged from the tracked runtime mirror before this function.
+  # Build and validate every release component in private staging first. Final
+  # paths are published only after the archive and repository pin both pass.
   # shellcheck disable=SC2016
   run_in_target "download and install pinned managed Codex" /bin/sh -eu -c '
 umask 022
@@ -3484,6 +3484,52 @@ codex_validate_positive_integer() {
     ""|*[!0123456789]*) codex_fatal "${label} must be a positive integer" ;;
   esac
   [ "$value" -gt 0 ] || codex_fatal "${label} must be greater than zero"
+}
+
+codex_tree_matches() {
+  expected_tree=$1
+  actual_tree=$2
+  exclude_root_git=$3
+  expected_snapshot="${staging_dir}/expected-tree.tar"
+  actual_snapshot="${staging_dir}/actual-tree.tar"
+
+  [ -d "$expected_tree" ] && [ ! -L "$expected_tree" ] || return 1
+  [ -d "$actual_tree" ] && [ ! -L "$actual_tree" ] || return 1
+  rm -f -- "$expected_snapshot" "$actual_snapshot"
+  if [ "$exclude_root_git" = 1 ]; then
+    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
+      --exclude="./.git" --exclude="./.git/*" \
+      -cf "$expected_snapshot" -C "$expected_tree" . ||
+      codex_fatal "unable to snapshot staged Codex repository tree"
+    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
+      --exclude="./.git" --exclude="./.git/*" \
+      -cf "$actual_snapshot" -C "$actual_tree" . ||
+      codex_fatal "unable to snapshot existing Codex repository tree"
+  else
+    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
+      -cf "$expected_snapshot" -C "$expected_tree" . ||
+      codex_fatal "unable to snapshot staged Codex managed tree"
+    tar --sort=name --format=gnu --mtime=@0 --numeric-owner \
+      -cf "$actual_snapshot" -C "$actual_tree" . ||
+      codex_fatal "unable to snapshot existing Codex managed tree"
+  fi
+  if cmp -s -- "$expected_snapshot" "$actual_snapshot"; then
+    rm -f -- "$expected_snapshot" "$actual_snapshot"
+    return 0
+  fi
+  rm -f -- "$expected_snapshot" "$actual_snapshot"
+  return 1
+}
+
+codex_file_matches() {
+  expected_file=$1
+  actual_file=$2
+
+  [ -f "$expected_file" ] && [ ! -L "$expected_file" ] || return 1
+  [ -f "$actual_file" ] && [ ! -L "$actual_file" ] || return 1
+  [ "$(stat -c "%u:%g:%a" -- "$actual_file")" = \
+    "$(stat -c "%u:%g:%a" -- "$expected_file")" ] || return 1
+  cmp -s -- "$expected_file" "$actual_file"
 }
 
 codex_version=$1
@@ -3612,18 +3658,22 @@ for required_command in \
   awk \
   chmod \
   chown \
+  cmp \
   cp \
   curl \
   find \
   getent \
   git \
+  id \
   install \
   mktemp \
   mv \
   python3 \
   rm \
+  rmdir \
   sha256sum \
   stat \
+  tar \
   tr \
   wc
 do
@@ -3632,8 +3682,17 @@ done
 unset required_command
 getent passwd "$account_user" >/dev/null 2>&1 ||
   codex_fatal "required Codex account is missing: $account_user"
-getent group devops >/dev/null 2>&1 ||
+devops_group_record=$(getent group devops) ||
   codex_fatal "required target group is missing: devops"
+account_uid=$(id -u "$account_user")
+devops_gid=${devops_group_record#*:}
+devops_gid=${devops_gid#*:}
+devops_gid=${devops_gid%%:*}
+case "$account_uid:$devops_gid" in
+  *[!0123456789:]*|:*|*:)
+    codex_fatal "unable to resolve Codex account or devops group ids"
+    ;;
+esac
 
 [ -d "$codex_root" ] && [ ! -L "$codex_root" ] ||
   codex_fatal "prepared Codex root is missing or indirect: $codex_root"
@@ -3645,21 +3704,29 @@ getent group devops >/dev/null 2>&1 ||
   codex_fatal "staged Codex archive helper is missing or indirect: $archive_helper_path"
 [ "$(stat -c "%u:%g:%a" -- "$archive_helper_path")" = 0:0:700 ] ||
   codex_fatal "staged Codex archive helper has unexpected ownership or mode"
-existing_binary_entry=$(find "$codex_root/share/bin" \
-  -mindepth 1 -maxdepth 1 -print)
-[ -z "$existing_binary_entry" ] ||
-  codex_fatal "Codex binary directory is not empty: $existing_binary_entry"
-unset existing_binary_entry
-[ ! -e "$schema_path" ] && [ ! -L "$schema_path" ] ||
-  codex_fatal "Codex schema path already exists: $schema_path"
-[ ! -e "$user_root" ] && [ ! -L "$user_root" ] ||
-  codex_fatal "Codex repository path already exists: $user_root"
-[ ! -e "$system_config_dir" ] && [ ! -L "$system_config_dir" ] ||
-  codex_fatal "Codex system configuration path already exists: $system_config_dir"
 
 staging_dir=
 config_staging=
+publication_committed=0
+published_binary_directory=0
+published_schema=0
+published_repository=0
+published_config=0
+published_release_marker=0
+removed_binary_placeholder=0
+release_marker="${codex_root}/.managed-codex-release"
 cleanup() {
+  if [ "$publication_committed" = 0 ]; then
+    [ "$published_release_marker" = 0 ] || rm -f -- "$release_marker"
+    [ "$published_config" = 0 ] || rm -rf -- "$system_config_dir"
+    [ "$published_repository" = 0 ] || rm -rf -- "$user_root"
+    [ "$published_schema" = 0 ] || rm -f -- "$schema_path"
+    [ "$published_binary_directory" = 0 ] || rm -rf -- "$codex_root/share/bin"
+    if [ "$removed_binary_placeholder" = 1 ] && \
+      [ ! -e "$codex_root/share/bin" ] && [ ! -L "$codex_root/share/bin" ]; then
+      install -d -m 0755 -o root -g root "$codex_root/share/bin" || true
+    fi
+  fi
   if [ -n "$staging_dir" ]; then
     rm -rf -- "$staging_dir"
   fi
@@ -3668,7 +3735,10 @@ cleanup() {
   fi
   rm -f -- "$archive_helper_path"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap "exit 129" HUP
+trap "exit 130" INT
+trap "exit 143" TERM
 
 staging_dir=$(mktemp -d "${codex_root}/.install.XXXXXXXX") ||
   codex_fatal "unable to allocate Codex staging directory"
@@ -3738,29 +3808,26 @@ for extracted_path in "$extracted_binary_dir"/*; do
   esac
   chown root:root "$extracted_path"
   codex_chmod_without_special_bits 0755 "$extracted_path"
-  mv -- "$extracted_path" "$codex_root/share/bin/$binary_name"
 done
-unset \
-  binary_name \
-  extracted_path \
-  extracted_binary_dir \
-  first_extracted_binary \
-  hidden_extracted_binary \
-  unsafe_extracted_binary
+unset binary_name extracted_path
+chown root:root "$extracted_binary_dir"
+codex_chmod_without_special_bits 0755 "$extracted_binary_dir"
+
+candidate_binary_path="$extracted_binary_dir/codex"
+[ -x "$candidate_binary_path" ] && [ ! -L "$candidate_binary_path" ] ||
+  codex_fatal "managed Codex archive is missing its required entrypoint"
+version_output=$("$candidate_binary_path" --version 2>/dev/null || true)
+case "$version_output" in
+  *"$codex_version"*) ;;
+  *) codex_fatal "Codex version verification failed for staged release" ;;
+esac
 
 extracted_schema_path="$extract_dir/$archive_schema_member"
 [ -f "$extracted_schema_path" ] && [ ! -L "$extracted_schema_path" ] ||
   codex_fatal "extracted Codex configuration schema is missing or indirect"
 chown root:root "$extracted_schema_path"
 codex_chmod_without_special_bits 0644 "$extracted_schema_path"
-mv -- "$extracted_schema_path" "$schema_path"
-unset extracted_schema_path
-
-version_output=$("$binary_path" --version 2>/dev/null || true)
-case "$version_output" in
-  *"$codex_version"*) ;;
-  *) codex_fatal "Codex version verification failed for ${binary_path}" ;;
-esac
+unset first_extracted_binary hidden_extracted_binary unsafe_extracted_binary
 
 repository_staging="${staging_dir}/repository"
 git clone \
@@ -3811,10 +3878,9 @@ unsafe_etc_entry=$(find "$repository_staging/etc" -xdev \
 [ -z "$unsafe_etc_entry" ] ||
   codex_fatal "Codex repository etc tree contains an unsafe entry: $unsafe_etc_entry"
 
-mv -- "$repository_staging" "$user_root"
-repository_git_path="$user_root/.git"
+repository_git_path="$repository_staging/.git"
 [ -d "$repository_git_path" ] && [ ! -L "$repository_git_path" ] ||
-  codex_fatal "Codex repository metadata is missing or indirect"
+  codex_fatal "staged Codex repository metadata is missing or indirect"
 unsafe_repository_git_entry=$(find "$repository_git_path" -xdev \
   \( -type l -o \( ! -type d ! -type f \) -o \( -type f ! -links 1 \) \) \
   -print -quit)
@@ -3822,56 +3888,55 @@ unsafe_repository_git_entry=$(find "$repository_git_path" -xdev \
   codex_fatal "Codex repository metadata contains an unsafe entry: $unsafe_repository_git_entry"
 unset unsafe_repository_git_entry
 
-chown -R "$account_user:devops" "$user_root"
-find "$user_root" -xdev -type d -exec chmod a-s,go-w -- {} +
-find "$user_root" -xdev -type f -exec chmod a-s,go-w -- {} +
-# Git metadata is mutable account state. Normalize it independently from the
-# root-owned etc/ policy so fetch, checkout, and maintenance never require root.
+candidate_home_path="$repository_staging/home"
+candidate_memories_path="${candidate_home_path}/memories"
+chown -R "$account_user:devops" "$repository_staging"
+find "$repository_staging" -xdev -type d -exec chmod a-s,go-w -- {} +
+find "$repository_staging" -xdev -type f -exec chmod a-s,go-w -- {} +
 chown -R "$account_user:devops" "$repository_git_path"
 find "$repository_git_path" -xdev -type d -exec chmod 0750 -- {} +
 find "$repository_git_path" -xdev -type f -exec chmod 0640 -- {} +
-chown -R root:root "$user_root/etc"
-codex_chmod_without_special_bits 0755 "$user_root/etc"
+chown -R root:root "$repository_staging/etc"
+codex_chmod_without_special_bits 0755 "$repository_staging/etc"
 
 install -d -m 2770 -o "$account_user" -g devops \
-  "$home_path/sessions" \
-  "$home_path/shell_snapshots" \
-  "$home_path/archived_sessions"
+  "$candidate_home_path/sessions" \
+  "$candidate_home_path/shell_snapshots" \
+  "$candidate_home_path/archived_sessions"
 for state_file in history.jsonl session_index.jsonl external_agent_session_imports.json; do
-  install -m 0660 -o "$account_user" -g devops /dev/null "$home_path/$state_file"
+  install -m 0660 -o "$account_user" -g devops /dev/null \
+    "$candidate_home_path/$state_file"
 done
 
-memories_path="${home_path}/memories"
-if [ ! -e "$memories_path" ]; then
-  install -d -m 2770 -o "$account_user" -g devops "$memories_path"
+if [ ! -e "$candidate_memories_path" ]; then
+  install -d -m 2770 -o "$account_user" -g devops "$candidate_memories_path"
 fi
-[ -d "$memories_path" ] && [ ! -L "$memories_path" ] ||
-  codex_fatal "Codex memories path is missing or indirect"
-rm -rf -- "$memories_path/.git"
-chown -R "$account_user:devops" "$memories_path"
-find "$home_path" -xdev -type d -exec chmod a-s,g=u,o=,g+s -- {} +
-find "$home_path" -xdev -type f -exec chmod a-s,g=u,o= -- {} +
+[ -d "$candidate_memories_path" ] && [ ! -L "$candidate_memories_path" ] ||
+  codex_fatal "staged Codex memories path is missing or indirect"
+rm -rf -- "$candidate_memories_path/.git"
+chown -R "$account_user:devops" "$candidate_memories_path"
+find "$candidate_home_path" -xdev -type d -exec chmod a-s,g=u,o=,g+s -- {} +
+find "$candidate_home_path" -xdev -type f -exec chmod a-s,g=u,o= -- {} +
 
-chown "$account_user:devops" "$user_root" "$home_path" "$memories_path"
-codex_chmod_without_special_bits 0750 "$user_root"
-codex_chmod_group_shared "$home_path" "$memories_path"
-# Keep Git from treating the managed memories directory as a nested repository
-# while allowing the desktop account and the confined Codex process to update
-# the marker when memory workflows need to do so.
-install -m 0660 -o "$account_user" -g devops /dev/null "$memories_path/.git"
-[ -f "$memories_path/.git" ] && [ ! -L "$memories_path/.git" ] ||
-  codex_fatal "Codex memories .git marker is not a direct regular file"
+chown "$account_user:devops" \
+  "$repository_staging" "$candidate_home_path" "$candidate_memories_path"
+codex_chmod_without_special_bits 0750 "$repository_staging"
+codex_chmod_group_shared "$candidate_home_path" "$candidate_memories_path"
+install -m 0660 -o "$account_user" -g devops /dev/null \
+  "$candidate_memories_path/.git"
+[ -f "$candidate_memories_path/.git" ] && \
+  [ ! -L "$candidate_memories_path/.git" ] ||
+  codex_fatal "staged Codex memories .git marker is not a direct regular file"
 
 config_staging=$(mktemp -d "/etc/.codex.XXXXXXXX") ||
   codex_fatal "unable to allocate Codex system configuration staging directory"
-cp -a -- "$user_root/etc/." "$config_staging/"
+cp -a -- "$repository_staging/etc/." "$config_staging/"
 chown -R root:root "$config_staging"
 find "$config_staging" -xdev -type d -exec chmod a-s,go-w -- {} +
 find "$config_staging" -xdev -type f -exec chmod a-s,go-w -- {} +
 codex_chmod_without_special_bits 0755 "$config_staging"
-mv -- "$config_staging" "$system_config_dir"
-config_staging=
 
+candidate_release_marker="${staging_dir}/managed-codex-release"
 {
   printf "version=%s\n" "$codex_version"
   printf "release_tag=%s\n" "$release_tag"
@@ -3887,38 +3952,134 @@ config_staging=
   printf "repository_commit=%s\n" "$repository_commit"
   printf "binary=%s\n" "$binary_path"
   printf "wrapper=%s\n" "$wrapper_path"
-} >"${codex_root}/.managed-codex-release"
-chmod 0644 "${codex_root}/.managed-codex-release"
-chown root:root "${codex_root}/.managed-codex-release"
+} >"$candidate_release_marker"
+chmod 0644 "$candidate_release_marker"
+chown root:root "$candidate_release_marker"
 
-chown root:devops "$codex_root"
-chmod 3770 "$codex_root"
-chown "$account_user:devops" "$user_root" "$home_path" "$memories_path"
-codex_chmod_without_special_bits 0750 "$user_root"
-codex_chmod_group_shared "$home_path" "$memories_path"
-chown root:root \
-  "$codex_root/share" \
-  "$codex_root/share/bin" \
-  "$codex_root/lib" \
-  "$schema_path" \
-  "$wrapper_path"
-for installed_binary_path in "$codex_root/share/bin"/*; do
-  chown root:root "$installed_binary_path"
-done
-unset installed_binary_path
-codex_chmod_without_special_bits 0755 \
-  "$codex_root/share" \
-  "$codex_root/share/bin" \
-  "$codex_root/lib" \
-  "$wrapper_path"
-for installed_binary_path in "$codex_root/share/bin"/*; do
-  codex_chmod_without_special_bits 0755 "$installed_binary_path"
-done
-unset installed_binary_path
-codex_chmod_without_special_bits 0644 "$schema_path"
-chown "$account_user:devops" "$log_dir" "$sqlite_home" "$runtime_root"
-codex_chmod_group_shared "$log_dir" "$sqlite_home" "$runtime_root"
+# Reuse only byte-for-byte and metadata-identical state from a prior interrupted
+# run. Anything else remains fatal and is never replaced or taken over.
+publish_binary_directory=0
+existing_binary_entry=$(find "$codex_root/share/bin" \
+  -mindepth 1 -maxdepth 1 -print -quit)
+if [ -z "$existing_binary_entry" ]; then
+  [ "$(stat -c "%u:%g:%a" -- "$codex_root/share/bin")" = 0:0:755 ] ||
+    codex_fatal "empty Codex binary directory has unexpected ownership or mode"
+  publish_binary_directory=1
+elif ! codex_tree_matches "$extracted_binary_dir" "$codex_root/share/bin" 0; then
+  codex_fatal "existing Codex binary directory conflicts with the pinned release"
+fi
+unset existing_binary_entry
 
+publish_schema=0
+if [ -e "$schema_path" ] || [ -L "$schema_path" ]; then
+  codex_file_matches "$extracted_schema_path" "$schema_path" ||
+    codex_fatal "existing Codex schema conflicts with the pinned release: $schema_path"
+else
+  publish_schema=1
+fi
+
+publish_repository=0
+if [ -e "$user_root" ] || [ -L "$user_root" ]; then
+  codex_tree_matches "$repository_staging" "$user_root" 1 ||
+    codex_fatal "existing Codex repository tree conflicts with the pinned revision"
+  existing_repository_git="$user_root/.git"
+  [ -d "$existing_repository_git" ] && [ ! -L "$existing_repository_git" ] ||
+    codex_fatal "existing Codex repository metadata is missing or indirect"
+  unsafe_existing_git_entry=$(find "$existing_repository_git" -xdev \
+    \( \
+      \( ! -type d ! -type f \) -o \
+      \( -type d \( ! -uid "$account_uid" -o ! -gid "$devops_gid" -o ! -perm 0750 \) \) -o \
+      \( -type f \( ! -uid "$account_uid" -o ! -gid "$devops_gid" -o ! -perm 0640 -o ! -links 1 \) \) \
+    \) -print -quit)
+  [ -z "$unsafe_existing_git_entry" ] ||
+    codex_fatal "existing Codex repository metadata has unsafe ownership, mode, or type"
+  existing_repository_url=$(git -c "safe.directory=$user_root" \
+    -C "$user_root" remote get-url origin)
+  [ "$existing_repository_url" = "$repository_url" ] ||
+    codex_fatal "existing Codex repository remote conflicts with policy"
+  existing_repository_commit=$(git -c "safe.directory=$user_root" \
+    -C "$user_root" rev-parse HEAD)
+  [ "$existing_repository_commit" = "$repository_commit" ] ||
+    codex_fatal "existing Codex repository commit conflicts with policy"
+  existing_repository_changes=$(git -c "safe.directory=$user_root" \
+    -C "$user_root" status --porcelain --untracked-files=all)
+  [ -z "$existing_repository_changes" ] ||
+    codex_fatal "existing Codex repository contains uncommitted state"
+  unset \
+    existing_repository_changes \
+    existing_repository_commit \
+    existing_repository_git \
+    existing_repository_url \
+    unsafe_existing_git_entry
+else
+  publish_repository=1
+fi
+
+publish_config=0
+if [ -e "$system_config_dir" ] || [ -L "$system_config_dir" ]; then
+  codex_tree_matches "$config_staging" "$system_config_dir" 0 ||
+    codex_fatal "existing Codex system configuration conflicts with the pinned revision"
+else
+  publish_config=1
+fi
+
+publish_release_marker=0
+if [ -e "$release_marker" ] || [ -L "$release_marker" ]; then
+  codex_file_matches "$candidate_release_marker" "$release_marker" ||
+    codex_fatal "existing Codex release marker conflicts with the pinned release"
+else
+  publish_release_marker=1
+fi
+
+# All conflict checks are complete. Publish only destinations that are absent;
+# rollback removes only paths moved into place by this invocation.
+if [ "$publish_binary_directory" = 1 ]; then
+  rmdir -- "$codex_root/share/bin" ||
+    codex_fatal "unable to remove empty Codex binary directory before publication"
+  removed_binary_placeholder=1
+  mv -- "$extracted_binary_dir" "$codex_root/share/bin" ||
+    codex_fatal "unable to publish pinned Codex binary directory"
+  published_binary_directory=1
+fi
+if [ "$publish_schema" = 1 ]; then
+  mv -- "$extracted_schema_path" "$schema_path" ||
+    codex_fatal "unable to publish pinned Codex configuration schema"
+  published_schema=1
+fi
+if [ "$publish_repository" = 1 ]; then
+  mv -- "$repository_staging" "$user_root" ||
+    codex_fatal "unable to publish pinned Codex home repository"
+  published_repository=1
+fi
+if [ "$publish_config" = 1 ]; then
+  mv -- "$config_staging" "$system_config_dir" ||
+    codex_fatal "unable to publish pinned Codex system configuration"
+  published_config=1
+  config_staging=
+fi
+if [ "$publish_release_marker" = 1 ]; then
+  mv -- "$candidate_release_marker" "$release_marker" ||
+    codex_fatal "unable to publish managed Codex release marker"
+  published_release_marker=1
+fi
+
+[ -x "$binary_path" ] && [ ! -L "$binary_path" ] ||
+  codex_fatal "published Codex entrypoint is missing or indirect"
+version_output=$("$binary_path" --version 2>/dev/null || true)
+case "$version_output" in
+  *"$codex_version"*) ;;
+  *) codex_fatal "published Codex version verification failed" ;;
+esac
+[ -f "$schema_path" ] && [ ! -L "$schema_path" ] ||
+  codex_fatal "published Codex schema is missing or indirect"
+[ -d "$user_root/.git" ] && [ ! -L "$user_root/.git" ] ||
+  codex_fatal "published Codex repository metadata is missing or indirect"
+[ -d "$system_config_dir" ] && [ ! -L "$system_config_dir" ] ||
+  codex_fatal "published Codex system configuration is missing or indirect"
+[ -f "$release_marker" ] && [ ! -L "$release_marker" ] ||
+  codex_fatal "published Codex release marker is missing or indirect"
+
+publication_committed=1
 printf "installed managed Codex %s at %s with wrapper %s\n" \
   "$codex_version" \
   "$binary_path" \

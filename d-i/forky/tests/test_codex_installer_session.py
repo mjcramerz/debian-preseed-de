@@ -417,6 +417,52 @@ devops_prepare_codex_layout() {{
 
 
 class CodexDeploymentContractTests(unittest.TestCase):
+    def test_managed_codex_release_is_preflighted_before_publication(self):
+        devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
+        function = devops.split('devops_install_pinned_codex() {', 1)[1].split(
+            '\n}\n\ndevops_run_as_account() {', 1
+        )[0]
+
+        publication = 'rmdir -- "$codex_root/share/bin"'
+        self.assertIn(publication, function)
+        publication_offset = function.index(publication)
+        for required_preflight in (
+            'python3 "$archive_helper_path"',
+            'version_output=$("$candidate_binary_path" --version',
+            'git clone',
+            'actual_repository_commit=$(git -C "$repository_staging" rev-parse HEAD)',
+            'cp -a -- "$repository_staging/etc/." "$config_staging/"',
+            'codex_tree_matches "$extracted_binary_dir" "$codex_root/share/bin" 0',
+            'codex_tree_matches "$repository_staging" "$user_root" 1',
+            'codex_tree_matches "$config_staging" "$system_config_dir" 0',
+        ):
+            with self.subTest(required_preflight=required_preflight):
+                self.assertIn(required_preflight, function)
+                self.assertLess(function.index(required_preflight), publication_offset)
+
+        self.assertNotIn(
+            'mv -- "$extracted_path" "$codex_root/share/bin/$binary_name"',
+            function,
+        )
+
+    def test_managed_codex_publication_rolls_back_only_new_paths(self):
+        devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
+        function = devops.split('devops_install_pinned_codex() {', 1)[1].split(
+            '\n}\n\ndevops_run_as_account() {', 1
+        )[0]
+
+        self.assertIn('publication_committed=0', function)
+        self.assertIn('[ "$published_binary_directory" = 0 ] ||', function)
+        self.assertIn('[ "$published_schema" = 0 ] ||', function)
+        self.assertIn('[ "$published_repository" = 0 ] ||', function)
+        self.assertIn('[ "$published_config" = 0 ] ||', function)
+        self.assertIn('[ "$published_release_marker" = 0 ] ||', function)
+        self.assertIn('publication_committed=1', function)
+        self.assertLess(
+            function.index('published_release_marker=1'),
+            function.index('publication_committed=1'),
+        )
+
     def test_target_installer_runs_after_desktop_home_population(self):
         text = STANDALONE.read_text()
         start = text.index('devops_de_apply_environment ||')
