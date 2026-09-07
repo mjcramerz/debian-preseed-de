@@ -1,5 +1,5 @@
 # Managed by unattended-installer for addon/devops.
-# This file contains non-secret daemon policy only. systemd loads secret files
-# through codex-app-server.service LoadCredential= directives before invoking
-# the managed Codex Bubblewrap wrapper.
+# This file contains non-secret daemon policy only. systemd decodes the optional
+# MCP secret environment through a service credential before invoking the
+# managed Codex Bubblewrap wrapper. Codex creates its own auth.json after login.
 CODEX_APP_SERVER_SECRET_ENV_NAMES=CODEX_MCP_API_KEY

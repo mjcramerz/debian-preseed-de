@@ -3200,9 +3200,15 @@ codex_verify_stat "${account_uid}:${devops_gid}:700" "$runtime_root/.control"
 codex_verify_stat "${account_uid}:${devops_gid}:700" "$codex_root/packages"
 codex_verify_stat "${account_uid}:${devops_gid}:700" "$codex_root/sockets"
 codex_verify_stat "${account_uid}:${devops_gid}:700" "$codex_root/credentials"
-codex_verify_stat "${account_uid}:${devops_gid}:600" "$codex_root/credentials/auth.json"
 codex_verify_stat "${account_uid}:${devops_gid}:600" "$codex_root/credentials/mcp.env"
-codex_verify_stat "${account_uid}:${devops_gid}:600" "$home_path/auth.json"
+# Codex authentication state is absent before login and private when present.
+if [ -e "$home_path/auth.json" ] || [ -L "$home_path/auth.json" ]; then
+  [ -f "$home_path/auth.json" ] && [ ! -L "$home_path/auth.json" ] ||
+    codex_fatal "CODEX_HOME auth state is not a direct regular file"
+  [ "$(stat -c "%h" -- "$home_path/auth.json")" = 1 ] ||
+    codex_fatal "CODEX_HOME auth state must not be hard linked"
+  codex_verify_stat "${account_uid}:${devops_gid}:600" "$home_path/auth.json"
+fi
 codex_verify_stat "${account_uid}:${devops_gid}:700" "$home_path/app-server-control"
 codex_verify_stat \
   "${account_uid}:${devops_gid}:600" \
@@ -3318,16 +3324,13 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server unit does not use the managed wrapper command"
   grep -Fqx 'EnvironmentFile=/etc/default/codex-app-server' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
-  grep -Fqx 'LoadCredential=codex-auth.json:/data/codex/credentials/auth.json' "$service_tmp" ||
-    devops_fatal "Codex app-server unit is missing its auth credential"
   grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its MCP credential environment"
   grep -Fqx 'EnvironmentFile=-%d/codex-mcp.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit does not let systemd decode the MCP credential environment"
-  grep -Fqx 'BindReadOnlyPaths=%d/codex-auth.json:/data/codex/usr/home/auth.json' "$service_tmp" ||
-    devops_fatal "Codex app-server unit does not bind its auth credential over CODEX_HOME/auth.json"
-  grep -Fqx 'InaccessiblePaths=-/data/codex/credentials' "$service_tmp" ||
-    devops_fatal "Codex app-server unit does not hide persistent credential sources"
+  if grep -Eq '^[[:space:]]*[^#[:space:]].*auth\.json' "$service_tmp"; then
+    devops_fatal "Codex app-server unit must not require or overmount pre-login auth.json state"
+  fi
   if grep -Eq '^ExecStart=.*/data/codex/(share/bin/codex|lib/codex-app-server)([[:space:]]|$)' "$service_tmp"; then
     devops_fatal "Codex app-server unit bypasses the managed wrapper"
   fi
@@ -3938,8 +3941,6 @@ install -m 0660 -o "$account_user" -g devops /dev/null \
 # Stage the same policy that tmpfiles applies after publication. Previously the
 # publication omitted runtime links and changed modes only AFTER the commit.
 chmod 0750 "$repository_staging/agents" "$repository_staging/skills"
-install -m 0600 -o "$account_user" -g devops /dev/null "$candidate_home_path/auth.json"
-printf "{}\n" >"$candidate_home_path/auth.json"
 install -d -m 0700 -o "$account_user" -g devops "$candidate_home_path/app-server-control"
 install -m 0600 -o "$account_user" -g devops /dev/null \
   "$candidate_home_path/app-server-control/app-server-startup.lock"

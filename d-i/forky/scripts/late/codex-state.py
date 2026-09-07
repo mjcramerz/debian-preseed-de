@@ -23,10 +23,12 @@ MUTABLE_TREES = frozenset({
     'home/sessions', 'home/shell_snapshots', 'home/archived_sessions', 'home/memories',
 })
 MUTABLE_FILES = frozenset({
-    'home/auth.json', 'home/history.jsonl', 'home/session_index.jsonl',
+    'home/history.jsonl', 'home/session_index.jsonl',
     'home/external_agent_session_imports.json',
     'home/app-server-control/app-server-startup.lock',
 })
+# Codex creates this opaque state after user login; a fresh publication omits it.
+OPTIONAL_PRIVATE_FILES = {'home/auth.json': 0o600}
 
 
 class StateError(ValueError):
@@ -85,6 +87,28 @@ def snapshot(root: Path) -> dict[str, Entry]:
                     before = os.fstat(child)
                     if (info.st_dev, info.st_ino, info.st_nlink) != (before.st_dev, before.st_ino, before.st_nlink):
                         raise StateError('managed file changed during verification')
+                    if rel in OPTIONAL_PRIVATE_FILES:
+                        initial_metadata = (
+                            info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
+                            info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns,
+                        )
+                        before_metadata = (
+                            before.st_dev, before.st_ino, before.st_mode, before.st_uid,
+                            before.st_gid, before.st_nlink, before.st_size,
+                            before.st_mtime_ns, before.st_ctime_ns,
+                        )
+                        if initial_metadata != before_metadata:
+                            raise StateError('managed file changed during verification')
+                        after = os.fstat(child)
+                        after_metadata = (
+                            after.st_dev, after.st_ino, after.st_mode, after.st_uid,
+                            after.st_gid, after.st_nlink, after.st_size,
+                            after.st_mtime_ns, after.st_ctime_ns,
+                        )
+                        if before_metadata != after_metadata:
+                            raise StateError('managed file changed during verification')
+                        entries[rel] = Entry('file', info.st_uid, info.st_gid, mode)
+                        continue
                     digest = hashlib.sha256()
                     read = 0
                     while data := os.read(child, 1024 * 1024):
@@ -202,11 +226,19 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, commit: str,
     wanted = snapshot(expected)
     found = snapshot(actual)
     validate_git(actual, found, uid, gid, commit, url)
+    if any(name in wanted for name in OPTIONAL_PRIVATE_FILES):
+        raise StateError('optional authentication state must not be staged by the installer')
     for name, entry in wanted.items():
         if entry.kind == 'link':
             validate_link(name, entry.link, codex_root)
     for name, entry in found.items():
         if name == '.git' or name.startswith('.git/'):
+            continue
+        if name in OPTIONAL_PRIVATE_FILES:
+            if (entry.kind != 'file' or
+                    (entry.uid, entry.gid, entry.mode) !=
+                    (uid, gid, OPTIONAL_PRIVATE_FILES[name])):
+                raise StateError('optional authentication state has unsafe metadata')
             continue
         if runtime_tree(name):
             if (entry.uid, entry.gid) != (uid, gid):

@@ -36,7 +36,6 @@ CODEX_POOL_ROOT = "/pool"
 CODEX_USER_ROOT = "/data/codex/usr"
 CODEX_AGENTS_ROOT = "/data/codex/usr/agents"
 CODEX_RUNTIME_HOME = "/data/codex/usr/home"
-CODEX_AUTH_PATH = f"{CODEX_RUNTIME_HOME}/auth.json"
 CODEX_SKILLS_ROOT = "/data/codex/usr/skills"
 CODEX_LOG_ROOT = "/data/codex/log"
 CODEX_HOST_LOG_ROOT = "/var/log/managed/openai/codex"
@@ -44,7 +43,6 @@ CODEX_SQLITE_ROOT = "/data/codex/sqlite"
 CODEX_RUNTIME_ROOT = "/data/codex/runtime"
 CODEX_SHARED_DOWNLOADS_ROOT = "/data/downloads"
 CODEX_SHARED_TMP_ROOT = "/data/tmp"
-MAX_AUTH_CREDENTIAL_BYTES = 1_048_576
 CODEX_DEVOPS_GROUP = "devops"
 BWRAP_BINARY = "/usr/bin/bwrap"
 SLIRP4NETNS_BINARY = "/usr/bin/slirp4netns"
@@ -333,7 +331,6 @@ CODEX_APP_SERVER_MODE = False
 CODEX_USE_BWRAP = True
 CODEX_SANDBOX_PATH = ""
 CODEX_CONTROL_DIR = ""
-CODEX_AUTH_FD: int | None = None
 CODEX_BWRAP_PROCESS: subprocess.Popen[bytes] | None = None
 CODEX_SANDBOX_PID: int | None = None
 CODEX_SANDBOX_PIDFD: int | None = None
@@ -569,52 +566,6 @@ def codex_capture_app_server_environment() -> dict[str, str]:
 
     CODEX_APP_SERVER_ENVIRONMENT = captured
     return dict(captured)
-
-
-def codex_capture_auth_credential() -> None:
-    """Open systemd's per-service credential copy before cleaning the environment.
-
-    Passing a read-only fd to --ro-bind-data avoids a second user/mount namespace
-    in the user unit (which can lose supplementary devops group mappings).
-    Neither the credential value nor its source pathname is passed to Codex.
-    """
-    global CODEX_AUTH_FD
-    if not CODEX_APP_SERVER_MODE:
-        return
-    directory = os.environ.get("CREDENTIALS_DIRECTORY", "")
-    expected = f"/run/user/{os.getuid()}/credentials/codex-app-server.service"
-    if directory != expected or os.path.realpath(directory) != directory:
-        codex_die("app-server requires its systemd user-service credential directory")
-    directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
-    descriptor: int | None = None
-    try:
-        directory_stat = os.fstat(directory_fd)
-        if directory_stat.st_uid != os.getuid() or directory_stat.st_mode & 0o022:
-            codex_die("app-server credential directory is not private account state")
-        descriptor = os.open(
-            "codex-auth.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
-            dir_fd=directory_fd,
-        )
-        metadata = os.fstat(descriptor)
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
-                or metadata.st_mode & 0o077 or metadata.st_size > MAX_AUTH_CREDENTIAL_BYTES):
-            codex_die("app-server auth credential must be a private, bounded regular file")
-        data = os.read(descriptor, MAX_AUTH_CREDENTIAL_BYTES + 1)
-        if len(data) > MAX_AUTH_CREDENTIAL_BYTES:
-            codex_die("app-server auth credential exceeds 1 MiB")
-        try:
-            credential = json.loads(data)
-        except (ValueError, UnicodeDecodeError):
-            codex_die("app-server auth credential is not valid JSON")
-        if not isinstance(credential, dict):
-            codex_die("app-server auth credential must be a JSON object")
-        os.lseek(descriptor, 0, os.SEEK_SET)
-        CODEX_AUTH_FD = descriptor
-        descriptor = None
-    finally:
-        os.close(directory_fd)
-        if descriptor is not None:
-            os.close(descriptor)
 
 
 def codex_restore_app_server_environment() -> None:
@@ -1851,7 +1802,8 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
             "--bind", CODEX_SHARED_DOWNLOADS_ROOT, CODEX_SHARED_DOWNLOADS_ROOT,
             "--bind", CODEX_SHARED_TMP_ROOT, CODEX_SHARED_TMP_ROOT,
             # Repository policy deliberately persists the complete managed Codex
-            # home. The per-launch installation ID shadows any host copy.
+            # home, including auth state created after login. The per-launch
+            # installation ID shadows any host copy.
             "--bind", CODEX_RUNTIME_HOME, CODEX_RUNTIME_HOME,
             "--bind", f"{CODEX_CONTROL_DIR}/installation_id", f"{CODEX_RUNTIME_HOME}/installation_id",
             "--bind", CODEX_HOST_LOG_ROOT, CODEX_LOG_ROOT,
@@ -1869,10 +1821,6 @@ def codex_build_bwrap_args(uid: int, gid: int) -> list[str]:
         codex_append_ro_bind_if_present(protected, protected)
     for protected in (f"{CODEX_STORAGE_ROOT}/config.schema.json", f"{CODEX_STORAGE_ROOT}/.managed-codex-release"):
         codex_append_ro_bind_if_present(protected, protected)
-    if CODEX_APP_SERVER_MODE:
-        if CODEX_AUTH_FD is None:
-            codex_die("app-server authentication credential was not opened")
-        BWRAP_ARGS.extend(("--perms", "0600", "--ro-bind-data", str(CODEX_AUTH_FD), CODEX_AUTH_PATH))
     codex_append_ro_bind_to_existing_path(
         f"{CODEX_CONTROL_DIR}/machine-id", "/var/lib/dbus/machine-id"
     )
@@ -2016,11 +1964,9 @@ def _signal_sandbox(signum: int) -> None:
 
 
 def codex_cleanup() -> None:
-    global CODEX_AUTH_FD, CODEX_BWRAP_PROCESS, CODEX_CONTROL_DIR, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS, CODEX_SIGNALLED
+    global CODEX_BWRAP_PROCESS, CODEX_CONTROL_DIR, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS, CODEX_SIGNALLED
     # A signal arriving during normal finally cleanup must not interrupt teardown.
     CODEX_SIGNALLED = True
-    _close_fd(CODEX_AUTH_FD)
-    CODEX_AUTH_FD = None
     codex_clear_app_server_environment()
     _signal_sandbox(signal.SIGTERM)
     _terminate_process(CODEX_BWRAP_PROCESS)
@@ -2056,7 +2002,7 @@ def codex_handle_signal(signum: int, _frame: object = None) -> None:
 
 
 def codex_run_sandboxed() -> int:
-    global CODEX_AUTH_FD, CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS
+    global CODEX_BWRAP_PROCESS, CODEX_SANDBOX_PID, CODEX_SANDBOX_PIDFD, CODEX_SLIRP_PROCESS
     uid = os.getuid()
     gid = os.getgid()
     codex_prepare_control_state()
@@ -2084,15 +2030,13 @@ def codex_run_sandboxed() -> int:
         CODEX_BWRAP_PROCESS = subprocess.Popen(
             bwrap_command,
             close_fds=True,
-            pass_fds=(info_write, block_read, *((CODEX_AUTH_FD,) if CODEX_AUTH_FD is not None else ())),
+            pass_fds=(info_write, block_read),
         )
-        # systemd has already decoded daemon credentials into the service
-        # environment. Bubblewrap inherits that sanitized environment without
-        # putting secret values in argv; the supervising wrapper drops its copy
+        # systemd has already decoded the optional MCP credential into the
+        # service environment. Bubblewrap inherits that sanitized environment
+        # without putting secret values in argv; the supervising wrapper drops its copy
         # immediately after the child has started.
         codex_clear_app_server_environment()
-        _close_fd(CODEX_AUTH_FD)
-        CODEX_AUTH_FD = None
         _close_fd(info_write)
         info_write = None
         _close_fd(block_read)
@@ -2210,7 +2154,6 @@ def main(arguments: Sequence[str]) -> int:
         codex_die("run Codex as the managed unprivileged account, not root/setuid")
     codex_parse_arguments(arguments)
     codex_capture_app_server_environment()
-    codex_capture_auth_credential()
     codex_prepare_environment()
     codex_restore_app_server_environment()
     codex_require_executable("raw Codex binary", CODEX_RAW_BINARY)

@@ -344,8 +344,7 @@ class CodexStateTests(unittest.TestCase):
         for path, content, mode in [('.git/HEAD', self.commit+'\n', 0o640),
                 ('.git/config', '[core]\n bare = false\n[remote "origin"]\n url = '+self.url+'\n', 0o640),
                 ('home/config.toml', 'policy = "pinned"\n', 0o640),
-                ('home/auth.json', '{}', 0o600), ('home/history.jsonl', '', 0o660),
-                ('home/memories/.git', '', 0o660)]:
+                ('home/history.jsonl', '', 0o660), ('home/memories/.git', '', 0o660)]:
             p = self.expected / path; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(content); p.chmod(mode)
         for p in [self.expected, *self.expected.rglob('*')]:
             if p.is_dir(): p.chmod(0o750)
@@ -361,9 +360,24 @@ class CodexStateTests(unittest.TestCase):
         self.compare(); self.compare()
 
     def test_legitimate_account_runtime_changes_converge(self):
-        (self.actual / 'home/auth.json').write_text('{"private":"not-logged"}')
+        auth = self.actual / 'home/auth.json'
+        auth.write_text('{"private":"not-logged"}')
+        auth.chmod(0o600)
         session = self.actual / 'home/sessions/new.jsonl'; session.write_text('runtime'); session.chmod(0o660)
         self.compare(); self.compare()
+
+    def test_optional_auth_contents_are_opaque(self):
+        auth = self.actual / 'home/auth.json'
+        auth.write_bytes(b'\xffnot-installer-configuration\x00')
+        auth.chmod(0o600)
+        self.compare()
+        self.assertEqual(self.mod.snapshot(self.actual)['home/auth.json'].digest, '')
+
+    def test_installer_candidate_must_not_stage_auth(self):
+        auth = self.expected / 'home/auth.json'
+        auth.write_text('{}')
+        auth.chmod(0o600)
+        with self.assertRaises(self.mod.StateError): self.compare()
 
     def test_immutable_conflict_fails(self):
         (self.actual / 'home/config.toml').write_text('tampered')
@@ -396,8 +410,31 @@ class CodexStateTests(unittest.TestCase):
         os.link(p, self.actual / 'home/extra')
         with self.assertRaises(self.mod.StateError): self.compare()
         (self.actual / 'home/extra').unlink()
-        (self.actual / 'home/auth.json').chmod(0o666)
+        auth = self.actual / 'home/auth.json'
+        auth.write_text('{}')
+        auth.chmod(0o666)
         with self.assertRaises(self.mod.StateError): self.compare()
+
+    def test_optional_auth_symlink_and_hardlink_are_rejected(self):
+        auth = self.actual / 'home/auth.json'
+        auth.symlink_to('config.toml')
+        with self.assertRaises(self.mod.StateError): self.compare()
+        auth.unlink()
+        os.link(self.actual / 'home/config.toml', auth)
+        with self.assertRaises(self.mod.StateError): self.compare()
+
+    def test_installer_does_not_create_prelogin_auth_state(self):
+        tmpfiles = (ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl').read_text()
+        devops = (ROOT / 'scripts/late/devops.sh').read_text()
+        self.assertNotIn('__INSTALLER_DEVOPS_CODEX_HOME__/auth.json', tmpfiles)
+        self.assertNotIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/auth.json', tmpfiles)
+        self.assertNotRegex(devops, r'candidate_home_path[^\n]*auth\.json')
+        self.assertNotIn('$codex_root/credentials/auth.json', devops)
+        self.assertIn(
+            'Codex app-server unit must not require or overmount pre-login auth.json state',
+            devops,
+        )
+        self.assertNotIn('does not bind its auth credential over CODEX_HOME/auth.json', devops)
 
     def test_missing_packages_tmpfiles_rule_regression(self):
         text = (ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl').read_text()

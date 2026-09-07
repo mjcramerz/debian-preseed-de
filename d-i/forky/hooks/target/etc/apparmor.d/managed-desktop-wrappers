@@ -934,9 +934,6 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   /run/{NetworkManager,resolvconf,systemd/resolve}/ r,
   /run/{NetworkManager,resolvconf,systemd/resolve}/** r,
   owner /run/user/[0-9]*/ r,
-  owner /run/user/[0-9]*/credentials/ r,
-  owner /run/user/[0-9]*/credentials/codex-app-server.service/ r,
-  owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
   owner /run/user/[0-9]*/codex-devops-environment.* rwk,
   /usr/lib/modules/ r,
   /var/lib/{AccountsService,NetworkManager,bluetooth,connman,dbus,iwd,systemd,systemd/rfkill}/ r,
@@ -980,8 +977,6 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/managed-bwrap-common>
     #include <abstractions/managed-codex-runtime>
-    # The only credential access is the already-open read-only systemd copy.
-    owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
     ptrace (readby) peer=managed-codex-slirp4netns,
 
     # Bubblewrap traverses root-owned bind sources while constructing the
@@ -1062,8 +1057,6 @@ profile managed-codex-runtime /data/codex/share/bin/* flags=(attach_disconnected
   profile codex-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/managed-bwrap-common>
     #include <abstractions/managed-codex-runtime>
-    # The only credential access is the already-open read-only systemd copy.
-    owner /run/user/[0-9]*/credentials/codex-app-server.service/codex-auth.json r,
     ptrace (readby) peer=managed-codex-slirp4netns,
 
     signal (send, receive) peer=managed-codex-runtime,

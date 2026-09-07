@@ -60,13 +60,6 @@ class CodexTests(unittest.TestCase):
         self.assertTrue(c.CODEX_APP_SERVER_MODE)
         self.assertEqual(args, list(c.CODEX_APP_SERVER_ARGUMENTS))
 
-    def test_non_service_arguments_do_not_import_credentials(self):
-        c = self.codex
-        c.codex_parse_arguments(['app-server', '--listen', 'tcp://127.0.0.1:4321'])
-        with mock.patch.object(c.os, 'open', side_effect=AssertionError('must not open')):
-            c.codex_capture_auth_credential()
-        self.assertIsNone(c.CODEX_AUTH_FD)
-
     def test_injected_secret_environment_names_rejected(self):
         c = self.codex
         for name in ['LD_PRELOAD', 'PYTHONPATH', 'PERL5OPT', 'PATH', 'HOME', 'BASH_ENV',
@@ -74,72 +67,6 @@ class CodexTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse(c._app_server_secret_environment_name_is_safe(name))
         self.assertTrue(c._app_server_secret_environment_name_is_safe('MCP_ACCESS_TOKEN'))
-
-    def credential_context(self, directory: Path):
-        c = self.codex
-        expected = f'/run/user/{os.getuid()}/credentials/codex-app-server.service'
-        real_open = os.open
-        def opened(path, flags, *args, **kwargs):
-            return real_open(directory if path == expected else path, flags, *args, **kwargs)
-        stack = ExitStack()
-        stack.enter_context(mock.patch.dict(os.environ, CREDENTIALS_DIRECTORY=expected))
-        stack.enter_context(mock.patch.object(c.os.path, 'realpath', side_effect=lambda path: path))
-        stack.enter_context(mock.patch.object(c.os, 'open', side_effect=opened))
-        c.CODEX_APP_SERVER_MODE = True
-        return stack
-
-    def test_auth_credential_is_rewound_readonly_fd(self):
-        c = self.codex
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'codex-auth.json'
-            path.write_text('{"test": "not-a-real-credential"}')
-            path.chmod(0o600)
-            with self.credential_context(Path(tmp)):
-                c.codex_capture_auth_credential()
-                try:
-                    self.assertEqual(json.loads(os.read(c.CODEX_AUTH_FD, 4096)), {'test': 'not-a-real-credential'})
-                    with self.assertRaises(OSError):
-                        os.write(c.CODEX_AUTH_FD, b'x')
-                finally:
-                    os.close(c.CODEX_AUTH_FD)
-                    c.CODEX_AUTH_FD = None
-
-    def test_auth_rejects_world_readable_file(self):
-        c = self.codex
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'codex-auth.json'
-            path.write_text('{}')
-            path.chmod(0o644)
-            with self.credential_context(Path(tmp)), self.assertRaises(c.CodexError):
-                c.codex_capture_auth_credential()
-            self.assertIsNone(c.CODEX_AUTH_FD)
-
-    def test_auth_rejects_non_object_and_oversize(self):
-        c = self.codex
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / 'codex-auth.json'
-            for data in [b'[]', b'broken', b'{' + b' ' * c.MAX_AUTH_CREDENTIAL_BYTES + b'}']:
-                path.write_bytes(data)
-                path.chmod(0o600)
-                with self.subTest(size=len(data)), self.credential_context(Path(tmp)), self.assertRaises(c.CodexError):
-                    c.codex_capture_auth_credential()
-                self.assertIsNone(c.CODEX_AUTH_FD)
-
-    def test_auth_rejects_symlink(self):
-        c = self.codex
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / 'actual'
-            target.write_text('{}')
-            target.chmod(0o600)
-            (Path(tmp) / 'codex-auth.json').symlink_to(target)
-            with self.credential_context(Path(tmp)), self.assertRaises(OSError):
-                c.codex_capture_auth_credential()
-
-    def test_auth_rejects_arbitrary_credential_directory(self):
-        c = self.codex
-        c.CODEX_APP_SERVER_MODE = True
-        with mock.patch.dict(os.environ, CREDENTIALS_DIRECTORY='/tmp/attacker'), self.assertRaises(c.CodexError):
-            c.codex_capture_auth_credential()
 
     def test_private_proc_must_be_unobstructed(self):
         c = self.codex
@@ -167,7 +94,6 @@ class CodexTests(unittest.TestCase):
         c.CODEX_CONTROL_DIR = '/control'
         c.CODEX_SANDBOX_PATH = '/usr/bin:/bin'
         c.CODEX_APP_SERVER_MODE = service
-        c.CODEX_AUTH_FD = 123 if service else None
         def bind(source, destination):
             c.BWRAP_ARGS.extend(['--ro-bind', source, destination])
         with ExitStack() as stack:
@@ -195,10 +121,14 @@ class CodexTests(unittest.TestCase):
         self.assertEqual(args.count('/proc'), 1)
         self.assertFalse(any('/usr/bin/uname' == x for x in args))
 
-    def test_service_credential_uses_readonly_bind_data(self):
+    def test_service_keeps_codex_home_writable_without_auth_overmount(self):
         args = self.bwrap_arguments(service=True)
-        index = args.index('--ro-bind-data')
-        self.assertEqual(args[index-2:index+3], ['--perms','0600','--ro-bind-data','123','/data/codex/usr/home/auth.json'])
+        self.assertNotIn('--ro-bind-data', args)
+        binds = [args[i+1:i+3] for i, value in enumerate(args) if value == '--bind']
+        self.assertIn(['/data/codex/usr/home', '/data/codex/usr/home'], binds)
+        self.assertIn(['--tmpfs', '/data/codex/credentials'],
+                      [args[i:i+2] for i in range(len(args)-1)])
+        self.assertNotIn('/data/codex/usr/home/auth.json', args)
         self.assertNotIn('/data/codex/credentials/auth.json', args)
 
     def test_generated_launcher_compiles_and_accepts_empty_bounding_set(self):
@@ -440,7 +370,23 @@ class SessionAndIntegrationTests(unittest.TestCase):
                 self.assertFalse(line.startswith(('BindReadOnlyPaths=','RestrictNamespaces=',
                                                   'ProtectProc=','ProcSubset=','CapabilityBoundingSet=',
                                                   'RestrictSUIDSGID=','SystemCallFilter=')))
-        self.assertIn('LoadCredential=codex-auth.json:',data)
+        active = '\n'.join(
+            line for line in data.splitlines()
+            if line.strip() and not line.lstrip().startswith(('#', ';'))
+        )
+        self.assertNotIn('auth.json', active)
+        self.assertIn('LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n',data)
+        self.assertIn('EnvironmentFile=-%d/codex-mcp.env\n',data)
+
+    def test_codex_policy_has_no_systemd_auth_credential_access(self):
+        apparmor = (DESKTOP/'etc/apparmor.d/managed-desktop-wrappers').read_text()
+        self.assertNotIn('codex-auth.json', apparmor)
+
+    def test_codex_tmpfiles_does_not_create_prelogin_auth(self):
+        data = (DESKTOP/'etc/tmpfiles.d/80-codex-storage.conf.tmpl').read_text()
+        self.assertNotIn('__INSTALLER_DEVOPS_CODEX_HOME__/auth.json', data)
+        self.assertNotIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/auth.json', data)
+        self.assertIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/mcp.env', data)
 
     def test_zathura_selection_uses_regular_clipboard(self):
         data = (DESKTOP/'etc/skel/.config/zathura/zathurarc').read_text()

@@ -12,7 +12,7 @@ d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
 # The app server is supervised by the account user manager. Its canonical
 # startup lock remains below CODEX_HOME, while the listener itself uses the
 # private /data/codex/sockets directory selected by the managed user unit.
-f __INSTALLER_DEVOPS_CODEX_HOME__/auth.json 0600 __INSTALLER_ACCOUNT_USERNAME__ devops - {}
+# auth.json is deliberately omitted: Codex creates it only after user login.
 d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 f __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-startup.lock 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
 L __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-control.sock - __INSTALLER_ACCOUNT_USERNAME__ devops - __INSTALLER_DEVOPS_CODEX_ROOT__/sockets/app-server-control.sock
@@ -43,7 +43,6 @@ L __INSTALLER_DEVOPS_CODEX_HOME__/packages - __INSTALLER_ACCOUNT_USERNAME__ devo
 d __INSTALLER_DEVOPS_CODEX_ROOT__/packages 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_ROOT__/sockets 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_ROOT__/credentials 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
-f __INSTALLER_DEVOPS_CODEX_ROOT__/credentials/auth.json 0600 __INSTALLER_ACCOUNT_USERNAME__ devops - {}
 f __INSTALLER_DEVOPS_CODEX_ROOT__/credentials/mcp.env 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -
 
 d __INSTALLER_DEVOPS_CODEX_SYSTEM_CONFIG_DIR__ 0755 root root -

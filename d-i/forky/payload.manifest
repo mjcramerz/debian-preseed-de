@@ -94,7 +94,7 @@ fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704  hooks/installe
 7175a0cbb6ec8aa9226c475ae30258f07268c58d9371fa443c7e6dad431ce857  hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh
 5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b  hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh
 3e66182da3f45ece873a2288b4369c9a85e6108400f8896d898e4b6298231b43  hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
-b28f57b421d1f9d4bc8ecc9ffd6877c62daa8b5811e9d054995ca63857457f95  hooks/target/data/codex/lib/codex
+87efb4fe67f3ef4c4c9fb75594bb9ffdbb2f817352bdc251811c3c6960b13669  hooks/target/data/codex/lib/codex
 cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035  hooks/target/data/config/podman/templates/devops/client.conf
 231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68  hooks/target/data/config/podman/templates/devops/containers.conf.tmpl
 2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c  hooks/target/data/config/podman/templates/devops/podman-restart.service.tmpl
@@ -157,7 +157,7 @@ a005f996f2764d85951da636cd92016948c213d2921d146ea944da4ac56a257b  hooks/target/e
 2505a93e974eb395cb6b8662b95f9bb66ad8a0bd227f27a1ec0bc261f9893541  hooks/target/etc/apparmor.d/local/vivaldi-bin
 8438fbfc3c4944057157ffda6a12cae8c71e8e5297e96ef186171a49e93d44b0  hooks/target/etc/apparmor.d/local/vivaldi-stable
 e4b6b33eb76306eba4ed8eae893d3d5664a136062db5c74ac912823dabba19d8  hooks/target/etc/apparmor.d/managed-desktop-utilities
-e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa  hooks/target/etc/apparmor.d/managed-desktop-wrappers
+97ff4410bcb52c302c5f7ce247809d8ffeae795d2ebe2131bcfeef3e7dc626ad  hooks/target/etc/apparmor.d/managed-desktop-wrappers
 e400e11753e13d58a23b97cdc3e9c494f7ff7db9175ad722e5380bd134a72898  hooks/target/etc/apparmor.d/managed-document-applications
 aba87527901110878820859bb3c867f25b849cc138cefb098ca5d0a67c652a58  hooks/target/etc/apparmor.d/managed-labwc-session
 8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9  hooks/target/etc/apparmor.d/managed-system-wrappers
@@ -234,7 +234,7 @@ cb615c1534922ff47e98511561181121a8c1441531511829712e225c1b623fc8  hooks/target/e
 e44cc91aeafb03e9dc15c62ba8daa8c3185c918d12fd81ae28150d740f0639f4  hooks/target/etc/dbus-1/system-local.conf.tmpl
 04e3e47dbfddc13ef1947e2ef16cf8660ace4901972a410dd7b401c266530abe  hooks/target/etc/default/btrfsmaintenance
 6b12e9c45c2cd20c2e8363fd910d4a2266237463844f7e2ac46aa39758a2e114  hooks/target/etc/default/chatgpt
-e59faec5810d849f9f6578e011cd9330c0be11c55c612f193df78f25274c9b0d  hooks/target/etc/default/codex-app-server
+bc259a862e98e8be5262202a184dd14d9c87aea6c3c7d579901c28bba57adcf8  hooks/target/etc/default/codex-app-server
 f5184894265d2f4ebbc23c90b087d2f68c61f444dd2c8aa7ba2f9fe3e5c68dd9  hooks/target/etc/default/grub-btrfs/config.tmpl
 95715d27ea0af3c23780a2b799ab02265b16c887309bd7ddfe3999b7e4d75ed3  hooks/target/etc/default/grub-profiles.tmpl
 e84467043151c25cec645bdc1318c09c543969fcd28f813be07ba27b032b7e72  hooks/target/etc/default/grub.d/05-bootprofiles.cfg.tmpl
@@ -493,7 +493,7 @@ b7c59bd46efb652b0eec7c7d05ff969c82d2e902d7401f2acce2b144a6bf058a  hooks/target/e
 82354e800e31fc93581c0fdda6bfbdb75d0167bb3f012461ff0348b122217d89  hooks/target/etc/skel/.config/sleek/userData/filters.json
 0c15d39753b8c9c9ca5a1a9e570ba50493454f66486b90f618632be20ae0547a  hooks/target/etc/skel/.config/starship.toml
 a0041f42b355e87c43b4825fea510512dd31a030a1f944ea9b56f96e1a0d6e48  hooks/target/etc/skel/.config/swaylock/config
-4a1caef286cb4b5293f414c4023e8860b9451f72f5a75f9339368c628a42ff34  hooks/target/etc/skel/.config/systemd/user/codex-app-server.service
+adc66db1a54db85b597ff6b61b5ff33f72d5af09f6dcd95812be32fdcb52971c  hooks/target/etc/skel/.config/systemd/user/codex-app-server.service
 0b8ac459a8eb2bb3fd2ed184cef0c1cde34aa297aadfefc890db3baaa9e360e6  hooks/target/etc/skel/.config/systemd/user/crystal-dock.service
 4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b  hooks/target/etc/skel/.config/systemd/user/kanshi.service
 76997a92d38de807f415278f5ec106023026e6c80a47d19a9bed6cb120a15e66  hooks/target/etc/skel/.config/systemd/user/labwc-adb-server.service
@@ -723,7 +723,7 @@ f135a5702c1f483da3a38068b94f586d4ec79f1a4ad86cff0eebc67e2e9d51ce  hooks/target/e
 33d6c651668a24d7716a6968f35ebdb056e11aa11b1cdb2cde9b7db8afdff241  hooks/target/etc/tmpfiles.d/70-polkit-runtime.conf
 c2aad17d2c2f126a7279c7f31bd585bc27369e5a88c5e2095bfb91ad773f0980  hooks/target/etc/tmpfiles.d/75-auditd-storage.conf
 ad6b3b077862cb41c10e693857cb96b006fb43e8a9bff30c2188ce4b90e46038  hooks/target/etc/tmpfiles.d/75-desktop-pool-storage.conf.tmpl
-24172f9c6aadac502717beb13812164c95e3939344ec80eaf2c1085102c42036  hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl
+cfff38ef0dcc7ec14b35316ef40d8b7d41caac172399330720c8d9ab1bf7df91  hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl
 411ea2e358c56401431cbf7c926f68810e82323715ef27ede060a0a2b2159698  hooks/target/etc/tmpfiles.d/85-qemu-incus-storage.conf.tmpl
 c5643997f0ff54194f2b975f75e13c6b3ffb29fb86a67d743707816f06834014  hooks/target/etc/tmpfiles.d/86-firmware-workspace.conf.tmpl
 52f588b557c2a47d87972dc995c33cb03183f9e3b87fa0da33c9fd9a561771e9  hooks/target/etc/tmpfiles.d/man-db.conf
@@ -1181,7 +1181,7 @@ e799f12f3a9a0db0984ec3c8be57996d70d2e747f3a0ed4ee8908ce4f8b54b56  scripts/late/a
 52b92617c16137ab4180f2e33ad3f7448274fdf82153314e8064825012938f9b  scripts/late/ch341a.sh
 c94b606a82993d57bd86b8dfb230d53fe6d708c1ee831eda0f00f0384c4fd1d8  scripts/late/codex-archive.py
 8aac98c6d5f0774089b83001d8d3693a5f872bd6ec2a34bc193a54ed3985599a  scripts/late/codex-installer-session.py
-084d40104edaece281c80891c220ce84cb556e284289cc87d40b2cb4aeb87f96  scripts/late/codex-state.py
+23dc3d6204f73e04ea0cc51b0cbebd6c6aa6f3081270fab7229d0c9368282355  scripts/late/codex-state.py
 11ae51519b142d1094b7e0e088b0d76a984543efc074611ead8cf96dda394340  scripts/late/core.sh
 4e57982a8d1acc507c5ac2e52183108d25a28ce87d0ffb9e1103b0b9b215893b  scripts/late/crowdsec.sh
 804ad8d9303a2fa1fab1322c3bde6fcd6da2b8def81eef967bf4a469f0ca957a  scripts/late/crypto.sh
@@ -1190,7 +1190,7 @@ a4c564dcea0c17586567d59df850719edaef862ef70c8dddc5d0dd13f78b81c0  scripts/late/d
 05032fd1b74a399ad9efe6274512cbd6202abafc86591e7c7804024bcbc243a4  scripts/late/desktop.sh
 7e145b0bed8c477a4f04d24b48b9c3dc666f8e03142de8ce883f42718f9374ec  scripts/late/devops-rust-tools.py
 c496b4071af2d8279c75622e26bde8dc381a4a1a54fda972d6cefc59f28dcda7  scripts/late/devops-tools.py
-23a62567e50c2a03de89eb14ae4eb811576cf94547af05745d81e2050736c6de  scripts/late/devops.sh
+1aa3efb1540e401e076b17b2b274a5ae8c4ed970c8bcc4532784af3226ecde1b  scripts/late/devops.sh
 631462a86f4e9e56605def8c5b6590c57177e07f150058ece175fa2cff20c097  scripts/late/dispatch.sh
 e5ca0a50c3731f30ab0e06cd3c5f5d5c6e6c712d701f6f3478e86658874bca95  scripts/late/enhanced.sh
 d5307bb79d33746554b883132f11b083405461c9d6f0f6718dc2d536ab7db600  scripts/late/f2fs-family.sh

@@ -12,7 +12,8 @@ StartLimitBurst=5
 [Service]
 Type=exec
 EnvironmentFile=/etc/default/codex-app-server
-LoadCredential=codex-auth.json:/data/codex/credentials/auth.json
+# CODEX_HOME/auth.json is application-managed and absent until user login.
+# Never synthesize, load as a credential, or read-only-overmount that file.
 LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
 EnvironmentFile=-%d/codex-mcp.env
 WorkingDirectory=%h/Workspace
