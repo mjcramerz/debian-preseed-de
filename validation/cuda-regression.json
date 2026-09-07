@@ -1,0 +1,70 @@
+{
+  "release": "R4",
+  "command": "make test-cuda",
+  "returncode": 0,
+  "tests_run": 40,
+  "skipped": 0,
+  "apt_version": "apt 3.0.3 (amd64)",
+  "crypto_policy_sha256": "eacdcdb5edffbbeddefcf26b05d2de91fe36c638cf2b56adfb6cc91df1164f01",
+  "normal_crypto_policy_unchanged": true,
+  "tests": [
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_cleanup_honors_target_root_and_preserves_unrelated_sources",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_cleanup_preserves_publication_failure_status",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_conditional_caller_cannot_mask_invalid_source",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_conditional_caller_cannot_mask_source_publication_failure",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_entire_pre_pkgsel_hook_propagates_real_apt_failure",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_entire_selected_pre_pkgsel_hook_stages_trusted_source_before_refresh",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_entire_unselected_pre_pkgsel_hook_leaves_apt_untouched",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_failed_atomic_publish_preserves_old_file_and_cleans_temporary",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_general_refresh_restores_cuda_source_on_success_and_failure",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_invalid_input_does_not_change_existing_source",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_late_cleanup_failure_is_not_masked_by_logging",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_late_preparation_stages_exception_and_retains_apt_error",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_no_global_authentication_or_tls_bypass_was_added",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_old_signed_source_is_replaced_without_key_or_network_prerequisites",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_pre_pkgsel_and_late_use_one_scoped_trusted_publisher",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_refresh_runs_once_without_crypto_baseline_or_global_relaxation",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_selected_cuda_stack_is_not_gated_on_pci_detection",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_source_policy_cannot_be_reused_for_another_origin_suite_or_components",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_source_scoped_exception_is_explicit_and_has_no_key_gate",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_stage_publishes_repeatably_without_fetching_a_key",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_symlink_source_is_refused",
+    "test_cuda_legacy_apt.CudaLifecycleTests.test_unselected_class_does_not_request_late_cuda_state",
+    "test_cuda_legacy_apt.RealAptTests.test_authenticated_to_unsigned_transition_is_accepted",
+    "test_cuda_legacy_apt.RealAptTests.test_corrupt_package_is_not_downloaded_as_an_authentication_workaround",
+    "test_cuda_legacy_apt.RealAptTests.test_expired_signed_metadata_is_accepted_for_this_source",
+    "test_cuda_legacy_apt.RealAptTests.test_future_dated_metadata_is_accepted_for_this_source",
+    "test_cuda_legacy_apt.RealAptTests.test_missing_key_does_not_block_this_source",
+    "test_cuda_legacy_apt.RealAptTests.test_missing_package_index_fails",
+    "test_cuda_legacy_apt.RealAptTests.test_no_release_file_is_accepted_for_this_source",
+    "test_cuda_legacy_apt.RealAptTests.test_ordinary_source_still_rejects_missing_or_wrong_key",
+    "test_cuda_legacy_apt.RealAptTests.test_ordinary_sources_still_reject_weak_unsigned_or_stale_metadata",
+    "test_cuda_legacy_apt.RealAptTests.test_other_sha1_repository_still_fails_in_a_mixed_update",
+    "test_cuda_legacy_apt.RealAptTests.test_other_unsigned_repository_still_fails_in_a_mixed_update",
+    "test_cuda_legacy_apt.RealAptTests.test_sha1_certificate_is_accepted_and_packages_download",
+    "test_cuda_legacy_apt.RealAptTests.test_sha1_release_signature_is_accepted_and_packages_download",
+    "test_cuda_legacy_apt.RealAptTests.test_signed_sha256_update_and_repeat_download",
+    "test_cuda_legacy_apt.RealAptTests.test_unrelated_key_does_not_block_this_source",
+    "test_cuda_legacy_apt.RealAptTests.test_unsigned_source_is_explicitly_trusted",
+    "test_cuda_legacy_apt.RealAptTests.test_weak_clearsigned_inrelease_is_accepted",
+    "test_cuda_legacy_apt.RealAptTests.test_weak_metadata_hashes_are_accepted_for_this_source"
+  ],
+  "shell_publication_execution": [
+    {
+      "shell": "/bin/sh",
+      "status": 0,
+      "source": "deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /"
+    },
+    {
+      "shell": "/usr/bin/busybox",
+      "status": 0,
+      "source": "deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /"
+    }
+  ],
+  "live_nvidia_smoke": {
+    "status": "ENVIRONMENT LIMITATION",
+    "curl_status": 6,
+    "reason": "DNS resolution failed for developer.download.nvidia.com; no live APT update or vendor package download claimed"
+  },
+  "scope": "Private loopback repositories, disposable keys, real APT; downloads only, never package installation."
+}

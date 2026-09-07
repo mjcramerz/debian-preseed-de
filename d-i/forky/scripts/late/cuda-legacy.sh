@@ -83,10 +83,10 @@ cuda_legacy_stage_target_repo_source() {
 cuda_legacy_prepare_target_apt_state() {
   repo_url=$(cuda_legacy_repository_url)
 
-  cuda_legacy_stage_target_repo_source
+  cuda_legacy_stage_target_repo_source || return "$?"
   cuda_legacy_target_repo_present "$repo_url" ||
     installer_fatal "cuda-legacy failed to stage ${repo_url} in the target before pkgsel/include repair"
-  installer_cuda_refresh_target_apt
+  installer_cuda_refresh_target_apt || return "$?"
   installer_info "prepared legacy CUDA target apt state for pkgsel/include repair"
 }
 
@@ -94,6 +94,7 @@ cuda_legacy_cleanup_target_apt_state() {
   target_source_path="${INSTALLER_TARGET_DIR:-/target}$(cuda_legacy_target_source_path)"
   target_keyring_path="${INSTALLER_TARGET_DIR:-/target}$(cuda_legacy_target_keyring_path)"
 
-  rm -f "$target_source_path" "$target_keyring_path"
+  # The key path only cleans up pre-R4 state; no key is downloaded in R4.
+  rm -f "$target_source_path" "$target_keyring_path" || return "$?"
   installer_info "removed legacy CUDA target APT source and keyring after pkgsel/include repair"
 }

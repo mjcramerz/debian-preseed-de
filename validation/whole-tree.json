@@ -1,9 +1,9 @@
 {
   "success": true,
-  "file_count": 1301,
+  "file_count": 1303,
   "check_counts": {
     "binary-inventory-only": 11,
-    "inventory-only": 873,
+    "inventory-only": 875,
     "python-syntax-pass": 101,
     "shell-syntax-pass": 195,
     "template-needs-render": 121
@@ -20,8 +20,8 @@
     {
       "path": "Makefile",
       "mode": "0o640",
-      "bytes": 615,
-      "sha256": "96765afe0f9aa90b6157e33efab6a186f2a9ed9a596909b9e975219eb79b7a9c",
+      "bytes": 722,
+      "sha256": "f6105480b71d55fcd45f854ba62174719a3ea03028831adf0cc929aaf752e35f",
       "check": "inventory-only"
     },
     {
@@ -34,15 +34,15 @@
     {
       "path": "README.md",
       "mode": "0o640",
-      "bytes": 12376,
-      "sha256": "f9a5d5a12a9e7c5337184d6632b01c7bdb1867703452f62463b059fcd564df39",
+      "bytes": 12739,
+      "sha256": "52bbc1b3938339b03b8316133044c73db0918c435f50026f3d826836f0a83a64",
       "check": "inventory-only"
     },
     {
       "path": "SECURITY.md",
       "mode": "0o640",
-      "bytes": 11001,
-      "sha256": "ee2d6e64abd549793c7f81ab7d72d86f4a7c63fd60314a9f81c4c2d196253eff",
+      "bytes": 12290,
+      "sha256": "31bfcae9bfdbc8a93b5c6ca4e71db2bf863bddcc40d3ea8e7f952c3333a4a475",
       "check": "inventory-only"
     },
     {
@@ -559,8 +559,8 @@
     {
       "path": "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
       "mode": "0o640",
-      "bytes": 591,
-      "sha256": "e9248c61a1728ae9dee3422a0dee4d1bdcaa99509dbb2839b7cffccc13515ffa",
+      "bytes": 615,
+      "sha256": "8e3feb6f4a71f5674f86bebe3462890c4a7e91443e7fd3f17542411ed43fca08",
       "check": "shell-syntax-pass"
     },
     {
@@ -8113,21 +8113,21 @@
       "path": "d-i/forky/payload.manifest",
       "mode": "0o644",
       "bytes": 150517,
-      "sha256": "7e646869856ce71fd3ebc00d8554daa8a9756c44c672242ee4ffb39c21ffd2d9",
+      "sha256": "f33c719f02019ef2248ee75242b3c46dea733dd13f3f199d8a7299a0da94f566",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/payload.tar.gz",
       "mode": "0o644",
-      "bytes": 6862636,
-      "sha256": "c1342364ca890202a1fc93ac98dfe90bcf14170950178355303cd835aa0c6145",
+      "bytes": 6862650,
+      "sha256": "4e42f2f22b7878957a11f4a211c72b36324bb9f46729ed74c0bcfcf055cd3010",
       "check": "binary-inventory-only"
     },
     {
       "path": "d-i/forky/preseed.cfg",
       "mode": "0o644",
       "bytes": 84215,
-      "sha256": "afc9cd38fd331e9295015fb70e0d970d323a00f893821de960375b9b032b68b6",
+      "sha256": "b382ceb76ba222b2d7a0a08e318718c008d350300198bf1980f47d29fe5d64cb",
       "check": "inventory-only"
     },
     {
@@ -8182,8 +8182,8 @@
     {
       "path": "d-i/forky/scripts/common/lib.sh",
       "mode": "0o750",
-      "bytes": 180841,
-      "sha256": "9975dbbf4ec5892c9875b09d8cb1f11243d9ab7113941ef1bd8d0f96281ee33a",
+      "bytes": 180674,
+      "sha256": "2b8a6f70ff324126b19bb4e7b23f1fc465b9c26e7f2f6253d94dbeaefc9d2f64",
       "check": "shell-syntax-pass"
     },
     {
@@ -8413,8 +8413,8 @@
     {
       "path": "d-i/forky/scripts/late/cuda-legacy.sh",
       "mode": "0o750",
-      "bytes": 3475,
-      "sha256": "1d23f84f69f9d72db63d99d8a1b364d746e41f79bd16118b3859b752341132c4",
+      "bytes": 3594,
+      "sha256": "f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139",
       "check": "shell-syntax-pass"
     },
     {
@@ -8854,8 +8854,8 @@
     {
       "path": "d-i/forky/tests/test_cuda_legacy_apt.py",
       "mode": "0o640",
-      "bytes": 25763,
-      "sha256": "11e41ef0ffcd7daf852caa7a2879fc0419d7cf0ff059ee86053d733c2e184043",
+      "bytes": 31285,
+      "sha256": "eda7ffa9a4509279437f51ba480c9e6337659c51008954ce3f03099fa21ddd0c",
       "check": "python-syntax-pass"
     },
     {
@@ -8973,8 +8973,8 @@
     {
       "path": "docs/CHANGE-MANIFEST.json",
       "mode": "0o644",
-      "bytes": 21568,
-      "sha256": "eef5e1ded78c2d708a2738e7d96ebf0d0b525620df7880714c6972d29442e07d",
+      "bytes": 22261,
+      "sha256": "760ad1a613c400cd71ecd01f4aee907672aa9ee816d696a1b94efe1527581e1a",
       "check": "inventory-only"
     },
     {
@@ -8982,6 +8982,13 @@
       "mode": "0o640",
       "bytes": 11359,
       "sha256": "ed12cfd7566043d5ca4134ae222676caeb8bc5c17bb02dd506de899d7c00cd4d",
+      "check": "inventory-only"
+    },
+    {
+      "path": "docs/CUDA-LEGACY-TRUST-R4.md",
+      "mode": "0o644",
+      "bytes": 5369,
+      "sha256": "984e098ebc805b3d4aceed4aaf0923297522ec1309c1aa0597e023f06db8da4e",
       "check": "inventory-only"
     },
     {
@@ -8999,17 +9006,24 @@
       "check": "inventory-only"
     },
     {
+      "path": "docs/ENGINEERING-REPORT-R3.md",
+      "mode": "0o644",
+      "bytes": 7359,
+      "sha256": "ec8c12894d04e1ce38e0932288003bde39750d403696caeaca4d0ab9f7de96ce",
+      "check": "inventory-only"
+    },
+    {
       "path": "docs/ENGINEERING-REPORT.md",
       "mode": "0o644",
-      "bytes": 7263,
-      "sha256": "068385ed22818b06289c8c12365024e7a42ffb02304016e83836388e52ed8143",
+      "bytes": 6040,
+      "sha256": "d8d8ddb8b45453a714d4f0a6794a533b059b8153f2ca9e7fb92b2d5ff42ca16e",
       "check": "inventory-only"
     },
     {
       "path": "docs/INCIDENT-2026-09-07.md",
       "mode": "0o644",
-      "bytes": 6471,
-      "sha256": "e66eac219c072c8a3a9f4a1c7951ebbd52dacb1fb680828d83e11ba880fffbd5",
+      "bytes": 6616,
+      "sha256": "7ddd06f2eb4fa7975fc8716845ac6dc02c96ce71d5938fead72aedd233c321f3",
       "check": "inventory-only"
     },
     {
@@ -9022,8 +9036,8 @@
     {
       "path": "docs/INSTALLER-HARDENING-2026-09-07.md",
       "mode": "0o644",
-      "bytes": 14601,
-      "sha256": "073ce653919f2cece927404717b0367bc8d683c0d1365629239b7d43866926fe",
+      "bytes": 14770,
+      "sha256": "1203743931ed61f613272182d4e0144de910d9e086b674233ac470e331620cdd",
       "check": "inventory-only"
     },
     {
@@ -9043,8 +9057,8 @@
     {
       "path": "docs/VALIDATION.md",
       "mode": "0o640",
-      "bytes": 3309,
-      "sha256": "dcb6f20692a469e8c37a2df8e03d71ceeba4ff932d94e30ea51b7dbaf2d977b3",
+      "bytes": 3511,
+      "sha256": "a748188bae84ace28d594d3de8f8a051a13b19d6964ecb77517ea61f5825ffb7",
       "check": "inventory-only"
     },
     {

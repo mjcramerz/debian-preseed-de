@@ -1,13 +1,16 @@
 # debian-preseed-de
 
-## R3 debconf transport repair
+## R4 CUDA-legacy compatibility repair
 
-This release fixes lost installer stdin across supervised/background commands,
-uses the installer's filename-based selection API, and adds live debconf
-protocol/control-flow tests through answer application. See
-[the R3 engineering report](docs/ENGINEERING-REPORT.md) and
-[the protocol repair](docs/DEBCONF-TRANSPORT-R3.md). Run `make test-debconf`
-for the focused suite. All generated payloads and pins are supplied together.
+Explicit `addon/cuda-legacy` selection now authorizes the NVIDIA Debian 12 amd64
+archive as trusted/insecure. SHA-1 signatures, missing keys and stale metadata
+are not installation gates for that one archive. No extra flag is needed.
+All earlier bootstrap, debconf, fatal-state and target repairs remain included.
+See [the current report](docs/ENGINEERING-REPORT.md),
+[the CUDA trust scope](docs/CUDA-LEGACY-TRUST-R4.md), and
+[the retained R3 debconf repair](docs/DEBCONF-TRANSPORT-R3.md).
+Run `make test-cuda` for real APT compatibility and isolation regressions.
+All generated payloads and pins are supplied together.
 
 
 Debian unattended-install repository for desktop systems. The 2026-09-07 R2 repair
@@ -63,10 +66,13 @@ phases read its local cache instead of repeatedly downloading repository files.
 The browser generator runs as part of this build. Its editable inputs are in
 `browser-config/`; generated policies and exports live under `hooks/target/`.
 Explicit `addon/cuda-legacy` selection uses the NVIDIA Debian 12 amd64 archive
-with a dedicated Signed-By keyring and full pinned signing fingerprint. Missing,
-wrong, expired, weak or rejected signatures are fatal; no authentication or
-metadata-date bypass is enabled. The temporary source is removed after package
-repair and at finish-install. Other repositories retain their independent policy.
+with a source-local trust exception, without a key download, Signed-By fingerprint
+pin or signature/freshness gate. It is still fetched over verified HTTPS, and APT
+still checks downloaded package content against the acquired index. This is an
+intentional archive-authentication risk, not proof of package provenance. The
+temporary source is removed after package repair and at finish-install. Modern
+CUDA, Debian suites and other repositories retain their independent policies.
+
 
 ## Repository layout
 

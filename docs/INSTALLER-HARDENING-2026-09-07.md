@@ -138,8 +138,10 @@ Forky/Trixie/Sid/Experimental and selected vendor repositories retain their
 explicit policy. Package-specific pins are not replaced by wholesale suite
 migration. The virtual-package check includes installed Provides entries so
 mesa-utils-extra does not trigger a false repair when mesa-utils supplies it.
-The temporary legacy CUDA archive requires its dedicated Signed-By key and
-fingerprint; signature and freshness checks are not bypassed. See SECURITY.md.
+R4 restores the explicitly selected CUDA-legacy archive's source-local trusted/
+insecure/weak-signature exception. No key or signature/freshness gate is required
+for that one temporary source. Modern CUDA and ordinary repositories remain
+strict. See SECURITY.md and CUDA-LEGACY-TRUST-R4.md for the accepted risk and scope.
 This tree is a reproducible installer payload, not a lockfile for every online
 Debian/vendor package. Live repository and solver acceptance is still required.
 

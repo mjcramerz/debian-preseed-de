@@ -1,11 +1,11 @@
 #!/bin/sh
 # Legacy CUDA is intentionally staged by 91cuda-legacy-apt.sh AFTER apt-setup.
 # The main apt-setup refresh must use the unmodified system crypto policy.
-# Do not duplicate key downloads/source generation here.
+# Do not duplicate source generation or apply global insecure options here.
 set -eu
 RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
 COMMON_LIB="$RUNTIME_DIR/bootstrap/common-lib.sh"
 [ -r "$COMMON_LIB" ] || { printf '%s\n' 'fatal: installer common library missing' >&2; exit 1; }
 . "$COMMON_LIB"
 installer_cuda_legacy_selected || exit 0
-installer_info 'legacy CUDA source deferred to the authenticated single-source pre-pkgsel refresh'
+installer_info 'legacy CUDA source deferred to the explicitly trusted single-source pre-pkgsel refresh'

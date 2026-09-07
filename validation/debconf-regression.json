@@ -76,5 +76,7 @@
     "Backend is Perl debconf, not the compiled cdebconf frontend.",
     "log-output and local preseed_fetch are narrow descriptor-preserving test shims.",
     "Hardware/sysfs and dangerous phase children are simulated."
-  ]
+  ],
+  "historical_origin_release": "R3",
+  "revalidated_in": "R4 full 511-test make test and extracted-candidate make validate runs"
 }

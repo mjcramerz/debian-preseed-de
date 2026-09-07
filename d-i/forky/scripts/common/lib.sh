@@ -4782,9 +4782,11 @@ installer_load_source_library() {
   installer_fatal 'repository transport is missing; start with the generated preseed.cfg'
 }
 
-# Legacy means package compatibility, not unauthenticated content. APT itself
-# selects this full primary-key fingerprint (including its signing subkeys),
-# avoiding a dependency on gpg being installed before pkgsel.
+# Explicit addon/cuda-legacy selection authorizes this single archive's
+# authentication/freshness exception. SHA-1 signatures (including certificate
+# self-signatures) can be rejected by modern APT; do not fetch or pin a key as
+# an acceptance gate here. Never move these options into apt.conf or a global
+# crypto policy. Normal CUDA and all other repositories keep their own policy.
 installer_cuda_source_line() (
   set -eu
   repository=$1; suite=$2; components=${3:-}
@@ -4794,54 +4796,43 @@ installer_cuda_source_line() (
   [ "$suite" = / ] && [ -z "$components" ] || {
     installer_fatal 'legacy CUDA must use the flat Debian 12 archive'; exit 1;
   }
-  printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/cuda-legacy-archive-key.asc,EB693B3035CD5710E231E123A4B469963BF863CC] %s /\n' "$repository"
-)
-
-installer_fetch_cuda_key() (
-  set -eu
-  umask 077
-  target=${INSTALLER_TARGET_DIR:-/target}
-  keydir=$target/etc/apt/keyrings
-  key=$keydir/cuda-legacy-archive-key.asc
-  installer_apt_safe_path "$key"
-  mkdir -p "$keydir"
-  chmod 0755 "$keydir"
-  work=$(mktemp -d "$keydir/.cuda-key.XXXXXX")
-  trap 'rm -rf "$work"' 0
-  installer_load_source_library
-  # Resource-limit the public-key download as well as bounding network time.
-  (ulimit -f 2048; source_fetch_external \
-    https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64 \
-    3bf863cc.pub "$work/key.asc" 0600)
-  [ "$(wc -c <"$work/key.asc")" -le 1048576 ]
-  grep -qx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$work/key.asc"
-  grep -qx -- '-----END PGP PUBLIC KEY BLOCK-----' "$work/key.asc"
-  chmod 0644 "$work/key.asc"
-  mv -f "$work/key.asc" "$key"
+  printf 'deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] %s /\n' "$repository"
 )
 
 installer_cuda_stage_target_source() (
   set -eu
   umask 077
-  line=$(installer_cuda_source_line "$@")
+  # Explicit statuses also protect callers that invoke this function in an
+  # if/|| list, where shells disable errexit even inside a function's subshell.
+  line=$(installer_cuda_source_line "$@") || exit "$?"
   target=${INSTALLER_TARGET_DIR:-/target}
   source_dir="$target/etc/apt/sources.list.d"
   source="$source_dir/cuda-legacy-temp.list"
-  installer_apt_safe_path "$source"
-  install -d -m 0755 "$source_dir"
-  installer_fetch_cuda_key
-  work=$(mktemp "$source_dir/.cuda-legacy.XXXXXX")
-  trap 'rm -f "$work"' 0
+  installer_apt_safe_path "$source" || exit "$?"
+  install -d -m 0755 "$source_dir" || exit "$?"
+  work=$(mktemp "$source_dir/.cuda-legacy.XXXXXX") || exit "$?"
+  cleanup_cuda_source() {
+    original=$?
+    trap - 0 HUP INT TERM
+    if rm -f "$work"; then
+      :
+    else
+      cleanup=$?
+      [ "$original" -ne 0 ] || original=$cleanup
+    fi
+    exit "$original"
+  }
+  trap cleanup_cuda_source 0
   trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP
-  printf '%s\n' "$line" >"$work"
-  chmod 0644 "$work"
-  mv -f "$work" "$source"
+  printf '%s\n' "$line" >"$work" || exit "$?"
+  chmod 0644 "$work" || exit "$?"
+  mv -f "$work" "$source" || exit "$?"
 )
 
 installer_cuda_refresh_target_apt() (
   set -eu
-  installer_info 'authenticating legacy CUDA with its source-scoped pinned NVIDIA key and the default APT crypto/date policy'
-  run_in_target 'refresh authenticated legacy CUDA metadata' \
+  installer_warn 'CUDA-legacy ONLY: archive authentication and metadata-date checks are disabled by explicit class selection; HTTPS and package checksums remain enabled'
+  run_in_target 'refresh explicitly trusted legacy CUDA metadata' \
     env -u APT_SEQUOIA_CRYPTO_POLICY -u SEQUOIA_CRYPTO_POLICY \
     LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get \
     -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/cuda-legacy-temp.list \

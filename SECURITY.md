@@ -54,20 +54,42 @@ payload member cannot fall back to a moving URL. Codex binary archives retain
 their configured SHA-256 and size bounds; the repository revision is pinned.
 Mullvad retains verification against its pinned code-signing key fingerprint.
 
-The explicit `addon/cuda-legacy` class is architecture-limited to amd64 and uses
-exactly the NVIDIA Debian 12 x86_64 CUDA archive. It fetches a dedicated public
-key over validated HTTPS, publishes it privately then as root-readable public
-key data, and constrains APT Signed-By to the full fingerprint
-`EB693B3035CD5710E231E123A4B469963BF863CC`. APT performs the cryptographic key and
-Release verification; an armored file alone is not accepted as identity proof.
-A changed or expired signing key requires an intentional reviewed pin update.
+### Explicit CUDA-legacy authentication exception (R4)
 
-No trusted=yes, weak/insecure repository authorization, unauthenticated package
-option, metadata-date override or weakened Sequoia policy is used. The isolated
-legacy update and the normal updates both retain default cryptographic policy.
-The temporary source and key are removed after the installer package work.
-Real loopback APT fixtures exercise signed acceptance and unsigned, wrong-key,
-weak-signature, expired-signature and tampered-package rejection.
+The `addon/cuda-legacy` class is architecture-limited to amd64 and uses exactly
+NVIDIA's Debian 12 x86_64 CUDA archive. Selecting this class explicitly authorizes:
+
+```text
+deb [arch=amd64 trusted=yes allow-insecure=yes allow-weak=yes allow-downgrade-to-insecure=yes check-valid-until=no check-date=no] https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/ /
+```
+
+No key download, fingerprint pin, signature validation prerequisite or custom
+Sequoia policy blocks this class. APT may still emit verifier diagnostics, but
+SHA-1, unrecognized signing keys, unsigned metadata and stale metadata are not
+acceptance gates for this source. This is **not** a cryptographic fix for SHA-1:
+it intentionally bypasses archive authentication and freshness protection for
+this one selected archive. A compromised origin, mirror or intercepted trusted
+TLS endpoint could therefore supply malicious or replayed packages.
+
+The exception is confined to the source entry, staged before pkgsel and restored
+when late package repair needs it. The installer never enables a global
+AllowInsecureRepositories, AllowUnauthenticated or TLS bypass and never changes
+the system crypto policy. HTTPS certificate verification remains enabled.
+APT still checks package bytes against index checksums, but an unauthenticated
+index cannot establish trustworthy package provenance. Missing indexes, network
+failures and package checksum mismatches still fail the operation.
+
+Both early and late staging use the same renderer and atomic publisher. General
+metadata refresh temporarily hides the CUDA source and keeps its cached lists;
+cleanup removes it after package repair and at finish-install. Old managed CUDA
+keyrings are cleanup-only state, never prerequisites. Normal CUDA, Debian and
+other third-party sources retain their own authentication policy.
+
+Real Debian APT fixtures exercise acceptance of SHA-1 certificates/signatures,
+unsigned and expired metadata, and signed-to-unsigned transitions. Strict-source
+controls reject those conditions; mixed-source tests demonstrate that another
+unsigned or SHA-1 repository still fails. Corrupted package downloads still fail.
+See `docs/CUDA-LEGACY-TRUST-R4.md` for scope and operational details.
 
 The intentional Debian suite priorities remain Forky 900, Trixie 400, Sid 100 and
 Experimental 1. Existing package-specific exceptions remain explicit in

@@ -1,123 +1,103 @@
-# Engineering delivery report - R3, 2026-09-07
+# Engineering delivery report - R4, 2026-09-07
 
-## Outcome and validation scope
+## Outcome
 
-R3 fixes a regression in the replacement supervision layer. The reported
-`debconf-set-selections` status 2 / `return: line 88: illegal number` is reproduced
-with the previous launch redirection and removed with the repaired code. The
-original uploaded logs predate this failure; they are not presented as a log of
-the new installation. This report does not claim that a physical installation
-has completed successfully.
+R4 restores the operator-authorized trusted/insecure APT exception for the
+explicitly selected CUDA-legacy class. R3 had made the archive's pinned signing
+key and the default signature/freshness policy mandatory; that was incompatible
+with the requested legacy behavior. No second opt-in flag is required.
 
-| Command | Observed result | Elapsed |
+This repair is validated with real Debian 13 APT 3.0.3 and loopback repositories,
+not just a shell mock. The current recorded command results are in
+`validation/release-checks.json` and `validation/summary.json`. No full physical
+installation or live NVIDIA package resolution is claimed.
+
+## Executed repository validation
+
+| Command | Result | Elapsed |
 |---|---|---|
-| `make build` | PASS (exit 0) | 2.336 s |
-| `make check` | PASS (exit 0) | 3.786 s |
-| `make test` | PASS (exit 0) | 224.538 s |
-| `make audit` | PASS (exit 0) | 1.631 s |
-| `make validate` | PASS (exit 0) | 233.027 s |
+| `make build` | PASS (exit 0) | 2.225 s |
+| `make check` | PASS (exit 0) | 3.788 s |
+| `make test` | PASS (exit 0) | 230.89 s |
+| `make audit` | PASS (exit 0) | 1.742 s |
+| `make validate` | PASS (exit 0) | 242.396 s |
 
-The complete suite passed **501 tests with zero skips** in each of two recorded
-runs: `make validate` in the working tree and `make test` from an independently
-extracted candidate tarball. The latter also passed `make check`. These are
-repetitions, not 1,002 distinct tests. The release contains **22 new live-debconf
-regressions** and retains all **479 existing tests**. The 18 R2 bootstrap tests
-are included and still pass.
+Both complete runs passed **511 tests with zero skips**: `make test` in the working tree and `make validate` from an extracted candidate archive. The 40 CUDA tests include 10 additional tests and updated policy expectations; all 471 non-CUDA tests are unchanged. The 18 bootstrap and 22 debconf regressions are included, not extra counts.
 
-Shell checks passed **264 sources/environment files/templates**
-and **539 parser checks**, including generated command
-boundaries. The full-tree audit parsed **101 Python sources** and **195 shell
-scripts** without syntax errors. ShellCheck and shfmt were unavailable. The
-repository audit reports **154 dependency-blocked Perl checks**; its zero exit
-status does not mean those missing-module compilation checks passed. Source
-inventories, template counts and systemd structure checks are not runtime proofs.
+Shell checks passed 264 files/templates and 539 parser checks. The supplemental whole-tree audit parsed 195 shell and 101 Python sources. The repository audit reports 154 dependency-blocked Perl checks separately. These are not passing Perl compilation checks.
 
-## Actual cause and repair
+## Code changes and integration
 
-`"$@" <&0 &` does not preserve the parent's stdin in a noninteractive shell:
-BusyBox and dash install `/dev/null` for the asynchronous list before `<&0`.
-The child retained debconf's output descriptor but lost its reply input. The
-upstream shell confmodule then tried to return an empty reply status at line 88.
-This was not an incorrectly typed numeric answer in the preseed file.
+- The shared renderer emits trusted=yes, allow-insecure=yes, allow-weak=yes,
+  allow-downgrade-to-insecure=yes, check-valid-until=no and check-date=no only for
+  the exact NVIDIA Debian 12 x86_64 HTTPS flat archive.
+- Removed the CUDA key download and full-fingerprint gate. Old managed keyrings
+  are cleanup-only state. Existing R3 Signed-By sources are replaced atomically.
+- Pre-pkgsel and late repair continue using the same source publisher; the
+  apt-setup generator defers to the explicitly trusted pre-pkgsel refresh.
+- Explicit status propagation protects source publication and late preparation
+  under shell conditionals. Cleanup retains the original failure and does not
+  hide real APT, network or filesystem errors.
+- Generated preseed, payload archive and manifest are rebuilt as one release.
+  No lifecycle, stdin/debconf transport, storage, GRUB/MOK, Codex, CrowdSec,
+  Mullvad, modern CUDA, package-pin or host-profile behavior is otherwise changed.
 
-Both canonical launchers now snapshot stdin in the parent on launch-local FD 9,
-then start the child with `<&9 9<&-`. Existing FD 9 is restored on return; d-i's
-FDs 3-6 are not repurposed. Raw inherited frontend setup happens through the
-installed confmodule before repository log redirection. Nested, bounded,
-captured, BusyBox and dash calls are executed by the new tests.
+Exactly three non-generated runtime files differ from R3: scripts/common/lib.sh,
+scripts/late/cuda-legacy.sh, and the apt-setup generator 98-cuda-legacy-source.
+All 1,234 payload members are checked against their source files and manifest;
+all 13 original profiles still match the original ZIP. The CUDA package list
+and all non-CUDA test modules are unchanged. Current README, security guide,
+operations guide and incident inventory now describe the exception rather than
+claiming strict CUDA authentication. R3's report is retained as historical.
 
-The new canonical `scripts/common/debconf.sh` owns live protocol requests and
-file-based selection application. The installer shell selector requires a
-filename and does not support the installed Perl tool's `-c` interface. Calls
-now use private files, do not pipe answer data onto debconf's reply channel, and
-do not retry a failed application as an unsupported syntax check. An inherited
-frontend is reused rather than competing with another database writer. Runtime
-answer iteration uses FD 7 so requests can read replies from stdin.
+## Risk and preserved boundaries
 
-Protocol replies are validated before being used as exit statuses. EOF and
-malformed replies fail explicitly; genuine nonzero statuses propagate unchanged.
-Password questions are registered without values before direct protocol SET,
-preventing the upstream selector from logging runtime credentials. Literal
-backslashes, empty password hashes and seen flags remain correct. Failed
-application diagnostics remain private and are not dumped into the main log.
-Injected cleanup failures retain the original nonzero error, and failed cleanup
-after otherwise successful work is itself a failure.
-No repository authentication, TLS, ownership or terminal-failure policy was
-weakened; neither the vendor debconf selector nor its shell confmodule is patched
-at runtime.
+This intentionally accepts weak, unsigned, unrecognized-key and stale metadata
+for this one selected archive. It is not cryptographic authentication. A
+compromised origin or trusted TLS interceptor can substitute or replay content.
+HTTPS verification and APT package/index consistency checks remain enabled;
+unauthenticated index checksums cannot prove provenance.
 
-All four generated preseed commands are checked byte-for-byte after loading
-through Debian's shell selector and a real private database. Early, partman and
-late commands execute via upstream `preseed_command`; include/preseed-run execute
-through upstream `preseed.sh`. The generated fatal-detail translation also removes
-an unnecessary duplicate replacement space so its command value survives both
-backends' whitespace handling. Full upstream include/preseed-run paths now reach
-the actual apply phase for local and HTTP bootstraps, Btrfs, simulated arm64/F2FS,
-and VM profiles. Failure injection reaches the real terminal hold; completed
-apply re-entry performs no second batch of database mutations.
+No global AllowInsecureRepositories, AllowUnauthenticated, Sequoia or TLS override
+is added. Ordinary Debian/vendor and modern CUDA sources retain their policies.
+The exception is temporary and removed after package repair and at finish-install.
+See CUDA-LEGACY-TRUST-R4.md and SECURITY.md for exact options and scope.
 
-## Integration and preservation
+## Regression evidence
 
-The canonical helpers, their embedded copies, `preseed.cfg`, payload archive,
-manifest and SHA-256 pins were rebuilt together. All **1,234 payload files**
-were compared against the source tree. All **13 original profiles** still match
-the original ZIP byte-for-byte.
+The focused suite contains 40 tests. Real-APT cases accept SHA-1 certificate
+self-signatures, SHA-1 detached and clear signatures, unsigned/missing Release
+metadata, weak hashes, stale/future metadata, absent/unrelated keys, and a
+previously authenticated repository becoming unsigned. Downloads are inert
+fixture packages and are never installed on the host.
 
-Compared with R2, **1,228 runtime files are unchanged**, five existing files
-changed and one helper was added. No runtime file or pre-existing test was
-removed. The earlier fatal-state, late-family status propagation, GRUB/MOK,
-Codex transaction, APT/CD-ROM, CrowdSec, Mullvad, signed CUDA, storage and Secure
-Boot repairs remain in the payload and their regressions remain in the suite.
-Test-only process cleanup was corrected to freeze a parent before enumerating
-children; transport fixtures now explicitly use private debconf databases.
+Strict-source controls reject weak, unsigned and stale metadata and wrong or
+missing keys. Mixed-source tests reject a second unsigned or SHA-1 repository;
+missing indexes and corrupted packages remain fatal. Lifecycle cases cover
+selected/unselected hooks, late repair, repeated source publication, old-source
+migration, source scoping, unsafe paths, conditional callers and cleanup status.
+Both POSIX sh and BusyBox execute the changed publisher successfully.
 
-`DEBCONF-TRANSPORT-R3.md` describes the descriptors, tests and operational limits.
-`ENGINEERING-REPORT-R2.md` and `BOOTSTRAP-PORTABILITY-R2.md` are historical reports.
-Current results are in `validation/release-checks.json`, `summary.json`,
-`debconf-regression.json`, `shell-check.json`, `audit.json` and `whole-tree.json`.
-`bootstrap-regression.json` is explicitly marked as historical R2 evidence.
-`CHANGE-MANIFEST.json` records changes from the original ZIP.
+The retained bootstrap and debconf protocol suites are included in the full
+validation. Test counts refer to one run, not a sum of repeated executions.
+Archive verification is performed after packaging; extraction, file hashes,
+modes, generated-file checks and focused execution tests are recorded separately.
 
-## Deployment, diagnostics and remaining acceptance
+## Limitations and deployment
 
-Publish the complete release together. Do not mix a new script with old
-`preseed.cfg`, `source.sh`, `payload.manifest` or `payload.tar.gz`. Restart with
-fresh installer state after publishing the release; do not remove fatal markers
-to force a failed installer to continue. Existing diagnostic and success/failure
-marker semantics are documented in the operations guide.
+A live NVIDIA metadata fetch was attempted but DNS resolution is unavailable in
+this environment (curl status 6 for developer.download.nvidia.com). Live vendor
+updates, complete CUDA dependency resolution, package installation, physical
+UEFI/Secure Boot/NVIDIA boot and first-boot services are not certified by these
+loopback and source tests. The exact d-i initrd is not booted here; prior debconf
+fixtures use the installed Perl backend, not compiled cdebconf.
 
-The protocol tests use Debian preseed 1.125 shell source fixtures and debconf
-1.5.91 confmodule inside a BusyBox chroot. The real backend is the installed Perl
-debconf File driver, **not a compiled cdebconf frontend**. log-output and local
-preseed_fetch have narrow test replacements. Hardware and destructive phase
-children are simulated. Fixture source references, checksums and licenses are
-included. The exact deployment initrd, physical partitioning, UEFI/MOK/Secure
-Boot, NVIDIA boot, live mixed-suite packages, first-boot services and desktop
-session still require image/hardware acceptance. No destructive host-disk test
-or live target customization was performed in this environment.
+ShellCheck and shfmt are not installed. Perl checks blocked by absent dependencies
+remain explicitly identified by the repository audit, not counted as passing
+compilation. Generated template inventory and systemd lexical checks are not
+runtime acceptance proofs.
 
-The clean release excludes raw supplied logs, .git, caches, intermediate
-artifacts and credentials. Structured validation evidence is retained; detailed
-stage logs are regenerated by running validation. The final archive is verified
-separately after packaging; the source/runtime file hashes are checked against
-this tested tree.
+Publish the complete release together and start with fresh installer state. Do
+not mix old preseed/payload files with the new library or delete fatal markers
+to resume a failed run. The release does not contain raw supplied logs, private
+keys, credentials, caches or temporary test work.

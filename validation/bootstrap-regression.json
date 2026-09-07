@@ -83,5 +83,7 @@
   "environment": "Restricted-applications chroot using the installed full BusyBox binary, not a booted installer or an actual busybox-udeb binary.",
   "profiles_match_original_zip": 13,
   "historical_release": "R2",
-  "current_status": "Historical R2 evidence only; R3 results are in release-checks.json and debconf-regression.json."
+  "current_status": "Historical R2 evidence only; R3 results are in release-checks.json and debconf-regression.json.",
+  "historical_origin_release": "R2",
+  "revalidated_in": "R4 full 511-test make test and extracted-candidate make validate runs"
 }

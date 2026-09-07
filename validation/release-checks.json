@@ -1,54 +1,67 @@
 {
-  "release": "R3",
-  "utc": "2026-09-07T16:12:33.598591+00:00",
+  "release": "R4",
+  "utc": "2026-09-07T17:12:24.885041+00:00",
   "executed": [
     {
-      "target": "make build",
+      "command": "make build",
       "returncode": 0,
-      "seconds": 2.336
+      "elapsed_seconds": 2.225,
+      "log": "build.log"
     },
     {
-      "target": "make check",
+      "command": "make check",
       "returncode": 0,
-      "seconds": 3.786
+      "elapsed_seconds": 3.788,
+      "log": "check.log"
     },
     {
-      "target": "make test",
+      "command": "make test",
       "returncode": 0,
-      "seconds": 224.538,
-      "tree": "extracted candidate archive"
+      "elapsed_seconds": 230.89,
+      "log": "test.log"
     },
     {
-      "target": "make audit",
+      "command": "make audit",
       "returncode": 0,
-      "seconds": 1.631
+      "elapsed_seconds": 1.742,
+      "log": "audit.log"
     },
     {
-      "target": "make validate",
+      "command": "make validate",
+      "tree": "extracted candidate archive",
       "returncode": 0,
-      "seconds": 233.027
+      "seconds": 242.396,
+      "utc": "2026-09-07T17:12:23.217063+00:00"
+    },
+    {
+      "command": "make test-cuda",
+      "returncode": 0,
+      "tests_run": 40
     }
   ],
   "test_suite": {
-    "tests_run": 501,
+    "tests_run": 511,
     "skipped": 0,
-    "independent_complete_runs": 2,
+    "complete_runs": 2,
     "locations": [
-      "working tree via make validate",
-      "extracted candidate archive via make test"
+      "working tree: make test",
+      "extracted candidate archive: make validate"
     ]
+  },
+  "cuda_tests": {
+    "tests_run": 40,
+    "included_in_full_suite": true,
+    "result": "PASS"
   },
   "debconf_tests": {
     "tests_run": 22,
-    "skipped": 0,
-    "result": "PASS",
-    "included_in_full_suite": true
+    "included_in_full_suite": true,
+    "result": "PASS"
   },
   "bootstrap_tests": {
     "tests_run": 18,
-    "skipped": 0,
-    "result": "PASS",
-    "included_in_full_suite": true
+    "included_in_full_suite": true,
+    "result": "PASS"
   },
   "shell_checks": {
     "success": true,
@@ -57,39 +70,35 @@
     "failures": [],
     "scope": "parse checks only; runtime execution is a separate test stage"
   },
-  "python_syntax_checks": 101,
+  "audit_check_counts": {
+    "blocked-dependency": 154,
+    "inventory-only": 476,
+    "pass": 415,
+    "structure-pass": 115,
+    "template-needs-render": 2
+  },
   "original_profiles_preserved": 13,
-  "payload_preservation": {
-    "changed_runtime_files": [
-      "d-i/forky/scripts/common/lib.sh",
-      "d-i/forky/scripts/common/lifecycle.sh",
-      "d-i/forky/scripts/common/source.sh",
-      "d-i/forky/scripts/preseed/answers.sh",
-      "d-i/forky/scripts/runtime/common.sh"
-    ],
-    "added_runtime_files": [
-      "d-i/forky/scripts/common/debconf.sh"
-    ],
-    "removed_runtime_files": [],
-    "profiles_unchanged": 13
+  "payload_files_verified": 1234,
+  "changed_non_generated_runtime_files": [
+    "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
+    "d-i/forky/scripts/common/lib.sh",
+    "d-i/forky/scripts/late/cuda-legacy.sh"
+  ],
+  "live_nvidia_smoke": {
+    "status": "ENVIRONMENT LIMITATION",
+    "curl_status": 6,
+    "reason": "DNS resolution failed for developer.download.nvidia.com; no live APT update or vendor package download claimed"
   },
-  "integration_integrity": {
-    "payload_files_matched_to_source": 1234,
-    "baseline_test_modules": 19,
-    "baseline_test_functions_preserved": 479,
-    "removed_test_functions": []
-  },
+  "archive_verification": "Final tar listing, extraction, byte/mode comparison and focused tests are run separately after packaging; its SHA256 is outside this self-referential archive.",
   "limitations": [
     "Offline/loopback checks, not a booted Debian installer.",
     "Systemd unit checks are lexical structure only.",
     "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
     "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
     "Browser export coverage is static, not live site testing or GUI import acceptance.",
-    "Uses installed regular BusyBox, not a booted installer initrd.",
-    "Backend is Perl debconf, not the compiled cdebconf frontend.",
-    "log-output and local preseed_fetch are narrow descriptor-preserving test shims.",
-    "Hardware/sysfs and dangerous phase children are simulated.",
-    "ShellCheck and shfmt not run: executables unavailable.",
-    "154 dependency-blocked Perl audit checks are not passing compilation checks."
+    "Live NVIDIA hostname DNS resolution is unavailable in this execution environment.",
+    "ShellCheck and shfmt are unavailable.",
+    "154 Perl checks are blocked by missing dependencies; not passing compilation checks.",
+    "The exact booted d-i initrd and physical UEFI/Secure Boot install are not exercised."
   ]
 }

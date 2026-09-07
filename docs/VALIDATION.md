@@ -1,12 +1,15 @@
 # Validation evidence - 2026-09-07 repair
 
-For R3, `make test-debconf` executes Debian's installer shell clients against
-an explicitly private live protocol backend. The whole suite includes these
-regressions automatically. This is stronger than the R2 host-Perl parser and
-prepare-context-only bootstrap tests; see DEBCONF-TRANSPORT-R3.md for boundaries
-and substitutions. Current counts and observed statuses are in the R3
-ENGINEERING-REPORT.md and validation/release-checks.json. Historical counts below
-refer to the original repair, not the current release.
+For R4, `make test-cuda` exercises the explicit legacy exception with real APT,
+disposable signing keys, private state and loopback HTTP repositories. Tests
+cover SHA-1 certificates and Release signatures, unsigned/weak/stale metadata,
+missing keys, downgrade transitions, package downloads, and failure isolation
+from ordinary repositories. No fixture package is installed on this host.
+
+The retained `make test-debconf` and `make test-bootstrap` suites exercise the
+previous startup fixes. All three focused suites are included in `make test`.
+Current results are in ENGINEERING-REPORT.md and validation/release-checks.json.
+Historical counts below refer to the original repair, not the current release.
 
 Current machine-readable results are `validation/release-checks.json`,
 `validation/summary.json`, `validation/audit.json`, and
@@ -19,7 +22,7 @@ assertion. The migration ledger now records the correct supplied file hash
 without changing that profile. The repaired suite adds fault injection and
 regressions for terminal d-i failure, original status retention, early renderer
 failure in Btrfs/F2FS/VM, both EFI architectures, Codex publication/ownership,
-early APT normalization, signed CUDA metadata, storage media exclusion, kernel
+early APT normalization, CUDA metadata policy, storage media exclusion, kernel
 repair and udeb tool availability. No original profile was removed.
 
 Run all entrypoints from the repository root:
@@ -28,6 +31,7 @@ Run all entrypoints from the repository root:
 make build
 make check
 make test
+make test-cuda
 make audit
 make validate
 python3 -B tools/release_audit.py
