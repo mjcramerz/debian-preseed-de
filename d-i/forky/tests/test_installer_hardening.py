@@ -556,6 +556,61 @@ codex_file_matches() {{ cmp -s "$1" "$2"; }}
 
 
 class ConfigurationOrderingTests(unittest.TestCase):
+    def test_crowdsec_target_package_checks_preserve_dpkg_status_format(self):
+        source = (ROOT / 'scripts/late/crowdsec.sh').read_text()
+        cases = (
+            ('verify CrowdSec engine before bouncer enrollment',
+             'crowdsec', '/etc/crowdsec/config.yaml'),
+            ('validate CrowdSec bouncer package configuration',
+             'crowdsec-firewall-bouncer-nftables',
+             '/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml'),
+        )
+        with tempfile.TemporaryDirectory(prefix='crowdsec-target-check-') as tmp:
+            root = Path(tmp)
+            bindir = root / 'bin'
+            bindir.mkdir()
+            commands = {
+                'dpkg-query': r'''#!/bin/sh
+[ "$1" = -W ] && [ "$2" = '-f=${Status}' ] && [ "$3" = "$EXPECTED_PACKAGE" ] || exit 81
+printf '%s' 'install ok installed'
+''',
+                'cscli': r'''#!/bin/sh
+[ "$*" = 'config show --key Config.Common.LogMedia -o raw' ] || exit 82
+''',
+                'stat': r'''#!/bin/sh
+[ "$1" = -c ] && [ "$2" = %h ] && [ "$3" = "$EXPECTED_CONFIG" ] || exit 83
+printf '%s\n' 1
+''',
+                'chown': r'''#!/bin/sh
+[ "$1" = root:root ] && [ "$2" = "$EXPECTED_CONFIG" ] || exit 84
+''',
+                'chmod': r'''#!/bin/sh
+[ "$1" = 0600 ] && [ "$2" = "$EXPECTED_CONFIG" ] || exit 85
+''',
+            }
+            for name, command in commands.items():
+                path = bindir / name
+                path.write_text(command)
+                path.chmod(0o755)
+
+            shells = (('/bin/sh',),)
+            if busybox := shutil.which('busybox'):
+                shells += ((busybox, 'sh'),)
+            for index, (label, package, target_config) in enumerate(cases):
+                config = root / f'config-{index}.yaml'
+                config.write_text('fixture: true\n')
+                start = f'run_in_target "{label}" /bin/sh -eu -c \'\n'
+                program = source.split(start, 1)[1].split("\n' sh", 1)[0]
+                program = program.replace(target_config, str(config))
+                env = {**os.environ, 'PATH': f'{bindir}:/usr/bin:/bin',
+                       'EXPECTED_PACKAGE': package, 'EXPECTED_CONFIG': str(config)}
+                for shell_command in shells:
+                    with self.subTest(label=label, shell=shell_command):
+                        result = subprocess.run([*shell_command, '-eu', '-c', program],
+                                                env=env, capture_output=True,
+                                                text=True, timeout=10)
+                        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_crowdsec_engine_config_precedes_bouncer_install(self):
         cfg = (ROOT/'classes/class-addon/crowdsec.cfg').read_text()
         self.assertNotIn('crowdsec-firewall-bouncer-nftables', '\n'.join(l for l in cfg.splitlines() if l.startswith('d-i pkgsel/include')))

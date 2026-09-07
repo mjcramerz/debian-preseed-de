@@ -121,15 +121,32 @@ host_env=${INSTALLER_LATE_HOST_ENV:-/tmp/install-env-late/host.env}
 # dpkg may configure packages in dependency order rather than pkgsel text order.
 # The upstream bouncer does not depend on a fully initialized local engine.
 run_in_target "verify CrowdSec engine before bouncer enrollment" /bin/sh -eu -c '
-[ "$(dpkg-query -W -f="${Status}" crowdsec)" = "install ok installed" ]
-[ -s /etc/crowdsec/config.yaml ] && [ ! -L /etc/crowdsec/config.yaml ]
-cscli config show --key Config.Common.LogMedia -o raw >/dev/null
+crowdsec_engine_status=$(dpkg-query -W -f="\${Status}" crowdsec 2>/dev/null || true)
+[ "$crowdsec_engine_status" = "install ok installed" ] || {
+  printf "CrowdSec engine package is not configured: %s\n" "${crowdsec_engine_status:-not-installed}" >&2
+  exit 1
+}
+[ -s /etc/crowdsec/config.yaml ] && [ ! -L /etc/crowdsec/config.yaml ] || {
+  printf "CrowdSec engine configuration is missing or unsafe\n" >&2
+  exit 1
+}
+if ! cscli config show --key Config.Common.LogMedia -o raw >/dev/null; then
+  printf "CrowdSec engine configuration failed cscli validation\n" >&2
+  exit 1
+fi
 ' sh
 run_in_target "install CrowdSec bouncer after engine configuration" env DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
 run_in_target "validate CrowdSec bouncer package configuration" /bin/sh -eu -c '
-[ "$(dpkg-query -W -f="${Status}" crowdsec-firewall-bouncer-nftables)" = "install ok installed" ]
+crowdsec_bouncer_status=$(dpkg-query -W -f="\${Status}" crowdsec-firewall-bouncer-nftables 2>/dev/null || true)
+[ "$crowdsec_bouncer_status" = "install ok installed" ] || {
+  printf "CrowdSec bouncer package is not configured: %s\n" "${crowdsec_bouncer_status:-not-installed}" >&2
+  exit 1
+}
 config=/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
-[ -s "$config" ] && [ ! -L "$config" ] && [ "$(stat -c %h "$config")" = 1 ]
+[ -s "$config" ] && [ ! -L "$config" ] && [ "$(stat -c %h "$config")" = 1 ] || {
+  printf "CrowdSec bouncer configuration is missing or unsafe\n" >&2
+  exit 1
+}
 chown root:root "$config"
 chmod 0600 "$config"
 ' sh
