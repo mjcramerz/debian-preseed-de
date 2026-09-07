@@ -1,62 +1,83 @@
 {
-  "release": "R2",
-  "utc": "2026-09-07T15:11:13.956428+00:00",
+  "release": "R3",
+  "utc": "2026-09-07T16:12:33.598591+00:00",
   "executed": [
     {
       "target": "make build",
       "returncode": 0,
-      "seconds": 2.529
+      "seconds": 2.336
     },
     {
       "target": "make check",
       "returncode": 0,
-      "seconds": 4.65
+      "seconds": 3.786
     },
     {
       "target": "make test",
       "returncode": 0,
-      "seconds": 125.48
+      "seconds": 224.538,
+      "tree": "extracted candidate archive"
     },
     {
       "target": "make audit",
       "returncode": 0,
-      "seconds": 1.826
+      "seconds": 1.631
     },
     {
       "target": "make validate",
       "returncode": 0,
-      "seconds": 134.269
+      "seconds": 233.027
     }
   ],
   "test_suite": {
-    "tests_run": 479,
+    "tests_run": 501,
     "skipped": 0,
-    "independent_complete_runs": 2
+    "independent_complete_runs": 2,
+    "locations": [
+      "working tree via make validate",
+      "extracted candidate archive via make test"
+    ]
+  },
+  "debconf_tests": {
+    "tests_run": 22,
+    "skipped": 0,
+    "result": "PASS",
+    "included_in_full_suite": true
   },
   "bootstrap_tests": {
     "tests_run": 18,
     "skipped": 0,
-    "result": "PASS"
+    "result": "PASS",
+    "included_in_full_suite": true
   },
   "shell_checks": {
     "success": true,
-    "shell_files": 259,
-    "parser_checks": 529,
+    "shell_files": 264,
+    "parser_checks": 539,
     "failures": [],
     "scope": "parse checks only; runtime execution is a separate test stage"
   },
-  "python_syntax_checks": 99,
+  "python_syntax_checks": 101,
   "original_profiles_preserved": 13,
   "payload_preservation": {
-    "payload_member_count": 1233,
-    "unchanged_payload_files": 1230,
-    "changed_payload_files": [
-      "scripts/common/lib.sh",
-      "scripts/common/lifecycle.sh",
-      "scripts/common/source.sh"
+    "changed_runtime_files": [
+      "d-i/forky/scripts/common/lib.sh",
+      "d-i/forky/scripts/common/lifecycle.sh",
+      "d-i/forky/scripts/common/source.sh",
+      "d-i/forky/scripts/preseed/answers.sh",
+      "d-i/forky/scripts/runtime/common.sh"
     ],
-    "profiles_preserved": 13,
-    "added_or_removed_payload_files": []
+    "added_runtime_files": [
+      "d-i/forky/scripts/common/debconf.sh"
+    ],
+    "removed_runtime_files": [],
+    "profiles_unchanged": 13
+  },
+  "integration_integrity": {
+    "payload_files_matched_to_source": 1234,
+    "baseline_test_modules": 19,
+    "baseline_test_functions_preserved": 479,
+    "removed_test_functions": []
   },
   "limitations": [
     "Offline/loopback checks, not a booted Debian installer.",
@@ -64,8 +85,11 @@
     "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
     "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
     "Browser export coverage is static, not live site testing or GUI import acceptance.",
-    "BusyBox sandbox uses the installed regular binary, not an actual busybox-udeb binary.",
+    "Uses installed regular BusyBox, not a booted installer initrd.",
+    "Backend is Perl debconf, not the compiled cdebconf frontend.",
+    "log-output and local preseed_fetch are narrow descriptor-preserving test shims.",
+    "Hardware/sysfs and dangerous phase children are simulated.",
     "ShellCheck and shfmt not run: executables unavailable.",
-    "154 Perl dependency-blocked audit checks are not passing compile checks."
+    "154 dependency-blocked Perl audit checks are not passing compilation checks."
   ]
 }

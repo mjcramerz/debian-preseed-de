@@ -4,11 +4,11 @@
     "hooks/installer": 28
   },
   "requested_unique_files": 1058,
-  "total_with_installers_and_hosts": 1161,
+  "total_with_installers_and_hosts": 1162,
   "check_counts": {
     "blocked-dependency": 154,
     "inventory-only": 476,
-    "pass": 414,
+    "pass": 415,
     "structure-pass": 115,
     "template-needs-render": 2
   },
@@ -18,7 +18,7 @@
     "json": 41,
     "perl": 176,
     "python": 71,
-    "shell": 254,
+    "shell": 255,
     "systemd-structure": 115,
     "toml": 9,
     "xml": 8
@@ -15882,6 +15882,19 @@
       "placeholder_count": 0
     },
     {
+      "path": "d-i/forky/scripts/common/debconf.sh",
+      "requested_scope": false,
+      "kind": "shell",
+      "check": "pass",
+      "detail": "",
+      "unit_facts": {},
+      "lines": 140,
+      "bytes": 5382,
+      "mode": "0o644",
+      "sha256": "e8389d1eacc789b684859d18bc55fbc009f673bc765db339ced9f007b530e728",
+      "placeholder_count": 0
+    },
+    {
       "path": "d-i/forky/scripts/common/fetch.sh",
       "requested_scope": false,
       "kind": "shell",
@@ -15914,10 +15927,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 4699,
-      "bytes": 174367,
+      "lines": 4852,
+      "bytes": 180841,
       "mode": "0o750",
-      "sha256": "762aba10d459e2718bd55fc5b98654bcaa42405022eb51cd9b29b37b5daf104c",
+      "sha256": "9975dbbf4ec5892c9875b09d8cb1f11243d9ab7113941ef1bd8d0f96281ee33a",
       "placeholder_count": 2
     },
     {
@@ -15927,10 +15940,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 278,
-      "bytes": 13460,
+      "lines": 291,
+      "bytes": 14410,
       "mode": "0o644",
-      "sha256": "78adaecb71f7668de7e6466b65bb6bace399d78c66d2c4e8f721bfc696445f32",
+      "sha256": "c7cbde8e8126eb29467cf062a6171588f077859a1b807bc5c45538963c20735a",
       "placeholder_count": 0
     },
     {
@@ -15940,10 +15953,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 575,
-      "bytes": 31777,
+      "lines": 588,
+      "bytes": 32727,
       "mode": "0o750",
-      "sha256": "7efb364ba9d8536f3529e23507a5255b80ff5e99e99c7394475d53f06df36b59",
+      "sha256": "304ccd4723c2d513114041f54a118d26f1d2a19b3baccdb709be1ee8fe544e07",
       "placeholder_count": 0
     },
     {
@@ -16759,10 +16772,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 1251,
-      "bytes": 45343,
+      "lines": 1137,
+      "bytes": 41304,
       "mode": "0o750",
-      "sha256": "a4e23a2ce8e1444542c681aa6b1ea9a8380017b7162a1264e59ce48850449238",
+      "sha256": "1dba1faff0ce987b71363dd985b846c72a9e74a016e4b4d04a2ddbc9c4952ca9",
       "placeholder_count": 0
     },
     {
@@ -16889,10 +16902,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 912,
-      "bytes": 32048,
+      "lines": 1052,
+      "bytes": 37475,
       "mode": "0o750",
-      "sha256": "ebb80da561aa06574b700d8eca9ad24b45fda1610e0e0515b7ac1d5b63ba3942",
+      "sha256": "a54df96eebf194c0be2ff89504de7a8227a2e4cfe3a98bb5619f439099b6ed71",
       "placeholder_count": 0
     },
     {

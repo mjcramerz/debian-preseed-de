@@ -238,6 +238,20 @@ def sync_credential_helpers(check: bool) -> None:
             if os.path.exists(temporary):
                 os.unlink(temporary)
 
+def sync_debconf_helpers(check: bool) -> None:
+    begin, end = '# BEGIN EMBEDDED DEBCONF\n', '# END EMBEDDED DEBCONF\n'
+    canonical = (SEED / 'scripts/common/debconf.sh').read_text()
+    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):
+        path = SEED / name
+        text = path.read_text()
+        before, rest = text.split(begin, 1)
+        _, after = rest.split(end, 1)
+        expected = before + begin + canonical + end + after
+        if text != expected:
+            if check:
+                raise ValueError(f'stale debconf embedding: {name}')
+            path.write_text(expected)
+
 def sync_lifecycle_helpers(check: bool) -> None:
     begin, end = '# BEGIN EMBEDDED LIFECYCLE\n', '# END EMBEDDED LIFECYCLE\n'
     canonical = (SEED / 'scripts/common/lifecycle.sh').read_text()
@@ -279,6 +293,7 @@ def main() -> int:
         subprocess.run([sys.executable, '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)
+        sync_debconf_helpers(args.check)
         sync_lifecycle_helpers(args.check)
         sync_apt_helpers(args.check)
         products = build()

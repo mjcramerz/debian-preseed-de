@@ -1,49 +1,49 @@
 {
   "repository": "debian-preseed-de",
-  "utc": "2026-09-07T15:10:41.244352+00:00",
+  "utc": "2026-09-07T16:08:41.257840+00:00",
   "stages": [
     {
       "stage": "browser-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.819,
+      "seconds": 0.668,
       "log": "browser-check.log"
     },
     {
       "stage": "build-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 2.279,
+      "seconds": 2.325,
       "log": "build-check.log"
     },
     {
       "stage": "preseed-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.819,
+      "seconds": 1.023,
       "log": "preseed-check.log"
     },
     {
       "stage": "shell-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 1.371,
+      "seconds": 1.524,
       "log": "shell-check.log"
     },
     {
       "stage": "tests",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 126.572,
+      "seconds": 225.081,
       "log": "tests.log",
-      "tests_run": 479,
+      "tests_run": 501,
       "skipped": 0
     },
     {
       "stage": "audit",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 1.777,
+      "seconds": 1.748,
       "log": "audit.log"
     }
   ],
@@ -51,14 +51,14 @@
   "audit_check_counts": {
     "blocked-dependency": 154,
     "inventory-only": 476,
-    "pass": 414,
+    "pass": 415,
     "structure-pass": 115,
     "template-needs-render": 2
   },
   "runtime_product_sha256": {
-    "preseed.cfg": "f41ec8938d1782b042b66a41237a196b1ffe2b10d747e9a22ce69666ec3cbdea",
-    "payload.manifest": "82e146ddbb5c02b1bb00e60c91de020eabf587aceb3be946047381b0b130a921",
-    "payload.tar.gz": "787fac827a99552a930faceb7e2f4168d1a1df347f3ed53dd860288d13445c7d"
+    "preseed.cfg": "afc9cd38fd331e9295015fb70e0d970d323a00f893821de960375b9b032b68b6",
+    "payload.manifest": "7e646869856ce71fd3ebc00d8554daa8a9756c44c672242ee4ffb39c21ffd2d9",
+    "payload.tar.gz": "c1342364ca890202a1fc93ac98dfe90bcf14170950178355303cd835aa0c6145"
   },
   "limits": [
     "Offline/loopback checks, not a booted Debian installer.",

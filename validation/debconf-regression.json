@@ -1,0 +1,80 @@
+{
+  "release": "R3",
+  "baseline_archive": "debian-preseed-de-refactored-r2.tar.gz",
+  "baseline_sha256": "433cfa42d4893f0b2b5229a5918ede20d78716dc10c845831f3e9164c19f9601",
+  "negative_control": {
+    "asynchronous_redirection": "<&0 &",
+    "returncode": 2,
+    "diagnostic": "return: line 88: Illegal number",
+    "client": "Debian preseed 1.125 shell debconf-set-selections; debconf 1.5.91 confmodule",
+    "backend": "private live Perl debconf File driver, not compiled cdebconf"
+  },
+  "positive_tests": {
+    "count": 22,
+    "result": "PASS",
+    "test_names": [
+      "test_all_generated_phase_commands_preserve_debconf_roundtrip",
+      "test_bounded_installer_selector_preserves_live_stdin",
+      "test_canonical_debconf_copies_are_identical",
+      "test_cleanup_retains_root_failure_and_rejects_successful_work_with_failed_cleanup",
+      "test_dash_supervisor_also_preserves_busybox_client_protocol",
+      "test_eof_reply_is_fatal_without_illegal_return_or_secret_leak",
+      "test_failed_selector_in_preseed_command_holds_without_reentry",
+      "test_failed_selector_not_retried_and_diagnostics_remain_private",
+      "test_full_debian_preseed_f2fs_arm64_apply",
+      "test_full_debian_preseed_include_and_run_http_apply",
+      "test_full_debian_preseed_include_and_run_local_apply",
+      "test_full_debian_preseed_vm_apply",
+      "test_malformed_reply_is_not_converted_to_shell_status",
+      "test_negative_control_reproduces_exact_illegal_number_with_r2_redirection",
+      "test_nested_supervision_and_capture_preserve_connection_and_fd9",
+      "test_raw_main_menu_descriptors_initialized_before_supervision",
+      "test_runtime_password_not_written_to_upstream_preseed_log",
+      "test_runtime_trailing_backslash_empty_hash_seen_and_literal_metacharacters",
+      "test_single_value_registration_never_pipes_answers_to_selector",
+      "test_supervised_installer_selector_registers_and_sets_real_database",
+      "test_symlink_answer_file_rejected_before_database_changes",
+      "test_valid_nonzero_reply_preserves_original_status"
+    ]
+  },
+  "coverage": [
+    "BusyBox and dash launchers; supervised and bounded stdin preservation",
+    "nested calls, command substitution, saved FD 9 and raw inherited frontend",
+    "upstream shell selection parser; real private database and live stdin/FD3 connection",
+    "generated commands read back and executed through upstream preseed_command",
+    "upstream preseed include and run; real apply phase; local and loopback HTTP",
+    "Btrfs, simulated arm64/F2FS and VM; apply re-entry has no mutation batch",
+    "real terminal hold retains failure and prevents repeated mutation",
+    "password values not logged by upstream selector; trailing backslash; empty hash; seen flags",
+    "malformed and EOF replies; original failure status; symlink and private diagnostic checks"
+  ],
+  "fixture_sha256": {
+    "GPL-2": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+    "confmodule": "5b043ed174b714949cfb2097d303147b9f02c5fb9e531e2dfb562b1476e820af",
+    "debconf-set-selections": "b33ebced6dea0b7babd105982dfcd3037c02a16667bcd4d385fc236cedaa9c51",
+    "debconf.COPYRIGHT": "57163c71bd8a5289660892827dd0dfaa7fef47f89deedc9dc6711ced7d0a28d7",
+    "preseed.COPYRIGHT": "19767dbecb0cab2d11cc74e1e01b655544e1c50d8b2774ca2cb1d20c6db6949b",
+    "preseed.sh": "50316339e1acf7145aec11cf15a521ff241e600e6396a7e7510008930841a2d9",
+    "preseed_command": "631b93c55399123c123ec37148c50eaf0dc06237daad64f124b16019df2398ea"
+  },
+  "payload_preservation": {
+    "changed_runtime_files": [
+      "d-i/forky/scripts/common/lib.sh",
+      "d-i/forky/scripts/common/lifecycle.sh",
+      "d-i/forky/scripts/common/source.sh",
+      "d-i/forky/scripts/preseed/answers.sh",
+      "d-i/forky/scripts/runtime/common.sh"
+    ],
+    "added_runtime_files": [
+      "d-i/forky/scripts/common/debconf.sh"
+    ],
+    "removed_runtime_files": [],
+    "profiles_unchanged": 13
+  },
+  "limits": [
+    "Uses installed regular BusyBox, not a booted installer initrd.",
+    "Backend is Perl debconf, not the compiled cdebconf frontend.",
+    "log-output and local preseed_fetch are narrow descriptor-preserving test shims.",
+    "Hardware/sysfs and dangerous phase children are simulated."
+  ]
+}

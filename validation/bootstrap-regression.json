@@ -81,5 +81,7 @@
     "python3 3.13.5-1"
   ],
   "environment": "Restricted-applications chroot using the installed full BusyBox binary, not a booted installer or an actual busybox-udeb binary.",
-  "profiles_match_original_zip": 13
+  "profiles_match_original_zip": 13,
+  "historical_release": "R2",
+  "current_status": "Historical R2 evidence only; R3 results are in release-checks.json and debconf-regression.json."
 }

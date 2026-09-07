@@ -1,5 +1,15 @@
 # debian-preseed-de
 
+## R3 debconf transport repair
+
+This release fixes lost installer stdin across supervised/background commands,
+uses the installer's filename-based selection API, and adds live debconf
+protocol/control-flow tests through answer application. See
+[the R3 engineering report](docs/ENGINEERING-REPORT.md) and
+[the protocol repair](docs/DEBCONF-TRANSPORT-R3.md). Run `make test-debconf`
+for the focused suite. All generated payloads and pins are supplied together.
+
+
 Debian unattended-install repository for desktop systems. The 2026-09-07 R2 repair
 retains all 13 supplied profiles and the intentional mixed-suite package policy.
 Partitioning remains destructive: only an explicit safe device or a unique safe

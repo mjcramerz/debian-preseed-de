@@ -23,15 +23,33 @@ def descendants(root):
 
 
 def stop_test_tree(process):
-    # Freeze only the process we spawned and its descendants before killing.
-    # This also cleans terminal waits and separate setsid supervisor sessions.
-    pids = descendants(process.pid)
-    for pid in pids:
+    # Freeze each owned parent BEFORE enumerating its children. Taking one
+    # snapshot first allowed fatal-hold shells to fork a sleep between the
+    # snapshot and SIGSTOP, leaving open pipes and hanging test teardown.
+    stopped = []
+    def freeze(pid):
         try:
             os.kill(pid, signal.SIGSTOP)
         except ProcessLookupError:
-            pass
-    for pid in reversed(pids):
+            return
+        stopped.append(pid)
+        child_file = Path(f'/proc/{pid}/task/{pid}/children')
+        try:
+            children = [int(value) for value in child_file.read_text().split()]
+        except OSError:
+            children = []
+            for path in Path('/proc').glob('[0-9]*/status'):
+                try:
+                    parent = int(next(line.split()[1] for line in path.read_text().splitlines()
+                                      if line.startswith('PPid:')))
+                    if parent == pid:
+                        children.append(int(path.parent.name))
+                except (OSError, ValueError, StopIteration):
+                    pass
+        for child in children:
+            freeze(child)
+    freeze(process.pid)
+    for pid in reversed(stopped):
         try:
             os.kill(pid, signal.SIGKILL)
         except ProcessLookupError:

@@ -1,25 +1,26 @@
 {
-  "release": "R2",
+  "release": "R3",
   "source_archive": "debian-preseed-de.zip",
   "source_archive_sha256": "2a0dd94b2f2a3f6ce01428b197dda1b10326dbd185a529c774cc2a748b433f91",
-  "preceding_archive_sha256": "671d62819efb312adbf25ca0ac9946734e60806841f9495fd8ef4c84ff924a95",
+  "preceding_archive_sha256": "433cfa42d4893f0b2b5229a5918ede20d78716dc10c845831f3e9164c19f9601",
   "profiles_verified_unchanged": 13,
   "exclusions": [
     ".git",
     "validation",
+    "cache files",
     "this self-referential manifest"
   ],
   "changes": [
     {
       "path": "Makefile",
       "baseline_sha256": "09150d9bb9182346893e6b871d08a0db69a701f0ac762db6f03e492ef792a7b0",
-      "release_sha256": "c30380cfb298611f2bf5a4ce07a54e825bd62a5b0efee7ff3caf3a86d7a8c767",
+      "release_sha256": "96765afe0f9aa90b6157e33efab6a186f2a9ed9a596909b9e975219eb79b7a9c",
       "change": "modified"
     },
     {
       "path": "README.md",
       "baseline_sha256": "ee4f6f7490e7b109e98bd21330b06e306e67d7088502a3a2fe2cdd9c27582da6",
-      "release_sha256": "d17bc2a66ffd30e206cf2b967aa92949477e5912399afe4dc98916205dca14e8",
+      "release_sha256": "f9a5d5a12a9e7c5337184d6632b01c7bdb1867703452f62463b059fcd564df39",
       "change": "modified"
     },
     {
@@ -145,25 +146,31 @@
     {
       "path": "d-i/forky/payload.manifest",
       "baseline_sha256": "78878311464a81c6b2ef1aea7385a862505ea65d71ffb5c9e43a4620c0d12666",
-      "release_sha256": "82e146ddbb5c02b1bb00e60c91de020eabf587aceb3be946047381b0b130a921",
+      "release_sha256": "7e646869856ce71fd3ebc00d8554daa8a9756c44c672242ee4ffb39c21ffd2d9",
       "change": "modified"
     },
     {
       "path": "d-i/forky/payload.tar.gz",
       "baseline_sha256": "4cb53c7b25bc9513769c4a049b3c78e5d5538ed8c65b9c8e8c44f99769131292",
-      "release_sha256": "787fac827a99552a930faceb7e2f4168d1a1df347f3ed53dd860288d13445c7d",
+      "release_sha256": "c1342364ca890202a1fc93ac98dfe90bcf14170950178355303cd835aa0c6145",
       "change": "modified"
     },
     {
       "path": "d-i/forky/preseed.cfg",
       "baseline_sha256": "5a1a2aaaee059593e2f3fe5d3fda6a2c5501f10cc3393e551bcefece96b622bd",
-      "release_sha256": "f41ec8938d1782b042b66a41237a196b1ffe2b10d747e9a22ce69666ec3cbdea",
+      "release_sha256": "afc9cd38fd331e9295015fb70e0d970d323a00f893821de960375b9b032b68b6",
       "change": "modified"
     },
     {
       "path": "d-i/forky/scripts/common/apt-sources.sh",
       "baseline_sha256": null,
       "release_sha256": "7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/scripts/common/debconf.sh",
+      "baseline_sha256": null,
+      "release_sha256": "e8389d1eacc789b684859d18bc55fbc009f673bc765db339ced9f007b530e728",
       "change": "added"
     },
     {
@@ -181,19 +188,19 @@
     {
       "path": "d-i/forky/scripts/common/lib.sh",
       "baseline_sha256": "d4d6a006a211b45a63b24622756881c81e90424d7884f2db3917098b516abca1",
-      "release_sha256": "762aba10d459e2718bd55fc5b98654bcaa42405022eb51cd9b29b37b5daf104c",
+      "release_sha256": "9975dbbf4ec5892c9875b09d8cb1f11243d9ab7113941ef1bd8d0f96281ee33a",
       "change": "modified"
     },
     {
       "path": "d-i/forky/scripts/common/lifecycle.sh",
       "baseline_sha256": null,
-      "release_sha256": "78adaecb71f7668de7e6466b65bb6bace399d78c66d2c4e8f721bfc696445f32",
+      "release_sha256": "c7cbde8e8126eb29467cf062a6171588f077859a1b807bc5c45538963c20735a",
       "change": "added"
     },
     {
       "path": "d-i/forky/scripts/common/source.sh",
       "baseline_sha256": "14f8b05a8047f1d214d4c4ae60a10c8e851abeae7f01c53e99266c2de6b644bf",
-      "release_sha256": "7efb364ba9d8536f3529e23507a5255b80ff5e99e99c7394475d53f06df36b59",
+      "release_sha256": "304ccd4723c2d513114041f54a118d26f1d2a19b3baccdb709be1ee8fe544e07",
       "change": "modified"
     },
     {
@@ -263,6 +270,12 @@
       "change": "modified"
     },
     {
+      "path": "d-i/forky/scripts/preseed/answers.sh",
+      "baseline_sha256": "a4e23a2ce8e1444542c681aa6b1ea9a8380017b7162a1264e59ce48850449238",
+      "release_sha256": "1dba1faff0ce987b71363dd985b846c72a9e74a016e4b4d04a2ddbc9c4952ca9",
+      "change": "modified"
+    },
+    {
       "path": "d-i/forky/scripts/preseed/base-apt-adapter.sh",
       "baseline_sha256": null,
       "release_sha256": "80ee77f73d356e4e6e7e0ae389012dcd1d1c59cf3ac1fee97ba948dc20da7484",
@@ -293,9 +306,75 @@
       "change": "added"
     },
     {
+      "path": "d-i/forky/scripts/runtime/common.sh",
+      "baseline_sha256": "ebb80da561aa06574b700d8eca9ad24b45fda1610e0e0515b7ac1d5b63ba3942",
+      "release_sha256": "a54df96eebf194c0be2ff89504de7a8227a2e4cfe3a98bb5619f439099b6ed71",
+      "change": "modified"
+    },
+    {
+      "path": "d-i/forky/tests/debconf_fixture.py",
+      "baseline_sha256": null,
+      "release_sha256": "99d34b371962300ecc318eef7b34119b79e1c28add41dbedf726d9aa51aada81",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/GPL-2",
+      "baseline_sha256": null,
+      "release_sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/README.md",
+      "baseline_sha256": null,
+      "release_sha256": "1b2ca4def82be22cfe4a37021de20c202564ba79d8a60ad9ad7c4cc32c239b48",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/SHA256SUMS",
+      "baseline_sha256": null,
+      "release_sha256": "5819c3e67be6eef4ce74644be9e7669d32dfb56de1f2491bcaf732938162b408",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/confmodule",
+      "baseline_sha256": null,
+      "release_sha256": "5b043ed174b714949cfb2097d303147b9f02c5fb9e531e2dfb562b1476e820af",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/debconf-set-selections",
+      "baseline_sha256": null,
+      "release_sha256": "b33ebced6dea0b7babd105982dfcd3037c02a16667bcd4d385fc236cedaa9c51",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/debconf.COPYRIGHT",
+      "baseline_sha256": null,
+      "release_sha256": "57163c71bd8a5289660892827dd0dfaa7fef47f89deedc9dc6711ced7d0a28d7",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/preseed.COPYRIGHT",
+      "baseline_sha256": null,
+      "release_sha256": "19767dbecb0cab2d11cc74e1e01b655544e1c50d8b2774ca2cb1d20c6db6949b",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/preseed.sh",
+      "baseline_sha256": null,
+      "release_sha256": "50316339e1acf7145aec11cf15a521ff241e600e6396a7e7510008930841a2d9",
+      "change": "added"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/debian-preseed/preseed_command",
+      "baseline_sha256": null,
+      "release_sha256": "631b93c55399123c123ec37148c50eaf0dc06237daad64f124b16019df2398ea",
+      "change": "added"
+    },
+    {
       "path": "d-i/forky/tests/process_fixture.py",
       "baseline_sha256": null,
-      "release_sha256": "e3559b87ed3de689de2e8946637cafa593972ed69e779eebe8cddc612fa4a3fd",
+      "release_sha256": "3c9757a4056a0dda6f8a41bc75dab435bbfe86e58cb4129c6e267a644a7c3d28",
       "change": "added"
     },
     {
@@ -317,6 +396,12 @@
       "change": "modified"
     },
     {
+      "path": "d-i/forky/tests/test_debconf_protocol.py",
+      "baseline_sha256": null,
+      "release_sha256": "ce113833ddedb4d28cb4169c44af9b910d09cb8aa08e626945ce84e91b327391",
+      "change": "added"
+    },
+    {
       "path": "d-i/forky/tests/test_hardware_restore.py",
       "baseline_sha256": "51c384767e169560f483b272c5210d28dd90b5aa5f26fa89201251fa5c8b75e0",
       "release_sha256": "9d3746bfd757363e9c239457a247bb83c026be97035e2532d92ac0ceb0eb5be4",
@@ -331,7 +416,7 @@
     {
       "path": "d-i/forky/tests/test_repository_transport.py",
       "baseline_sha256": "184aaec78489d58936361e8b4c37300ca1f78b704ed179a96ee1aa6ab4d6e164",
-      "release_sha256": "d7257d40b74e03923bd099f44b248b723c87f77b90355321b6ba18923587fdb4",
+      "release_sha256": "0b3c18ffc12dfe76fe04b43c06b9a3cf86d0d13df6b91bbb913f90c382eb322a",
       "change": "modified"
     },
     {
@@ -347,9 +432,21 @@
       "change": "modified"
     },
     {
-      "path": "docs/ENGINEERING-REPORT.md",
+      "path": "docs/DEBCONF-TRANSPORT-R3.md",
+      "baseline_sha256": null,
+      "release_sha256": "770a2561bed0b38bbf882d590c663fc7dcce8700793ac4d8cffcc249610c3a7e",
+      "change": "added"
+    },
+    {
+      "path": "docs/ENGINEERING-REPORT-R2.md",
       "baseline_sha256": null,
       "release_sha256": "55fffe8541e0787e6945d39951772a082683cc06814edcff56a15e7faf392739",
+      "change": "added"
+    },
+    {
+      "path": "docs/ENGINEERING-REPORT.md",
+      "baseline_sha256": null,
+      "release_sha256": "068385ed22818b06289c8c12365024e7a42ffb02304016e83836388e52ed8143",
       "change": "added"
     },
     {
@@ -373,7 +470,7 @@
     {
       "path": "docs/VALIDATION.md",
       "baseline_sha256": "ba96548e63aebe1c57b0fe51fa36d45ceb5be389c5644fc510083b040fdc19cc",
-      "release_sha256": "69e72015cb7578a9e09abedcd46d24f54e1632dd4a5f766f84e143ffa88af573",
+      "release_sha256": "dcb6f20692a469e8c37a2df8e03d71ceeba4ff932d94e30ea51b7dbaf2d977b3",
       "change": "modified"
     },
     {
@@ -385,7 +482,7 @@
     {
       "path": "tools/build.py",
       "baseline_sha256": "c6ce6a55866f0ba3d31836c4dd0a81a887125deb8c97717456f258004ebd1251",
-      "release_sha256": "325531469bd0bf17e6e740311afcdbb0d9f89235e4cfd6975f17180ade0ee74c",
+      "release_sha256": "dfd9d5d56e782ab17185bb88d9729fa4d2ed41c695c481b0c885ba4fa1a34321",
       "change": "modified"
     },
     {

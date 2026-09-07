@@ -61,7 +61,7 @@ installer_record_failure() (
   { printf 'format=1\nstate=FATAL\nstatus=%s\n' "$lc_status";
     printf 'phase=%s\ncomponent=%s\n' "${INSTALLER_PHASE:-unknown}" "$lc_component";
     printf 'timestamp=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')";
-    printf 'detail=%s\n' "$(printf '%s' "$lc_detail" | tr '\r\n' '  ')";
+    printf 'detail=%s\n' "$(printf '%s' "$lc_detail" | tr '\r\n' ' ')";
   } >"$lc_tmp" || exit 1;
   chmod 0600 "$lc_tmp" || exit 1;
   ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ];
@@ -147,13 +147,19 @@ installer_stop_tree() (
 
 # External commands run as a direct child, with responsive signal traps while
 # waiting. Shell child statuses are retained, not replaced by diagnostic output.
+# Snapshot stdin in the PARENT before starting an asynchronous list. In ash and
+# dash, <&0 on an async command duplicates the /dev/null the shell has already
+# installed, not the caller's stdin. d-i uses stdin for cdebconf replies; losing
+# it makes confmodule return an empty (illegal) status. FD 9 is launch-local:
+# preserve d-i's FDs 3-6, close the extra copy in the child, and let the function
+# redirection restore the caller's previous FD 9 on return.
 installer_run_supervised() {
-  "$@" <&0 &
+  "$@" <&9 9<&- &
   LC_CHILD_PID=$!;
   if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi;
   LC_CHILD_PID=;
   return "$lc_child_status";
-};
+} 9<&0;
 
 # Normalize bounded durations before numeric comparison or child creation.
 # test(1) accepts leading zeroes as decimal, while shell arithmetic treats them
@@ -179,7 +185,7 @@ installer_run_bounded() (
   lc_intervals=$(seq 1 "$lc_limit") || exit 125;
   [ -n "$lc_intervals" ] || exit 125;
   set -f;
-  "$@" <&0 &
+  "$@" <&9 9<&- &
   lc_bounded_pid=$!;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 129' HUP;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 130' INT;
@@ -199,7 +205,7 @@ installer_run_bounded() (
   fi;
   if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi;
   exit "$lc_bounded_status";
-);
+) 9<&0;
 
 installer_lifecycle_signal() {
   lc_signal_status=$1;
@@ -224,6 +230,13 @@ installer_lifecycle_exit() {
   [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" 'phase exited without explicit completion';
 };
 installer_lifecycle_arm() {
+  # main-menu may launch a component before the shell confmodule has redirected
+  # protocol stdout onto FD 3. Do this before any repository logger captures it.
+  # Never unset DEBIAN_HAS_FRONTEND or start a competing database writer.
+  if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then
+    [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf 'shell confmodule is unavailable';
+    . /usr/share/debconf/confmodule;
+  fi;
   INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0;
   export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE;
   case "$INSTALLER_PHASE" in ''|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle 'invalid phase identifier' ;; esac;

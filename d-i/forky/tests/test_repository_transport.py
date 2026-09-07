@@ -91,6 +91,16 @@ class TransportFixture(unittest.TestCase):
         self.env = {**os.environ, 'INSTALLER_RUNTIME_DIR': str(self.runtime),
                     'INSTALLER_CMDLINE': '', 'INSTALLER_FETCH_TIMEOUT': '3'}
         self.env.pop('INSTALLER_SOURCE_ROOT', None)
+        # Context preparation now correctly applies selections. Never seed the
+        # host database, and never inherit a live installer frontend in tests.
+        for key in list(self.env):
+            if key.startswith(('DEBCONF_', 'DEBIAN_')):
+                self.env.pop(key)
+        db = self.root / 'debconf.conf'
+        db.write_text('Config: test_config\nTemplates: test_templates\n\n'
+                      f'Name: test_config\nDriver: File\nMode: 600\nFilename: {self.root}/config.dat\n\n'
+                      f'Name: test_templates\nDriver: File\nMode: 600\nFilename: {self.root}/templates.dat\n')
+        self.env.update(DEBCONF_SYSTEMRC=str(db), DEBIAN_FRONTEND='noninteractive')
     def shell(self, script: str, *, env=None, timeout=25):
         return subprocess.run(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(SOURCE))}\n{script}'],
             text=True, capture_output=True, env={**self.env, **(env or {})}, timeout=timeout)

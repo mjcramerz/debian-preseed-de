@@ -1,5 +1,13 @@
 # Validation evidence - 2026-09-07 repair
 
+For R3, `make test-debconf` executes Debian's installer shell clients against
+an explicitly private live protocol backend. The whole suite includes these
+regressions automatically. This is stronger than the R2 host-Perl parser and
+prepare-context-only bootstrap tests; see DEBCONF-TRANSPORT-R3.md for boundaries
+and substitutions. Current counts and observed statuses are in the R3
+ENGINEERING-REPORT.md and validation/release-checks.json. Historical counts below
+refer to the original repair, not the current release.
+
 Current machine-readable results are `validation/release-checks.json`,
 `validation/summary.json`, `validation/audit.json`, and
 `validation/whole-tree.json`. The release report records actual return codes;
