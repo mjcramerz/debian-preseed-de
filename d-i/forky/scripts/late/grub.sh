@@ -943,7 +943,8 @@ command -v grub-editenv >/dev/null 2>&1 || {
   printf "GRUB configuration is missing before MOK enrollment queue: %s\n" "$grub_cfg" >&2
   exit 1
 }
-grep -F -q -- "--id '${mok_entry_id}'" "$grub_cfg" || {
+mok_entry_marker=$(printf "%s\047%s\047" "--id " "$mok_entry_id")
+grep -F -q -- "$mok_entry_marker" "$grub_cfg" || {
   printf "MOK enrollment GRUB entry is missing: %s\n" "$mok_entry_id" >&2
   exit 1
 }
