@@ -1,12 +1,25 @@
 {
+  "release": "R2",
   "source_archive": "debian-preseed-de.zip",
   "source_archive_sha256": "2a0dd94b2f2a3f6ce01428b197dda1b10326dbd185a529c774cc2a748b433f91",
+  "preceding_archive_sha256": "671d62819efb312adbf25ca0ac9946734e60806841f9495fd8ef4c84ff924a95",
   "profiles_verified_unchanged": 13,
+  "exclusions": [
+    ".git",
+    "validation",
+    "this self-referential manifest"
+  ],
   "changes": [
+    {
+      "path": "Makefile",
+      "baseline_sha256": "09150d9bb9182346893e6b871d08a0db69a701f0ac762db6f03e492ef792a7b0",
+      "release_sha256": "c30380cfb298611f2bf5a4ce07a54e825bd62a5b0efee7ff3caf3a86d7a8c767",
+      "change": "modified"
+    },
     {
       "path": "README.md",
       "baseline_sha256": "ee4f6f7490e7b109e98bd21330b06e306e67d7088502a3a2fe2cdd9c27582da6",
-      "release_sha256": "5a69f79e6235cd186ad4cff6f2cf562476996a37912f62ef6bdc3a8800514461",
+      "release_sha256": "d17bc2a66ffd30e206cf2b967aa92949477e5912399afe4dc98916205dca14e8",
       "change": "modified"
     },
     {
@@ -132,19 +145,19 @@
     {
       "path": "d-i/forky/payload.manifest",
       "baseline_sha256": "78878311464a81c6b2ef1aea7385a862505ea65d71ffb5c9e43a4620c0d12666",
-      "release_sha256": "5cf3ba11b0078fdfa521294049ce6bd8ad0b33cd60f8b0c04ef5b53d11d4df51",
+      "release_sha256": "82e146ddbb5c02b1bb00e60c91de020eabf587aceb3be946047381b0b130a921",
       "change": "modified"
     },
     {
       "path": "d-i/forky/payload.tar.gz",
       "baseline_sha256": "4cb53c7b25bc9513769c4a049b3c78e5d5538ed8c65b9c8e8c44f99769131292",
-      "release_sha256": "2dd0b6d068e97de5f0f1936ec5286f3b12b346141359879712241bc5c8f160d7",
+      "release_sha256": "787fac827a99552a930faceb7e2f4168d1a1df347f3ed53dd860288d13445c7d",
       "change": "modified"
     },
     {
       "path": "d-i/forky/preseed.cfg",
       "baseline_sha256": "5a1a2aaaee059593e2f3fe5d3fda6a2c5501f10cc3393e551bcefece96b622bd",
-      "release_sha256": "173988614adfcd43de5148a2e30cd696c63e5a816b9f3cd73ee7091297c6ed73",
+      "release_sha256": "f41ec8938d1782b042b66a41237a196b1ffe2b10d747e9a22ce69666ec3cbdea",
       "change": "modified"
     },
     {
@@ -168,19 +181,19 @@
     {
       "path": "d-i/forky/scripts/common/lib.sh",
       "baseline_sha256": "d4d6a006a211b45a63b24622756881c81e90424d7884f2db3917098b516abca1",
-      "release_sha256": "1e290cfb28f84e42a6ea7b79ab29ea9f6eb50b0a061b02f9cd21f2609abee636",
+      "release_sha256": "762aba10d459e2718bd55fc5b98654bcaa42405022eb51cd9b29b37b5daf104c",
       "change": "modified"
     },
     {
       "path": "d-i/forky/scripts/common/lifecycle.sh",
       "baseline_sha256": null,
-      "release_sha256": "f99d57efd119d117119f24baecc426e83d49b91d17c8207a041c71f6d241ed53",
+      "release_sha256": "78adaecb71f7668de7e6466b65bb6bace399d78c66d2c4e8f721bfc696445f32",
       "change": "added"
     },
     {
       "path": "d-i/forky/scripts/common/source.sh",
       "baseline_sha256": "14f8b05a8047f1d214d4c4ae60a10c8e851abeae7f01c53e99266c2de6b644bf",
-      "release_sha256": "3798c20945eb75ae2e040239cfb1a669a0cc18ffab2f4749a57472825d038e09",
+      "release_sha256": "7efb364ba9d8536f3529e23507a5255b80ff5e99e99c7394475d53f06df36b59",
       "change": "modified"
     },
     {
@@ -286,6 +299,12 @@
       "change": "added"
     },
     {
+      "path": "d-i/forky/tests/test_bootstrap_portability.py",
+      "baseline_sha256": null,
+      "release_sha256": "bcb1948e73e971bf440194b336da1940ce8320fdaedc8a8d3ad041e9dbc9796b",
+      "change": "added"
+    },
+    {
       "path": "d-i/forky/tests/test_codex_installer_session.py",
       "baseline_sha256": "2acc361cfa9f64b851d86277590102a9b8c33f41ce9ba194f5221e83da8caf19",
       "release_sha256": "58d36a7ce8e0eb5f7546ed7e63aa35ac6dd9e2134fc88f3f78fc648fcc1495dc",
@@ -316,10 +335,22 @@
       "change": "modified"
     },
     {
+      "path": "docs/BOOTSTRAP-PORTABILITY-R2.md",
+      "baseline_sha256": null,
+      "release_sha256": "6eaf7ccc1bfc9927d77fd193918e600cbbab6a9ef921e8d1a33133e294181e65",
+      "change": "added"
+    },
+    {
       "path": "docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md",
       "baseline_sha256": "72edb6209519cb753af65d19028996e5bea564356a198cdacb69ca94cecc8977",
       "release_sha256": "ed12cfd7566043d5ca4134ae222676caeb8bc5c17bb02dd506de899d7c00cd4d",
       "change": "modified"
+    },
+    {
+      "path": "docs/ENGINEERING-REPORT.md",
+      "baseline_sha256": null,
+      "release_sha256": "55fffe8541e0787e6945d39951772a082683cc06814edcff56a15e7faf392739",
+      "change": "added"
     },
     {
       "path": "docs/INCIDENT-2026-09-07.md",
@@ -330,7 +361,7 @@
     {
       "path": "docs/INSTALLER-HARDENING-2026-09-07.md",
       "baseline_sha256": null,
-      "release_sha256": "5ca9aa239a1645bddf2fcbbbb84849e9b7fd3233c86d1c2f3861ab3cde2e9397",
+      "release_sha256": "073ce653919f2cece927404717b0367bc8d683c0d1365629239b7d43866926fe",
       "change": "added"
     },
     {
@@ -354,15 +385,32 @@
     {
       "path": "tools/build.py",
       "baseline_sha256": "c6ce6a55866f0ba3d31836c4dd0a81a887125deb8c97717456f258004ebd1251",
-      "release_sha256": "5cd774beb724977825c95cc425bf02913316aeb9aabb66d42cec86729cd7c4c4",
+      "release_sha256": "325531469bd0bf17e6e740311afcdbb0d9f89235e4cfd6975f17180ade0ee74c",
       "change": "modified"
+    },
+    {
+      "path": "tools/check_preseeds.py",
+      "baseline_sha256": "32e66e350185f2b38457630c77fa639d7948ee2f15234608708c793dcb15f950",
+      "release_sha256": "7e739691de305ceb0afca5e024174ff957afb5bf1bad985408e7869a67426d27",
+      "change": "modified"
+    },
+    {
+      "path": "tools/check_shells.py",
+      "baseline_sha256": null,
+      "release_sha256": "fafba73f04ae4d928ae647f68a6c575b73f90c204e5c7d26b7c7401ece2e22d6",
+      "change": "added"
     },
     {
       "path": "tools/release_audit.py",
       "baseline_sha256": null,
       "release_sha256": "02779a56fc5d939762d9f1f6f69d07c8f47942326f66ffd8d6938c7bf75e3720",
       "change": "added"
+    },
+    {
+      "path": "tools/validate.py",
+      "baseline_sha256": "753e8741746b687b3acdb36e46c5fb24213715e71eff9a3ec4512c3f95fba4c3",
+      "release_sha256": "6888aca028bccbd621cbbc59d2a3eeec12ff5d655f347b73699c6de0ffe11246",
+      "change": "modified"
     }
-  ],
-  "note": "Generated validation evidence and this provenance/report file are outside the source-change list. No original upload was modified."
+  ]
 }

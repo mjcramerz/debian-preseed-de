@@ -1,9 +1,12 @@
 # debian-preseed-de
 
-Debian unattended-install repository for desktop systems. The 2026-09-07 repair
+Debian unattended-install repository for desktop systems. The 2026-09-07 R2 repair
 retains all 13 supplied profiles and the intentional mixed-suite package policy.
 Partitioning remains destructive: only an explicit safe device or a unique safe
 candidate is accepted. Read the deployment prerequisites before using real disks.
+
+Read **[the R2 bootstrap portability repair](docs/BOOTSTRAP-PORTABILITY-R2.md)**
+for the startup regression and the new execution tests.
 
 Start with **[the repair and operations guide](docs/INSTALLER-HARDENING-2026-09-07.md)**,
 **[the sanitized incident inventory](docs/INCIDENT-2026-09-07.md)**, and
@@ -28,7 +31,9 @@ python3 -B tools/build.py
 python3 -B tools/validate.py
 ```
 
-Builds require Python 3.11 or newer and a POSIX shell on the publishing host.
+Builds require Python 3.11 or newer, a POSIX shell and BusyBox on the publishing
+host. Complete validation also needs Bash, Dash and Debian debconf tools; the
+isolated bootstrap tests need root/CAP_SYS_CHROOT on a disposable test host.
 The installer transport itself does not require Python or curl.
 
 Commit or deploy the entire repository, including these generated files:

@@ -107,7 +107,7 @@ installer_terminal_hold() {
     if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi;
     lc_pid=$(awk '/^PPid:/ {print $2}' "/proc/$lc_pid/status" 2>/dev/null);
     case "$lc_pid" in ''|*[!0-9]*) break ;; esac;
-    lc_depth=$((lc_depth + 1));
+    lc_depth=$(expr "$lc_depth" + 1) || break;
   done;
   sync;
   # This is an intentional terminal wait, not a retry loop. No commands that
@@ -118,7 +118,11 @@ installer_terminal_hold() {
 # reap/reuse their child PIDs or launch subsequent installer commands. No process
 # group, host-wide kill, setsid, Python, or stat applet is needed in busybox-udeb.
 installer_stop_tree() (
+  # Callers may disable globbing while parsing URLs. The private /proc fallback
+  # must still expand its trusted numeric PID pattern. Never inherit noglob here.
+  set +f;
   lc_stop_pid=$1; lc_stop_depth=${2:-0};
+  case "$lc_stop_depth" in ''|*[!0-9]*) exit 1 ;; esac;
   case "$lc_stop_pid" in ''|*[!0-9]*|0|1) exit 1 ;; esac;
   [ "$lc_stop_depth" -lt 128 ] || exit 1;
   [ -d "/proc/$lc_stop_pid" ] || exit 0;
@@ -137,7 +141,8 @@ installer_stop_tree() (
     case "$lc_child" in ''|*[!0-9]*) continue ;; esac;
     lc_parent=$(awk '/^PPid:/ {print $2}' "/proc/$lc_child/status" 2>/dev/null);
     [ "$lc_parent" = "$lc_stop_pid" ] || continue;
-    installer_stop_tree "$lc_child" "$((lc_stop_depth + 1))" || :;
+    lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1;
+    installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :;
   done;
   kill -KILL "$lc_stop_pid" 2>/dev/null || :;
 );
@@ -152,28 +157,48 @@ installer_run_supervised() {
   return "$lc_child_status";
 };
 
-# Udeb has sleep (including fractional intervals), but neither timeout nor
-# setsid. Poll only our direct child and enforce a finite number of sleeps.
-# This subshell confines traps and variables to this one network operation.
+# Normalize bounded durations before numeric comparison or child creation.
+# test(1) accepts leading zeroes as decimal, while shell arithmetic treats them
+# as octal: 0180 passes a range check but raises a fatal ash arithmetic error.
+# The bootstrap must not depend on a shell's arithmetic parser at all.
+installer_bounded_seconds() (
+  lc_seconds=${1-};
+  case "$lc_seconds" in ''|*[!0-9]*) exit 125 ;; esac;
+  while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done;
+  [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125;
+  [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125;
+  printf '%s\n' "$lc_seconds";
+);
+
+# Use only integer sleep and seq, both available in busybox-udeb. Do not rely
+# on desktop BusyBox's fractional sleep or a timeout/setsid applet. The finite
+# sequence is prepared BEFORE launching the child; failures cannot leak a fetch.
+# Traps and counters are private to this one operation's subshell.
 installer_run_bounded() (
-  lc_limit=$1; shift;
-  case "$lc_limit" in ''|*[!0-9]*) exit 125 ;; esac;
-  [ "$lc_limit" -ge 1 ] && [ "$lc_limit" -le 900 ] || exit 125;
+  lc_limit=$(installer_bounded_seconds "${1-}") || exit 125;
+  shift;
+  [ "$#" -gt 0 ] || exit 125;
+  lc_intervals=$(seq 1 "$lc_limit") || exit 125;
+  [ -n "$lc_intervals" ] || exit 125;
+  set -f;
   "$@" <&0 &
   lc_bounded_pid=$!;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 129' HUP;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 130' INT;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 143' TERM;
-  lc_ticks=0; lc_max_ticks=$((lc_limit * 5));
-  while kill -0 "$lc_bounded_pid" 2>/dev/null; do
-    if [ "$lc_ticks" -ge "$lc_max_ticks" ]; then
+  for lc_interval in $lc_intervals; do
+    kill -0 "$lc_bounded_pid" 2>/dev/null || break;
+    if ! sleep 1; then
       installer_stop_tree "$lc_bounded_pid";
       wait "$lc_bounded_pid" 2>/dev/null || :;
-      exit 124;
+      exit 125;
     fi;
-    sleep 0.2;
-    lc_ticks=$((lc_ticks + 1));
   done;
+  if kill -0 "$lc_bounded_pid" 2>/dev/null; then
+    installer_stop_tree "$lc_bounded_pid";
+    wait "$lc_bounded_pid" 2>/dev/null || :;
+    exit 124;
+  fi;
   if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi;
   exit "$lc_bounded_status";
 );
@@ -3739,6 +3764,9 @@ installer_auto_class_tokens() {
   else
     auto_status=$?
     installer_error "automatic class detection failed with status ${auto_status}"
+    if [ "${INSTALLER_LIFECYCLE_ACTIVE:-0}" = 1 ]; then
+      installer_record_failure "$auto_status" class-auto "automatic class detection failed; see installer.log" || :
+    fi
     [ -s "$auto_err" ] && sed 's/^/[class-auto] /' "$auto_err" >&2
     rm -f "$auto_err" "$auto_report" "$auto_classes"
     exit "$auto_status"
@@ -3872,12 +3900,15 @@ installer_classes_raw() {
 
   normalized_raw=$(printf '%s\n' "$raw" | sed 's/\\\([;,]\)/\1/g')
   normalized_raw=$(installer_expand_default_classes "$(installer_seed_base "$seed_base")" "$normalized_raw")
+  # A command substitution inside a here-document loses the detector status.
+  # Capture it as a checked assignment before consuming any class output.
+  auto_output=$(installer_auto_class_tokens "$(installer_seed_base "$seed_base")") || return "$?"
   auto_tokens=
   while IFS= read -r auto_token || [ -n "$auto_token" ]; do
     [ -n "$auto_token" ] || continue
     auto_tokens="${auto_tokens:+$auto_tokens }$auto_token"
   done <<EOF
-$(installer_auto_class_tokens "$(installer_seed_base "$seed_base")")
+$auto_output
 EOF
   normalized_raw=$(installer_merge_auto_classes "$normalized_raw" "$auto_tokens")
   normalized_raw=$(installer_append_implicit_class_tokens "$normalized_raw")
@@ -3892,7 +3923,8 @@ EOF
 }
 
 installer_classes_lines() {
-  installer_classes_raw "${1:-}" | tr ';,' '\n' | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//'
+  class_lines_raw=$(installer_classes_raw "${1:-}") || return "$?"
+  printf '%s\n' "$class_lines_raw" | tr ';,' '\n' | sed '/^[[:space:]]*$/d; s/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
 installer_selected_class_records_path() {

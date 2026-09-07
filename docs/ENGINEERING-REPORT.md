@@ -1,76 +1,87 @@
-# Engineering delivery report - 2026-09-07
+# Engineering delivery report - R2, 2026-09-07
 
-The supplied repository was modified and its executable validation entrypoints
-completed successfully. It is a tested repair candidate, not a claim of completed
-physical-machine, firmware or live-vendor acceptance. All 13 supplied profile
-files are byte-for-byte unchanged; architecture/class logic was repaired around
-them. See CHANGE-MANIFEST.json for changed source hashes and source provenance.
+R2 corrects the startup regression reported against the preceding archive. The
+previous suite's 461 passing tests did not exercise every generated bootstrap
+shell boundary. This release adds that execution coverage; it is not a claim
+that a physical installation has been completed.
 
-## Observed validation
+## Executed validation
 
 | Command | Result | Elapsed |
 |---|---|---|
-| `make build` | PASS | 2.291 s |
-| `make check` | PASS | 2.235 s |
-| `make test` | PASS | 68.068 s |
-| `make audit` | PASS | 1.950 s |
-| `make validate` | PASS | 74.205 s |
-| `whole-tree syntax/security inventory` | PASS | 1.721 s |
+| `make build` | PASS | 2.529 s |
+| `make check` | PASS | 4.650 s |
+| `make test` | PASS | 125.480 s |
+| `make audit` | PASS | 1.826 s |
+| `make validate` | PASS | 134.269 s |
 
-One complete suite contains **461 tests**, **0 skipped.
-Both standalone make test and the independent make validate run completed.
-They are not added together as distinct tests. The untouched baseline contained
-410 tests and failed one stale profile-provenance assertion. Baseline build/check
-and audit completed; baseline validate failed the same assertion.
+The complete suite ran **479 tests with zero skips**, both as standalone
+`make test` and independently inside `make validate`. The separate focused
+bootstrap run passed **18 tests**. These repeat executions are not summed as
+additional distinct tests. All four generated command values passed real private
+debconf write/reload/read-back followed by BusyBox bootstrap execution.
 
-The repository audit covered 1161 files and reported:
-`{"blocked-dependency": 154, "inventory-only": 476, "pass": 414, "structure-pass": 115, "template-needs-render": 2}`.
-A blocked dependency is NOT a pass. The supplemental whole-tree pass checked
-190 shell files (POSIX and BusyBox parsers)
-and 97 Python sources (AST syntax).
-ShellCheck and shfmt executables were unavailable. Remaining data/configuration
-and template inventories are identified separately, not represented as runtime
-validation. No physical disks were partitioned in this environment.
+The shell checker passed **259 shell sources/environment files/templates** and
+**529 parser checks**, including both nested boundaries of the four generated
+preseed commands. The separate release inventory parsed **99 Python sources**
+and **190 shell scripts**, with no detected syntax errors. ShellCheck and shfmt
+were unavailable and are not represented as executed. The repository audit still
+reports **154 dependency-blocked Perl checks**; its success status does not mean
+those missing-module checks passed.
 
-## Material repairs
+## R2 changes
 
-Non-returning fatal supervision prevents d-i late/finish re-entry and freezes the
-actual main-menu ancestor. Atomic first-failure and explicit completion records
-replace ambiguous error-only return paths. The implementation uses udeb-available
-applets, not desktop-only stat/setsid/timeout. The finish hooks validate the target
-before unmount, with a separate guarded final exit-11 success handoff.
+The canonical bounded runner no longer uses shell arithmetic or fractional
+sleep. It normalizes decimal durations before launching a child and preserves
+command status. The delivered baseline reproduced BusyBox's arithmetic syntax
+error for accepted leading-zero values; default `180` succeeded. The exact new
+installer environment was not supplied, so that specific input is not asserted
+to have been used on the failing machine.
 
-Independent late shells and explicitly checked conditional helper calls propagate
-failure. GRUB architecture policy initializes required MOK/removable EFI paths
-before any renderer. Codex runtime links and immutable/mutable state policy agree;
-validated publication is transactional and rollback is scoped to newly created
-components. The base APT boundary removes CD-ROM sources before its first update.
-CrowdSec configuration precedes bouncer installation and the package-generated
-API key is authenticated on first boot. Mullvad profile provenance/offline parsing
-is required, with actual AppArmor load deferred to a mandatory runtime unit.
+The generated command's newline encoding now survives debconf database reload;
+its literal backslash-n sequences had caused GET truncation. Generated values
+are checked after actual serialization, not only before it. Timeout cleanup now
+expands its trusted /proc fallback even if its caller enabled noglob, preventing
+orphaned delayed work. Class detection retains its original failure instead of
+losing it in a here-document or formatting pipeline.
 
-Legacy CUDA now requires signed metadata and a full pinned key fingerprint. TLS
-bypass requests are rejected. Disk selection protects mounted/removable/hd-media
-devices and ambiguous choices, and keeps 4Kn capacity units correct. Generic
-arm64 CPU detection no longer requires an x86 vendor. Kernel/initrd repair precedes
-final GRUB generation, including missing initrds for unchanged Debian-signed
-kernels. Final PE checks require a signature record rather than a zero listing
-exit alone. Virtual package providers no longer trigger false package repairs.
+Lifecycle source, both embedded libraries, preseed commands, payload and manifest
+were rebuilt together with recalculated SHA-256 pins. Build/check/validate now
+include the stronger parser and serialization checks. See
+BOOTSTRAP-PORTABILITY-R2.md for implementation details, reproducible tests and
+limitations.
 
-## Evidence and limitations
+## Preservation of the preceding repairs
 
-INCIDENT-2026-09-07.md maps meaningful supplied log findings to fixes and identifies
-benign/chroot diagnostics. INSTALLER-HARDENING-2026-09-07.md documents actual
-lifecycle, markers, retry/rerun behavior, storage, trust, MOK and recovery rules.
-SECURITY.md supersedes the earlier CUDA/TLS exception policy.
+All **13 original profile files** match both the original ZIP and preceding
+release byte-for-byte. Of **1,233 runtime payload files**, only the three shared
+libraries changed in R2; the other **1,230 files** remain byte-for-byte identical.
+No runtime member was added or removed. The prior fatal-hold, GRUB/MOK ordering,
+late-failure propagation, Codex transaction, early APT normalization, CrowdSec,
+Mullvad, signed CUDA, storage-safety and Secure Boot repairs remain incorporated
+and their existing regression tests continue to run in the full suite.
 
-No full d-i boot, target package transaction against current public repositories,
-real Secure Boot/MOK enrollment, NVIDIA/DKMS boot, first-boot CrowdSec/Mullvad,
-or graphical session acceptance was performed. Those require the deployment
-image and hardware. Missing Perl dependencies block 154 compile checks; they are
-listed in the audit rather than hidden. Mixed-suite policy remains intentional;
-the source payload is pinned, but all online packages are not version-locked.
+CHANGE-MANIFEST.json records the complete source delta from the original ZIP;
+validation/bootstrap-regression.json includes baseline failure measurements and
+payload preservation evidence. Current validation/summary.json,
+validation/release-checks.json, validation/shell-check.json and
+validation/whole-tree.json supersede earlier validation evidence.
 
-Raw supplied logs, intermediate work, .git, caches, private credentials and prior
-validation transcripts are excluded. The release retains structured validation
-results; rerunning validation regenerates detailed logs.
+## Deployment and remaining acceptance
+
+Publish the complete supplied tree, not an individual replacement script.
+preseed.cfg, payload.manifest, payload.tar.gz and source.sh must be from this same
+build. Restart the installer from trusted fresh media/preseed after deployment;
+do not erase fatal markers to bypass the guard in a failed running installer.
+
+The bootstrap execution tests use a closed chroot with the installed regular
+BusyBox executable at every /bin/sh boundary, a restricted applet PATH,
+integer-only sleep and loopback downloads. They do not claim to run a particular
+busybox-udeb or cdebconf image. No real partitioning, firmware/MOK enrollment,
+NVIDIA boot, public package transaction, first-boot service activation or desktop
+session acceptance was performed. Those still require the intended installer
+image and hardware. Tests do not imply that every online package is pinned.
+
+Raw supplied logs, .git, cache files, private credentials and test runtime data
+are excluded from the release. Structured validation evidence is retained;
+running validation regenerates its detailed local transcripts.

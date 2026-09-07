@@ -10,13 +10,35 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from check_shells import preseed_commands
 ROOT=Path(__file__).resolve().parents[1]
 SEED=ROOT/'d-i/forky'
 
+
+def readback_commands(path: Path, env: dict[str, str]) -> dict[str, str]:
+    """Round-trip real generated values through an explicitly private database."""
+    if not env.get('DEBCONF_SYSTEMRC'):
+        raise ValueError('a private DEBCONF_SYSTEMRC is mandatory')
+    original = preseed_commands(path)
+    subprocess.run(['debconf-set-selections', str(path)], env=env,
+                   capture_output=True, text=True, check=True, timeout=30)
+    result = subprocess.run(['debconf-communicate', 'installer-bootstrap-test'],
+                            input=''.join('GET ' + key + '\n' for key in original),
+                            env=env, capture_output=True, text=True, check=True, timeout=30)
+    lines = result.stdout.splitlines()
+    if len(lines) != len(original):
+        raise ValueError('debconf did not return all generated commands')
+    readback = {}
+    for (key, expected), line in zip(original.items(), lines):
+        if not line.startswith('0 ') or line[2:] != expected:
+            raise ValueError(f'debconf changed the generated shell value: {key}')
+        readback[key] = line[2:]
+    return readback
+
 def main() -> int:
     checker=shutil.which('debconf-set-selections')
-    if not checker:
-        print('debconf-set-selections is required for the preseed format check',file=sys.stderr)
+    if not checker or not shutil.which('debconf-communicate'):
+        print('debconf-set-selections and debconf-communicate are required for the preseed format check',file=sys.stderr)
         return 1
     paths=[SEED/'preseed.cfg',SEED/'common.cfg',*sorted((SEED/'fragments').glob('*.cfg'))]
     for directory in sorted((SEED/'classes').glob('class-*')):
@@ -36,6 +58,13 @@ def main() -> int:
                               capture_output=True,text=True,env=env,timeout=30)
         if result.returncode:
             print(f'preseed check exited {result.returncode}:\n'+result.stdout+result.stderr,file=sys.stderr)
+        if result.returncode == 0:
+            try:
+                readback_commands(SEED / 'preseed.cfg', env)
+            except (OSError, ValueError, subprocess.SubprocessError) as error:
+                print('preseed command round-trip failed: ' + str(error), file=sys.stderr)
+                return 1
+            print('All four generated command values survived private debconf read-back unchanged')
         print(f'{len(paths)} preseed files checked; '+('PASS' if result.returncode==0 else 'FAIL'))
         return 0 if result.returncode==0 else 1
 

@@ -95,8 +95,10 @@ trusted media. Do not delete running/fatal markers to bypass the gate.
 Repository fetches make at most three attempts. Wget retains an inactivity
 limit, and the embedded bounded runner limits each attempt to a finite polling
 budget (default 180 seconds, configurable from 1 to 900). The budget is not a
-hard-real-time scheduling guarantee. Timed-out child trees are stopped before
-retry. HTTPS certificate bypass requests are rejected. Hash or source-identity
+hard-real-time scheduling guarantee. Durations are normalized decimal values;
+leading zeroes are accepted without octal arithmetic. The bootstrap uses only
+integer sleeps. Invalid timeout configuration is rejected before any download.
+Timed-out child trees are stopped before retry. HTTPS certificate bypass requests are rejected. Hash or source-identity
 failure cannot fall back to another revision. Target APT has three acquisition
 retries, 45-second HTTP/HTTPS timeouts, and fatal update errors. Codex Git and
 binary preflight commands have explicit target-side coreutils timeouts.
@@ -210,7 +212,9 @@ these unexecuted acceptance tests.
 - Debian main-menu 1.70 source: failed-component handling and menu priority.
 - Debian base-installer 1.226: `debian/bootstrap-base.postinst`, APT waypoint 3.
 - Debian busybox 1:1.37.0-6: `debian/config/pkg/udeb`, which omits stat, setsid
-  and timeout but includes numeric ls and fractional sleep.
+  and timeout. R2 uses numeric ls and integer sleeps and does not require
+  fractional-duration support. See BOOTSTRAP-PORTABILITY-R2.md for the restricted
+  BusyBox execution tests and their image-acceptance limitations.
 - NVIDIA driver installation guide, Debian Signed-By/keyring authentication:
   docs.nvidia.com/datacenter/tesla/driver-installation-guide/debian.html.
 - CrowdSec `cs-firewall-bouncer/debian/crowdsec-firewall-bouncer-nftables.postinst`.

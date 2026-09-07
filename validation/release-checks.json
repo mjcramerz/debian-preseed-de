@@ -1,68 +1,71 @@
 {
-  "utc": "2026-09-07T14:10:16.561389+00:00",
+  "release": "R2",
+  "utc": "2026-09-07T15:11:13.956428+00:00",
   "executed": [
     {
-      "validation": "make build",
-      "command": [
-        "make",
-        "build"
-      ],
+      "target": "make build",
       "returncode": 0,
-      "result": "PASS",
-      "seconds": 2.291
+      "seconds": 2.529
     },
     {
-      "validation": "make check",
-      "command": [
-        "make",
-        "check"
-      ],
+      "target": "make check",
       "returncode": 0,
-      "result": "PASS",
-      "seconds": 2.235
+      "seconds": 4.65
     },
     {
-      "validation": "make test",
-      "command": [
-        "make",
-        "test"
-      ],
+      "target": "make test",
       "returncode": 0,
-      "result": "PASS",
-      "seconds": 68.068
+      "seconds": 125.48
     },
     {
-      "validation": "make audit",
-      "command": [
-        "make",
-        "audit"
-      ],
+      "target": "make audit",
       "returncode": 0,
-      "result": "PASS",
-      "seconds": 1.95
+      "seconds": 1.826
     },
     {
-      "validation": "make validate",
-      "command": [
-        "make",
-        "validate"
-      ],
+      "target": "make validate",
       "returncode": 0,
-      "result": "PASS",
-      "seconds": 74.205
-    },
-    {
-      "validation": "whole-tree syntax/security inventory",
-      "command": [
-        "python3",
-        "-B",
-        "tools/release_audit.py"
-      ],
-      "returncode": 0,
-      "result": "PASS",
-      "seconds": 1.721
+      "seconds": 134.269
     }
   ],
-  "complete": true,
-  "success": true
+  "test_suite": {
+    "tests_run": 479,
+    "skipped": 0,
+    "independent_complete_runs": 2
+  },
+  "bootstrap_tests": {
+    "tests_run": 18,
+    "skipped": 0,
+    "result": "PASS"
+  },
+  "shell_checks": {
+    "success": true,
+    "shell_files": 259,
+    "parser_checks": 529,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "python_syntax_checks": 99,
+  "original_profiles_preserved": 13,
+  "payload_preservation": {
+    "payload_member_count": 1233,
+    "unchanged_payload_files": 1230,
+    "changed_payload_files": [
+      "scripts/common/lib.sh",
+      "scripts/common/lifecycle.sh",
+      "scripts/common/source.sh"
+    ],
+    "profiles_preserved": 13,
+    "added_or_removed_payload_files": []
+  },
+  "limitations": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance.",
+    "BusyBox sandbox uses the installed regular binary, not an actual busybox-udeb binary.",
+    "ShellCheck and shfmt not run: executables unavailable.",
+    "154 Perl dependency-blocked audit checks are not passing compile checks."
+  ]
 }

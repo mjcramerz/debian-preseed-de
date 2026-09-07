@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "shell_files": 259,
+  "parser_checks": 529,
+  "failures": [],
+  "scope": "parse checks only; runtime execution is a separate test stage"
+}

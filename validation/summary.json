@@ -1,42 +1,49 @@
 {
   "repository": "debian-preseed-de",
-  "utc": "2026-09-07T14:10:14.611353+00:00",
+  "utc": "2026-09-07T15:10:41.244352+00:00",
   "stages": [
     {
       "stage": "browser-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.685,
+      "seconds": 0.819,
       "log": "browser-check.log"
     },
     {
       "stage": "build-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 2.173,
+      "seconds": 2.279,
       "log": "build-check.log"
     },
     {
       "stage": "preseed-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.676,
+      "seconds": 0.819,
       "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.371,
+      "log": "shell-check.log"
     },
     {
       "stage": "tests",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 68.149,
+      "seconds": 126.572,
       "log": "tests.log",
-      "tests_run": 461,
+      "tests_run": 479,
       "skipped": 0
     },
     {
       "stage": "audit",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 1.831,
+      "seconds": 1.777,
       "log": "audit.log"
     }
   ],
@@ -49,9 +56,9 @@
     "template-needs-render": 2
   },
   "runtime_product_sha256": {
-    "preseed.cfg": "173988614adfcd43de5148a2e30cd696c63e5a816b9f3cd73ee7091297c6ed73",
-    "payload.manifest": "5cf3ba11b0078fdfa521294049ce6bd8ad0b33cd60f8b0c04ef5b53d11d4df51",
-    "payload.tar.gz": "2dd0b6d068e97de5f0f1936ec5286f3b12b346141359879712241bc5c8f160d7"
+    "preseed.cfg": "f41ec8938d1782b042b66a41237a196b1ffe2b10d747e9a22ce69666ec3cbdea",
+    "payload.manifest": "82e146ddbb5c02b1bb00e60c91de020eabf587aceb3be946047381b0b130a921",
+    "payload.tar.gz": "787fac827a99552a930faceb7e2f4168d1a1df347f3ed53dd860288d13445c7d"
   },
   "limits": [
     "Offline/loopback checks, not a booted Debian installer.",

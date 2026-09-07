@@ -39,7 +39,7 @@
       "unit_facts": {},
       "lines": 11,
       "bytes": 591,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "e9248c61a1728ae9dee3422a0dee4d1bdcaa99509dbb2839b7cffccc13515ffa",
       "placeholder_count": 0
     },
@@ -377,7 +377,7 @@
       "unit_facts": {},
       "lines": 115,
       "bytes": 3730,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b",
       "placeholder_count": 0
     },
@@ -416,7 +416,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 297,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035",
       "placeholder_count": 0
     },
@@ -429,7 +429,7 @@
       "unit_facts": {},
       "lines": 26,
       "bytes": 700,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68",
       "placeholder_count": 0
     },
@@ -476,7 +476,7 @@
       },
       "lines": 30,
       "bytes": 1051,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c",
       "placeholder_count": 0
     },
@@ -520,7 +520,7 @@
       },
       "lines": 38,
       "bytes": 1537,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "5ff8ab5465139638da9818b5ec49496a43ad038df24587d5e8e77e49dc01116b",
       "placeholder_count": 0
     },
@@ -533,7 +533,7 @@
       "unit_facts": {},
       "lines": 15,
       "bytes": 381,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "a44946fe92abddaa3c4d0b12a0e0f4f608037566a284d3ff0115036d8933b215",
       "placeholder_count": 0
     },
@@ -546,7 +546,7 @@
       "unit_facts": {},
       "lines": 4,
       "bytes": 205,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "99c48fce184cd3c4cdae0a648b11574be4b0af68765b65c1c53333ce88b64760",
       "placeholder_count": 0
     },
@@ -559,7 +559,7 @@
       "unit_facts": {},
       "lines": 7,
       "bytes": 226,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "21aa39e294b5834d8338b346a7d10bdda97513d599815928d28a5bb22db0d81b",
       "placeholder_count": 0
     },
@@ -572,7 +572,7 @@
       "unit_facts": {},
       "lines": 10,
       "bytes": 341,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "0641a7b691393da3debf0436745c49242c6557e234052a980ff08d23e10eb9b7",
       "placeholder_count": 0
     },
@@ -585,7 +585,7 @@
       "unit_facts": {},
       "lines": 11,
       "bytes": 271,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "88e863cca33360920dc32f53f4a9ef3af19a2c9c1d8c7bdafabb79c3b779eb73",
       "placeholder_count": 0
     },
@@ -598,7 +598,7 @@
       "unit_facts": {},
       "lines": 12,
       "bytes": 411,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "f54ca05563b9886512e643c20717c5450e193b49b51e5aa6f7871ab7f9292139",
       "placeholder_count": 0
     },
@@ -624,7 +624,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 424,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
       "placeholder_count": 0
     },
@@ -637,7 +637,7 @@
       "unit_facts": {},
       "lines": 8,
       "bytes": 424,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "2068debb422b28f9ee5a2f1b4ec66d19a94c4ee6a86918a8cb1678cc3c31633b",
       "placeholder_count": 0
     },
@@ -650,7 +650,7 @@
       "unit_facts": {},
       "lines": 311,
       "bytes": 18367,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "725d135b6c228ebfe878c091e5df579a2ee061de0c3eb08ff13e6936cf53c2ed",
       "placeholder_count": 0
     },
@@ -1235,7 +1235,7 @@
       "unit_facts": {},
       "lines": 6,
       "bytes": 319,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c",
       "placeholder_count": 0
     },
@@ -1287,7 +1287,7 @@
       "unit_facts": {},
       "lines": 3674,
       "bytes": 146247,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa",
       "placeholder_count": 0
     },
@@ -1326,7 +1326,7 @@
       "unit_facts": {},
       "lines": 885,
       "bytes": 27297,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9",
       "placeholder_count": 0
     },
@@ -4069,7 +4069,7 @@
       "unit_facts": {},
       "lines": 13,
       "bytes": 431,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "b7a2bb95a50e0d478c2c6f630928b3bd64db986d0b3a174c245d39fd4ec41b3b",
       "placeholder_count": 0
     },
@@ -7175,7 +7175,7 @@
       "unit_facts": {},
       "lines": 842,
       "bytes": 29856,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "2147f2c711a01aa6173ddb4894692c515260d915641bd01a430023c853ff1cf1",
       "placeholder_count": 0
     },
@@ -7630,7 +7630,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 172,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "1a1637096026f634b8ae4b3f01f15c7990c29706ddc396f7cece207fc99b6368",
       "placeholder_count": 0
     },
@@ -7643,7 +7643,7 @@
       "unit_facts": {},
       "lines": 25,
       "bytes": 1102,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
       "placeholder_count": 7
     },
@@ -7708,7 +7708,7 @@
       "unit_facts": {},
       "lines": 4,
       "bytes": 225,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "dceb3de09712e22bd8a40c30a9403840777912a300deddf73cc62537c9764b10",
       "placeholder_count": 0
     },
@@ -8374,7 +8374,7 @@
       },
       "lines": 39,
       "bytes": 1066,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f",
       "placeholder_count": 0
     },
@@ -8942,7 +8942,7 @@
       },
       "lines": 41,
       "bytes": 1224,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "8c78679708e43a9c97e80e419a33f280afa393403bad01222b61aace68a1a36d",
       "placeholder_count": 0
     },
@@ -10092,7 +10092,7 @@
       "unit_facts": {},
       "lines": 27,
       "bytes": 1845,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "186404d773fe3dff0bf7b69d0a559acc0e2134e530d012dfd3c4dd7f5bc2ac08",
       "placeholder_count": 39
     },
@@ -10833,7 +10833,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 132,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "01229d0780a3c1ed90bbf1fc2e2802bf04fa8a9617e0e7a2c3fa11ac4f00c383",
       "placeholder_count": 0
     },
@@ -10846,7 +10846,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 140,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde",
       "placeholder_count": 0
     },
@@ -11327,7 +11327,7 @@
       "unit_facts": {},
       "lines": 325,
       "bytes": 13262,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "80b172ec1f4448edb56d6bb23d31d4df83a80ba2d0cccf05301efb22874d2b81",
       "placeholder_count": 0
     },
@@ -11548,7 +11548,7 @@
       "unit_facts": {},
       "lines": 3,
       "bytes": 132,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f",
       "placeholder_count": 0
     },
@@ -14161,7 +14161,7 @@
       "unit_facts": {},
       "lines": 421,
       "bytes": 19014,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "57621c5ab5b847ca2098894128d78e9ab61624fb0c1d9786d7e8b16226e03a99",
       "placeholder_count": 0
     },
@@ -14629,7 +14629,7 @@
       "unit_facts": {},
       "lines": 102,
       "bytes": 5106,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "dfd3ddf0ed539af398fee6da1633b37b4acf6d56fbfb3279a5314e5dbe3d8dd4",
       "placeholder_count": 0
     },
@@ -14642,7 +14642,7 @@
       "unit_facts": {},
       "lines": 589,
       "bytes": 27445,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "8d8bb4895ed4d771c876439bfaa2527fc9bebf236696f3dcd62afcf6f0efae79",
       "placeholder_count": 0
     },
@@ -15682,7 +15682,7 @@
       "unit_facts": {},
       "lines": 932,
       "bytes": 44059,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
       "placeholder_count": 0
     },
@@ -15695,7 +15695,7 @@
       "unit_facts": {},
       "lines": 931,
       "bytes": 43987,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
       "placeholder_count": 0
     },
@@ -15708,7 +15708,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43764,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
       "placeholder_count": 0
     },
@@ -15721,7 +15721,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43835,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
       "placeholder_count": 0
     },
@@ -15734,7 +15734,7 @@
       "unit_facts": {},
       "lines": 934,
       "bytes": 44168,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "6193e7b54be70ee9eef513c51bcd5d49e100644f823cb5d6f321e0e32c40a1a3",
       "placeholder_count": 0
     },
@@ -15747,7 +15747,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43790,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
       "placeholder_count": 0
     },
@@ -15760,7 +15760,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43764,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
       "placeholder_count": 0
     },
@@ -15773,7 +15773,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43392,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
       "placeholder_count": 0
     },
@@ -15786,7 +15786,7 @@
       "unit_facts": {},
       "lines": 920,
       "bytes": 43440,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
       "placeholder_count": 0
     },
@@ -15799,7 +15799,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43342,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
@@ -15812,7 +15812,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43348,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
       "placeholder_count": 0
     },
@@ -15825,7 +15825,7 @@
       "unit_facts": {},
       "lines": 919,
       "bytes": 43342,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
       "placeholder_count": 0
     },
@@ -15838,7 +15838,7 @@
       "unit_facts": {},
       "lines": 929,
       "bytes": 43542,
-      "mode": "0o660",
+      "mode": "0o640",
       "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
       "placeholder_count": 0
     },
@@ -15914,10 +15914,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 4667,
-      "bytes": 172744,
-      "mode": "0o770",
-      "sha256": "1e290cfb28f84e42a6ea7b79ab29ea9f6eb50b0a061b02f9cd21f2609abee636",
+      "lines": 4699,
+      "bytes": 174367,
+      "mode": "0o750",
+      "sha256": "762aba10d459e2718bd55fc5b98654bcaa42405022eb51cd9b29b37b5daf104c",
       "placeholder_count": 2
     },
     {
@@ -15927,10 +15927,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 253,
-      "bytes": 12278,
+      "lines": 278,
+      "bytes": 13460,
       "mode": "0o644",
-      "sha256": "f99d57efd119d117119f24baecc426e83d49b91d17c8207a041c71f6d241ed53",
+      "sha256": "78adaecb71f7668de7e6466b65bb6bace399d78c66d2c4e8f721bfc696445f32",
       "placeholder_count": 0
     },
     {
@@ -15940,10 +15940,10 @@
       "check": "pass",
       "detail": "",
       "unit_facts": {},
-      "lines": 535,
-      "bytes": 29784,
+      "lines": 575,
+      "bytes": 31777,
       "mode": "0o750",
-      "sha256": "3798c20945eb75ae2e040239cfb1a669a0cc18ffab2f4749a57472825d038e09",
+      "sha256": "7efb364ba9d8536f3529e23507a5255b80ff5e99e99c7394475d53f06df36b59",
       "placeholder_count": 0
     },
     {
@@ -16345,7 +16345,7 @@
       "unit_facts": {},
       "lines": 99,
       "bytes": 3475,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "1d23f84f69f9d72db63d99d8a1b364d746e41f79bd16118b3859b752341132c4",
       "placeholder_count": 0
     },
@@ -16410,7 +16410,7 @@
       "unit_facts": {},
       "lines": 4805,
       "bytes": 218683,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "23a62567e50c2a03de89eb14ae4eb811576cf94547af05745d81e2050736c6de",
       "placeholder_count": 0
     },
@@ -16527,7 +16527,7 @@
       "unit_facts": {},
       "lines": 100,
       "bytes": 4946,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "6061a4f6ef729785427d57a3294ecba7ebb8ed43013ec4cc1dc4622a05aa1696",
       "placeholder_count": 0
     },
@@ -16540,7 +16540,7 @@
       "unit_facts": {},
       "lines": 281,
       "bytes": 10248,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "8155ab51fc13979071162e6064d3f2b324c2205a54809108b911c4c4a1c848bd",
       "placeholder_count": 0
     },
@@ -16592,7 +16592,7 @@
       "unit_facts": {},
       "lines": 332,
       "bytes": 13871,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "7a8f897e47fc36602c565848d87ce30a7422e8579f24f7731f8a256052c9d319",
       "placeholder_count": 0
     },
@@ -16670,7 +16670,7 @@
       "unit_facts": {},
       "lines": 385,
       "bytes": 17989,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "8f0f081572b49bd830b6b6404cbc5f47f31d24e2a398d674223de1025e3df02c",
       "placeholder_count": 0
     },
@@ -16761,7 +16761,7 @@
       "unit_facts": {},
       "lines": 1251,
       "bytes": 45343,
-      "mode": "0o770",
+      "mode": "0o750",
       "sha256": "a4e23a2ce8e1444542c681aa6b1ea9a8380017b7162a1264e59ce48850449238",
       "placeholder_count": 0
     },

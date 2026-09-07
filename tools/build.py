@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -138,8 +139,13 @@ def generate_preseed(archive_sha: str, manifest_sha: str, source_sha: str) -> by
     # Every core shell statement has an explicit delimiter; newlines are layout
     # only. The syntax check here catches an accidental non-embeddable edit.
     core = ' '.join(line.strip() for line in core.splitlines() if line.strip() and not line.lstrip().startswith('#'))
+    # The debconf RFC822 backend decodes literal \n when reloading a value;
+    # GET then truncates multiline replies. Octal LF escapes preserve identical
+    # printf/awk/tr behavior without corrupting a generated command on reload.
+    # The source files keep readable escapes; only the embedded copy is encoded.
+    core = core.replace(r'\n', r'\012')
     command = ('set -eu; umask 077; ' + core +
-        ' installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit 1; '
+        ' installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; '
         'boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; '
         'cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; '
         f'if [ "${{cached_hash%% *}}" != {source_sha} ]; then '
@@ -148,7 +154,6 @@ def generate_preseed(archive_sha: str, manifest_sha: str, source_sha: str) -> by
         f'[ "${{actual%% *}}" = {source_sha} ] || {{ source_error "transport checksum differs from preseed pin"; exit 1; }}; '
         '. "$boot/source.sh"; '
         f'source_bootstrap "$base" {archive_sha} {manifest_sha}; installer_lifecycle_complete')
-    subprocess.run(['/bin/sh', '-n', '-c', command], check=True)
     # Generate one logical command. The readable implementation lives in
     # scripts/common/source.sh; never hand-maintain its quoted bootstrap copy.
     quoted = shlex.quote(command)
@@ -173,6 +178,24 @@ d-i clock-setup/ntp seen true
                   '{ echo "fatal: installer repository preflight did not complete" >&2; exit 1; }; '
                   f'installer_run_supervised "$boot/preseed-bootstrap-entry.sh" {phase} /tmp/installer.log; installer_lifecycle_complete')
         text += f'd-i {question} string /bin/sh -c {shlex.quote(runner)}\n'
+    # Validate every generated command at both shell boundaries before any
+    # product is published. Parsing the readable source alone is insufficient.
+    busybox = shutil.which('busybox')
+    if not busybox:
+        raise ValueError('building installer commands requires BusyBox for ash syntax checks')
+    for line in text.splitlines():
+        fields = line.split(None, 3)
+        if len(fields) != 4 or not fields[1].endswith('_command'):
+            continue
+        value = fields[3]
+        words = shlex.split(value)
+        if len(words) != 3 or words[:2] != ['/bin/sh', '-c']:
+            raise ValueError(f'malformed generated command: {fields[1]}')
+        for shell in (['/bin/sh'], [busybox, 'sh']):
+            for code in (value, words[2]):
+                parsed = subprocess.run([*shell, '-n', '-c', code], capture_output=True, text=True)
+                if parsed.returncode:
+                    raise ValueError(f'invalid generated {fields[1]}: {parsed.stderr.strip()}')
     return text.encode()
 
 def sync_apt_helpers(check: bool) -> None:

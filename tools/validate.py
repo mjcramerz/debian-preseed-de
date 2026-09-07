@@ -29,6 +29,7 @@ def main() -> int:
         ('browser-check', [sys.executable,'-B','tools/build_browser_config.py','--check'],30),
         ('build-check', [sys.executable,'-B','tools/build.py','--check'],90),
         ('preseed-check', [sys.executable,'-B','tools/check_preseeds.py'],90),
+        ('shell-check', [sys.executable,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
         ('tests', [sys.executable,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],300),
         ('audit', [sys.executable,'-B','d-i/forky/tests/audit_codebase.py','--output',str(output/'audit.json')],120),
     ]

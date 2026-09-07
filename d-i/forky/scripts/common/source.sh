@@ -110,7 +110,7 @@ installer_terminal_hold() {
     if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi;
     lc_pid=$(awk '/^PPid:/ {print $2}' "/proc/$lc_pid/status" 2>/dev/null);
     case "$lc_pid" in ''|*[!0-9]*) break ;; esac;
-    lc_depth=$((lc_depth + 1));
+    lc_depth=$(expr "$lc_depth" + 1) || break;
   done;
   sync;
   # This is an intentional terminal wait, not a retry loop. No commands that
@@ -121,7 +121,11 @@ installer_terminal_hold() {
 # reap/reuse their child PIDs or launch subsequent installer commands. No process
 # group, host-wide kill, setsid, Python, or stat applet is needed in busybox-udeb.
 installer_stop_tree() (
+  # Callers may disable globbing while parsing URLs. The private /proc fallback
+  # must still expand its trusted numeric PID pattern. Never inherit noglob here.
+  set +f;
   lc_stop_pid=$1; lc_stop_depth=${2:-0};
+  case "$lc_stop_depth" in ''|*[!0-9]*) exit 1 ;; esac;
   case "$lc_stop_pid" in ''|*[!0-9]*|0|1) exit 1 ;; esac;
   [ "$lc_stop_depth" -lt 128 ] || exit 1;
   [ -d "/proc/$lc_stop_pid" ] || exit 0;
@@ -140,7 +144,8 @@ installer_stop_tree() (
     case "$lc_child" in ''|*[!0-9]*) continue ;; esac;
     lc_parent=$(awk '/^PPid:/ {print $2}' "/proc/$lc_child/status" 2>/dev/null);
     [ "$lc_parent" = "$lc_stop_pid" ] || continue;
-    installer_stop_tree "$lc_child" "$((lc_stop_depth + 1))" || :;
+    lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1;
+    installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :;
   done;
   kill -KILL "$lc_stop_pid" 2>/dev/null || :;
 );
@@ -155,28 +160,48 @@ installer_run_supervised() {
   return "$lc_child_status";
 };
 
-# Udeb has sleep (including fractional intervals), but neither timeout nor
-# setsid. Poll only our direct child and enforce a finite number of sleeps.
-# This subshell confines traps and variables to this one network operation.
+# Normalize bounded durations before numeric comparison or child creation.
+# test(1) accepts leading zeroes as decimal, while shell arithmetic treats them
+# as octal: 0180 passes a range check but raises a fatal ash arithmetic error.
+# The bootstrap must not depend on a shell's arithmetic parser at all.
+installer_bounded_seconds() (
+  lc_seconds=${1-};
+  case "$lc_seconds" in ''|*[!0-9]*) exit 125 ;; esac;
+  while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done;
+  [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125;
+  [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125;
+  printf '%s\n' "$lc_seconds";
+);
+
+# Use only integer sleep and seq, both available in busybox-udeb. Do not rely
+# on desktop BusyBox's fractional sleep or a timeout/setsid applet. The finite
+# sequence is prepared BEFORE launching the child; failures cannot leak a fetch.
+# Traps and counters are private to this one operation's subshell.
 installer_run_bounded() (
-  lc_limit=$1; shift;
-  case "$lc_limit" in ''|*[!0-9]*) exit 125 ;; esac;
-  [ "$lc_limit" -ge 1 ] && [ "$lc_limit" -le 900 ] || exit 125;
+  lc_limit=$(installer_bounded_seconds "${1-}") || exit 125;
+  shift;
+  [ "$#" -gt 0 ] || exit 125;
+  lc_intervals=$(seq 1 "$lc_limit") || exit 125;
+  [ -n "$lc_intervals" ] || exit 125;
+  set -f;
   "$@" <&0 &
   lc_bounded_pid=$!;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 129' HUP;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 130' INT;
   trap 'installer_stop_tree "$lc_bounded_pid"; exit 143' TERM;
-  lc_ticks=0; lc_max_ticks=$((lc_limit * 5));
-  while kill -0 "$lc_bounded_pid" 2>/dev/null; do
-    if [ "$lc_ticks" -ge "$lc_max_ticks" ]; then
+  for lc_interval in $lc_intervals; do
+    kill -0 "$lc_bounded_pid" 2>/dev/null || break;
+    if ! sleep 1; then
       installer_stop_tree "$lc_bounded_pid";
       wait "$lc_bounded_pid" 2>/dev/null || :;
-      exit 124;
+      exit 125;
     fi;
-    sleep 0.2;
-    lc_ticks=$((lc_ticks + 1));
   done;
+  if kill -0 "$lc_bounded_pid" 2>/dev/null; then
+    installer_stop_tree "$lc_bounded_pid";
+    wait "$lc_bounded_pid" 2>/dev/null || :;
+    exit 124;
+  fi;
   if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi;
   exit "$lc_bounded_status";
 );
@@ -294,6 +319,12 @@ source_http_get() (
   set -eu;
   umask 077;
   url=$1; destination=$2; effective=${3:-};
+  read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || {
+    source_error 'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
+  };
+  wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || {
+    source_error 'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds' || :; exit 125;
+  };
   source_validate_url "$url" || exit 1;
   command -v wget >/dev/null 2>&1 || { source_error 'wget is required in the installer'; exit 1; };
   mkdir -p "$(dirname "$destination")" || exit 1;
@@ -301,7 +332,7 @@ source_http_get() (
   trap 'rm -f "$temp" "$headers"' 0;
   trap 'exit 130' INT; trap 'exit 143' TERM; trap 'exit 129' HUP;
   help=$(wget --help 2>&1 || :);
-  set -- wget -S -T "${INSTALLER_FETCH_TIMEOUT:-45}" -O "$temp";
+  set -- wget -S -T "$read_timeout" -O "$temp";
   case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac;
   case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac;
   if source_insecure; then
@@ -311,16 +342,25 @@ source_http_get() (
   fi;
   # wget -T is an inactivity timeout; a slow trickle must not extend a fetch
   # forever. The independent wall-clock bound also covers BusyBox retries.
-  wall_timeout=${INSTALLER_FETCH_WALL_TIMEOUT:-180};
-  case "$wall_timeout" in ''|*[!0-9]*) exit 1 ;; esac;
-  [ "$wall_timeout" -ge 1 ] && [ "$wall_timeout" -le 900 ] || exit 1;
-  success=false;
+  success=false; fetch_status=1;
   for attempt in 1 2 3; do
-    if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; fi;
+    if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then
+      success=true; break;
+    else fetch_status=$?; fi;
+    # Invalid options, local I/O, TLS/authentication and supervisor errors do
+    # not become valid by retrying. Retry only potentially transient failures.
+    case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac;
     if grep -Eq 'HTTP/[0-9.]+ (401|403|404|410)' "$headers"; then break; fi;
     [ "$attempt" -eq 3 ] || sleep 1;
   done;
-  if [ "$success" != true ]; then cp "$headers" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed; response details: ${destination}.fetch-error"; exit 1; fi;
+  if [ "$success" != true ]; then
+    # Never follow an existing diagnostic symlink or lose the downloader's
+    # status behind a generic fetch error. The first failure owns the record.
+    { printf 'status=%s\nattempts=%s\n' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp";
+    chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :;
+    source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :;
+    exit "$fetch_status";
+  fi;
   if grep -qi 'certificate validation not implemented' "$headers"; then
     source_error 'wget cannot verify TLS certificates; use a TLS-capable installer image'; exit 1;
   fi;
@@ -374,7 +414,7 @@ source_resolve_seed() (
     case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error 'unsupported local repository path'; exit 1 ;; esac;
     printf '%s\n' "$base" >"$boot/seed.file";
   elif [ -n "$url" ]; then
-    source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit 1;
+    source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?";
     resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*};
     base=${resolved%/*}; source_validate_url "$base/" || exit 1;
     printf '%s\n' "$base" >"$boot/seed.url";

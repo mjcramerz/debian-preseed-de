@@ -1,0 +1,85 @@
+{
+  "baseline_archive": "debian-preseed-de-refactored.tar.gz",
+  "baseline_sha256": "671d62819efb312adbf25ca0ac9946734e60806841f9495fd8ef4c84ff924a95",
+  "reproductions": [
+    {
+      "shell": [
+        "/bin/dash"
+      ],
+      "timeout_input": "180",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "shell": [
+        "/bin/dash"
+      ],
+      "timeout_input": "0180",
+      "returncode": 2,
+      "stderr": "/bin/dash: 170: Illegal number: 0180"
+    },
+    {
+      "shell": [
+        "/bin/dash"
+      ],
+      "timeout_input": "08",
+      "returncode": 2,
+      "stderr": "/bin/dash: 170: Illegal number: 08"
+    },
+    {
+      "shell": [
+        "/usr/bin/busybox",
+        "sh"
+      ],
+      "timeout_input": "180",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "shell": [
+        "/usr/bin/busybox",
+        "sh"
+      ],
+      "timeout_input": "0180",
+      "returncode": 2,
+      "stderr": "sh: arithmetic syntax error"
+    },
+    {
+      "shell": [
+        "/usr/bin/busybox",
+        "sh"
+      ],
+      "timeout_input": "08",
+      "returncode": 2,
+      "stderr": "sh: arithmetic syntax error"
+    }
+  ],
+  "interpretation": "The exact user initrd/environment was not supplied. Leading-zero input is a reproduced arithmetic error, not an assertion about the user settings. The default value also ran and succeeded.",
+  "payload_preservation": {
+    "payload_member_count": 1233,
+    "unchanged_payload_files": 1230,
+    "changed_payload_files": [
+      "scripts/common/lib.sh",
+      "scripts/common/lifecycle.sh",
+      "scripts/common/source.sh"
+    ],
+    "profiles_preserved": 13,
+    "added_or_removed_payload_files": []
+  },
+  "new_focused_tests": {
+    "tests_run": 18,
+    "skipped": 0,
+    "result": "PASS",
+    "seconds": 47.74
+  },
+  "installed_tools": [
+    "bash 5.2.37-2+b7",
+    "busybox 1:1.37.0-6+b8",
+    "dash 0.5.12-12",
+    "debconf 1.5.91",
+    "perl 5.40.1-6",
+    "python3 3.13.5-1"
+  ],
+  "environment": "Restricted-applications chroot using the installed full BusyBox binary, not a booted installer or an actual busybox-udeb binary.",
+  "profiles_match_original_zip": 13
+}
