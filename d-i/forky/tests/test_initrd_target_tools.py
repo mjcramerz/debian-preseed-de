@@ -86,6 +86,45 @@ class TargetToolTests(unittest.TestCase):
             self.assertEqual(args[:5],[str(self.target),'/usr/bin/stat','-c','%u:%g:%a','--'])
             self.assertIn(args[5],(helper,session))
 
+    def test_codex_app_server_metadata_uses_target_stat_without_host_applet(self):
+        text=(SEED/'scripts/late/devops.sh').read_text()
+        stage=text.split('devops_stage_codex_app_server() {',1)[1].split(
+            '\n}\n\ndevops_install_pinned_codex() {',1)[0]
+        self.assertEqual(stage.count('devops_assert_target_metadata'),5)
+        self.assertNotRegex(stage,r'(?<![/\w])stat\s+-c')
+
+        start=text.index('devops_assert_target_metadata() (')
+        end=text.index('\n)\n',start)+3
+        helper=text[start:end]
+        host_path=self.target/'etc/default'
+        host_path.mkdir(parents=True)
+        env={**os.environ,'LC_ALL':'C','CALL':str(self.call),'TEST_METADATA':'0:0:755'}
+        for shell in SHELLS:
+            with self.subTest(shell=shell):
+                self.call.unlink(missing_ok=True)
+                script=f'''set -eu
+ target_root={shlex.quote(str(self.target))}
+ devops_fatal() {{ printf 'fatal: %s\\n' "$*" >&2; exit 1; }}
+ devops_validate_abs_path() {{ :; }}
+ {helper}
+ stat() {{ echo HOST_STAT_MUST_NOT_RUN >&2; return 127; }}
+ chroot() {{ printf '%s\\n' "$@" >"$CALL"; printf '%s\\n' "$TEST_METADATA"; }}
+ devops_assert_target_metadata 0:0:755 {shlex.quote(str(host_path))} 'Codex app-server base directory'
+ '''
+                p=subprocess.run(shell+['-c',script],env=env,text=True,
+                                 capture_output=True,timeout=5)
+                self.assertEqual(p.returncode,0,p.stderr)
+                self.assertNotIn('HOST_STAT',p.stderr)
+                self.assertEqual(self.call.read_text().splitlines(),[
+                    str(self.target),'/usr/bin/stat','-c','%u:%g:%a','--','/etc/default'])
+
+                mismatch=subprocess.run(shell+['-c',script],
+                    env={**env,'TEST_METADATA':'0:0:775'},text=True,
+                    capture_output=True,timeout=5)
+                self.assertNotEqual(mismatch.returncode,0)
+                self.assertIn('has unsafe ownership or mode',mismatch.stderr)
+                self.assertNotIn('HOST_STAT',mismatch.stderr)
+
 class DiagnosticTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='initrd-diagnostic-')

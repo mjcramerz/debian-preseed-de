@@ -15,6 +15,33 @@ devops_info() {
   printf '[late:devops] %s\n' "$*" >&2
 }
 
+devops_assert_target_metadata() (
+  expected_metadata=$1
+  target_host_path=$2
+  metadata_label=$3
+  metadata_target_root=${target_root%/}
+
+  case "$metadata_target_root" in
+    ''|/)
+      devops_fatal "unsafe installation target for metadata inspection: ${target_root:-unset}"
+      ;;
+  esac
+  case "$target_host_path" in
+    "$metadata_target_root"/*)
+      metadata_target_path=${target_host_path#"$metadata_target_root"}
+      ;;
+    *)
+      devops_fatal "${metadata_label} path is outside the installation target: $target_host_path"
+      ;;
+  esac
+  devops_validate_abs_path "${metadata_label} target path" "$metadata_target_path"
+  actual_metadata=$(chroot "$metadata_target_root" \
+    /usr/bin/stat -c '%u:%g:%a' -- "$metadata_target_path") ||
+    devops_fatal "${metadata_label} metadata is unavailable: $target_host_path"
+  [ "$actual_metadata" = "$expected_metadata" ] ||
+    devops_fatal "${metadata_label} has unsafe ownership or mode: $target_host_path"
+)
+
 devops_validate_abs_path() {
   label=$1
   path_value=$2
@@ -3349,8 +3376,10 @@ devops_stage_codex_app_server() {
       devops_fatal "Codex app-server base directory traverses a symlink: $managed_base_dir"
     chmod 0755 "$managed_base_dir"
     chown root:root "$managed_base_dir"
-    [ "$(stat -c '%u:%g:%a' -- "$managed_base_dir")" = 0:0:755 ] ||
-      devops_fatal "Codex app-server base directory has unsafe ownership or mode: $managed_base_dir"
+    devops_assert_target_metadata \
+      0:0:755 \
+      "$managed_base_dir" \
+      "Codex app-server base directory"
   done
   unset managed_base_dir
 
@@ -3382,8 +3411,10 @@ devops_stage_codex_app_server() {
     [ "$(readlink -f -- "$managed_unit_dir")" = "$managed_unit_dir" ] ||
       devops_fatal "Codex app-server user-unit directory traverses a symlink: $managed_unit_dir"
     chown "$managed_unit_owner" "$managed_unit_dir"
-    [ "$(stat -c '%u:%g:%a' -- "$managed_unit_dir")" = "${managed_unit_owner}:700" ] ||
-      devops_fatal "Codex app-server user-unit directory has unsafe ownership or mode: $managed_unit_dir"
+    devops_assert_target_metadata \
+      "${managed_unit_owner}:700" \
+      "$managed_unit_dir" \
+      "Codex app-server user-unit directory"
   done
   unset managed_unit_dir managed_unit_owner
 
@@ -3417,12 +3448,18 @@ devops_stage_codex_app_server() {
 
   cmp -s -- "$template_service" "$service_target" ||
     devops_fatal "Codex app-server account unit differs from its skeleton source"
-  [ "$(stat -c '%u:%g:%a' -- "$template_service")" = 0:0:644 ] ||
-    devops_fatal "Codex app-server skeleton unit has unsafe ownership or mode"
-  [ "$(stat -c '%u:%g:%a' -- "$service_target")" = "${account_ids}:644" ] ||
-    devops_fatal "Codex app-server account unit has unsafe ownership or mode"
-  [ "$(stat -c '%u:%g:%a' -- "$environment_target")" = 0:0:644 ] ||
-    devops_fatal "Codex app-server environment file has unsafe ownership or mode"
+  devops_assert_target_metadata \
+    0:0:644 \
+    "$template_service" \
+    "Codex app-server skeleton unit"
+  devops_assert_target_metadata \
+    "${account_ids}:644" \
+    "$service_target" \
+    "Codex app-server account unit"
+  devops_assert_target_metadata \
+    0:0:644 \
+    "$environment_target" \
+    "Codex app-server environment file"
 
   rm -f -- "$environment_tmp" "$service_tmp"
 }
