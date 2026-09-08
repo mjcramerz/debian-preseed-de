@@ -184,18 +184,53 @@ ACTION_SPECS = {
 }
 
 
-def read_regular_text(path: str, owners: set[int]) -> str:
+def read_regular_text(
+    path: str,
+    owners: set[int],
+    *,
+    allow_root_group_write: bool = False,
+) -> str:
     """Open the checked inode, not a symlink swapped in after lstat."""
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as handle:
         metadata = os.fstat(handle.fileno())
-        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid not in owners
-                or metadata.st_mode & 0o022 or metadata.st_size > MAX_DESKTOP_FILE_BYTES):
-            raise RuntimeError(f"unsafe or oversized managed input: {path}")
+        mode = stat.S_IMODE(metadata.st_mode)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError(f"managed input is not a regular file: {path}")
+        if metadata.st_uid not in owners:
+            raise RuntimeError(
+                f"managed input has an unexpected owner: {path}: uid={metadata.st_uid}"
+            )
+        trusted_root_group_write = (
+            allow_root_group_write
+            and metadata.st_uid == 0
+            and metadata.st_gid == 0
+            and bool(mode & stat.S_IROTH)
+            and not mode & 0o7000
+        )
+        if mode & stat.S_IWOTH or (
+            mode & stat.S_IWGRP and not trusted_root_group_write
+        ):
+            raise RuntimeError(
+                "managed input is writable by an untrusted principal: "
+                f"{path}: uid={metadata.st_uid} gid={metadata.st_gid} mode={mode:04o}"
+            )
+        if metadata.st_size > MAX_DESKTOP_FILE_BYTES:
+            raise RuntimeError(
+                f"managed input exceeds {MAX_DESKTOP_FILE_BYTES} bytes: {path}"
+            )
         data = handle.read(MAX_DESKTOP_FILE_BYTES + 1)
         if len(data) > MAX_DESKTOP_FILE_BYTES:
             raise RuntimeError(f"managed input grew beyond its size limit: {path}")
         return data.decode("utf-8")
+
+
+def read_system_desktop_text(path: str) -> str:
+    # Some vendor packages install desktop entries as root:root mode 0775.
+    # These fixed system paths remain immutable to the desktop account: permit
+    # only the root administrative group write bit while retaining the strict
+    # policy for defaults, user launchers, autostart files, and destinations.
+    return read_regular_text(path, {0}, allow_root_group_write=True)
 
 
 def acquire_lock(directory: str, uid: int, gid: int):
@@ -619,7 +654,7 @@ def main() -> int:
 
         parser = configparser.ConfigParser(interpolation=None, strict=False)
         parser.optionxform = str
-        parser.read_string(read_regular_text(source_path, {0}))
+        parser.read_string(read_system_desktop_text(source_path))
         if not parser.has_section("Desktop Entry"):
             print(f"warning: skipped {desktop_name}: missing [Desktop Entry]", file=sys.stderr)
             skipped_missing += 1

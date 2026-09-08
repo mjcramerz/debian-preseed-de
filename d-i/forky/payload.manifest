@@ -807,7 +807,7 @@ f8195c062d7a0cd948b400be379a4f1a0e40019b9abbfcefe800aaa0709edb58  hooks/target/u
 6609cb3e2843b9fd3ff6baa856308b69400c5bf85336e3e2a96376e1c6aec55a  hooks/target/usr/local/bin/labwc-security-action
 73213f0147244ef69bfc06b4575ab01004b57875c29dbdd4772b679af2a16c94  hooks/target/usr/local/bin/labwc-session.tmpl
 77d3e522686d78a425ed08345eebfca27c4a8125d1c0a4c9ae429058a3aa2a28  hooks/target/usr/local/bin/labwc-show-desktop
-577e1bd2ddbeae9436592fb459d0bcacd95c185881bf0781b7a438179731f9cd  hooks/target/usr/local/bin/labwc-sync-application-launchers
+01c68df1d36051187ecd1c54dcd31e3e06c106aa723de8ae48db758b58bd3357  hooks/target/usr/local/bin/labwc-sync-application-launchers
 e62b466ca4ce62fed3434d660256a698cb2eb16c3dcde74d9329055aabf6f9cd  hooks/target/usr/local/bin/labwc-system-action
 3487bcec1e112540b49026efab7eb4b8ad130226a9762dfd3290446d71cefc29  hooks/target/usr/local/bin/labwc-terminal
 c123692e2dbddf85df510c81a57f1231cd62230607e156d89d8ae98f02abe539  hooks/target/usr/local/bin/labwc-users-groups-menu

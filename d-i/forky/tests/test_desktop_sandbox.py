@@ -40,6 +40,82 @@ def document(body: str, namespace: str = 'http://schemas.openxmlformats.org/word
             f'<w:body>{body}</w:body></w:document>').encode()
 
 
+class LauncherSynchronizationTests(unittest.TestCase):
+    def setUp(self):
+        self.launcher = load_script(
+            SHARED / 'usr/local/bin/labwc-sync-application-launchers',
+            'tested_labwc_sync_application_launchers',
+        )
+        self.temporary = tempfile.TemporaryDirectory(prefix='labwc-launcher-sync-')
+        self.addCleanup(self.temporary.cleanup)
+        self.desktop = Path(self.temporary.name) / 'code.desktop'
+        self.desktop.write_text('[Desktop Entry]\nName=Code\nType=Application\n')
+
+    def read_with_metadata(self, *, mode: int, uid: int, gid: int,
+                           allow_root_group_write: bool) -> str:
+        metadata = types.SimpleNamespace(
+            st_mode=stat.S_IFREG | mode,
+            st_uid=uid,
+            st_gid=gid,
+            st_size=self.desktop.stat().st_size,
+        )
+        with mock.patch.object(self.launcher.os, 'fstat', return_value=metadata):
+            return self.launcher.read_regular_text(
+                str(self.desktop),
+                {0},
+                allow_root_group_write=allow_root_group_write,
+            )
+
+    def test_system_vendor_reader_accepts_root_group_writable_code_launcher(self):
+        metadata = types.SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o775,
+            st_uid=0,
+            st_gid=0,
+            st_size=self.desktop.stat().st_size,
+        )
+        with mock.patch.object(self.launcher.os, 'fstat', return_value=metadata):
+            content = self.launcher.read_system_desktop_text(str(self.desktop))
+        self.assertIn('[Desktop Entry]', content)
+
+    def test_default_reader_keeps_rejecting_group_writable_input(self):
+        with self.assertRaisesRegex(RuntimeError, 'untrusted principal'):
+            self.read_with_metadata(
+                mode=0o775,
+                uid=0,
+                gid=0,
+                allow_root_group_write=False,
+            )
+
+    def test_system_vendor_exception_remains_fail_closed(self):
+        unsafe_metadata = (
+            (0o777, 0, 0),
+            (0o775, 0, 1000),
+            (0o775, 1000, 0),
+            (0o2775, 0, 0),
+            (0o770, 0, 0),
+        )
+        for mode, uid, gid in unsafe_metadata:
+            with self.subTest(mode=oct(mode), uid=uid, gid=gid):
+                with self.assertRaises(RuntimeError):
+                    self.read_with_metadata(
+                        mode=mode,
+                        uid=uid,
+                        gid=gid,
+                        allow_root_group_write=True,
+                    )
+
+    def test_system_vendor_reader_keeps_the_input_size_bound(self):
+        metadata = types.SimpleNamespace(
+            st_mode=stat.S_IFREG | 0o775,
+            st_uid=0,
+            st_gid=0,
+            st_size=self.launcher.MAX_DESKTOP_FILE_BYTES + 1,
+        )
+        with mock.patch.object(self.launcher.os, 'fstat', return_value=metadata):
+            with self.assertRaisesRegex(RuntimeError, 'exceeds'):
+                self.launcher.read_system_desktop_text(str(self.desktop))
+
+
 class CodexTests(unittest.TestCase):
     def setUp(self):
         self.codex = load_script(SHARED / 'data/codex/lib/codex', 'tested_codex')
