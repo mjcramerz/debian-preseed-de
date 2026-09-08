@@ -1,3 +1,5 @@
+> **Superseded by [revision 2](NVIDIA580-XANMOD724-R2.md).** The new logs demonstrate that this process-name-only repair missed NVSwitch and other Linux 7.2 interfaces. This document and its test counts are historical, not validation of the current revision.
+
 # NVIDIA 580.142 / XanMod 7.2.4 targeted installer fix
 
 Date: 2026-09-08

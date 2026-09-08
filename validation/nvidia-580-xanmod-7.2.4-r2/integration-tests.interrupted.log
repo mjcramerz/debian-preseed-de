@@ -1,0 +1,3 @@
+test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current) ... ok
+test_class_dependency_references_are_local (test_repository_integrity.RepositoryIntegrityTests.test_class_dependency_references_are_local) ... ok
+test_each_flat_profile_composes (test_repository_integrity.RepositoryIntegrityTests.test_each_flat_profile_composes) ... 

@@ -1,0 +1,39 @@
+Scope: Minimal repaired process-name, NVSwitch registry/copy, modeset copy, and UVM cache-name interfaces against the recorded real headers. NOT full NVIDIA DKMS, NOT a Linux 7.2 build. No module loaded.
+Headers: /usr/src/linux-headers-6.12.96+deb13-amd64
+Command: ['make', '-C', '/usr/src/linux-headers-6.12.96+deb13-amd64', 'M=/tmp/nv72-real-kernel-nefvns73', 'CC=gcc', 'modules']
+Applied NVIDIA 580 Linux 7.2 process-name compatibility: /tmp/nv72-real-kernel-nefvns73/source/nvidia/os-interface.c
+Applied NVIDIA 580 Linux 7.2 interface compatibility (r2): /tmp/nv72-real-kernel-nefvns73/source/nvidia/linux_nvswitch.c
+Applied NVIDIA 580 Linux 7.2 interface compatibility (r2): /tmp/nv72-real-kernel-nefvns73/source/nvidia-modeset/nvidia-modeset-linux.c
+Applied NVIDIA 580 Linux 7.2 interface compatibility (r2): /tmp/nv72-real-kernel-nefvns73/source/nvidia-uvm/uvm_pmm_gpu.c
+make: Entering directory '/usr/src/linux-headers-6.12.96+deb13-amd64'
+  CC [M]  /tmp/nv72-real-kernel-nefvns73/compat_probe.o
+  MODPOST /tmp/nv72-real-kernel-nefvns73/Module.symvers
+  CC [M]  /tmp/nv72-real-kernel-nefvns73/compat_probe.mod.o
+  CC [M]  /tmp/nv72-real-kernel-nefvns73/.module-common.o
+  LD [M]  /tmp/nv72-real-kernel-nefvns73/compat_probe.ko
+  BTF [M] /tmp/nv72-real-kernel-nefvns73/compat_probe.ko
+make: Leaving directory '/usr/src/linux-headers-6.12.96+deb13-amd64'
+filename:       /tmp/nv72-real-kernel-nefvns73/compat_probe.ko
+description:    Compile-only compatibility probe, NOT the NVIDIA driver; do not load
+license:        NVIDIA
+depends:        
+name:           compat_probe
+retpoline:      Y
+vermagic:       6.12.96+deb13-amd64 SMP preempt mod_unload modversions 
+
+Undefined symbols (strncpy must be absent):
+                 U __fentry__
+                 U __fortify_panic
+                 U __stack_chk_fail
+                 U __x86_return_thunk
+                 U _raw_spin_lock
+                 U _raw_spin_unlock
+                 U const_pcpu_hot
+                 U kstrtouint
+                 U memcpy
+                 U memset
+                 U sized_strscpy
+                 U strchr
+                 U strlen
+                 U strnlen
+                 U strstr

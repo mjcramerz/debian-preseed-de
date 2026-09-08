@@ -1,0 +1,24 @@
+test_audit_catches_macro_alias_to_removed_symbol (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_audit_catches_macro_alias_to_removed_symbol) ... ok
+test_audit_ignores_comments_strings_and_prefixed_identifiers (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_audit_ignores_comments_strings_and_prefixed_identifiers) ... ok
+test_busybox_ash_runs_generated_perl_patch (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_busybox_ash_runs_generated_perl_patch) ... ok
+test_compiled_bounded_copy_and_registry_contracts (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_compiled_bounded_copy_and_registry_contracts) ... ok
+test_drm_probe_and_callback_compilation_old_new_and_missing_types (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_drm_probe_and_callback_compilation_old_new_and_missing_types) ... ok
+test_idempotent_preserves_metadata_and_no_temporary_files (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_idempotent_preserves_metadata_and_no_temporary_files) ... ok
+test_incorrect_wrapper_body_fails_atomically (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_incorrect_wrapper_body_fails_atomically) ... ok
+test_partial_drm_tree_is_rejected (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_partial_drm_tree_is_rejected) ... ok
+test_partial_own_patch_is_not_accepted_by_marker (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_partial_own_patch_is_not_accepted_by_marker) ... ok
+test_patch_already_clean_tree_needs_no_write_access (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_patch_already_clean_tree_needs_no_write_access) ... ok
+test_readonly_unprivileged_rerun (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_readonly_unprivileged_rerun) ... ok
+test_repairs_all_remaining_string_sites_and_keeps_exported_abi (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_repairs_all_remaining_string_sites_and_keeps_exported_abi) ... ok
+test_source_file_symlinks_rejected_without_overwriting (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_source_file_symlinks_rejected_without_overwriting) ... ok
+test_tabs_crlf_and_duplicate_wrapper (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_tabs_crlf_and_duplicate_wrapper) ... ok
+test_unknown_raw_call_anywhere_stops_before_changes (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_unknown_raw_call_anywhere_stops_before_changes) ... ok
+test_unknown_registry_bounds_fail_before_changes (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_unknown_registry_bounds_fail_before_changes) ... ok
+test_vendor_clean_non_drm_sources_left_unchanged (test_nvidia_72_interfaces.Nvidia72InterfaceTests.test_vendor_clean_non_drm_sources_left_unchanged) ... ok
+test_full_tree_source_copy_build_reunpack_and_argument_forwarding (test_nvidia_72_interfaces.Nvidia72WrapperIntegrationTests.test_full_tree_source_copy_build_reunpack_and_argument_forwarding) ... ok
+test_unknown_removed_api_does_not_call_real_dkms (test_nvidia_72_interfaces.Nvidia72WrapperIntegrationTests.test_unknown_removed_api_does_not_call_real_dkms) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 5.468s
+
+OK

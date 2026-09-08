@@ -229,6 +229,269 @@ patch_nv_os_interface() {
   printf 'Applied NVIDIA 580 Linux 7.2 process-name compatibility: %s\n' "$os_interface_path" >&2
 }
 
+patch_nv_72_interfaces() {
+  # perl-base is Essential on Debian. No non-core modules or network access.
+  # Validate every affected file before publishing any of this batch. Keep the
+  # proprietary OS-interface symbols/return values, unlike the open-driver PR.
+  LC_ALL=C perl - "$1" <<'NV72_PERL'
+use strict;
+use warnings;
+use Fcntl qw(O_WRONLY O_CREAT O_EXCL);
+
+my $root = shift @ARGV;
+my (%original, %result, %metadata);
+my @order;
+sub load_file {
+    my ($relative) = @_;
+    my $path = "$root/$relative";
+    return undef unless -e $path || -l $path;
+    die "fatal: NVIDIA compatibility file is not a regular non-symlink: $path\n"
+        if -l $path || !-f $path;
+    open my $in, '<', $path or die "fatal: cannot read $path: $!\n";
+    binmode $in;
+    local $/;
+    my $text = <$in>;
+    my @st = stat $in;
+    close $in or die "fatal: cannot close $path: $!\n";
+    $metadata{$relative} = [@st];
+    $original{$relative} = $text;
+    $result{$relative} = $text;
+    push @order, $relative;
+    return $text;
+}
+sub normalized {
+    my ($text) = @_;
+    $text =~ s/\s+//g;
+    return $text;
+}
+sub replace_once {
+    my ($text, $old, $new, $label) = @_;
+    my $count = ($$text =~ s/$old/$new/g);
+    die "fatal: expected one NVIDIA 580 $label, found $count\n" unless $count == 1;
+}
+sub bounded_wrapper {
+    my ($text, $name, $count_type, $count_name) = @_;
+    my $signature = qr/\bchar\s*\*\s*\Q$name\E\s*\(\s*char\s*\*\s*dest\s*,\s*const\s+char\s*\*\s*src\s*,\s*\Q$count_type\E\s+\Q$count_name\E\s*\)/;
+    my $body = <<"C_BODY";
+{
+    /* NV_INSTALLER_NVIDIA_LEGACY_BOUNDED_COPY: preserve the binary ABI. */
+    size_t copied;
+
+    if ($count_name == 0)
+        return dest;
+    copied = strnlen(src, $count_name);
+    if (copied != 0)
+        memcpy(dest, src, copied);
+    if (copied < $count_name)
+        memset(dest + copied, 0, $count_name - copied);
+    return dest;
+}
+C_BODY
+    my @matches = ($$text =~ /($signature)\s*(\{[^{}]*\})/g);
+    die "fatal: missing or duplicate NVIDIA 580 $name definition\n" unless @matches == 2;
+    my ($sig, $actual) = @matches;
+    my $old = "{return strncpy(dest,src,$count_name);}";
+    if (normalized($actual) eq normalized($body)) {
+        return;
+    }
+    die "fatal: unrecognized NVIDIA 580 $name body; source left unchanged\n"
+        unless normalized($actual) eq normalized($old);
+    replace_once($text, qr/\Q$sig\E\s*\Q$actual\E/, "$sig\n$body", $name);
+}
+
+my $rel = 'nvidia/linux_nvswitch.c';
+if (defined(my $text = load_file($rel))) {
+    if ($text =~ /\bstrncpy\s*\(/ || $text =~ /NV_INSTALLER_NVIDIA_LEGACY_BOUNDED_COPY/) {
+        if ($text =~ /\bstrncpy\s*\(\s*regkey_val\b/) {
+            # This is a checked substring, not a NUL-terminated source string.
+            # strscpy(..., regkey_val_len) would lose the last hex digit.
+            die "fatal: NVSwitch registry bound check not recognized\n"
+                unless $text =~ /regkey_val\s*\[\s*NVSWITCH_REGKEY_VALUE_LEN\s*\+\s*1\s*\]/
+                && $text =~ /regkey_val_len\s*>\s*NVSWITCH_REGKEY_VALUE_LEN/;
+            replace_once(\$text,
+                qr/\bstrncpy\s*\(\s*regkey_val\s*,\s*regkey_val_start\s*,\s*regkey_val_len\s*\);\s*regkey_val\s*\[\s*regkey_val_len\s*\]\s*=\s*'\\0'\s*;/,
+                "memcpy(regkey_val, regkey_val_start, regkey_val_len);\n    regkey_val[regkey_val_len] = '\\0';",
+                'NVSwitch registry substring copy');
+        }
+        bounded_wrapper(\$text, 'nvswitch_os_strncpy', 'NvLength', 'length');
+        $result{$rel} = $text;
+    }
+}
+$rel = 'nvidia-modeset/nvidia-modeset-linux.c';
+if (defined(my $text = load_file($rel))) {
+    if ($text =~ /\bstrncpy\s*\(/ || $text =~ /NV_INSTALLER_NVIDIA_LEGACY_BOUNDED_COPY/) {
+        bounded_wrapper(\$text, 'nvkms_strncpy', 'size_t', 'n');
+        $result{$rel} = $text;
+    }
+}
+$rel = 'nvidia-uvm/uvm_pmm_gpu.c';
+if (defined(my $text = load_file($rel))) {
+    if ($text =~ /\bstrncpy\s*\(/) {
+        replace_once(\$text,
+            qr/\bstrncpy\s*\(\s*chunk_split_cache\s*\[\s*level\s*\]\.name\s*,\s*"uvm_gpu_chunk_t"\s*,\s*sizeof\s*\(\s*chunk_split_cache\s*\[\s*level\s*\]\.name\s*\)\s*-\s*1\s*\);/,
+            'strscpy_pad(chunk_split_cache[level].name, "uvm_gpu_chunk_t", sizeof(chunk_split_cache[level].name));',
+            'UVM chunk-cache name copy');
+        $result{$rel} = $text;
+    }
+}
+
+# Linux 7.2 renamed the DRM transaction type and its lifetime functions.
+# A real sizeof test, not an incomplete-struct pointer, detects the target API.
+# Keep the original 580 full-state callbacks selected for the renamed type.
+my $drm_case = <<'DRM_CASE';
+        nv_installer_drm_atomic_commit_present)
+            # NV_INSTALLER_NVIDIA_LEGACY_DRM_PROBE
+            CODE="
+            #include <drm/drm_atomic.h>
+            #include <drm/drm_modeset_helper_vtables.h>
+            int conftest_nv_installer_drm_atomic_commit(void) {
+                return sizeof(struct drm_atomic_commit);
+            }
+            static const struct drm_crtc_helper_funcs *crtc_funcs;
+            typeof(*crtc_funcs->atomic_check) conftest_nv_installer_crtc;
+            int conftest_nv_installer_crtc(struct drm_crtc *crtc,
+                                          struct drm_atomic_commit *state) {
+                return 0;
+            }
+            static const struct drm_plane_helper_funcs *plane_funcs;
+            typeof(*plane_funcs->atomic_check) conftest_nv_installer_plane;
+            int conftest_nv_installer_plane(struct drm_plane *plane,
+                                           struct drm_atomic_commit *state) {
+                return 0;
+            }"
+            compile_check_conftest "$CODE" "NV_INSTALLER_DRM_ATOMIC_COMMIT_PRESENT" "" "types"
+        ;;
+DRM_CASE
+my $drm_defines = <<'DRM_DEFINES';
+/* NV_INSTALLER_NVIDIA_LEGACY_DRM_ATOMIC_COMPAT */
+#if defined(NV_INSTALLER_DRM_ATOMIC_COMMIT_PRESENT)
+#define drm_atomic_state drm_atomic_commit
+#define drm_atomic_state_alloc drm_atomic_commit_alloc
+#define drm_atomic_state_get drm_atomic_commit_get
+#define drm_atomic_state_put drm_atomic_commit_put
+#define drm_atomic_state_clear drm_atomic_commit_clear
+#define __drm_atomic_state_free __drm_atomic_commit_free
+#define drm_atomic_state_init drm_atomic_commit_init
+#define drm_atomic_state_default_clear drm_atomic_commit_default_clear
+#define drm_atomic_state_default_release drm_atomic_commit_default_release
+/* The probe also checked BOTH full-transaction callback signatures. */
+#undef NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG
+#define NV_DRM_CRTC_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG
+#undef NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG
+#define NV_DRM_PLANE_ATOMIC_CHECK_HAS_ATOMIC_STATE_ARG
+#endif
+/* NV_INSTALLER_NVIDIA_LEGACY_DRM_ATOMIC_COMPAT_END */
+
+DRM_DEFINES
+my @drm_files = ('conftest.sh', 'nvidia-drm/nvidia-drm-sources.mk',
+                 'nvidia-drm/nvidia-drm-conftest.h');
+# Minimal/non-DRM source layouts are valid. A partial DRM tree is not.
+if (-e "$root/nvidia-drm/nvidia-drm-conftest.h") {
+    for my $file (@drm_files) {
+        die "fatal: incomplete NVIDIA DRM source tree: $root/$file\n"
+            unless defined load_file($file);
+    }
+    my $text = $result{'conftest.sh'};
+    if ($text =~ /NV_INSTALLER_NVIDIA_LEGACY_DRM_PROBE/) {
+        die "fatal: incomplete NVIDIA DRM probe\n"
+            unless index($text, $drm_case) >= 0
+            && scalar(() = $text =~ /NV_INSTALLER_NVIDIA_LEGACY_DRM_PROBE/g) == 1;
+    } else {
+        replace_once(\$text, qr/^([ \t]*drm_plane_atomic_check_has_atomic_state_arg\)[ \t]*\r?\n)/m,
+                     $drm_case . '        drm_plane_atomic_check_has_atomic_state_arg)' . "\n",
+                     'DRM conftest anchor');
+    }
+    $result{'conftest.sh'} = $text;
+    my $mk = 'nvidia-drm/nvidia-drm-sources.mk';
+    $text = $result{$mk};
+    my $line = 'NV_CONFTEST_TYPE_COMPILE_TESTS += nv_installer_drm_atomic_commit_present';
+    unless ($text =~ /^\Q$line\E\s*$/m) {
+        die "fatal: NVIDIA DRM test list is unrecognized\n"
+            unless $text =~ /^NV_CONFTEST_TYPE_COMPILE_TESTS\s*\+=\s*drm_plane_atomic_check_has_atomic_state_arg\s*$/m;
+        $text .= "\n$line\n";
+    }
+    $result{$mk} = $text;
+    my $hdr = 'nvidia-drm/nvidia-drm-conftest.h';
+    $text = $result{$hdr};
+    if ($text =~ /NV_INSTALLER_NVIDIA_LEGACY_DRM_ATOMIC_COMPAT/) {
+        die "fatal: incomplete NVIDIA DRM compatibility block\n"
+            unless index($text, $drm_defines) >= 0;
+    } else {
+        replace_once(\$text, qr/^#endif\s*\/\*\s*defined\(__NVIDIA_DRM_CONFTEST_H__\)\s*\*\/[ \t]*\r?$/m,
+                     $drm_defines . '#endif /* defined(__NVIDIA_DRM_CONFTEST_H__) */',
+                     'DRM compatibility header guard');
+    }
+    $result{$hdr} = $text;
+}
+
+# No more one-error-at-a-time fixes: audit ALL Linux interface C/H files before
+# DKMS starts. A previously unseen raw call is an explicit actionable failure.
+# Strip comments and strings so documentation and log messages do not match.
+sub code_only {
+    my ($s) = @_;
+    $s =~ s{(/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')}{$1 =~ s/[^\n]/ /gr}gse;
+    return $s;
+}
+sub audit_dir {
+    my ($relative) = @_;
+    my $dir = "$root/$relative";
+    return unless -d $dir;
+    opendir my $dh, $dir or die "fatal: cannot audit $dir: $!\n";
+    my @names = sort grep { $_ ne '.' && $_ ne '..' } readdir $dh;
+    closedir $dh;
+    for my $name (@names) {
+        my $file = "$relative/$name";
+        my $path = "$root/$file";
+        if (-d $path && !-l $path) { audit_dir($file); next; }
+        next unless $name =~ /\.[ch]$/ && -f $path;
+        my $text;
+        if (exists $result{$file}) { $text = $result{$file}; }
+        else {
+            open my $in, '<', $path or die "fatal: cannot audit $path: $!\n";
+            local $/; $text = <$in>; close $in;
+        }
+        my $code = code_only($text);
+        if ($code =~ /\bstrncpy\b/) {
+            my $before = substr($code, 0, $-[0]);
+            my $line = 1 + ($before =~ tr/\n/\n/);
+            die "fatal: unhandled removed strncpy API at $path:$line; no DKMS build attempted\n";
+        }
+    }
+}
+for my $dir (qw(common/inc nvidia nvidia-modeset nvidia-uvm nvidia-drm nvidia-peermem)) {
+    audit_dir($dir);
+}
+
+my $temporary;
+END { unlink $temporary if defined $temporary && -e $temporary; }
+for my $file (@order) {
+    next if $result{$file} eq $original{$file};
+    my $path = "$root/$file";
+    my @st = @{$metadata{$file}};
+    my $out;
+    for my $attempt (1 .. 100) {
+        my $candidate = "$path.nv72.$$.$attempt";
+        if (sysopen($out, $candidate, O_WRONLY | O_CREAT | O_EXCL, 0600)) {
+            $temporary = $candidate; last;
+        }
+        die "fatal: cannot stage $path: $!\n" unless $!{EEXIST};
+    }
+    die "fatal: cannot allocate temporary file for $path\n" unless defined $temporary;
+    binmode $out;
+    print {$out} $result{$file} or die "fatal: cannot write $temporary: $!\n";
+    close $out or die "fatal: cannot close $temporary: $!\n";
+    my @tmp_st = stat $temporary;
+    if ($tmp_st[4] != $st[4] || $tmp_st[5] != $st[5]) {
+        chown($st[4], $st[5], $temporary) == 1 or die "fatal: cannot preserve owner: $!\n";
+    }
+    chmod($st[2] & 07777, $temporary) == 1 or die "fatal: cannot preserve mode: $!\n";
+    rename($temporary, $path) or die "fatal: cannot publish $path: $!\n";
+    undef $temporary;
+    print STDERR "Applied NVIDIA 580 Linux 7.2 interface compatibility (r2): $path\n";
+}
+NV72_PERL
+}
+
 patch_legacy_nvidia_source_tree() {
   for source_root in \
     /usr/src/nvidia-580.* \
@@ -254,6 +517,13 @@ patch_legacy_nvidia_source_tree() {
       [ -e "$os_interface_path" ] || continue
       patch_nv_os_interface "$os_interface_path" || {
         printf 'fatal: failed to patch NVIDIA 580 OS interface before DKMS compilation: %s\n' "$os_interface_path" >&2
+        return 1
+      }
+    done
+    for interface_root in "$source_root" "$source_root/kernel-open"; do
+      [ -d "$interface_root" ] || continue
+      patch_nv_72_interfaces "$interface_root" || {
+        printf 'fatal: NVIDIA 580 Linux 7.2 interface validation failed: %s\n' "$interface_root" >&2
         return 1
       }
     done

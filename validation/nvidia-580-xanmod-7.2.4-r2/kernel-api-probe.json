@@ -1,0 +1,9 @@
+{
+  "returncode": 0,
+  "headers": "/usr/src/linux-headers-6.12.96+deb13-amd64",
+  "scope": "Minimal repaired process-name, NVSwitch registry/copy, modeset copy, and UVM cache-name interfaces against the recorded real headers. NOT full NVIDIA DKMS, NOT a Linux 7.2 build. No module loaded.",
+  "module_created": true,
+  "modinfo": "filename:       /tmp/nv72-real-kernel-nefvns73/compat_probe.ko\ndescription:    Compile-only compatibility probe, NOT the NVIDIA driver; do not load\nlicense:        NVIDIA\ndepends:        \nname:           compat_probe\nretpoline:      Y\nvermagic:       6.12.96+deb13-amd64 SMP preempt mod_unload modversions \n",
+  "undefined_symbols": "                 U __fentry__\n                 U __fortify_panic\n                 U __stack_chk_fail\n                 U __x86_return_thunk\n                 U _raw_spin_lock\n                 U _raw_spin_unlock\n                 U const_pcpu_hot\n                 U kstrtouint\n                 U memcpy\n                 U memset\n                 U sized_strscpy\n                 U strchr\n                 U strlen\n                 U strnlen\n                 U strstr\n",
+  "removed_strncpy_import": false
+}

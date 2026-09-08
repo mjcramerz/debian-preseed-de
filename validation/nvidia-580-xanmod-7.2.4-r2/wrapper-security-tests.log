@@ -1,0 +1,8 @@
+test_dkms_wrapper_fails_instead_of_recursing_and_preserves_arguments (test_security_refactor.AdditionalProductionRegressions.test_dkms_wrapper_fails_instead_of_recursing_and_preserves_arguments) ... ok
+test_nvidia_580_header_patch_adds_string_and_gpio_compat_once (test_security_refactor.AdditionalProductionRegressions.test_nvidia_580_header_patch_adds_string_and_gpio_compat_once) ... ok
+test_nvidia_580_header_patch_fails_closed_without_known_anchor (test_security_refactor.AdditionalProductionRegressions.test_nvidia_580_header_patch_fails_closed_without_known_anchor) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.212s
+
+OK

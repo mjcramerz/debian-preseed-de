@@ -1,0 +1,14 @@
+test_build_failure_is_not_hidden_and_configuration_does_not_run (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_build_failure_is_not_hidden_and_configuration_does_not_run) ... ok
+test_epoch_and_package_revision_are_not_part_of_dkms_version (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_epoch_and_package_revision_are_not_part_of_dkms_version) ... ok
+test_install_failure_is_not_hidden (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_install_failure_is_not_hidden) ... ok
+test_invalid_kernel_is_rejected_before_any_chroot (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_invalid_kernel_is_rejected_before_any_chroot) ... ok
+test_missing_headers_stop_before_any_chroot (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_missing_headers_stop_before_any_chroot) ... ok
+test_rejects_different_driver_branch_before_wrapper_change (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_rejects_different_driver_branch_before_wrapper_change) ... ok
+test_success_uses_identical_wrapper_explicit_kernel_and_verifies_modules (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_success_uses_identical_wrapper_explicit_kernel_and_verifies_modules) ... ok
+test_unconfigured_package_is_not_reported_as_success (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_unconfigured_package_is_not_reported_as_success) ... ok
+test_wrong_module_version_blocks_package_configuration (test_nvidia_580_recovery.Nvidia580RecoveryTests.test_wrong_module_version_blocks_package_configuration) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.163s
+
+OK
