@@ -6,6 +6,7 @@ use warnings;
 use Moo;
 use MooX::StrictConstructor;
 
+use Digest::SHA;
 use Fcntl qw(:DEFAULT O_CREAT O_EXCL O_NOFOLLOW);
 use File::Basename qw(dirname);
 use File::Path qw(make_path);
@@ -71,6 +72,45 @@ sub read_limited {
     }
     close $fh or die "failed to close $path: $!\n";
     return $content;
+}
+
+sub sha256_file {
+    my ($class, $path, $limit) = @_;
+    $class->assert_absolute_path('digest input path', $path);
+    defined($limit) && $limit =~ /\A[1-9][0-9]*\z/ && $limit <= 536_870_912
+        or die "invalid digest input limit\n";
+
+    my @before = lstat $path;
+    @before && -f _ && !-l _ && $before[7] <= $limit
+        or die "digest input is not a bounded regular file: $path\n";
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+        or die "failed to open digest input $path: $!\n";
+    my @opened = stat $fh;
+    @opened && -f $fh
+        && join("\0", @opened[0, 1, 2, 3, 4, 5, 7])
+            eq join("\0", @before[0, 1, 2, 3, 4, 5, 7])
+        or die "digest input changed before hashing: $path\n";
+
+    my $digest = Digest::SHA->new(256);
+    my $size = 0;
+    while (1) {
+        my $read = sysread($fh, my $chunk, 65_536);
+        next if !defined($read) && $! == EINTR;
+        defined($read) or die "failed to read digest input $path: $!\n";
+        last if $read == 0;
+        $size += $read;
+        $size <= $limit or die "digest input exceeds size limit: $path\n";
+        $digest->add($chunk);
+    }
+
+    my @after = stat $fh;
+    @after
+        && $size == $opened[7]
+        && join("\0", @after[0, 1, 2, 3, 4, 5, 7, 9, 10])
+            eq join("\0", @opened[0, 1, 2, 3, 4, 5, 7, 9, 10])
+        or die "digest input changed while hashing: $path\n";
+    close $fh or die "failed to close digest input $path: $!\n";
+    return wantarray ? ($size, $digest->hexdigest()) : $digest->hexdigest();
 }
 
 sub _publish {

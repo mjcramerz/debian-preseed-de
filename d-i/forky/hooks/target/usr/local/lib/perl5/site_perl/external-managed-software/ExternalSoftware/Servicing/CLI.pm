@@ -95,6 +95,10 @@ sub _payload_is_present {
     return ExternalSoftware::Servicing::Bitwarden->new()->policy_valid()
         if $app->{name} eq 'bitwarden';
     return 1 if $app->{name} ne 'chatgpt';
+    return 0 if !$deb->installed_dependencies_allowed(
+        $app->{packages}[0],
+        $app->{remove_dependencies},
+    );
     return $chatgpt->policy_valid();
 }
 
@@ -203,7 +207,18 @@ sub _stage_deb {
         return (2, 'current')
             if $self->_version_compare($metadata->{version}, 'lt', $installed);
     }
-    my (undef, $created) = $repository->retain($path, $metadata);
+    my ($retained_path, $created);
+    my $retained = eval {
+        ($retained_path, $created) = $repository->retain($path, $metadata);
+        defined $retained_path && defined $created
+            or die "managed repository retention returned no result\n";
+        1;
+    };
+    if (!$retained) {
+        my $detail = $@ || 'managed repository retention returned no result';
+        $self->_record_apply_failure_detail('repository', $detail);
+        return (1, 'validation');
+    }
     if ($created) {
         $event->emit('downloaded', $app->{name}, $installed // 'missing', $metadata->{version});
         return (0, 'downloaded');
@@ -305,7 +320,11 @@ sub _apply_deb {
         );
         if (($candidate_is_older || $candidate_is_equal)
             && $app->{name} eq 'chatgpt'
-            && $deb->installed_payload_valid($app)) {
+            && $deb->installed_payload_valid($app)
+            && $deb->installed_dependencies_allowed(
+                $app->{packages}[0],
+                $app->{remove_dependencies},
+            )) {
             my $blocked = $self->_application_update_blocker($app);
             return (1, $blocked) if defined $blocked;
             my $finalized = eval {
@@ -494,7 +513,11 @@ sub _run_repair {
         my $repaired = eval {
             if ($app->{name} eq 'chatgpt') {
                 if (defined $deb->installed_version($app->{packages}->[0])
-                    && $deb->installed_payload_valid($app)) {
+                    && $deb->installed_payload_valid($app)
+                    && $deb->installed_dependencies_allowed(
+                        $app->{packages}[0],
+                        $app->{remove_dependencies},
+                    )) {
                     my $blocked = $self->_application_update_blocker($app);
                     if (defined $blocked) {
                         0;

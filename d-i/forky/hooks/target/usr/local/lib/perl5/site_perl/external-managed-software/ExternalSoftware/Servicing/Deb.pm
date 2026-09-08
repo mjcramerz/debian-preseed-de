@@ -273,6 +273,27 @@ sub _filter_dependency_value {
     return (join(', ', @relations), $removed);
 }
 
+sub dependencies_allowed {
+    my ($self, $value, $patterns) = @_;
+    defined $value or return 0;
+    my (undef, $excluded) = $self->_filter_dependency_value($value, $patterns);
+    return $excluded == 0 ? 1 : 0;
+}
+
+sub installed_dependencies_allowed {
+    my ($self, $package, $patterns) = @_;
+    defined $package && $package =~ /\A[a-z0-9][a-z0-9+.-]{0,127}\z/
+        or die "installed dependency package name is invalid\n";
+    my $depends = $self->_capture_quiet(
+        '/usr/bin/dpkg-query',
+        '-W',
+        '-f=${Depends}',
+        $package,
+    );
+    return 0 if !defined $depends;
+    return $self->dependencies_allowed($depends, $patterns);
+}
+
 sub _rewrite_control_dependencies {
     my ($self, $control, $patterns) = @_;
     defined $control

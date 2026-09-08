@@ -364,7 +364,10 @@ sub _archive_metadata {
     my $control_text = $self->_capture('/usr/bin/dpkg-deb', '-f', $path);
     defined $control_text && $control_text ne q{}
         or die "failed to read managed archive control data: $name\n";
-    my $bytes = ExternalSoftware::Servicing::Atomic->read_limited($path, 536_870_912);
+    my ($size, $sha256) = ExternalSoftware::Servicing::Atomic->sha256_file(
+        $path,
+        536_870_912,
+    );
     return {
         path       => $path,
         filename   => $name,
@@ -372,8 +375,8 @@ sub _archive_metadata {
         version    => $control{Version},
         arch       => $control{Architecture},
         control    => $control_text,
-        size       => length($bytes),
-        sha256     => sha256_hex($bytes),
+        size       => $size,
+        sha256     => $sha256,
     };
 }
 
