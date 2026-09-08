@@ -53,15 +53,49 @@ set -eu
 
 patch_nv_linux_header() {
   header_path=$1
-  temp_path="${header_path}.tmp.$$"
+  temp_path=
+  add_string_include=0
+  patch_of_gpio_include=0
 
-  [ -r "$header_path" ] || return 1
-  grep -Fq '#include <linux/of_gpio.h>' "$header_path" || return 0
-  grep -Fq 'NV_INSTALLER_NVIDIA_LEGACY_OF_GPIO_COMPAT' "$header_path" && return 0
+  [ -r "$header_path" ] || {
+    printf 'fatal: recognized NVIDIA 580 header is not readable: %s\n' "$header_path" >&2
+    return 1
+  }
 
-  awk '
+  if grep -Fq 'NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT' "$header_path" &&
+     ! grep -Fq '#include <linux/string.h>' "$header_path"; then
+    printf 'fatal: incomplete NVIDIA 580 string compatibility rewrite: %s\n' "$header_path" >&2
+    return 1
+  fi
+  if ! grep -Fq '#include <linux/string.h>' "$header_path"; then
+    add_string_include=1
+  fi
+
+  if ! grep -Fq 'NV_INSTALLER_NVIDIA_LEGACY_OF_GPIO_COMPAT' "$header_path" &&
+     grep -Fq '#include <linux/of_gpio.h>' "$header_path"; then
+    patch_of_gpio_include=1
+  fi
+
+  if [ "$add_string_include" -eq 0 ] && [ "$patch_of_gpio_include" -eq 0 ]; then
+    return 0
+  fi
+
+  temp_path=$(mktemp "${header_path}.tmp.XXXXXX") || {
+    printf 'fatal: cannot allocate NVIDIA 580 header rewrite next to: %s\n' "$header_path" >&2
+    return 1
+  }
+  if ! cp -p "$header_path" "$temp_path"; then
+    rm -f "$temp_path"
+    printf 'fatal: cannot preserve NVIDIA 580 header metadata: %s\n' "$header_path" >&2
+    return 1
+  fi
+
+  if ! LC_ALL=C awk \
+    -v add_string_include="$add_string_include" \
+    -v patch_of_gpio_include="$patch_of_gpio_include" '
     {
-      if ($0 == "#include <linux/of_gpio.h>") {
+      if (patch_of_gpio_include == 1 && $0 == "#include <linux/of_gpio.h>") {
+        of_gpio_rewrites++
         print "#if defined(NV_LINUX_OF_GPIO_H_PRESENT)"
         print "#include <linux/of_gpio.h>"
         print "#else"
@@ -72,9 +106,27 @@ patch_nv_linux_header() {
         next
       }
       print
+      if (add_string_include == 1 && $0 == "#include \"conftest.h\"") {
+        string_insertions++
+        print "#include <linux/string.h>"
+        print "/* NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT */"
+      }
     }
-  ' "$header_path" >"$temp_path"
-  mv "$temp_path" "$header_path"
+    END {
+      if (add_string_include == 1 && string_insertions != 1) exit 41
+      if (patch_of_gpio_include == 1 && of_gpio_rewrites != 1) exit 42
+    }
+  ' "$header_path" >"$temp_path"; then
+    rm -f "$temp_path"
+    printf '%s\n' "fatal: cannot transform recognized NVIDIA 580 header: $header_path (expected one conftest include anchor and one legacy GPIO include when required)" >&2
+    return 1
+  fi
+
+  if ! mv -f "$temp_path" "$header_path"; then
+    rm -f "$temp_path"
+    printf 'fatal: cannot publish NVIDIA 580 header rewrite atomically: %s\n' "$header_path" >&2
+    return 1
+  fi
 }
 
 patch_legacy_nvidia_source_tree() {
@@ -85,8 +137,16 @@ patch_legacy_nvidia_source_tree() {
     /var/lib/dkms/nvidia/580.*/build
   do
     [ -e "$source_root" ] || continue
-    patch_nv_linux_header "$source_root/common/inc/nv-linux.h" || true
-    patch_nv_linux_header "$source_root/kernel-open/common/inc/nv-linux.h" || true
+    for header_path in \
+      "$source_root/common/inc/nv-linux.h" \
+      "$source_root/kernel-open/common/inc/nv-linux.h"
+    do
+      [ -e "$header_path" ] || continue
+      patch_nv_linux_header "$header_path" || {
+        printf 'fatal: failed to patch NVIDIA 580 source header before DKMS compilation: %s\n' "$header_path" >&2
+        return 1
+      }
+    done
   done
 }
 

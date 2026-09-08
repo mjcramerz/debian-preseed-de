@@ -304,6 +304,64 @@ class AdditionalProductionRegressions(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(result.stdout,'test argument\n')
 
+    def test_nvidia_580_header_patch_adds_string_and_gpio_compat_once(self):
+        text = (SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh').read_text()
+        wrapper = text.split("<<'EOF'\n",1)[1].split('\nEOF',1)[0]
+        patcher = wrapper[:wrapper.index('\npatch_legacy_nvidia_source_tree()')]
+        script = patcher + '\npatch_nv_linux_header "$1"\n'
+        with tempfile.TemporaryDirectory(prefix='nvidia-header-') as tmp:
+            header = Path(tmp)/'nv-linux.h'
+            header.write_text('#ifndef _NV_LINUX_H_\n#include "conftest.h"\n'
+                              '#include <linux/of_gpio.h>\n#endif\n')
+            header.chmod(0o640)
+            first_run = subprocess.run(['/bin/sh','-eu','-c',script,'sh',str(header)],
+                                       capture_output=True,text=True,timeout=5)
+            self.assertEqual(first_run.returncode,0,first_run.stderr)
+            first = header.read_bytes()
+            second_run = subprocess.run(['/bin/sh','-eu','-c',script,'sh',str(header)],
+                                        capture_output=True,text=True,timeout=5)
+            self.assertEqual(second_run.returncode,0,second_run.stderr)
+            self.assertEqual(header.read_bytes(),first)
+            rewritten = first.decode()
+            self.assertIn('#include "conftest.h"\n#include <linux/string.h>\n'
+                          '/* NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT */', rewritten)
+            self.assertEqual(rewritten.count('#include <linux/string.h>'),1)
+            self.assertEqual(rewritten.count('NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT'),1)
+            self.assertEqual(rewritten.count('NV_INSTALLER_NVIDIA_LEGACY_OF_GPIO_COMPAT'),1)
+            self.assertEqual(rewritten.count('#include <linux/gpio/consumer.h>'),1)
+            self.assertEqual(stat.S_IMODE(header.stat().st_mode),0o640)
+            self.assertEqual(list(header.parent.glob('nv-linux.h.tmp.*')),[])
+
+    def test_nvidia_580_header_patch_fails_closed_without_known_anchor(self):
+        text = (SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh').read_text()
+        wrapper = text.split("<<'EOF'\n",1)[1].split('\nEOF',1)[0]
+        tree_patcher = wrapper[:wrapper.index('\nreal_dkms=')]
+        self.assertIn('/usr/src/nvidia-580.*',tree_patcher)
+        self.assertIn('/usr/src/nvidia-current-580.*',tree_patcher)
+        self.assertNotIn('/usr/src/nvidia-*',tree_patcher)
+        self.assertNotIn('/var/lib/dkms/nvidia/*/',tree_patcher)
+        with tempfile.TemporaryDirectory(prefix='nvidia-header-invalid-') as tmp:
+            source = Path(tmp)/'nvidia-580.142'
+            header = source/'common/inc/nv-linux.h'
+            header.parent.mkdir(parents=True)
+            original = '#include <linux/of_gpio.h>\n'
+            header.write_text(original)
+            replacements = {
+                '/usr/src/nvidia-580.*': str(Path(tmp)/'nvidia-580.*'),
+                '/usr/src/nvidia-current-580.*': str(Path(tmp)/'missing-current-580.*'),
+                '/var/lib/dkms/nvidia/580.*/source': str(Path(tmp)/'missing-dkms-580.*/source'),
+                '/var/lib/dkms/nvidia/580.*/build': str(Path(tmp)/'missing-dkms-580.*/build'),
+            }
+            for installed,fixture in replacements.items():
+                tree_patcher = tree_patcher.replace(installed,fixture)
+            result = subprocess.run(['/bin/sh','-eu','-c',tree_patcher+'\npatch_legacy_nvidia_source_tree\n'],
+                                    capture_output=True,text=True,timeout=5)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('cannot transform recognized NVIDIA 580 header',result.stderr)
+            self.assertIn('failed to patch NVIDIA 580 source header before DKMS compilation',result.stderr)
+            self.assertEqual(header.read_text(),original)
+            self.assertEqual(list(header.parent.glob('nv-linux.h.tmp.*')),[])
+
     def test_secret_files_harden_read_bits_but_reject_other_writers(self):
         with tempfile.TemporaryDirectory(prefix='private-preseed-') as tmp:
             file = Path(tmp)/'preseed.env'

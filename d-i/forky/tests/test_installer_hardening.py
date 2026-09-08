@@ -685,6 +685,13 @@ printf '%s\n' 1
 
 
 class FinalBootValidationTests(unittest.TestCase):
+    def test_amd64_skipped_installer_kernel_does_not_generate_orphan_initrd(self):
+        source=(ROOT/'classes/class-auto/arch/amd64.cfg').read_text()
+        self.assertIn('d-i base-installer/kernel/skip-install boolean true\n',source)
+        self.assertIn('d-i base-installer/kernel/image select none\n',source)
+        self.assertIn('d-i base-installer/kernel/linux/initrd boolean false\n',source)
+        self.assertNotIn('d-i base-installer/kernel/linux/initrd boolean true\n',source)
+
     def test_mok_enrollment_queue_keeps_entry_id_inside_target_shell(self):
         source = ROOT / 'scripts/late/grub.sh'
         result = shell(f'''\
