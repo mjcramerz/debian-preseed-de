@@ -1,0 +1,126 @@
+--- a/d-i/forky/hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
++++ b/d-i/forky/hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
+@@ -127,6 +127,106 @@
+     printf 'fatal: cannot publish NVIDIA 580 header rewrite atomically: %s\n' "$header_path" >&2
+     return 1
+   fi
++}
++
++patch_nv_os_interface() {
++  os_interface_path=$1
++  os_interface_temp=
++
++  [ -r "$os_interface_path" ] || {
++    printf 'fatal: recognized NVIDIA 580 OS interface is not readable: %s\n' "$os_interface_path" >&2
++    return 1
++  }
++
++  # Linux 7.2 removed strncpy; adding linux/string.h cannot restore it.
++  # Replace only the complete, known process-name function, never every
++  # strncpy call. strscpy_pad uses the FULL buffer size and preserves the old
++  # NUL padding and task lock, without the len == 0 underflow of buf[len - 1].
++  # Accept our exact result (with or without its marker) on subsequent runs.
++  # Reject unknown/partial functions before publishing any source changes.
++  os_interface_transform='
++    BEGIN {
++      signature = "voidNV_API_CALLos_get_current_process_name(char*buf,NvU32len)"
++      old_body = signature "{task_lock(current);strncpy(buf,current->comm,len-1);" \
++        "buf[len-1]=" sprintf("%c", 39) "\\0" sprintf("%c", 39) ";task_unlock(current);}"
++      new_body = signature "{task_lock(current);strscpy_pad(buf,current->comm,len);task_unlock(current);}"
++    }
++    /^[[:space:]]*void[[:space:]]+NV_API_CALL[[:space:]]+os_get_current_process_name[[:space:]]*\(/ {
++      functions++
++      inside = 1
++      body = ""
++    }
++    inside {
++      body = body $0 "\n"
++      if ($0 ~ /^[[:space:]]*}[[:space:]]*$/) {
++        inside = 0
++        normalized = body
++        gsub(/[[:space:]]/, "", normalized)
++        markers = gsub(/\/\*NV_INSTALLER_NVIDIA_LEGACY_STRNCPY_COMPAT\*\//, "", normalized)
++        if (normalized == old_body && markers == 0) {
++          rewrites++
++          print "void NV_API_CALL os_get_current_process_name(char *buf, NvU32 len)"
++          print "{"
++          print "    task_lock(current);"
++          print "    /* NV_INSTALLER_NVIDIA_LEGACY_STRNCPY_COMPAT */"
++          print "    strscpy_pad(buf, current->comm, len);"
++          print "    task_unlock(current);"
++          print "}"
++        } else if (normalized == new_body && markers <= 1) {
++          printf "%s", body
++        } else {
++          exit 41
++        }
++        validated++
++      }
++      next
++    }
++    { print }
++    END {
++      if (inside || functions != 1 || validated != 1) exit 42
++      if (check_only && rewrites) exit 10
++    }
++  '
++  # Read-only DKMS operations must still work on an already-patched tree.
++  # Validate the whole function, not just the marker, before skipping writes.
++  if LC_ALL=C awk -v check_only=1 "$os_interface_transform" "$os_interface_path" >/dev/null; then
++    return 0
++  else
++    case $? in
++      10) ;; # Validated legacy body: perform the atomic rewrite below.
++      *)
++        printf 'fatal: unrecognized NVIDIA 580 os_get_current_process_name; source left unchanged: %s\n' "$os_interface_path" >&2
++        return 1
++        ;;
++    esac
++  fi
++
++  os_interface_temp=$(mktemp "${os_interface_path}.tmp.XXXXXX") || {
++    printf 'fatal: cannot allocate NVIDIA 580 OS interface rewrite: %s\n' "$os_interface_path" >&2
++    return 1
++  }
++  if ! cp -p "$os_interface_path" "$os_interface_temp"; then
++    rm -f "$os_interface_temp"
++    printf 'fatal: cannot preserve NVIDIA 580 OS interface metadata: %s\n' "$os_interface_path" >&2
++    return 1
++  fi
++
++  if ! LC_ALL=C awk "$os_interface_transform" "$os_interface_path" >"$os_interface_temp"; then
++    rm -f "$os_interface_temp"
++    printf 'fatal: unrecognized NVIDIA 580 os_get_current_process_name; source left unchanged: %s\n' "$os_interface_path" >&2
++    return 1
++  fi
++
++  if cmp -s "$os_interface_path" "$os_interface_temp"; then
++    rm -f "$os_interface_temp"
++    return 0
++  fi
++  if ! mv -f "$os_interface_temp" "$os_interface_path"; then
++    rm -f "$os_interface_temp"
++    printf 'fatal: cannot publish NVIDIA 580 OS interface rewrite atomically: %s\n' "$os_interface_path" >&2
++    return 1
++  fi
++  printf 'Applied NVIDIA 580 Linux 7.2 process-name compatibility: %s\n' "$os_interface_path" >&2
+ }
+ 
+ patch_legacy_nvidia_source_tree() {
+@@ -147,6 +247,16 @@
+         return 1
+       }
+     done
++    for os_interface_path in \
++      "$source_root/nvidia/os-interface.c" \
++      "$source_root/kernel-open/nvidia/os-interface.c"
++    do
++      [ -e "$os_interface_path" ] || continue
++      patch_nv_os_interface "$os_interface_path" || {
++        printf 'fatal: failed to patch NVIDIA 580 OS interface before DKMS compilation: %s\n' "$os_interface_path" >&2
++        return 1
++      }
++    done
+   done
+ }
+ 

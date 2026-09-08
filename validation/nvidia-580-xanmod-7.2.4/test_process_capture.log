@@ -1,0 +1,15 @@
+test_descendant_retaining_pipe_is_bounded_after_parent_exit (test_process_capture.ProcessCaptureTests.test_descendant_retaining_pipe_is_bounded_after_parent_exit) ... ok
+test_early_stdin_close_does_not_kill_supervisor_with_sigpipe (test_process_capture.ProcessCaptureTests.test_early_stdin_close_does_not_kill_supervisor_with_sigpipe) ... ok
+test_exec_failure_is_reported (test_process_capture.ProcessCaptureTests.test_exec_failure_is_reported) ... ok
+test_exit_status_stdout_and_stderr (test_process_capture.ProcessCaptureTests.test_exit_status_stdout_and_stderr) ... ok
+test_invalid_limits_rejected_before_fork (test_process_capture.ProcessCaptureTests.test_invalid_limits_rejected_before_fork) ... ok
+test_output_overflow_cleans_up_instead_of_blocking_in_wait (test_process_capture.ProcessCaptureTests.test_output_overflow_cleans_up_instead_of_blocking_in_wait) ... ok
+test_relative_executable_rejected (test_process_capture.ProcessCaptureTests.test_relative_executable_rejected) ... ok
+test_repeated_term_does_not_interrupt_reaping (test_process_capture.ProcessCaptureTests.test_repeated_term_does_not_interrupt_reaping) ... ok
+test_simultaneous_large_input_and_output_cannot_deadlock (test_process_capture.ProcessCaptureTests.test_simultaneous_large_input_and_output_cannot_deadlock) ... ok
+test_timeout_covers_term_resistant_child_and_descendant (test_process_capture.ProcessCaptureTests.test_timeout_covers_term_resistant_child_and_descendant) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 2.092s
+
+OK

@@ -93,7 +93,7 @@ a12a7ab40a0665fe016b3670fbed81fd6820230c3ddb469fc6720d652bf92da4  hooks/installe
 fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704  hooks/installer/pre-pkgsel.d/89temporary-unshare.sh
 7175a0cbb6ec8aa9226c475ae30258f07268c58d9371fa443c7e6dad431ce857  hooks/installer/pre-pkgsel.d/90secure-boot-dkms.sh
 5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b  hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh
-50d3956b9dcf59c32ce6d16771f4a22ace8ea5eef29b39fd6590cb166a6f7c3c  hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
+6bbf27e6e43586db99e91136046225408cb48f66913bd3180c360624668251d9  hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh
 87efb4fe67f3ef4c4c9fb75594bb9ffdbb2f817352bdc251811c3c6960b13669  hooks/target/data/codex/lib/codex
 cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035  hooks/target/data/config/podman/templates/devops/client.conf
 231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68  hooks/target/data/config/podman/templates/devops/containers.conf.tmpl

@@ -1,0 +1,45 @@
+test_managed_codex_publication_rolls_back_only_new_paths (test_codex_installer_session.CodexDeploymentContractTests.test_managed_codex_publication_rolls_back_only_new_paths) ... ok
+test_managed_codex_release_is_preflighted_before_publication (test_codex_installer_session.CodexDeploymentContractTests.test_managed_codex_release_is_preflighted_before_publication) ... ok
+test_target_installer_runs_after_desktop_home_population (test_codex_installer_session.CodexDeploymentContractTests.test_target_installer_runs_after_desktop_home_population) ... ok
+test_exact_prepared_layout_is_idempotent (test_codex_installer_session.CodexLayoutTests.test_exact_prepared_layout_is_idempotent) ... ok
+test_existing_root_with_wrong_metadata_is_rejected (test_codex_installer_session.CodexLayoutTests.test_existing_root_with_wrong_metadata_is_rejected) ... ok
+test_symlink_child_is_rejected_without_touching_destination (test_codex_installer_session.CodexLayoutTests.test_symlink_child_is_rejected_without_touching_destination) ... ok
+test_symlink_root_is_rejected_without_touching_destination (test_codex_installer_session.CodexLayoutTests.test_symlink_root_is_rejected_without_touching_destination) ... ok
+test_actual_uid_drop_and_private_runtime_cleanup (test_codex_installer_session.CodexSessionTests.test_actual_uid_drop_and_private_runtime_cleanup) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-2vze2mku/runtime/65534.09rnwqp6
+codex-installer-session: installer finished with status=0
+ok
+test_child_exit_status_propagates_and_runtime_is_removed (test_codex_installer_session.CodexSessionTests.test_child_exit_status_propagates_and_runtime_is_removed) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-b9d_ro89/runtime/65534.d90jn7mw
+codex-installer-session: installer finished with status=37
+ok
+test_concurrent_account_installation_rejected (test_codex_installer_session.CodexSessionTests.test_concurrent_account_installation_rejected) ... ok
+test_deadline_kills_term_ignoring_process_group (test_codex_installer_session.CodexSessionTests.test_deadline_kills_term_ignoring_process_group) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-4iqh9w56/runtime/65534.6tcfmvr1
+codex-installer-session: installer deadline exceeded; stopping installer process group
+codex-installer-session: installer finished with status=124
+ok
+test_group_writable_nonsticky_helper_parent_rejected (test_codex_installer_session.CodexSessionTests.test_group_writable_nonsticky_helper_parent_rejected) ... ok
+test_helper_in_deployed_root_owned_sticky_group_directory (test_codex_installer_session.CodexSessionTests.test_helper_in_deployed_root_owned_sticky_group_directory) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-39rurlh5/runtime/65534.2rkh0ork
+codex-installer-session: installer finished with status=0
+ok
+test_indirect_runtime_parent_rejected (test_codex_installer_session.CodexSessionTests.test_indirect_runtime_parent_rejected) ... ok
+test_leftover_child_is_terminated_on_success (test_codex_installer_session.CodexSessionTests.test_leftover_child_is_terminated_on_success) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-fbvtczqs/runtime/65534.sqt8rjqv
+codex-installer-session: installer finished with status=0
+ok
+test_missing_account_has_actionable_error (test_codex_installer_session.CodexSessionTests.test_missing_account_has_actionable_error) ... ok
+test_private_runtime_is_unique_and_lock_inode_is_persistent (test_codex_installer_session.CodexSessionTests.test_private_runtime_is_unique_and_lock_inode_is_persistent) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-ebfpnv46/runtime/65534.9ahytxwa
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-ebfpnv46/runtime/65534.x8f0ef8p
+codex-installer-session: installer finished with status=0
+ok
+test_real_standalone_idempotent_path_needs_no_login_runtime (test_codex_installer_session.CodexSessionTests.test_real_standalone_idempotent_path_needs_no_login_runtime) ... codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-honmb89c/runtime/65534.qw9tippk
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-honmb89c/runtime/65534.tfq28i6y
+codex-installer-session: installer finished with status=0
+ok
+test_repeated_signals_stop_child_and_clean_runtime (test_codex_installer_session.CodexSessionTests.test_repeated_signals_stop_child_and_clean_runtime) ... ok
+test_user_owned_helper_rejected_before_execution (test_codex_installer_session.CodexSessionTests.test_user_owned_helper_rejected_before_execution) ... ok
+test_wrong_home_rejected (test_codex_installer_session.CodexSessionTests.test_wrong_home_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 4.203s
+
+OK

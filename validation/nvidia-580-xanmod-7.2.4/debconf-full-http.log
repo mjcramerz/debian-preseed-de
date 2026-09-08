@@ -1,0 +1,6 @@
+test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 24.664s
+
+OK

@@ -1,0 +1,51 @@
+test_appserver_requires_isolation (test_desktop_sandbox.CodexTests.test_appserver_requires_isolation) ... ok
+test_cwd_keeps_spaces_and_unicode (test_desktop_sandbox.CodexTests.test_cwd_keeps_spaces_and_unicode) ... ok
+test_cwd_rejects_masked_control_state (test_desktop_sandbox.CodexTests.test_cwd_rejects_masked_control_state) ... ok
+test_generated_launcher_compiles_and_accepts_empty_bounding_set (test_desktop_sandbox.CodexTests.test_generated_launcher_compiles_and_accepts_empty_bounding_set) ... ok
+test_generated_launcher_rejects_active_caps_and_missing_nnp (test_desktop_sandbox.CodexTests.test_generated_launcher_rejects_active_caps_and_missing_nnp) ... ok
+test_injected_secret_environment_names_rejected (test_desktop_sandbox.CodexTests.test_injected_secret_environment_names_rejected) ... ok
+test_internal_function_references_resolve (test_desktop_sandbox.CodexTests.test_internal_function_references_resolve) ... ok
+test_mount_plan_writable_roots_and_readonly_release (test_desktop_sandbox.CodexTests.test_mount_plan_writable_roots_and_readonly_release) ... ok
+test_nested_probe_command_compiles_and_marker_is_private (test_desktop_sandbox.CodexTests.test_nested_probe_command_compiles_and_marker_is_private) ... ok
+test_nested_probe_failure_is_fatal (test_desktop_sandbox.CodexTests.test_nested_probe_failure_is_fatal) ... ok
+test_oversized_valid_json_is_not_accepted (test_desktop_sandbox.CodexTests.test_oversized_valid_json_is_not_accepted) ... ok
+test_pid_information_validation (test_desktop_sandbox.CodexTests.test_pid_information_validation) ... ok
+test_private_proc_must_be_unobstructed (test_desktop_sandbox.CodexTests.test_private_proc_must_be_unobstructed) ... ok
+test_service_keeps_codex_home_writable_without_auth_overmount (test_desktop_sandbox.CodexTests.test_service_keeps_codex_home_writable_without_auth_overmount) ... ok
+test_signal_uses_pinned_pidfd (test_desktop_sandbox.CodexTests.test_signal_uses_pinned_pidfd) ... ok
+test_alternate_content_not_duplicated (test_desktop_sandbox.DocumentImportTests.test_alternate_content_not_duplicated) ... ok
+test_archive_only_reads_document_never_extracts_members (test_desktop_sandbox.DocumentImportTests.test_archive_only_reads_document_never_extracts_members) ... ok
+test_central_directory_bounded_before_zipfile (test_desktop_sandbox.DocumentImportTests.test_central_directory_bounded_before_zipfile) ... ok
+test_content_controls_hyperlinks_and_tables (test_desktop_sandbox.DocumentImportTests.test_content_controls_hyperlinks_and_tables) ... ok
+test_deep_structure_rejected (test_desktop_sandbox.DocumentImportTests.test_deep_structure_rejected) ... ok
+test_dtd_entities_rejected_in_utf8_and_utf16 (test_desktop_sandbox.DocumentImportTests.test_dtd_entities_rejected_in_utf8_and_utf16) ... ok
+test_duplicate_document_member_rejected (test_desktop_sandbox.DocumentImportTests.test_duplicate_document_member_rejected) ... ok
+test_embedded_alternate_chunk_rejected (test_desktop_sandbox.DocumentImportTests.test_embedded_alternate_chunk_rejected) ... ok
+test_empty_document_rejected (test_desktop_sandbox.DocumentImportTests.test_empty_document_rejected) ... ok
+test_fifo_is_rejected_without_blocking (test_desktop_sandbox.DocumentImportTests.test_fifo_is_rejected_without_blocking) ... ok
+test_malformed_xml_rejected (test_desktop_sandbox.DocumentImportTests.test_malformed_xml_rejected) ... ok
+test_new_private_draft_preserves_source (test_desktop_sandbox.DocumentImportTests.test_new_private_draft_preserves_source) ... ok
+test_simple_transitional_docx (test_desktop_sandbox.DocumentImportTests.test_simple_transitional_docx) ... ok
+test_strict_docx_and_arbitrary_namespace_prefix (test_desktop_sandbox.DocumentImportTests.test_strict_docx_and_arbitrary_namespace_prefix) ... ok
+test_symlinked_document_output_directory_rejected (test_desktop_sandbox.DocumentImportTests.test_symlinked_document_output_directory_rejected) ... ok
+test_tabs_and_linebreaks (test_desktop_sandbox.DocumentImportTests.test_tabs_and_linebreaks) ... ok
+test_tracked_deletions_are_not_imported (test_desktop_sandbox.DocumentImportTests.test_tracked_deletions_are_not_imported) ... ok
+test_truncated_archive_rejected (test_desktop_sandbox.DocumentImportTests.test_truncated_archive_rejected) ... ok
+test_xml_size_limit (test_desktop_sandbox.DocumentImportTests.test_xml_size_limit) ... ok
+test_arbitrary_commands_are_not_accepted (test_desktop_sandbox.SessionAndIntegrationTests.test_arbitrary_commands_are_not_accepted) ... ok
+test_codex_policy_has_no_systemd_auth_credential_access (test_desktop_sandbox.SessionAndIntegrationTests.test_codex_policy_has_no_systemd_auth_credential_access) ... ok
+test_codex_tmpfiles_does_not_create_prelogin_auth (test_desktop_sandbox.SessionAndIntegrationTests.test_codex_tmpfiles_does_not_create_prelogin_auth) ... ok
+test_codex_unit_leaves_nnp_to_bubblewrap (test_desktop_sandbox.SessionAndIntegrationTests.test_codex_unit_leaves_nnp_to_bubblewrap) ... ok
+test_docx_default_remains_focuswriter (test_desktop_sandbox.SessionAndIntegrationTests.test_docx_default_remains_focuswriter) ... ok
+test_missing_wayland_environment_is_not_ready (test_desktop_sandbox.SessionAndIntegrationTests.test_missing_wayland_environment_is_not_ready) ... ok
+test_new_desktop_assets_are_explicitly_staged (test_desktop_sandbox.SessionAndIntegrationTests.test_new_desktop_assets_are_explicitly_staged) ... ok
+test_new_policies_are_staged_and_required (test_desktop_sandbox.SessionAndIntegrationTests.test_new_policies_are_staged_and_required) ... ok
+test_ready_socket_checks_target_with_bounded_timeout (test_desktop_sandbox.SessionAndIntegrationTests.test_ready_socket_checks_target_with_bounded_timeout) ... ok
+test_reload_rejects_unsafe_pids (test_desktop_sandbox.SessionAndIntegrationTests.test_reload_rejects_unsafe_pids) ... ok
+test_shared_tmp_directory_created_for_fresh_install (test_desktop_sandbox.SessionAndIntegrationTests.test_shared_tmp_directory_created_for_fresh_install) ... ok
+test_zathura_selection_uses_regular_clipboard (test_desktop_sandbox.SessionAndIntegrationTests.test_zathura_selection_uses_regular_clipboard) ... ok
+
+----------------------------------------------------------------------
+Ran 46 tests in 0.716s
+
+OK

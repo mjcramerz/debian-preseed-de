@@ -1,0 +1,17 @@
+[
+  {
+    "case": "test_full_debian_preseed_include_and_run_http_apply",
+    "returncode": 124,
+    "log": "debconf-full-http.log"
+  },
+  {
+    "case": "test_full_debian_preseed_f2fs_arm64_apply",
+    "returncode": 124,
+    "log": "debconf-full-f2fs-arm64.log"
+  },
+  {
+    "case": "test_full_debian_preseed_vm_apply",
+    "returncode": 0,
+    "log": "debconf-full-vm.log"
+  }
+]

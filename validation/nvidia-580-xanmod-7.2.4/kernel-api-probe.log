@@ -1,0 +1,17 @@
+Scope: minimal process-name function ONLY, not full NVIDIA DKMS. No module loaded.
+Headers: /usr/src/linux-headers-6.12.96+deb13-amd64
+make: Entering directory '/usr/src/linux-headers-6.12.96+deb13-amd64'
+  CC [M]  /tmp/nvidia-kernel-api-h6n321bg/compat_probe.o
+  MODPOST /tmp/nvidia-kernel-api-h6n321bg/Module.symvers
+  CC [M]  /tmp/nvidia-kernel-api-h6n321bg/compat_probe.mod.o
+  CC [M]  /tmp/nvidia-kernel-api-h6n321bg/.module-common.o
+  LD [M]  /tmp/nvidia-kernel-api-h6n321bg/compat_probe.ko
+  BTF [M] /tmp/nvidia-kernel-api-h6n321bg/compat_probe.ko
+make: Leaving directory '/usr/src/linux-headers-6.12.96+deb13-amd64'
+filename:       /tmp/nvidia-kernel-api-h6n321bg/compat_probe.ko
+description:    NVIDIA 580 process-name kernel API compile probe; do not load
+license:        NVIDIA
+depends:        
+name:           compat_probe
+retpoline:      Y
+vermagic:       6.12.96+deb13-amd64 SMP preempt mod_unload modversions 

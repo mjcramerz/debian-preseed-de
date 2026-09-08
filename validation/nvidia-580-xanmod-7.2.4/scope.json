@@ -1,0 +1,84 @@
+{
+  "modified_existing_files": [
+    {
+      "path": "d-i/forky/hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh",
+      "before_sha256": "50d3956b9dcf59c32ce6d16771f4a22ace8ea5eef29b39fd6590cb166a6f7c3c",
+      "after_sha256": "6bbf27e6e43586db99e91136046225408cb48f66913bd3180c360624668251d9"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before_sha256": "690518e1abd78de7291578b0fdd964abcf52f2ac24bc5f60d77d6b79f8583f37",
+      "after_sha256": "9e0a4f8fca939141e38da34c0b53c8162e9496613fba4dd3ec071732dc67ccce"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before_sha256": "5dc7178c2273f550f408b5eab04d0103f597d5fdaf11bd29d3ec0a5d0a8e83ab",
+      "after_sha256": "c42efe02b8f380e1047100e9a0312a1633eb8b2554545df384f3d585c6ec91ab"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before_sha256": "8ef3794279fe1029de4f61989dc3d4d057f135c10b20e897b439a08c8e714716",
+      "after_sha256": "3fd6b93882df6900e94bab304ffc0a764af568e57696798c0c9cc8ee8730a03c"
+    }
+  ],
+  "unchanged_original_files": 1311,
+  "removed_original_files": [],
+  "cuda_named_files_verified_unchanged": [
+    {
+      "path": "d-i/forky/classes/class-addon/cuda-legacy.cfg",
+      "sha256": "fc59622a59427a247697eee026ba4aa5fcdab7ca523493b0ad720a23dd1e40a6",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/classes/class-addon/cuda.cfg",
+      "sha256": "0f7a720fbd31871a991049e5c118c6145d32d96db72cbe3f174c81f565e3424a",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
+      "sha256": "8e3feb6f4a71f5674f86bebe3462890c4a7e91443e7fd3f17542411ed43fca08",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh",
+      "sha256": "5ce028a902c6e37ca3f13908fccd3e5aa40418d4eec89d340df30955ec73a23b",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apt/preferences.d/default/cuda-legacy.pref",
+      "sha256": "df538f838f81410faa7f057660f587381b1f7f590dd2a0cdcdff4c483761f4ed",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apt/preferences.d/default/cuda.pref",
+      "sha256": "ac4d2bee34c30b73e2f8b5ebc5eee4012b12ddb46f739d1717ccf7c53ddc16bb",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/scripts/late/cuda-legacy.sh",
+      "sha256": "f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139",
+      "unchanged": true
+    },
+    {
+      "path": "d-i/forky/tests/test_cuda_legacy_apt.py",
+      "sha256": "eda7ffa9a4509279437f51ba480c9e6337659c51008954ce3f03099fa21ddd0c",
+      "unchanged": true
+    },
+    {
+      "path": "docs/CUDA-LEGACY-SECOND-PASS-2026-09-06.md",
+      "sha256": "ed12cfd7566043d5ca4134ae222676caeb8bc5c17bb02dd506de899d7c00cd4d",
+      "unchanged": true
+    },
+    {
+      "path": "docs/CUDA-LEGACY-TRUST-R4.md",
+      "sha256": "984e098ebc805b3d4aceed4aaf0923297522ec1309c1aa0597e023f06db8da4e",
+      "unchanged": true
+    },
+    {
+      "path": "validation/cuda-regression.json",
+      "sha256": "c9397dc21aaa1ae0781a09753c85737450247111832b7894c919d9e7d18a5cbf",
+      "unchanged": true
+    }
+  ],
+  "policy": "One installed execution-path change (NVIDIA legacy pre-pkgsel hook), plus three regenerated integrity products. All other original files unchanged."
+}

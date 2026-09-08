@@ -1,0 +1,32 @@
+test_complete_local_bootstrap_and_flat_profile (test_repository_transport.RealBootstrapTests.test_complete_local_bootstrap_and_flat_profile) ... ok
+test_complete_short_url_bootstrap_fetches_snapshot_once (test_repository_transport.RealBootstrapTests.test_complete_short_url_bootstrap_fetches_snapshot_once) ... ok
+test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker) ... ok
+test_archive_path_traversal_is_rejected (test_repository_transport.SnapshotTests.test_archive_path_traversal_is_rejected) ... ok
+test_archive_pin_mismatch_fails_without_ready_marker (test_repository_transport.SnapshotTests.test_archive_pin_mismatch_fails_without_ready_marker) ... ok
+test_duplicate_archive_member_is_rejected (test_repository_transport.SnapshotTests.test_duplicate_archive_member_is_rejected) ... ok
+test_invalid_installer_shell_fails_before_ready_marker (test_repository_transport.SnapshotTests.test_invalid_installer_shell_fails_before_ready_marker) ... ok
+test_local_edit_requires_rebuild (test_repository_transport.SnapshotTests.test_local_edit_requires_rebuild) ... ok
+test_manifest_pin_mismatch_fails_without_ready_marker (test_repository_transport.SnapshotTests.test_manifest_pin_mismatch_fails_without_ready_marker) ... ok
+test_missing_snapshot_file_cannot_fall_back_to_network (test_repository_transport.SnapshotTests.test_missing_snapshot_file_cannot_fall_back_to_network) ... ok
+test_snapshot_cache_reuses_archive_and_manifest (test_repository_transport.SnapshotTests.test_snapshot_cache_reuses_archive_and_manifest) ... ok
+test_symlink_member_is_rejected_before_extraction (test_repository_transport.SnapshotTests.test_symlink_member_is_rejected_before_extraction) ... ok
+test_busybox_wget_redirects (test_repository_transport.TransportTests.test_busybox_wget_redirects) ... ok
+test_conflicting_sources_fail_before_network (test_repository_transport.TransportTests.test_conflicting_sources_fail_before_network) ... ok
+test_exact_base_hash_prevents_sanitized_cache_collisions (test_repository_transport.TransportTests.test_exact_base_hash_prevents_sanitized_cache_collisions) ... ok
+test_failed_http_fetch_preserves_existing_destination (test_repository_transport.TransportTests.test_failed_http_fetch_preserves_existing_destination) ... ok
+test_file_and_preseed_file_aliases (test_repository_transport.TransportTests.test_file_and_preseed_file_aliases) ... ok
+test_file_uri (test_repository_transport.TransportTests.test_file_uri) ... ok
+test_https_downgrade_and_non_http_redirect_are_rejected (test_repository_transport.TransportTests.test_https_downgrade_and_non_http_redirect_are_rejected) ... ok
+test_library_adapters_share_one_get_and_accept_empty_profile (test_repository_transport.TransportTests.test_library_adapters_share_one_get_and_accept_empty_profile) ... ok
+test_local_symlink_escape_is_rejected (test_repository_transport.TransportTests.test_local_symlink_escape_is_rejected) ... ok
+test_missing_source_and_missing_local_preseed_fail (test_repository_transport.TransportTests.test_missing_source_and_missing_local_preseed_fail) ... ok
+test_persisted_effective_url_wins_without_re_download (test_repository_transport.TransportTests.test_persisted_effective_url_wins_without_re_download) ... ok
+test_raw_style_ref_path_is_not_truncated (test_repository_transport.TransportTests.test_raw_style_ref_path_is_not_truncated) ... ok
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+test_tls_verification_default_and_bypass_is_rejected (test_repository_transport.TransportTests.test_tls_verification_default_and_bypass_is_rejected) ... ok
+test_url_and_relative_path_validation (test_repository_transport.TransportTests.test_url_and_relative_path_validation) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 40.096s
+
+OK

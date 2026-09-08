@@ -1,0 +1,22 @@
+test_signal_handler_disarms_repeated_signals_before_unwinding (test_config_safety.BrokerFinalTests.test_signal_handler_disarms_repeated_signals_before_unwinding) ... ok
+test_unchanged_config_with_wrong_mode_is_repaired (test_config_safety.BrokerFinalTests.test_unchanged_config_with_wrong_mode_is_repaired) ... ok
+test_exit_race_still_waits_for_owned_child (test_config_safety.CodexCleanupTests.test_exit_race_still_waits_for_owned_child) ... ok
+test_pidfd_stays_open_until_final_sandbox_signal (test_config_safety.CodexCleanupTests.test_pidfd_stays_open_until_final_sandbox_signal) ... ok
+test_second_timeout_does_not_abort_other_teardown (test_config_safety.CodexCleanupTests.test_second_timeout_does_not_abort_other_teardown) ... ok
+test_cleaner_uses_host_mount_table_inside_systemd_sandbox (test_config_safety.ConfigSafetyTests.test_cleaner_uses_host_mount_table_inside_systemd_sandbox) ... ok
+test_cpu_profile_retains_deployed_vfio_reservation (test_config_safety.ConfigSafetyTests.test_cpu_profile_retains_deployed_vfio_reservation) ... ok
+test_default_intel_iommu_is_not_passthrough (test_config_safety.ConfigSafetyTests.test_default_intel_iommu_is_not_passthrough) ... ok
+test_distributed_account_defaults_have_no_reusable_credentials (test_config_safety.ConfigSafetyTests.test_distributed_account_defaults_have_no_reusable_credentials) ... ok
+test_nvidia_vram_preservation_has_installer_and_storage_integration (test_config_safety.ConfigSafetyTests.test_nvidia_vram_preservation_has_installer_and_storage_integration) ... ok
+test_nvme_profile_retains_explicit_platform_compatibility_policy (test_config_safety.ConfigSafetyTests.test_nvme_profile_retains_explicit_platform_compatibility_policy) ... ok
+test_podman_api_preserves_container_lifecycle_and_rootless_helpers (test_config_safety.ConfigSafetyTests.test_podman_api_preserves_container_lifecycle_and_rootless_helpers) ... ok
+test_syncthing_preparation_never_runs_with_root_credentials (test_config_safety.ConfigSafetyTests.test_syncthing_preparation_never_runs_with_root_credentials) ... ok
+test_failed_rename_preserves_old_xml_and_removes_scratch (test_config_safety.SyncthingConfigTests.test_failed_rename_preserves_old_xml_and_removes_scratch) ... ok
+test_prepare_atomic_private_and_validated_without_rewriting (test_config_safety.SyncthingConfigTests.test_prepare_atomic_private_and_validated_without_rewriting) ... ok
+test_symlink_configuration_rejected (test_config_safety.SyncthingConfigTests.test_symlink_configuration_rejected) ... ok
+test_validation_mismatch_is_not_mutated (test_config_safety.SyncthingConfigTests.test_validation_mismatch_is_not_mutated) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.190s
+
+OK

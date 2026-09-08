@@ -1,0 +1,6 @@
+test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 20.098s
+
+OK

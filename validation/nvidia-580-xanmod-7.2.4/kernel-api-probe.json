@@ -1,0 +1,6 @@
+{
+  "returncode": 0,
+  "headers": "/usr/src/linux-headers-6.12.96+deb13-amd64",
+  "scope": "Minimal patched function compiled/linked as a proprietary-license module against the explicitly recorded headers, not full NVIDIA DKMS. No module loaded.",
+  "modinfo": "filename:       /tmp/nvidia-kernel-api-h6n321bg/compat_probe.ko\ndescription:    NVIDIA 580 process-name kernel API compile probe; do not load\nlicense:        NVIDIA\ndepends:        \nname:           compat_probe\nretpoline:      Y\nvermagic:       6.12.96+deb13-amd64 SMP preempt mod_unload modversions \n"
+}

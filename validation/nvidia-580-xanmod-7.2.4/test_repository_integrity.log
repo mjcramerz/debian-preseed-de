@@ -1,0 +1,13 @@
+test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current) ... ok
+test_class_dependency_references_are_local (test_repository_integrity.RepositoryIntegrityTests.test_class_dependency_references_are_local) ... ok
+test_each_flat_profile_composes (test_repository_integrity.RepositoryIntegrityTests.test_each_flat_profile_composes) ... ok
+test_layout_only_expected_scopes (test_repository_integrity.RepositoryIntegrityTests.test_layout_only_expected_scopes) ... ok
+test_no_legacy_path_references_in_active_installer (test_repository_integrity.RepositoryIntegrityTests.test_no_legacy_path_references_in_active_installer) ... ok
+test_no_symlinks_published (test_repository_integrity.RepositoryIntegrityTests.test_no_symlinks_published) ... ok
+test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) ... ok
+test_role_scoped_entries (test_repository_integrity.RepositoryIntegrityTests.test_role_scoped_entries) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 5.749s
+
+OK

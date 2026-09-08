@@ -1,0 +1,134 @@
+[
+  {
+    "module": "test_bootstrap_portability",
+    "status": "passed",
+    "tests": 18,
+    "log": "test_bootstrap_portability.log"
+  },
+  {
+    "module": "test_codex_installer_session",
+    "status": "passed",
+    "tests": 21,
+    "log": "test_codex_installer_session.log"
+  },
+  {
+    "module": "test_codex_standalone_chroot",
+    "status": "passed",
+    "tests": 3,
+    "log": "test_codex_standalone_chroot.log"
+  },
+  {
+    "module": "test_config_safety",
+    "status": "passed",
+    "tests": 17,
+    "log": "test_config_safety.log"
+  },
+  {
+    "module": "test_cuda_legacy_apt",
+    "status": "passed",
+    "tests": 40,
+    "log": "test_cuda_legacy_apt.log"
+  },
+  {
+    "module": "test_dbus_broker",
+    "status": "passed",
+    "tests": 15,
+    "log": "test_dbus_broker.log"
+  },
+  {
+    "module": "test_debconf_protocol",
+    "status": "passed in separate invocations",
+    "tests": 22,
+    "logs": [
+      "debconf-non-full.log",
+      "debconf-full-local.log",
+      "debconf-full-http.log",
+      "debconf-full-f2fs-arm64.log",
+      "debconf-full-vm.log"
+    ]
+  },
+  {
+    "module": "test_desktop_sandbox",
+    "status": "passed",
+    "tests": 46,
+    "log": "test_desktop_sandbox.log"
+  },
+  {
+    "module": "test_hardware_restore",
+    "status": "passed",
+    "tests": 25,
+    "log": "test_hardware_restore.log"
+  },
+  {
+    "module": "test_initrd_credentials",
+    "status": "passed",
+    "tests": 24,
+    "log": "test_initrd_credentials.log"
+  },
+  {
+    "module": "test_initrd_target_tools",
+    "status": "passed",
+    "tests": 10,
+    "log": "test_initrd_target_tools.log"
+  },
+  {
+    "module": "test_installer_hardening",
+    "status": "passed",
+    "tests": 55,
+    "log": "test_installer_hardening.log"
+  },
+  {
+    "module": "test_lifecycle",
+    "status": "passed",
+    "tests": 21,
+    "log": "test_lifecycle.log"
+  },
+  {
+    "module": "test_nvidia_legacy_dkms",
+    "status": "passed",
+    "tests": 14,
+    "log": "test_nvidia_legacy_dkms.log"
+  },
+  {
+    "module": "test_nvidia_power",
+    "status": "passed",
+    "tests": 13,
+    "log": "test_nvidia_power.log"
+  },
+  {
+    "module": "test_podman_incus_redesign",
+    "status": "passed",
+    "tests": 81,
+    "log": "test_podman_incus_redesign.log"
+  },
+  {
+    "module": "test_process_capture",
+    "status": "passed",
+    "tests": 10,
+    "log": "test_process_capture.log"
+  },
+  {
+    "module": "test_repository_integrity",
+    "status": "passed",
+    "tests": 8,
+    "log": "test_repository_integrity.log"
+  },
+  {
+    "module": "test_repository_transport",
+    "status": "passed",
+    "tests": 27,
+    "log": "test_repository_transport.log"
+  },
+  {
+    "module": "test_root_login",
+    "status": "passed",
+    "tests": 32,
+    "log": "test_root_login.log"
+  },
+  {
+    "module": "test_security_refactor",
+    "status": "passed",
+    "tests": 28,
+    "log": "test_security_refactor.log"
+  }
+]

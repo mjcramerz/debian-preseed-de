@@ -1,0 +1,19 @@
+test_accepts_equivalent_vendor_fix_without_marker (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_accepts_equivalent_vendor_fix_without_marker) ... ok
+test_already_fixed_source_does_not_need_write_access (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_already_fixed_source_does_not_need_write_access) ... ok
+test_busybox_ash_and_awk_execute_the_patcher (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_busybox_ash_and_awk_execute_the_patcher) ... ok
+test_compiled_function_buffer_bounds_padding_and_locking (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_compiled_function_buffer_bounds_padding_and_locking) ... ok
+test_handles_tabs_and_crlf_in_known_function (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_handles_tabs_and_crlf_in_known_function) ... ok
+test_idempotent_without_touching_mtime_or_inode (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_idempotent_without_touching_mtime_or_inode) ... ok
+test_rewrites_only_known_function_and_preserves_metadata (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_rewrites_only_known_function_and_preserves_metadata) ... ok
+test_temp_copy_and_publish_failures_leave_original_intact (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_temp_copy_and_publish_failures_leave_original_intact) ... ok
+test_unknown_duplicate_or_partial_function_fails_without_edit (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_unknown_duplicate_or_partial_function_fails_without_edit) ... ok
+test_unreadable_missing_source_fails (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_unreadable_missing_source_fails) ... ok
+test_wrapper_covers_source_build_symlink_and_nested_layout (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_wrapper_covers_source_build_symlink_and_nested_layout) ... ok
+test_wrapper_does_not_invoke_real_dkms_on_patch_failure (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_wrapper_does_not_invoke_real_dkms_on_patch_failure) ... ok
+test_wrapper_passes_through_when_no_580_sources_exist (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_wrapper_passes_through_when_no_580_sources_exist) ... ok
+test_wrapper_patches_before_dkms_source_copy_and_after_reunpack (test_nvidia_legacy_dkms.NvidiaLegacyDkmsTests.test_wrapper_patches_before_dkms_source_copy_and_after_reunpack) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.373s
+
+OK

@@ -1,0 +1,15 @@
+test_invalid_shell_file_reports_error_without_contents (test_initrd_target_tools.DiagnosticTests.test_invalid_shell_file_reports_error_without_contents) ... ok
+test_missing_env_is_a_nonzero_diagnostic (test_initrd_target_tools.DiagnosticTests.test_missing_env_is_a_nonzero_diagnostic) ... ok
+test_reports_empty_override_as_failure (test_initrd_target_tools.DiagnosticTests.test_reports_empty_override_as_failure) ... ok
+test_reports_override_without_printing_it (test_initrd_target_tools.DiagnosticTests.test_reports_override_without_printing_it) ... ok
+test_reports_presence_not_secrets (test_initrd_target_tools.DiagnosticTests.test_reports_presence_not_secrets) ... ok
+test_codex_checks_invoke_target_stat_with_target_relative_paths (test_initrd_target_tools.TargetToolTests.test_codex_checks_invoke_target_stat_with_target_relative_paths) ... ok
+test_podman_preserves_approved_filesystem_policy (test_initrd_target_tools.TargetToolTests.test_podman_preserves_approved_filesystem_policy) ... ok
+test_podman_rejects_paths_outside_target (test_initrd_target_tools.TargetToolTests.test_podman_rejects_paths_outside_target) ... ok
+test_podman_rejects_target_stat_failure (test_initrd_target_tools.TargetToolTests.test_podman_rejects_target_stat_failure) ... ok
+test_podman_uses_target_stat_without_host_applet (test_initrd_target_tools.TargetToolTests.test_podman_uses_target_stat_without_host_applet) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 4.981s
+
+OK

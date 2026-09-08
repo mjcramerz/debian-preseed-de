@@ -1,0 +1,6 @@
+test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 20.397s
+
+OK

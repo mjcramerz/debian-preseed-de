@@ -1,0 +1,26 @@
+test_custom_target_and_private_parent_mode (test_lifecycle.AssetTests.test_custom_target_and_private_parent_mode) ... ok
+test_dotdot_rejected (test_lifecycle.AssetTests.test_dotdot_rejected) ... ok
+test_failed_fetch_preserves_old_file (test_lifecycle.AssetTests.test_failed_fetch_preserves_old_file) ... ok
+test_failed_map_never_publishes_raw_template (test_lifecycle.AssetTests.test_failed_map_never_publishes_raw_template) ... ok
+test_symlink_parent_cannot_escape_install_root (test_lifecycle.AssetTests.test_symlink_parent_cannot_escape_install_root) ... ok
+test_target_symlink_replaced_not_followed (test_lifecycle.AssetTests.test_target_symlink_replaced_not_followed) ... ok
+test_apt_refresh_does_not_wait_for_persistent_dispatcher_exit (test_lifecycle.CleanupAndUnitTests.test_apt_refresh_does_not_wait_for_persistent_dispatcher_exit) ... ok
+test_firstboot_does_not_hold_sysinit_until_diagnostics_finish (test_lifecycle.CleanupAndUnitTests.test_firstboot_does_not_hold_sysinit_until_diagnostics_finish) ... ok
+test_tmpfs_cleanup_preserves_symlink_destination (test_lifecycle.CleanupAndUnitTests.test_tmpfs_cleanup_preserves_symlink_destination) ... ok
+test_tmpfs_preflight_refuses_mountinfo_descendant (test_lifecycle.CleanupAndUnitTests.test_tmpfs_preflight_refuses_mountinfo_descendant) ... ok
+test_cleanup_refuses_unknown_status (test_lifecycle.FirstbootTests.test_cleanup_refuses_unknown_status) ... ok
+test_concurrent_run_is_locked_and_term_cleans_child (test_lifecycle.FirstbootTests.test_concurrent_run_is_locked_and_term_cleans_child) ... ok
+test_failed_legacy_marker_does_not_suppress_retry (test_lifecycle.FirstbootTests.test_failed_legacy_marker_does_not_suppress_retry) ... ok
+test_failure_is_visible_retryable_and_never_complete (test_lifecycle.FirstbootTests.test_failure_is_visible_retryable_and_never_complete) ... ok
+test_log_open_failure_is_not_success (test_lifecycle.FirstbootTests.test_log_open_failure_is_not_success) ... ok
+test_missing_stage_fails (test_lifecycle.FirstbootTests.test_missing_stage_fails) ... ok
+test_stage_deadline_fails_without_marker (test_lifecycle.FirstbootTests.test_stage_deadline_fails_without_marker) ... ok
+test_success_marker_and_idempotent_rerun (test_lifecycle.FirstbootTests.test_success_marker_and_idempotent_rerun) ... ok
+test_regular_file_collision_is_rejected_without_replacement (test_lifecycle.PublishingEntrypointTests.test_regular_file_collision_is_rejected_without_replacement) ... ok
+test_retry_accepts_exact_managed_links (test_lifecycle.PublishingEntrypointTests.test_retry_accepts_exact_managed_links) ... ok
+test_wrong_symlink_is_rejected_without_replacement (test_lifecycle.PublishingEntrypointTests.test_wrong_symlink_is_rejected_without_replacement) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 2.254s
+
+OK

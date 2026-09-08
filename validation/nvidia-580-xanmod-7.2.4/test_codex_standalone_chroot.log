@@ -1,0 +1,8 @@
+test_download_failure_cleans_scratch_without_publish (test_codex_standalone_chroot.CodexFreshInstallTests.test_download_failure_cleans_scratch_without_publish) ... ok
+test_fresh_install_then_repeat_with_no_run_user_tree (test_codex_standalone_chroot.CodexFreshInstallTests.test_fresh_install_then_repeat_with_no_run_user_tree) ... ok
+test_precreated_target_package_link_installs_in_place (test_codex_standalone_chroot.CodexFreshInstallTests.test_precreated_target_package_link_installs_in_place) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.860s
+
+OK

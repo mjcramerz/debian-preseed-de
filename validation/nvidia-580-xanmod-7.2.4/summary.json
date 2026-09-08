@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-08",
+  "target_from_logs": {
+    "nvidia": "580.142",
+    "kernel": "7.2.4-x64v3-xanmod1",
+    "dkms": "3.2.2"
+  },
+  "focused_nvidia_regressions": 14,
+  "compiled_buffer_contract_cases": 1040,
+  "additional_null_zero_length_case": true,
+  "repository_tests": {
+    "unique_passed": 530,
+    "unique_expected": 530,
+    "invocation": "Batched modules plus isolated debconf tests; monolithic run interrupted by execution limit."
+  },
+  "cuda_legacy_tests_passed": 40,
+  "shell_checks": {
+    "success": true,
+    "shell_files": 264,
+    "parser_checks": 539,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "preseed_files_checked": 59,
+  "actual_kernel_api_probe": {
+    "returncode": 0,
+    "headers": "/usr/src/linux-headers-6.12.96+deb13-amd64",
+    "scope": "Minimal patched function compiled/linked as a proprietary-license module against the explicitly recorded headers, not full NVIDIA DKMS. No module loaded.",
+    "modinfo": "filename:       /tmp/nvidia-kernel-api-h6n321bg/compat_probe.ko\ndescription:    NVIDIA 580 process-name kernel API compile probe; do not load\nlicense:        NVIDIA\ndepends:        \nname:           compat_probe\nretpoline:      Y\nvermagic:       6.12.96+deb13-amd64 SMP preempt mod_unload modversions \n"
+  },
+  "broader_audit_counts": {
+    "blocked-dependency": 154,
+    "inventory-only": 476,
+    "pass": 415,
+    "structure-pass": 115,
+    "template-needs-render": 2
+  },
+  "cuda_repository_changed": false,
+  "full_xanmod_7_2_4_dkms_build_performed": false,
+  "booted_installer_acceptance_performed": false,
+  "nvidia_hardware_cuda_runtime_test_performed": false,
+  "limitations": [
+    "The exact NVIDIA/XanMod packages and a GPU are not available in this environment; attempts to fetch build inputs did not succeed.",
+    "The real kernel compile/link test covers only the patched function using Debian 6.12.96 headers, not the full NVIDIA driver or target XanMod kernel.",
+    "The executable C buffer test uses an explicitly labeled strscpy_pad API-contract fixture.",
+    "The broader audit has dependency-blocked and inventory-only entries; these are not passing runtime checks."
+  ]
+}

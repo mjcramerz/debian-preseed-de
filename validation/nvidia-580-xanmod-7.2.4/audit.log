@@ -1,0 +1,22 @@
+{
+  "requested_unique_files": 1058,
+  "total_with_installers_and_hosts": 1162,
+  "check_counts": {
+    "blocked-dependency": 154,
+    "inventory-only": 476,
+    "pass": 415,
+    "structure-pass": 115,
+    "template-needs-render": 2
+  },
+  "kind_counts": {
+    "config-or-data": 476,
+    "javascript": 11,
+    "json": 41,
+    "perl": 176,
+    "python": 71,
+    "shell": 255,
+    "systemd-structure": 115,
+    "toml": 9,
+    "xml": 8
+  }
+}

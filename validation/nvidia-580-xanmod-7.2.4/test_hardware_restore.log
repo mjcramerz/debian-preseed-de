@@ -1,0 +1,30 @@
+test_changed_hardware_dropin_takes_effect_without_reinstall (test_hardware_restore.GrubGeneratorTests.test_changed_hardware_dropin_takes_effect_without_reinstall) ... ok
+test_indirect_hardware_fragment_rejected (test_hardware_restore.GrubGeneratorTests.test_indirect_hardware_fragment_rejected) ... ok
+test_initial_and_regenerated_menu_include_hardware_values (test_hardware_restore.GrubGeneratorTests.test_initial_and_regenerated_menu_include_hardware_values) ... ok
+test_removed_optional_fragment_is_not_cached (test_hardware_restore.GrubGeneratorTests.test_removed_optional_fragment_is_not_cached) ... ok
+test_repeated_regeneration_does_not_accumulate_flags (test_hardware_restore.GrubGeneratorTests.test_repeated_regeneration_does_not_accumulate_flags) ... ok
+test_writable_hardware_fragment_rejected (test_hardware_restore.GrubGeneratorTests.test_writable_hardware_fragment_rejected) ... ok
+test_all_seventeen_files_have_active_settings (test_hardware_restore.HardwareFilesTests.test_all_seventeen_files_have_active_settings) ... ok
+test_canonical_hash_module_in_both_boot_paths (test_hardware_restore.HardwareFilesTests.test_canonical_hash_module_in_both_boot_paths) ... ok
+test_nvidia_false_branch_removes_only_target_assets (test_hardware_restore.HardwareFilesTests.test_nvidia_false_branch_removes_only_target_assets) ... ok
+test_regdom_and_required_package_agree (test_hardware_restore.HardwareFilesTests.test_regdom_and_required_package_agree) ... ok
+test_vfio_never_enables_unsafe_noiommu (test_hardware_restore.HardwareFilesTests.test_vfio_never_enables_unsafe_noiommu) ... ok
+test_amd_nvme_does_not_get_intel_vfio (test_hardware_restore.SelectionTests.test_amd_nvme_does_not_get_intel_vfio) ... ok
+test_arm64_has_no_x86_platform_or_microcode_policy (test_hardware_restore.SelectionTests.test_arm64_has_no_x86_platform_or_microcode_policy) ... ok
+test_gpu_configuration_is_still_opt_in (test_hardware_restore.SelectionTests.test_gpu_configuration_is_still_opt_in) ... ok
+test_intel_nvme_enables_entire_vfio_chain (test_hardware_restore.SelectionTests.test_intel_nvme_enables_entire_vfio_chain) ... ok
+test_mismatched_vm_storage_fails (test_hardware_restore.SelectionTests.test_mismatched_vm_storage_fails) ... ok
+test_real_staging_publishes_all_seventeen_target_files (test_hardware_restore.SelectionTests.test_real_staging_publishes_all_seventeen_target_files) ... ok
+test_vm_does_not_get_nvme_or_platform_vfio (test_hardware_restore.SelectionTests.test_vm_does_not_get_nvme_or_platform_vfio) ... ok
+test_adjacent_scalar_placeholders (test_hardware_restore.TemplateBlockTests.test_adjacent_scalar_placeholders) ... ok
+test_all_module_lines_survive (test_hardware_restore.TemplateBlockTests.test_all_module_lines_survive) ... ok
+test_duplicate_module_names_are_emitted_once (test_hardware_restore.TemplateBlockTests.test_duplicate_module_names_are_emitted_once) ... ok
+test_empty_block_is_removed (test_hardware_restore.TemplateBlockTests.test_empty_block_is_removed) ... ok
+test_invalid_module_preserves_input_and_fails (test_hardware_restore.TemplateBlockTests.test_invalid_module_preserves_input_and_fails) ... ok
+test_malformed_scalar_map_fails (test_hardware_restore.TemplateBlockTests.test_malformed_scalar_map_fails) ... ok
+test_scalar_values_are_literal_and_not_recursive (test_hardware_restore.TemplateBlockTests.test_scalar_values_are_literal_and_not_recursive) ... ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 6.686s
+
+OK
