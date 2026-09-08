@@ -9,12 +9,13 @@ installer_metadata_value() (
   lc_field=$2;
   set -- $lc_metadata;
   [ "$#" -ge 4 ] || exit 1;
-  case "$2:$3" in *[!0-9:]*|:*) exit 1 ;; esac;
+  case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac;
   case "$lc_field" in
     uid) printf '%s\n' "$3" ;;
+    gid) printf '%s\n' "$4" ;;
     links) printf '%s\n' "$2" ;;
-    mode)
-      printf '%s\n' "$1" | awk '
+    mode|uid_gid_mode|uid_gid_mode_links)
+      lc_mode=$(printf '%s\n' "$1" | awk '
         length($0) < 10 {exit 1}
         { special=0; value=0;
           for (i=2; i<=10; i++) {
@@ -28,7 +29,12 @@ installer_metadata_value() (
             if (i==4 || i==7) value*=8;
           };
           printf "%o\n", special*512+value;
-        }' ;;
+        }') || exit 1;
+      case "$lc_field" in
+        mode) printf '%s\n' "$lc_mode" ;;
+        uid_gid_mode) printf '%s:%s:%s\n' "$3" "$4" "$lc_mode" ;;
+        uid_gid_mode_links) printf '%s:%s:%s:%s\n' "$3" "$4" "$lc_mode" "$2" ;;
+      esac ;;
     *) exit 1 ;;
   esac;
 );

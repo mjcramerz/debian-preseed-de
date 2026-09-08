@@ -74,9 +74,51 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         for mode in (0o600,0o640,0o755,0o1777,0o2750):
             p=self.root/'metadata'; p.touch(); p.chmod(mode)
-            result=self.run_lc('installer_metadata_value '+Q(str(p))+' mode')
-            self.assertEqual(result.returncode,0,result.stderr)
-            self.assertEqual(result.stdout.strip(),format(mode,'o'))
+            expected = {
+                'uid': str(os.getuid()),
+                'gid': str(os.getgid()),
+                'links': '1',
+                'mode': format(mode,'o'),
+                'uid_gid_mode': f'{os.getuid()}:{os.getgid()}:{mode:o}',
+                'uid_gid_mode_links': f'{os.getuid()}:{os.getgid()}:{mode:o}:1',
+            }
+            for field, value in expected.items():
+                with self.subTest(mode=oct(mode), field=field):
+                    result=self.run_lc('installer_metadata_value '+Q(str(p))+' '+field)
+                    self.assertEqual(result.returncode,0,result.stderr)
+                    self.assertEqual(result.stdout.strip(),value)
+
+    def test_desktop_managed_app_validation_needs_no_stat_applet(self):
+        busybox = shutil.which('busybox')
+        self.assertIsNotNone(busybox)
+        bindir = self.root/'busybox-bin'; bindir.mkdir()
+        for name in ('awk','ls','sed','sort','uniq'):
+            (bindir/name).symlink_to(busybox)
+        blocked_stat = bindir/'stat'
+        blocked_stat.write_text('#!/bin/sh\nprintf \"%s\\n\" STAT_MUST_NOT_RUN >&2\nexit 127\n')
+        blocked_stat.chmod(0o755)
+
+        package = self.root/'managed-app'; package.mkdir(); package.chmod(0o755)
+        module_path = package/'module.py'; module_path.write_text('VALUE = 1\n'); module_path.chmod(0o644)
+        manifest = self.root/'managed-app.manifest'; manifest.write_text('module.py\n')
+        command = (
+            '. \"$1\"; . \"$2\"; '
+            'desktop_validate_labwc_managed_app_directory \"$3\" \"$5\" \"$6\" 755; '
+            'desktop_validate_labwc_managed_app_package_tree \"$3\" \"$5\" \"$6\" \"$4\"'
+        )
+        arguments = [busybox,'sh','-eu','-c',command,'sh',str(LC),
+                     str(ROOT/'scripts/desktop/components.sh'),str(package),
+                     str(manifest),str(os.getuid()),str(os.getgid())]
+        env = {**os.environ, 'LC_ALL':'C', 'PATH':str(bindir)}
+        result = subprocess.run(arguments,env=env,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertNotIn('STAT_MUST_NOT_RUN',result.stderr)
+
+        (package/'.unexpected').write_text('unexpected\n')
+        rejected = subprocess.run(arguments,env=env,capture_output=True,text=True,timeout=10)
+        self.assertNotEqual(rejected.returncode,0)
+        self.assertIn('inventory count does not match',rejected.stderr)
+        self.assertNotIn('STAT_MUST_NOT_RUN',rejected.stderr)
 
     def test_udeb_fetch_budget_enforces_timeout_and_preserves_other_status(self):
         for command, status in [('exit 37',37), ('sleep 20',124)]:

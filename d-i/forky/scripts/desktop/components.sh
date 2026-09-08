@@ -290,8 +290,8 @@ desktop_validate_labwc_managed_app_directory() {
     return 1
   fi
 
-  managed_app_directory_metadata=$(stat -c '%u:%g:%a' -- \
-    "$managed_app_checked_directory") || {
+  managed_app_directory_metadata=$(installer_metadata_value \
+    "$managed_app_checked_directory" uid_gid_mode) || {
     printf 'managed application directory metadata is unavailable: %s\n' \
       "$managed_app_checked_directory" >&2
     return 1
@@ -395,8 +395,8 @@ desktop_validate_labwc_managed_app_package_tree() {
         "$managed_app_checked_module" >&2
       return 1
     fi
-    managed_app_module_metadata=$(stat -c '%u:%g:%a:%h' -- \
-      "$managed_app_checked_module") || {
+    managed_app_module_metadata=$(installer_metadata_value \
+      "$managed_app_checked_module" uid_gid_mode_links) || {
       printf 'managed application module metadata is unavailable: %s\n' \
         "$managed_app_checked_module" >&2
       return 1
@@ -416,12 +416,17 @@ desktop_validate_labwc_managed_app_package_tree() {
     return 1
   }
 
-  managed_app_inventory_count=$(find "$managed_app_checked_package" \
-    -mindepth 1 -maxdepth 1 -printf '.' | wc -c | tr -d ' ') || {
-    printf 'managed application package inventory is unavailable: %s\n' \
-      "$managed_app_checked_package" >&2
-    return 1
-  }
+  managed_app_inventory_count=0
+  for managed_app_inventory_entry in \
+    "$managed_app_checked_package"/* \
+    "$managed_app_checked_package"/.[!.]* \
+    "$managed_app_checked_package"/..?*
+  do
+    [ -e "$managed_app_inventory_entry" ] || \
+      [ -L "$managed_app_inventory_entry" ] || continue
+    managed_app_inventory_count=$((managed_app_inventory_count + 1))
+  done
+  unset managed_app_inventory_entry
   case "$managed_app_inventory_count" in
     ''|*[!0123456789]*)
       printf 'managed application package inventory count is invalid: %s\n' \
