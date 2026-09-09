@@ -198,53 +198,18 @@ late_command_nftables_effective_services() {
 
 stage_target_nftables_service_assets() {
   for service_asset in "$@"; do
-    if [ "$service_asset" = ssh-server ] && [ "${SSH_SERVER_ENABLED:-false}" = true ]; then
-      render_target_asset_with_placeholder_map \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-        "/etc/nftables/services/${service_asset}.yml" \
-        0644 \
-        nftables_ssh_service_placeholder_map
-      continue
-    fi
-    if [ "$service_asset" = syncthing ] && nftables_tailscale_selected; then
-      render_target_asset_with_placeholder_map \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-        "/etc/nftables/services/${service_asset}.yml" \
-        0644 \
-        nftables_syncthing_service_placeholder_map
-      continue
-    fi
-    if [ "$service_asset" = tailscale ] && nftables_tailscale_selected; then
-      render_target_asset_with_placeholder_map \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-        "/etc/nftables/services/${service_asset}.yml" \
-        0644 \
-        nftables_tailscale_service_placeholder_map
-      continue
-    fi
-    if [ "$service_asset" = qemu ] && nftables_qemu_selected; then
-      render_target_asset_with_placeholder_map \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-        "/etc/nftables/services/${service_asset}.yml" \
-        0644 \
-        nftables_qemu_service_placeholder_map
-      continue
-    fi
     case "$service_asset" in
-      ssh-server|syncthing|tailscale|qemu)
-        stage_target_asset \
-          "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-          "/etc/nftables/services/${service_asset}.yml" \
-          0644
-        ;;
-      *)
-        render_target_asset_with_placeholder_map \
-          "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
-          "/etc/nftables/services/${service_asset}.yml" \
-          0644 \
-          nftables_interface_placeholder_map
-        ;;
+      ssh-server) placeholder_map=nftables_ssh_service_placeholder_map ;;
+      syncthing) placeholder_map=nftables_syncthing_service_placeholder_map ;;
+      tailscale) placeholder_map=nftables_tailscale_service_placeholder_map ;;
+      qemu) placeholder_map=nftables_qemu_service_placeholder_map ;;
+      *) placeholder_map=nftables_interface_placeholder_map ;;
     esac
+    render_target_asset_with_placeholder_map \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/nftables/services/${service_asset}.yml")" \
+      "/etc/nftables/services/${service_asset}.yml" \
+      0644 \
+      "$placeholder_map"
   done
 }
 
@@ -615,6 +580,13 @@ nftables_ssh_service_placeholder_map() {
   ssh_allow_ipv6=$(nftables_ssh_allow_ipv6_cidrs)
   ssh_allow_interfaces=$(nftables_ssh_allow_interfaces)
 
+  # The complete overlay catalog is published even when addon/ssh is absent.
+  # Keep that dormant catalog entry concrete without weakening addon/ssh: the
+  # selected addon still requires ssh_port unless a profile explicitly sets a
+  # default, while an inactive catalog entry uses the standard SSH port.
+  if [ "${SSH_SERVER_ENABLED:-false}" != true ] && [ -z "${SSH_PORT_DEFAULT:-}" ]; then
+    SSH_PORT_DEFAULT=22
+  fi
   runtime_apply_ssh_from_cmdline
   nftables_validate_port_value SSH_PORT "$SSH_PORT"
   while IFS= read -r cidr || [ -n "$cidr" ]; do

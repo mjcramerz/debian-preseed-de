@@ -14,6 +14,8 @@ import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
 
+import yaml
+
 FORKY = Path(__file__).resolve().parents[1]
 os.environ["INSTALLER_SOURCE_LIBRARY"] = str(FORKY / "scripts/common/source.sh")
 SHARED = FORKY / 'hooks/target'
@@ -91,6 +93,79 @@ class ConfigSafetyTests(unittest.TestCase):
         self.assertNotIn('chown -R', script)
         self.assertIn('run this helper as SYNCTHING_USER, not root', script)
         self.assertIn('/usr/sbin/runuser -u "$1" -- /usr/local/libexec/managed-syncthing-configure', installer)
+
+
+class NftablesCatalogTests(unittest.TestCase):
+    def render_catalog(self, root: Path, ssh_enabled: bool, cmdline: str = 'fixture=1') -> Path:
+        target = root / 'target'
+        work = root / 'work'
+        target.mkdir()
+        work.mkdir()
+        program = r'''\
+. "$1"
+. "$2"
+. "$3"
+. "$4"
+installer_repo_join_var() {
+  [ "$1" = DIR_HOOKS_TARGET ] || return 91
+  printf '%s/%s\n' "$FIXTURE_SOURCE" "$2"
+}
+fetch_hook() { cp -- "$1" "$2"; }
+target_normalize_systemd_config_parent_modes() { :; }
+stage_target_nftables_all_service_assets
+'''
+        env = {
+            **os.environ,
+            'LC_ALL': 'C',
+            'TZ': 'UTC',
+            'INSTALLER_TARGET_DIR': str(target),
+            'TMP_ENV_DIR': str(work),
+            'FIXTURE_SOURCE': str(SHARED),
+            'SSH_SERVER_ENABLED': 'true' if ssh_enabled else 'false',
+            'INSTALLER_CMDLINE': cmdline,
+        }
+        result = subprocess.run(
+            [
+                '/bin/sh', '-eu', '-c', program, 'sh',
+                str(FORKY / 'scripts/common/lib.sh'),
+                str(FORKY / 'scripts/runtime/common.sh'),
+                str(FORKY / 'scripts/late/target-assets.sh'),
+                str(FORKY / 'scripts/late/security.sh'),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            timeout=15,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return target / 'etc/nftables/services'
+
+    def assert_catalog_resolved(self, catalog: Path) -> None:
+        expected = {path.name for path in (SHARED / 'etc/nftables/services').glob('*.yml')}
+        actual = {path.name for path in catalog.glob('*.yml')}
+        self.assertEqual(actual, expected)
+        for path in catalog.glob('*.yml'):
+            with self.subTest(overlay=path.name):
+                text = path.read_text(encoding='utf-8')
+                self.assertNotRegex(text, r'__INSTALLER_[A-Z0-9_]+__')
+                document = yaml.safe_load(text)
+                self.assertEqual(document['apiVersion'], 'cybops.nftables/v1')
+                self.assertEqual(document['kind'], 'NftablesServiceOverlay')
+
+    def test_full_catalog_is_rendered_without_optional_addons(self):
+        with tempfile.TemporaryDirectory(prefix='nftables-catalog-inactive-') as tmp:
+            catalog = self.render_catalog(Path(tmp), ssh_enabled=False)
+            self.assert_catalog_resolved(catalog)
+            ssh = yaml.safe_load((catalog / 'ssh-server.yml').read_text(encoding='utf-8'))
+            self.assertEqual(ssh['services']['ssh_server']['ports'], [22])
+
+    def test_selected_ssh_port_is_preserved_in_rendered_catalog(self):
+        with tempfile.TemporaryDirectory(prefix='nftables-catalog-ssh-') as tmp:
+            catalog = self.render_catalog(Path(tmp), ssh_enabled=True, cmdline='ssh_port=2222')
+            self.assert_catalog_resolved(catalog)
+            ssh = yaml.safe_load((catalog / 'ssh-server.yml').read_text(encoding='utf-8'))
+            self.assertEqual(ssh['services']['ssh_server']['ports'], [2222])
 
 
 class SyncthingConfigTests(unittest.TestCase):
