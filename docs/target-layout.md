@@ -825,11 +825,13 @@ official `https://chatgpt.com/codex/install.sh` script resolves its current
 standalone version noninteractively inside a private staging `CODEX_HOME` and
 an isolated shell `HOME`. Its visible command and any shell-profile edits are
 discarded, so the standalone binary is never added to the account or managed
-payload `PATH`. After version and release-directory validation, the complete
-package cache is atomically moved to `/data/codex/packages`; the fixed
-`/data/codex/usr/home/packages` link exposes it only for official app-server
-daemon discovery and the managed control socket. A failed download or install
-removes private staging without publishing partial package state.
+payload `PATH`. Before publication, the installer-created absolute
+`standalone/current` selector is validated and rewritten as a relative
+`releases/<release>` link. The relocatable package cache is then atomically
+moved to `/data/codex/packages`; the fixed `/data/codex/usr/home/packages` link
+exposes it only for official app-server daemon discovery and the managed control
+socket. A failed download, install, normalization, or publication removes
+private staging without publishing partial package state.
 
 The launcher makes these locations authoritative instead of trusting inherited
 values:

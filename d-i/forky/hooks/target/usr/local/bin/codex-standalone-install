@@ -60,6 +60,53 @@ managed_binary_path() {
   return 1
 }
 
+normalize_managed_current_link() {
+  normalize_packages_root=$1
+  normalize_standalone_root=${normalize_packages_root}/standalone
+  normalize_releases_root=${normalize_standalone_root}/releases
+  normalize_current_link=${normalize_standalone_root}/current
+
+  [ -d "$normalize_standalone_root" ] && [ ! -L "$normalize_standalone_root" ] ||
+    fatal "managed standalone package root is missing or indirect: $normalize_standalone_root"
+  [ -d "$normalize_releases_root" ] && [ ! -L "$normalize_releases_root" ] ||
+    fatal "managed standalone releases root is missing or indirect: $normalize_releases_root"
+  [ -L "$normalize_current_link" ] ||
+    fatal "managed standalone current release is not a symbolic link: $normalize_current_link"
+
+  normalize_current_real=$(/usr/bin/readlink -f -- "$normalize_current_link") ||
+    fatal "cannot resolve managed standalone current release: $normalize_current_link"
+  case "$normalize_current_real" in
+    "$normalize_releases_root"/*) ;;
+    *)
+      fatal "managed standalone current release resolves outside the releases root: $normalize_current_real"
+      ;;
+  esac
+  normalize_release_directory=${normalize_current_real#"$normalize_releases_root/"}
+  case "$normalize_release_directory" in
+    ''|*/*|.|..|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-]*)
+      fatal "managed standalone current release directory is malformed: ${normalize_release_directory:-unset}"
+      ;;
+  esac
+  [ -d "$normalize_current_real" ] && [ ! -L "$normalize_current_real" ] ||
+    fatal "managed standalone current release is not a direct directory: $normalize_current_real"
+
+  normalize_relative_target=releases/${normalize_release_directory}
+  if [ "$(/usr/bin/readlink -- "$normalize_current_link")" = "$normalize_relative_target" ]; then
+    return 0
+  fi
+
+  normalize_temporary_link=${normalize_standalone_root}/.current.$$
+  [ ! -e "$normalize_temporary_link" ] && [ ! -L "$normalize_temporary_link" ] ||
+    fatal "temporary standalone current link already exists: $normalize_temporary_link"
+  /bin/ln -s -- "$normalize_relative_target" "$normalize_temporary_link" ||
+    fatal 'cannot stage the relocatable standalone current link'
+  /bin/mv -T -- "$normalize_temporary_link" "$normalize_current_link" ||
+    fatal 'cannot publish the relocatable standalone current link'
+  [ -L "$normalize_current_link" ] &&
+    [ "$(/usr/bin/readlink -- "$normalize_current_link")" = "$normalize_relative_target" ] ||
+    fatal 'standalone current link was not normalized for package relocation'
+}
+
 verify_managed_install() {
   verify_packages_root=$1
 
@@ -286,6 +333,10 @@ install_packages=${installer_codex_home}/packages
 [ -d "$install_packages" ] && [ ! -L "$install_packages" ] ||
   fatal 'official installer did not create a direct managed package directory'
 /bin/chmod 0700 -- "$install_packages"
+# The official installer writes standalone/current as an absolute CODEX_HOME
+# link. Normalize it while the package tree is still private so moving only the
+# cache to /data/codex/packages cannot leave a dangling staging-tree reference.
+normalize_managed_current_link "$install_packages"
 installed_version=$(verify_managed_install "$install_packages")
 
 # The tmpfiles contract pre-creates an empty account-owned package root. Remove

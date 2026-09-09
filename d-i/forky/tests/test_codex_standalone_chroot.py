@@ -116,17 +116,18 @@ cat > "$CODEX_INSTALL_DIR/codex" <<'VISIBLE'
 exit 93
 VISIBLE
 chmod 0755 "$CODEX_INSTALL_DIR/codex"
-mkdir -p "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl"
+mkdir -p "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/bin"
 '''
         if payload_error:
             payload += 'exit 42\n'
         else:
-            payload += r'''cat > "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex" <<'BINARY'
+            payload += r'''cat > "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/bin/codex" <<'BINARY'
 #!/bin/sh
 printf 'codex-cli 0.153.3\n'
 BINARY
-chmod 0755 "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex"
-ln -s releases/0.153.3-x86_64-unknown-linux-musl "$CODEX_HOME/packages/standalone/current"
+chmod 0755 "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/bin/codex"
+ln -s bin/codex "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex"
+ln -s "$CODEX_HOME/packages/standalone/releases/0.153.3-x86_64-unknown-linux-musl" "$CODEX_HOME/packages/standalone/current"
 '''
 
         curl = root / 'usr/bin/curl'
@@ -186,6 +187,17 @@ cat > "$output" <<'PAYLOAD'
             )
             self.assertEqual(stat.S_IMODE(packages.stat().st_mode), 0o700)
             self.assertEqual(packages.stat().st_uid, 65534)
+            self.assertEqual(
+                (packages / 'standalone/current').readlink(),
+                Path('releases/0.153.3-x86_64-unknown-linux-musl'),
+            )
+            self.assertEqual(
+                (
+                    packages
+                    / 'standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex'
+                ).readlink(),
+                Path('bin/codex'),
+            )
             self.assertTrue(
                 (
                     packages

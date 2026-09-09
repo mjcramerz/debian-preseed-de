@@ -467,6 +467,60 @@ class CodexDeploymentContractTests(unittest.TestCase):
             function.index('publication_committed=1'),
         )
 
+    def test_absolute_current_link_is_normalized_before_package_relocation(self):
+        text = STANDALONE.read_text(encoding='utf-8')
+        function = text.split('normalize_managed_current_link() {', 1)[1].split(
+            '\n}\n\nverify_managed_install() {', 1
+        )[0]
+        script = (
+            'set -eu\n'
+            'fatal() { printf "fatal: %s\\n" "$*" >&2; exit 1; }\n'
+            'normalize_managed_current_link() {'
+            + function
+            + '\n}\nnormalize_managed_current_link "$1"\n'
+        )
+
+        with tempfile.TemporaryDirectory(prefix='codex-current-link-') as name:
+            root = Path(name)
+            packages = root / 'staged/packages'
+            release_name = '0.153.4-x86_64-unknown-linux-musl'
+            release = packages / 'standalone/releases' / release_name
+            binary = release / 'bin/codex'
+            binary.parent.mkdir(parents=True)
+            binary.write_text(
+                '#!/bin/sh\nprintf "codex-cli 0.153.4\\n"\n',
+                encoding='utf-8',
+            )
+            binary.chmod(0o755)
+            (release / 'codex').symlink_to('bin/codex')
+            current = packages / 'standalone/current'
+            current.symlink_to(release)
+
+            result = subprocess.run(
+                ['/bin/dash', '-c', script, 'normalize-current', str(packages)],
+                env={'LC_ALL': 'C'},
+                text=True,
+                capture_output=True,
+                timeout=5,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(current.readlink(), Path('releases') / release_name)
+
+            published = root / 'published-packages'
+            packages.rename(published)
+            self.assertTrue((published / 'standalone/current/bin/codex').is_file())
+            current_binary = published / 'standalone/current/codex'
+            self.assertTrue(current_binary.is_file())
+            version = subprocess.run(
+                [str(current_binary), '--version'],
+                env={'LC_ALL': 'C'},
+                text=True,
+                capture_output=True,
+                timeout=5,
+            )
+            self.assertEqual(version.returncode, 0, version.stderr)
+            self.assertEqual(version.stdout, 'codex-cli 0.153.4\n')
+
     def test_target_installer_runs_after_desktop_home_population(self):
         text = STANDALONE.read_text()
         self.assertNotIn('. "$profile_path"', text)
@@ -478,7 +532,11 @@ class CodexDeploymentContractTests(unittest.TestCase):
         self.assertNotIn('CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=', text)
         self.assertNotIn('--release "$codex_version"', text)
         self.assertNotIn('PATH="${installer_bin}:${PATH}"', text)
-        self.assertIn('/bin/mv -- "$install_packages" "$packages_root"', text)
+        publication = '/bin/mv -- "$install_packages" "$packages_root"'
+        normalize_current = 'normalize_managed_current_link "$install_packages"'
+        self.assertIn(publication, text)
+        self.assertIn(normalize_current, text)
+        self.assertLess(text.index(normalize_current), text.index(publication))
         self.assertIn("--proto-redir '=https'", text)
         clear_staging_special_bits = '/bin/chmod a-s -- "$installer_staging"'
         enforce_staging_mode = '/bin/chmod 0700 -- "$installer_staging"'
