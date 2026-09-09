@@ -10,7 +10,6 @@ import json
 import os
 from pathlib import Path
 import pwd
-import shlex
 import signal
 import stat
 import subprocess
@@ -63,7 +62,7 @@ class CodexSessionTests(unittest.TestCase):
         self.patch = mock.patch.object(self.module.pwd, 'getpwnam', return_value=self.account)
         self.patch.start()
         self.addCleanup(self.patch.stop)
-        self.args = [self.account.pw_name, str(self.home), str(self.helper), '1.2.3',
+        self.args = [self.account.pw_name, str(self.home), str(self.helper),
                      'https://chatgpt.com/codex/install.sh', '1048576',
                      str(self.home / 'codex/usr/home'), str(self.home / 'codex/packages')]
 
@@ -237,19 +236,23 @@ sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r})
         codex_root = self.home / 'codex'
         codex_home = codex_root / 'usr/home'
         packages = codex_root / 'packages'
-        binary = packages / 'standalone/releases/1.2.3/bin/codex'
+        binary = packages / 'standalone/releases/1.2.3-x86_64-unknown-linux-musl/codex'
         binary.parent.mkdir(parents=True)
         binary.write_text('#!/bin/sh\nprintf "codex-cli 1.2.3\\n"\n')
         binary.chmod(0o755)
-        (packages / 'standalone/current').symlink_to('releases/1.2.3')
+        (packages / 'standalone/current').symlink_to(
+            'releases/1.2.3-x86_64-unknown-linux-musl'
+        )
         codex_home.mkdir(parents=True)
         (codex_home / 'packages').symlink_to(packages)
         profile = self.home / '.profile.d/71-devops-de.sh'
         profile.parent.mkdir()
-        profile.write_text('devops_de_apply_environment() {\n' +
-            f' CODEX_HOME={shlex.quote(str(codex_home))}\n' +
-            ' XDG_RUNTIME_DIR=/run/user/1000\n TMPDIR=/run/user/1000\n' +
-            ' export CODEX_HOME XDG_RUNTIME_DIR TMPDIR\n}\n')
+        profile.write_text(
+            'devops_de_apply_environment() {\n'
+            ' printf sourced > "$HOME/profile-was-sourced"\n'
+            ' return 89\n'
+            '}\n'
+        )
         profile.chmod(0o644)
         for path in self.home.rglob('*'):
             os.chown(path, self.account.pw_uid, self.account.pw_gid, follow_symlinks=False)
@@ -258,6 +261,7 @@ sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r})
         self.assertEqual(self.run_installer(), 0)
         self.assertEqual(self.run_installer(), 0)
         self.assertEqual((codex_home / 'packages').readlink(), packages)
+        self.assertFalse((self.home / 'profile-was-sourced').exists())
         self.assert_clean()
 
 
@@ -465,8 +469,16 @@ class CodexDeploymentContractTests(unittest.TestCase):
 
     def test_target_installer_runs_after_desktop_home_population(self):
         text = STANDALONE.read_text()
-        start = text.index('devops_de_apply_environment ||')
-        self.assertGreater(text.index('XDG_RUNTIME_DIR=$installer_runtime'), start)
+        self.assertNotIn('. "$profile_path"', text)
+        self.assertNotIn('devops_de_apply_environment', text)
+        self.assertIn('CODEX_HOME="$installer_codex_home"', text)
+        self.assertIn('CODEX_INSTALL_DIR="$installer_bin"', text)
+        self.assertIn('CODEX_NON_INTERACTIVE=1', text)
+        self.assertNotIn('CODEX_RELEASE=', text)
+        self.assertNotIn('CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=', text)
+        self.assertNotIn('--release "$codex_version"', text)
+        self.assertNotIn('PATH="${installer_bin}:${PATH}"', text)
+        self.assertIn('/bin/mv -- "$install_packages" "$packages_root"', text)
         self.assertIn("--proto-redir '=https'", text)
 
         old_path = FORKY / 'scripts/late/codex-standalone-install'
@@ -489,13 +501,14 @@ class CodexDeploymentContractTests(unittest.TestCase):
         self.assertIn('installer_helper=/usr/local/bin/codex-standalone-install', function)
         self.assertIn('${ACCOUNT_HOME}/.profile.d/71-devops-de.sh', function)
         self.assertIn('${DEVOPS_CODEX_USER_ROOT}/.git', function)
-        self.assertIn('install_packages=$packages_root', text)
+        self.assertIn('install_packages=${installer_codex_home}/packages', text)
         self.assertNotIn('runuser', function)
         self.assertNotIn('/run/user/', function)
         self.assertGreater(
             desktop.index('desktop_install_codex_standalone\n'),
             desktop.index('desktop_install_user_config\n'),
         )
+        self.assertNotIn('"$DEVOPS_CODEX_VERSION"', function)
 
 
 if __name__ == '__main__':

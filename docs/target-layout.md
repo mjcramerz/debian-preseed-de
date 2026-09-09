@@ -808,7 +808,7 @@ instead exports only Incus's native account-local `INCUS_CACHE` and
 `INCUS_CONF` path selectors; it starts no activation shell and does not alter
 daemon state, the selected project, or the selected remote.
 
-With `addon/devops`, standalone Codex and the managed ChatGPT/Codex launcher
+With `addon/devops`, the managed Codex and ChatGPT/Codex launchers
 reconstruct the profile environment with POSIX `/bin/sh`. They source the
 mandatory `~/.profile.d/71-devops-de.sh` first, followed by installed
 `72-incus.sh` and `75-firmware-workspace.sh` fragments in fixed order, and
@@ -818,6 +818,18 @@ absolute `PATH` entries, but it must contain every clean reconstructed entry.
 The final exported variables and ordered path are passed to the Codex payload in
 both sandboxed and explicit `--no-bwrap` modes; ChatGPT uses the same clean
 profile contract after clearing ambient state.
+
+The installer-stage standalone package is deliberately separate from the
+checksum-pinned repository build that remains the public `codex` command. The
+official `https://chatgpt.com/codex/install.sh` script resolves its current
+standalone version noninteractively inside a private staging `CODEX_HOME` and
+an isolated shell `HOME`. Its visible command and any shell-profile edits are
+discarded, so the standalone binary is never added to the account or managed
+payload `PATH`. After version and release-directory validation, the complete
+package cache is atomically moved to `/data/codex/packages`; the fixed
+`/data/codex/usr/home/packages` link exposes it only for official app-server
+daemon discovery and the managed control socket. A failed download or install
+removes private staging without publishing partial package state.
 
 The launcher makes these locations authoritative instead of trusting inherited
 values:

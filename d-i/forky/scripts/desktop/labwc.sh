@@ -25,7 +25,6 @@ desktop_install_codex_standalone() (
   : "${DEVOPS_CODEX_BINARY_PATH:?DEVOPS_CODEX_BINARY_PATH must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_USER_ROOT:?DEVOPS_CODEX_USER_ROOT must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_HOME:?DEVOPS_CODEX_HOME must be set before Codex standalone installation}"
-  : "${DEVOPS_CODEX_VERSION:?DEVOPS_CODEX_VERSION must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_STANDALONE_INSTALLER_URL:?DEVOPS_CODEX_STANDALONE_INSTALLER_URL must be set before Codex standalone installation}"
   : "${DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES:?DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES must be set before Codex standalone installation}"
 
@@ -87,11 +86,10 @@ desktop_install_codex_standalone() (
   # and dispose of the private runtime inside that namespace, in the same
   # invocation as the unprivileged installer. Never fabricate a logind session.
   run_in_target \
-    "install the pinned official Codex standalone package after desktop account configuration" \
+    "install the official Codex standalone package after desktop account configuration" \
     /usr/bin/python3 "$session_helper" \
       "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" \
       "$installer_helper" \
-      "$DEVOPS_CODEX_VERSION" \
       "$DEVOPS_CODEX_STANDALONE_INSTALLER_URL" \
       "$DEVOPS_CODEX_STANDALONE_INSTALLER_MAXIMUM_BYTES" \
       "$DEVOPS_CODEX_HOME" "$packages_root"
@@ -106,7 +104,7 @@ desktop_install_codex_standalone() (
   [ -f "$installer_host_path" ] && [ ! -L "$installer_host_path" ] &&
     [ -x "$installer_host_path" ] ||
     fatal "target Codex standalone installer was not retained after installation"
-  desktop_log "installed official Codex standalone package after primary account configuration"
+  desktop_log "installed off-PATH official Codex standalone package for app-server daemon discovery"
 )
 
 run_desktop_late_command() {

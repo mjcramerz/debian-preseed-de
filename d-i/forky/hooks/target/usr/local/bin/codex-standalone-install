@@ -62,7 +62,6 @@ managed_binary_path() {
 
 verify_managed_install() {
   verify_packages_root=$1
-  verify_expected_version=$2
 
   [ -d "$verify_packages_root" ] && [ ! -L "$verify_packages_root" ] ||
     fatal "managed package root is missing or indirect: $verify_packages_root"
@@ -87,26 +86,32 @@ verify_managed_install() {
   verify_version_output=$("$verify_binary" --version 2>/dev/null) ||
     fatal "managed standalone Codex version check failed"
   verify_actual_version=${verify_version_output##* }
-  [ "$verify_actual_version" = "$verify_expected_version" ] ||
-    fatal "managed standalone Codex version mismatch: expected $verify_expected_version, found ${verify_actual_version:-unknown}"
+  if ! printf '%s\n' "$verify_actual_version" |
+    /usr/bin/grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$'
+  then
+    fatal "managed standalone Codex version is malformed: ${verify_actual_version:-unknown}"
+  fi
+  verify_release_path=${verify_real_binary#"$verify_packages_root/standalone/releases/"}
+  verify_release_directory=${verify_release_path%%/*}
+  case "$verify_release_directory" in
+    "$verify_actual_version"|"$verify_actual_version"-*) ;;
+    *)
+      fatal "managed standalone Codex release directory does not match version $verify_actual_version"
+      ;;
+  esac
+  printf '%s\n' "$verify_actual_version"
 }
 
-[ "$#" -eq 5 ] ||
-  fatal 'usage: codex-standalone-install VERSION INSTALLER_URL MAXIMUM_BYTES CODEX_HOME PACKAGES_ROOT'
+[ "$#" -eq 4 ] ||
+  fatal 'usage: codex-standalone-install INSTALLER_URL MAXIMUM_BYTES CODEX_HOME PACKAGES_ROOT'
 
-codex_version=$1
-installer_url=$2
-maximum_bytes=$3
-expected_codex_home=$4
-packages_root=$5
+installer_url=$1
+maximum_bytes=$2
+expected_codex_home=$3
+packages_root=$4
 installer_uid=$(/usr/bin/id -u) || fatal 'cannot resolve the installer account identifier'
 
 [ "$installer_uid" -ne 0 ] || fatal 'the standalone installer must run as the desktop account'
-if ! printf '%s\n' "$codex_version" |
-  /usr/bin/grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$'
-then
-  fatal "Codex version is malformed: $codex_version"
-fi
 [ "$installer_url" = 'https://chatgpt.com/codex/install.sh' ] ||
   fatal "installer URL is not approved: $installer_url"
 case "$maximum_bytes" in
@@ -143,51 +148,42 @@ profile_mode_value=$((0$profile_mode))
 [ $((profile_mode_value & 0022)) -eq 0 ] ||
   fatal 'managed DevOps profile is writable by group or other users'
 
-# shellcheck disable=SC1090
-. "$profile_path"
-command -v devops_de_apply_environment >/dev/null 2>&1 ||
-  fatal 'managed DevOps environment function is unavailable'
-devops_de_apply_environment || fatal 'managed DevOps environment activation failed'
-# A sourced login profile must not redirect installer scratch into a session
-# directory that is unavailable during d-i or belongs to another process.
-XDG_RUNTIME_DIR=$installer_runtime
-TMPDIR=$installer_runtime
-export XDG_RUNTIME_DIR TMPDIR
+# The managed profile requires a real logind-owned /run/user/<uid> and must not
+# be executed from d-i's private installer runtime. The official installer only
+# needs its documented CODEX_HOME, CODEX_INSTALL_DIR and noninteractive inputs,
+# so set those explicitly and leave the login profile untouched.
+CODEX_HOME=$expected_codex_home
+export CODEX_HOME
 require_private_directory 'installer runtime directory' "$installer_runtime"
-[ "${CODEX_HOME:-}" = "$expected_codex_home" ] ||
-  fatal "managed DevOps profile exported an unexpected CODEX_HOME: ${CODEX_HOME:-unset}"
 
 source_packages=${CODEX_HOME}/packages
-install_packages=$source_packages
-prelinked=0
-if [ -L "$source_packages" ]; then
+[ -L "$source_packages" ] &&
   [ "$(/usr/bin/readlink -- "$source_packages")" = "$packages_root" ] ||
-    fatal "CODEX_HOME package link has an unexpected target: $source_packages"
-  if managed_binary_path "$packages_root" >/dev/null 2>&1; then
-    verify_managed_install "$packages_root" "$codex_version"
-    exit 0
-  fi
-  require_private_directory 'managed package root' "$packages_root"
-  [ -z "$(/usr/bin/find "$packages_root" -mindepth 1 -maxdepth 1 -print -quit)" ] ||
-    fatal "managed package root is not empty before official installation"
-  install_packages=$packages_root
-  prelinked=1
-else
-  if [ -e "$packages_root" ] || [ -L "$packages_root" ]; then
-    fatal "managed package root exists without the required CODEX_HOME link: $packages_root"
-  fi
-  if [ -e "$source_packages" ]; then
-    [ -d "$source_packages" ] && [ ! -L "$source_packages" ] ||
-      fatal "CODEX_HOME package path is not a direct directory: $source_packages"
-    [ -z "$(/usr/bin/find "$source_packages" -mindepth 1 -maxdepth 1 -print -quit)" ] ||
-      fatal "CODEX_HOME package path is not empty before official installation"
-  fi
+  fatal "CODEX_HOME package link does not target the managed package root: $source_packages"
+require_private_directory 'managed package root' "$packages_root"
+if managed_binary_path "$packages_root" >/dev/null 2>&1; then
+  installed_version=$(verify_managed_install "$packages_root")
+  printf 'official Codex standalone package %s is already installed\n' "$installed_version"
+  exit 0
 fi
+[ -z "$(/usr/bin/find "$packages_root" -mindepth 1 -maxdepth 1 -print -quit)" ] ||
+  fatal "managed package root is not empty before official installation"
+
+[ -d "$codex_root" ] && [ ! -L "$codex_root" ] ||
+  fatal "managed Codex root is missing or indirect: $codex_root"
+[ "$(/usr/bin/readlink -f -- "$codex_root")" = "$codex_root" ] ||
+  fatal "managed Codex root traverses a symlink: $codex_root"
+[ "$(/usr/bin/stat -c '%u:%a' -- "$codex_root")" = 0:3770 ] ||
+  fatal "managed Codex root must remain root-owned with mode 3770"
+[ -w "$codex_root" ] && [ -x "$codex_root" ] ||
+  fatal "desktop account cannot stage the standalone package below $codex_root"
 
 installer_script=
 installer_home=
-installer_link=
-relocated=0
+installer_staging=
+packages_root_removed=0
+packages_root_published=0
+publication_committed=0
 cleanup() {
   cleanup_status=$?
   trap - 0 HUP INT TERM
@@ -202,12 +198,32 @@ cleanup() {
       *) cleanup_status=1 ;;
     esac
   fi
-  if [ -n "$installer_link" ] && [ -L "$installer_link" ]; then
-    /bin/rm -f -- "$installer_link" || cleanup_status=1
+  if [ "$cleanup_status" -ne 0 ] && [ "$publication_committed" -eq 0 ] &&
+     [ "$packages_root_published" -eq 1 ]; then
+    case "$packages_root" in
+      "$codex_root"/packages)
+        if [ -d "$packages_root" ] && [ ! -L "$packages_root" ]; then
+          /bin/rm -rf -- "$packages_root" || cleanup_status=1
+        else
+          cleanup_status=1
+        fi
+        ;;
+      *) cleanup_status=1 ;;
+    esac
   fi
-  if [ "$cleanup_status" -ne 0 ] && [ "$relocated" -eq 1 ] &&
-     [ -d "$packages_root" ] && [ ! -e "$source_packages" ]; then
-    /bin/mv -- "$packages_root" "$source_packages" || true
+  if [ "$cleanup_status" -ne 0 ] && [ "$publication_committed" -eq 0 ] &&
+     [ "$packages_root_removed" -eq 1 ] &&
+     [ ! -e "$packages_root" ] && [ ! -L "$packages_root" ]; then
+    (umask 077 && /bin/mkdir -- "$packages_root") || cleanup_status=1
+  fi
+  if [ -n "$installer_staging" ] && [ -d "$installer_staging" ] &&
+     [ ! -L "$installer_staging" ]; then
+    case "$installer_staging" in
+      "$codex_root"/.standalone-install.*)
+        /bin/rm -rf -- "$installer_staging" || cleanup_status=1
+        ;;
+      *) cleanup_status=1 ;;
+    esac
   fi
   exit "$cleanup_status"
 }
@@ -220,8 +236,16 @@ installer_script=$(/usr/bin/mktemp "${XDG_RUNTIME_DIR}/codex-install.XXXXXXXX") 
   fatal 'cannot allocate the official installer download file'
 installer_home=$(/usr/bin/mktemp -d "${XDG_RUNTIME_DIR}/codex-installer-home.XXXXXXXX") ||
   fatal 'cannot allocate the isolated installer home'
+installer_staging=$(/usr/bin/mktemp -d "${codex_root}/.standalone-install.XXXXXXXX") ||
+  fatal 'cannot allocate the standalone package staging directory'
 /bin/chmod 0600 -- "$installer_script"
 /bin/chmod 0700 -- "$installer_home"
+/bin/chmod 0700 -- "$installer_staging"
+require_private_directory 'standalone package staging directory' "$installer_staging"
+installer_codex_home=${installer_staging}/home
+installer_bin=${installer_staging}/bin
+/bin/mkdir -- "$installer_codex_home" "$installer_bin"
+/bin/chmod 0700 -- "$installer_codex_home" "$installer_bin"
 
 /usr/bin/curl \
   --fail \
@@ -245,36 +269,33 @@ esac
 [ "$installer_bytes" -le "$maximum_bytes" ] ||
   fatal 'official installer exceeds the configured byte limit'
 
-installer_bin=${install_packages}/.installer-bin
-PATH="${installer_bin}:${PATH}"
-export PATH
-HOME="$installer_home" \
-CODEX_HOME="$CODEX_HOME" \
-CODEX_INSTALL_DIR="$installer_bin" \
-CODEX_NON_INTERACTIVE=1 \
-CODEX_RELEASE="$codex_version" \
-CODEX_INSTALLER_USE_RELEASES_OPENAI_COM=true \
-  /bin/sh "$installer_script" --release "$codex_version"
-
-[ -d "$install_packages" ] && [ ! -L "$install_packages" ] ||
-  fatal 'official installer did not create a direct managed package directory'
-/bin/rm -rf -- "$installer_bin"
-/bin/chmod 0700 -- "$install_packages"
-verify_managed_install "$install_packages" "$codex_version"
-
-if [ "$prelinked" -eq 1 ]; then
-  verify_managed_install "$packages_root" "$codex_version"
-  exit 0
+if ! HOME="$installer_home" \
+  CODEX_HOME="$installer_codex_home" \
+  CODEX_INSTALL_DIR="$installer_bin" \
+  CODEX_NON_INTERACTIVE=1 \
+  /bin/sh "$installer_script"
+then
+  fatal 'official Codex standalone installer failed'
 fi
 
-installer_link=${CODEX_HOME}/.packages-link.$$
-[ ! -e "$installer_link" ] && [ ! -L "$installer_link" ] ||
-  fatal 'temporary package link path already exists'
-/bin/ln -s -- "$packages_root" "$installer_link"
-/bin/mv -- "$source_packages" "$packages_root"
-relocated=1
-/bin/mv -- "$installer_link" "$source_packages"
-installer_link=
-/bin/chmod 0700 -- "$packages_root"
-verify_managed_install "$packages_root" "$codex_version"
-relocated=0
+install_packages=${installer_codex_home}/packages
+[ -d "$install_packages" ] && [ ! -L "$install_packages" ] ||
+  fatal 'official installer did not create a direct managed package directory'
+/bin/chmod 0700 -- "$install_packages"
+installed_version=$(verify_managed_install "$install_packages")
+
+# The tmpfiles contract pre-creates an empty account-owned package root. Remove
+# only that verified empty directory, then atomically publish the staged cache
+# on the same filesystem. The CODEX_HOME/packages link remains unchanged.
+[ -z "$(/usr/bin/find "$packages_root" -mindepth 1 -maxdepth 1 -print -quit)" ] ||
+  fatal "managed package root changed during standalone installation"
+packages_root_removed=1
+/bin/rmdir -- "$packages_root"
+packages_root_published=1
+/bin/mv -- "$install_packages" "$packages_root"
+relocated_version=$(verify_managed_install "$packages_root")
+[ "$relocated_version" = "$installed_version" ] ||
+  fatal 'standalone package version changed during publication'
+publication_committed=1
+printf 'installed official Codex standalone package %s below %s\n' \
+  "$installed_version" "$packages_root"
