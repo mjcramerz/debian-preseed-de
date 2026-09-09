@@ -280,6 +280,67 @@ devops_stage_publishing_entrypoints() {{
 
 
 class CleanupAndUnitTests(unittest.TestCase):
+    def tmpfs_policy_output(self, function: str) -> str:
+        volatile_storage = FORKY / "scripts/late/volatile-storage.sh"
+        source = f"""\
+set -eu
+TMPFS_VAR_LOG=true
+TMPFS_VAR_CACHE=true
+TMPFS_VAR_LIB_APT_LISTS=false
+TMPFS_DEV_SHM=true
+TMPFS_DATA_RUN=true
+TMPFS_SYSTEMD_COREDUMP=true
+DIR_TMP=/tmp
+DIR_DEV_SHM=/dev/shm
+DIR_VAR_LOG=/var/log
+DIR_VAR_CACHE=/var/cache
+DIR_APT_LISTS=/var/lib/apt/lists
+DIR_SYSTEMD_COREDUMP=/var/lib/systemd/coredump
+DIR_DATA_RUN=/data/run
+DIR_DATA=/data
+. '{volatile_storage}'
+{function}
+"""
+        result = subprocess.run(["/bin/sh"], input=source, text=True,
+                                capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout
+
+    def test_tmpfs_pre_clean_policy_handles_inherited_dev_shm(self) -> None:
+        self.assertEqual(
+            self.tmpfs_policy_output("tmpfs_pre_clean_mount_units_for_enabled_policy"),
+            "tmp.mount dev-shm.mount var-log.mount var-cache.mount "
+            "var-lib-systemd-coredump.mount data-run.mount\n",
+        )
+        self.assertEqual(
+            self.tmpfs_policy_output("tmpfs_pre_clean_targets_for_enabled_policy"),
+            "DIR_TMP|/tmp DIR_VAR_LOG|/var/log DIR_VAR_CACHE|/var/cache "
+            "DIR_SYSTEMD_COREDUMP|/var/lib/systemd/coredump "
+            "DIR_DATA_RUN|/data/run\n",
+        )
+        self.assertEqual(
+            self.tmpfs_policy_output("tmpfs_pre_clean_read_write_paths_for_enabled_policy"),
+            "/tmp /var/log /var/cache /var/lib/systemd/coredump /data/run\n",
+        )
+        self.assertEqual(
+            self.tmpfs_policy_output("tmpfs_pre_clean_condition_lines_for_enabled_policy"),
+            "ConditionPathExists=/tmp\n"
+            "ConditionPathIsDirectory=/tmp\n"
+            "ConditionPathIsMountPoint=!/tmp\n"
+            "ConditionPathExists=/var/log\n"
+            "ConditionPathIsDirectory=/var/log\n"
+            "ConditionPathIsMountPoint=!/var/log\n"
+            "ConditionPathExists=/var/cache\n"
+            "ConditionPathIsDirectory=/var/cache\n"
+            "ConditionPathIsMountPoint=!/var/cache\n"
+            "ConditionPathExists=/var/lib/systemd/coredump\n"
+            "ConditionPathIsDirectory=/var/lib/systemd/coredump\n"
+            "ConditionPathIsMountPoint=!/var/lib/systemd/coredump\n"
+            "ConditionPathExists=/data/run\n"
+            "ConditionPathIsDirectory=/data/run\n"
+            "ConditionPathIsMountPoint=!/data/run\n",
+        )
+
     def test_tmpfs_cleanup_preserves_symlink_destination(self) -> None:
         with tempfile.TemporaryDirectory(prefix="pre-clean-") as name:
             base = Path(name)

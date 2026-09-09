@@ -446,17 +446,17 @@ tmpfs_pre_clean_condition_line_if_enabled() {
 }
 
 tmpfs_pre_clean_condition_lines_for_enabled_policy() {
-  printf '%s%s%s%s%s%s%s' \
-    "ConditionPathExists=${DIR_TMP}
-ConditionPathIsDirectory=${DIR_TMP}
-ConditionPathIsMountPoint=!${DIR_TMP}
-" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_DEV_SHM "$DIR_DEV_SHM")" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LOG "$DIR_VAR_LOG")" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_CACHE "$DIR_VAR_CACHE")" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LIB_APT_LISTS "$DIR_APT_LISTS")" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_SYSTEMD_COREDUMP "$DIR_SYSTEMD_COREDUMP")" \
-    "$(tmpfs_pre_clean_condition_line_if_enabled TMPFS_DATA_RUN "$DIR_DATA_RUN")"
+  printf '%s\n' \
+    "ConditionPathExists=${DIR_TMP}" \
+    "ConditionPathIsDirectory=${DIR_TMP}" \
+    "ConditionPathIsMountPoint=!${DIR_TMP}"
+  # /dev/shm is inherited with /dev before real-root services can run. It has
+  # no persistent backing tree to scrub, so keep only its mount-unit ordering.
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LOG "$DIR_VAR_LOG"
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_CACHE "$DIR_VAR_CACHE"
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LIB_APT_LISTS "$DIR_APT_LISTS"
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_SYSTEMD_COREDUMP "$DIR_SYSTEMD_COREDUMP"
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_DATA_RUN "$DIR_DATA_RUN"
 }
 
 tmpfs_pre_clean_requires_mounts_for_enabled_policy() {
@@ -468,7 +468,6 @@ tmpfs_pre_clean_requires_mounts_for_enabled_policy() {
 tmpfs_pre_clean_read_write_paths_for_enabled_policy() {
   join_words \
     "$DIR_TMP" \
-    "$(tmpfs_policy_path_if_enabled TMPFS_DEV_SHM "$DIR_DEV_SHM")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_LOG "$DIR_VAR_LOG")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_CACHE "$DIR_VAR_CACHE")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_LIB_APT_LISTS "$DIR_APT_LISTS")" \
@@ -488,7 +487,6 @@ tmpfs_pre_clean_target_if_enabled() {
 tmpfs_pre_clean_targets_for_enabled_policy() {
   join_words \
     "DIR_TMP|$DIR_TMP" \
-    "$(tmpfs_pre_clean_target_if_enabled TMPFS_DEV_SHM DIR_DEV_SHM "$DIR_DEV_SHM")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LOG DIR_VAR_LOG "$DIR_VAR_LOG")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_CACHE DIR_VAR_CACHE "$DIR_VAR_CACHE")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS "$DIR_APT_LISTS")" \
