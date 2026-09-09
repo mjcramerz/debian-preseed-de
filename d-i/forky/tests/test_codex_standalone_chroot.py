@@ -38,6 +38,34 @@ class CodexFreshInstallTests(unittest.TestCase):
                 if not command.exists():
                     command.symlink_to('/bin/busybox')
 
+        # The production target uses GNU chmod, which preserves an inherited
+        # directory setgid bit for a numeric mode such as 0700. BusyBox clears
+        # it, so wrap only /bin/chmod to retain the production behavior that
+        # previously made the helper reject its own 2700 staging directory.
+        chmod = root / 'bin/chmod'
+        chmod.unlink()
+        chmod.write_text(r'''#!/bin/busybox sh
+set -eu
+preserve_setgid=0
+target=
+case "${1:-}" in
+  [0-7]*)
+    for argument in "$@"; do target=$argument; done
+    if [ -d "$target" ]; then
+      mode=$(/bin/busybox stat -c '%a' -- "$target")
+      case "$mode" in
+        2???|3???|6???|7???) preserve_setgid=1 ;;
+      esac
+    fi
+    ;;
+esac
+/bin/busybox chmod "$@"
+if [ "$preserve_setgid" -eq 1 ]; then
+  /bin/busybox chmod g+s -- "$target"
+fi
+''')
+        chmod.chmod(0o755)
+
         helper = root / 'installer'
         helper.write_text(
             (FORKY / 'hooks/target/usr/local/bin/codex-standalone-install').read_text()

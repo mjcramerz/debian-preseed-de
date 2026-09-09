@@ -240,6 +240,10 @@ installer_staging=$(/usr/bin/mktemp -d "${codex_root}/.standalone-install.XXXXXX
   fatal 'cannot allocate the standalone package staging directory'
 /bin/chmod 0600 -- "$installer_script"
 /bin/chmod 0700 -- "$installer_home"
+# /data/codex is setgid. GNU chmod preserves setgid on directories unless it
+# is cleared explicitly, even when applying numeric mode 0700. Remove inherited
+# special bits before enforcing the private staging-directory mode.
+/bin/chmod a-s -- "$installer_staging"
 /bin/chmod 0700 -- "$installer_staging"
 require_private_directory 'standalone package staging directory' "$installer_staging"
 installer_codex_home=${installer_staging}/home

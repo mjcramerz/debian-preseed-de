@@ -480,6 +480,21 @@ class CodexDeploymentContractTests(unittest.TestCase):
         self.assertNotIn('PATH="${installer_bin}:${PATH}"', text)
         self.assertIn('/bin/mv -- "$install_packages" "$packages_root"', text)
         self.assertIn("--proto-redir '=https'", text)
+        clear_staging_special_bits = '/bin/chmod a-s -- "$installer_staging"'
+        enforce_staging_mode = '/bin/chmod 0700 -- "$installer_staging"'
+        validate_staging_mode = (
+            "require_private_directory 'standalone package staging directory' "
+            '"$installer_staging"'
+        )
+        self.assertIn(clear_staging_special_bits, text)
+        self.assertLess(
+            text.index(clear_staging_special_bits),
+            text.index(enforce_staging_mode),
+        )
+        self.assertLess(
+            text.index(enforce_staging_mode),
+            text.index(validate_staging_mode),
+        )
 
         old_path = FORKY / 'scripts/late/codex-standalone-install'
         self.assertFalse(old_path.exists())
