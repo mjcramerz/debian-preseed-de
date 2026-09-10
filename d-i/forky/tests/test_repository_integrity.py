@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shlex
 import subprocess
 import sys
@@ -96,6 +97,26 @@ class RepositoryIntegrityTests(unittest.TestCase):
     def test_build_products_are_current(self):
         result=subprocess.run([sys.executable,'-B',str(ROOT/'tools/build.py'),'--check'],capture_output=True,text=True,timeout=30)
         self.assertEqual(result.returncode,0,result.stderr+result.stdout)
+
+    def test_preseed_checker_imports_with_python_safe_path(self):
+        checker = ROOT / 'tools/check_preseeds.py'
+        result = subprocess.run(
+            [sys.executable, '-B', '-c',
+             f'import runpy; runpy.run_path({str(checker)!r})'],
+            env={**os.environ, 'PYTHONSAFEPATH': '1'},
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_counts_skips_from_failed_unittest_run(self):
+        namespace = runpy.run_path(str(ROOT / 'tools/validate.py'))
+        parse_counts = namespace['unittest_counts']
+        failed = 'Ran 563 tests in 1.0s\n\nFAILED (failures=217, errors=30, skipped=67)\n'
+        passed = 'Ran 29 tests in 1.0s\n\nOK\n'
+        self.assertEqual(parse_counts(failed), (563, 67))
+        self.assertEqual(parse_counts(passed), (29, 0))
 
 if __name__ == '__main__':
     unittest.main()

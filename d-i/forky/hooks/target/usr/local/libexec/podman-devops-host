@@ -27,11 +27,30 @@ import time
 from typing import Iterator
 
 USER = 'devops'
-HOME = Path('/data/accounts/devops')
-POOL = Path('/pool/podman')
+HOME = Path('/nonexistent')
+LEGACY_HOME = Path('/data/accounts/devops')
+NOLOGIN = '/usr/sbin/nologin'
+POOL_ROOT = Path('/pool')
+POOL = POOL_ROOT / 'podman'
+XDG_DATA = POOL / 'xdg-data'
+XDG_CACHE = POOL / 'xdg-cache'
 CONFIG = Path('/etc/podman-devops')
+SERVER_CONFIG = CONFIG / 'server/containers'
 TEMPLATES = Path('/usr/local/share/podman-devops')
-SOCKET = HOME / 'run/podman.sock'
+RUNTIME = Path('/run/podman-devops')
+USER_RUNTIME_ROOT = Path('/run/user')
+SOCKET = RUNTIME / 'podman.sock'
+MANAGED_SYSTEM_UNITS = (
+    'podman-devops.service',
+    'podman-devops.socket',
+    'podman-devops-restart.service',
+)
+ROOTFUL_MASKED_SYSTEM_UNITS = (
+    'podman.socket',
+    'podman.service',
+    'docker.socket',
+    'docker.service',
+)
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
        'LC_ALL': 'C.UTF-8', 'HOME': '/root'}
 MAX_ID = 4294967294
@@ -45,6 +64,65 @@ def log(message: str) -> None:
     print(f'podman-devops: {message}', file=sys.stderr, flush=True)
 
 
+def process_session_live_members(process_session: int) -> set[int] | None:
+    """Return live members of one Linux session, or None when procfs is unavailable."""
+    try:
+        entries = os.scandir('/proc')
+    except OSError:
+        # The installed Debian target always mounts procfs. Failing closed here
+        # prevents pipe closure from being mistaken for complete cleanup.
+        return None
+    members: set[int] = set()
+    with entries:
+        for entry in entries:
+            if not entry.name.isdecimal():
+                continue
+            try:
+                stat_text = Path('/proc', entry.name, 'stat').read_text(
+                    encoding='ascii', errors='strict'
+                )
+                command_end = stat_text.rfind(')')
+                if command_end < 0:
+                    continue
+                fields = stat_text[command_end + 2:].split()
+                state, session = fields[0], int(fields[3])
+            except (IndexError, OSError, ValueError, UnicodeError):
+                continue
+            if session == process_session and state not in ('X', 'Z'):
+                members.add(int(entry.name))
+    return members
+
+
+def terminate_process_session(
+    process_session: int,
+    requested_signal: signal.Signals,
+    deadline: float,
+) -> bool:
+    """Signal every live process in a private session until it is stably empty."""
+    quiet_since: float | None = None
+    while True:
+        members = process_session_live_members(process_session)
+        now = time.monotonic()
+        if members is None:
+            quiet_since = None
+        elif members:
+            quiet_since = None
+            for member in members:
+                try:
+                    os.kill(member, requested_signal)
+                except ProcessLookupError:
+                    pass
+        else:
+            if quiet_since is None:
+                quiet_since = now
+            elif now - quiet_since >= 0.05:
+                return True
+        remaining = deadline - now
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.02, remaining))
+
+
 def run(argv: list[str], timeout: float = 30) -> str:
     """Bound subprocesses and terminate their process group on timeout/signal."""
     proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -52,18 +130,26 @@ def run(argv: list[str], timeout: float = 30) -> str:
     try:
         out, err = proc.communicate(timeout=timeout)
     except BaseException:
-        # A reaped leader does not mean that its descendants closed our pipes.
+        # A reaped leader or a closed pipe does not prove that every descendant
+        # exited. Check the complete process group before accepting cleanup.
+        cleaned = False
         for sig, grace in ((signal.SIGTERM, 3), (signal.SIGKILL, 2)):
+            deadline = time.monotonic() + grace
             try:
                 os.killpg(proc.pid, sig)
             except ProcessLookupError:
+                # A descendant may have entered another process group while it
+                # remains in this helper-owned session; inspect the session too.
                 pass
-            try:
-                proc.communicate(timeout=grace)
+            cleaned = terminate_process_session(proc.pid, sig, deadline)
+            if cleaned:
+                try:
+                    proc.communicate(timeout=0.2)
+                except subprocess.TimeoutExpired:
+                    cleaned = False
+            if cleaned:
                 break
-            except subprocess.TimeoutExpired:
-                continue
-        else:
+        if not cleaned:
             for stream in (proc.stdout, proc.stderr):
                 if stream is not None:
                     stream.close()
@@ -277,6 +363,13 @@ def password_locked() -> bool:
     return False
 
 
+def reject_service_account_home() -> None:
+    """The locked account has no home; legacy home-shaped state is rejected."""
+    for path in (HOME, LEGACY_HOME):
+        if path.exists() or path.is_symlink():
+            raise Failure(f'devops must not have a home directory: {path}')
+
+
 def account(create: bool = False) -> tuple[int, int]:
     try:
         pwd.getpwnam('podsvc')
@@ -299,19 +392,32 @@ def account(create: bool = False) -> tuple[int, int]:
         if not create:
             raise Failure('devops service account is missing') from None
         run(['/usr/sbin/useradd', '--system', '--gid', USER, '--no-create-home',
-             '--home-dir', str(HOME), '--shell', '/usr/sbin/nologin',
+             '--home-dir', str(HOME), '--shell', NOLOGIN,
              '--comment', 'Locked rootless container service', '--no-log-init', USER])
         user = pwd.getpwnam(USER)
-    if user.pw_uid == 0 or user.pw_dir != str(HOME) or user.pw_shell != '/usr/sbin/nologin':
+    if user.pw_uid == 0 or user.pw_uid >= 1000 or user.pw_dir != str(HOME):
         raise Failure('refusing to take over a login account or unexpected devops home')
     groups = set(os.getgrouplist(USER, user.pw_gid))
-    if create and (user.pw_gid != group.gr_gid or groups != {group.gr_gid} or not password_locked()):
-        run(['/usr/sbin/usermod', '--gid', USER, '--groups', '', '--lock', USER])
+    if create and (user.pw_shell != NOLOGIN or user.pw_gid != group.gr_gid
+                   or groups != {group.gr_gid} or not password_locked()):
+        run(['/usr/sbin/usermod', '--shell', NOLOGIN, '--gid', USER,
+             '--groups', '', '--lock', USER])
         user = pwd.getpwnam(USER)
         groups = set(os.getgrouplist(USER, user.pw_gid))
-    if user.pw_gid != group.gr_gid or groups != {group.gr_gid} or not password_locked():
-        raise Failure('devops must be locked with primary group devops and no supplementary groups')
+    if (user.pw_shell != NOLOGIN or user.pw_gid != group.gr_gid
+            or groups != {group.gr_gid} or not password_locked()):
+        raise Failure(
+            'devops must use nologin and be locked with primary group devops and no supplementary groups')
     return user.pw_uid, group.gr_gid
+
+
+def require_pool_root(gid: int) -> None:
+    direct_path(POOL_ROOT)
+    meta = POOL_ROOT.lstat()
+    if (not stat.S_ISDIR(meta.st_mode) or
+            (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) !=
+            (0, gid, 0o3775)):
+        raise Failure('/pool must be root:devops mode 3775')
 
 
 def driver_for(filesystem: str, requested: str) -> str:
@@ -342,6 +448,29 @@ def require_podman_version() -> None:
         raise Failure('Podman >= 5.8.6 is required for boot-state-aware stop --service semantics')
 
 
+def reject_user_manager_state(uid: int) -> None:
+    """The service UID must never have linger or a systemd user-unit tree."""
+    forbidden = (
+        Path('/var/lib/systemd/linger') / USER,
+        HOME / '.config/systemd',
+        LEGACY_HOME / '.config/systemd',
+        Path(f'/etc/systemd/system/user@{uid}.service.d/50-podman-devops.conf'),
+        Path(f'/etc/systemd/system/user-{uid}.slice.d/50-podman-devops.conf'),
+        USER_RUNTIME_ROOT / str(uid) / 'bus',
+        USER_RUNTIME_ROOT / str(uid) / 'systemd',
+    )
+    for path in forbidden:
+        if path.exists() or path.is_symlink():
+            raise Failure(f'devops must not have a user manager or linger state: {path}')
+    if Path('/run/systemd/system').exists():
+        active = subprocess.run(
+            ['/usr/bin/systemctl', 'is-active', '--quiet', f'user@{uid}.service'],
+            env=ENV, timeout=10, check=False,
+        ).returncode == 0
+        if active:
+            raise Failure('devops systemd user manager must not be active')
+
+
 def setup(args: argparse.Namespace) -> None:
     try:
         desktop = pwd.getpwnam(args.desktop_user)
@@ -351,102 +480,90 @@ def setup(args: argparse.Namespace) -> None:
         raise Failure('desktop account must be a separate unprivileged login account')
     for binary in ('/usr/bin/podman', '/usr/bin/docker', '/usr/bin/docker-compose',
                    '/usr/bin/crun', '/usr/bin/newuidmap', '/usr/bin/newgidmap',
-                   '/usr/bin/pasta', '/usr/bin/loginctl', '/usr/sbin/nologin'):
+                   '/usr/bin/pasta', '/usr/bin/systemctl', '/usr/bin/env',
+                   '/usr/bin/install', NOLOGIN):
         if not os.access(binary, os.X_OK):
             raise Failure(f'required executable is missing: {binary}')
-    # Never start services from setup: an installer chroot has no own PID 1.
+    # Never rewrite a live engine. Installer setup runs in an offline target.
     if Path('/run/systemd/system').exists():
-        try:
-            user = pwd.getpwnam(USER)
-        except KeyError:
-            pass
-        else:
-            active = subprocess.run(['/usr/bin/systemctl', 'is-active', '--quiet',
-                                     f'user@{user.pw_uid}.service'], env=ENV,
-                                    timeout=10, check=False).returncode == 0
+        for unit in MANAGED_SYSTEM_UNITS:
+            active = subprocess.run(
+                ['/usr/bin/systemctl', 'is-active', '--quiet', unit],
+                env=ENV, timeout=10, check=False,
+            ).returncode == 0
             if active:
-                raise Failure('setup requires a stopped devops user manager; use start for live validation')
+                raise Failure(f'setup requires a stopped service: {unit}')
     require_podman_version()
     uid, gid = account(create=True)
     mappings = ensure_subids(uid)
-    directory(CONFIG, 0o755)
+    reject_service_account_home()
+    reject_user_manager_state(uid)
+    directory(CONFIG, 0o750, gid=gid)
+    directory(CONFIG / 'server', 0o750, gid=gid)
+    directory(SERVER_CONFIG, 0o750, gid=gid)
     state_path = CONFIG / 'layout.json'
     previous = json.loads(read_root_file(state_path)) if state_path.exists() else None
-    for parent in (Path('/data'), Path('/data/accounts')):
-        directory(parent, 0o755)
-    # The generic layout already grants devops write access to /pool. Add the
-    # sticky bit, preserving all other access, to protect root-owned pool roots.
-    direct_path(Path('/pool'))
-    pool_meta = Path('/pool').stat()
-    if pool_meta.st_uid != 0:
-        raise Failure('/pool must be root-owned')
-    os.chmod('/pool', stat.S_IMODE(pool_meta.st_mode) | stat.S_ISVTX)
+    # The shared storage policy is authoritative; do not silently repair drift.
+    require_pool_root(gid)
     directory(POOL, 0o711)
     filesystem = run(['/usr/bin/stat', '-f', '-c', '%T', '--', str(POOL)])
     driver = driver_for(filesystem, args.storage_driver)
-    identity = {'version': 1, 'uid': uid, 'gid': gid, 'home': str(HOME),
-                'pool': str(POOL), 'driver': driver, **mappings}
+    identity = {'version': 3, 'uid': uid, 'gid': gid, 'home': str(HOME),
+                'pool': str(POOL), 'runtime': str(RUNTIME),
+                'driver': driver, **mappings}
     if previous and any(previous.get(key) != value for key, value in identity.items()):
-        raise Failure('existing storage identity/driver/mappings differ; automatic migration is forbidden')
+        raise Failure('existing storage identity/driver/runtime/mappings differ; automatic migration is forbidden')
     if not previous:
         for leaf in ('storage', 'volumes', 'networks', 'libpod', 'imagestore'):
             path = POOL / leaf
             direct_path(path, missing_leaf=True)
             if path.exists() and (not path.is_dir() or any(path.iterdir())):
                 raise Failure(f'unmanaged data in {path}; back up and migrate explicitly')
-    directory(HOME, 0o710, gid=gid)
-    for relative in ('.config', '.config/containers', '.config/containers/registries.conf.d',
-                     '.config/containers/certs.d', '.config/containers/systemd',
-                     '.config/systemd', '.config/systemd/user',
-                     '.config/systemd/user/sockets.target.wants',
-                     '.config/systemd/user/default.target.wants', '.local'):
-        directory(HOME / relative, 0o750, gid=gid)
-    # Private leaf directories are not recursively changed on a subsequent run.
-    for relative in ('.cache', '.local/share', 'run'):
-        directory(HOME / relative, 0o710 if relative == 'run' else 0o700, uid, gid)
-    directory(HOME / '.ssh', 0o700)
-    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp'):
+    reject_service_account_home()
+    # All persistent mutable data is explicit pool state, never a passwd home.
+    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp',
+                 'xdg-data', 'xdg-cache'):
         directory(POOL / leaf, 0o700, uid, gid)
     directory(POOL / 'workspace', 0o2770, uid, gid)
     if gid not in os.getgrouplist(desktop.pw_name, desktop.pw_gid):
         run(['/usr/sbin/usermod', '--append', '--groups', USER, desktop.pw_name])
-    values = {'UID': str(uid), 'DRIVER': driver, 'CPU_WEIGHT': str(args.cpu_weight),
-              'IO_WEIGHT': str(args.io_weight), 'TASKS_MAX': str(args.tasks_max),
+    values = {'UID': str(uid), 'DRIVER': driver,
+              'CPU_WEIGHT': str(args.cpu_weight),
+              'IO_WEIGHT': str(args.io_weight),
+              'TASKS_MAX': str(args.tasks_max),
               'MEMORY_HIGH': args.memory_high, 'MEMORY_MAX': args.memory_max}
     managed = {}
     for name, destination, mode, file_gid in (
-            ('containers.conf.tmpl', HOME / '.config/containers/containers.conf', 0o640, gid),
-            ('storage.conf.tmpl', HOME / '.config/containers/storage.conf', 0o640, gid),
-            ('registries.conf', HOME / '.config/containers/registries.conf', 0o640, gid),
-            ('podman.service.tmpl', HOME / '.config/systemd/user/podman.service', 0o640, gid),
-            ('podman.socket', HOME / '.config/systemd/user/podman.socket', 0o640, gid),
-            ('podman-restart.service.tmpl', HOME / '.config/systemd/user/podman-restart.service', 0o640, gid),
-            ('client.conf', CONFIG / 'client.conf', 0o644, 0)):
+            ('containers.conf.tmpl', SERVER_CONFIG / 'containers.conf', 0o640, gid),
+            ('storage.conf.tmpl', SERVER_CONFIG / 'storage.conf', 0o640, gid),
+            ('registries.conf', SERVER_CONFIG / 'registries.conf', 0o640, gid),
+            ('client.conf', CONFIG / 'client.conf', 0o640, gid),
+            ('podman-devops.service.tmpl',
+             Path('/etc/systemd/system/podman-devops.service'), 0o644, 0),
+            ('podman-devops.socket',
+             Path('/etc/systemd/system/podman-devops.socket'), 0o644, 0),
+            ('podman-devops-restart.service.tmpl',
+             Path('/etc/systemd/system/podman-devops-restart.service'), 0o644, 0)):
         data = render(name, values)
         atomic_write(destination, data, mode, file_gid)
         managed[str(destination)] = hashlib.sha256(data).hexdigest()
-    for name, unit in (('user-manager.conf.tmpl', f'user@{uid}.service'),
-                       ('user-slice.conf.tmpl', f'user-{uid}.slice')):
-        parent = Path('/etc/systemd/system') / (unit + '.d')
-        directory(parent, 0o755)
-        data = render(name, values)
-        destination = parent / '50-podman-devops.conf'
-        atomic_write(destination, data)
-        managed[str(destination)] = hashlib.sha256(data).hexdigest()
-    units = HOME / '.config/systemd/user'
-    atomic_link(units / 'sockets.target.wants/podman.socket', '../podman.socket')
-    atomic_link(units / 'default.target.wants/podman-restart.service', '../podman-restart.service')
     # Explicitly exclude rootful APIs. No Docker daemon is installed by this addon.
-    for unit in ('podman.socket', 'podman.service', 'docker.socket', 'docker.service'):
+    for unit in ROOTFUL_MASKED_SYSTEM_UNITS:
         path = Path('/etc/systemd/system') / unit
         if path.is_symlink() and os.readlink(path) == '/dev/null':
             continue
         if path.exists() or path.is_symlink():
             raise Failure(f'pre-existing rootful unit override requires review: {path}')
         atomic_link(path, '/dev/null')
-    wants = Path('/etc/systemd/system/multi-user.target.wants')
-    directory(wants, 0o755)
-    atomic_link(wants / 'podman-devops-bootstrap.service', '../podman-devops-bootstrap.service')
+    sockets_wants = Path('/etc/systemd/system/sockets.target.wants')
+    multi_wants = Path('/etc/systemd/system/multi-user.target.wants')
+    directory(sockets_wants, 0o755)
+    directory(multi_wants, 0o755)
+    atomic_link(sockets_wants / 'podman-devops.socket', '../podman-devops.socket')
+    atomic_link(multi_wants / 'podman-devops-bootstrap.service',
+                '../podman-devops-bootstrap.service')
+    atomic_link(multi_wants / 'podman-devops-restart.service',
+                '../podman-devops-restart.service')
     # No one-shot success stamp: activation revalidates actual state every boot.
     state = {**identity, 'desktop_user': desktop.pw_name, 'managed_files': managed}
     atomic_write(state_path, (json.dumps(state, indent=2, sort_keys=True) + '\n').encode())
@@ -457,45 +574,60 @@ def load_and_validate() -> dict:
     require_podman_version()
     state = json.loads(read_root_file(CONFIG / 'layout.json'))
     uid, gid = account()
-    if state.get('uid') != uid or state.get('gid') != gid or state.get('version') != 1:
-        raise Failure('service identity changed since provisioning')
-    for path in (HOME, POOL):
+    reject_service_account_home()
+    reject_user_manager_state(uid)
+    require_pool_root(gid)
+    if (state.get('uid') != uid or state.get('gid') != gid or
+            state.get('version') != 3 or state.get('home') != str(HOME) or
+            state.get('runtime') != str(RUNTIME)):
+        raise Failure('service identity/runtime changed since provisioning')
+    for path in (POOL,):
         direct_path(path)
         trusted_parent(path)
         if path.stat().st_uid != 0 or path.stat().st_mode & 0o022:
             raise Failure(f'managed root is no longer protected: {path}')
     for name, actual in (('subuid', {p.pw_uid for p in pwd.getpwall()}),
                          ('subgid', {g.gr_gid for g in grp.getgrall()})):
-        start, count, new = choose_subids(subid_rows(read_root_file(Path('/etc') / name).decode()), uid, actual)
+        start, count, new = choose_subids(
+            subid_rows(read_root_file(Path('/etc') / name).decode()), uid, actual)
         if new or state.get(name) != [start, count]:
             raise Failure(f'{name} mapping changed; refusing to use existing storage')
     for value, digest in state['managed_files'].items():
         if hashlib.sha256(read_root_file(Path(value))).hexdigest() != digest:
             raise Failure(f'managed configuration changed; run offline setup to reconcile: {value}')
-    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp', 'workspace'):
+    for leaf in ('storage', 'volumes', 'networks', 'libpod', 'tmp',
+                 'xdg-data', 'xdg-cache', 'workspace'):
         path = POOL / leaf
         direct_path(path)
         meta = path.stat()
         expected = 0o2770 if leaf == 'workspace' else 0o700
-        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != uid or meta.st_gid != gid or stat.S_IMODE(meta.st_mode) != expected:
+        if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid != uid or
+                meta.st_gid != gid or stat.S_IMODE(meta.st_mode) != expected):
             raise Failure(f'storage owner/mode is invalid: {path}')
-    runtime = HOME / 'run'
-    direct_path(runtime)
-    meta = runtime.stat()
-    if (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (uid, gid, 0o710):
-        raise Failure('socket directory metadata is unsafe')
-    for unit in ('podman.socket', 'podman.service', 'docker.socket', 'docker.service'):
+    for unit in ROOTFUL_MASKED_SYSTEM_UNITS:
         path = Path('/etc/systemd/system') / unit
         if not path.is_symlink() or os.readlink(path) != '/dev/null':
             raise Failure(f'rootful API mask removed: {unit}')
+    for directory_path, unit, target in (
+            (Path('/etc/systemd/system/sockets.target.wants'),
+             'podman-devops.socket', '../podman-devops.socket'),
+            (Path('/etc/systemd/system/multi-user.target.wants'),
+             'podman-devops-bootstrap.service', '../podman-devops-bootstrap.service'),
+            (Path('/etc/systemd/system/multi-user.target.wants'),
+             'podman-devops-restart.service', '../podman-devops-restart.service')):
+        path = directory_path / unit
+        if not path.is_symlink() or os.readlink(path) != target:
+            raise Failure(f'managed system unit is not enabled exactly: {unit}')
     return state
 
 
-def user_command(uid: int, command: list[str], timeout: float = 30) -> str:
-    return run(['/usr/sbin/runuser', '--user', USER, '--', '/usr/bin/env', '-i',
-                'PATH=/usr/bin:/bin', 'LANG=C.UTF-8', f'HOME={HOME}',
-                f'XDG_RUNTIME_DIR=/run/user/{uid}',
-                f'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/{uid}/bus', *command], timeout)
+def service_command(command: list[str], timeout: float = 30) -> str:
+    # The bootstrap is root and talks only to the already privilege-dropped
+    # remote engine. Never use runuser/su here: their PAM session can activate
+    # user@UID.service and the desktop user-unit graph for this locked account.
+    return run(['/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', 'LANG=C.UTF-8',
+                'HOME=/root', 'CONTAINERS_CONF=/etc/podman-devops/client.conf',
+                f'CONTAINER_HOST=unix://{SOCKET}', *command], timeout)
 
 
 def start() -> None:
@@ -503,31 +635,37 @@ def start() -> None:
     uid, gid = state['uid'], state['gid']
     if not Path('/sys/fs/cgroup/cgroup.controllers').is_file():
         raise Failure('unified cgroup v2 is required')
-    run(['/usr/bin/loginctl', 'enable-linger', USER])
-    run(['/usr/bin/systemctl', 'start', f'user@{uid}.service'], timeout=60)
-    user_command(uid, ['/usr/bin/systemctl', '--user', 'daemon-reload'])
-    user_command(uid, ['/usr/bin/systemctl', '--user', 'reset-failed', 'podman.service', 'podman.socket'])
-    user_command(uid, ['/usr/bin/systemctl', '--user', 'start', 'podman.socket'])
+    directory(RUNTIME, 0o710, uid, gid)
+    run(['/usr/bin/systemctl', 'daemon-reload'])
+    run(['/usr/bin/systemctl', 'reset-failed',
+         'podman-devops.service', 'podman-devops.socket'])
+    run(['/usr/bin/systemctl', 'start', 'podman-devops.socket'], timeout=60)
     direct_path(SOCKET)
     meta = SOCKET.stat()
-    if not stat.S_ISSOCK(meta.st_mode) or (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (uid, gid, 0o660):
+    if (not stat.S_ISSOCK(meta.st_mode) or
+            (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) !=
+            (uid, gid, 0o660)):
         raise Failure('API socket has incorrect type/owner/group/mode')
-    # Query through the actual socket as devops, not as root. This also proves
-    # user namespaces/storage initialize; it does not pull images or run code.
-    info = json.loads(user_command(uid, ['/usr/bin/podman', '--remote',
-                                         f'--url=unix://{SOCKET}', 'info', '--format=json'], 60))
+    # Query the socket with a clean root-side remote client. The activated
+    # server itself runs as devops and reports rootless mode. Avoiding PAM-based
+    # user switching guarantees this check cannot start a systemd user manager.
+    info = json.loads(service_command(
+        ['/usr/bin/podman', '--remote', f'--url=unix://{SOCKET}',
+         'info', '--format=json'], 60))
     host = info.get('host', {})
     store = info.get('store', {})
     if host.get('security', {}).get('rootless') is not True:
         raise Failure('API did not report a rootless engine')
-    if host.get('cgroupVersion') != 'v2' or host.get('cgroupManager') != 'systemd':
-        raise Failure('API did not report systemd-managed cgroup v2')
+    if host.get('cgroupVersion') != 'v2' or host.get('cgroupManager') != 'cgroupfs':
+        raise Failure('API did not report delegated cgroupfs on cgroup v2')
     if (store.get('graphRoot'), store.get('graphDriverName'), store.get('volumePath')) != (
             str(POOL / 'storage'), state['driver'], str(POOL / 'volumes')):
         raise Failure('API reported unexpected storage paths/driver')
     if host.get('networkBackend') != 'netavark':
         raise Failure('API did not report the configured netavark backend')
-    log(f'ready uid={uid} rootless=true cgroup=v2 graphroot={store["graphRoot"]} socket={SOCKET}')
+    run(['/usr/bin/systemctl', 'is-active', '--quiet',
+         'podman-devops.socket', 'podman-devops.service'])
+    log(f'ready uid={uid} rootless=true cgroup=v2 manager=cgroupfs graphroot={store["graphRoot"]} socket={SOCKET}')
 
 
 def percentage(value: str) -> str:
@@ -549,7 +687,7 @@ def parser() -> argparse.ArgumentParser:
     install.add_argument('--memory-max', type=percentage, default='85%')
     sub.add_parser('start', help='validate actual state and activate through systemd')
     sub.add_parser('check', help='read-only offline ownership/configuration checks')
-    sub.add_parser('verify-start', help='read-only user-manager preflight; no lock or mutation')
+    sub.add_parser('verify-start', help='read-only system-service preflight; no lock or mutation')
     return result
 
 
@@ -563,10 +701,10 @@ def main() -> int:
         if int(args.memory_high[:-1]) >= int(args.memory_max[:-1]):
             raise Failure('MemoryHigh must be below MemoryMax')
     if args.mode == 'verify-start':
-        # Called by user@UID ExecStartPre as root. Do not take the outer
-        # activation lock: start can be waiting for this manager to come up.
+        # Called by the system service ExecStartPre with the '+' prefix.
+        # Do not take the outer activation lock while bootstrap may be waiting.
         load_and_validate()
-        log('user-manager preflight verified')
+        log('system-service preflight verified')
         return 0
     with locked():
         if args.mode == 'setup':

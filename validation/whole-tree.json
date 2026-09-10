@@ -1,14 +1,14 @@
 {
   "success": true,
-  "file_count": 1303,
+  "file_count": 1321,
   "check_counts": {
     "binary-inventory-only": 11,
-    "inventory-only": 875,
-    "python-syntax-pass": 101,
-    "shell-syntax-pass": 195,
-    "template-needs-render": 121
+    "inventory-only": 889,
+    "python-syntax-pass": 106,
+    "shell-syntax-pass": 196,
+    "template-needs-render": 119
   },
-  "shellcheck": "NOT RUN: executable unavailable",
+  "shellcheck": "available-not-invoked",
   "perl": "See make audit / validation/audit.json; missing dependencies are BLOCKED, not PASS.",
   "limits": [
     "No code execution for Python AST or shell -n checks.",
@@ -18,8 +18,15 @@
   "errors": [],
   "files": [
     {
+      "path": ".gitignore",
+      "mode": "0o660",
+      "bytes": 6,
+      "sha256": "dcf64edcae519b6f3d61c4e1141880d6d1a34be5a6e38e3261f3f60aae86ee3b",
+      "check": "inventory-only"
+    },
+    {
       "path": "Makefile",
-      "mode": "0o640",
+      "mode": "0o660",
       "bytes": 722,
       "sha256": "f6105480b71d55fcd45f854ba62174719a3ea03028831adf0cc929aaf752e35f",
       "check": "inventory-only"
@@ -27,20 +34,20 @@
     {
       "path": "PODMAN-INCUS-REFACTOR.md",
       "mode": "0o640",
-      "bytes": 10321,
-      "sha256": "c3e0a1cc7253f181891acfd1dc5b022c6f266d22e5d159f069020ae6bd881fc0",
+      "bytes": 10763,
+      "sha256": "477b348138a5904dd600fc1978ca2a23d8bd171eb5848c8ff637fa1e3304bbb4",
       "check": "inventory-only"
     },
     {
       "path": "README.md",
-      "mode": "0o640",
+      "mode": "0o660",
       "bytes": 12739,
       "sha256": "52bbc1b3938339b03b8316133044c73db0918c435f50026f3d826836f0a83a64",
       "check": "inventory-only"
     },
     {
       "path": "SECURITY.md",
-      "mode": "0o640",
+      "mode": "0o660",
       "bytes": 12290,
       "sha256": "31bfcae9bfdbc8a93b5c6ca4e71db2bf863bddcc40d3ea8e7f952c3333a4a475",
       "check": "inventory-only"
@@ -131,9 +138,9 @@
     },
     {
       "path": "d-i/forky/classes/class-addon/nvidia-legacy.cfg",
-      "mode": "0o640",
-      "bytes": 1060,
-      "sha256": "0d9755f5ee5f40ec4565cdd1af5365bf695a085a1f9813b354c6c54f9bfe4abd",
+      "mode": "0o660",
+      "bytes": 1112,
+      "sha256": "9f69c507fe9c42c70743dfdaef08104ca08609dcd7aa76384d1f0318765ac215",
       "check": "inventory-only"
     },
     {
@@ -146,8 +153,8 @@
     {
       "path": "d-i/forky/classes/class-addon/podman.cfg",
       "mode": "0o640",
-      "bytes": 358,
-      "sha256": "e18f51fc50707d184f3e45f902096ee551a4e78813b8c81a1ffabd64a6024d49",
+      "bytes": 340,
+      "sha256": "fd1696443596c49a9928f5db6ef165c0a385a854e081ff3c256ba010f52a9f40",
       "check": "inventory-only"
     },
     {
@@ -250,9 +257,9 @@
     },
     {
       "path": "d-i/forky/classes/class-auto/arch/amd64.cfg",
-      "mode": "0o640",
-      "bytes": 1044,
-      "sha256": "e56e8f1be688d9be2384fc608ba20bc61bd25ccfb8a508f224ccec4fe84850da",
+      "mode": "0o660",
+      "bytes": 1045,
+      "sha256": "1f46caa69c3c3bec0b48a96f2a2e78acab6bc72537019072e487bb0c92dccec9",
       "check": "inventory-only"
     },
     {
@@ -271,7 +278,7 @@
     },
     {
       "path": "d-i/forky/classes/class-auto/cpu/generic-arm64.cfg",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 142,
       "sha256": "2de47f22877617f6618b5dacb3fe697fff8611bd4f6ac968e7dad23ba410ac1d",
       "check": "inventory-only"
@@ -558,7 +565,7 @@
     },
     {
       "path": "d-i/forky/hooks/installer/apt-setup/generators/98-cuda-legacy-source",
-      "mode": "0o640",
+      "mode": "0o660",
       "bytes": 615,
       "sha256": "8e3feb6f4a71f5674f86bebe3462890c4a7e91443e7fd3f17542411ed43fca08",
       "check": "shell-syntax-pass"
@@ -600,14 +607,14 @@
     },
     {
       "path": "d-i/forky/hooks/installer/finish-install.d/00-installer-guard",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 727,
       "sha256": "12c46783e382fd838b8bd1f70097a6aa27d03c5f07acfbc4ee4f923b18477e04",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/hooks/installer/finish-install.d/94zz-99-validate-target",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 2474,
       "sha256": "9bdd79965ab3cab5897ab6bc76a00ce2290c1666e1538a0c4da7de8b14824c3c",
       "check": "shell-syntax-pass"
@@ -747,51 +754,51 @@
     },
     {
       "path": "d-i/forky/hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh",
-      "mode": "0o640",
-      "bytes": 3693,
-      "sha256": "3e66182da3f45ece873a2288b4369c9a85e6108400f8896d898e4b6298231b43",
+      "mode": "0o660",
+      "bytes": 21778,
+      "sha256": "f52c1f1fc571f3cef9ad14bcd7c61c2a6cfef7d0056b580ddb83d224465ddfa4",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/hooks/target/data/codex/lib/codex",
-      "mode": "0o750",
-      "bytes": 80863,
-      "sha256": "b28f57b421d1f9d4bc8ecc9ffd6877c62daa8b5811e9d054995ca63857457f95",
+      "mode": "0o770",
+      "bytes": 78068,
+      "sha256": "28962995e43ad519ccf5603269a6c22bef0ae84a72a063959f95ebd6d47da5fa",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/client.conf",
       "mode": "0o640",
-      "bytes": 297,
-      "sha256": "cbde8c860d11ba4372bf0549228db30e38d31753c8bb93ece7a791796de25035",
+      "bytes": 290,
+      "sha256": "174fc87ce762db4afeea30fd383807a4dd3478ccef3f888d1686e259b285b2c4",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/containers.conf.tmpl",
       "mode": "0o640",
-      "bytes": 700,
-      "sha256": "231dd09d2b01d5ea39820b1190f5cbb3b2e62f01f4e381318c71c159e79b6b68",
+      "bytes": 704,
+      "sha256": "c237af08d26fe538cc709b7917638c53d5d90d69b5ec9e51b88ad95c902b6e89",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-restart.service.tmpl",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops-restart.service.tmpl",
       "mode": "0o640",
-      "bytes": 1051,
-      "sha256": "2383b13ec164900fbc728a71dd1044d4a8e9cfdb2a064cac53276df2bfa4e07c",
+      "bytes": 1504,
+      "sha256": "b2e17fcb23a2d833fc699d1959f52c0a3154f0f8d027d5addebe667ebd95bfa3",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.service.tmpl",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl",
       "mode": "0o640",
-      "bytes": 1537,
-      "sha256": "5ff8ab5465139638da9818b5ec49496a43ad038df24587d5e8e77e49dc01116b",
+      "bytes": 1955,
+      "sha256": "b9db5c0c88fe19db50a43e902a172eeccb2496c7c9b699ce5fa531a23f3f8645",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman.socket",
+      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.socket",
       "mode": "0o640",
-      "bytes": 381,
-      "sha256": "a44946fe92abddaa3c4d0b12a0e0f4f608037566a284d3ff0115036d8933b215",
+      "bytes": 448,
+      "sha256": "4324312ed135e52b84062bc5919fd679dda94f7ff65ec92885ef0e06888ec25d",
       "check": "inventory-only"
     },
     {
@@ -804,22 +811,8 @@
     {
       "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/storage.conf.tmpl",
       "mode": "0o640",
-      "bytes": 226,
-      "sha256": "21aa39e294b5834d8338b346a7d10bdda97513d599815928d28a5bb22db0d81b",
-      "check": "template-needs-render"
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-manager.conf.tmpl",
-      "mode": "0o640",
-      "bytes": 341,
-      "sha256": "0641a7b691393da3debf0436745c49242c6557e234052a980ff08d23e10eb9b7",
-      "check": "template-needs-render"
-    },
-    {
-      "path": "d-i/forky/hooks/target/data/config/podman/templates/devops/user-slice.conf.tmpl",
-      "mode": "0o640",
-      "bytes": 271,
-      "sha256": "88e863cca33360920dc32f53f4a9ef3af19a2c9c1d8c7bdafabb79c3b779eb73",
+      "bytes": 229,
+      "sha256": "de66514f4bfcbea49184c10e8395291f048e95b0e8abd30768be7e76b3b24313",
       "check": "template-needs-render"
     },
     {
@@ -853,8 +846,8 @@
     {
       "path": "d-i/forky/hooks/target/data/docs/podman-devops.md",
       "mode": "0o640",
-      "bytes": 18367,
-      "sha256": "725d135b6c228ebfe878c091e5df579a2ee061de0c3eb08ff13e6936cf53c2ed",
+      "bytes": 19009,
+      "sha256": "f949d8911b75f6e1020bee78f5d632a772cf3d21c09f2b1a46c856a6b5e90fe7",
       "check": "inventory-only"
     },
     {
@@ -964,9 +957,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-desktop-graphics",
-      "mode": "0o640",
-      "bytes": 5392,
-      "sha256": "5a4bbe58494eb5fa025bf69b88543b0cd39d10ec3ded76ea9536446333853122",
+      "mode": "0o600",
+      "bytes": 5529,
+      "sha256": "fdcf4ef5afa99ba5dcb7f022da166331a336aafdfd82447610fe2cfa0f3de869",
       "check": "inventory-only"
     },
     {
@@ -1013,16 +1006,16 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-pipewire-audio",
-      "mode": "0o640",
-      "bytes": 1875,
-      "sha256": "dee6606f6abbcaea40552bf15c799bb4717e1715627cc5978067d8e1257ae107",
+      "mode": "0o600",
+      "bytes": 1876,
+      "sha256": "87b7e4a3e5b62c6c647b48f84c56bd2c644caf4c9719cd9b6b2ce76591419e4e",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-session-client",
-      "mode": "0o640",
-      "bytes": 1135,
-      "sha256": "deceedb4cf787b58c15ecafdca8d7c33dd46107556675881fd9a0e7929f6cc0c",
+      "mode": "0o600",
+      "bytes": 1201,
+      "sha256": "84371be63e8bfbd5e73b388e34fa16b3fa1bd0aa8c6514cd945cdf8ff9cb292d",
       "check": "inventory-only"
     },
     {
@@ -1159,6 +1152,13 @@
       "check": "inventory-only"
     },
     {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/unix-chkpwd",
+      "mode": "0o600",
+      "bytes": 222,
+      "sha256": "d97482189c7e09cfe03424262b277e98222a798770bc58056dc15a10e6c686a8",
+      "check": "inventory-only"
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/local/usr.bin.freshclam",
       "mode": "0o640",
       "bytes": 330,
@@ -1188,16 +1188,16 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
-      "mode": "0o640",
-      "bytes": 3345,
-      "sha256": "e4b6b33eb76306eba4ed8eae893d3d5664a136062db5c74ac912823dabba19d8",
+      "mode": "0o600",
+      "bytes": 3513,
+      "sha256": "6a74c1004979a15d83f0e8ce08edf6b5ab891987c64f0794dd5648cab3c58e95",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
-      "mode": "0o640",
-      "bytes": 146247,
-      "sha256": "e9ceaa4eb8fcc9650c744bf1b2dcb6800643496c05a9400c2217ea1c0b9457fa",
+      "mode": "0o600",
+      "bytes": 146440,
+      "sha256": "1e3dbfdeca4ed91da1c1791a53c6738ba23c1e05ceaf7f41834468b12ae003ab",
       "check": "inventory-only"
     },
     {
@@ -1209,16 +1209,16 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
-      "mode": "0o640",
-      "bytes": 5589,
-      "sha256": "aba87527901110878820859bb3c867f25b849cc138cefb098ca5d0a67c652a58",
+      "mode": "0o600",
+      "bytes": 7912,
+      "sha256": "a8bf5a3a841565e41b2e21f19d8be809f347be7a8fd4752a80d329afd97e736a",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
-      "mode": "0o640",
-      "bytes": 27297,
-      "sha256": "8a95f389c5afe83d899516f6d22d9857a0340c4bc03d7b6b9c3bfceb1103c1a9",
+      "mode": "0o600",
+      "bytes": 27294,
+      "sha256": "7bf5e5b797836e175cbe5afc9806893206c83ce77b749659587c0d0e123a3827",
       "check": "inventory-only"
     },
     {
@@ -1734,9 +1734,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/default/codex-app-server",
-      "mode": "0o640",
-      "bytes": 301,
-      "sha256": "e59faec5810d849f9f6578e011cd9330c0be11c55c612f193df78f25274c9b0d",
+      "mode": "0o660",
+      "bytes": 340,
+      "sha256": "bc259a862e98e8be5262202a184dd14d9c87aea6c3c7d579901c28bba57adcf8",
       "check": "inventory-only"
     },
     {
@@ -1888,7 +1888,7 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/default/grub.d/80-cpu-profile-flags.generic-arm64.cfg",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 433,
       "sha256": "9f86be9717ab741070d6322dbee2c8d555c2ee31f60f1416711984630f8d3edd",
       "check": "inventory-only"
@@ -2560,7 +2560,7 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/modules-load.d/37-virt-host.generic-arm64.conf",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 103,
       "sha256": "2abbed8acc1d7ca500ff470aa92ffff225d0b4835cb8f0c1a7866371318cf265",
       "check": "inventory-only"
@@ -3009,8 +3009,8 @@
     {
       "path": "d-i/forky/hooks/target/etc/rsyslog.d/20-auth.conf",
       "mode": "0o640",
-      "bytes": 976,
-      "sha256": "98eb4189d12b10c53636b242ccde595f7a280860589820ae088693388f96eb72",
+      "bytes": 1652,
+      "sha256": "1bcd6a7d18f1c47d1155fc9daba06ab4ad5db58a6f08a031cd0ef3b4c59e3dca",
       "check": "inventory-only"
     },
     {
@@ -3112,1134 +3112,1134 @@
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.bash_aliases",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.bash_aliases",
       "mode": "0o600",
       "bytes": 365,
       "sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.bash_profile",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.bash_profile",
       "mode": "0o600",
       "bytes": 616,
       "sha256": "8859f1a1fb2cb6076659f7c61888da2ad4c95f5bfaa489b8915bdf7eccfee626",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.bash_profile.installer-base",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.bash_profile.installer-base",
       "mode": "0o600",
       "bytes": 419,
       "sha256": "b1eecf32bde0febbbbd35a2910e7e7dfdc6ff763ddc4ad577018829fa27cb81f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.bashrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.bashrc",
       "mode": "0o600",
       "bytes": 3073,
       "sha256": "8d001f81830d2ee071e6d3f84b3fc45db97e4ecbfd1d22119ab16006db224759",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.bashrc.installer-base",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.bashrc.installer-base",
       "mode": "0o600",
       "bytes": 1456,
       "sha256": "7f77d9d6eac4707b276e0f4e96f4a10b3728f1a88e698963f4d6fa4c2990db74",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/Code/User/settings.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/Code/User/settings.json",
       "mode": "0o640",
       "bytes": 16674,
       "sha256": "959b4def14685764cf7643d0c46825cc33f812a1234f66ed2081b0fc1eded53e",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/GottCode/FocusWriter.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/GottCode/FocusWriter.conf",
       "mode": "0o640",
       "bytes": 1256,
       "sha256": "696c5f0d3268c502f008fe0bed936a808b69fc587fb1c1cff163a4ab12551076",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/Recoll.org/recoll.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/Recoll.org/recoll.ini",
       "mode": "0o640",
       "bytes": 1598,
       "sha256": "685fbe1475b63fb652eeaef0c237dd4c7375c8059368f90af57f00a2b14d0ac2",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/Thunar/uca.xml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/Thunar/uca.xml",
       "mode": "0o640",
       "bytes": 1674,
       "sha256": "b72a375b2ec8cbe4b2e2ee48d066d358dbd8dc83fc9f84cda2b4b628e53811d0",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/autostart/mullvad-vpn.desktop",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/autostart/mullvad-vpn.desktop",
       "mode": "0o640",
       "bytes": 220,
       "sha256": "1ccfed47c7024b890af73825b2c12b465e1707326b89bd74a7312fa64298cabf",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/bazel/bazelrc.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/bazel/bazelrc.tmpl",
       "mode": "0o640",
       "bytes": 1604,
       "sha256": "dd6672417bbc4a0f4a91708f000ec382f633224f1a2daa92f5c83a06914f2b3f",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/cargo/config.toml.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/cargo/config.toml.tmpl",
       "mode": "0o640",
       "bytes": 878,
       "sha256": "3d275e31b68fd014a83522789dc660f4c38ae6d4defb7e66e4241b95f80e6e76",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/chromium/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/chromium/Default/Preferences",
       "mode": "0o640",
       "bytes": 218,
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/crystal-dock/labwc/appearance.conf.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/crystal-dock/labwc/appearance.conf.tmpl",
       "mode": "0o640",
       "bytes": 1148,
       "sha256": "29ccc3fe77cf42e5ddd9810a21ab6eed97ae20fa1a78635f04b803479ef054dc",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/crystal-dock/labwc/panel_1.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf",
       "mode": "0o640",
       "bytes": 427,
       "sha256": "0bda13d03789ca59346058462621847fc1ba2c84c9b930fd1e19128cbaabc531",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/featherpad/fp.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/featherpad/fp.conf",
       "mode": "0o640",
       "bytes": 102,
       "sha256": "1919d12ff1226287d2a296374e03ac4905b0bcbf7c7748e7e94cbe47e71780f9",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/foot/foot.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/foot/foot.ini",
       "mode": "0o640",
       "bytes": 930,
       "sha256": "c35848185a9c2bf50cfc0a7c315d055f6f6c17a44bd26ffc36118aba384b7314",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/base.ini.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/base.ini.tmpl",
       "mode": "0o640",
       "bytes": 762,
       "sha256": "617acf848f25b7fb66b08a468834b02fa82480220fe1021eb340a7029fc4a7e5",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/fuzzel.ini.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl",
       "mode": "0o640",
       "bytes": 140,
       "sha256": "5745125c0e745d2aa816cd8f46f1e07bd6469f65c2491932c0a40fff93081c0c",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/menu.ini.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/menu.ini.tmpl",
       "mode": "0o640",
       "bytes": 220,
       "sha256": "f1049b72701ce15fa201abda43eaa7f8eacab3cd74ff8fbcce1ab9c8ae7e86f5",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/gnote/addins/global.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/gnote/addins/global.ini",
       "mode": "0o640",
       "bytes": 469,
       "sha256": "4b88d281a6838e23febc9e926d7878409a07c8bb342c1439214e62086c1d2b9c",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/gtk-3.0/settings.ini.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/gtk-3.0/settings.ini.tmpl",
       "mode": "0o640",
       "bytes": 216,
       "sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/gtk-4.0/settings.ini.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/gtk-4.0/settings.ini.tmpl",
       "mode": "0o640",
       "bytes": 216,
       "sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/kanshi/config",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/kanshi/config",
       "mode": "0o640",
       "bytes": 749,
       "sha256": "1690503e46907db1c17a10fd064516f824f5df4854c9709b72aed71b1c716a92",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/kdiff3rc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/kdiff3rc",
       "mode": "0o640",
       "bytes": 195,
       "sha256": "52183fbe501e3948159ce2834406ca2fef6a1d3efd82a80eb5588228f1caa083",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/keepassxc/keepassxc.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/keepassxc/keepassxc.ini",
       "mode": "0o640",
       "bytes": 1479,
       "sha256": "49f2a450821a7efd7fc83bff0d103d0f5bd7c6aa7530ba6eda42072040f1d06c",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/khal/config",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/khal/config",
       "mode": "0o640",
       "bytes": 452,
       "sha256": "de57ffea3f3f8be718a94e235b332fe29479b32f44cf132e3a918e670649762f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/kitty/kitty.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/kitty/kitty.conf",
       "mode": "0o640",
       "bytes": 961,
       "sha256": "ec64729df1b1de2dbe5426d3dcd5c86e9af7fbda50d8eca968a46d36025d1fd9",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/kwalletrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/kwalletrc",
       "mode": "0o640",
       "bytes": 65,
       "sha256": "720ddb95d19de83fa3555c0858ff9be7150d8c210335035d80af8152192fdcad",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/autostart",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/autostart",
       "mode": "0o640",
       "bytes": 214,
       "sha256": "b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb",
       "check": "shell-syntax-pass"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/environment.d/10-wayland.env.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/environment.d/10-wayland.env.tmpl",
       "mode": "0o640",
       "bytes": 823,
       "sha256": "55572f7214d001042272bfee09e7ab51ca91fe19fbead9da02d5a8e6ea297995",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/environment.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/environment.tmpl",
       "mode": "0o640",
       "bytes": 674,
       "sha256": "9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/menu.xml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/menu.xml",
       "mode": "0o640",
       "bytes": 5039,
       "sha256": "0cdaffd48deddd9506817e76811641b3905268b6410ad00f60184c790aaf3460",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/rc.xml.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/rc.xml.tmpl",
       "mode": "0o640",
       "bytes": 10046,
       "sha256": "12170c52500325875cef1687d6d69f72f977c8c3328dd2ae009f0ce8f458e28a",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/shutdown",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/shutdown",
       "mode": "0o640",
       "bytes": 656,
       "sha256": "124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e",
       "check": "shell-syntax-pass"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/labwc/themerc-override",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/themerc-override",
       "mode": "0o640",
       "bytes": 1794,
       "sha256": "74c574c443a361610519fa6eb7135d364bbf94202b40270aef140ab96e2b4d52",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mako/config",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mako/config",
       "mode": "0o640",
       "bytes": 3941,
       "sha256": "41545803ec9eebe0ea1f6ba793f88e6d93fc9782df6ea45d9337c6c3f8916482",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/micro/settings.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/micro/settings.json",
       "mode": "0o640",
       "bytes": 220,
       "sha256": "0e377ef6a9c9ed2a026828ea51c12bbe5287f9ee27457f74ffe2b839ae4bef9d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/microsoft-edge/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/microsoft-edge/Default/Preferences",
       "mode": "0o640",
       "bytes": 218,
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mimeapps.list",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mimeapps.list",
       "mode": "0o640",
       "bytes": 23657,
       "sha256": "08abcdfd4204fdf9888306e1d6e3e3be62ace705283f177f28331871ce3e7ec1",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mise/conf.d/10-managed-tools.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/conf.d/10-managed-tools.toml",
       "mode": "0o640",
       "bytes": 377,
       "sha256": "abe234244e0c281bc19199dbe28ad95b777568277c694ff2ad4d33fff9670d41",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mise/config.development.local.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.development.local.toml",
       "mode": "0o640",
       "bytes": 108,
       "sha256": "a645677fce8b5018ddc372b57c82507e58532c5fb5f06c4d2c5ee58377920109",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mise/config.development.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.development.toml",
       "mode": "0o640",
       "bytes": 188,
       "sha256": "57dc0f665719124642941cae349a316b6a7a450cf5856935f5f65334f47d676b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mise/config.local.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.local.toml",
       "mode": "0o640",
       "bytes": 157,
       "sha256": "5ae36dcab2b037c9f12e069adbb7971cd92a8b42917aaf8154e2fdf45b716e2e",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mise/config.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.toml",
       "mode": "0o640",
       "bytes": 399,
       "sha256": "f1416b36ac3df974263090afcd86ac43bf1e9018bc5f8b818342fa259a7961f5",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mpv/input.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mpv/input.conf",
       "mode": "0o640",
       "bytes": 244,
       "sha256": "f23e58fa4e4e987535fc183e7ccb0c56f5fcddfd56e7db16df2ec3cd27b87f4a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/mpv/mpv.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/mpv/mpv.conf",
       "mode": "0o640",
       "bytes": 392,
       "sha256": "a5b9d96a5f1542e978a17ab61af3a4fe8012cc81fcf92ad40e8ea376d6bcc5ab",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/nano/nanorc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/nano/nanorc",
       "mode": "0o640",
       "bytes": 715,
       "sha256": "59044321635861e79c850e1320ab93847ee9dcf6a6b644258cc5255acbb32442",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/nvim/init.lua",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/nvim/init.lua",
       "mode": "0o640",
       "bytes": 522,
       "sha256": "98478763b601e4dba671c2e575343d07cbfd072c2993ddd15e9a1bc8fa7f7381",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/obsidian/obsidian.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/obsidian/obsidian.json",
       "mode": "0o640",
       "bytes": 61,
       "sha256": "8b6db7995530ff5ea634eb530077f2df515ccfdf295967eff3fd59e79a525c1a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/packer/template.pkr.hcl.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/packer/template.pkr.hcl.tmpl",
       "mode": "0o640",
       "bytes": 761,
       "sha256": "347ec95ef8d0f39eda59992bb6b320df6dee624b32046527fc3a53c6ca9ad3c8",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/qalculate/qalc.cfg",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/qalculate/qalc.cfg",
       "mode": "0o640",
       "bytes": 77,
       "sha256": "54702e225a3b6233adbfd227545383adbd69d6d05f3b7bd72dee9a040efaabab",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/qalculate/qalculate-qt.cfg",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/qalculate/qalculate-qt.cfg",
       "mode": "0o640",
       "bytes": 63,
       "sha256": "3addf882924687f9bb940b3ebc2b94647a16a1a52dc0e1cb531ecbc396c5b47a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/qt6ct/qt6ct.conf.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/qt6ct/qt6ct.conf.tmpl",
       "mode": "0o640",
       "bytes": 658,
       "sha256": "77bd9fccc9d733df217fd11033a3ed16db57ae774aa9b68c0a8da919c11e08a9",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/retroarch/retroarch.cfg",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/retroarch/retroarch.cfg",
       "mode": "0o640",
       "bytes": 325,
       "sha256": "87cfe283d7bf60afb39a16357b87499bc3ebcb06644a4d708d8d55c9b0734f91",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/satty/config.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/satty/config.toml",
       "mode": "0o640",
       "bytes": 1693,
       "sha256": "7cfe46828be43a3b7d5017289b11398c56ce78eb152d456142ddbeb9cabab3b6",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/satty/overrides.css",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/satty/overrides.css",
       "mode": "0o640",
       "bytes": 522,
       "sha256": "fe82ed5f0898fef9f984da2b8566c763407d5658152686f67e0b7ce4f37b7de6",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/colors.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/colors.json",
       "mode": "0o640",
       "bytes": 3966,
       "sha256": "8cd5bdd57c1dc7dce8db173a2d2609bd7e45976d12ccd54f902c8917aea01602",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/config.json.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/config.json.tmpl",
       "mode": "0o640",
       "bytes": 1822,
       "sha256": "b7c59bd46efb652b0eec7c7d05ff969c82d2e902d7401f2acce2b144a6bf058a",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/filters.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/filters.json",
       "mode": "0o640",
       "bytes": 116,
       "sha256": "82354e800e31fc93581c0fdda6bfbdb75d0167bb3f012461ff0348b122217d89",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/starship.toml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/starship.toml",
       "mode": "0o640",
       "bytes": 1073,
       "sha256": "0c15d39753b8c9c9ca5a1a9e570ba50493454f66486b90f618632be20ae0547a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/swaylock/config",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/swaylock/config",
       "mode": "0o640",
       "bytes": 558,
       "sha256": "a0041f42b355e87c43b4825fea510512dd31a030a1f944ea9b56f96e1a0d6e48",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/codex-app-server.service",
-      "mode": "0o640",
-      "bytes": 1469,
-      "sha256": "4a1caef286cb4b5293f414c4023e8860b9451f72f5a75f9339368c628a42ff34",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/codex-app-server.service",
+      "mode": "0o660",
+      "bytes": 1555,
+      "sha256": "adc66db1a54db85b597ff6b61b5ff33f72d5af09f6dcd95812be32fdcb52971c",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/crystal-dock.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/crystal-dock.service",
       "mode": "0o640",
       "bytes": 1262,
       "sha256": "0b8ac459a8eb2bb3fd2ed184cef0c1cde34aa297aadfefc890db3baaa9e360e6",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/kanshi.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/kanshi.service",
       "mode": "0o640",
       "bytes": 790,
       "sha256": "4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-adb-server.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-adb-server.service",
       "mode": "0o640",
       "bytes": 1326,
       "sha256": "76997a92d38de807f415278f5ec106023026e6c80a47d19a9bed6cb120a15e66",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-calendar-sync.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service",
       "mode": "0o640",
       "bytes": 864,
       "sha256": "16f9fd8a83d5b7503f13800216dbda8a8a0a98e698d56058a4986bcda668afa0",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-calendar-sync.timer",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer",
       "mode": "0o640",
       "bytes": 685,
       "sha256": "a8416a7b13228cb97af11cb7bb8c1e5651f51dfd6904be0c53fe38cefc334ac4",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-compositor.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-compositor.service",
       "mode": "0o640",
-      "bytes": 1543,
-      "sha256": "019732c763d06b21803372605e31173332852c622bdf8fef86e24b37d5ed14f8",
+      "bytes": 1439,
+      "sha256": "627e19c9d6b4f4e14af4418846e39eda86f63bc7a6ea247cf1231e4a729abe08",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.path",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.path",
       "mode": "0o640",
       "bytes": 1168,
       "sha256": "bebdd2e89d96038df685623cc5ee437d334d9fba6078765c83fa6cd78e9b1249",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.service",
       "mode": "0o640",
       "bytes": 1566,
       "sha256": "cf967283e0a21b87712eafd7117d9d95e1a78d6a03895e8fd1202b00b9b46fcb",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.timer",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.timer",
       "mode": "0o640",
       "bytes": 683,
       "sha256": "50b46d656da8626074c3da87f94047b13cafb9a3471af3b34a31c4145c5afd85",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-kwallet-portal.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service",
       "mode": "0o640",
       "bytes": 776,
       "sha256": "cfe58105ba308c3e7f93fad8b75cc73506f5d9ab9b008997ee1bcdb01c02264e",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-mute-default-microphone.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service",
       "mode": "0o640",
       "bytes": 1205,
       "sha256": "b8ce96ca0d7bfa26169623886574dc99508b41f9922602767a21ddd593e74922",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-output-watch.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-output-watch.service",
       "mode": "0o640",
       "bytes": 1001,
       "sha256": "8251b7687076abe2253e35066af78cad6298f80849536e66902a5d2cb71b01b0",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-plans.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-plans.service",
       "mode": "0o640",
-      "bytes": 1689,
-      "sha256": "ef0a915905cc22adcd9914ae47af402abc48bff51e1139209c8b1292d7a6a09a",
+      "bytes": 1703,
+      "sha256": "8dc949d934e4c3b782b03d3c8c88a0a6fa07a2cc2fb4a2faa3021393a868ee6e",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-session.target",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-session.target",
       "mode": "0o640",
       "bytes": 696,
       "sha256": "a45b3b99bb048ac710b4c2d5deb3bccafa660b658be5f0dfa000285b29f31507",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.path",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path",
       "mode": "0o640",
       "bytes": 826,
       "sha256": "d3a57063bd15f951449a5613c214865c8cec5fb7308f479e1ee917848ab16c0d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service",
       "mode": "0o640",
       "bytes": 612,
       "sha256": "4798424703900eede039a81cb7335320ae7303254b8318b36781af6cc68ec783",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/llama-server.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/llama-server.service",
       "mode": "0o640",
       "bytes": 1120,
       "sha256": "0baffee42b5373bb39f250a3d81d7ef860201a36375c74ec7add428997508764",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/managed-external-software-notify.path",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/managed-external-software-notify.path",
       "mode": "0o640",
       "bytes": 804,
       "sha256": "4c9643692da0ca52d72b9b812602faef404a8dc77dfe04e641c99318ffd96fa5",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/managed-external-software-notify.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/managed-external-software-notify.service",
       "mode": "0o640",
       "bytes": 1239,
       "sha256": "c445e85375969fb4e6d9a00b0e829557434599846cbd15755a7b3664e36cf443",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/swaybg.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/swaybg.service",
       "mode": "0o640",
       "bytes": 859,
       "sha256": "18b73be9f09e858833b24c40ff426eb6e1fc33fbfd6981ca21e20cd3356251f0",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/swayidle.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/swayidle.service",
       "mode": "0o640",
       "bytes": 738,
       "sha256": "f49dc68e2fb20f1f4f2b72a51599e326391696f06c4330b9c3d81ff4aabec2bd",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/waybar.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/waybar.service",
       "mode": "0o640",
       "bytes": 971,
       "sha256": "7a03f8b39b5c19611127f59ec5b92d6ecac414b2f20e17dffbc7d508cdf344b7",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
       "mode": "0o640",
       "bytes": 131,
       "sha256": "76d4e1aee2e6eb3536ae8898b370500be8f1b01c6d88a754dab2d639d744daf5",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-record.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-record.service",
       "mode": "0o640",
       "bytes": 1124,
       "sha256": "afe51a4d9db7bcfd6e2e8d2049fbde9b6b9166b5bdddfd72f20366b3ec167114",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-server.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-server.service",
       "mode": "0o640",
       "bytes": 1724,
       "sha256": "88d6cbc2fae8875888afc0b6510b65a564e5b4dd31ff823fce4002fb11376178",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-transcribe.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-transcribe.service",
       "mode": "0o640",
       "bytes": 1409,
       "sha256": "66f2f388d706b0f5ebbde50c9c1f6e79e59d89338feaa829c38ded4ea35e3545",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/task/taskrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/task/taskrc",
       "mode": "0o640",
       "bytes": 2762,
       "sha256": "ca6e8751d41de98947e4fc7c7df484e0d6e26dc4c7bc42599a8ee311e300f2e1",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/ocr-defaults.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/ocr-defaults.conf",
       "mode": "0o640",
       "bytes": 192,
       "sha256": "793200b268d7536b769f0f6d3ab4e8d5498cd11a3107349efe7c1b724df2fb58",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/default.user-patterns",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/default.user-patterns",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/eng.user-patterns",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/eng.user-patterns",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/swe.user-patterns",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/swe.user-patterns",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/default.user-words",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/default.user-words",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/eng.user-words",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/eng.user-words",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/swe.user-words",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/swe.user-words",
       "mode": "0o640",
       "bytes": 1,
       "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/todoman/config.py",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/todoman/config.py",
       "mode": "0o640",
       "bytes": 126,
       "sha256": "9f6dbe1292d42a4b536c58df0c065ec020d657c18d05b5bb97d9bead6e34f3c7",
       "check": "python-syntax-pass"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/user-dirs.dirs",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/user-dirs.dirs",
       "mode": "0o640",
       "bytes": 279,
       "sha256": "641023fb2e547aeb4083abc35d7e08e972041b245a2259a400230bbcf9ffc53a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/vdirsyncer/config.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/vdirsyncer/config.tmpl",
       "mode": "0o640",
       "bytes": 1025,
       "sha256": "bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/vim/vimrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/vim/vimrc",
       "mode": "0o640",
       "bytes": 287,
       "sha256": "10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/vivaldi/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/vivaldi/Default/Preferences",
       "mode": "0o640",
       "bytes": 218,
       "sha256": "cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/waybar/config.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/waybar/config.tmpl",
       "mode": "0o640",
       "bytes": 15670,
       "sha256": "928e8dd16c4fd87ccd3e6544b18bed766c158ce4562063b3bd8eb2dcef063e8c",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/waybar/style.css.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/waybar/style.css.tmpl",
       "mode": "0o640",
       "bytes": 10944,
       "sha256": "f8bfbc59c6b6b7ceac2aada4f2e1ec03ed36031cf5914788371c1b155f44faa6",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/waypaper/config.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/config.ini",
       "mode": "0o640",
-      "bytes": 1262,
-      "sha256": "e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492",
+      "bytes": 1261,
+      "sha256": "c98fb0383b0eec6cf042c3485bb9639a921490b17bbbedd243228b5f11400a6a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/waypaper/keybindings.ini",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/keybindings.ini",
       "mode": "0o640",
       "bytes": 395,
       "sha256": "84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/waypaper/style.css",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/style.css",
       "mode": "0o640",
       "bytes": 80,
       "sha256": "931b45fb19e85f8693a41ec34b064bd7d7e86d429c6c6d8b0a8760eae4c84b3f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf",
       "mode": "0o640",
       "bytes": 76,
       "sha256": "9bfafb17c9717982961ad6e44626d7d072b7c9ee4e90f271279fc568d5e8f757",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf",
       "mode": "0o640",
       "bytes": 1457,
       "sha256": "0fab354818948ffd4ae250202824262a1a1f5603a66480aa33d4dc400cf88e40",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xarchiver/xarchiverrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xarchiver/xarchiverrc",
       "mode": "0o640",
       "bytes": 1035,
       "sha256": "ec9482dc61d63d7c1c111a96f834e8fc21bc64aebf6a0ff97f61a7bf4303d91a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xdg-desktop-portal/portals.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xdg-desktop-portal/portals.conf",
       "mode": "0o640",
       "bytes": 704,
       "sha256": "6d04addeb567b8c7089df6e74170f12305afd7ce6dd3814310fb980d79555965",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xdg-terminals.list",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xdg-terminals.list",
       "mode": "0o640",
       "bytes": 13,
       "sha256": "8733b73e1832e68a1966a62e0ba68f6b6db4e5fe4989399bc5b927e01935ecef",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xfce4/helpers.rc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xfce4/helpers.rc",
       "mode": "0o640",
       "bytes": 22,
       "sha256": "02ca24ad31d4378ebbaefd757ef3308337424aa96010b6ab3fb7f016d4396816",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
       "mode": "0o640",
       "bytes": 550,
       "sha256": "c2d1885543317db7382c3efa57198f2754a89ee7618f77197590c29a7098bbc3",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/xournalpp/settings.xml.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/xournalpp/settings.xml.tmpl",
       "mode": "0o640",
       "bytes": 12056,
       "sha256": "18ebd0ce76b4cac22b0fe5b52338cd9125f477f563af28be3bd61b450bf53f7e",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/zathura/zathurarc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/zathura/zathurarc",
       "mode": "0o640",
       "bytes": 2504,
       "sha256": "65cd2b6cc9482176f10df915d895aae76b6c98994a312d0729fd791fb32f0b8d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.config/zoom/zoomus.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/zoom/zoomus.conf",
       "mode": "0o640",
       "bytes": 637,
       "sha256": "23453840cf0ed2d4649a1abd05538b040ea504001fb97f67bf926e996eb91b51",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.dircolors",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.dircolors",
       "mode": "0o640",
       "bytes": 635,
       "sha256": "ba5a8dd8dec313517ca74d38eb7aadfac0ed86af0d0a51fee93a373b7b1e67ed",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.gnupg/gpg-agent.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.gnupg/gpg-agent.conf",
       "mode": "0o640",
       "bytes": 120,
       "sha256": "2c830e4d7a1c7539eebd51c3ab604c71953b50777d88008f6f2f0aff19414340",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
       "mode": "0o640",
       "bytes": 484,
       "sha256": "0bcb1079081b902762cb0b668880a5db7ba10f866b3a9cb7096376fe276e4337",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/applications/waypaper.desktop.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/applications/waypaper.desktop.tmpl",
       "mode": "0o640",
       "bytes": 359,
       "sha256": "424b68ce33934ab96edfe0a62dea616b993fc34a28df1d8b1d0b7d74c8177e62",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/personal/color",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/personal/color",
       "mode": "0o640",
       "bytes": 8,
       "sha256": "e8ba3555634c21274eab79affb4a709a0f231f9923d13b0ec4f844ea18881297",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/personal/displayname",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/personal/displayname",
       "mode": "0o640",
       "bytes": 9,
       "sha256": "7627d41413b829085368da99ee264bba8a0ba0e565326286692d1b575d488011",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/tasks/color",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/tasks/color",
       "mode": "0o640",
       "bytes": 8,
       "sha256": "3806400c11c76792fbf1b2bb468bc976b8f91edeaa2a7243fa46b1c40274cb76",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/tasks/displayname",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/tasks/displayname",
       "mode": "0o640",
       "bytes": 6,
       "sha256": "167214a5c13c5cda864644d6ee3f55576d8b07c38d71d2d6b42d69134777418a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.local/share/dbus-1/services/org.freedesktop.secrets.service",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service",
       "mode": "0o640",
       "bytes": 176,
       "sha256": "821da6a47b46d1cffa4bcc1f27018d8cc88c11ea3d9b144acf6655fc2e7590cd",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.profile",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.profile",
       "mode": "0o640",
       "bytes": 4123,
       "sha256": "9fc0f7c5dd850381bea67b870a0fb6d9caca51fbf0d17b7efbf127fb70f05d8f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.profile.d/71-devops-de.sh",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/71-devops-de.sh",
       "mode": "0o640",
-      "bytes": 29856,
-      "sha256": "2147f2c711a01aa6173ddb4894692c515260d915641bd01a430023c853ff1cf1",
+      "bytes": 29842,
+      "sha256": "0e5b59e232b307862991059ea6a38043ddc2d8b6ae8ab32cbfec0d542458a9de",
       "check": "shell-syntax-pass"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.profile.d/72-incus.sh.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/72-incus.sh.tmpl",
       "mode": "0o640",
       "bytes": 5982,
       "sha256": "1fee3d2e2c58beb6c01726c723764232b1f93c31b5d4794dc548eac15c3a8db9",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.profile.d/75-firmware-workspace.sh.tmpl",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/75-firmware-workspace.sh.tmpl",
       "mode": "0o640",
       "bytes": 20440,
       "sha256": "f465f17a1ce151a621f00962a8c97d29031247bd812647e42c8841c740cff87d",
       "check": "template-needs-render"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.profile.installer-base",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.profile.installer-base",
       "mode": "0o640",
       "bytes": 2718,
       "sha256": "0afb3a266b1dd68126771ee800fdc22d78cf055bc4f59558798814d860a37bee",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.recoll/recoll.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.recoll/recoll.conf",
       "mode": "0o640",
       "bytes": 3123,
       "sha256": "7523a7212f78e0257e741ab2f39e143681d9580b9c78f871087dd7d0546ffe75",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.vimrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.vimrc",
       "mode": "0o640",
       "bytes": 82,
       "sha256": "313127a5c9311a9f43dceaf4eb3fa9dbdfbc40b835b4439f58ea76fad1bb2672",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.zlogout",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.zlogout",
       "mode": "0o640",
       "bytes": 153,
       "sha256": "722e3859b147a257eda007db975fc819da82e5a1312f1978fada9cd0165583d8",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.zprofile",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.zprofile",
       "mode": "0o640",
       "bytes": 913,
       "sha256": "01c7439ccb22d09beb04650e8ec7bf7a5c11853daa2d90ac416c06b952028a86",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.zsh_aliases",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.zsh_aliases",
       "mode": "0o640",
       "bytes": 365,
       "sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.zshenv",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.zshenv",
       "mode": "0o640",
       "bytes": 1240,
       "sha256": "0573c974e9300211bbfc51438da7bed1b28d7be82f2becc3a6eef10a6bf93b86",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/.zshrc",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/.zshrc",
       "mode": "0o640",
       "bytes": 6164,
       "sha256": "b50fbe943f33611ed181d9a3c2c0a268002531e03b8dd326f5a4da615ad5ca8f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/.stignore",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/.stignore",
       "mode": "0o640",
       "bytes": 102,
       "sha256": "ae29dd449c43359035e3f5206a041bbc287a170797d4fc9b5c3da11b92d87cfc",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/app.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/app.json",
       "mode": "0o640",
       "bytes": 902,
       "sha256": "e69a25e137d39e7ef143b5c3b15f08f63f00fec9c5caab620c8efa998bd19213",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/appearance.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/appearance.json",
       "mode": "0o640",
       "bytes": 397,
       "sha256": "db4355d44862c1a6dbe43ff9b6fce17dcfa0300acc7e236c0d6ca8af2549d01d",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/backlink.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/backlink.json",
       "mode": "0o640",
       "bytes": 33,
       "sha256": "6f72dfd1d72d1d51c623f9b6a9fd4e43a159cdc294ff2830704daa7a8ed52e16",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/bookmarks.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/bookmarks.json",
       "mode": "0o640",
       "bytes": 230,
       "sha256": "3c66c83c3862e9f41bcc630c7e47467a7e2924e075a4feb14c755b7b3f33022f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/command-palette.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/command-palette.json",
       "mode": "0o640",
       "bytes": 138,
       "sha256": "abbe12577e217d012653e95311f1dc7fc6218c76f29638a6f0fcd15dbb587f91",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/community-plugins.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/community-plugins.json",
       "mode": "0o640",
       "bytes": 3,
       "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/core-plugins.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/core-plugins.json",
       "mode": "0o640",
       "bytes": 694,
       "sha256": "03e0e918b734421be51af70755c82e3fc020db47c796b7a2b4c3fd7d6c5e8fb3",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/daily-notes.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/daily-notes.json",
       "mode": "0o640",
       "bytes": 97,
       "sha256": "f355d4c141d1f9a8cf232b13a5c7fbf116811559966b1278fe36480901f1b4dd",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/graph.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/graph.json",
       "mode": "0o640",
       "bytes": 498,
       "sha256": "a55b57a7cac1b3241a5289499c04b3fdcf098ca40de2f9ad86a6d4e9b0db36d9",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/hotkeys.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/hotkeys.json",
       "mode": "0o640",
       "bytes": 3,
       "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css",
       "mode": "0o640",
       "bytes": 1041,
       "sha256": "13b386c0e8ed021cb2707a2ed5e4abf2cf6c43cc59062ecee4f739984b39c3dd",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/templates.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/templates.json",
       "mode": "0o640",
       "bytes": 28,
       "sha256": "8d6721ac59b27ef462f734773f902ef499983c6e1b8081794f736ee3976365b4",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json",
       "mode": "0o640",
       "bytes": 113,
       "sha256": "fd619cfa0b8f0a7d231d977757717ba7fc253f46f00499fb55d52319cd201297",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css",
       "mode": "0o640",
       "bytes": 9432,
       "sha256": "bec7271ac8e007b148f08fa5678bae19af3ff9e0433dce64b3229cd7a8948deb",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/types.json",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/types.json",
       "mode": "0o640",
       "bytes": 163,
       "sha256": "e0d03144f8f2a5c95d47a635fa5f0c345ce072c212cf3bbb1fe9500fbeba1d4f",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/archive/index.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/archive/index.md",
       "mode": "0o640",
       "bytes": 236,
       "sha256": "6e41394a177891addfd6693969481aaf94d6cec71863804b6e8016b17947e9d4",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/daily/index.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/daily/index.md",
       "mode": "0o640",
       "bytes": 324,
       "sha256": "10e222ad4d6db7556222689d968858b865c0b19206d3fd5f858395310441e05b",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/home.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/home.md",
       "mode": "0o640",
       "bytes": 638,
       "sha256": "3c3c814311a3e611d7b71e0897faea5c4a295215907aeaf952f97a13ba4f167a",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/inbox/welcome.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/inbox/welcome.md",
       "mode": "0o640",
       "bytes": 348,
       "sha256": "3754c0f063392d99825a3d8e51af56203d9bb356cf459d570a83c06540191265",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/templates/daily-note-template.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/templates/daily-note-template.md",
       "mode": "0o640",
       "bytes": 234,
       "sha256": "1c89e6c74302eb9d627f475a43f56f6e49c21afac296e5fe803635ff995a7af3",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/templates/note-template.md",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/templates/note-template.md",
       "mode": "0o640",
       "bytes": 155,
       "sha256": "1efc02c91c43f687720d109c8d196201ff651fb448bdcbc5f5c619da756c37e8",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/btop/btop.conf",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/btop/btop.conf",
       "mode": "0o640",
       "bytes": 9335,
       "sha256": "e2f2d4531902f6483da542222df24c4b192d2cb7b35397d9f229ff92a0345434",
       "check": "inventory-only"
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/fzf/default-opts",
+      "path": "d-i/forky/hooks/target/etc/skel/primary/fzf/default-opts",
       "mode": "0o640",
       "bytes": 512,
       "sha256": "ab5efe383abf2f5cd035c61d45dfbedc0c084e5574d90f718f17e4a5a35e8314",
@@ -4351,6 +4351,13 @@
       "check": "inventory-only"
     },
     {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/apparmor.service.d/20-managed-cache.conf",
+      "mode": "0o644",
+      "bytes": 270,
+      "sha256": "d7e26cd9d874ee68e0f59fa7ff0f5b4f60724908170b86ade4fa6e595d213295",
+      "check": "inventory-only"
+    },
+    {
       "path": "d-i/forky/hooks/target/etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf",
       "mode": "0o640",
       "bytes": 339,
@@ -4444,8 +4451,8 @@
     {
       "path": "d-i/forky/hooks/target/etc/systemd/system/firstboot.service",
       "mode": "0o640",
-      "bytes": 820,
-      "sha256": "55ceb6ee21c79c709837464e62a7239e6a27090fa8b426ace82169df3cf0a3bb",
+      "bytes": 882,
+      "sha256": "fc08fddc2ed6d3ea8ad149689b8a265503cba6f84c74318b36d6ec2156a86d37",
       "check": "inventory-only"
     },
     {
@@ -4576,14 +4583,14 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-apparmor.service",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 334,
       "sha256": "73ae5e0d9c30de3e7536e1a1afa9be4cae5c17be1e87a35b3fae630ddff3f8b8",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 72,
       "sha256": "0a1f63574d08b58be5883b097e2d897a274257ad9a3e11e816eafc8a7e2b7362",
       "check": "inventory-only"
@@ -4647,8 +4654,8 @@
     {
       "path": "d-i/forky/hooks/target/etc/systemd/system/podman-devops-bootstrap.service",
       "mode": "0o640",
-      "bytes": 1224,
-      "sha256": "8c78679708e43a9c97e80e419a33f280afa393403bad01222b61aace68a1a36d",
+      "bytes": 1043,
+      "sha256": "b4589fe936f26568026c279b37c4393486b6753d5460656b046d7f389b632f78",
       "check": "inventory-only"
     },
     {
@@ -4947,9 +4954,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/systemd/user/wayscriber.service.d/10-labwc-session.conf",
-      "mode": "0o640",
-      "bytes": 588,
-      "sha256": "0244228100e281f077ea9945ffd025b3f44bda50c06758ae86fed9467e0d88b4",
+      "mode": "0o600",
+      "bytes": 776,
+      "sha256": "794c4faec2033de5f9a0247e95b56161910468b8694ed1fbe40771a236bb2c7c",
       "check": "inventory-only"
     },
     {
@@ -5060,8 +5067,8 @@
     {
       "path": "d-i/forky/hooks/target/etc/tmpfiles.d/50-var-cache.conf.tmpl",
       "mode": "0o640",
-      "bytes": 273,
-      "sha256": "b2686841ec48c1cf6100553beecf9291ca2f4d9275b2b89fe609aefbf87e8e37",
+      "bytes": 329,
+      "sha256": "6f69e28b1e1e57b25989732e6366a5f936ef99dee7cf1316537a938b1558670c",
       "check": "template-needs-render"
     },
     {
@@ -5076,6 +5083,13 @@
       "mode": "0o640",
       "bytes": 54,
       "sha256": "d6e26a43a9c2039aaf2f9acfbb758b18038a71993f5f11b86f9f889bd05bbf9c",
+      "check": "inventory-only"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/tmpfiles.d/55-podman-devops.conf",
+      "mode": "0o600",
+      "bytes": 112,
+      "sha256": "b390e4a4b6aea1667fce22325ed41d0bf33ce15b22092c2b5133f86cbc3062cc",
       "check": "inventory-only"
     },
     {
@@ -5157,9 +5171,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl",
-      "mode": "0o640",
-      "bytes": 3768,
-      "sha256": "24172f9c6aadac502717beb13812164c95e3939344ec80eaf2c1085102c42036",
+      "mode": "0o660",
+      "bytes": 3649,
+      "sha256": "cfff38ef0dcc7ec14b35316ef40d8b7d41caac172399330720c8d9ab1bf7df91",
       "check": "template-needs-render"
     },
     {
@@ -5186,8 +5200,8 @@
     {
       "path": "d-i/forky/hooks/target/etc/tmpfiles.d/tmp.conf",
       "mode": "0o640",
-      "bytes": 161,
-      "sha256": "f7fc39648989304c8eb111c7444dfa71c0385194fef643665420c43ccf18b951",
+      "bytes": 423,
+      "sha256": "bd911f2cadcbdb8666ac2a076b31e97a9df9f809cdd82578d1b57ed8d35dd5a4",
       "check": "inventory-only"
     },
     {
@@ -5395,9 +5409,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/bin/codex-standalone-install",
-      "mode": "0o750",
-      "bytes": 10837,
-      "sha256": "d5d08d5d46c60e635621af2d3a2892e60c1008242e07f934e1a9a8fa1d310f0d",
+      "mode": "0o770",
+      "bytes": 15245,
+      "sha256": "8bff85f6341d696be7d435339134d387e26f100628784945267db6975ff344e6",
       "check": "shell-syntax-pass"
     },
     {
@@ -5592,8 +5606,8 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/bin/labwc-health-notify",
       "mode": "0o750",
-      "bytes": 29584,
-      "sha256": "277f3ffcf1e32d3bf0acd1a1709eec21b59a70f7d48b7e35f7692f1c0f95dcfd",
+      "bytes": 29582,
+      "sha256": "41322478fa25f3d1d0daae1a958fdce90b065bab6c4d2e485333d7866c57cc10",
       "check": "shell-syntax-pass"
     },
     {
@@ -5676,8 +5690,8 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu",
       "mode": "0o750",
-      "bytes": 13262,
-      "sha256": "80b172ec1f4448edb56d6bb23d31d4df83a80ba2d0cccf05301efb22874d2b81",
+      "bytes": 13255,
+      "sha256": "751b0d97bfb664c2d09dc5cb547eab3b59f5acfe8a2dc1d47cad7e5c95ac1c8e",
       "check": "python-syntax-pass"
     },
     {
@@ -5745,9 +5759,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers",
-      "mode": "0o640",
-      "bytes": 23683,
-      "sha256": "577e1bd2ddbeae9436592fb459d0bcacd95c185881bf0781b7a438179731f9cd",
+      "mode": "0o660",
+      "bytes": 25003,
+      "sha256": "01c68df1d36051187ecd1c54dcd31e3e06c106aa723de8ae48db758b58bd3357",
       "check": "python-syntax-pass"
     },
     {
@@ -6046,9 +6060,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Atomic.pm",
-      "mode": "0o640",
-      "bytes": 4412,
-      "sha256": "728a3788a7828ef318f5bed0036fd683396b6742077b9331c4ea13b46a66eaef",
+      "mode": "0o660",
+      "bytes": 5971,
+      "sha256": "5cc2d3560053b89792e20a29a68850776112497876be4d9e78da0f9b85d827df",
       "check": "inventory-only"
     },
     {
@@ -6060,23 +6074,23 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/CLI.pm",
-      "mode": "0o640",
-      "bytes": 25393,
-      "sha256": "893bd7bf74fa32283831e4ea5a10075ce8f18c3f8ec1598f57e4f620a4749a55",
+      "mode": "0o660",
+      "bytes": 26271,
+      "sha256": "7cbef66455e43c8bfd8a0826d36e93a13788dfa9b0988fb90b7b5f2f3296a1ee",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ChatGPT.pm",
-      "mode": "0o640",
-      "bytes": 14917,
-      "sha256": "3f57f5548e4987a76ed36f85a279ad5cb01a44f6405ccb6d0ff4e256a0a529c2",
+      "mode": "0o660",
+      "bytes": 15951,
+      "sha256": "1fed7a93ebf3065e86d2bb45e2b6833a92556d58fe14b8d7da1bc72b34343bf9",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Deb.pm",
-      "mode": "0o640",
-      "bytes": 23974,
-      "sha256": "0e8f2d25fcea84df8deebb5e804583e897741cba728f44d04e4dcfc32623f951",
+      "mode": "0o660",
+      "bytes": 24639,
+      "sha256": "0c2a14f8939a33e8664ed05fb260394289f388a76971b2cccfa5abb752f63758",
       "check": "inventory-only"
     },
     {
@@ -6144,9 +6158,9 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm",
-      "mode": "0o640",
-      "bytes": 19929,
-      "sha256": "577bdefb41e51bf89eb68e92f47b81a68f35c775e30b37e3514e71a572b4c526",
+      "mode": "0o660",
+      "bytes": 19941,
+      "sha256": "cf97eee5ddc5fd94fb95fdf77f8dbf94a0f6a3de737eb4d7e040a95de866e939",
       "check": "inventory-only"
     },
     {
@@ -7035,7 +7049,7 @@
       "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py",
       "mode": "0o640",
       "bytes": 40247,
-      "sha256": "4bbfa59e0bf3895fcc48ac81659ef81ec3743ed1ac13797afc280ec504255447",
+      "sha256": "7996cfed29121b76296cc348509ba340bb4fdf24da2c1ca90d596cb2836efd58",
       "check": "python-syntax-pass"
     },
     {
@@ -7076,8 +7090,8 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
       "mode": "0o640",
-      "bytes": 23915,
-      "sha256": "890bc7a3094aef17623a5e344c2ed6795694ddf81160029dec23649f25027d8e",
+      "bytes": 23923,
+      "sha256": "132d90ba5027075b873f5ab61a3ba731895fffe29bacdfd61987f1614602fac7",
       "check": "python-syntax-pass"
     },
     {
@@ -7166,7 +7180,7 @@
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/crowdsec-bouncer-verify",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 3558,
       "sha256": "6859e95a28bfee1cc85f3d1707a2e197acfef6e0317be7e5397be4a06c6bd4cb",
       "check": "python-syntax-pass"
@@ -7188,8 +7202,8 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/dbus-broker-maintain",
       "mode": "0o750",
-      "bytes": 11293,
-      "sha256": "6b0a5e24eb9a5ffe707c666b278d7ecc5df0e40223507d6bbb3c95045575f65f",
+      "bytes": 11762,
+      "sha256": "68f98a711eed229a39654f9128514229f0554f2e8e8beda0803cc5cb539d3280",
       "check": "python-syntax-pass"
     },
     {
@@ -7349,8 +7363,8 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-swaybg",
       "mode": "0o640",
-      "bytes": 1004,
-      "sha256": "6c61bb4475fdb56bb925416e51e9f9e641e209a86cef7575036e30536b0de4ff",
+      "bytes": 1291,
+      "sha256": "6e1eaedccd557bbf6737979cf6dd04a70e91c35f0d2b25281560bd02726e83b4",
       "check": "shell-syntax-pass"
     },
     {
@@ -7454,15 +7468,15 @@
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-client",
       "mode": "0o750",
-      "bytes": 5106,
-      "sha256": "dfd3ddf0ed539af398fee6da1633b37b4acf6d56fbfb3279a5314e5dbe3d8dd4",
+      "bytes": 5428,
+      "sha256": "d335ee35b5a9f002919a197ee750cc76a6f9da808cf4e248f87d33cbea985a94",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
       "mode": "0o750",
-      "bytes": 27445,
-      "sha256": "8d8bb4895ed4d771c876439bfaa2527fc9bebf236696f3dcd62afcf6f0efae79",
+      "bytes": 32072,
+      "sha256": "b88746a1d3ff2b2feda1616d82f2579d404888f3003a33b06c97de107752c159",
       "check": "python-syntax-pass"
     },
     {
@@ -8021,113 +8035,113 @@
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
       "mode": "0o640",
-      "bytes": 44059,
-      "sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
+      "bytes": 44049,
+      "sha256": "ee13f004fc15a26816f31f568136cfef16855716bea6bc5e6857decc046aa13d",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
       "mode": "0o640",
-      "bytes": 43987,
-      "sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
+      "bytes": 43977,
+      "sha256": "cda3f9f055dcccde0a79795a60348a32a99e378f4a93020c2b0ce6cfc3985a86",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
       "mode": "0o640",
-      "bytes": 43764,
-      "sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
+      "bytes": 43754,
+      "sha256": "fe51be1bff3e85ad24b637986f33002a50bb04e2ceb6504d110459f8b3611d58",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
       "mode": "0o640",
-      "bytes": 43835,
-      "sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
+      "bytes": 43825,
+      "sha256": "c7fef027b3402711be8f0c809036108eb2b44f1566c9633c5665f909afdc137d",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
       "mode": "0o640",
-      "bytes": 44168,
-      "sha256": "6193e7b54be70ee9eef513c51bcd5d49e100644f823cb5d6f321e0e32c40a1a3",
+      "bytes": 44158,
+      "sha256": "23bdaea009c1ed2d06a41ba75aad3a1fe1d3d4cd78b8ca4c594a7467dcc5d6cc",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-de.env",
       "mode": "0o640",
-      "bytes": 43790,
-      "sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
+      "bytes": 43780,
+      "sha256": "e7601257593ac797e1cbef4c83b1d2af5ee97a42431e88c5b4d81f1a54be9403",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
       "mode": "0o640",
-      "bytes": 43764,
-      "sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
+      "bytes": 43754,
+      "sha256": "29a064c77b275aad6f4c2106097a931c29dea5c2067919bc9f6cabd4ad943cc7",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
       "mode": "0o640",
-      "bytes": 43392,
-      "sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
+      "bytes": 43382,
+      "sha256": "f5c6926f994b1b4f9b9deb55a40e7511f4d1fd7b995b791837223b4a5fdcbb2a",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
       "mode": "0o640",
-      "bytes": 43440,
-      "sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
+      "bytes": 43430,
+      "sha256": "61c7de8c1571623dc51a7eab9c6813923d9ae2c1183992b3b4d9ea285da9fd06",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
       "mode": "0o640",
-      "bytes": 43342,
-      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "bytes": 43332,
+      "sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/f2fs-de.env",
       "mode": "0o640",
-      "bytes": 43348,
-      "sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
+      "bytes": 43338,
+      "sha256": "37a87b3ec1e2bdb40adc9f30c7074fbf2e1284c3c0f182c89c988ca31149dd2d",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
       "mode": "0o640",
-      "bytes": 43342,
-      "sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
+      "bytes": 43332,
+      "sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/hosts/profiles/vm-desktop.env",
       "mode": "0o640",
-      "bytes": 43542,
-      "sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
+      "bytes": 43532,
+      "sha256": "5eeed0a3a6eabc3732b71e1ba3b5ce75ed1c181533ca562e0a4df3916e39704c",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/payload.manifest",
       "mode": "0o644",
-      "bytes": 150517,
-      "sha256": "f33c719f02019ef2248ee75242b3c46dea733dd13f3f199d8a7299a0da94f566",
+      "bytes": 151927,
+      "sha256": "e9152561f949727ba7b75c6fbadc117e82f5f204439bf7ce9f63e015d35809af",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/payload.tar.gz",
       "mode": "0o644",
-      "bytes": 6862650,
-      "sha256": "4e42f2f22b7878957a11f4a211c72b36324bb9f46729ed74c0bcfcf055cd3010",
+      "bytes": 6874257,
+      "sha256": "91dffd4071459cab459c108ba25e12b20eb48dbcb0f73bf6d324c12901e3a599",
       "check": "binary-inventory-only"
     },
     {
       "path": "d-i/forky/preseed.cfg",
       "mode": "0o644",
-      "bytes": 84215,
-      "sha256": "b382ceb76ba222b2d7a0a08e318718c008d350300198bf1980f47d29fe5d64cb",
+      "bytes": 85499,
+      "sha256": "c1d60f2b35fe9192c600b6f3373ecda980a0ba9f15d6c4fad5cdb40c68b391d9",
       "check": "inventory-only"
     },
     {
@@ -8139,7 +8153,7 @@
     },
     {
       "path": "d-i/forky/scripts/common/apt-sources.sh",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 2833,
       "sha256": "7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3",
       "check": "shell-syntax-pass"
@@ -8160,7 +8174,7 @@
     },
     {
       "path": "d-i/forky/scripts/common/debconf.sh",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 5382,
       "sha256": "e8389d1eacc789b684859d18bc55fbc009f673bc765db339ced9f007b530e728",
       "check": "shell-syntax-pass"
@@ -8181,23 +8195,23 @@
     },
     {
       "path": "d-i/forky/scripts/common/lib.sh",
-      "mode": "0o750",
-      "bytes": 180674,
-      "sha256": "2b8a6f70ff324126b19bb4e7b23f1fc465b9c26e7f2f6253d94dbeaefc9d2f64",
+      "mode": "0o770",
+      "bytes": 180995,
+      "sha256": "4c91c25a92af95f2997b7cacd5f23c2aa36def1591f6e7f988c02d491dce1b82",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/common/lifecycle.sh",
-      "mode": "0o644",
-      "bytes": 14410,
-      "sha256": "c7cbde8e8126eb29467cf062a6171588f077859a1b807bc5c45538963c20735a",
+      "mode": "0o660",
+      "bytes": 14731,
+      "sha256": "0785e5fd5b97f208cf010c7088414753c1b9352101eaee785dec97134b34904b",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/common/source.sh",
-      "mode": "0o750",
-      "bytes": 32727,
-      "sha256": "304ccd4723c2d513114041f54a118d26f1d2a19b3baccdb709be1ee8fe544e07",
+      "mode": "0o770",
+      "bytes": 33048,
+      "sha256": "ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21",
       "check": "shell-syntax-pass"
     },
     {
@@ -8223,16 +8237,16 @@
     },
     {
       "path": "d-i/forky/scripts/desktop/components.sh",
-      "mode": "0o750",
-      "bytes": 189417,
-      "sha256": "d2f73d03c6d842340dd6b2cbebc9f61ba419f4bfbf6ccc58d13f9390eda374c6",
+      "mode": "0o770",
+      "bytes": 193667,
+      "sha256": "6e567b714fcdec9c0ac01580ab0e2951351817940175ab556de0734ac528153a",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/desktop/detect.sh",
       "mode": "0o750",
-      "bytes": 33765,
-      "sha256": "d7456c4825a4fca048149e684656a5046bb2a05020c1536120f4d82a4460e07b",
+      "bytes": 33764,
+      "sha256": "ce9aa69445753a01fa81dbc862ad2c637cb2575d9199f7fbd673864829f1a61b",
       "check": "shell-syntax-pass"
     },
     {
@@ -8244,9 +8258,9 @@
     },
     {
       "path": "d-i/forky/scripts/desktop/labwc.sh",
-      "mode": "0o750",
-      "bytes": 11027,
-      "sha256": "dd9f0f86aeb1d56b18e9ae9561d1c1d1714a653322a15ba1c1095dce1aaf4873",
+      "mode": "0o770",
+      "bytes": 10892,
+      "sha256": "ad738f0184c27cd43def0ca1d68ceac41ba5d784e1b628a45aa838cf7723392f",
       "check": "shell-syntax-pass"
     },
     {
@@ -8266,15 +8280,15 @@
     {
       "path": "d-i/forky/scripts/desktop/verify.sh",
       "mode": "0o750",
-      "bytes": 53280,
-      "sha256": "9051ca7209de85106cd1a94b5952e3ec5f0e0945e73313aeb34d2a474edc39ac",
+      "bytes": 54869,
+      "sha256": "b65a7935bbc0cdfe16a4f123dd17e81e240d41d144fd94e21ebcfae6c67ebe79",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/desktop/waypaper.sh",
       "mode": "0o750",
-      "bytes": 10710,
-      "sha256": "def3d510b8faf70113b7b4e04f8ef3e461d2fb148cf274f52ed0f7c8c88cb747",
+      "bytes": 10718,
+      "sha256": "89ff495244e602025dbbdbc8c0928929695abf1aa05de52c47096f01853ac3b6",
       "check": "shell-syntax-pass"
     },
     {
@@ -8315,8 +8329,8 @@
     {
       "path": "d-i/forky/scripts/firstboot/04-validation.sh",
       "mode": "0o750",
-      "bytes": 37144,
-      "sha256": "647d108e35d1eda2c3f437777a78cd67b4f194b3984d8a33370a5d2f4ac35fb3",
+      "bytes": 43986,
+      "sha256": "2a5879439a38eeb568a18050fca14ee645f24fa8f64c3295e58e9cfa418b3017",
       "check": "shell-syntax-pass"
     },
     {
@@ -8343,8 +8357,8 @@
     {
       "path": "d-i/forky/scripts/late/account.sh",
       "mode": "0o750",
-      "bytes": 11069,
-      "sha256": "1fe99303a56fac345a51b00f3c8a6e4067a29ac0580971bdd340c675393c51cb",
+      "bytes": 11237,
+      "sha256": "6a55f7a552beb2f282100a549bb6c9a2a7e8c6e6dfc384b49873a8b688c3e1e7",
       "check": "shell-syntax-pass"
     },
     {
@@ -8364,8 +8378,8 @@
     {
       "path": "d-i/forky/scripts/late/ch341a.sh",
       "mode": "0o750",
-      "bytes": 18717,
-      "sha256": "52b92617c16137ab4180f2e33ad3f7448274fdf82153314e8064825012938f9b",
+      "bytes": 18741,
+      "sha256": "58b6955aa00d1ebe80a1dec95c2c05c8fa424d3a6ff0010836937897b94bb6c2",
       "check": "shell-syntax-pass"
     },
     {
@@ -8377,16 +8391,16 @@
     },
     {
       "path": "d-i/forky/scripts/late/codex-installer-session.py",
-      "mode": "0o750",
-      "bytes": 10176,
-      "sha256": "8aac98c6d5f0774089b83001d8d3693a5f872bd6ec2a34bc193a54ed3985599a",
+      "mode": "0o770",
+      "bytes": 10168,
+      "sha256": "c1b2f2a835456b33096d27473c4c3b1de93b6a90fe655bda14ae503516d8e9c1",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/late/codex-state.py",
-      "mode": "0o644",
-      "bytes": 11627,
-      "sha256": "084d40104edaece281c80891c220ce84cb556e284289cc87d40b2cb4aeb87f96",
+      "mode": "0o660",
+      "bytes": 13588,
+      "sha256": "23dc3d6204f73e04ea0cc51b0cbebd6c6aa6f3081270fab7229d0c9368282355",
       "check": "python-syntax-pass"
     },
     {
@@ -8398,9 +8412,9 @@
     },
     {
       "path": "d-i/forky/scripts/late/crowdsec.sh",
-      "mode": "0o750",
-      "bytes": 9312,
-      "sha256": "ba279edcdb0f90f5fdefcf3e705a169935ca4fb6a245e57db1a59d0410648368",
+      "mode": "0o770",
+      "bytes": 9959,
+      "sha256": "4e57982a8d1acc507c5ac2e52183108d25a28ce87d0ffb9e1103b0b9b215893b",
       "check": "shell-syntax-pass"
     },
     {
@@ -8412,7 +8426,7 @@
     },
     {
       "path": "d-i/forky/scripts/late/cuda-legacy.sh",
-      "mode": "0o750",
+      "mode": "0o770",
       "bytes": 3594,
       "sha256": "f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139",
       "check": "shell-syntax-pass"
@@ -8447,9 +8461,9 @@
     },
     {
       "path": "d-i/forky/scripts/late/devops.sh",
-      "mode": "0o750",
-      "bytes": 218683,
-      "sha256": "23a62567e50c2a03de89eb14ae4eb811576cf94547af05745d81e2050736c6de",
+      "mode": "0o770",
+      "bytes": 219384,
+      "sha256": "430d4e47c2ba33a89b66bf8725fd57a6b1b2f67205d2970da182e83cea1ac4db",
       "check": "shell-syntax-pass"
     },
     {
@@ -8475,9 +8489,9 @@
     },
     {
       "path": "d-i/forky/scripts/late/grub.sh",
-      "mode": "0o750",
-      "bytes": 59505,
-      "sha256": "01ca9668a3f6d40590bc173baf47400dddc9c1ba4e2ad948242f2b41c2e5ab2d",
+      "mode": "0o770",
+      "bytes": 59566,
+      "sha256": "1fddc55bc25c396b35501cd6cf0670c1cfaeb072d9113402b6c06af26b6cdd30",
       "check": "shell-syntax-pass"
     },
     {
@@ -8511,29 +8525,29 @@
     {
       "path": "d-i/forky/scripts/late/podman.sh",
       "mode": "0o750",
-      "bytes": 4946,
-      "sha256": "6061a4f6ef729785427d57a3294ecba7ebb8ed43013ec4cc1dc4622a05aa1696",
+      "bytes": 5091,
+      "sha256": "794ab98ba875a5cbdb2bd115a416de9cc6e29151d6883344109e7b96d9cae848",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/late/qemu.sh",
       "mode": "0o750",
-      "bytes": 10248,
-      "sha256": "8155ab51fc13979071162e6064d3f2b324c2205a54809108b911c4c4a1c848bd",
+      "bytes": 10272,
+      "sha256": "6fba06b1d6585ec3bbf13809e7504bd200326d61824abdbc3efbb52c029ba661",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/late/security.sh",
-      "mode": "0o750",
-      "bytes": 55922,
-      "sha256": "28a2aace0dbcb50960c7d7d70226bcc1d3f2954909d402a4afc3241638b212bc",
+      "mode": "0o755",
+      "bytes": 55175,
+      "sha256": "e1305e00cd9fdde99cc2ce3228590cc82e15a5474f7346d6d5129bc6789488ff",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/late/software.sh",
       "mode": "0o750",
-      "bytes": 94902,
-      "sha256": "66e39028ed108f14b0414099ca3932198b4999b4387fe7053df70c54500b14f3",
+      "bytes": 95665,
+      "sha256": "639b649fba84df9ed7e161f7abfa54f1d35e5a2346402c38fa8b55953a125304",
       "check": "shell-syntax-pass"
     },
     {
@@ -8594,16 +8608,16 @@
     },
     {
       "path": "d-i/forky/scripts/late/volatile-storage.sh",
-      "mode": "0o750",
-      "bytes": 18393,
-      "sha256": "4577554611ec132eea52f8376004f66a203dc24c3c51e358b1d9c07539e1685e",
+      "mode": "0o770",
+      "bytes": 18273,
+      "sha256": "e02e972dc86fa5e30536570b1ea35820a6d64acac3f6f20e8346c55ba4319805",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/late/whisper.sh",
       "mode": "0o750",
-      "bytes": 43808,
-      "sha256": "eaaccd87a5ba049e861a1ea1afa2278e0074d4af2f8081d3ecfae7fd1e113c02",
+      "bytes": 44405,
+      "sha256": "82d802f2b84d98376270909bb96929b9270f96f50167f4075099eb250d8cbf5d",
       "check": "shell-syntax-pass"
     },
     {
@@ -8650,7 +8664,7 @@
     },
     {
       "path": "d-i/forky/scripts/preseed/base-apt-adapter.sh",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 1307,
       "sha256": "80ee77f73d356e4e6e7e0ae389012dcd1d1c59cf3ac1fee97ba948dc20da7484",
       "check": "shell-syntax-pass"
@@ -8678,14 +8692,14 @@
     },
     {
       "path": "d-i/forky/scripts/preseed/guard-hook.sh",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 2850,
       "sha256": "08bbddf91cfc89b9871dd587b7f2e0be4d2859a04269c39ac09718ad0fa26fd2",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/scripts/preseed/network-apt.sh",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 1250,
       "sha256": "0b325a55840b8d9facd934ac494352ed0ee4d96affc72f89bad6d2a9314c97b4",
       "check": "shell-syntax-pass"
@@ -8748,135 +8762,142 @@
     },
     {
       "path": "d-i/forky/tests/debconf_fixture.py",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 8041,
       "sha256": "99d34b371962300ecc318eef7b34119b79e1c28add41dbedf726d9aa51aada81",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/GPL-2",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 17984,
       "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/README.md",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 1704,
       "sha256": "1b2ca4def82be22cfe4a37021de20c202564ba79d8a60ad9ad7c4cc32c239b48",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/SHA256SUMS",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 565,
       "sha256": "5819c3e67be6eef4ce74644be9e7669d32dfb56de1f2491bcaf732938162b408",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/confmodule",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 3716,
       "sha256": "5b043ed174b714949cfb2097d303147b9f02c5fb9e531e2dfb562b1476e820af",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/debconf-set-selections",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 2027,
       "sha256": "b33ebced6dea0b7babd105982dfcd3037c02a16667bcd4d385fc236cedaa9c51",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/debconf.COPYRIGHT",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 2764,
       "sha256": "57163c71bd8a5289660892827dd0dfaa7fef47f89deedc9dc6711ced7d0a28d7",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/preseed.COPYRIGHT",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 458,
       "sha256": "19767dbecb0cab2d11cc74e1e01b655544e1c50d8b2774ca2cb1d20c6db6949b",
       "check": "inventory-only"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/preseed.sh",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 4171,
       "sha256": "50316339e1acf7145aec11cf15a521ff241e600e6396a7e7510008930841a2d9",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/fixtures/debian-preseed/preseed_command",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 468,
       "sha256": "631b93c55399123c123ec37148c50eaf0dc06237daad64f124b16019df2398ea",
       "check": "shell-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/process_fixture.py",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 2221,
       "sha256": "3c9757a4056a0dda6f8a41bc75dab435bbfe86e58cb4129c6e267a644a7c3d28",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_bootstrap_portability.py",
-      "mode": "0o644",
-      "bytes": 21244,
-      "sha256": "bcb1948e73e971bf440194b336da1940ce8320fdaedc8a8d3ad041e9dbc9796b",
+      "mode": "0o640",
+      "bytes": 21480,
+      "sha256": "432426d0588841b44a95c4ee0add4a9d9612f374d5bae0df3e209b6f31e61dc2",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_codex_installer_session.py",
-      "mode": "0o640",
-      "bytes": 20801,
-      "sha256": "58d36a7ce8e0eb5f7546ed7e63aa35ac6dd9e2134fc88f3f78fc648fcc1495dc",
+      "mode": "0o660",
+      "bytes": 24598,
+      "sha256": "6fba27fff2356b62ab41a984ba14dfbe59730969a405b9df8bea664562497da3",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_codex_standalone_chroot.py",
-      "mode": "0o640",
-      "bytes": 6012,
-      "sha256": "8b8904d43bd78ce6734e782aac075b8e9f1d0dc69673955a009a8181cda1d0b7",
+      "mode": "0o660",
+      "bytes": 9214,
+      "sha256": "2a1dbe9ff25756434a70aabf4a66d793a8f0d5ea72b6b3fe9b85e13f6c04c542",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_config_safety.py",
-      "mode": "0o640",
-      "bytes": 9908,
-      "sha256": "e130b784efd049587cd260480f5cfa952264fefea73c955e34752e9494da9e55",
+      "mode": "0o660",
+      "bytes": 13279,
+      "sha256": "29e0459d4d1cf0032a68eebc10e6f1fe1d3d5cf4813df313e80c639ac7c15926",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_cuda_legacy_apt.py",
-      "mode": "0o640",
-      "bytes": 31285,
-      "sha256": "eda7ffa9a4509279437f51ba480c9e6337659c51008954ce3f03099fa21ddd0c",
+      "mode": "0o660",
+      "bytes": 32162,
+      "sha256": "6efe5455bb7d30e068c44378f92ab35daad87ae1a47f94c4c2b6bc161ab87a4e",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_dbus_broker.py",
       "mode": "0o640",
-      "bytes": 8867,
-      "sha256": "1a232e5b5269dee22c5796120eaecbfeeb12f92f5976baa7ee759cdeaaf1d782",
+      "bytes": 9214,
+      "sha256": "b51355874ca9a0feed6cc92330d69f5bd175fd5a0007c2e8108febe37de654b9",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_debconf_protocol.py",
-      "mode": "0o644",
-      "bytes": 17456,
-      "sha256": "ce113833ddedb4d28cb4169c44af9b910d09cb8aa08e626945ce84e91b327391",
+      "mode": "0o640",
+      "bytes": 17454,
+      "sha256": "e8cf4910a9c503e037c9a5c8a942d930c6f2367547f7972bd8d2c5f909af3470",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_desktop_sandbox.py",
-      "mode": "0o640",
-      "bytes": 25225,
-      "sha256": "13135a757692c030b5b764303df71dbf76a068bc8ab7fe05a3040ea17ca702d2",
+      "mode": "0o660",
+      "bytes": 40310,
+      "sha256": "9fc04ea0948ffeaeedff2e6262148535d3fca2506531921f90f031b08b66499e",
+      "check": "python-syntax-pass"
+    },
+    {
+      "path": "d-i/forky/tests/test_environment.py",
+      "mode": "0o600",
+      "bytes": 4553,
+      "sha256": "e08ebd9d144f0c085515fdc592b0ef8fec5b5eeec2a97d15d4f9aa4fe32cc9d7",
       "check": "python-syntax-pass"
     },
     {
@@ -8889,29 +8910,57 @@
     {
       "path": "d-i/forky/tests/test_initrd_credentials.py",
       "mode": "0o640",
-      "bytes": 13113,
-      "sha256": "ee92a5a9deff93f14a48ebda25b59e8281568d5c7dd22ed8a32da9dedda79be3",
+      "bytes": 13723,
+      "sha256": "3ecd18089358e932672fc23893cb2810bb7f60acc4fa4c40904e84910e377048",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_initrd_target_tools.py",
-      "mode": "0o640",
-      "bytes": 6844,
-      "sha256": "7b67ef16ab1e2a4144b0b7c0bd63a0937351336ed5007606b26d2be0f8d4d4be",
+      "mode": "0o660",
+      "bytes": 9152,
+      "sha256": "2c77a216ef03e186af271f3687328e866a4fa68a21af8e47220dbe559a4aad18",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_installer_hardening.py",
-      "mode": "0o644",
-      "bytes": 34345,
-      "sha256": "df5af538042a7a2e32ef0ea8739fc1e0f845afdd512cadd64a0404825390b933",
+      "mode": "0o660",
+      "bytes": 42894,
+      "sha256": "3989d6ec0a2ed875433acd88015074837b5f1f04476af714b145dff1704fdc17",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_lifecycle.py",
+      "mode": "0o660",
+      "bytes": 17981,
+      "sha256": "34c27e4f996f7e2c45016f12da2c44ef5e3482bdc5ae4d12eafb12530524de37",
+      "check": "python-syntax-pass"
+    },
+    {
+      "path": "d-i/forky/tests/test_managed_external_software.py",
+      "mode": "0o660",
+      "bytes": 10294,
+      "sha256": "3ce19d0a52907ed5e5aa890845093aad6fc56e2651ab4ab915c282e2c7760f58",
+      "check": "python-syntax-pass"
+    },
+    {
+      "path": "d-i/forky/tests/test_nvidia_580_recovery.py",
+      "mode": "0o660",
+      "bytes": 6576,
+      "sha256": "00257b9c792ed6c7bfa46bd51399e96940285b99aa5e8fc5b83f5859bf0dbd88",
+      "check": "python-syntax-pass"
+    },
+    {
+      "path": "d-i/forky/tests/test_nvidia_72_interfaces.py",
+      "mode": "0o660",
+      "bytes": 23539,
+      "sha256": "fc0a3d5a18c7ed3a6540722a7e2050ca6cfd25edd1f7c71602abcda6d258768b",
+      "check": "python-syntax-pass"
+    },
+    {
+      "path": "d-i/forky/tests/test_nvidia_legacy_dkms.py",
       "mode": "0o640",
-      "bytes": 15475,
-      "sha256": "d6aa7d9b0b0e44f8031573bff8ee788907c9b6190bac451a8e5e865faddfb6c7",
+      "bytes": 15520,
+      "sha256": "92a84464544c9b2c53de0de7a9263fb89ad1daaf8c11dae0f1179db22ea221c2",
       "check": "python-syntax-pass"
     },
     {
@@ -8924,8 +8973,8 @@
     {
       "path": "d-i/forky/tests/test_podman_incus_redesign.py",
       "mode": "0o640",
-      "bytes": 34158,
-      "sha256": "43bfbcb0a5795aeb77d1244129f883f9dfabb483b655b4a42a4192df14b47f7e",
+      "bytes": 46761,
+      "sha256": "6a8d07dd91bb9361830119b5459854542677db6ab1bdc87fdb8b3774fcb16b71",
       "check": "python-syntax-pass"
     },
     {
@@ -8938,41 +8987,41 @@
     {
       "path": "d-i/forky/tests/test_repository_integrity.py",
       "mode": "0o640",
-      "bytes": 5796,
-      "sha256": "91dc1be611fd7a86c9327ec125eddb8c6ca46004fed58f6ee7fff7b9f0b76bbb",
+      "bytes": 6715,
+      "sha256": "c385a2fc4752c78f3d1e5c1682e07ca43e31df5a9fb95a90dc8fb73215d33dc8",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_repository_transport.py",
       "mode": "0o640",
-      "bytes": 20844,
-      "sha256": "0b3c18ffc12dfe76fe04b43c06b9a3cf86d0d13df6b91bbb913f90c382eb322a",
+      "bytes": 21005,
+      "sha256": "337822cb9931988d2955753425252fcb2742548cf469d0d170586644fa07f98d",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_root_login.py",
       "mode": "0o640",
-      "bytes": 20765,
-      "sha256": "00999b304add8cd0df2ef84c9dad05c9bda718f6146c32b73b3831e7b9507230",
+      "bytes": 21465,
+      "sha256": "4cf6b957209cd07cfe6e06c26ad083a63007420d8e5e9c563aefbd133963df2a",
       "check": "python-syntax-pass"
     },
     {
       "path": "d-i/forky/tests/test_security_refactor.py",
-      "mode": "0o640",
-      "bytes": 22116,
-      "sha256": "6a8035834924fc418de5a184507651d36a3ee6a1daaca3aa094fbd7fa9475246",
+      "mode": "0o660",
+      "bytes": 26158,
+      "sha256": "7b7a44ecf51ef7b3ad8bac58b68e9651728e992ee3a308488f984cc6b07c351f",
       "check": "python-syntax-pass"
     },
     {
       "path": "docs/BOOTSTRAP-PORTABILITY-R2.md",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 6370,
       "sha256": "6eaf7ccc1bfc9927d77fd193918e600cbbab6a9ef921e8d1a33133e294181e65",
       "check": "inventory-only"
     },
     {
       "path": "docs/CHANGE-MANIFEST.json",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 22261,
       "sha256": "760ad1a613c400cd71ecd01f4aee907672aa9ee816d696a1b94efe1527581e1a",
       "check": "inventory-only"
@@ -8986,42 +9035,42 @@
     },
     {
       "path": "docs/CUDA-LEGACY-TRUST-R4.md",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 5369,
       "sha256": "984e098ebc805b3d4aceed4aaf0923297522ec1309c1aa0597e023f06db8da4e",
       "check": "inventory-only"
     },
     {
       "path": "docs/DEBCONF-TRANSPORT-R3.md",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 7875,
       "sha256": "770a2561bed0b38bbf882d590c663fc7dcce8700793ac4d8cffcc249610c3a7e",
       "check": "inventory-only"
     },
     {
       "path": "docs/ENGINEERING-REPORT-R2.md",
-      "mode": "0o644",
+      "mode": "0o640",
       "bytes": 4749,
       "sha256": "55fffe8541e0787e6945d39951772a082683cc06814edcff56a15e7faf392739",
       "check": "inventory-only"
     },
     {
       "path": "docs/ENGINEERING-REPORT-R3.md",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 7359,
       "sha256": "ec8c12894d04e1ce38e0932288003bde39750d403696caeaca4d0ab9f7de96ce",
       "check": "inventory-only"
     },
     {
       "path": "docs/ENGINEERING-REPORT.md",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 6040,
       "sha256": "d8d8ddb8b45453a714d4f0a6794a533b059b8153f2ca9e7fb92b2d5ff42ca16e",
       "check": "inventory-only"
     },
     {
       "path": "docs/INCIDENT-2026-09-07.md",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 6616,
       "sha256": "7ddd06f2eb4fa7975fc8716845ac6dc02c96ce71d5938fead72aedd233c321f3",
       "check": "inventory-only"
@@ -9035,9 +9084,23 @@
     },
     {
       "path": "docs/INSTALLER-HARDENING-2026-09-07.md",
-      "mode": "0o644",
+      "mode": "0o660",
       "bytes": 14770,
       "sha256": "1203743931ed61f613272182d4e0144de910d9e086b674233ac470e331620cdd",
+      "check": "inventory-only"
+    },
+    {
+      "path": "docs/NVIDIA580-XANMOD724-FIX.md",
+      "mode": "0o660",
+      "bytes": 11029,
+      "sha256": "4491fdd0dd21116249b280563bfc18724e34657b7f7d27928861e4b99516c512",
+      "check": "inventory-only"
+    },
+    {
+      "path": "docs/NVIDIA580-XANMOD724-R2.md",
+      "mode": "0o660",
+      "bytes": 14180,
+      "sha256": "a6dfed6830109004c6d43d5033ea91b68cb8ee959531c7f95a7576572dc918e3",
       "check": "inventory-only"
     },
     {
@@ -9056,7 +9119,7 @@
     },
     {
       "path": "docs/VALIDATION.md",
-      "mode": "0o640",
+      "mode": "0o660",
       "bytes": 3511,
       "sha256": "a748188bae84ace28d594d3de8f8a051a13b19d6964ecb77517ea61f5825ffb7",
       "check": "inventory-only"
@@ -9064,22 +9127,78 @@
     {
       "path": "docs/migration-map.json",
       "mode": "0o640",
-      "bytes": 524375,
-      "sha256": "0e5eeff2b4aeb130344e86c24c8fa92773f73ca4d07f4f9e1876c2e18db2e19f",
+      "bytes": 526399,
+      "sha256": "e7fbd4bd6a965fed6239a7cbe98e02f98981d8ed1ef754e6a09cf530ba0dbe79",
       "check": "inventory-only"
     },
     {
       "path": "docs/security-refactor-changes.json",
       "mode": "0o640",
-      "bytes": 20280,
-      "sha256": "b957b4e492fe1e0e2cff34039a29509eb13e36af0c8c571e32bcd0b80fd66e9d",
+      "bytes": 20304,
+      "sha256": "92c680d2add34d90b318d7419eb8a0041aadb25230dc1f9e78f847958e5a6f2e",
       "check": "inventory-only"
     },
     {
       "path": "docs/target-layout.md",
-      "mode": "0o640",
-      "bytes": 94202,
-      "sha256": "40f475efd5f7b1178ae535b650c8fc8b673327221ba7223bf6df51cdebfb75ba",
+      "mode": "0o660",
+      "bytes": 95106,
+      "sha256": "e9c302cda2bd260f159a25f430c299fdaf4ffcb5c247fa3298551945c47d78a6",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/Fail",
+      "mode": "0o660",
+      "bytes": 15566,
+      "sha256": "ea599c065a9933ae679141d380b620a05bea9a8a77c8215dca77e341441215bf",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/apparmor.log",
+      "mode": "0o660",
+      "bytes": 6666380,
+      "sha256": "b5262e3a13f8bdfa58ddb9337f3f96747d07652a3c307605ec77dfb042d152c0",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/auth.log",
+      "mode": "0o660",
+      "bytes": 16566,
+      "sha256": "59637da4574b3810aef0b24dfc9f2c284276f34305e81112396105e70f34ceb0",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/error",
+      "mode": "0o660",
+      "bytes": 416,
+      "sha256": "9b9a0e3e9b0228cffdaa9c10835619d8143f93821a0a99989ef2f5752b303419",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/fail",
+      "mode": "0o660",
+      "bytes": 3874,
+      "sha256": "d9e67d23bd9c79cc795a331df042973710a71dfef89dab8e3b7a86caaacf949b",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/journalctl",
+      "mode": "0o660",
+      "bytes": 215478,
+      "sha256": "5cc8b33d99f546f731039479e722aad484b64ed483df5f841ed3e7bd0772a9de",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/systemd-fail",
+      "mode": "0o660",
+      "bytes": 414,
+      "sha256": "cea2f7e8a71aa362744747f6bc567c99bfb39fc895abb6f33ee041ddb6b09f66",
+      "check": "inventory-only"
+    },
+    {
+      "path": "todo/user-systemd-fail",
+      "mode": "0o660",
+      "bytes": 761,
+      "sha256": "09b4ffe060fb0baa20379d33d870109fcd7d29e780edfb4b39b1c18c781c6b39",
       "check": "inventory-only"
     },
     {
@@ -9092,8 +9211,8 @@
     {
       "path": "tools/build_browser_config.py",
       "mode": "0o750",
-      "bytes": 15306,
-      "sha256": "9913b0423b1eb23e0fc6f983fb6c9bf6f2a3b6fbf550a7b4e87b230e25c0737b",
+      "bytes": 15314,
+      "sha256": "88b1b048d67880fda37c9182a3b1b6c3204c2f9f29ccb94def5d0498e3b1b72c",
       "check": "python-syntax-pass"
     },
     {
@@ -9106,13 +9225,13 @@
     {
       "path": "tools/check_preseeds.py",
       "mode": "0o640",
-      "bytes": 3676,
-      "sha256": "7e739691de305ceb0afca5e024174ff957afb5bf1bad985408e7869a67426d27",
+      "bytes": 3946,
+      "sha256": "189b93d14688a2f204e3bdc3b918334e7ec639b4d19b3d29aec20d9af616daeb",
       "check": "python-syntax-pass"
     },
     {
       "path": "tools/check_shells.py",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 4899,
       "sha256": "fafba73f04ae4d928ae647f68a6c575b73f90c204e5c7d26b7c7401ece2e22d6",
       "check": "python-syntax-pass"
@@ -9120,22 +9239,29 @@
     {
       "path": "tools/podman-incus-smoke.py",
       "mode": "0o750",
-      "bytes": 8426,
-      "sha256": "fa9c7c4e3f20e55a4526e41a8d5ef9362c3b8083fab65099e03ce19bcf46829a",
+      "bytes": 12977,
+      "sha256": "713daeca4abe1af26dee74efe17bd9e12a97d6d8fdce826f6e082730d3183d06",
       "check": "python-syntax-pass"
     },
     {
       "path": "tools/release_audit.py",
-      "mode": "0o755",
+      "mode": "0o750",
       "bytes": 4702,
       "sha256": "02779a56fc5d939762d9f1f6f69d07c8f47942326f66ffd8d6938c7bf75e3720",
       "check": "python-syntax-pass"
     },
     {
+      "path": "tools/repair_nvidia_580.sh",
+      "mode": "0o770",
+      "bytes": 4733,
+      "sha256": "23856a10c2755372cd64b0baddea90f1031de826dfed85e6fcb8473e7d0ce08f",
+      "check": "shell-syntax-pass"
+    },
+    {
       "path": "tools/validate.py",
       "mode": "0o640",
-      "bytes": 4104,
-      "sha256": "6888aca028bccbd621cbbc59d2a3eeec12ff5d655f347b73699c6de0ffe11246",
+      "bytes": 4409,
+      "sha256": "c3117f5b103849a0ece7b8287db312620fd83b250283ef3eb51c1037d9544688",
       "check": "python-syntax-pass"
     }
   ]

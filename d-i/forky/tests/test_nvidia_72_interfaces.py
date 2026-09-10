@@ -378,8 +378,16 @@ int main(void) {
         c = self.root / 'contracts.c'
         exe = self.root / 'contracts'
         c.write_text(prelude + switch + mode + uvm + main)
-        for compiler in filter(None, (shutil.which('cc'), shutil.which('clang'))):
+        for compiler_index, compiler in enumerate(filter(None, (shutil.which('cc'), shutil.which('clang')))):
             with self.subTest(compiler=compiler):
+                probe = subprocess.run([
+                    compiler, '-std=gnu11', '-fsanitize=undefined', '-x', 'c', '-',
+                    '-o', str(self.root / f'ubsan-probe-{compiler_index}'),
+                ], input='int main(void) { return 0; }\n', capture_output=True, text=True)
+                if probe.returncode:
+                    detail = next((line for line in reversed(probe.stderr.splitlines()) if line),
+                                  'compiler cannot link the UBSan runtime')
+                    self.skipTest(f'{compiler} cannot link -fsanitize=undefined: {detail}')
                 p = subprocess.run([compiler, '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                     '-Wno-unused-parameter', '-O2', '-fsanitize=undefined',
                     '-fno-sanitize-recover=undefined', str(c), '-o', str(exe)], capture_output=True, text=True)

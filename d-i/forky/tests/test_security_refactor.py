@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import unittest
 
+from test_environment import skip_unless_trusted_credential_ancestry
 from test_repository_transport import TransportFixture
 
 SEED = Path(__file__).resolve().parents[1]
@@ -187,7 +188,7 @@ class BrowserConfigurationTests(unittest.TestCase):
             if '/policies/' in str(path):
                 self.assertNotIn('EnableDoNotTrack', json.loads(data))
         for profile in ('vivaldi','microsoft-edge','chromium'):
-            prefs = json.loads(self.products[TARGET/'etc/skel/.config'/profile/'Default/Preferences'])
+            prefs = json.loads(self.products[TARGET/'etc/skel/primary/.config'/profile/'Default/Preferences'])
             self.assertFalse(prefs['enable_do_not_track'])
 
     def test_native_urls_are_not_web_origins(self):
@@ -362,6 +363,7 @@ class AdditionalProductionRegressions(unittest.TestCase):
             self.assertEqual(header.read_text(),original)
             self.assertEqual(list(header.parent.glob('nv-linux.h.tmp.*')),[])
 
+    @skip_unless_trusted_credential_ancestry
     def test_secret_files_harden_read_bits_but_reject_other_writers(self):
         with tempfile.TemporaryDirectory(prefix='private-preseed-') as tmp:
             file = Path(tmp)/'preseed.env'

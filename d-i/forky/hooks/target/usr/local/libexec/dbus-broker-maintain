@@ -57,10 +57,19 @@ def read_owned_file(path: Path) -> bytes:
 
 def trusted_directory(path: Path, mode: int = 0o755) -> None:
     path.mkdir(mode=mode, parents=True, exist_ok=True)
-    metadata = path.lstat()
-    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
-            or metadata.st_mode & 0o022):
-        raise RuntimeError(f'unsafe configuration directory: {path}')
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022):
+            raise RuntimeError(f'unsafe configuration directory: {path}')
+        # The helper runs with umask 077. Normalize public activation roots back
+        # to 0755 so unprivileged user buses can traverse and read aliases.
+        os.fchmod(fd, mode)
+        if stat.S_IMODE(os.fstat(fd).st_mode) != mode:
+            raise RuntimeError(f'configuration directory mode did not apply: {path}')
+    finally:
+        os.close(fd)
 
 
 def atomic_write(path: Path, data: bytes) -> None:

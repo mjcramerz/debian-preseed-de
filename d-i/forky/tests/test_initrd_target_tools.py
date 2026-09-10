@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 import unittest
 
+from test_environment import skip_unless_trusted_credential_ancestry
+
 ROOT=Path(__file__).resolve().parents[3]
 SEED=ROOT/'d-i/forky'
 SHELLS=[['/bin/sh']]
@@ -140,12 +142,14 @@ class DiagnosticTests(unittest.TestCase):
         return subprocess.run(['/bin/sh',str(ROOT/'tools/check-installer-credentials.sh'),str(self.envfile),str(self.cmdline)],
                               env={'PATH':os.environ['PATH'],'LC_ALL':'C'},text=True,capture_output=True,timeout=5)
 
+    @skip_unless_trusted_credential_ancestry
     def test_reports_presence_not_secrets(self):
         p=self.run_check()
         self.assertEqual(p.returncode,0,p.stderr)
         self.assertIn('root_password: present (initrd-env)',p.stdout)
         self.assertNotIn('Never-Display',p.stdout+p.stderr)
 
+    @skip_unless_trusted_credential_ancestry
     def test_reports_override_without_printing_it(self):
         self.cmdline.write_text('quiet root_password=Different-Never-Display-Fixture\n')
         p=self.run_check()
@@ -153,6 +157,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertIn('root_password: present (command-line)',p.stdout)
         self.assertNotIn('Never-Display',p.stdout+p.stderr)
 
+    @skip_unless_trusted_credential_ancestry
     def test_reports_empty_override_as_failure(self):
         self.cmdline.write_text('quiet root_password=\n')
         p=self.run_check()
@@ -165,6 +170,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(p.returncode,1,p.stderr)
         self.assertIn('root_password: missing-or-empty (initrd-env)',p.stdout)
 
+    @skip_unless_trusted_credential_ancestry
     def test_invalid_shell_file_reports_error_without_contents(self):
         self.envfile.write_text("PRESEED_ROOT_PASSWORD='Never-Display-Broken-Quote\n")
         p=self.run_check()

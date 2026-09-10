@@ -813,6 +813,7 @@ apparmor_support_local_include_files() {
 usr.bin.freshclam
 usr.bin.pasta
 slirp4netns
+unix-chkpwd
 EOF
 }
 
@@ -1490,6 +1491,7 @@ configure_target_apparmor_auditd() {
     /target/etc/audit/plugins.d \
     /target/etc/logrotate.d \
     /target/etc/rsyslog.d \
+    /target/etc/systemd/system/apparmor.service.d \
     /target/etc/systemd/system/logrotate.timer.d \
     /target/etc/tmpfiles.d \
     /target/etc/ssh \
@@ -1513,6 +1515,7 @@ configure_target_apparmor_auditd() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/65-audit-syslog.conf)" "/etc/tmpfiles.d/65-audit-syslog.conf" 0644
   normalize_target_tmpfiles_directory_policy "/etc/tmpfiles.d/65-audit-syslog.conf" "audit syslog storage"
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/parser.conf)" "/etc/apparmor/parser.conf" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor.service.d/20-managed-cache.conf)" "/etc/systemd/system/apparmor.service.d/20-managed-cache.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/easyprof.conf)" "/etc/apparmor/easyprof.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/logprof.conf)" "/etc/apparmor/logprof.conf" 0644
   stage_target_system_apparmor_profiles

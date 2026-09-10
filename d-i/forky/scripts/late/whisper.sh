@@ -283,6 +283,22 @@ whisper_stage_target_asset() {
   rm -f "$tmp_asset"
 }
 
+whisper_normalize_system_perl_module_parents() {
+  for module_parent in \
+    /usr/local/lib/perl5 \
+    /usr/local/lib/perl5/site_perl \
+    /usr/local/lib/perl5/site_perl/whisper \
+    /usr/local/lib/perl5/site_perl/whisper/WhisperMode
+  do
+    module_parent_host="${target_root}${module_parent}"
+    [ ! -L "$module_parent_host" ] ||
+      whisper_fatal "system Perl module parent is a symlink: ${module_parent}"
+    install -d -m 0755 "$module_parent_host"
+    chown root:root "$module_parent_host"
+    chmod 0755 "$module_parent_host"
+  done
+}
+
 whisper_mode_perl_modules() {
   cat <<'EOF'
 WhisperMode/Artifacts.pm
@@ -300,6 +316,7 @@ EOF
 }
 
 whisper_stage_mode_perl_modules() {
+  whisper_normalize_system_perl_module_parents
   whisper_mode_perl_modules |
     while IFS= read -r whisper_module; do
       [ -n "$whisper_module" ] || continue

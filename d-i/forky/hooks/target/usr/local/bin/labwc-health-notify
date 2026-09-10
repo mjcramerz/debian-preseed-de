@@ -941,7 +941,7 @@ check_security_signals() {
 
   check_security_signal \
     auth normal dialog-password system.security.auth 12000 \
-    "Authentication activity detected" \
+    "Failed authentication detected" \
     /var/log/managed/auth/auth.log
   check_security_signal \
     usb normal drive-removable-media device.added 12000 \

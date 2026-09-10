@@ -79,18 +79,18 @@ profile code flags=(attach_disconnected) {
   include if exists <local/code>
 }
 
-profile managed-labwc-autostart-hook /{etc/skel,home/*}/.config/labwc/autostart flags=(attach_disconnected) {
+profile managed-labwc-autostart-hook /{etc/skel/primary,home/*}/.config/labwc/autostart flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-desktop>
 
-  /{etc/skel,home/*}/.config/labwc/autostart rix,
+  /{etc/skel/primary,home/*}/.config/labwc/autostart rix,
 
   include if exists <local/home.labwc.autostart>
 }
 
-profile managed-labwc-shutdown-hook /{etc/skel,home/*}/.config/labwc/shutdown flags=(attach_disconnected) {
+profile managed-labwc-shutdown-hook /{etc/skel/primary,home/*}/.config/labwc/shutdown flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-desktop>
 
-  /{etc/skel,home/*}/.config/labwc/shutdown rix,
+  /{etc/skel/primary,home/*}/.config/labwc/shutdown rix,
 
   include if exists <local/home.labwc.shutdown>
 }
@@ -127,9 +127,12 @@ profile managed-waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/
   /usr/share/glycin-loaders/2+/conf.d/ r,
   /usr/share/glycin-loaders/2+/conf.d/** r,
   /usr/share/mime/mime.cache r,
+  /usr/share/poppler/cMap/** r,
   signal (send) set=(kill) peer=managed-waypaper//waypaper-bwrap,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
   owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
   owner @{HOME}/.cache/waypaper/ rw,
   owner @{HOME}/.cache/waypaper/** rwkl,
   owner @{HOME}/.config/user-dirs.dirs r,
@@ -433,9 +436,10 @@ profile managed-labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_dis
 
   /usr/local/bin/labwc-autostart rix,
   /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
-  /usr/bin/{sleep,stat} rix,
+  /usr/bin/{sleep,stat,timeout} rix,
   /usr/bin/{dbus-update-activation-environment,systemctl} pux,
   owner /run/user/[0-9]*/bus r,
+  owner /run/user/[0-9]*/systemd/ r,
   owner @{HOME}/.config/{mako,waybar}/ r,
   owner @{HOME}/.config/{mako,waybar}/** r,
 
@@ -450,6 +454,7 @@ profile managed-labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_dis
   /usr/bin/{bluetoothctl,notify-send,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+  /dev/rfkill r,
   /run/dbus/system_bus_socket rw,
 
   include if exists <local/usr.local.bin.labwc-bluetooth>
@@ -462,6 +467,7 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
   /usr/bin/{awk,gawk,mawk,nawk} rix,
   /usr/bin/{brightnessctl,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  /dev/rfkill r,
 
   include if exists <local/usr.local.bin.labwc-brightness-control>
 }
@@ -470,11 +476,11 @@ profile managed-labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_d
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/libexec/labwc-calendar rix,
-  /usr/bin/{cat,grep,install,mkdir,rm,rmdir} rix,
+  /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,stat,timeout} rix,
   /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
-  owner /run/user/[0-9]*/labwc-calendar-sync.lock/ rw,
+  owner /run/user/[0-9]*/labwc-calendar-sync.lock rwk,
   owner @{HOME}/.cache/labwc-calendar-sync.lock rwk,
   owner @{HOME}/.config/{khal,todoman,vdirsyncer}/ r,
   owner @{HOME}/.config/{khal,todoman,vdirsyncer}/** rwkl,
@@ -503,6 +509,7 @@ profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconn
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/satty rPx -> managed-satty,
+  /dev/rfkill r,
   owner /run/user/[0-9]*/labwc-capture/ rw,
   owner /run/user/[0-9]*/labwc-capture/** rwkl,
   owner /run/user/[0-9]*/pipewire-[0-9]* rw,
@@ -935,6 +942,9 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   /run/{NetworkManager,resolvconf,systemd/resolve}/** r,
   owner /run/user/[0-9]*/ r,
   owner /run/user/[0-9]*/codex-devops-environment.* rwk,
+  owner /run/user/[0-9]*/{ansible,python}/ rw,
+  owner /run/user/[0-9]*/ansible/{pc,ssh,tmp}/ rw,
+  owner /run/user/[0-9]*/python/pycache/ rw,
   /usr/lib/modules/ r,
   /var/lib/{AccountsService,NetworkManager,bluetooth,connman,dbus,iwd,systemd,systemd/rfkill}/ r,
   /var/lib/dbus/machine-id r,
@@ -1273,6 +1283,7 @@ profile managed-labwc-greeter-power /usr/local/bin/labwc-greeter-power flags=(at
   /usr/local/sbin/greetd-power-action rPx -> managed-greetd-power-action,
   signal (receive) peer=managed-labwc-greeter-client,
   /etc/greetd/gtkgreet-power.css r,
+  /usr/share/poppler/cMap/** r,
   /run/user/[0-9]*/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/ rw,
   /run/user/[0-9]*/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/** rwkl,
   /tmp/labwc-greeter.*/{cache,config,data,gnupg,home,state,tmp}/ rw,
@@ -1323,7 +1334,7 @@ profile managed-labwc-health-notify /usr/local/bin/labwc-health-notify flags=(at
 
   /usr/local/bin/labwc-health-notify rix,
   /usr/bin/sleep rix,
-  /usr/bin/{awk,cat,chmod,df,find,gawk,grep,id,mawk,mkdir,nawk,rm,sed,tr,wc} rix,
+  /usr/bin/{awk,cat,chmod,df,find,flock,gawk,grep,head,id,mawk,mkdir,mktemp,mv,nawk,rm,sed,stat,timeout,tr,wc} rix,
   /usr/bin/notify-send rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
   dbus send
@@ -1424,6 +1435,8 @@ profile managed-labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout flags
   /usr/local/bin/labwc-keyboard-layout rix,
   /usr/bin/{flock,install,mv,rm,sleep} rix,
   /usr/bin/labwc pux,
+  /dev/rfkill r,
+  /sys/devices/**/power_supply/*/status r,
   owner @{HOME}/.config/labwc/environment.d/ rw,
   owner @{HOME}/.config/labwc/environment.d/** rwkl,
   owner @{HOME}/.local/state/labwc/ rw,
@@ -2606,9 +2619,13 @@ profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
+  network netlink raw,
   /usr/local/libexec/labwc-output-watch rix,
-  /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} pux,
-  /usr/bin/wayland-info pux,
+  /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} rix,
+  /usr/bin/wayland-info rix,
+  /etc/udev/udev.conf r,
+  /etc/udev/udev.conf.d/ r,
+  /etc/udev/udev.conf.d/** r,
   signal (send) peer=unconfined,
   owner /run/user/[0-9]*/labwc-fuzzel.{lock,pid} rwk,
   owner /run/user/[0-9]*/labwc/ rw,
@@ -2836,7 +2853,7 @@ profile managed-labwc-session /usr/local/bin/labwc-session flags=(attach_disconn
   /usr/local/bin/labwc-session rix,
   /usr/local/libexec/dbus-broker-check rix,
   /usr/bin/busctl rix,
-  /usr/bin/{flock,id,jq,sleep,stat} rix,
+  /usr/bin/{flock,grep,id,jq,sleep,stat} rix,
   /usr/bin/{loginctl,systemctl,timeout} pux,
   # The login wrapper retains the one-session lock while it waits on the
   # user-manager-owned compositor service.
@@ -2857,6 +2874,7 @@ profile managed-labwc-swaybg /usr/local/libexec/labwc-swaybg flags=(attach_disco
   #include <abstractions/managed-wrapper-wayland>
 
   /usr/local/libexec/labwc-swaybg rix,
+  /usr/bin/readlink rix,
   /usr/bin/swaybg rPx,
   /usr/local/bin/labwc-wallpaper-save rPx -> managed-labwc-wallpaper-save,
   /etc/default/labwc-desktop r,
@@ -2971,7 +2989,8 @@ profile managed-labwc-mute-default-microphone /usr/local/libexec/labwc-mute-defa
   #include <abstractions/managed-wrapper-perl>
 
   /usr/local/libexec/labwc-mute-default-microphone rix,
-  /usr/local/lib/perl5/site_perl/whisper/WhisperMode/Audio.pm r,
+  /usr/local/lib/perl5/site_perl/whisper/ r,
+  /usr/local/lib/perl5/site_perl/whisper/** r,
   /usr/bin/wpctl ix,
   /dev/null rw,
   @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,

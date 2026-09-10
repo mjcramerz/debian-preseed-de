@@ -19,6 +19,14 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def unittest_counts(text: str) -> tuple[int | None, int]:
+    run_match = re.search(r'Ran (\d+) tests? in ', text)
+    result_match = re.search(r'^(?:OK|FAILED)(?: \(([^)]*)\))?$', text, re.M)
+    result_fields = result_match.group(1) if result_match and result_match.group(1) else ''
+    skipped_match = re.search(r'(?:^|, )skipped=(\d+)(?:,|$)', result_fields)
+    return (int(run_match.group(1)) if run_match else None,
+            int(skipped_match.group(1)) if skipped_match else 0)
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=ROOT/'validation')
@@ -56,10 +64,7 @@ def main() -> int:
                 'seconds':round(time.monotonic()-start,3),'log':log.name}
         if name=='tests':
             text=log.read_text()
-            match=re.search(r'Ran (\d+) tests? in ',text)
-            record['tests_run']=int(match.group(1)) if match else None
-            skipped=re.search(r'OK \(skipped=(\d+)\)',text)
-            record['skipped']=int(skipped.group(1)) if skipped else 0
+            record['tests_run'], record['skipped'] = unittest_counts(text)
         results.append(record)
         print(f'[{name}] {"PASS" if status==0 else "FAIL"} ({status})',flush=True)
     audit={}

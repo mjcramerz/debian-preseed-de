@@ -75,12 +75,18 @@ class ConfigSafetyTests(unittest.TestCase):
 
     def test_podman_api_preserves_container_lifecycle_and_rootless_helpers(self):
         base = SHARED / 'data/config/podman/templates/devops'
-        api = (base / 'podman.service.tmpl').read_text()
+        api = (base / 'podman-devops.service.tmpl').read_text()
+        socket_unit = (base / 'podman-devops.socket').read_text()
+        self.assertIn('User=devops', api)
+        self.assertIn('Group=devops', api)
         self.assertIn('KillMode=process', api)
         self.assertIn('Delegate=yes', api)
         self.assertNotIn('NoNewPrivileges=yes', api)
-        self.assertIn('SocketMode=0660', (base / 'podman.socket').read_text())
-        self.assertIn('RemoveOnStop=yes', (base / 'podman.socket').read_text())
+        self.assertNotIn('/run/user/', api)
+        self.assertIn('SocketUser=devops', socket_unit)
+        self.assertIn('SocketGroup=devops', socket_unit)
+        self.assertIn('SocketMode=0660', socket_unit)
+        self.assertIn('RemoveOnStop=yes', socket_unit)
         self.assertIn('TimeoutStopSec=30', api)
 
     def test_syncthing_preparation_never_runs_with_root_credentials(self):

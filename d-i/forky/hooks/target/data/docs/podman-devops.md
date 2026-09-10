@@ -19,30 +19,33 @@ logins; it cannot prevent code execution intentionally provided by the API.
 Do not expose the socket to untrusted containers or users. Rootless operation
 reduces host privilege; it is not protection against kernel vulnerabilities.
 
-The authoritative home and configuration directories are root-owned. Mutable
-runtime and storage leaves belong to devops. The desktop receives only the
-Podman API, not the service user's session bus or a user-manager sudo rule.
-Direct systemd/Quadlet administration remains an administrator operation;
-normal container/image/volume/network/build/Compose operations do not.
+The NSS home field is `/nonexistent`, and that path must not exist.
+`useradd --system --no-create-home` copies no skeleton. The former
+`/data/accounts/devops` layout is rejected rather than retained as a disguised
+home. A linger record, `user@<uid>.service`, runtime user bus, and systemd-user
+runtime state are forbidden. PID 1 starts the API directly as `User=devops`;
+there is no devops login or PAM session. Immutable configuration is root-owned
+under `/etc`; only explicit runtime and pool-storage leaves belong to devops.
+Direct systemd/Quadlet administration remains an administrator operation.
 
 ## Layout and native configuration
 
 | Path | Purpose | Owner / mode |
 | --- | --- | --- |
-| `/data/accounts/devops` | Locked account home | root:devops 0710 |
-| `.../.config/containers` | Authoritative engine, storage and registry config | root:devops 0750; files 0640 |
-| `.../.config/systemd/user` | Root-owned engine/socket/restart units | root:devops 0750; files 0640 |
-| `.../run` | Socket directory, not a login runtime directory | devops:devops 0710 |
-| `.../run/podman.sock` | Native Libpod and Docker-compatible API | devops:devops 0660 |
+| `/nonexistent` | Passwd home sentinel; it must not exist | absent |
+| `/etc/podman-devops/server/containers` | Authoritative engine, storage and registry config | root:devops 0750; files 0640 |
+| `/run/podman-devops` | Volatile system-service runtime; never `/run/user/<uid>` | devops:devops 0710 |
+| `/run/podman-devops/podman.sock` | Native Libpod and Docker-compatible API | devops:devops 0660 |
 | `/pool/podman` | Protected persistent root | root:root 0711 |
 | `/pool/podman/storage` | Images and writable container layers | devops:devops 0700 |
 | `/pool/podman/volumes` | Named volume data | devops:devops 0700 |
 | `/pool/podman/networks` | Persistent Netavark network definitions | devops:devops 0700 |
 | `/pool/podman/libpod` | Persistent engine metadata | devops:devops 0700 |
 | `/pool/podman/tmp` | Image/build temporary data on pool storage | devops:devops 0700 |
+| `/pool/podman/xdg-data` | Explicit non-home XDG data | devops:devops 0700 |
+| `/pool/podman/xdg-cache` | Explicit non-home XDG cache | devops:devops 0700 |
 | `/pool/podman/workspace` | Operator-shared build and bind-mount workspace | devops:devops 2770 |
-| `/run/user/<devops-uid>` | Volatile runtime state, locks, bus and namespaces | devops:devops; private logind runtime |
-| `/etc/podman-devops` | Public client config and root-owned layout manifest | root:root 0755 |
+| `/etc/podman-devops` | Client config, server config and layout manifest | root:devops 0750 |
 
 `/pool` retains its existing group access but gains the sticky bit (3775),
 preventing group members from replacing root-owned Podman/Incus pool roots.
@@ -51,12 +54,15 @@ Subordinate UID/GID mappings are allocated through shadow-utils, checked for
 collisions with other ranges and real accounts, recorded, and checked at boot.
 Do not change those mappings after storing container data.
 
-Volatile namespace handles and runtime locks intentionally stay under `/run`;
-putting those objects on durable pool storage would be incorrect. Registry
-credentials stay in each client's own home. The only pool-shared files meant
+Volatile namespace handles, the ephemeral registry-policy copy, and runtime
+locks intentionally stay under `/run`; putting those objects on durable pool
+storage would be incorrect. Registry credentials stay in each client's own
+home. The only pool-shared files meant
 for direct desktop manipulation are in `workspace`.
 
-The engine uses systemd-managed cgroup v2, crun, Netavark and pasta. `auto`
+PID 1 delegates the API service cgroup; rootless Podman manages its child
+cgroups through `cgroupfs` on unified cgroup v2. The engine also uses crun,
+Netavark and pasta. `auto`
 selects native OverlayFS on approved local filesystems (ext4, XFS, Btrfs, F2FS);
 explicit `btrfs` requires Btrfs. Actual rootless storage initialization must
 succeed at boot; there is no silent switch to vfs, another path, or rootful
@@ -71,7 +77,7 @@ Use fully qualified image names; no ambiguous search-registry fallback is set.
 
 The addon installs `podman`, `docker-cli`, `docker-compose`,
 `golang-github-containers-common`, `conmon`, `crun`, `uidmap`, `netavark`,
-`aardvark-dns`, `passt`, `catatonit`, `dbus-user-session`, and `python3`.
+`aardvark-dns`, `passt`, `catatonit`, and `python3`.
 Podman **5.8.6 or newer** is checked explicitly: the managed restart unit uses
 upstream's boot-state filter and native `stop --service` behavior. Debian Forky
 currently provides that version family. This is not a backport for Bookworm or
@@ -94,14 +100,15 @@ the offline target. The desktop account must already exist. The hook adds that
 account to `devops` and refreshes its shell assets, even when only addon/podman
 is selected. No service is started inside the installer chroot.
 
-At boot, `podman-devops-bootstrap.service` verifies the manifest, account,
-subordinate mappings, permissions and storage identity, enables linger, starts
-the user manager and socket, and queries the actual API for rootless mode,
-cgroup v2, the storage driver/paths and Netavark. A root-owned preflight on
-`user@<uid>.service` also checks these invariants when persistent linger starts
-the manager independently; it does not acquire the outer activation lock.
+At boot, `podman-devops-bootstrap.service` verifies the manifest, locked
+system account, subordinate mappings, permissions and storage identity, starts
+the system-level `podman-devops.socket`, and queries the actual API for rootless
+mode, delegated cgroupfs on cgroup v2, storage paths/driver, and Netavark. The
+API service has a root-only `ExecStartPre` that repeats the read-only invariant
+check before PID 1 drops directly to `User=devops`. No linger or user manager is
+created.
 
-The user socket activates the API without any desktop login. API restarts use
+The system socket activates the API without any desktop login. API restarts use
 `KillMode=process` so unrelated container scopes are not killed. The boot/shutdown
 unit restores `always` containers and eligible `unless-stopped` containers;
 manually stopped `unless-stopped` containers remain stopped. Shutdown uses the
@@ -118,8 +125,9 @@ parent checks, atomic replace+fsync for managed files, and explicit child
 cleanup. Setup requires a quiescent target, without unrelated concurrent account
 provisioning. Existing conflicting identities or stores require migration.
 
-Resource accounting/limits are on the complete `user-<uid>.slice`, including
-container scopes, not only the tiny API process. Defaults: CPUWeight 100,
+Resource accounting/limits are on the delegated `podman-devops.service`
+cgroup, including its rootless container children, not a service-user slice or
+user manager. Defaults: CPUWeight 100,
 IOWeight 100, TasksMax 8192, MemoryHigh 70%, MemoryMax 85%. Weight is relative,
 not a fixed CPU/IO cap. Memory percentages refer to host RAM, not free RAM;
 set smaller values in the host profile for shared/low-memory machines. Per
@@ -128,14 +136,14 @@ Operators can set tighter workload-specific limits. Journal events and service
 logs are available; this is not fine-grained per-operator API auditing.
 
 Do not add `NoNewPrivileges`, empty capability sets, `PrivateUsers`, or similar
-blanket restrictions to the engine's user units: subordinate-ID helpers need
+blanket restrictions to the engine system service: subordinate-ID helpers need
 their normal setuid behavior. The root bootstrap has its own restrictive
 systemd sandbox. Container isolation remains the engine/runtime's job.
 
 ## Ordinary desktop commands (no sudo)
 
 Open a new desktop session after group membership changes. The shell fragment
-`/etc/skel/.profile.d/71-devops-de.sh` exports the client-native variables
+`/etc/skel/primary/.profile.d/71-devops-de.sh` exports the client-native variables
 `CONTAINER_HOST`, `DOCKER_HOST`, `CONTAINERS_CONF`, `PODMAN_COMPOSE_PROVIDER`,
 `REGISTRY_AUTH_FILE`, `DOCKER_CONFIG`, `DOCKER_BUILDKIT`, and `COMPOSE_BAKE`.
 It leaves the desktop HOME, XDG_RUNTIME_DIR and D-Bus address intact. Its
@@ -236,8 +244,8 @@ An administrator can inspect detailed service logs and perform repairs:
 
 ```sh
 journalctl -b -u podman-devops-bootstrap.service
-journalctl -b _UID="$(id -u devops)"
-systemctl status "user@$(id -u devops).service" "user-$(id -u devops).slice"
+journalctl -b -u podman-devops.service -u podman-devops-restart.service
+systemctl status podman-devops.socket podman-devops.service podman-devops-restart.service
 /usr/local/libexec/podman-devops-host check
 systemctl restart podman-devops-bootstrap.service
 journalctl -b -u incus-host-managed.service
@@ -247,8 +255,8 @@ journalctl -b -u incus-host-managed.service
 Those maintenance commands are root operations where necessary, **not** part
 of daily container management. Do not directly edit hashed server config and
 expect bootstrap to accept it. Change the source templates/profile, stop the
-engine's workloads and user manager in an approved maintenance window, and
-rerun offline `setup` with the intended resource options. Linger/mount ordering
+engine's workloads and system units in an approved maintenance window, and
+rerun offline `setup` with the intended resource options. Runtime/mount ordering
 and the immutable storage identity are verified again before activation.
 
 Legacy `podsvc` installations or nonempty unmanaged stores are intentionally
@@ -290,15 +298,19 @@ filesystem, architecture and host profile before fleet rollout.
 - Standalone Docker client: https://packages.debian.org/forky/docker-cli
 - Compose package: https://packages.debian.org/forky/docker-compose
 
-## Second-pass startup and client corrections (2026-09-06)
+## System-service correction (2026-09-10)
 
-The system bootstrap uses `ProtectHome=read-only`, not `ProtectHome=yes`.
-It must reach the service-user bus at `/run/user/<devops-uid>/bus` when issuing
-`systemctl --user` commands through `runuser`. The latter setting hides this
-path even though the account home is under `/data/accounts`. Read-only protects
-filesystem writes without blocking AF_UNIX connections. `ProtectSystem=strict`,
-`NoNewPrivileges=yes` and the lock-directory write exception remain enabled.
-This still requires real installed-target startup/reboot acceptance.
+The locked `devops` UID intentionally has no `systemd --user` manager. The
+bootstrap does not call `loginctl`, create linger state, connect to a user bus,
+invoke a PAM user-switch helper, or stage anything under `.config/systemd`.
+Rootless Podman runs in the dedicated
+PID-1 unit `podman-devops.service` with a system socket under
+`/run/podman-devops`; therefore system-wide desktop user units such as PipeWire
+and WirePlumber are never loaded for this service account. Its clean remote API
+probe runs as root and therefore cannot open a devops PAM session. The bootstrap
+retains `ProtectSystem=strict`, `ProtectHome=yes`, `NoNewPrivileges=yes`,
+and narrow `/run` write exceptions. Real installed-target startup/reboot
+acceptance remains required.
 
 Managed CLI dispatch now accounts for separate-valued global options before
 checking common endpoint overrides. For example, `podman --log-level debug ps`

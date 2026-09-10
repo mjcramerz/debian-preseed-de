@@ -15,9 +15,9 @@ from test_bootstrap_portability import generated_commands
 Q = shlex.quote
 
 
+@unittest.skipUnless(os.geteuid() == 0, 'isolated d-i protocol tests require chroot privileges')
 class DebconfProtocolTests(unittest.TestCase):
     def setUp(self):
-        self.assertEqual(os.geteuid(), 0, 'isolated d-i protocol tests require chroot privileges')
         self.tmp = tempfile.TemporaryDirectory(prefix='di-protocol-')
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)

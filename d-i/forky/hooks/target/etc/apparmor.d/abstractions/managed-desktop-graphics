@@ -67,7 +67,9 @@ deny /dev/nvidia-modeset rw,
 /dev/char/226:* rw,
 /dev/char/5[0-9][0-9]:* rw,
 /dev/char/511:* rw,
-deny /dev/char/{195,226,5[0-9][0-9]}:* l,
+# Device-node compatibility links are udev/root state. Desktop clients may use
+# existing links but must never create or replace entries for dynamic majors.
+deny /dev/char/*:* l,
 /dev/udmabuf rw,
 
 # Read-only libudev records used to enumerate DRM devices.

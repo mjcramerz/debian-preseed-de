@@ -128,7 +128,7 @@ grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-greeter-ses
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
 grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
 grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
-! grep -q "_JAVA_AWT_WM_NONREPARENTING" /etc/skel/.config/labwc/environment.d/10-wayland.env
+! grep -q "_JAVA_AWT_WM_NONREPARENTING" /etc/skel/primary/.config/labwc/environment.d/10-wayland.env
 ! grep -q "_JAVA_AWT_WM_NONREPARENTING" /usr/local/bin/labwc-autostart
 ' sh
 }
@@ -312,72 +312,188 @@ validate_desktop_role() {
     /etc/systemd/user/xdg-desktop-portal-gtk.service.d/10-labwc-session.conf \
     /etc/systemd/user/xdg-desktop-portal-wlr.service.d/10-labwc-session.conf \
     /etc/systemd/user/xdg-desktop-portal-lxqt.service.d/10-labwc-session.conf \
-    /etc/skel/.gnupg/gpg-agent.conf \
-    /etc/skel/.config/systemd/user/waybar.service \
-    /etc/skel/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
-    /etc/skel/.config/systemd/user/labwc-adb-server.service \
-    /etc/skel/.config/systemd/user/llama-server.service \
-    /etc/skel/.config/systemd/user/labwc-output-watch.service \
-    /etc/skel/.config/systemd/user/labwc-mute-default-microphone.service \
-    /etc/skel/.config/systemd/user/swaybg.service \
-    /etc/skel/.config/systemd/user/kanshi.service \
-    /etc/skel/.config/systemd/user/swayidle.service \
-    /etc/skel/.config/systemd/user/crystal-dock.service \
+    /etc/skel/primary/.gnupg/gpg-agent.conf \
+    /etc/skel/primary/.config/systemd/user/waybar.service \
+    /etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
+    /etc/skel/primary/.config/systemd/user/labwc-adb-server.service \
+    /etc/skel/primary/.config/systemd/user/llama-server.service \
+    /etc/skel/primary/.config/systemd/user/labwc-output-watch.service \
+    /etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service \
+    /etc/skel/primary/.config/systemd/user/swaybg.service \
+    /etc/skel/primary/.config/systemd/user/kanshi.service \
+    /etc/skel/primary/.config/systemd/user/swayidle.service \
+    /etc/skel/primary/.config/systemd/user/crystal-dock.service \
     /etc/mailname \
     /etc/aliases \
     /etc/apt/listchanges.conf \
     /etc/apt/apt.conf.d/60desktop-local-mail.conf \
-    /etc/skel/.profile \
-    /etc/skel/.bash_profile \
-    /etc/skel/.bashrc \
-    /etc/skel/.bash_aliases \
-    /etc/skel/.config/nano/nanorc \
-    /etc/skel/.zshenv \
-    /etc/skel/.zprofile \
-    /etc/skel/.zshrc \
-    /etc/skel/.zlogout \
-    /etc/skel/.zsh_aliases \
-    /etc/skel/.profile.d \
-    /etc/skel/.config/labwc/rc.xml \
-    /etc/skel/.config/labwc/menu.xml \
-    /etc/skel/.config/waypaper/config.ini \
-    /etc/skel/.config/waypaper/keybindings.ini \
-    /etc/skel/.config/waypaper/style.css \
-    /etc/skel/.config/mako/config \
-    /etc/skel/.config/satty/config.toml \
-    /etc/skel/.config/satty/overrides.css \
-    /etc/skel/.config/systemd/user/labwc-session.target \
-    /etc/skel/.config/systemd/user/labwc-health-notify.service \
-    /etc/skel/.config/systemd/user/labwc-health-notify.path \
-    /etc/skel/.config/systemd/user/labwc-health-notify.timer \
-    /etc/skel/.config/systemd/user/labwc-plans.service \
+    /etc/skel/primary/.profile \
+    /etc/skel/primary/.bash_profile \
+    /etc/skel/primary/.bashrc \
+    /etc/skel/primary/.bash_aliases \
+    /etc/skel/primary/.config/nano/nanorc \
+    /etc/skel/primary/.zshenv \
+    /etc/skel/primary/.zprofile \
+    /etc/skel/primary/.zshrc \
+    /etc/skel/primary/.zlogout \
+    /etc/skel/primary/.zsh_aliases \
+    /etc/skel/primary/.profile.d \
+    /etc/skel/primary/.config/labwc/rc.xml \
+    /etc/skel/primary/.config/labwc/menu.xml \
+    /etc/skel/primary/.config/waypaper/config.ini \
+    /etc/skel/primary/.config/waypaper/keybindings.ini \
+    /etc/skel/primary/.config/waypaper/style.css \
+    /etc/skel/primary/.config/mako/config \
+    /etc/skel/primary/.config/satty/config.toml \
+    /etc/skel/primary/.config/satty/overrides.css \
+    /etc/skel/primary/.config/systemd/user/labwc-session.target \
+    /etc/skel/primary/.config/systemd/user/labwc-health-notify.service \
+    /etc/skel/primary/.config/systemd/user/labwc-health-notify.path \
+    /etc/skel/primary/.config/systemd/user/labwc-health-notify.timer \
+    /etc/skel/primary/.config/systemd/user/labwc-plans.service \
     /etc/default/labwc-plans \
-    /etc/skel/.config/systemd/user/labwc-kwallet-portal.service \
-    /etc/skel/.local/share/dbus-1/services/org.freedesktop.secrets.service \
+    /etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service \
+    /etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service \
     /usr/local/bin/labwc-health-notify \
     /usr/local/libexec/labwc-plans.pl \
     /usr/local/libexec/labwc-greeter-client \
     /usr/local/share/labwc-greeter/rc.xml \
     /usr/local/share/labwc-greeter/autostart \
-    /etc/skel/.config/mpv/mpv.conf \
-    /etc/skel/.config/mpv/input.conf \
-    /etc/skel/.config/systemd/user/labwc-calendar-sync.service \
-    /etc/skel/.config/systemd/user/labwc-calendar-sync.timer \
-    /etc/skel/.config/systemd/user/labwc-sync-application-launchers.service \
-    /etc/skel/.config/systemd/user/labwc-sync-application-launchers.path \
-    /etc/skel/.config/Thunar/uca.xml \
-    /etc/skel/.config/user-dirs.dirs \
+    /etc/skel/primary/.config/mpv/mpv.conf \
+    /etc/skel/primary/.config/mpv/input.conf \
+    /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service \
+    /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer \
+    /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service \
+    /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path \
+    /etc/skel/primary/.config/Thunar/uca.xml \
+    /etc/skel/primary/.config/user-dirs.dirs \
     /etc/xdg/gtk-3.0/settings.ini \
-    /etc/xdg/gtk-4.0/settings.ini \
-    /usr/share/backgrounds/desktop/labwall0-1920x1080.png
+    /etc/xdg/gtk-4.0/settings.ini
   do
     check_path "desktop-path-${desktop_path}" "$desktop_path"
   done
 
+  desktop_wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}
+  case "$desktop_wallpaper_path" in
+    /usr/share/backgrounds/desktop/*) ;;
+    *)
+      record "FAIL desktop-wallpaper-config: unmanaged ${desktop_wallpaper_path}"
+      log_line validation error desktop "unmanaged_wallpaper=${desktop_wallpaper_path}"
+      failures=$((failures + 1))
+      ;;
+  esac
+  if [ -f "$desktop_wallpaper_path" ] && [ -r "$desktop_wallpaper_path" ]; then
+    record "PASS desktop-wallpaper-config: ${desktop_wallpaper_path}"
+  else
+    record "FAIL desktop-wallpaper-config: unreadable ${desktop_wallpaper_path}"
+    log_line validation error desktop "unreadable_wallpaper=${desktop_wallpaper_path}"
+    failures=$((failures + 1))
+  fi
+
+  check_command desktop-x11-socket-directory-metadata \
+    /bin/sh -eu -c '
+      [ -d /tmp/.X11-unix ]
+      [ ! -L /tmp/.X11-unix ]
+      [ "$(stat -c "%u:%g:%a" /tmp/.X11-unix)" = "0:0:1777" ]
+    ' sh
+  check_absent_path desktop-public-xwayland-binary /usr/bin/Xwayland
+  check_command desktop-public-xwayland-package-absent \
+    /bin/sh -eu -c '
+      [ "$(dpkg-query -W -f="\${Status}" xwayland 2>/dev/null || true)" != "install ok installed" ]
+    ' sh
+  check_command desktop-pool-root-metadata \
+    /bin/sh -eu -c '
+      [ -d /pool ]
+      [ ! -L /pool ]
+      [ "$(stat -c "%u:%G:%a" /pool)" = "0:devops:3775" ]
+    ' sh
+  check_command desktop-labwc-plans-environment-source \
+    /bin/sh -eu -c '
+      grep -Fxq "EnvironmentFile=/etc/default/labwc-plans" /etc/skel/primary/.config/systemd/user/labwc-plans.service
+      ! grep -Eq "^(LoadCredential=|EnvironmentFile=%d/)" /etc/skel/primary/.config/systemd/user/labwc-plans.service
+    ' sh
+  if [ -r /etc/podman-devops/layout.json ]; then
+    check_command podman-devops-system-service-account \
+      /bin/sh -eu -c '
+        passwd_entry=$(getent passwd devops)
+        [ "$(printf "%s\n" "$passwd_entry" | cut -d: -f1)" = devops ]
+        uid=$(printf "%s\n" "$passwd_entry" | cut -d: -f3)
+        [ "$uid" -gt 0 ]
+        [ "$uid" -lt 1000 ]
+        [ "$(printf "%s\n" "$passwd_entry" | cut -d: -f6)" = /nonexistent ]
+        [ "$(printf "%s\n" "$passwd_entry" | cut -d: -f7)" = /usr/sbin/nologin ]
+        [ -x /usr/sbin/nologin ]
+        set -- $(passwd -S devops)
+        [ "$1" = devops ]
+        [ "$2" = L ]
+        [ "$(id -nG devops)" = devops ]
+        for forbidden_home in /nonexistent /data/accounts/devops
+        do
+          [ ! -e "$forbidden_home" ]
+          [ ! -L "$forbidden_home" ]
+        done
+        [ "$(stat -c "%u:%G:%a" /etc/podman-devops)" = "0:devops:750" ]
+        [ "$(stat -c "%u:%G:%a" /etc/podman-devops/server)" = "0:devops:750" ]
+        [ "$(stat -c "%u:%G:%a" /etc/podman-devops/server/containers)" = "0:devops:750" ]
+        for server_config in containers.conf storage.conf registries.conf
+        do
+          [ "$(stat -c "%u:%G:%a" "/etc/podman-devops/server/containers/$server_config")" = "0:devops:640" ]
+        done
+        [ ! -e /var/lib/systemd/linger/devops ]
+        [ ! -L /var/lib/systemd/linger/devops ]
+        [ ! -e "/etc/systemd/system/user@${uid}.service.d/50-podman-devops.conf" ]
+        [ ! -L "/etc/systemd/system/user@${uid}.service.d/50-podman-devops.conf" ]
+        [ ! -e "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
+        [ ! -L "/etc/systemd/system/user-${uid}.slice.d/50-podman-devops.conf" ]
+        ! systemctl is-active --quiet "user@${uid}.service"
+        devops_processes=$(ps -U "$uid" -o comm=)
+        ! printf "%s\n" "$devops_processes" | grep -Eq "^(pipewire|pipewire-pulse|wireplumber|mako|gpg-agent|ssh-agent|dbus-broker|dbus-daemon|hyprpolkitagen|xdg-desktop-por)$"
+        for runtime_user_state in bus systemd
+        do
+          [ ! -e "/run/user/${uid}/${runtime_user_state}" ]
+          [ ! -L "/run/user/${uid}/${runtime_user_state}" ]
+        done
+        [ "$(stat -c "%U:%G:%a" /run/podman-devops)" = "devops:devops:710" ]
+        for unit in podman-devops.service podman-devops.socket podman-devops-restart.service
+        do
+          path="/etc/systemd/system/$unit"
+          [ -f "$path" ]
+          [ ! -L "$path" ]
+          [ "$(stat -c "%u:%g:%a" "$path")" = "0:0:644" ]
+        done
+        grep -Fxq "User=devops" /etc/systemd/system/podman-devops.service
+        grep -Fxq "Group=devops" /etc/systemd/system/podman-devops.service
+        grep -Fxq "Environment=HOME=/nonexistent" /etc/systemd/system/podman-devops.service
+        grep -Fxq "Environment=XDG_RUNTIME_DIR=/run/podman-devops" /etc/systemd/system/podman-devops.service
+        grep -Fxq "Environment=XDG_DATA_HOME=/pool/podman/xdg-data" /etc/systemd/system/podman-devops.service
+        grep -Fxq "Environment=XDG_CACHE_HOME=/pool/podman/xdg-cache" /etc/systemd/system/podman-devops.service
+        grep -Fxq "ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start" /etc/systemd/system/podman-devops.service
+        ! grep -Eq "(/data/accounts/devops|/run/user/|^Environment=DBUS_SESSION_BUS_ADDRESS=|loginctl|systemctl --user|user@[0-9])" /etc/systemd/system/podman-devops.service
+        grep -Fxq "ListenStream=/run/podman-devops/podman.sock" /etc/systemd/system/podman-devops.socket
+        [ "$(readlink /etc/systemd/system/sockets.target.wants/podman-devops.socket)" = ../podman-devops.socket ]
+        [ "$(readlink /etc/systemd/system/multi-user.target.wants/podman-devops-bootstrap.service)" = ../podman-devops-bootstrap.service ]
+        [ "$(readlink /etc/systemd/system/multi-user.target.wants/podman-devops-restart.service)" = ../podman-devops-restart.service ]
+      ' sh
+  fi
+  if [ -n "$desktop_account_home" ]; then
+    check_command desktop-whisper-perl-module-imports \
+      /usr/sbin/runuser --user "$desktop_account_user" -- \
+      /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$desktop_account_home" \
+      /usr/bin/perl -I/usr/local/lib/perl5/site_perl/whisper \
+      -MWhisperMode::Audio -MWhisperMode::State -MWhisperMode::Systemd -e 1
+    if [ -x /usr/local/libexec/managed-external-software-notify ]; then
+      check_command desktop-external-software-perl-module-imports \
+        /usr/sbin/runuser --user "$desktop_account_user" -- \
+        /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$desktop_account_home" \
+        /usr/bin/perl -I/usr/local/lib/perl5/site_perl/external-managed-software \
+        -MExternalSoftware::Servicing::CLI -e 1
+    fi
+  fi
+
   for retired_desktop_path in \
     /etc/environment.d/90-labwc-session.conf \
-    /etc/skel/.config/systemd/user/dbus-broker.service.d/10-broker-hardening.conf \
-    /etc/skel/.config/systemd/user/xdg-desktop-portal-xapp.service.d/10-labwc-session.conf \
+    /etc/skel/primary/.config/systemd/user/dbus-broker.service.d/10-broker-hardening.conf \
+    /etc/skel/primary/.config/systemd/user/xdg-desktop-portal-xapp.service.d/10-labwc-session.conf \
     /etc/systemd/user/labwc-kwallet-portal.service
   do
     check_absent_path "desktop-retired-path-${retired_desktop_path}" "$retired_desktop_path"
@@ -401,7 +517,7 @@ validate_desktop_role() {
   do
     check_absent_path \
       "desktop-account-local-package-dropin-${account_local_package_dropin}" \
-      "/etc/skel/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
+      "/etc/skel/primary/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
   done
 
   if [ -n "$desktop_account_home" ]; then
@@ -509,17 +625,17 @@ validate_desktop_role() {
       whisper-transcribe.service \
       whisper-server.service
     do
-      [ -r "/etc/skel/.config/systemd/user/${optional_desktop_user_unit}" ] || continue
+      [ -r "/etc/skel/primary/.config/systemd/user/${optional_desktop_user_unit}" ] || continue
       check_path \
         "desktop-user-unit-${optional_desktop_user_unit}" \
         "${desktop_account_home}/.config/systemd/user/${optional_desktop_user_unit}"
     done
-    if [ -r /etc/skel/.config/systemd/user/whisper-server.service ]; then
+    if [ -r /etc/skel/primary/.config/systemd/user/whisper-server.service ]; then
       check_path \
         desktop-user-unit-whisper-server-enable \
         "${desktop_account_home}/.config/systemd/user/labwc-session.target.wants/whisper-server.service"
     fi
-    if [ -r /etc/skel/.config/systemd/user/managed-external-software-notify.path ]; then
+    if [ -r /etc/skel/primary/.config/systemd/user/managed-external-software-notify.path ]; then
       check_path \
         desktop-user-unit-managed-external-software-notify.path-enable \
         "${desktop_account_home}/.config/systemd/user/labwc-session.target.wants/managed-external-software-notify.path"
@@ -706,10 +822,10 @@ validate_desktop_role() {
     failures=$((failures + 1))
   fi
 
-  if grep -q '^ConditionEnvironment=LABWC_SESSION_OWNER=desktop$' /etc/skel/.config/systemd/user/labwc-session.target 2>/dev/null &&
-     ! grep -q '^BindsTo=graphical-session.target$' /etc/skel/.config/systemd/user/labwc-session.target 2>/dev/null &&
-     ! grep -q '^Wants=graphical-session.target$' /etc/skel/.config/systemd/user/labwc-session.target 2>/dev/null &&
-     ! grep -q '^After=graphical-session.target$' /etc/skel/.config/systemd/user/labwc-session.target 2>/dev/null &&
+  if grep -q '^ConditionEnvironment=LABWC_SESSION_OWNER=desktop$' /etc/skel/primary/.config/systemd/user/labwc-session.target 2>/dev/null &&
+     ! grep -q '^BindsTo=graphical-session.target$' /etc/skel/primary/.config/systemd/user/labwc-session.target 2>/dev/null &&
+     ! grep -q '^Wants=graphical-session.target$' /etc/skel/primary/.config/systemd/user/labwc-session.target 2>/dev/null &&
+     ! grep -q '^After=graphical-session.target$' /etc/skel/primary/.config/systemd/user/labwc-session.target 2>/dev/null &&
      grep -q '^ConditionEnvironment=LABWC_SESSION_OWNER=desktop$' /etc/systemd/user/xdg-desktop-portal.service.d/10-labwc-session.conf 2>/dev/null &&
      grep -q '^ConditionEnvironment=LABWC_SESSION_OWNER=desktop$' /etc/systemd/user/hyprpolkitagent.service.d/10-labwc-session.conf 2>/dev/null &&
      grep -Fq 'if [ "${LABWC_SESSION_OWNER:-}" != desktop ]; then' /usr/local/bin/labwc-autostart 2>/dev/null; then

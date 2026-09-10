@@ -8,7 +8,7 @@ import pwd
 import stat
 import sys
 
-SOCKET = Path('/data/accounts/devops/run/podman.sock')
+SOCKET = Path('/run/podman-devops/podman.sock')
 URI = 'unix://' + str(SOCKET)
 CLIENT_CONFIG = '/etc/podman-devops/client.conf'
 SELECTORS = ('CONTAINER_CONNECTION', 'CONTAINER_SSHKEY', 'CONTAINERS_CONF_OVERRIDE',
@@ -81,7 +81,14 @@ def validate_access() -> None:
         if path.is_symlink():
             raise ValueError(f'indirect socket path rejected: {path}')
     meta = SOCKET.stat()
-    if not stat.S_ISSOCK(meta.st_mode) or (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) != (user.pw_uid, group.gr_gid, 0o660):
+    runtime = SOCKET.parent.stat()
+    if (not stat.S_ISDIR(runtime.st_mode) or
+            (runtime.st_uid, runtime.st_gid, stat.S_IMODE(runtime.st_mode)) !=
+            (user.pw_uid, group.gr_gid, 0o710)):
+        raise ValueError('the devops runtime directory has unsafe ownership/type/permissions')
+    if (not stat.S_ISSOCK(meta.st_mode) or
+            (meta.st_uid, meta.st_gid, stat.S_IMODE(meta.st_mode)) !=
+            (user.pw_uid, group.gr_gid, 0o660)):
         raise ValueError('the devops socket has unsafe ownership/type/permissions')
 
 

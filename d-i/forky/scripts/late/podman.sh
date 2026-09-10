@@ -58,15 +58,15 @@ configure_target_rootless_podman() (
   : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
   # Fixed identities/paths are security invariants, not install-time aliases.
   [ "${PODMAN_USER:-devops}" = devops ] || podman_fatal 'PODMAN_USER must be devops'
-  [ "${PODMAN_USER_HOME:-/data/accounts/devops}" = /data/accounts/devops ] ||
-    podman_fatal 'PODMAN_USER_HOME must be /data/accounts/devops'
+  [ "${PODMAN_USER_HOME:-/nonexistent}" = /nonexistent ] ||
+    podman_fatal 'PODMAN_USER_HOME must be /nonexistent for the no-home service account'
   [ "${PODMAN_ROOTLESS_STATE_BASE:-/pool/podman}" = /pool/podman ] ||
     podman_fatal 'PODMAN_ROOTLESS_STATE_BASE must be /pool/podman'
 
   for asset in \
     containers.conf.tmpl storage.conf.tmpl registries.conf client.conf \
-    podman.service.tmpl podman.socket podman-restart.service.tmpl \
-    user-manager.conf.tmpl user-slice.conf.tmpl
+    podman-devops.service.tmpl podman-devops.socket \
+    podman-devops-restart.service.tmpl
   do
     stage_target_asset \
       "$(installer_repo_join_var DIR_HOOKS_TARGET "data/config/podman/templates/devops/$asset")" \
@@ -78,9 +78,10 @@ configure_target_rootless_podman() (
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/bin/$client")" "/usr/local/bin/$client" 0755
   done
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/podman-devops-bootstrap.service)" /etc/systemd/system/podman-devops-bootstrap.service 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/55-podman-devops.conf)" /etc/tmpfiles.d/55-podman-devops.conf 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/ssh/sshd_config.d/00-devops-nologin.conf)" /etc/ssh/sshd_config.d/00-devops-nologin.conf 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/sysctl.d/90-podman-rootless.conf)" /etc/sysctl.d/90-podman-rootless.conf 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.profile.d/71-devops-de.sh)" /etc/skel/.profile.d/71-devops-de.sh 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.profile.d/71-devops-de.sh)" /etc/skel/primary/.profile.d/71-devops-de.sh 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/labwc-podman-menu)" /usr/local/bin/labwc-podman-menu 0755
   stage_target_helper_docs podman-devops.md podbin.md podbin-service-bridge.md
 

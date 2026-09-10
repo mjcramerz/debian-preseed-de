@@ -16,10 +16,14 @@ import signal
 import stat
 import struct
 import subprocess
+import tarfile
 import tempfile
 import types
 import unittest
 from unittest import mock
+
+from test_environment import skip_unless_filesystem_unix_socket
+
 import warnings
 import zipfile
 
@@ -423,6 +427,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
         with mock.patch.dict(os.environ,{},clear=True):
             self.assertEqual(self.helper.main(['session-ready']),1)
 
+    @skip_unless_filesystem_unix_socket
     def test_ready_socket_checks_target_with_bounded_timeout(self):
         import socket
         with tempfile.TemporaryDirectory() as tmp, socket.socket(socket.AF_UNIX) as sock:
@@ -439,7 +444,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
                 self.assertEqual(self.helper.main(['reload-waybar',pid]),1)
 
     def test_codex_unit_leaves_nnp_to_bubblewrap(self):
-        data = (DESKTOP/'etc/skel/.config/systemd/user/codex-app-server.service').read_text()
+        data = (DESKTOP/'etc/skel/primary/.config/systemd/user/codex-app-server.service').read_text()
         self.assertIn('NoNewPrivileges=no\n',data)
         for line in data.splitlines():
             if line and not line.startswith('#'):
@@ -465,12 +470,12 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/mcp.env', data)
 
     def test_zathura_selection_uses_regular_clipboard(self):
-        data = (DESKTOP/'etc/skel/.config/zathura/zathurarc').read_text()
+        data = (DESKTOP/'etc/skel/primary/.config/zathura/zathurarc').read_text()
         self.assertIn('set selection-clipboard clipboard',data)
         self.assertIn('set recolor false',data)
 
     def test_docx_default_remains_focuswriter(self):
-        data = (DESKTOP/'etc/skel/.config/mimeapps.list').read_text()
+        data = (DESKTOP/'etc/skel/primary/.config/mimeapps.list').read_text()
         matches = [line for line in data.splitlines() if line.startswith('application/vnd.openxmlformats-officedocument.wordprocessingml.document=')]
         self.assertEqual(len(matches),2)
         self.assertTrue(all('=focuswriter.desktop;' in line for line in matches))
@@ -496,6 +501,270 @@ class SessionAndIntegrationTests(unittest.TestCase):
     def test_shared_tmp_directory_created_for_fresh_install(self):
         path = next(SHARED.rglob('80-codex-storage.conf.tmpl'))
         self.assertIn('d /data/tmp 3770 root devops -',path.read_text())
+
+
+class InstalledFailureRegressionTests(unittest.TestCase):
+    def test_auth_log_signals_only_explicit_failures(self):
+        policy = (DESKTOP / 'etc/rsyslog.d/20-auth.conf').read_text()
+        start = policy.index('  if (\n    $msg contains')
+        end = policy.index('  ) then {', start)
+        patterns = [
+            line.split('"', 2)[1]
+            for line in policy[start:end].splitlines()
+            if '$msg contains "' in line
+        ]
+        self.assertGreaterEqual(len(patterns), 8)
+        routine_messages = (
+            'pam_unix(sudo:session): session opened for user root(uid=0)',
+            'pam_unix(sudo:session): session closed for user root',
+            'mcramer : TTY=pts/0 ; PWD=/home/mcramer ; USER=root ; COMMAND=/usr/bin/id',
+            'Accepted publickey for mcramer from 192.0.2.10 port 4242 ssh2',
+        )
+        failed_messages = (
+            'pam_unix(sudo:auth): authentication failure; logname=mcramer',
+            'Failed password for invalid user example from 192.0.2.10 port 4242 ssh2',
+            'mcramer is not in the sudoers file; user NOT in sudoers',
+        )
+        for message in routine_messages:
+            self.assertFalse(any(pattern in message for pattern in patterns), message)
+        for message in failed_messages:
+            self.assertTrue(any(pattern in message for pattern in patterns), message)
+        self.assertLess(policy.index('name="managed_auth_log"'), start)
+        notifier = (DESKTOP / 'usr/local/bin/labwc-health-notify').read_text()
+        self.assertIn('"Failed authentication detected"', notifier)
+        self.assertNotIn('"Authentication activity detected"', notifier)
+
+    @unittest.skipUnless(Path('/usr/sbin/rsyslogd').is_file(), 'rsyslogd is unavailable')
+    def test_auth_rainerscript_parses(self):
+        source = (DESKTOP / 'etc/rsyslog.d/20-auth.conf').read_text()
+        sanitized = '\n'.join(
+            line for line in source.splitlines()
+            if not line.lstrip().startswith(('fileOwner=', 'fileGroup=', 'dirOwner=', 'dirGroup='))
+        ) + '\n'
+        with tempfile.TemporaryDirectory(prefix='auth-rsyslog-') as tmp:
+            tmp_path = Path(tmp)
+            fragment = tmp_path / '20-auth.conf'
+            fragment.write_text(sanitized)
+            config = tmp_path / 'rsyslog.conf'
+            config.write_text(
+                'module(load="imuxsock")\n'
+                f'include(file="{fragment}" mode="required")\n'
+            )
+            result = subprocess.run(
+                ['/usr/sbin/rsyslogd', '-N1', '-f', str(config)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_failed_desktop_service_contracts_are_repaired(self):
+        plans = (DESKTOP / 'etc/skel/primary/.config/systemd/user/labwc-plans.service').read_text()
+        self.assertIn('EnvironmentFile=/etc/default/labwc-plans\n', plans)
+        self.assertNotIn('LoadCredential=', plans)
+        self.assertNotIn('EnvironmentFile=%d/', plans)
+
+        staging = (ROOT / 'scripts/desktop/components.sh').read_text()
+        for module in ('Audio.pm', 'State.pm', 'Systemd.pm'):
+            path = f'usr/local/lib/perl5/site_perl/whisper/WhisperMode/{module}'
+            self.assertIn(path, staging)
+        self.assertIn('desktop_normalize_system_perl_module_parents', staging)
+        self.assertIn('whisper_normalize_system_perl_module_parents',
+                      (ROOT / 'scripts/late/whisper.sh').read_text())
+        self.assertIn('software_normalize_system_perl_module_parents',
+                      (ROOT / 'scripts/late/software.sh').read_text())
+
+        apparmor = (DESKTOP / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
+        self.assertIn('/usr/local/lib/perl5/site_perl/whisper/** r,', apparmor)
+        for executable in ('flock', 'head', 'mktemp', 'mv', 'stat', 'timeout'):
+            self.assertIn(executable, apparmor)
+
+    def test_wallpaper_and_xwayland_boot_contracts_are_explicit(self):
+        expected = '/usr/share/backgrounds/desktop/labwall0-1920x1080.png'
+        with tarfile.open(DESKTOP / 'usr/share/backgrounds/desktop/wallpapers.tar.gz', 'r:gz') as archive:
+            self.assertIn('labwall0-1920x1080.png', archive.getnames())
+        for profile in (ROOT / 'hosts/profiles').glob('*.env'):
+            profile_text = profile.read_text()
+            if 'LABWC_WALLPAPER_PATH=' in profile_text:
+                self.assertIn(f'LABWC_WALLPAPER_PATH="{expected}"', profile_text, profile.name)
+        helper = (DESKTOP / 'usr/local/libexec/labwc-swaybg').read_text()
+        self.assertIn(f'LABWC_WALLPAPER_PATH:-{expected}', helper)
+        self.assertIn('resolved_saved_wallpaper=$(readlink -e', helper)
+        self.assertIn('if [ -f "$resolved_saved_wallpaper" ]', helper)
+        self.assertIn(f'wallpaper = {expected}',
+                      (DESKTOP / 'etc/skel/primary/.config/waypaper/config.ini').read_text())
+
+        tmpfiles = (DESKTOP / 'etc/tmpfiles.d/tmp.conf').read_text()
+        self.assertIn('d /tmp/.X11-unix 1777 root root -', tmpfiles)
+        compositor = (DESKTOP / 'etc/skel/primary/.config/systemd/user/labwc-compositor.service').read_text()
+        self.assertNotIn('Environment=WLR_XWAYLAND=', compositor)
+        self.assertIn('UnsetEnvironment=DISPLAY XAUTHORITY WLR_XWAYLAND ', compositor)
+        self.assertIn('InaccessiblePaths=-/opt/xwayland', compositor)
+        packages = (ROOT / 'classes/class-select/role/desktop.cfg').read_text().split()
+        self.assertNotIn('xwayland', packages)
+        xwayland = (ROOT / 'scripts/desktop/xwayland.sh').read_text()
+        self.assertIn('purge xwayland', xwayland)
+        self.assertIn('public /usr/bin/Xwayland must not exist', xwayland)
+        firstboot = (ROOT / 'scripts/firstboot/04-validation.sh').read_text()
+        self.assertIn('desktop-x11-socket-directory-metadata', firstboot)
+        self.assertIn('desktop-public-xwayland-binary', firstboot)
+        self.assertIn('desktop-public-xwayland-package-absent', firstboot)
+        self.assertIn('desktop-wallpaper-config', firstboot)
+        firstboot_unit = (DESKTOP / 'etc/systemd/system/firstboot.service').read_text()
+        self.assertIn('Requires=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
+        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
+
+    def test_pool_and_apparmor_cache_contracts_are_consistent(self):
+        codex = (DESKTOP / 'data/codex/lib/codex').read_text()
+        environment = (DESKTOP / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py').read_text()
+        self.assertIn('CODEX_DEVOPS_GROUP, 0o3775, True', codex)
+        self.assertIn('CHATGPT_POOL_ROOT_MODE = 0o3775', environment)
+        self.assertIn('desktop-pool-root-metadata',
+                      (ROOT / 'scripts/firstboot/04-validation.sh').read_text())
+
+        cache = (DESKTOP / 'etc/tmpfiles.d/50-var-cache.conf.tmpl').read_text()
+        self.assertIn('__INSTALLER_DIR_VAR_CACHE__/apparmor 0755 root root -', cache)
+        dropin = DESKTOP / 'etc/systemd/system/apparmor.service.d/20-managed-cache.conf'
+        self.assertTrue(dropin.is_file())
+        self.assertIn('ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /var/cache/apparmor',
+                      dropin.read_text())
+        self.assertIn('20-managed-cache.conf', (ROOT / 'scripts/late/security.sh').read_text())
+
+    def test_named_apparmor_runtime_gaps_are_covered(self):
+        def profile_block(source, name):
+            marker = f'profile {name} '
+            start = source.index(marker)
+            end = source.find('\nprofile ', start + len(marker))
+            return source[start:] if end < 0 else source[start:end]
+
+        policy = (DESKTOP / 'etc/apparmor.d/managed-labwc-session').read_text()
+        compositor = profile_block(policy, 'managed-labwc-compositor')
+        for rule in (
+            '/usr/local/share/** r,',
+            'owner /proc/[0-9]*/uid_map r,',
+            'owner /tmp/.X[0-9]*-lock rwk,',
+            'owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,',
+            'owner @{HOME}/.local/share/applications/*.desktop r,',
+            'deny /dev/char/*:* l,',
+            'deny /var/cache/fontconfig/ w,',
+        ):
+            self.assertIn(rule, compositor)
+
+        waybar = profile_block(policy, 'managed-waybar')
+        for rule in (
+            '/usr/bin/bwrap rPx -> managed-session-glycin-bwrap,',
+            'owner /proc/[0-9]*/net/dev r,',
+            '/dev/rfkill r,',
+            'owner @{HOME}/.local/share/gvfs-metadata/{root,root-*.log} r,',
+        ):
+            self.assertIn(rule, waybar)
+
+        controls = profile_block(policy, 'managed-session-controls')
+        for rule in (
+            'deny network inet,',
+            'deny network inet6,',
+            'owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/ rw,',
+            'owner /run/user/[0-9]*/wayscriber/** rwkl,',
+        ):
+            self.assertIn(rule, controls)
+        glycin = profile_block(policy, 'managed-session-glycin-bwrap')
+        self.assertIn('/usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,', glycin)
+        self.assertIn('owner @{HOME}/.cache/glycin/** rwkl,', glycin)
+        self.assertIn('crystal-dock/labwc/#[0-9]*', policy)
+        self.assertIn('@{PROC}/sys/kernel/core_pattern r,', policy)
+        self.assertIn('@{PROC}/[0-9]*/mountinfo r,', policy)
+
+        wrappers = (DESKTOP / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
+        autostart = profile_block(wrappers, 'managed-labwc-autostart')
+        self.assertIn('/usr/bin/{sleep,stat,timeout} rix,', autostart)
+        self.assertIn('owner /run/user/[0-9]*/systemd/ r,', autostart)
+
+        calendar = profile_block(wrappers, 'managed-labwc-calendar')
+        self.assertIn('/usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,stat,timeout} rix,',
+                      calendar)
+        self.assertIn('owner /run/user/[0-9]*/labwc-calendar-sync.lock rwk,', calendar)
+
+        output_watch = profile_block(wrappers, 'managed-labwc-output-watch')
+        for rule in (
+            'network netlink raw,',
+            '/usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} rix,',
+            '/usr/bin/wayland-info rix,',
+            '/etc/udev/udev.conf r,',
+            '/etc/udev/udev.conf.d/** r,',
+        ):
+            self.assertIn(rule, output_watch)
+        self.assertNotIn(' pux,', output_watch)
+
+        codex = profile_block(wrappers, 'managed-codex-wrapper')
+        for rule in (
+            'owner /run/user/[0-9]*/{ansible,python}/ rw,',
+            'owner /run/user/[0-9]*/ansible/{pc,ssh,tmp}/ rw,',
+            'owner /run/user/[0-9]*/python/pycache/ rw,',
+        ):
+            self.assertIn(rule, codex)
+
+        for profile_name in (
+            'managed-labwc-bluetooth',
+            'managed-labwc-brightness-control',
+            'managed-labwc-capture',
+            'managed-labwc-keyboard-layout',
+        ):
+            self.assertIn('/dev/rfkill r,', profile_block(wrappers, profile_name))
+        keyboard = profile_block(wrappers, 'managed-labwc-keyboard-layout')
+        self.assertIn('/sys/devices/**/power_supply/*/status r,', keyboard)
+
+        health = profile_block(wrappers, 'managed-labwc-health-notify')
+        for executable in ('flock', 'head', 'mktemp', 'mv', 'stat', 'timeout'):
+            self.assertIn(executable, health)
+        waypaper = profile_block(wrappers, 'managed-waypaper')
+        self.assertIn('/usr/share/poppler/cMap/** r,', waypaper)
+        self.assertIn('owner @{HOME}/.cache/glycin/** rwkl,', waypaper)
+        swaybg = profile_block(wrappers, 'managed-labwc-swaybg')
+        self.assertIn('/usr/bin/readlink rix,', swaybg)
+        session = profile_block(wrappers, 'managed-labwc-session')
+        self.assertIn('/usr/bin/{flock,grep,id,jq,sleep,stat} rix,', session)
+        microphone = profile_block(wrappers, 'managed-labwc-mute-default-microphone')
+        self.assertIn('/usr/local/lib/perl5/site_perl/whisper/** r,', microphone)
+
+        firstboot = (DESKTOP / 'etc/apparmor.d/managed-system-wrappers').read_text()
+        crowdsec = profile_block(firstboot, 'managed-crowdsec-firstboot')
+        self.assertIn('#include <abstractions/managed-wrapper-python>', crowdsec)
+        self.assertIn('/usr/local/libexec/crowdsec-bouncer-verify rix,', crowdsec)
+        for executable in ('mktemp', 'stat', 'timeout'):
+            self.assertIn(executable, crowdsec)
+
+        launcher = (DESKTOP / 'etc/apparmor.d/managed-desktop-utilities').read_text()
+        for rule in (
+            '/usr/ r,',
+            '/data/bin/ r,',
+            '/var/log/ r,',
+            '/run/log/journal/ r,',
+            '/var/log/journal/*/user-[0-9]*.journal r,',
+        ):
+            self.assertIn(rule, launcher)
+
+        session_client = (DESKTOP / 'etc/apparmor.d/abstractions/managed-session-client').read_text()
+        self.assertIn('/dev/shm/ r,', session_client)
+        self.assertIn('owner /dev/shm/** rwkl,', session_client)
+        self.assertIn('owner /proc/[0-9]*/cgroup r,', session_client)
+
+        audio = (DESKTOP / 'etc/apparmor.d/abstractions/managed-pipewire-audio').read_text()
+        self.assertIn('owner @{HOME}/.config/pulse/ rw,', audio)
+        graphics = (DESKTOP / 'etc/apparmor.d/abstractions/managed-desktop-graphics').read_text()
+        self.assertIn('deny /dev/char/*:* l,', graphics)
+
+    def test_unix_chkpwd_local_policy_is_staged(self):
+        include = DESKTOP / 'etc/apparmor.d/local/unix-chkpwd'
+        self.assertTrue(include.is_file())
+        self.assertIn('owner /dev/pts/[0-9]* rw,', include.read_text())
+        security = (ROOT / 'scripts/late/security.sh').read_text()
+        self.assertIn('usr.bin.pasta\nslirp4netns\nunix-chkpwd\nEOF', security)
+        self.assertIn('for apparmor_local_include in $(apparmor_support_local_include_files); do',
+                      security)
+
+    def test_wayscriber_self_update_watcher_is_disabled(self):
+        unit = (DESKTOP / 'etc/systemd/user/wayscriber.service.d/10-labwc-session.conf').read_text()
+        self.assertIn('Environment=WAYSCRIBER_DISABLE_UPDATE_CHECK=1\n', unit)
 
 
 if __name__ == '__main__':

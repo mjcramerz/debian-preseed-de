@@ -3,8 +3,8 @@ Description=First boot provisioning and validation wrapper
 Documentation=man:systemd.service(5)
 DefaultDependencies=no
 
-Requires=local-fs.target
-After=local-fs.target systemd-journald.socket
+Requires=local-fs.target systemd-tmpfiles-setup.service
+After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket
 Before=sysinit.target
 
 # The wrapper skips a successful marker under its lock. Failed legacy markers

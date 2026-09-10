@@ -742,7 +742,7 @@ MANAGED_RUNTIME_STATE = {
             (
                 ".config/keepassxc/keepassxc.ini",
                 0o600,
-                "/etc/skel/.config/keepassxc/keepassxc.ini",
+                "/etc/skel/primary/.config/keepassxc/keepassxc.ini",
             ),
         ),
     },

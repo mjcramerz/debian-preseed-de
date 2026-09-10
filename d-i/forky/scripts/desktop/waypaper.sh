@@ -294,7 +294,7 @@ desktop_install_waypaper() {
     "$waypaper_system_binary"
 
   desktop_render_role_target_template \
-    "etc/skel/.local/share/applications/waypaper.desktop.tmpl" \
+    "etc/skel/primary/.local/share/applications/waypaper.desktop.tmpl" \
     "$waypaper_launcher" \
     0644
   chown \

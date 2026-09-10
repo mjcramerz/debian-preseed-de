@@ -1879,7 +1879,7 @@ devops_install_llama_runtime() {
 devops_render_cargo_config() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/.config/cargo/config.toml.tmpl)
+    etc/skel/primary/.config/cargo/config.toml.tmpl)
   template_tmp="${tmp_env_dir}/cargo-config.toml.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/cargo-config.toml.rendered.$$"
   target_cargo_dir="${target_root}${CARGO_HOME}"
@@ -2012,10 +2012,10 @@ devops_render_codex_logrotate() {
 devops_render_bazelrc() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/.config/bazel/bazelrc.tmpl)
+    etc/skel/primary/.config/bazel/bazelrc.tmpl)
   template_tmp="${tmp_env_dir}/bazelrc.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/bazelrc.rendered.$$"
-  target_bazel_dir="${target_root}/etc/skel/.config/bazel"
+  target_bazel_dir="${target_root}/etc/skel/primary/.config/bazel"
   target_bazelrc="${target_bazel_dir}/bazelrc"
 
   bootstrap_fetch_seed_file \
@@ -2052,10 +2052,10 @@ devops_render_bazelrc() {
 devops_render_packer_template() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/.config/packer/template.pkr.hcl.tmpl)
+    etc/skel/primary/.config/packer/template.pkr.hcl.tmpl)
   template_tmp="${tmp_env_dir}/packer-template.pkr.hcl.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/packer-template.pkr.hcl.rendered.$$"
-  target_skel_dir="${target_root}/etc/skel/.config/packer"
+  target_skel_dir="${target_root}/etc/skel/primary/.config/packer"
   target_skel_template="${target_skel_dir}/template.pkr.hcl"
 
   bootstrap_fetch_seed_file \
@@ -2090,7 +2090,7 @@ packer_fatal() {
 
 account_user=$1
 account_home=$2
-source_template=/etc/skel/.config/packer/template.pkr.hcl
+source_template=/etc/skel/primary/.config/packer/template.pkr.hcl
 config_dir="${account_home}/.config"
 template_dir="${config_dir}/packer"
 target_template="${template_dir}/template.pkr.hcl"
@@ -3307,11 +3307,11 @@ devops_stage_codex_app_server() {
     etc/default/codex-app-server)
   service_source_repo=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/.config/systemd/user/codex-app-server.service)
+    etc/skel/primary/.config/systemd/user/codex-app-server.service)
   environment_tmp="${tmp_env_dir}/codex-app-server.env.$$"
   service_tmp="${tmp_env_dir}/codex-app-server.service.$$"
   environment_target="${target_root}/etc/default/codex-app-server"
-  template_config_dir="${target_root}/etc/skel/.config"
+  template_config_dir="${target_root}/etc/skel/primary/.config"
   template_systemd_dir="${template_config_dir}/systemd"
   template_unit_dir="${template_systemd_dir}/user"
   template_wants_dir="${template_unit_dir}/default.target.wants"
@@ -3365,7 +3365,7 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server user unit must inherit its account identity from the user manager"
   fi
 
-  for managed_base_dir in "${target_root}/etc/default" "${target_root}/etc/skel"; do
+  for managed_base_dir in "${target_root}/etc/default" "${target_root}/etc/skel/primary"; do
     if [ -e "$managed_base_dir" ] || [ -L "$managed_base_dir" ]; then
       [ -d "$managed_base_dir" ] && [ ! -L "$managed_base_dir" ] ||
         devops_fatal "Codex app-server base directory is indirect: $managed_base_dir"
@@ -4565,7 +4565,7 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "managed yt-dlp wrapper is missing after installation"
 [ -x "${target_root}${DEVOPS_YT_DLP_PAYLOAD_PATH}" ] ||
   devops_fatal "yt-dlp standalone payload with bundled yt-dlp-ejs is missing after installation"
-[ -r "${target_root}/etc/skel/.config/bazel/bazelrc" ] ||
+[ -r "${target_root}/etc/skel/primary/.config/bazel/bazelrc" ] ||
   devops_fatal "managed Bazel rc is missing from the desktop skeleton"
 [ -x "${target_root}${DEVOPS_ANSIBLE_CORE_BINARY_PATH}" ] ||
   devops_fatal "Ansible upstream executable is missing after installation"
@@ -4575,7 +4575,7 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "Terraform upstream executable is missing after installation"
 [ -x "${target_root}${DEVOPS_PACKER_BINARY_PATH}" ] ||
   devops_fatal "Packer upstream executable is missing after installation"
-[ -r "${target_root}/etc/skel/.config/packer/template.pkr.hcl" ] ||
+[ -r "${target_root}/etc/skel/primary/.config/packer/template.pkr.hcl" ] ||
   devops_fatal "managed Packer template is missing from the desktop skeleton"
 [ -r "${target_root}${ACCOUNT_HOME}/.config/packer/template.pkr.hcl" ] ||
   devops_fatal "managed Packer template is missing from the primary account"

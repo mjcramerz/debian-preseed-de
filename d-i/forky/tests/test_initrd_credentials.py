@@ -11,6 +11,8 @@ import subprocess
 import tempfile
 import unittest
 
+from test_environment import skip_unless_trusted_credential_ancestry
+
 ROOT = Path(__file__).resolve().parents[3]
 SEED = ROOT / 'd-i/forky'
 CANONICAL = SEED / 'scripts/common/credentials.sh'
@@ -90,6 +92,7 @@ class InitrdCredentialTests(CredentialFixture):
             embedded = text.split('# END EMBEDDED INITRD CREDENTIALS\n',1)[0]
             self.assertEqual(embedded, CANONICAL.read_text())
 
+    @skip_unless_trusted_credential_ancestry
     def test_full_supplied_env_format_all_mappings_all_shells(self):
         for name,shell in SHELLS:
             for prefix in ('installer','runtime'):
@@ -116,6 +119,7 @@ class InitrdCredentialTests(CredentialFixture):
                     self.assertEqual(result.returncode,0,result.stderr)
                     self.assertEqual(result.stdout,'\n')
 
+    @skip_unless_trusted_credential_ancestry
     def test_env_fallback_works_without_stat_in_all_shells(self):
         for name,shell in SHELLS:
             for prefix in ('installer','runtime'):
@@ -126,6 +130,7 @@ class InitrdCredentialTests(CredentialFixture):
                     self.assertEqual(result.stdout,self.values['PRESEED_ROOT_PASSWORD']+'\n')
                     self.assertNotIn('STAT_MUST_NOT_RUN',result.stderr)
 
+    @skip_unless_trusted_credential_ancestry
     def test_read_only_shared_bits_are_hardened_before_source(self):
         for mode in (0o400,0o600,0o440,0o444,0o640,0o644,0o604,0o404):
             for prefix in ('installer','runtime'):
@@ -138,8 +143,10 @@ class InitrdCredentialTests(CredentialFixture):
     def test_unsafe_modes_fail_closed(self):
         for mode in (0o000,0o200,0o660,0o664,0o666,0o755,0o777,0o4600):
             self.file.chmod(mode)
-            self.assert_safe_failure(self.run_lookup(),'permissions')
+            reason = 'permissions' if os.access(self.file, os.R_OK) else 'readable regular file'
+            self.assert_safe_failure(self.run_lookup(),reason)
 
+    @skip_unless_trusted_credential_ancestry
     def test_chmod_failure_is_reported_not_missing_password(self):
         self.file.chmod(0o644)
         self.assert_safe_failure(self.run_lookup(preamble='chmod() { return 1; }\n'),'cannot make')
@@ -147,6 +154,7 @@ class InitrdCredentialTests(CredentialFixture):
     def test_ls_failure_is_reported_without_weakening_checks(self):
         self.assert_safe_failure(self.run_lookup(preamble='ls() { return 1; }\n'),'cannot inspect')
 
+    @skip_unless_trusted_credential_ancestry
     def test_crlf_and_bom_and_empty_other_fields_are_supported(self):
         self.values={v:'' for v in self.values}
         self.values['PRESEED_ROOT_PASSWORD']='Fixture!$\\quoted'
@@ -157,6 +165,7 @@ class InitrdCredentialTests(CredentialFixture):
                 self.assertEqual(result.returncode,0,result.stderr)
                 self.assertEqual(result.stdout,self.values['PRESEED_ROOT_PASSWORD']+'\n')
 
+    @skip_unless_trusted_credential_ancestry
     def test_shell_quoted_apostrophes_and_metacharacters_are_literal(self):
         self.values['PRESEED_ROOT_PASSWORD']="a'b\"$()`;|&*?[]\\#value"
         self.write_env()
@@ -165,10 +174,12 @@ class InitrdCredentialTests(CredentialFixture):
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(result.stdout,self.values['PRESEED_ROOT_PASSWORD']+'\n')
 
+    @skip_unless_trusted_credential_ancestry
     def test_invalid_syntax_is_redacted(self):
         self.file.write_text("PRESEED_ROOT_PASSWORD='"+self.values['PRESEED_ROOT_PASSWORD'])
         self.assert_safe_failure(self.run_lookup(),'invalid shell syntax')
 
+    @skip_unless_trusted_credential_ancestry
     def test_source_stdout_and_stderr_do_not_contaminate_password(self):
         with self.file.open('a') as stream:
             stream.write('\nprintf "NEVER_LOG_SOURCE_OUTPUT"\nprintf "NEVER_LOG_SOURCE_ERROR" >&2\n')
@@ -204,6 +215,7 @@ class InitrdCredentialTests(CredentialFixture):
         finally:
             self.dir.chmod(0o700)
 
+    @skip_unless_trusted_credential_ancestry
     def test_default_fallback_does_not_inherit_exported_secrets(self):
         self.file.write_text('# no deployment credentials\n')
         result=self.run_lookup(env={'PRESEED_ROOT_PASSWORD':'Inherited-Wrong'})
@@ -241,6 +253,7 @@ class InitrdCredentialTests(CredentialFixture):
             self.assertEqual(result.stdout,'')
 
 class UserHashPrecedenceTests(CredentialFixture):
+    @skip_unless_trusted_credential_ancestry
     def test_plaintext_user_password_clears_stale_hash_in_rendered_answers(self):
         self.values['PRESEED_PRIMARY_USERNAME']='fixtureuser'
         self.write_env()

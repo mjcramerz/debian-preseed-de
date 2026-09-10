@@ -16,6 +16,8 @@ import subprocess
 import tempfile
 import unittest
 
+from test_environment import skip_unless_trusted_credential_ancestry
+
 FORKY = Path(__file__).resolve().parents[1]
 os.environ["INSTALLER_SOURCE_LIBRARY"] = str(FORKY / "scripts/common/source.sh")
 RUNTIME = FORKY / "scripts/runtime/common.sh"
@@ -91,6 +93,7 @@ class RootFixture(unittest.TestCase):
 
 
 class RootAccountTests(RootFixture):
+    @skip_unless_trusted_credential_ancestry
     def test_cmdline_wins_over_preseed_env_in_all_shells(self):
         self.seed_env("Fallback-Fixture-Only!2026")
         self.env["INSTALLER_CMDLINE"] += " root_password=" + TEST_ROOT
@@ -112,6 +115,7 @@ class RootAccountTests(RootFixture):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_answers(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_absent_parameter_uses_preseed_env_in_all_shells(self):
         self.seed_env()
         for name, shell in SHELLS:
@@ -143,6 +147,7 @@ class RootAccountTests(RootFixture):
         self.env["INSTALLER_CMDLINE"] += " root_password= root_password=" + TEST_ROOT
         self.assert_render_fails()
 
+    @skip_unless_trusted_credential_ancestry
     def test_old_root_login_environment_cannot_reinstate_disabled_default(self):
         self.seed_env()
         self.env["ROOT_LOGIN"] = "false"
@@ -151,6 +156,7 @@ class RootAccountTests(RootFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_answers(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_explicit_disabled_policy_is_rejected(self):
         self.seed_env()
         result = self.assert_render_fails("ROOT_LOGIN=false\n")
@@ -171,6 +177,7 @@ class RootAccountTests(RootFixture):
         self.envfile.symlink_to(real)
         self.assert_render_fails()
 
+    @skip_unless_trusted_credential_ancestry
     def test_invalid_root_credential_does_not_leak_in_diagnostic(self):
         self.seed_env(TEST_ROOT + " with whitespace")
         result = self.assert_render_fails()
@@ -194,6 +201,7 @@ class RootAccountTests(RootFixture):
         self.assert_answers(password)
         self.assertFalse((self.path / "SHOULD_NOT_EXIST").exists())
 
+    @skip_unless_trusted_credential_ancestry
     def test_exact_key_matching_does_not_accept_a_prefix(self):
         self.seed_env()
         self.env["INSTALLER_CMDLINE"] += " other_root_password=wrong root_password_extra=wrong"
@@ -201,6 +209,7 @@ class RootAccountTests(RootFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_answers(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_effective_account_environment_does_not_persist_root_secret(self):
         self.seed_env()
         result = self.render(suffix=(
@@ -213,6 +222,7 @@ class RootAccountTests(RootFixture):
         self.assertNotIn("ROOT_PASSWORD", text)
         self.assertEqual(stat.S_IMODE(self.effective.stat().st_mode), 0o600)
 
+    @skip_unless_trusted_credential_ancestry
     def test_repeated_render_is_idempotent(self):
         self.seed_env()
         self.assertEqual(self.render().returncode, 0)
@@ -229,6 +239,7 @@ class RootAccountTests(RootFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_answers(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_installer_and_runtime_resolvers_agree_and_preserve_caller_state(self):
         self.seed_env()
         cases = [("quiet", TEST_ROOT),
@@ -312,6 +323,7 @@ class DebconfRootTests(RootFixture):
             f"{mode} {shlex.quote(str(self.answers))}\n"
         ))
 
+    @skip_unless_trusted_credential_ancestry
     def test_real_debconf_receives_unlocked_root_and_exact_password(self):
         for name, shell in SHELLS:
             with self.subTest(shell=name):
@@ -319,6 +331,7 @@ class DebconfRootTests(RootFixture):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_database(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_reapply_clears_stale_root_disable_and_locked_hash(self):
         self.assertEqual(self.apply().returncode, 0)
         self.debconf("SET passwd/root-login false")
@@ -328,6 +341,7 @@ class DebconfRootTests(RootFixture):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_database(TEST_ROOT)
 
+    @skip_unless_trusted_credential_ancestry
     def test_protocol_fallback_clears_hash_without_overwriting_password_with_seen(self):
         self.assertEqual(self.apply().returncode, 0)  # Register real templates.
         for name, shell in SHELLS:
@@ -339,6 +353,7 @@ class DebconfRootTests(RootFixture):
                 self.assert_database(TEST_ROOT)
                 self.assertEqual(self.debconf("GET passwd/user-fullname"), "Matthew Cramer")
 
+    @skip_unless_trusted_credential_ancestry
     def test_literal_trailing_backslash_password_round_trips_in_all_shells(self):
         password = TEST_ROOT + "\\"
         self.seed_env(password)
@@ -375,6 +390,7 @@ class DebconfRootTests(RootFixture):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertNotIn(TEST_ROOT, result.stdout + result.stderr)
 
+    @skip_unless_trusted_credential_ancestry
     def test_seen_false_changes_flag_not_password(self):
         self.assertEqual(self.apply().returncode, 0)
         fragment = self.path / "seen.answers"

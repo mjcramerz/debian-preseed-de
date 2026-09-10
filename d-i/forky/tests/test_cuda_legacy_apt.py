@@ -23,6 +23,8 @@ import threading
 import time
 import unittest
 
+from test_environment import skip_unless_installer_apt_ancestry, skip_unless_loopback_inet
+
 SEED = Path(__file__).resolve().parents[1]
 LIB = SEED / 'scripts/common/lib.sh'
 REPO = 'https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/'
@@ -72,6 +74,7 @@ class CudaLifecycleTests(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertNotEqual(shell('installer_cuda_source_line ' + shlex.join(args)).returncode, 0)
 
+    @skip_unless_installer_apt_ancestry
     def test_stage_publishes_repeatably_without_fetching_a_key(self):
         key = self.root/KEY_PATH.lstrip('/')
         key.parent.mkdir(parents=True)
@@ -87,6 +90,7 @@ class CudaLifecycleTests(unittest.TestCase):
             self.assertFalse(list(self.source.parent.glob('.cuda-legacy.*')))
         self.assertFalse((self.root/'usr/share/apt/default-sequoia.config').exists())
 
+    @skip_unless_installer_apt_ancestry
     def test_old_signed_source_is_replaced_without_key_or_network_prerequisites(self):
         self.source.parent.mkdir(parents=True)
         self.source.write_text(f'deb [arch=amd64 signed-by={KEY_PATH},{FINGERPRINT}] {REPO} /\n')
@@ -104,6 +108,7 @@ class CudaLifecycleTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.source.read_text(), 'previous source\n')
 
+    @skip_unless_installer_apt_ancestry
     def test_failed_atomic_publish_preserves_old_file_and_cleans_temporary(self):
         self.source.parent.mkdir(parents=True)
         self.source.write_text('old\n')
@@ -198,6 +203,7 @@ bootstrap_source_common_support_libs() { :; }
                                 env=env, text=True, capture_output=True, timeout=15)
         return result, calls
 
+    @skip_unless_installer_apt_ancestry
     def test_entire_selected_pre_pkgsel_hook_stages_trusted_source_before_refresh(self):
         for _ in range(2):
             result, calls = self.run_pre_pkgsel_hook()
@@ -215,6 +221,7 @@ bootstrap_source_common_support_libs() { :; }
         self.assertFalse(self.source.exists())
         self.assertFalse(calls.exists())
 
+    @skip_unless_installer_apt_ancestry
     def test_entire_pre_pkgsel_hook_propagates_real_apt_failure(self):
         result, calls = self.run_pre_pkgsel_hook(apt_status=100)
         self.assertEqual(result.returncode, 100, result.stdout+result.stderr)
@@ -276,6 +283,7 @@ cuda_legacy_cleanup_target_apt_state
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertFalse(self.source.exists())
 
+    @skip_unless_installer_apt_ancestry
     def test_conditional_caller_cannot_mask_source_publication_failure(self):
         self.source.parent.mkdir(parents=True)
         self.source.write_text('old source\n')
@@ -285,12 +293,14 @@ cuda_legacy_cleanup_target_apt_state
         self.assertEqual(self.source.read_text(), 'old source\n')
         self.assertFalse(list(self.source.parent.glob('.cuda-legacy.*')))
 
+    @skip_unless_installer_apt_ancestry
     def test_cleanup_preserves_publication_failure_status(self):
         result = shell(f'mv() {{ return 73; }}\nrm() {{ return 74; }}\n'
                        f'installer_cuda_stage_target_source {REPO} /', self.env)
         self.assertEqual(result.returncode, 73, result.stderr)
         self.assertFalse(self.source.exists())
 
+    @skip_unless_installer_apt_ancestry
     def test_late_preparation_stages_exception_and_retains_apt_error(self):
         for status in (0, 100):
             with self.subTest(status=status):
@@ -327,6 +337,7 @@ class QuietHTTP(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
 
+@skip_unless_loopback_inet
 class RealAptTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -342,10 +353,15 @@ class RealAptTests(unittest.TestCase):
                             ['gpgconf', '--homedir', str(cls.gnupg), '--kill', 'gpg-agent'],
                             capture_output=True, timeout=10)
         for digest in ('SHA1', 'SHA256'):
-            subprocess.run(cls.gpg + ['--faked-system-time', '1740000000',
-                           '--cert-digest-algo', digest, '--quick-generate-key',
-                           f'{digest} Fixture <{digest.lower()}@example.invalid>', 'rsa2048', 'sign', '0'],
-                           check=True, capture_output=True, timeout=30)
+            generated = subprocess.run(cls.gpg + ['--faked-system-time', '1740000000',
+                                       '--cert-digest-algo', digest, '--quick-generate-key',
+                                       f'{digest} Fixture <{digest.lower()}@example.invalid>',
+                                       'rsa2048', 'sign', '0'], capture_output=True,
+                                       text=True, timeout=30)
+            if generated.returncode:
+                detail = next((line for line in reversed(generated.stderr.splitlines()) if line),
+                              'GnuPG could not generate a disposable signing key')
+                raise unittest.SkipTest(f'GnuPG signing fixture unavailable: {detail}')
             exported = subprocess.run(cls.gpg + ['--armor', '--export', digest+' Fixture'],
                                       check=True, capture_output=True).stdout
             (cls.root/(digest+'.asc')).write_bytes(exported)
@@ -362,7 +378,8 @@ class RealAptTests(unittest.TestCase):
         cls.addClassCleanup(cls.server.server_close)
         cls.addClassCleanup(cls.server.shutdown)
         cls.base = f'http://127.0.0.1:{cls.server.server_port}/'
-        pkg = cls.root/'package'; (pkg/'DEBIAN').mkdir(parents=True)
+        pkg = cls.root/'package'; control = pkg/'DEBIAN'; control.mkdir(parents=True)
+        control.chmod(0o755)
         (pkg/'DEBIAN/control').write_text('Package: cuda-legacy-fixture\nVersion: 1.0\n'
                                        'Architecture: all\nMaintainer: Test <nobody@example.invalid>\n'
                                        'Description: Inert authentication regression fixture\n')

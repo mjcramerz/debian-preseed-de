@@ -14,11 +14,9 @@ TimeoutStartSec=30s
 Type=exec
 KillMode=control-group
 Environment=LIBSEAT_BACKEND=seatd
-# Never turn an inherited X11/Xwayland value into the compositor's executable
-# path. Point wlroots at a root-owned fail-closed executable so its lazy
-# Xwayland setup does not probe the intentionally absent /usr/bin/Xwayland.
-Environment=WLR_XWAYLAND=/usr/bin/false
-UnsetEnvironment=DISPLAY XAUTHORITY XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID
+# Never pass an inherited X11/Xwayland selector to the host compositor. The
+# public Xwayland package and /usr/bin/Xwayland are intentionally absent.
+UnsetEnvironment=DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID
 # The private compatibility runtime belongs exclusively to the target-bound
 # Zoom/Discord Cage services and is not visible in Labwc's mount namespace.
 InaccessiblePaths=-/opt/xwayland

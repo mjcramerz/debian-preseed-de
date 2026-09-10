@@ -1141,7 +1141,7 @@ def codex_require_managed_work_areas() -> None:
             f"{os.environ['HOME']}/{home_directory}",
         )
     codex_require_managed_directory(
-        "pool root", CODEX_POOL_ROOT, 0, CODEX_DEVOPS_GROUP, 0o2775, True
+        "pool root", CODEX_POOL_ROOT, 0, CODEX_DEVOPS_GROUP, 0o3775, True
     )
     devops_group_id = os.stat(CODEX_POOL_ROOT, follow_symlinks=False).st_gid
     if devops_group_id not in current_group_ids:

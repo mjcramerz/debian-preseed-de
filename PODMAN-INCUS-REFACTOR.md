@@ -24,19 +24,22 @@ Read the detailed operating guide at
 The old privileged `podbin` broker and `podsvc` provisioning have been removed.
 The installer creates a locked system account named `devops` with primary group
 `devops`, `/usr/sbin/nologin`, no supplementary groups and explicit SSH denial.
-Its fixed home is `/data/accounts/devops`. The home/configuration/unit directories
-are root-owned; only necessary mutable leaves are owned by the service account.
+Its fixed passwd home is `/nonexistent`, which must remain absent. The obsolete
+`/data/accounts/devops` home-shaped layout is rejected. Immutable engine config
+is root-owned below `/etc/podman-devops`; only explicit `/pool/podman` data/cache
+leaves are owned by the service account. No skeleton, user-unit tree, linger
+record, user manager, login/PAM session, or user bus is created.
 
-A lingering systemd user manager owns the rootless engine, Unix socket and
-boot/shutdown restart service. The socket is
-`/data/accounts/devops/run/podman.sock`, owned by devops:devops with mode 0660.
+PID 1 owns dedicated system units that drop directly to `User=devops` for the
+rootless engine and boot/shutdown restart client. The socket is
+`/run/podman-devops/podman.sock`, owned by devops:devops with mode 0660.
 The selected desktop user joins the existing devops group. `/usr/local/bin/podman`,
 `docker` and `docker-compose` are unprivileged native-client wrappers; they never
 use sudo, change the caller's UID, borrow the service session bus or silently fall
 back to a different store. `docker compose` uses the packaged Compose plugin.
 
 The shell integration is in the requested file:
-`d-i/forky/hooks/target/etc/skel/.profile.d/71-devops-de.sh`. Native client variables,
+`d-i/forky/hooks/target/etc/skel/primary/.profile.d/71-devops-de.sh`. Native client variables,
 fixed socket selection, aliases and clearly identified path metadata are provided.
 The desktop HOME, XDG_RUNTIME_DIR and session bus stay unchanged. Engine-native
 storage variables belong to the service, not the remote desktop client.
@@ -44,15 +47,16 @@ storage variables belong to the service, not the remote desktop client.
 Persistent images/layers, named volumes, network definitions, engine metadata and
 build temporary files are under `/pool/podman`. The shared bind-mount/build
 workspace is `/pool/podman/workspace` (devops:devops 2770); private engine stores
-remain 0700. Namespace handles, runtime locks and the session bus remain on
-volatile `/run`, not durable pool storage. `/pool` gains sticky-bit protection
+remain 0700. Namespace handles and runtime locks stay in `/run/podman-devops`;
+there is deliberately no service-user session bus. `/pool` gains sticky-bit protection
 without removing its existing group access.
 
 Native OverlayFS is the auto choice on approved local filesystems; explicit
 Btrfs is supported only on Btrfs. Runtime startup verifies the actual driver,
 rootless mode, cgroup v2, paths and Netavark. There is no rootful or vfs fallback.
-Resource accounting and limits cover the entire service-user slice, including
-container scopes: configurable CPU/IO weights, task and memory limits. The default
+PID 1 delegates `podman-devops.service`; Podman uses `cgroupfs` for child cgroups,
+and service-level CPU/IO weights plus task and memory limits cover the engine and
+its container children. The default
 engine uses crun, Netavark/pasta, capped container log files and journal events.
 
 ## Security boundary and compatibility
@@ -88,9 +92,11 @@ Root-managed setup uses bounded non-unlinked flock locks, no-follow path checks,
 strict ownership and subordinate-ID validation, atomic same-directory replace,
 fsync and changed-only writes. Existing mappings and store identity are retained.
 There is no recursive chown of container data. Installer setup never starts a
-service in the chroot. Boot reconciliation and a root-owned user-manager preflight
-reject configuration/storage drift before normal activation, including linger
-activation that happens independently of the bootstrap service.
+service in the chroot. Boot reconciliation and the root-only preflight on the
+dedicated system service reject configuration/storage drift before activation.
+Static checks also reject any devops linger record, user-manager drop-in,
+`.config/systemd` tree, runtime user bus, or systemd-user runtime state. The
+root bootstrap uses a clean remote client rather than a PAM user-switch helper.
 
 API restart and workload shutdown are separate; API restarts preserve container
 scopes. Subprocess timeouts/signals clean up process groups, including orphaned
@@ -138,10 +144,10 @@ the target policy include directory and installed Debian abstractions. No policy
 was loaded into the running kernel. The parser's missing-cache-interface warning
 is retained in the logs; this is not proof of runtime policy acceptance.
 
-Seven rendered Podman/Incus/user-manager units pass `systemd-analyze verify` in an
+The rendered Podman/Incus system units pass `systemd-analyze verify` in an
 isolated root. Vendor dependencies and executables are test fixtures, not running
 services. This check validates rendered unit syntax and dependency construction;
-it does not activate logind, Podman or Incus. The reproducible fixture checker is
+it does not activate Podman or Incus. The reproducible fixture checker is
 `validation/podman-incus/verify-rendered-units.py`.
 
 The general audit reports 154 blocked-dependency checks, 475 inventory-only

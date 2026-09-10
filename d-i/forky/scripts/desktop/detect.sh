@@ -537,7 +537,7 @@ desktop_validate_policy_env() {
   desktop_validate_identifier_list LABWC_GREETER_WLR_NO_HARDWARE_CURSORS "${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS-1}"
   desktop_validate_absolute_path LABWC_DESKTOP_DEFAULTS_FILE "${LABWC_DESKTOP_DEFAULTS_FILE:-/etc/default/labwc-desktop}"
   desktop_validate_absolute_path LABWC_DESKTOP_SESSION_COMMAND "${LABWC_DESKTOP_SESSION_COMMAND:-/usr/local/bin/labwc-session}"
-  desktop_validate_absolute_path LABWC_WALLPAPER_PATH "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}"
+  desktop_validate_absolute_path LABWC_WALLPAPER_PATH "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}"
   desktop_validate_absolute_path LABWC_LOCK_BACKGROUND_PATH "${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}"
   desktop_validate_absolute_path LABWC_GREETER_BACKGROUND_PATH "${LABWC_GREETER_BACKGROUND_PATH:-/usr/share/backgrounds/login/welcome-1920x1080.png}"
   desktop_validate_managed_app_default_exec \

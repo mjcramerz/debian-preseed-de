@@ -241,7 +241,7 @@ def generate() -> dict[Path, bytes]:
     # redundant blockers or unexpected extension installs.
     emit(TARGET/'etc/vivaldi/policies/managed/extensions.json', extensions)
     for profile in ['chromium', 'microsoft-edge', 'vivaldi']:
-        emit(TARGET/'etc/skel/.config'/profile/'Default/Preferences', {
+        emit(TARGET/'etc/skel/primary/.config'/profile/'Default/Preferences', {
             'browser': {'custom_chrome_frame': False},
             'enable_do_not_track': False,
             'profile': {'default_content_setting_values': {

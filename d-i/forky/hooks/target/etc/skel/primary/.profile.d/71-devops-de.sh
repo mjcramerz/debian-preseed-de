@@ -788,7 +788,7 @@ podman_devops_apply_environment() {
     [ -x /usr/local/libexec/podman-devops-client ] || return 0
 
   # Native Podman and Docker client selectors.
-  CONTAINER_HOST=unix:///data/accounts/devops/run/podman.sock
+  CONTAINER_HOST=unix:///run/podman-devops/podman.sock
   DOCKER_HOST=$CONTAINER_HOST
   CONTAINERS_CONF=/etc/podman-devops/client.conf
   PODMAN_COMPOSE_PROVIDER=/usr/local/bin/docker-compose
@@ -806,7 +806,7 @@ podman_devops_apply_environment() {
   # Discoverable paths below are managed metadata, NOT native Podman switches.
   PODMAN_SERVICE_USER=devops
   PODMAN_SERVICE_HOME=/data/accounts/devops
-  PODMAN_SOCKET=/data/accounts/devops/run/podman.sock
+  PODMAN_SOCKET=/run/podman-devops/podman.sock
   PODMAN_POOL=/pool/podman
   PODMAN_STORAGE_ROOT=/pool/podman/storage
   PODMAN_VOLUME_ROOT=/pool/podman/volumes

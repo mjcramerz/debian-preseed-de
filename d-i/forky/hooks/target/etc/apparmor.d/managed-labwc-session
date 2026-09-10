@@ -17,6 +17,7 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
   /usr/bin/labwc mr,
   /usr/lib/** mr,
   /usr/share/** r,
+  /usr/local/share/** r,
   /etc/{labwc,xdg,fonts}/** r,
   /etc/{passwd,group,nsswitch.conf,localtime,machine-id,drirc,libva.conf} r,
   /etc/{vulkan,glvnd}/** r,
@@ -24,29 +25,40 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
   /sys/** r,
   /proc/ r,
   /proc/{cpuinfo,meminfo,stat,uptime,sys/kernel/osrelease,sys/dev/i915/perf_stream_paranoid} r,
-  owner /proc/[0-9]*/{comm,status,stat,fd/,fd/*} rw,
+  owner /proc/[0-9]*/{cmdline,comm,status,stat,fd/,fd/*} rw,
+  owner /proc/[0-9]*/uid_map r,
   /proc/driver/nvidia/** r,
   /dev/{dri,input}/ r,
   /dev/{dri,input}/** rw,
   /dev/nvidia* rw,
   /dev/nvidia-caps/** rw,
+  /dev/char/ r,
+  deny /dev/char/*:* l,
   /dev/{tty,tty[0-9]*,udmabuf} rw,
   /dev/shm/ r,
   owner /dev/shm/** rwkl,
   /run/seatd.sock rw,
   /run/udev/data/** r,
+  owner /tmp/.X[0-9]*-lock rwk,
   owner /run/user/[0-9]*/ rw,
   owner /run/user/[0-9]*/{wayland-*,bus,labwc*} rwkl,
+  owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,
   owner @{HOME}/ r,
   owner @{HOME}/.config/labwc/ r,
   owner @{HOME}/.config/labwc/** r,
   owner @{HOME}/.config/labwc/{autostart,shutdown} rix,
   owner @{HOME}/.config/{gtk-3.0,gtk-4.0}/** r,
+  owner @{HOME}/.local/share/applications/ r,
+  owner @{HOME}/.local/share/applications/*.desktop r,
   owner @{HOME}/.cache/ rw,
   owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/ rw,
   owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/** rwkl,
   owner @{HOME}/.nv/ rw,
   owner @{HOME}/.nv/** rwkl,
+  # Fontconfig may probe the package-owned cache before falling back to the
+  # writable per-session cache; ordinary users must never alter this tree.
+  deny /var/cache/fontconfig/ w,
+  deny /var/cache/fontconfig/** w,
   /{,usr/}bin/{sh,dash,bash} rix,
   /usr/bin/{false,systemctl,dbus-update-activation-environment} rix,
   /usr/local/{bin,sbin,libexec}/** rPx,
@@ -58,10 +70,16 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
 
 profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   #include <abstractions/managed-session-client>
+  /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
   owner @{HOME}/.config/waybar/ r,
   owner @{HOME}/.config/waybar/** r,
   owner @{HOME}/.cache/waybar/ rw,
   owner @{HOME}/.cache/waybar/** rwkl,
+  # Waybar's network module reads counters through its own procfs view.
+  owner /proc/[0-9]*/net/dev r,
+  /dev/rfkill r,
+  owner @{HOME}/.local/share/gvfs-metadata/ r,
+  owner @{HOME}/.local/share/gvfs-metadata/{root,root-*.log} r,
   # Network/weather modules can use the network, without reading credentials.
   network inet stream,
   network inet6 stream,
@@ -74,6 +92,8 @@ profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected) {
   owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
   owner "@{HOME}/.config/Crystal Dock*" rwkl,
   owner @{HOME}/.config/crystal-dock/** rwkl,
+  # QSaveFile links a named temporary file to this disconnected inode form.
+  owner "@{HOME}/.config/crystal-dock/labwc/#[0-9]*" rwkl,
   owner "@{HOME}/.config/Crystal Dock/**" rwkl,
   owner @{HOME}/.local/share/{crystal-dock,applications}/ r,
   owner @{HOME}/.local/share/crystal-dock/** rwkl,
@@ -92,9 +112,15 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
   /usr/lib/** mr,
   /usr/share/** r,
   /etc/{gcrypt,gnupg}/** r,
+  @{PROC}/sys/kernel/core_pattern r,
+  owner @{PROC}/[0-9]*/mountinfo r,
+  /run/mount/utab r,
   owner @{HOME}/.config/{kwallet*,ksecret*,kdeglobals}* rwkl,
+  owner @{HOME}/.config/qt6ct/qt6ct.conf r,
+  owner "@{HOME}/.config/#[0-9]*" rwkl,
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/ rw,
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/** rwklm,
+  owner "@{HOME}/.local/share/kwalletd/#[0-9]*" rwklm,
   owner @{HOME}/.gnupg/ rw,
   owner @{HOME}/.gnupg/** rwklm,
   owner /run/user/[0-9]*/{bus,gnupg/**,kwallet*} rwkl,
@@ -104,19 +130,46 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
 
 profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,gammastep,wayscriber,mako,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected) {
   #include <abstractions/managed-session-client>
+  /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
   #include <abstractions/managed-user-documents>
   include if exists <abstractions/authentication>
   /etc/{pam.d,security}/** r,
+  # Control surfaces do not perform direct Internet requests. Browser or
+  # network-capable actions must transition to their dedicated profiles.
+  deny network inet,
+  deny network inet6,
   # authentication abstraction supplies the dedicated unix_chkpwd transition.
   owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/ rw,
   owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/** rwkl,
   owner @{HOME}/.config/{pavucontrol.ini,qt6ct.conf,gtkrc-2.0}* rwkl,
   owner @{HOME}/.local/share/{labwc,wayscriber}/ rw,
   owner @{HOME}/.local/share/{labwc,wayscriber}/** rwkl,
-  owner @{HOME}/.cache/{nwg-look,qt6ct}/ rw,
-  owner @{HOME}/.cache/{nwg-look,qt6ct}/** rwkl,
+  owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/ rw,
+  owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/** rwkl,
+  owner /run/user/[0-9]*/wayscriber/ rw,
+  owner /run/user/[0-9]*/wayscriber/** rwkl,
   /etc/default/labwc-desktop r,
   include if exists <local/managed-session-controls>
+}
+
+profile managed-session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/managed-bwrap-common>
+  include if exists <abstractions/fonts>
+
+  signal (receive) set=(kill, term) peer=managed-waybar,
+  signal (receive) set=(kill, term) peer=managed-session-controls,
+  /usr/bin/true rix,
+  # Bubblewrap has already set no_new_privs; image loaders inherit this domain.
+  /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  /usr/share/mime/mime.cache r,
+  owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+  owner @{HOME}/.cache/fontconfig/ r,
+  owner @{HOME}/.cache/fontconfig/** r,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
 }
 
 profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags=(attach_disconnected) {

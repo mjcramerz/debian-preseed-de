@@ -22,6 +22,7 @@ import tempfile
 import threading
 import unittest
 from process_fixture import stop_test_tree, wait_file
+from test_environment import require_loopback_inet, skip_unless_process_tree_visibility
 from urllib.parse import urlsplit, unquote
 
 FORKY = Path(__file__).resolve().parents[1]
@@ -105,6 +106,7 @@ class TransportFixture(unittest.TestCase):
         return subprocess.run(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(SOURCE))}\n{script}'],
             text=True, capture_output=True, env={**self.env, **(env or {})}, timeout=timeout)
     def endpoint(self, root=FORKY, tls=None):
+        require_loopback_inet()
         endpoint = Endpoint(root, tls)
         self.addCleanup(endpoint.close)
         return endpoint
@@ -358,6 +360,7 @@ class RealBootstrapTests(TransportFixture):
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.manifest'], 1)
         # Individual envs, class fragments and late assets never hit the network.
         self.assertEqual(sum(web.counts.values()), 5)
+    @skip_unless_process_tree_visibility
     def test_opposite_role_fails_before_preflight_marker(self):
         other = 'desktop' if ROLE == 'server' else 'server'
         text = (FORKY / 'preseed.cfg').read_text().replace('\\\n', '')

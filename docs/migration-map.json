@@ -1145,1099 +1145,1099 @@
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.bash_aliases",
-      "destination": "d-i/forky/hooks/target/etc/skel/.bash_aliases",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.bash_aliases",
       "source_sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "destination_sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.bash_profile",
-      "destination": "d-i/forky/hooks/target/etc/skel/.bash_profile",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.bash_profile",
       "source_sha256": "8859f1a1fb2cb6076659f7c61888da2ad4c95f5bfaa489b8915bdf7eccfee626",
       "destination_sha256": "8859f1a1fb2cb6076659f7c61888da2ad4c95f5bfaa489b8915bdf7eccfee626",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.bashrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.bashrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.bashrc",
       "source_sha256": "8d001f81830d2ee071e6d3f84b3fc45db97e4ecbfd1d22119ab16006db224759",
       "destination_sha256": "8d001f81830d2ee071e6d3f84b3fc45db97e4ecbfd1d22119ab16006db224759",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/Code/User/settings.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/Code/User/settings.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/Code/User/settings.json",
       "source_sha256": "959b4def14685764cf7643d0c46825cc33f812a1234f66ed2081b0fc1eded53e",
       "destination_sha256": "959b4def14685764cf7643d0c46825cc33f812a1234f66ed2081b0fc1eded53e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/GottCode/FocusWriter.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/GottCode/FocusWriter.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/GottCode/FocusWriter.conf",
       "source_sha256": "696c5f0d3268c502f008fe0bed936a808b69fc587fb1c1cff163a4ab12551076",
       "destination_sha256": "696c5f0d3268c502f008fe0bed936a808b69fc587fb1c1cff163a4ab12551076",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/Recoll.org/recoll.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/Recoll.org/recoll.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/Recoll.org/recoll.ini",
       "source_sha256": "685fbe1475b63fb652eeaef0c237dd4c7375c8059368f90af57f00a2b14d0ac2",
       "destination_sha256": "685fbe1475b63fb652eeaef0c237dd4c7375c8059368f90af57f00a2b14d0ac2",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/Thunar/uca.xml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/Thunar/uca.xml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/Thunar/uca.xml",
       "source_sha256": "b72a375b2ec8cbe4b2e2ee48d066d358dbd8dc83fc9f84cda2b4b628e53811d0",
       "destination_sha256": "b72a375b2ec8cbe4b2e2ee48d066d358dbd8dc83fc9f84cda2b4b628e53811d0",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/autostart/mullvad-vpn.desktop",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/autostart/mullvad-vpn.desktop",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/autostart/mullvad-vpn.desktop",
       "source_sha256": "1ccfed47c7024b890af73825b2c12b465e1707326b89bd74a7312fa64298cabf",
       "destination_sha256": "1ccfed47c7024b890af73825b2c12b465e1707326b89bd74a7312fa64298cabf",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/bazel/bazelrc.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/bazel/bazelrc.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/bazel/bazelrc.tmpl",
       "source_sha256": "dd6672417bbc4a0f4a91708f000ec382f633224f1a2daa92f5c83a06914f2b3f",
       "destination_sha256": "dd6672417bbc4a0f4a91708f000ec382f633224f1a2daa92f5c83a06914f2b3f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/cargo/config.toml.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/cargo/config.toml.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/cargo/config.toml.tmpl",
       "source_sha256": "3d275e31b68fd014a83522789dc660f4c38ae6d4defb7e66e4241b95f80e6e76",
       "destination_sha256": "3d275e31b68fd014a83522789dc660f4c38ae6d4defb7e66e4241b95f80e6e76",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/chromium/Default/Preferences",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/chromium/Default/Preferences",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/chromium/Default/Preferences",
       "source_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "destination_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/crystal-dock/labwc/appearance.conf.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/crystal-dock/labwc/appearance.conf.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/crystal-dock/labwc/appearance.conf.tmpl",
       "source_sha256": "29ccc3fe77cf42e5ddd9810a21ab6eed97ae20fa1a78635f04b803479ef054dc",
       "destination_sha256": "29ccc3fe77cf42e5ddd9810a21ab6eed97ae20fa1a78635f04b803479ef054dc",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/crystal-dock/labwc/panel_1.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/crystal-dock/labwc/panel_1.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf",
       "source_sha256": "0bda13d03789ca59346058462621847fc1ba2c84c9b930fd1e19128cbaabc531",
       "destination_sha256": "0bda13d03789ca59346058462621847fc1ba2c84c9b930fd1e19128cbaabc531",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/featherpad/fp.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/featherpad/fp.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/featherpad/fp.conf",
       "source_sha256": "1919d12ff1226287d2a296374e03ac4905b0bcbf7c7748e7e94cbe47e71780f9",
       "destination_sha256": "1919d12ff1226287d2a296374e03ac4905b0bcbf7c7748e7e94cbe47e71780f9",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/foot/foot.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/foot/foot.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/foot/foot.ini",
       "source_sha256": "c35848185a9c2bf50cfc0a7c315d055f6f6c17a44bd26ffc36118aba384b7314",
       "destination_sha256": "c35848185a9c2bf50cfc0a7c315d055f6f6c17a44bd26ffc36118aba384b7314",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/fuzzel/base.ini.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/base.ini.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/base.ini.tmpl",
       "source_sha256": "617acf848f25b7fb66b08a468834b02fa82480220fe1021eb340a7029fc4a7e5",
       "destination_sha256": "617acf848f25b7fb66b08a468834b02fa82480220fe1021eb340a7029fc4a7e5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/fuzzel/fuzzel.ini.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/fuzzel.ini.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl",
       "source_sha256": "5745125c0e745d2aa816cd8f46f1e07bd6469f65c2491932c0a40fff93081c0c",
       "destination_sha256": "5745125c0e745d2aa816cd8f46f1e07bd6469f65c2491932c0a40fff93081c0c",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/fuzzel/menu.ini.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/fuzzel/menu.ini.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/fuzzel/menu.ini.tmpl",
       "source_sha256": "f1049b72701ce15fa201abda43eaa7f8eacab3cd74ff8fbcce1ab9c8ae7e86f5",
       "destination_sha256": "f1049b72701ce15fa201abda43eaa7f8eacab3cd74ff8fbcce1ab9c8ae7e86f5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/gnote/addins/global.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/gnote/addins/global.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/gnote/addins/global.ini",
       "source_sha256": "4b88d281a6838e23febc9e926d7878409a07c8bb342c1439214e62086c1d2b9c",
       "destination_sha256": "4b88d281a6838e23febc9e926d7878409a07c8bb342c1439214e62086c1d2b9c",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/gtk-3.0/settings.ini.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/gtk-3.0/settings.ini.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/gtk-3.0/settings.ini.tmpl",
       "source_sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "destination_sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/gtk-4.0/settings.ini.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/gtk-4.0/settings.ini.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/gtk-4.0/settings.ini.tmpl",
       "source_sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "destination_sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/kanshi/config",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/kanshi/config",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/kanshi/config",
       "source_sha256": "1690503e46907db1c17a10fd064516f824f5df4854c9709b72aed71b1c716a92",
       "destination_sha256": "1690503e46907db1c17a10fd064516f824f5df4854c9709b72aed71b1c716a92",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/kdiff3rc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/kdiff3rc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/kdiff3rc",
       "source_sha256": "52183fbe501e3948159ce2834406ca2fef6a1d3efd82a80eb5588228f1caa083",
       "destination_sha256": "52183fbe501e3948159ce2834406ca2fef6a1d3efd82a80eb5588228f1caa083",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/keepassxc/keepassxc.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/keepassxc/keepassxc.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/keepassxc/keepassxc.ini",
       "source_sha256": "49f2a450821a7efd7fc83bff0d103d0f5bd7c6aa7530ba6eda42072040f1d06c",
       "destination_sha256": "49f2a450821a7efd7fc83bff0d103d0f5bd7c6aa7530ba6eda42072040f1d06c",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/khal/config",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/khal/config",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/khal/config",
       "source_sha256": "de57ffea3f3f8be718a94e235b332fe29479b32f44cf132e3a918e670649762f",
       "destination_sha256": "de57ffea3f3f8be718a94e235b332fe29479b32f44cf132e3a918e670649762f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/kitty/kitty.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/kitty/kitty.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/kitty/kitty.conf",
       "source_sha256": "ec64729df1b1de2dbe5426d3dcd5c86e9af7fbda50d8eca968a46d36025d1fd9",
       "destination_sha256": "ec64729df1b1de2dbe5426d3dcd5c86e9af7fbda50d8eca968a46d36025d1fd9",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/kwalletrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/kwalletrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/kwalletrc",
       "source_sha256": "720ddb95d19de83fa3555c0858ff9be7150d8c210335035d80af8152192fdcad",
       "destination_sha256": "720ddb95d19de83fa3555c0858ff9be7150d8c210335035d80af8152192fdcad",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/autostart",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/autostart",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/autostart",
       "source_sha256": "b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb",
       "destination_sha256": "b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/environment.d/10-wayland.env.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/environment.d/10-wayland.env.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/environment.d/10-wayland.env.tmpl",
       "source_sha256": "55572f7214d001042272bfee09e7ab51ca91fe19fbead9da02d5a8e6ea297995",
       "destination_sha256": "55572f7214d001042272bfee09e7ab51ca91fe19fbead9da02d5a8e6ea297995",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/environment.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/environment.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/environment.tmpl",
       "source_sha256": "9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704",
       "destination_sha256": "9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/menu.xml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/menu.xml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/menu.xml",
       "source_sha256": "0cdaffd48deddd9506817e76811641b3905268b6410ad00f60184c790aaf3460",
       "destination_sha256": "0cdaffd48deddd9506817e76811641b3905268b6410ad00f60184c790aaf3460",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/rc.xml.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/rc.xml.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/rc.xml.tmpl",
       "source_sha256": "12170c52500325875cef1687d6d69f72f977c8c3328dd2ae009f0ce8f458e28a",
       "destination_sha256": "12170c52500325875cef1687d6d69f72f977c8c3328dd2ae009f0ce8f458e28a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/shutdown",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/shutdown",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/shutdown",
       "source_sha256": "124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e",
       "destination_sha256": "124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/labwc/themerc-override",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/labwc/themerc-override",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/labwc/themerc-override",
       "source_sha256": "74c574c443a361610519fa6eb7135d364bbf94202b40270aef140ab96e2b4d52",
       "destination_sha256": "74c574c443a361610519fa6eb7135d364bbf94202b40270aef140ab96e2b4d52",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mako/config",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mako/config",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mako/config",
       "source_sha256": "41545803ec9eebe0ea1f6ba793f88e6d93fc9782df6ea45d9337c6c3f8916482",
       "destination_sha256": "41545803ec9eebe0ea1f6ba793f88e6d93fc9782df6ea45d9337c6c3f8916482",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/micro/settings.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/micro/settings.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/micro/settings.json",
       "source_sha256": "0e377ef6a9c9ed2a026828ea51c12bbe5287f9ee27457f74ffe2b839ae4bef9d",
       "destination_sha256": "0e377ef6a9c9ed2a026828ea51c12bbe5287f9ee27457f74ffe2b839ae4bef9d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/microsoft-edge/Default/Preferences",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/microsoft-edge/Default/Preferences",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/microsoft-edge/Default/Preferences",
       "source_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "destination_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mimeapps.list",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mimeapps.list",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mimeapps.list",
       "source_sha256": "08abcdfd4204fdf9888306e1d6e3e3be62ace705283f177f28331871ce3e7ec1",
       "destination_sha256": "08abcdfd4204fdf9888306e1d6e3e3be62ace705283f177f28331871ce3e7ec1",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mise/conf.d/10-managed-tools.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mise/conf.d/10-managed-tools.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/conf.d/10-managed-tools.toml",
       "source_sha256": "abe234244e0c281bc19199dbe28ad95b777568277c694ff2ad4d33fff9670d41",
       "destination_sha256": "abe234244e0c281bc19199dbe28ad95b777568277c694ff2ad4d33fff9670d41",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mise/config.development.local.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mise/config.development.local.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.development.local.toml",
       "source_sha256": "a645677fce8b5018ddc372b57c82507e58532c5fb5f06c4d2c5ee58377920109",
       "destination_sha256": "a645677fce8b5018ddc372b57c82507e58532c5fb5f06c4d2c5ee58377920109",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mise/config.development.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mise/config.development.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.development.toml",
       "source_sha256": "57dc0f665719124642941cae349a316b6a7a450cf5856935f5f65334f47d676b",
       "destination_sha256": "57dc0f665719124642941cae349a316b6a7a450cf5856935f5f65334f47d676b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mise/config.local.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mise/config.local.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.local.toml",
       "source_sha256": "5ae36dcab2b037c9f12e069adbb7971cd92a8b42917aaf8154e2fdf45b716e2e",
       "destination_sha256": "5ae36dcab2b037c9f12e069adbb7971cd92a8b42917aaf8154e2fdf45b716e2e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mise/config.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mise/config.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mise/config.toml",
       "source_sha256": "f1416b36ac3df974263090afcd86ac43bf1e9018bc5f8b818342fa259a7961f5",
       "destination_sha256": "f1416b36ac3df974263090afcd86ac43bf1e9018bc5f8b818342fa259a7961f5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mpv/input.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mpv/input.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mpv/input.conf",
       "source_sha256": "f23e58fa4e4e987535fc183e7ccb0c56f5fcddfd56e7db16df2ec3cd27b87f4a",
       "destination_sha256": "f23e58fa4e4e987535fc183e7ccb0c56f5fcddfd56e7db16df2ec3cd27b87f4a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/mpv/mpv.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/mpv/mpv.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/mpv/mpv.conf",
       "source_sha256": "a5b9d96a5f1542e978a17ab61af3a4fe8012cc81fcf92ad40e8ea376d6bcc5ab",
       "destination_sha256": "a5b9d96a5f1542e978a17ab61af3a4fe8012cc81fcf92ad40e8ea376d6bcc5ab",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/nano/nanorc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/nano/nanorc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/nano/nanorc",
       "source_sha256": "59044321635861e79c850e1320ab93847ee9dcf6a6b644258cc5255acbb32442",
       "destination_sha256": "59044321635861e79c850e1320ab93847ee9dcf6a6b644258cc5255acbb32442",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/nvim/init.lua",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/nvim/init.lua",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/nvim/init.lua",
       "source_sha256": "98478763b601e4dba671c2e575343d07cbfd072c2993ddd15e9a1bc8fa7f7381",
       "destination_sha256": "98478763b601e4dba671c2e575343d07cbfd072c2993ddd15e9a1bc8fa7f7381",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/obsidian/obsidian.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/obsidian/obsidian.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/obsidian/obsidian.json",
       "source_sha256": "8b6db7995530ff5ea634eb530077f2df515ccfdf295967eff3fd59e79a525c1a",
       "destination_sha256": "8b6db7995530ff5ea634eb530077f2df515ccfdf295967eff3fd59e79a525c1a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/packer/template.pkr.hcl.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/packer/template.pkr.hcl.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/packer/template.pkr.hcl.tmpl",
       "source_sha256": "347ec95ef8d0f39eda59992bb6b320df6dee624b32046527fc3a53c6ca9ad3c8",
       "destination_sha256": "347ec95ef8d0f39eda59992bb6b320df6dee624b32046527fc3a53c6ca9ad3c8",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/qalculate/qalc.cfg",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/qalculate/qalc.cfg",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/qalculate/qalc.cfg",
       "source_sha256": "54702e225a3b6233adbfd227545383adbd69d6d05f3b7bd72dee9a040efaabab",
       "destination_sha256": "54702e225a3b6233adbfd227545383adbd69d6d05f3b7bd72dee9a040efaabab",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/qalculate/qalculate-qt.cfg",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/qalculate/qalculate-qt.cfg",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/qalculate/qalculate-qt.cfg",
       "source_sha256": "3addf882924687f9bb940b3ebc2b94647a16a1a52dc0e1cb531ecbc396c5b47a",
       "destination_sha256": "3addf882924687f9bb940b3ebc2b94647a16a1a52dc0e1cb531ecbc396c5b47a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/qt6ct/qt6ct.conf.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/qt6ct/qt6ct.conf.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/qt6ct/qt6ct.conf.tmpl",
       "source_sha256": "77bd9fccc9d733df217fd11033a3ed16db57ae774aa9b68c0a8da919c11e08a9",
       "destination_sha256": "77bd9fccc9d733df217fd11033a3ed16db57ae774aa9b68c0a8da919c11e08a9",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/retroarch/retroarch.cfg",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/retroarch/retroarch.cfg",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/retroarch/retroarch.cfg",
       "source_sha256": "87cfe283d7bf60afb39a16357b87499bc3ebcb06644a4d708d8d55c9b0734f91",
       "destination_sha256": "87cfe283d7bf60afb39a16357b87499bc3ebcb06644a4d708d8d55c9b0734f91",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/satty/config.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/satty/config.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/satty/config.toml",
       "source_sha256": "7cfe46828be43a3b7d5017289b11398c56ce78eb152d456142ddbeb9cabab3b6",
       "destination_sha256": "7cfe46828be43a3b7d5017289b11398c56ce78eb152d456142ddbeb9cabab3b6",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/satty/overrides.css",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/satty/overrides.css",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/satty/overrides.css",
       "source_sha256": "fe82ed5f0898fef9f984da2b8566c763407d5658152686f67e0b7ce4f37b7de6",
       "destination_sha256": "fe82ed5f0898fef9f984da2b8566c763407d5658152686f67e0b7ce4f37b7de6",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/sleek/userData/colors.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/colors.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/colors.json",
       "source_sha256": "8cd5bdd57c1dc7dce8db173a2d2609bd7e45976d12ccd54f902c8917aea01602",
       "destination_sha256": "8cd5bdd57c1dc7dce8db173a2d2609bd7e45976d12ccd54f902c8917aea01602",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/sleek/userData/config.json.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/config.json.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/config.json.tmpl",
       "source_sha256": "b7c59bd46efb652b0eec7c7d05ff969c82d2e902d7401f2acce2b144a6bf058a",
       "destination_sha256": "b7c59bd46efb652b0eec7c7d05ff969c82d2e902d7401f2acce2b144a6bf058a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/sleek/userData/filters.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/sleek/userData/filters.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/sleek/userData/filters.json",
       "source_sha256": "82354e800e31fc93581c0fdda6bfbdb75d0167bb3f012461ff0348b122217d89",
       "destination_sha256": "82354e800e31fc93581c0fdda6bfbdb75d0167bb3f012461ff0348b122217d89",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/starship.toml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/starship.toml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/starship.toml",
       "source_sha256": "0c15d39753b8c9c9ca5a1a9e570ba50493454f66486b90f618632be20ae0547a",
       "destination_sha256": "0c15d39753b8c9c9ca5a1a9e570ba50493454f66486b90f618632be20ae0547a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/swaylock/config",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/swaylock/config",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/swaylock/config",
       "source_sha256": "a0041f42b355e87c43b4825fea510512dd31a030a1f944ea9b56f96e1a0d6e48",
       "destination_sha256": "a0041f42b355e87c43b4825fea510512dd31a030a1f944ea9b56f96e1a0d6e48",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/codex-app-server.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/codex-app-server.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/codex-app-server.service",
       "source_sha256": "4a1caef286cb4b5293f414c4023e8860b9451f72f5a75f9339368c628a42ff34",
       "destination_sha256": "4a1caef286cb4b5293f414c4023e8860b9451f72f5a75f9339368c628a42ff34",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/crystal-dock.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/crystal-dock.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/crystal-dock.service",
       "source_sha256": "0b8ac459a8eb2bb3fd2ed184cef0c1cde34aa297aadfefc890db3baaa9e360e6",
       "destination_sha256": "0b8ac459a8eb2bb3fd2ed184cef0c1cde34aa297aadfefc890db3baaa9e360e6",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/kanshi.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/kanshi.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/kanshi.service",
       "source_sha256": "4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b",
       "destination_sha256": "4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-adb-server.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-adb-server.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-adb-server.service",
       "source_sha256": "76997a92d38de807f415278f5ec106023026e6c80a47d19a9bed6cb120a15e66",
       "destination_sha256": "76997a92d38de807f415278f5ec106023026e6c80a47d19a9bed6cb120a15e66",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-calendar-sync.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-calendar-sync.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service",
       "source_sha256": "16f9fd8a83d5b7503f13800216dbda8a8a0a98e698d56058a4986bcda668afa0",
       "destination_sha256": "16f9fd8a83d5b7503f13800216dbda8a8a0a98e698d56058a4986bcda668afa0",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-calendar-sync.timer",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-calendar-sync.timer",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer",
       "source_sha256": "a8416a7b13228cb97af11cb7bb8c1e5651f51dfd6904be0c53fe38cefc334ac4",
       "destination_sha256": "a8416a7b13228cb97af11cb7bb8c1e5651f51dfd6904be0c53fe38cefc334ac4",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-compositor.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-compositor.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-compositor.service",
       "source_sha256": "019732c763d06b21803372605e31173332852c622bdf8fef86e24b37d5ed14f8",
       "destination_sha256": "019732c763d06b21803372605e31173332852c622bdf8fef86e24b37d5ed14f8",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-health-notify.path",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.path",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.path",
       "source_sha256": "bebdd2e89d96038df685623cc5ee437d334d9fba6078765c83fa6cd78e9b1249",
       "destination_sha256": "bebdd2e89d96038df685623cc5ee437d334d9fba6078765c83fa6cd78e9b1249",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-health-notify.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.service",
       "source_sha256": "cf967283e0a21b87712eafd7117d9d95e1a78d6a03895e8fd1202b00b9b46fcb",
       "destination_sha256": "cf967283e0a21b87712eafd7117d9d95e1a78d6a03895e8fd1202b00b9b46fcb",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-health-notify.timer",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-health-notify.timer",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-health-notify.timer",
       "source_sha256": "50b46d656da8626074c3da87f94047b13cafb9a3471af3b34a31c4145c5afd85",
       "destination_sha256": "50b46d656da8626074c3da87f94047b13cafb9a3471af3b34a31c4145c5afd85",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-kwallet-portal.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-kwallet-portal.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service",
       "source_sha256": "cfe58105ba308c3e7f93fad8b75cc73506f5d9ab9b008997ee1bcdb01c02264e",
       "destination_sha256": "cfe58105ba308c3e7f93fad8b75cc73506f5d9ab9b008997ee1bcdb01c02264e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-mute-default-microphone.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-mute-default-microphone.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service",
       "source_sha256": "b8ce96ca0d7bfa26169623886574dc99508b41f9922602767a21ddd593e74922",
       "destination_sha256": "b8ce96ca0d7bfa26169623886574dc99508b41f9922602767a21ddd593e74922",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-output-watch.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-output-watch.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-output-watch.service",
       "source_sha256": "8251b7687076abe2253e35066af78cad6298f80849536e66902a5d2cb71b01b0",
       "destination_sha256": "8251b7687076abe2253e35066af78cad6298f80849536e66902a5d2cb71b01b0",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-plans.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-plans.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-plans.service",
       "source_sha256": "ef0a915905cc22adcd9914ae47af402abc48bff51e1139209c8b1292d7a6a09a",
       "destination_sha256": "ef0a915905cc22adcd9914ae47af402abc48bff51e1139209c8b1292d7a6a09a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-session.target",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-session.target",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-session.target",
       "source_sha256": "a45b3b99bb048ac710b4c2d5deb3bccafa660b658be5f0dfa000285b29f31507",
       "destination_sha256": "a45b3b99bb048ac710b4c2d5deb3bccafa660b658be5f0dfa000285b29f31507",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.path",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.path",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path",
       "source_sha256": "d3a57063bd15f951449a5613c214865c8cec5fb7308f479e1ee917848ab16c0d",
       "destination_sha256": "d3a57063bd15f951449a5613c214865c8cec5fb7308f479e1ee917848ab16c0d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/labwc-sync-application-launchers.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service",
       "source_sha256": "4798424703900eede039a81cb7335320ae7303254b8318b36781af6cc68ec783",
       "destination_sha256": "4798424703900eede039a81cb7335320ae7303254b8318b36781af6cc68ec783",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/llama-server.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/llama-server.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/llama-server.service",
       "source_sha256": "0baffee42b5373bb39f250a3d81d7ef860201a36375c74ec7add428997508764",
       "destination_sha256": "0baffee42b5373bb39f250a3d81d7ef860201a36375c74ec7add428997508764",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/managed-external-software-notify.path",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/managed-external-software-notify.path",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/managed-external-software-notify.path",
       "source_sha256": "4c9643692da0ca52d72b9b812602faef404a8dc77dfe04e641c99318ffd96fa5",
       "destination_sha256": "4c9643692da0ca52d72b9b812602faef404a8dc77dfe04e641c99318ffd96fa5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/managed-external-software-notify.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/managed-external-software-notify.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/managed-external-software-notify.service",
       "source_sha256": "c445e85375969fb4e6d9a00b0e829557434599846cbd15755a7b3664e36cf443",
       "destination_sha256": "c445e85375969fb4e6d9a00b0e829557434599846cbd15755a7b3664e36cf443",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/swaybg.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/swaybg.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/swaybg.service",
       "source_sha256": "18b73be9f09e858833b24c40ff426eb6e1fc33fbfd6981ca21e20cd3356251f0",
       "destination_sha256": "18b73be9f09e858833b24c40ff426eb6e1fc33fbfd6981ca21e20cd3356251f0",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/swayidle.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/swayidle.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/swayidle.service",
       "source_sha256": "f49dc68e2fb20f1f4f2b72a51599e326391696f06c4330b9c3d81ff4aabec2bd",
       "destination_sha256": "f49dc68e2fb20f1f4f2b72a51599e326391696f06c4330b9c3d81ff4aabec2bd",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/waybar.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/waybar.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/waybar.service",
       "source_sha256": "7a03f8b39b5c19611127f59ec5b92d6ecac414b2f20e17dffbc7d508cdf344b7",
       "destination_sha256": "7a03f8b39b5c19611127f59ec5b92d6ecac414b2f20e17dffbc7d508cdf344b7",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
       "source_sha256": "76d4e1aee2e6eb3536ae8898b370500be8f1b01c6d88a754dab2d639d744daf5",
       "destination_sha256": "76d4e1aee2e6eb3536ae8898b370500be8f1b01c6d88a754dab2d639d744daf5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/whisper-record.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-record.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-record.service",
       "source_sha256": "afe51a4d9db7bcfd6e2e8d2049fbde9b6b9166b5bdddfd72f20366b3ec167114",
       "destination_sha256": "afe51a4d9db7bcfd6e2e8d2049fbde9b6b9166b5bdddfd72f20366b3ec167114",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/whisper-server.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-server.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-server.service",
       "source_sha256": "88d6cbc2fae8875888afc0b6510b65a564e5b4dd31ff823fce4002fb11376178",
       "destination_sha256": "88d6cbc2fae8875888afc0b6510b65a564e5b4dd31ff823fce4002fb11376178",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/systemd/user/whisper-transcribe.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/systemd/user/whisper-transcribe.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/systemd/user/whisper-transcribe.service",
       "source_sha256": "66f2f388d706b0f5ebbde50c9c1f6e79e59d89338feaa829c38ded4ea35e3545",
       "destination_sha256": "66f2f388d706b0f5ebbde50c9c1f6e79e59d89338feaa829c38ded4ea35e3545",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/task/taskrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/task/taskrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/task/taskrc",
       "source_sha256": "ca6e8751d41de98947e4fc7c7df484e0d6e26dc4c7bc42599a8ee311e300f2e1",
       "destination_sha256": "ca6e8751d41de98947e4fc7c7df484e0d6e26dc4c7bc42599a8ee311e300f2e1",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/ocr-defaults.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/ocr-defaults.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/ocr-defaults.conf",
       "source_sha256": "793200b268d7536b769f0f6d3ab4e8d5498cd11a3107349efe7c1b724df2fb58",
       "destination_sha256": "793200b268d7536b769f0f6d3ab4e8d5498cd11a3107349efe7c1b724df2fb58",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-patterns/default.user-patterns",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/default.user-patterns",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/default.user-patterns",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-patterns/eng.user-patterns",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/eng.user-patterns",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/eng.user-patterns",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-patterns/swe.user-patterns",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-patterns/swe.user-patterns",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-patterns/swe.user-patterns",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-words/default.user-words",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/default.user-words",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/default.user-words",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-words/eng.user-words",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/eng.user-words",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/eng.user-words",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/tesseract/user-words/swe.user-words",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/tesseract/user-words/swe.user-words",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/tesseract/user-words/swe.user-words",
       "source_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "destination_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/todoman/config.py",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/todoman/config.py",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/todoman/config.py",
       "source_sha256": "9f6dbe1292d42a4b536c58df0c065ec020d657c18d05b5bb97d9bead6e34f3c7",
       "destination_sha256": "9f6dbe1292d42a4b536c58df0c065ec020d657c18d05b5bb97d9bead6e34f3c7",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/user-dirs.dirs",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/user-dirs.dirs",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/user-dirs.dirs",
       "source_sha256": "641023fb2e547aeb4083abc35d7e08e972041b245a2259a400230bbcf9ffc53a",
       "destination_sha256": "641023fb2e547aeb4083abc35d7e08e972041b245a2259a400230bbcf9ffc53a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/vdirsyncer/config.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/vdirsyncer/config.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/vdirsyncer/config.tmpl",
       "source_sha256": "bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8",
       "destination_sha256": "bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/vim/vimrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/vim/vimrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/vim/vimrc",
       "source_sha256": "10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e",
       "destination_sha256": "10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/vivaldi/Default/Preferences",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/vivaldi/Default/Preferences",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/vivaldi/Default/Preferences",
       "source_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "destination_sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/waybar/config.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/waybar/config.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/waybar/config.tmpl",
       "source_sha256": "928e8dd16c4fd87ccd3e6544b18bed766c158ce4562063b3bd8eb2dcef063e8c",
       "destination_sha256": "928e8dd16c4fd87ccd3e6544b18bed766c158ce4562063b3bd8eb2dcef063e8c",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/waybar/style.css.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/waybar/style.css.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/waybar/style.css.tmpl",
       "source_sha256": "f8bfbc59c6b6b7ceac2aada4f2e1ec03ed36031cf5914788371c1b155f44faa6",
       "destination_sha256": "f8bfbc59c6b6b7ceac2aada4f2e1ec03ed36031cf5914788371c1b155f44faa6",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/waypaper/config.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/waypaper/config.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/config.ini",
       "source_sha256": "e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492",
       "destination_sha256": "e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/waypaper/keybindings.ini",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/waypaper/keybindings.ini",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/keybindings.ini",
       "source_sha256": "84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5",
       "destination_sha256": "84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/waypaper/style.css",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/waypaper/style.css",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/waypaper/style.css",
       "source_sha256": "931b45fb19e85f8693a41ec34b064bd7d7e86d429c6c6d8b0a8760eae4c84b3f",
       "destination_sha256": "931b45fb19e85f8693a41ec34b064bd7d7e86d429c6c6d8b0a8760eae4c84b3f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf",
       "source_sha256": "9bfafb17c9717982961ad6e44626d7d072b7c9ee4e90f271279fc568d5e8f757",
       "destination_sha256": "9bfafb17c9717982961ad6e44626d7d072b7c9ee4e90f271279fc568d5e8f757",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf",
       "source_sha256": "0fab354818948ffd4ae250202824262a1a1f5603a66480aa33d4dc400cf88e40",
       "destination_sha256": "0fab354818948ffd4ae250202824262a1a1f5603a66480aa33d4dc400cf88e40",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xarchiver/xarchiverrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xarchiver/xarchiverrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xarchiver/xarchiverrc",
       "source_sha256": "ec9482dc61d63d7c1c111a96f834e8fc21bc64aebf6a0ff97f61a7bf4303d91a",
       "destination_sha256": "ec9482dc61d63d7c1c111a96f834e8fc21bc64aebf6a0ff97f61a7bf4303d91a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xdg-desktop-portal/portals.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xdg-desktop-portal/portals.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xdg-desktop-portal/portals.conf",
       "source_sha256": "6d04addeb567b8c7089df6e74170f12305afd7ce6dd3814310fb980d79555965",
       "destination_sha256": "6d04addeb567b8c7089df6e74170f12305afd7ce6dd3814310fb980d79555965",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xdg-terminals.list",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xdg-terminals.list",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xdg-terminals.list",
       "source_sha256": "8733b73e1832e68a1966a62e0ba68f6b6db4e5fe4989399bc5b927e01935ecef",
       "destination_sha256": "8733b73e1832e68a1966a62e0ba68f6b6db4e5fe4989399bc5b927e01935ecef",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xfce4/helpers.rc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xfce4/helpers.rc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xfce4/helpers.rc",
       "source_sha256": "02ca24ad31d4378ebbaefd757ef3308337424aa96010b6ab3fb7f016d4396816",
       "destination_sha256": "02ca24ad31d4378ebbaefd757ef3308337424aa96010b6ab3fb7f016d4396816",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
       "source_sha256": "c2d1885543317db7382c3efa57198f2754a89ee7618f77197590c29a7098bbc3",
       "destination_sha256": "c2d1885543317db7382c3efa57198f2754a89ee7618f77197590c29a7098bbc3",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/xournalpp/settings.xml.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/xournalpp/settings.xml.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/xournalpp/settings.xml.tmpl",
       "source_sha256": "18ebd0ce76b4cac22b0fe5b52338cd9125f477f563af28be3bd61b450bf53f7e",
       "destination_sha256": "18ebd0ce76b4cac22b0fe5b52338cd9125f477f563af28be3bd61b450bf53f7e",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/zathura/zathurarc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/zathura/zathurarc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/zathura/zathurarc",
       "source_sha256": "65cd2b6cc9482176f10df915d895aae76b6c98994a312d0729fd791fb32f0b8d",
       "destination_sha256": "65cd2b6cc9482176f10df915d895aae76b6c98994a312d0729fd791fb32f0b8d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.config/zoom/zoomus.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.config/zoom/zoomus.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.config/zoom/zoomus.conf",
       "source_sha256": "23453840cf0ed2d4649a1abd05538b040ea504001fb97f67bf926e996eb91b51",
       "destination_sha256": "23453840cf0ed2d4649a1abd05538b040ea504001fb97f67bf926e996eb91b51",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.gnupg/gpg-agent.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.gnupg/gpg-agent.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.gnupg/gpg-agent.conf",
       "source_sha256": "2c830e4d7a1c7539eebd51c3ab604c71953b50777d88008f6f2f0aff19414340",
       "destination_sha256": "2c830e4d7a1c7539eebd51c3ab604c71953b50777d88008f6f2f0aff19414340",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
       "source_sha256": "0bcb1079081b902762cb0b668880a5db7ba10f866b3a9cb7096376fe276e4337",
       "destination_sha256": "0bcb1079081b902762cb0b668880a5db7ba10f866b3a9cb7096376fe276e4337",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/applications/waypaper.desktop.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/applications/waypaper.desktop.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/applications/waypaper.desktop.tmpl",
       "source_sha256": "424b68ce33934ab96edfe0a62dea616b993fc34a28df1d8b1d0b7d74c8177e62",
       "destination_sha256": "424b68ce33934ab96edfe0a62dea616b993fc34a28df1d8b1d0b7d74c8177e62",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/calendars/personal/color",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/personal/color",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/personal/color",
       "source_sha256": "e8ba3555634c21274eab79affb4a709a0f231f9923d13b0ec4f844ea18881297",
       "destination_sha256": "e8ba3555634c21274eab79affb4a709a0f231f9923d13b0ec4f844ea18881297",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/calendars/personal/displayname",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/personal/displayname",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/personal/displayname",
       "source_sha256": "7627d41413b829085368da99ee264bba8a0ba0e565326286692d1b575d488011",
       "destination_sha256": "7627d41413b829085368da99ee264bba8a0ba0e565326286692d1b575d488011",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/calendars/tasks/color",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/tasks/color",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/tasks/color",
       "source_sha256": "3806400c11c76792fbf1b2bb468bc976b8f91edeaa2a7243fa46b1c40274cb76",
       "destination_sha256": "3806400c11c76792fbf1b2bb468bc976b8f91edeaa2a7243fa46b1c40274cb76",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/calendars/tasks/displayname",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/calendars/tasks/displayname",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/calendars/tasks/displayname",
       "source_sha256": "167214a5c13c5cda864644d6ee3f55576d8b07c38d71d2d6b42d69134777418a",
       "destination_sha256": "167214a5c13c5cda864644d6ee3f55576d8b07c38d71d2d6b42d69134777418a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.local/share/dbus-1/services/org.freedesktop.secrets.service",
-      "destination": "d-i/forky/hooks/target/etc/skel/.local/share/dbus-1/services/org.freedesktop.secrets.service",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service",
       "source_sha256": "821da6a47b46d1cffa4bcc1f27018d8cc88c11ea3d9b144acf6655fc2e7590cd",
       "destination_sha256": "821da6a47b46d1cffa4bcc1f27018d8cc88c11ea3d9b144acf6655fc2e7590cd",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.profile",
-      "destination": "d-i/forky/hooks/target/etc/skel/.profile",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.profile",
       "source_sha256": "9fc0f7c5dd850381bea67b870a0fb6d9caca51fbf0d17b7efbf127fb70f05d8f",
       "destination_sha256": "9fc0f7c5dd850381bea67b870a0fb6d9caca51fbf0d17b7efbf127fb70f05d8f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.profile.d/71-devops-de.sh",
-      "destination": "d-i/forky/hooks/target/etc/skel/.profile.d/71-devops-de.sh",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/71-devops-de.sh",
       "source_sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
       "destination_sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.profile.d/72-incus.sh.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.profile.d/72-incus.sh.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/72-incus.sh.tmpl",
       "source_sha256": "1fee3d2e2c58beb6c01726c723764232b1f93c31b5d4794dc548eac15c3a8db9",
       "destination_sha256": "1fee3d2e2c58beb6c01726c723764232b1f93c31b5d4794dc548eac15c3a8db9",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.profile.d/75-firmware-workspace.sh.tmpl",
-      "destination": "d-i/forky/hooks/target/etc/skel/.profile.d/75-firmware-workspace.sh.tmpl",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.profile.d/75-firmware-workspace.sh.tmpl",
       "source_sha256": "f465f17a1ce151a621f00962a8c97d29031247bd812647e42c8841c740cff87d",
       "destination_sha256": "f465f17a1ce151a621f00962a8c97d29031247bd812647e42c8841c740cff87d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.recoll/recoll.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/.recoll/recoll.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.recoll/recoll.conf",
       "source_sha256": "7523a7212f78e0257e741ab2f39e143681d9580b9c78f871087dd7d0546ffe75",
       "destination_sha256": "7523a7212f78e0257e741ab2f39e143681d9580b9c78f871087dd7d0546ffe75",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.zlogout",
-      "destination": "d-i/forky/hooks/target/etc/skel/.zlogout",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.zlogout",
       "source_sha256": "722e3859b147a257eda007db975fc819da82e5a1312f1978fada9cd0165583d8",
       "destination_sha256": "722e3859b147a257eda007db975fc819da82e5a1312f1978fada9cd0165583d8",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.zprofile",
-      "destination": "d-i/forky/hooks/target/etc/skel/.zprofile",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.zprofile",
       "source_sha256": "01c7439ccb22d09beb04650e8ec7bf7a5c11853daa2d90ac416c06b952028a86",
       "destination_sha256": "01c7439ccb22d09beb04650e8ec7bf7a5c11853daa2d90ac416c06b952028a86",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.zsh_aliases",
-      "destination": "d-i/forky/hooks/target/etc/skel/.zsh_aliases",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.zsh_aliases",
       "source_sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "destination_sha256": "00016d170122aa104a146a37eb3c3fc6acf5046653e79cbc4a54e27318deb30d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.zshenv",
-      "destination": "d-i/forky/hooks/target/etc/skel/.zshenv",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.zshenv",
       "source_sha256": "0573c974e9300211bbfc51438da7bed1b28d7be82f2becc3a6eef10a6bf93b86",
       "destination_sha256": "0573c974e9300211bbfc51438da7bed1b28d7be82f2becc3a6eef10a6bf93b86",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.zshrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.zshrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.zshrc",
       "source_sha256": "b50fbe943f33611ed181d9a3c2c0a268002531e03b8dd326f5a4da615ad5ca8f",
       "destination_sha256": "b50fbe943f33611ed181d9a3c2c0a268002531e03b8dd326f5a4da615ad5ca8f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/.stignore",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/.stignore",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/.stignore",
       "source_sha256": "ae29dd449c43359035e3f5206a041bbc287a170797d4fc9b5c3da11b92d87cfc",
       "destination_sha256": "ae29dd449c43359035e3f5206a041bbc287a170797d4fc9b5c3da11b92d87cfc",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/app.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/app.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/app.json",
       "source_sha256": "e69a25e137d39e7ef143b5c3b15f08f63f00fec9c5caab620c8efa998bd19213",
       "destination_sha256": "e69a25e137d39e7ef143b5c3b15f08f63f00fec9c5caab620c8efa998bd19213",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/appearance.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/appearance.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/appearance.json",
       "source_sha256": "db4355d44862c1a6dbe43ff9b6fce17dcfa0300acc7e236c0d6ca8af2549d01d",
       "destination_sha256": "db4355d44862c1a6dbe43ff9b6fce17dcfa0300acc7e236c0d6ca8af2549d01d",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/backlink.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/backlink.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/backlink.json",
       "source_sha256": "6f72dfd1d72d1d51c623f9b6a9fd4e43a159cdc294ff2830704daa7a8ed52e16",
       "destination_sha256": "6f72dfd1d72d1d51c623f9b6a9fd4e43a159cdc294ff2830704daa7a8ed52e16",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/bookmarks.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/bookmarks.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/bookmarks.json",
       "source_sha256": "3c66c83c3862e9f41bcc630c7e47467a7e2924e075a4feb14c755b7b3f33022f",
       "destination_sha256": "3c66c83c3862e9f41bcc630c7e47467a7e2924e075a4feb14c755b7b3f33022f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/command-palette.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/command-palette.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/command-palette.json",
       "source_sha256": "abbe12577e217d012653e95311f1dc7fc6218c76f29638a6f0fcd15dbb587f91",
       "destination_sha256": "abbe12577e217d012653e95311f1dc7fc6218c76f29638a6f0fcd15dbb587f91",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/community-plugins.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/community-plugins.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/community-plugins.json",
       "source_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
       "destination_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/core-plugins.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/core-plugins.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/core-plugins.json",
       "source_sha256": "03e0e918b734421be51af70755c82e3fc020db47c796b7a2b4c3fd7d6c5e8fb3",
       "destination_sha256": "03e0e918b734421be51af70755c82e3fc020db47c796b7a2b4c3fd7d6c5e8fb3",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/daily-notes.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/daily-notes.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/daily-notes.json",
       "source_sha256": "f355d4c141d1f9a8cf232b13a5c7fbf116811559966b1278fe36480901f1b4dd",
       "destination_sha256": "f355d4c141d1f9a8cf232b13a5c7fbf116811559966b1278fe36480901f1b4dd",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/graph.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/graph.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/graph.json",
       "source_sha256": "a55b57a7cac1b3241a5289499c04b3fdcf098ca40de2f9ad86a6d4e9b0db36d9",
       "destination_sha256": "a55b57a7cac1b3241a5289499c04b3fdcf098ca40de2f9ad86a6d4e9b0db36d9",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/hotkeys.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/hotkeys.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/hotkeys.json",
       "source_sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "destination_sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css",
       "source_sha256": "13b386c0e8ed021cb2707a2ed5e4abf2cf6c43cc59062ecee4f739984b39c3dd",
       "destination_sha256": "13b386c0e8ed021cb2707a2ed5e4abf2cf6c43cc59062ecee4f739984b39c3dd",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/templates.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/templates.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/templates.json",
       "source_sha256": "8d6721ac59b27ef462f734773f902ef499983c6e1b8081794f736ee3976365b4",
       "destination_sha256": "8d6721ac59b27ef462f734773f902ef499983c6e1b8081794f736ee3976365b4",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json",
       "source_sha256": "fd619cfa0b8f0a7d231d977757717ba7fc253f46f00499fb55d52319cd201297",
       "destination_sha256": "fd619cfa0b8f0a7d231d977757717ba7fc253f46f00499fb55d52319cd201297",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css",
       "source_sha256": "bec7271ac8e007b148f08fa5678bae19af3ff9e0433dce64b3229cd7a8948deb",
       "destination_sha256": "bec7271ac8e007b148f08fa5678bae19af3ff9e0433dce64b3229cd7a8948deb",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/.obsidian/types.json",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/.obsidian/types.json",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/.obsidian/types.json",
       "source_sha256": "e0d03144f8f2a5c95d47a635fa5f0c345ce072c212cf3bbb1fe9500fbeba1d4f",
       "destination_sha256": "e0d03144f8f2a5c95d47a635fa5f0c345ce072c212cf3bbb1fe9500fbeba1d4f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/archive/index.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/archive/index.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/archive/index.md",
       "source_sha256": "6e41394a177891addfd6693969481aaf94d6cec71863804b6e8016b17947e9d4",
       "destination_sha256": "6e41394a177891addfd6693969481aaf94d6cec71863804b6e8016b17947e9d4",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/daily/index.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/daily/index.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/daily/index.md",
       "source_sha256": "10e222ad4d6db7556222689d968858b865c0b19206d3fd5f858395310441e05b",
       "destination_sha256": "10e222ad4d6db7556222689d968858b865c0b19206d3fd5f858395310441e05b",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/home.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/home.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/home.md",
       "source_sha256": "3c3c814311a3e611d7b71e0897faea5c4a295215907aeaf952f97a13ba4f167a",
       "destination_sha256": "3c3c814311a3e611d7b71e0897faea5c4a295215907aeaf952f97a13ba4f167a",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/inbox/welcome.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/inbox/welcome.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/inbox/welcome.md",
       "source_sha256": "3754c0f063392d99825a3d8e51af56203d9bb356cf459d570a83c06540191265",
       "destination_sha256": "3754c0f063392d99825a3d8e51af56203d9bb356cf459d570a83c06540191265",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/templates/daily-note-template.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/templates/daily-note-template.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/templates/daily-note-template.md",
       "source_sha256": "1c89e6c74302eb9d627f475a43f56f6e49c21afac296e5fe803635ff995a7af3",
       "destination_sha256": "1c89e6c74302eb9d627f475a43f56f6e49c21afac296e5fe803635ff995a7af3",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/Syncthing/obsidian-md/templates/note-template.md",
-      "destination": "d-i/forky/hooks/target/etc/skel/Syncthing/obsidian-md/templates/note-template.md",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/Syncthing/obsidian-md/templates/note-template.md",
       "source_sha256": "1efc02c91c43f687720d109c8d196201ff651fb448bdcbc5f5c619da756c37e8",
       "destination_sha256": "1efc02c91c43f687720d109c8d196201ff651fb448bdcbc5f5c619da756c37e8",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/btop/btop.conf",
-      "destination": "d-i/forky/hooks/target/etc/skel/btop/btop.conf",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/btop/btop.conf",
       "source_sha256": "e2f2d4531902f6483da542222df24c4b192d2cb7b35397d9f229ff92a0345434",
       "destination_sha256": "e2f2d4531902f6483da542222df24c4b192d2cb7b35397d9f229ff92a0345434",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/fzf/default-opts",
-      "destination": "d-i/forky/hooks/target/etc/skel/fzf/default-opts",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/fzf/default-opts",
       "source_sha256": "ab5efe383abf2f5cd035c61d45dfbedc0c084e5574d90f718f17e4a5a35e8314",
       "destination_sha256": "ab5efe383abf2f5cd035c61d45dfbedc0c084e5574d90f718f17e4a5a35e8314",
       "content_status": "unchanged"
@@ -6535,35 +6535,35 @@
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/skel/.bash_profile",
-      "destination": "d-i/forky/hooks/target/etc/skel/.bash_profile.installer-base",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.bash_profile.installer-base",
       "source_sha256": "b1eecf32bde0febbbbd35a2910e7e7dfdc6ff763ddc4ad577018829fa27cb81f",
       "destination_sha256": "b1eecf32bde0febbbbd35a2910e7e7dfdc6ff763ddc4ad577018829fa27cb81f",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/skel/.bashrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.bashrc.installer-base",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.bashrc.installer-base",
       "source_sha256": "7f77d9d6eac4707b276e0f4e96f4a10b3728f1a88e698963f4d6fa4c2990db74",
       "destination_sha256": "7f77d9d6eac4707b276e0f4e96f4a10b3728f1a88e698963f4d6fa4c2990db74",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/skel/.dircolors",
-      "destination": "d-i/forky/hooks/target/etc/skel/.dircolors",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.dircolors",
       "source_sha256": "ba5a8dd8dec313517ca74d38eb7aadfac0ed86af0d0a51fee93a373b7b1e67ed",
       "destination_sha256": "ba5a8dd8dec313517ca74d38eb7aadfac0ed86af0d0a51fee93a373b7b1e67ed",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/skel/.profile",
-      "destination": "d-i/forky/hooks/target/etc/skel/.profile.installer-base",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.profile.installer-base",
       "source_sha256": "0afb3a266b1dd68126771ee800fdc22d78cf055bc4f59558798814d860a37bee",
       "destination_sha256": "0afb3a266b1dd68126771ee800fdc22d78cf055bc4f59558798814d860a37bee",
       "content_status": "unchanged"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/skel/.vimrc",
-      "destination": "d-i/forky/hooks/target/etc/skel/.vimrc",
+      "destination": "d-i/forky/hooks/target/etc/skel/primary/.vimrc",
       "source_sha256": "313127a5c9311a9f43dceaf4eb3fa9dbdfbc40b835b4439f58ea76fad1bb2672",
       "destination_sha256": "313127a5c9311a9f43dceaf4eb3fa9dbdfbc40b835b4439f58ea76fad1bb2672",
       "content_status": "unchanged"
@@ -7820,8 +7820,8 @@
       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "content_status": "unchanged",
-      "current_sha256": "5c5e641c7363d40c4e3cac87f28438f4af4cd76feadd6e11e4bf0aa5ced3e656",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "29a064c77b275aad6f4c2106097a931c29dea5c2067919bc9f6cabd4ad943cc7",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
@@ -7829,8 +7829,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
@@ -7838,8 +7838,8 @@
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "content_status": "unchanged",
-      "current_sha256": "444b3895111337cf88aec28da42c1a846be21551aa60146c081a912a37ce3735",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "ee13f004fc15a26816f31f568136cfef16855716bea6bc5e6857decc046aa13d",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
@@ -7847,8 +7847,8 @@
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "content_status": "unchanged",
-      "current_sha256": "7aaa7d29eddce97fe22d0b7c69c2a967c6e89aa9951627a2df4047a90e3a22b0",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "cda3f9f055dcccde0a79795a60348a32a99e378f4a93020c2b0ce6cfc3985a86",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
@@ -7856,8 +7856,8 @@
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "content_status": "unchanged",
-      "current_sha256": "6e83a6dda46911db6f9ef3e05cd2ea4c1e90946c1e247820730e03134c99c806",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "fe51be1bff3e85ad24b637986f33002a50bb04e2ceb6504d110459f8b3611d58",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
@@ -7865,8 +7865,8 @@
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "content_status": "unchanged",
-      "current_sha256": "dc2678505de6204d8d868847ccbf4479bf15db391e87ea295ee77f01f0b0ebaa",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "c7fef027b3402711be8f0c809036108eb2b44f1566c9633c5665f909afdc137d",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
@@ -7874,8 +7874,8 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "6193e7b54be70ee9eef513c51bcd5d49e100644f823cb5d6f321e0e32c40a1a3",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained",
+      "current_sha256": "23bdaea009c1ed2d06a41ba75aad3a1fe1d3d4cd78b8ca4c594a7467dcc5d6cc",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained",
       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
     },
     {
@@ -7884,8 +7884,8 @@
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "content_status": "unchanged",
-      "current_sha256": "fc76ca86660f3f301c4d180b73c6df6bf4735fd84e5d63d3b84727272188bca2",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "e7601257593ac797e1cbef4c83b1d2af5ee97a42431e88c5b4d81f1a54be9403",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
@@ -7893,8 +7893,8 @@
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "content_status": "unchanged",
-      "current_sha256": "72cf6cce1a29fcea0ef2233db50dd64aa0c4a0e1ba4156d0e64651f6b45e9829",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "f5c6926f994b1b4f9b9deb55a40e7511f4d1fd7b995b791837223b4a5fdcbb2a",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
@@ -7902,8 +7902,8 @@
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "content_status": "unchanged",
-      "current_sha256": "fed1152216401888ad13e88368740dc5e4cda1a7f0cf502251733f0b0fc0ffc4",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "61c7de8c1571623dc51a7eab9c6813923d9ae2c1183992b3b4d9ea285da9fd06",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
@@ -7911,8 +7911,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "cec3bf162f5062f969a20b24dcbf4647c6d2e206a2bf5e6fbb2a4271dfb40368",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
@@ -7920,8 +7920,8 @@
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "content_status": "unchanged",
-      "current_sha256": "f528e5d79c86578849f454046ef3675b7bb40948def30d42093ed8f6e71d55bf",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "37a87b3ec1e2bdb40adc9f30c7074fbf2e1284c3c0f182c89c988ca31149dd2d",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
@@ -7929,8 +7929,8 @@
       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "content_status": "unchanged",
-      "current_sha256": "fc68ea6d6dcc3ab0fb1f2160bf8bd07e718028a6a7ede34d9df574d98abf99ab",
-      "current_change": "Podman devops rootless-engine configuration; original source_sha256 retained"
+      "current_sha256": "5eeed0a3a6eabc3732b71e1ba3b5ce75ed1c181533ca562e0a4df3916e39704c",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
       "source": "d-i/forky/hosts/shared/account.env",

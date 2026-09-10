@@ -77,6 +77,12 @@ class BrokerPolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'foreign diversion'):
                 self.helper.diverted_source(Path('/usr/share/dbus-1/session.conf'))
 
+    def test_local_activation_directory_mode_is_normalized_after_private_umask(self) -> None:
+        source = Path(self.helper.__file__).read_text()
+        self.assertIn('os.fchmod(fd, mode)', source)
+        self.assertIn('stat.S_IMODE(os.fstat(fd).st_mode) != mode', source)
+        self.assertIn('trusted_directory(LOCAL_SERVICES)', source)
+
     def test_runtime_maintenance_never_restarts_message_bus(self) -> None:
         source = Path(self.helper.__file__).read_text()
         self.assertIn("'ReloadConfig'", source)

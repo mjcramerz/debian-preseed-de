@@ -225,8 +225,8 @@ software_download_service=/etc/systemd/system/managed-external-software-download
 software_download_timer=/etc/systemd/system/managed-external-software-download.timer
 software_update_service=/etc/systemd/system/managed-external-software-update.service
 software_update_timer=/etc/systemd/system/managed-external-software-update.timer
-software_notify_service=/etc/skel/.config/systemd/user/managed-external-software-notify.service
-software_notify_path=/etc/skel/.config/systemd/user/managed-external-software-notify.path
+software_notify_service=/etc/skel/primary/.config/systemd/user/managed-external-software-notify.service
+software_notify_path=/etc/skel/primary/.config/systemd/user/managed-external-software-notify.path
 temporary_unshare_hook=/usr/lib/pre-pkgsel.d/89temporary-unshare
 temporary_unshare_path=/usr/bin/unshare
 temporary_unshare_divert_path=/usr/bin/unshare.installer-real
@@ -420,6 +420,23 @@ software_managed_external_cpu_quota() {
   printf '%s00%%\n' "$managed_external_quota_cpus"
 }
 
+software_normalize_system_perl_module_parents() {
+  for module_parent in \
+    /usr/local/lib/perl5 \
+    /usr/local/lib/perl5/site_perl \
+    /usr/local/lib/perl5/site_perl/external-managed-software \
+    /usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware \
+    /usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing
+  do
+    module_parent_host="${target_root}${module_parent}"
+    [ ! -L "$module_parent_host" ] ||
+      software_fatal "system Perl module parent is a symlink: ${module_parent}"
+    install -d -m 0755 "$module_parent_host"
+    chown root:root "$module_parent_host"
+    chmod 0755 "$module_parent_host"
+  done
+}
+
 software_perl_modules() {
   cat <<'EOF'
 ExternalSoftware/Servicing/Atomic.pm
@@ -444,6 +461,7 @@ EOF
 }
 
 software_stage_perl_modules() {
+  software_normalize_system_perl_module_parents
   software_perl_modules | while IFS= read -r software_module; do
     [ -n "$software_module" ] || continue
     software_stage_seed_asset \
@@ -2451,11 +2469,11 @@ software_stage_seed_asset \
   "$software_update_timer" \
   0644
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.config/systemd/user/managed-external-software-notify.service)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.config/systemd/user/managed-external-software-notify.service)" \
   "$software_notify_service" \
   0644
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.config/systemd/user/managed-external-software-notify.path)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.config/systemd/user/managed-external-software-notify.path)" \
   "$software_notify_path" \
   0644
 

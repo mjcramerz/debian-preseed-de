@@ -19,6 +19,7 @@ import time
 import unittest
 
 from process_fixture import stop_test_tree, wait_file
+from test_environment import skip_unless_loopback_inet, skip_unless_process_tree_visibility
 from test_repository_transport import Endpoint, FORKY, RAW_PREFIX, SOURCE
 
 LC = FORKY / 'scripts/common/lifecycle.sh'
@@ -84,6 +85,7 @@ class TimeoutPortabilityTests(unittest.TestCase):
                     self.assertNotIn('arithmetic syntax', result.stderr)
                     self.assertFalse(unsafe.exists())
 
+    @skip_unless_loopback_inet
     def test_reported_arithmetic_failure_is_removed_from_actual_fetch(self):
         web = Endpoint(FORKY)
         self.addCleanup(web.close)
@@ -97,6 +99,7 @@ class TimeoutPortabilityTests(unittest.TestCase):
                 self.assertEqual(dest.read_bytes(), (FORKY / 'preseed.cfg').read_bytes())
                 self.assertFalse(Path(str(dest) + '.fetch-error').exists())
 
+    @skip_unless_loopback_inet
     def test_invalid_fetch_configuration_is_not_retried(self):
         web = Endpoint(FORKY)
         self.addCleanup(web.close)
@@ -131,6 +134,7 @@ class TimeoutPortabilityTests(unittest.TestCase):
                 result = self.run_shell(shell, 'installer_run_bounded 0180 /bin/sh -c "exit 37"')
                 self.assertEqual(result.returncode, 37, result.stderr)
 
+    @skip_unless_process_tree_visibility
     def test_integer_only_sleep_and_no_optional_timeout_applet(self):
         for name, shell in SHELLS:
             with self.subTest(shell=name):
@@ -143,6 +147,7 @@ installer_run_bounded 001 /bin/sh -c 'sleep 30'
                 self.assertEqual(result.returncode, 124, result.stderr)
                 self.assertLess(time.monotonic() - started, 6)
 
+    @skip_unless_process_tree_visibility
     def test_timeout_stops_descendants_not_just_the_waiting_shell(self):
         for name, shell in SHELLS:
             with self.subTest(shell=name):

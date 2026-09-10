@@ -18,6 +18,8 @@ import unittest
 from unittest import mock
 
 from process_fixture import stop_test_tree, wait_file
+from test_environment import (skip_unless_installer_apt_ancestry,
+                              skip_unless_process_tree_visibility)
 
 ROOT = Path(__file__).resolve().parents[1]
 LC = ROOT / 'scripts/common/lifecycle.sh'
@@ -120,6 +122,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertIn('inventory count does not match',rejected.stderr)
         self.assertNotIn('STAT_MUST_NOT_RUN',rejected.stderr)
 
+    @skip_unless_process_tree_visibility
     def test_udeb_fetch_budget_enforces_timeout_and_preserves_other_status(self):
         for command, status in [('exit 37',37), ('sleep 20',124)]:
             start=time.monotonic()
@@ -147,12 +150,14 @@ class LifecycleTests(unittest.TestCase):
         self.assertTrue((self.state / 'late.done').is_file())
         self.assertFalse((self.state / 'installation.success').exists())
 
+    @skip_unless_process_tree_visibility
     def test_zero_exit_without_completion_is_fatal(self):
         p = self.held('installer_lifecycle_begin late; exit 0')
         self.assertTrue(wait_file(self.state / 'first-failure'))
         self.assertIn('status=125', (self.state / 'first-failure').read_text())
         self.assertIsNone(p.poll())
 
+    @skip_unless_process_tree_visibility
     def test_already_fatal_cannot_execute_late(self):
         self.assertEqual(self.run_lc('installer_record_failure 37 render first').returncode, 0)
         for _ in range(2):
@@ -162,6 +167,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse((self.state / 'UNSAFE').exists())
         self.assertIn('status=37', (self.state / 'first-failure').read_text())
 
+    @skip_unless_process_tree_visibility
     def test_interrupted_phase_is_not_resumed(self):
         self.state.mkdir()
         (self.state / 'partman.running').mkdir()
@@ -171,6 +177,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertIn('interrupted or concurrent', (self.state / 'first-failure').read_text())
         self.assertIsNone(p.poll())
 
+    @skip_unless_process_tree_visibility
     def test_failed_child_and_cleanup_preserve_original_status(self):
         child = self.root / 'child'
         child.write_text('#!/bin/sh\ntrap \'s=$?; false || :; exit "$s"\' 0\nexit 41\n')
@@ -183,6 +190,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertFalse((self.state / 'hook-finish-07preseed.done').exists())
         self.assertIsNone(p.poll())
 
+    @skip_unless_process_tree_visibility
     def test_finish_install_failure_stops_actual_main_menu_ancestor(self):
         child = self.root / 'late'
         child.write_text('#!/bin/sh\necho attempt >>"$INSTALLER_RUNTIME_DIR/attempts"\nexit 47\n')
@@ -211,6 +219,7 @@ for attempt in range(5):
         self.assertFalse((self.runtime / 'continued').exists())
         self.assertIn('status=47', (self.state / 'first-failure').read_text())
 
+    @skip_unless_process_tree_visibility
     def test_reboot_gate_rejects_missing_prior_completion(self):
         child = self.root / '99reboot'
         child.write_text('#!/bin/sh\ntouch "$INSTALLER_RUNTIME_DIR/reboot"\nexit 11\n')
@@ -222,6 +231,7 @@ for attempt in range(5):
         self.assertFalse((self.runtime / 'reboot').exists())
         self.assertFalse((self.state / 'installation.success').exists())
 
+    @skip_unless_process_tree_visibility
     def test_signal_supervision_is_bounded_and_records_original_signal(self):
         child = self.root / 'child'
         child.write_text('#!/bin/sh\necho $$ >"$INSTALLER_RUNTIME_DIR/child-pid"\nsleep 60\n')
@@ -333,6 +343,7 @@ class AptBoundaryTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / 'etc/apt/sources.list.d').mkdir(parents=True)
 
+    @skip_unless_installer_apt_ancestry
     def test_cdrom_list_and_deb822_removed_before_network_source_publication(self):
         (self.root / 'etc/apt/sources.list').write_text('deb cdrom:[fixture] /\ndeb https://mirror.invalid/debian trixie main\n')
         src = self.root / 'etc/apt/sources.list.d/media.sources'

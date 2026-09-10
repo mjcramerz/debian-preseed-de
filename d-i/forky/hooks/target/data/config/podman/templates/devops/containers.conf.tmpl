@@ -8,12 +8,12 @@ log_size_max = 16777216
 # Keep distribution seccomp/AppArmor policies and the default capability set.
 
 [engine]
-cgroup_manager = "systemd"
+cgroup_manager = "cgroupfs"
 events_logger = "journald"
 image_copy_tmp_dir = "/pool/podman/tmp"
 runtime = "crun"
 static_dir = "/pool/podman/libpod"
-tmp_dir = "/run/user/@UID@/libpod/tmp"
+tmp_dir = "/run/podman-devops/libpod/tmp"
 volume_path = "/pool/podman/volumes"
 
 [engine.runtimes]

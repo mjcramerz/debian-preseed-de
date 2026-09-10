@@ -214,7 +214,7 @@ profile managed-augenrules-quiet /usr/local/libexec/augenrules-quiet flags=(atta
 }
 
 profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
   #include <abstractions/nameservice>
   #include <abstractions/openssl>
 
@@ -233,7 +233,8 @@ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(
   ptrace (read) peer=unconfined,
 
   /usr/local/libexec/crowdsec-firstboot rix,
-  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mv,rm,sleep,ss,systemctl} rix,
+  /usr/local/libexec/crowdsec-bouncer-verify rix,
+  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sleep,ss,stat,systemctl,timeout} rix,
   /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
 
   /etc/crowdsec/ rw,
@@ -758,11 +759,8 @@ profile managed-podman-client /usr/local/bin/{podman,docker,docker-compose} flag
   /usr/local/libexec/podman-devops-client rix,
   /usr/bin/python3* rix,
   /usr/bin/{podman,docker,docker-compose} rPUx,
-  /data/ r,
-  /data/accounts/ r,
-  /data/accounts/devops/ r,
-  /data/accounts/devops/run/ r,
-  /data/accounts/devops/run/podman.sock r,
+  /run/podman-devops/ r,
+  /run/podman-devops/podman.sock r,
   /etc/podman-devops/ r,
   /etc/podman-devops/client.conf r,
   signal (send, receive),

@@ -10,8 +10,15 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+TOOLS = Path(__file__).resolve().parent
+ROOT = TOOLS.parent
+# PYTHONSAFEPATH deliberately removes the script directory from sys.path.
+# Import only this trusted sibling directory so aggregate validation remains
+# deterministic without re-enabling the current working directory.
+sys.path.insert(0, str(TOOLS))
 from check_shells import preseed_commands
-ROOT=Path(__file__).resolve().parents[1]
+
 SEED=ROOT/'d-i/forky'
 
 

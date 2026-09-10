@@ -7,17 +7,17 @@ provision_target_identity() {
 }
 
 stage_target_account_shell_assets() {
-  install -d -m 0755 /target/etc/skel
-  install -d -m 0755 /target/etc/skel/.profile.d
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.profile.installer-base)" /etc/skel/.profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.bash_profile.installer-base)" /etc/skel/.bash_profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.bashrc.installer-base)" /etc/skel/.bashrc 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.dircolors)" /etc/skel/.dircolors 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/.vimrc)" /etc/skel/.vimrc 0644
-  chown root:root /target/etc/skel/.profile /target/etc/skel/.bash_profile /target/etc/skel/.bashrc
+  install -d -m 0755 /target/etc/skel/primary
+  install -d -m 0755 /target/etc/skel/primary/.profile.d
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.profile.installer-base)" /etc/skel/primary/.profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.bash_profile.installer-base)" /etc/skel/primary/.bash_profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.bashrc.installer-base)" /etc/skel/primary/.bashrc 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.dircolors)" /etc/skel/primary/.dircolors 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.vimrc)" /etc/skel/primary/.vimrc 0644
+  chown root:root /target/etc/skel/primary/.profile /target/etc/skel/primary/.bash_profile /target/etc/skel/primary/.bashrc
   chown root:root \
-    /target/etc/skel/.dircolors \
-    /target/etc/skel/.vimrc
+    /target/etc/skel/primary/.dircolors \
+    /target/etc/skel/primary/.vimrc
 }
 
 install_target_account_shell_assets() {
@@ -59,7 +59,7 @@ gid=$(id -g "$account_user")
 
 install -d -m 0700 "$account_home"
 for rel_file in .profile .bash_profile .bashrc; do
-  src="/etc/skel/${rel_file}"
+  src="/etc/skel/primary/${rel_file}"
   dst="${account_home}/${rel_file}"
   [ -r "$src" ] || {
     printf "fatal: missing managed shell asset: %s\n" "$src" >&2
@@ -73,10 +73,10 @@ for rel_file in .profile .bash_profile .bashrc; do
   chown "$uid:$gid" "$dst"
 done
 
-if [ -d /etc/skel/.profile.d ] && [ ! -L /etc/skel/.profile.d ]; then
+if [ -d /etc/skel/primary/.profile.d ] && [ ! -L /etc/skel/primary/.profile.d ]; then
   install -d -m 0700 "$account_home/.profile.d"
   chown "$uid:$gid" "$account_home/.profile.d"
-  for src in /etc/skel/.profile.d/[0-9][0-9]-*.sh; do
+  for src in /etc/skel/primary/.profile.d/[0-9][0-9]-*.sh; do
     [ -e "$src" ] || break
     [ -f "$src" ] || continue
     file_name=$(basename "$src")

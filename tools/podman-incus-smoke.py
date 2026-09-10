@@ -22,7 +22,11 @@ import uuid
 
 PODMAN = '/usr/local/bin/podman'
 DOCKER = '/usr/local/bin/docker'
-SOCKET = Path('/data/accounts/devops/run/podman.sock')
+RUNTIME = Path('/run/podman-devops')
+SOCKET = RUNTIME / 'podman.sock'
+POOL = Path('/pool/podman')
+CONFIG = Path('/etc/podman-devops')
+SERVER_CONFIG = CONFIG / 'server/containers'
 LABEL = 'io.managed.podman.acceptance'
 
 
@@ -59,12 +63,79 @@ def require(condition: bool, message: str) -> None:
     print('PASS: ' + message, flush=True)
 
 
+def unit_state(unit: str) -> dict[str, str]:
+    output = run([
+        '/usr/bin/systemctl', 'show', '--property=ActiveState',
+        '--property=SubState', '--property=Result', '--property=ExecMainStatus', unit,
+    ])
+    return dict(line.split('=', 1) for line in output.splitlines() if '=' in line)
+
+
 def readonly(require_incus: bool) -> None:
     require(os.geteuid() != 0, 'probe runs without root or sudo')
     user, group = pwd.getpwnam('devops'), grp.getgrnam('devops')
-    require(user.pw_uid != 0 and user.pw_gid == group.gr_gid and user.pw_shell == '/usr/sbin/nologin',
-            'service identity is non-root devops:devops with nologin')
-    require(group.gr_gid in {*os.getgroups(), os.getegid()}, 'desktop session has devops group')
+    require(0 < user.pw_uid < 1000 and user.pw_gid == group.gr_gid and
+            user.pw_dir == '/nonexistent' and
+            user.pw_shell == '/usr/sbin/nologin',
+            'devops is a non-root system account with no home and nologin')
+    require(set(os.getgrouplist('devops', user.pw_gid)) == {group.gr_gid},
+            'devops has only its primary group and no supplementary groups')
+    require(group.gr_gid in {*os.getgroups(), os.getegid()},
+            'desktop session has the trusted devops operator group')
+    for forbidden in (Path('/nonexistent'), Path('/data/accounts/devops')):
+        require(not forbidden.exists() and not forbidden.is_symlink(),
+                f'devops has no home-shaped filesystem state: {forbidden}')
+    config_metadata = CONFIG.lstat()
+    require(stat.S_ISDIR(config_metadata.st_mode) and config_metadata.st_uid == 0 and
+            config_metadata.st_gid == group.gr_gid and
+            stat.S_IMODE(config_metadata.st_mode) == 0o750,
+            'service configuration root is root:devops mode 0750')
+    for name in ('containers.conf', 'storage.conf', 'registries.conf'):
+        path = SERVER_CONFIG / name
+        metadata = path.lstat()
+        require(stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0 and
+                metadata.st_gid == group.gr_gid and stat.S_IMODE(metadata.st_mode) == 0o640,
+                f'root-owned server configuration is immutable to devops: {name}')
+    linger = Path('/var/lib/systemd/linger/devops')
+    require(not linger.exists() and not linger.is_symlink(),
+            'devops has no linger state')
+    manager = subprocess.run(
+        ['/usr/bin/systemctl', 'is-active', '--quiet', f'user@{user.pw_uid}.service'],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=10,
+    )
+    require(manager.returncode != 0, 'devops has no systemd user manager')
+    runtime_user = Path('/run/user') / str(user.pw_uid)
+    for relative in ('bus', 'systemd'):
+        forbidden = runtime_user / relative
+        require(not forbidden.exists() and not forbidden.is_symlink(),
+                f'devops has no runtime user-manager state: {relative}')
+    bootstrap = unit_state('podman-devops-bootstrap.service')
+    require(bootstrap.get('ActiveState') == 'active' and
+            bootstrap.get('SubState') == 'exited' and
+            bootstrap.get('Result') == 'success' and
+            bootstrap.get('ExecMainStatus') == '0',
+            'bootstrap completed the privileged service-account and engine checks')
+    socket_state = unit_state('podman-devops.socket')
+    require(socket_state.get('ActiveState') == 'active' and
+            socket_state.get('SubState') == 'listening' and
+            socket_state.get('Result') == 'success',
+            'system-level Podman socket is active and listening')
+    api = unit_state('podman-devops.service')
+    require(api.get('ActiveState') == 'active' and
+            api.get('SubState') == 'running' and api.get('Result') == 'success',
+            'system-level Podman API runs as the service account')
+    restart = unit_state('podman-devops-restart.service')
+    require(restart.get('ActiveState') == 'active' and
+            restart.get('SubState') == 'exited' and
+            restart.get('Result') == 'success' and
+            restart.get('ExecMainStatus') == '0',
+            'persistent-container restart policy completed successfully')
+    runtime_metadata = RUNTIME.lstat()
+    require(stat.S_ISDIR(runtime_metadata.st_mode) and
+            runtime_metadata.st_uid == user.pw_uid and
+            runtime_metadata.st_gid == group.gr_gid and
+            stat.S_IMODE(runtime_metadata.st_mode) == 0o710,
+            'service runtime is devops:devops mode 0710 outside /run/user')
     metadata = SOCKET.lstat()
     require(stat.S_ISSOCK(metadata.st_mode) and metadata.st_uid == user.pw_uid and
             metadata.st_gid == group.gr_gid and stat.S_IMODE(metadata.st_mode) == 0o660,
@@ -72,17 +143,29 @@ def readonly(require_incus: bool) -> None:
     info = json.loads(run([PODMAN, 'info', '--format=json']))
     host, store = info['host'], info['store']
     require(host['security']['rootless'] is True, 'actual API engine is rootless')
-    require(host['cgroupVersion'] == 'v2' and host['cgroupManager'] == 'systemd',
-            'actual engine uses systemd cgroup v2')
-    require(store['graphRoot'] == '/pool/podman/storage' and store['volumePath'] == '/pool/podman/volumes',
+    require(host['cgroupVersion'] == 'v2' and host['cgroupManager'] == 'cgroupfs',
+            'actual engine uses delegated cgroupfs on cgroup v2')
+    require(store['graphRoot'] == '/pool/podman/storage' and
+            store['volumePath'] == '/pool/podman/volumes',
             'actual storage and volume paths are under the pool')
     require(host['networkBackend'] == 'netavark', 'actual network backend is Netavark')
+    pool_root = Path('/pool').lstat()
+    require(stat.S_ISDIR(pool_root.st_mode) and pool_root.st_uid == 0 and
+            pool_root.st_gid == group.gr_gid and stat.S_IMODE(pool_root.st_mode) == 0o3775,
+            'shared pool root is root:devops mode 3775')
+    for leaf in ('xdg-data', 'xdg-cache'):
+        metadata = (POOL / leaf).lstat()
+        require(stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == user.pw_uid and
+                metadata.st_gid == group.gr_gid and stat.S_IMODE(metadata.st_mode) == 0o700,
+                f'non-home Podman {leaf} state is private to devops')
     print('Docker version:\n' + run([DOCKER, 'version']))
     print('Compose version: ' + run([DOCKER, 'compose', 'version']))
-    run([PODMAN, 'ps', '--all']); run([DOCKER, 'ps', '--all'])
+    run([PODMAN, 'ps', '--all'])
+    run([DOCKER, 'ps', '--all'])
     for unit in ('podman.service', 'podman.socket', 'docker.service', 'docker.socket'):
         path = Path('/etc/systemd/system') / unit
-        require(path.is_symlink() and os.readlink(path) == '/dev/null', f'rootful {unit} is masked')
+        require(path.is_symlink() and os.readlink(path) == '/dev/null',
+                f'rootful {unit} is masked')
     if Path('/usr/bin/incus').is_file():
         require(grp.getgrnam('incus-admin').gr_gid not in {*os.getgroups(), os.getegid()},
                 'desktop does not have the Incus administrator group')

@@ -1,0 +1,39 @@
+[Unit]
+Description=Restore and stop persistent containers for the locked devops engine
+Documentation=man:podman-start(1) man:podman-stop(1)
+Requires=podman-devops-bootstrap.service podman-devops.service
+After=podman-devops-bootstrap.service podman-devops.service
+Before=shutdown.target
+Conflicts=shutdown.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=devops
+Group=devops
+Environment=HOME=/nonexistent
+Environment=XDG_CONFIG_HOME=/run/podman-devops/config
+Environment=XDG_DATA_HOME=/pool/podman/xdg-data
+Environment=XDG_CACHE_HOME=/pool/podman/xdg-cache
+Environment=XDG_RUNTIME_DIR=/run/podman-devops
+Environment=CONTAINERS_CONF=/etc/podman-devops/client.conf
+Environment=CONTAINER_HOST=unix:///run/podman-devops/podman.sock
+Environment=TMPDIR=/pool/podman/tmp
+UnsetEnvironment=DBUS_SESSION_BUS_ADDRESS CONTAINER_CONNECTION CONTAINER_SSHKEY DOCKER_HOST DOCKER_CONTEXT CONTAINERS_STORAGE_CONF CONTAINERS_CONF_OVERRIDE
+RuntimeDirectory=podman-devops
+RuntimeDirectoryMode=0710
+RuntimeDirectoryPreserve=yes
+ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start
+ExecStart=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock start --all --filter should-start-on-boot=true
+ExecStop=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock stop --service --all --ignore --time 20
+TimeoutStartSec=180s
+TimeoutStopSec=90s
+Restart=on-failure
+RestartSec=30s
+UMask=0077
+NoNewPrivileges=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

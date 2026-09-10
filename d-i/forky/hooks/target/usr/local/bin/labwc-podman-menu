@@ -227,7 +227,7 @@ def terminal_main(arguments: list[str]) -> int:
     if not arguments or arguments[0] not in ('podman', 'docker'):
         raise ValueError('invalid terminal client')
     executable = PODMAN if arguments[0] == 'podman' else DOCKER
-    print('Engine: rootless devops | socket: /data/accounts/devops/run/podman.sock', flush=True)
+    print('Engine: rootless devops | socket: /run/podman-devops/podman.sock', flush=True)
     # Same process group as the terminal: Ctrl-C and terminal close reach the
     # actual client. No terminal-output capture or automatic mutation retries.
     process = subprocess.Popen([executable, *arguments[1:]])

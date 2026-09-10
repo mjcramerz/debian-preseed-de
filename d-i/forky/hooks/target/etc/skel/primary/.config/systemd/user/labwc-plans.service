@@ -13,11 +13,11 @@ StartLimitBurst=5
 [Service]
 KillMode=control-group
 Type=exec
-# The root-owned 0640 file contains outbound notification credentials. Let the
-# user manager copy it into the private per-unit credential directory before
-# parsing it; the service executable never opens the persistent source file.
-LoadCredential=labwc-plans.env:/etc/default/labwc-plans
-EnvironmentFile=%d/labwc-plans.env
+# The rendered file is root-owned, group-readable only by the primary desktop
+# account group, and parsed by the user manager before the service starts.
+# LoadCredential cannot be used as an EnvironmentFile source in a user unit:
+# its %d directory is prepared after environment files are loaded.
+EnvironmentFile=/etc/default/labwc-plans
 UnsetEnvironment=ALL_PROXY HTTPS_PROXY HTTP_PROXY NO_PROXY all_proxy https_proxy http_proxy no_proxy
 ExecStart=/usr/local/libexec/labwc-plans.pl
 Restart=on-failure
