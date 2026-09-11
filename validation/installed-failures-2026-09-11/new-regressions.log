@@ -1,0 +1,30 @@
+test_general_reader_still_rejects_writable_input (test_installed_failures_20260911.AutostartPermissionTests.test_general_reader_still_rejects_writable_input) ... ok
+test_group_accessible_parent_is_not_adopted (test_installed_failures_20260911.AutostartPermissionTests.test_group_accessible_parent_is_not_adopted) ... ok
+test_hardlink_is_not_adopted (test_installed_failures_20260911.AutostartPermissionTests.test_hardlink_is_not_adopted) ... ok
+test_private_owner_created_0660_is_adopted_as_0600 (test_installed_failures_20260911.AutostartPermissionTests.test_private_owner_created_0660_is_adopted_as_0600) ... ok
+test_replaced_inode_is_not_adopted (test_installed_failures_20260911.AutostartPermissionTests.test_replaced_inode_is_not_adopted) ... ok
+test_symlink_is_rejected_before_synchronizing (test_installed_failures_20260911.AutostartPermissionTests.test_symlink_is_rejected_before_synchronizing) ... ok
+test_world_writable_file_is_not_normalized (test_installed_failures_20260911.AutostartPermissionTests.test_world_writable_file_is_not_normalized) ... ok
+test_wrong_owner_is_not_adopted (test_installed_failures_20260911.AutostartPermissionTests.test_wrong_owner_is_not_adopted) ... ok
+test_bitwarden_no_longer_uses_transformer (test_installed_failures_20260911.InstallerFailureContractTests.test_bitwarden_no_longer_uses_transformer) ... ok
+test_busybox_public_parent_creation_keeps_private_parents (test_installed_failures_20260911.InstallerFailureContractTests.test_busybox_public_parent_creation_keeps_private_parents) ... ok
+test_global_portals_do_not_require_account_local_compositor (test_installed_failures_20260911.InstallerFailureContractTests.test_global_portals_do_not_require_account_local_compositor) ... ok
+test_misc_failure_contracts (test_installed_failures_20260911.InstallerFailureContractTests.test_misc_failure_contracts) ... ok
+test_all_592_records_have_scoped_grants (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_all_592_records_have_scoped_grants) ... ok
+test_chatgpt_handoff_preserves_its_dedicated_profile_and_log_pipes (test_installed_failures_20260911.SessionOwnershipTests.test_chatgpt_handoff_preserves_its_dedicated_profile_and_log_pipes) ... ok
+test_executable_owner_uses_anchor_without_loosening_modes (test_installed_failures_20260911.SessionOwnershipTests.test_executable_owner_uses_anchor_without_loosening_modes) ... fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+ok
+test_host_namespace_does_not_redirect_normal_apps (test_installed_failures_20260911.SessionOwnershipTests.test_host_namespace_does_not_redirect_normal_apps) ... ok
+test_invalid_marker_is_rejected (test_installed_failures_20260911.SessionOwnershipTests.test_invalid_marker_is_rejected) ... fatal: LABWC_NATIVE_APP_SESSION_UNIT has an invalid value
+ok
+test_native_marker_prevents_loop (test_installed_failures_20260911.SessionOwnershipTests.test_native_marker_prevents_loop) ... fatal: managed application user manager still hides host ownership
+ok
+test_private_namespace_handoff_preserves_arguments_and_output (test_installed_failures_20260911.SessionOwnershipTests.test_private_namespace_handoff_preserves_arguments_and_output) ... ok
+test_tuta_waits_for_secret_service_even_on_host (test_installed_failures_20260911.SessionOwnershipTests.test_tuta_waits_for_secret_service_even_on_host) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.257s
+
+OK

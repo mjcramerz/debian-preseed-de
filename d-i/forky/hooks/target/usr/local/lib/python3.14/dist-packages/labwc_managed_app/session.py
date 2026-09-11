@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 
+from .integrity import system_owner
+
 from .runtime import (
     current_user_home,
     current_user_name,
@@ -17,9 +19,11 @@ from .runtime import (
 )
 
 MANAGED_APP_PATH = "/usr/local/bin/labwc-managed-app"
+CHATGPT_SESSION_PATH = "/usr/local/libexec/labwc-chatgpt-session"
 WAYLAND_COMPAT_MANAGED_APP_PATH = "/usr/local/bin/labwc-managed-wayland-compat-app"
 SYSTEMD_RUN_PATH = "/usr/bin/systemd-run"
 BITWARDEN_SESSION_UNIT_MARKER = "LABWC_MANAGED_APP_SESSION_UNIT"
+NATIVE_SESSION_UNIT_MARKER = "LABWC_NATIVE_APP_SESSION_UNIT"
 WAYLAND_COMPAT_SESSION_UNIT_MARKER = (
     "LABWC_MANAGED_WAYLAND_COMPAT_SESSION_UNIT"
 )
@@ -57,8 +61,10 @@ def bitwarden_session_unit_argv(
     ]
 
 
-def managed_session_unit_environment(application_label: str) -> dict[str, str]:
-    if os.environ.get("LABWC_SESSION_OWNER") != "desktop":
+def managed_session_unit_environment(
+    application_label: str, *, require_session_owner: bool = True,
+) -> dict[str, str]:
+    if require_session_owner and os.environ.get("LABWC_SESSION_OWNER") != "desktop":
         fail(f"{application_label} requires the managed Labwc desktop session")
     home_dir = current_user_home()
     user_name = current_user_name()
@@ -170,3 +176,64 @@ def redirect_wayland_compat_to_session_unit(
             "failed to create the managed Zoom/Discord Cage session unit: "
             f"{exc}"
         )
+
+
+def redirect_native_from_private_users(
+    app_name: str, mode: str, extra_args: list[str],
+) -> None:
+    """Re-enter the host user manager before checking host-owned app data.
+
+    The compositor's filesystem sandbox implicitly creates a user namespace.
+    In it root and supplementary group ownership cannot be distinguished.
+    Do not weaken all the later ownership checks or alter that sandbox: ask
+    the same user's manager to execute the existing wrapper outside it.
+    --pipe/--wait retain the caller's output capture and exit-status semantics,
+    including ChatGPT's dedicated, private log runner.
+    """
+    marker = os.environ.get(NATIVE_SESSION_UNIT_MARKER, "")
+    if marker not in {"", "1"}:
+        fail(f"{NATIVE_SESSION_UNIT_MARKER} has an invalid value")
+    private_users = system_owner()[0] != 0
+    if marker == "1":
+        if private_users:
+            fail("managed application user manager still hides host ownership")
+        return
+    # Tuta's safeStorage must not race the Secret Service provider even when
+    # started from a terminal that is already outside the compositor namespace.
+    if not private_users and app_name != "tutanota":
+        return
+    systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+    environment = managed_session_unit_environment(
+        app_name, require_session_owner=False,
+    )
+    wayland_display = validate_runtime_entry_name(
+        "WAYLAND_DISPLAY", os.environ.get("WAYLAND_DISPLAY", ""),
+    )
+    current_user_runtime_socket("Wayland socket", wayland_display)
+    dependencies = "labwc-session.target"
+    if app_name == "tutanota":
+        dependencies += " labwc-kwallet-portal.service"
+    # The generic entrypoint attaches the generic AppArmor profile when started
+    # by systemd. ChatGPT must retain its dedicated profile and private pipes;
+    # a tiny fixed-purpose reentry stub performs that explicit transition.
+    command = [MANAGED_APP_PATH, mode, app_name, *extra_args]
+    if app_name == "chatgpt":
+        command = [CHATGPT_SESSION_PATH, mode, *extra_args]
+    argv = [
+        systemd_run, "--user", "--quiet", "--collect", "--pipe", "--wait",
+        "--service-type=exec", "--expand-environment=no",
+        f"--description=Managed {app_name} desktop client",
+        f"--property=After={dependencies}",
+        f"--property=Requires={dependencies}",
+        f"--property=Requisite={dependencies}",
+        f"--property=PartOf={dependencies}",
+        "--property=KillMode=mixed", "--property=TimeoutStopSec=20s",
+        f"--working-directory={os.getcwd()}",
+        f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
+        f"--setenv=WAYLAND_DISPLAY={wayland_display}",
+        "--", *command,
+    ]
+    try:
+        os.execve(systemd_run, argv, environment)
+    except OSError as exc:
+        fail(f"failed to create the managed {app_name} session unit: {exc}")

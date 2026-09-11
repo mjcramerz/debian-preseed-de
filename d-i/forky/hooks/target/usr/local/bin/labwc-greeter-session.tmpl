@@ -96,6 +96,9 @@ unset \
   MESA_VK_DEVICE_SELECT \
   MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE \
   __VK_LAYER_NV_optimus
+# GTK4's settings portal is not disabled by GTK_USE_PORTAL=0. The login
+# screen has no desktop-session portals; do not activate them before login.
+export GDK_DEBUG=no-portals
 export GTK_USE_PORTAL=0
 export GIO_USE_PORTALS=0
 export GIO_USE_VFS=local

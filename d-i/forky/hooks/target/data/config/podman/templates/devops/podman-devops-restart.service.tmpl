@@ -26,7 +26,7 @@ RuntimeDirectoryMode=0710
 RuntimeDirectoryPreserve=yes
 ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start
 ExecStart=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock start --all --filter should-start-on-boot=true
-ExecStop=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock stop --service --all --ignore --time 20
+ExecStop=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock stop --all --ignore --time 20
 TimeoutStartSec=180s
 TimeoutStopSec=90s
 Restart=on-failure

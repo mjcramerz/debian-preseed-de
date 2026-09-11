@@ -718,7 +718,7 @@ printf '%s\n' 1
         self.assertIn('--skip-kernel-load --skip-cache', text)
         self.assertIn('cmp ', text)
         unit = (ROOT/'hooks/target/etc/systemd/system/mullvad-apparmor.service').read_text()
-        self.assertIn('apparmor_parser --replace --skip-cache', unit)
+        self.assertIn('apparmor_parser --replace --skip-read-cache --write-cache', unit)
         dep = (ROOT/'hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf').read_text()
         self.assertIn('Requires=mullvad-apparmor.service', dep)
 

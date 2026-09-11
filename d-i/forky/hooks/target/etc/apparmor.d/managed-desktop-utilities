@@ -18,7 +18,7 @@ profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xourn
   include if exists <local/managed-desktop-editors>
 }
 
-profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(attach_disconnected) {
+profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/managed-document-runtime>
   #include <abstractions/managed-pipewire-audio>
   /usr/bin/{mpv,recoll,recollindex,recollq,liferea} mrix,
@@ -35,6 +35,32 @@ profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} 
   owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/** rwklm,
   owner @{HOME}/.local/share/{mpv,recoll,liferea}/ rw,
   owner @{HOME}/.local/share/{mpv,recoll,liferea}/** rwklm,
+  # Recoll's QtWebEngine viewer creates a Chromium user namespace. These
+  # permissions do not grant capabilities in the initial (host) namespace.
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  network inet6 dgram,
+  ptrace (read, trace) peer=@{profile_name},
+  /usr/lib/qt6/libexec/QtWebEngineProcess rix,
+  @{PROC}/ r,
+  @{PROC}/sys/fs/inotify/max_user_watches r,
+  @{PROC}/sys/kernel/yama/ptrace_scope r,
+  owner @{PROC}/[0-9]*/{cmdline,stat,statm,fd/} r,
+  owner @{PROC}/[0-9]*/task/ r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/status r,
+  owner @{PROC}/[0-9]*/{setgroups,gid_map,uid_map,oom_score_adj} rw,
+  # Qt probes this package-owned directory with mkdir. Directory-only access;
+  # DAC still prevents ordinary users changing system data or creating files.
+  /usr/share/qt6/resources/locales/ rw,
+  owner @{HOME}/.config/Recoll.org/ rw,
+  owner @{HOME}/.config/Recoll.org/** rwkl,
+  owner @{HOME}/.cache/Recoll.org/ rw,
+  owner @{HOME}/.cache/Recoll.org/** rwkl,
+  owner @{HOME}/.cache/qtshadercache-*/ rw,
+  owner @{HOME}/.cache/qtshadercache-*/** rwkl,
+  owner /run/user/[0-9]*/recoll-*-index.pid rwk,
   include if exists <local/managed-desktop-media>
 }
 
@@ -89,8 +115,11 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   # Authentication boundary: Polkit/sudo retain their own authorization checks;
   # privileged repository helpers attach to their existing dedicated profiles.
   /usr/bin/{pkexec,sudo,sudoedit} rPUx,
+  /run/mount/utab r,
+  signal (send) set=(kill term) peer=managed-desktop-launcher//application-bwrap,
   /usr/bin/bwrap rCx -> application-bwrap,
   profile application-bwrap flags=(attach_disconnected) {
+    signal (receive) set=(kill term) peer=managed-desktop-launcher,
     #include <abstractions/managed-bwrap-common>
     #include <abstractions/managed-bwrap-desktop-runtime>
     #include <abstractions/managed-devops-toolchain-runtime>

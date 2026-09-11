@@ -51,8 +51,10 @@ ensure_target_asset_parent() (
     *) installer_fatal "target asset parent escapes target root: $target_parent"; exit 1 ;;
   esac
   target_normalize_systemd_config_parent_modes "$target_path" "$target_root" || exit 1
-  # Existing private parents must not be made world-readable by file staging.
-  [ -d "$target_parent" ] || install -d -m 0755 "$target_parent" || exit 1
+  # BusyBox install applies umask to intermediate directories, even with -m.
+  # Only newly created public parents use 022; keep existing private parents
+  # and the caller's private temporary-file umask unchanged.
+  [ -d "$target_parent" ] || (umask 022; install -d -m 0755 "$target_parent") || exit 1
 )
 
 target_asset_contains_installer_placeholders() {

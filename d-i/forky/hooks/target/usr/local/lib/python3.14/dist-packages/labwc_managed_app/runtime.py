@@ -11,6 +11,7 @@ import sys
 from typing import NoReturn
 
 from .events import emit
+from .integrity import system_owner
 
 MANAGED_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 MANAGED_DEFAULTS_PATH = pathlib.Path("/etc/default/labwc-desktop")
@@ -210,7 +211,10 @@ def require_root_owned_executable(label: str, path: str) -> str:
     if (
         stat.S_ISLNK(metadata.st_mode)
         or not stat.S_ISREG(metadata.st_mode)
-        or metadata.st_uid != 0
+        # A user-service filesystem namespace omits the host-root UID map.
+        # Use the same validated /usr ownership anchor as package bootstrap;
+        # never special-case or blindly trust the numeric overflow UID.
+        or metadata.st_uid != system_owner()[0]
         or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
         or not os.access(path, os.X_OK)
     ):

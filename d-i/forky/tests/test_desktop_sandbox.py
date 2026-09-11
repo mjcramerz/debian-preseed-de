@@ -1102,9 +1102,9 @@ desktop_normalize_background_directories
         for rule in (
             '/dev/rfkill r,',
             '/usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,',
-            '/usr/share/icons/Papirus/24x24/panel/update-low.svg r,',
-            '/usr/share/backgrounds/desktop/wallpaper-1920x1080.png r,',
-            '/usr/share/backgrounds/login/lock-1920x1080.png r,',
+            '/usr/{,local/}share/icons/ r,',
+            '/usr/{,local/}share/icons/** r,',
+            '/usr/share/backgrounds/** r,',
             'owner @{HOME}/.config/swaylock/config r,',
             'owner @{HOME}/.cache/glycin/** rwkl,',
             'owner /run/user/[0-9]*/labwc-swaylock.lock a,',
@@ -1114,7 +1114,7 @@ desktop_normalize_background_directories
         for rule in (
             'owner link "@{HOME}/.config/crystal-dock/labwc/appearance.conf.*" -> "@{HOME}/.config/crystal-dock/labwc/#[0-9]*",',
             'owner link "@{HOME}/.config/kwalletrc.*" -> "@{HOME}/.config/#[0-9]*",',
-            'owner link "@{HOME}/.local/share/kwalletd/*.kwl.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",',
+            'owner link "@{HOME}/.local/share/kwalletd/*.{kwl,json}.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",',
         ):
             self.assertIn(rule, explicit_link_rules)
         self.assertTrue(all(' subset ' not in rule for rule in explicit_link_rules))

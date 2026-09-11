@@ -471,6 +471,41 @@ def remove_unmanaged_tuta_launchers(account_home: str, uid: int) -> int:
     return removed
 
 
+def normalize_bitwarden_autostart_mode(
+    account_home: str, path: str, metadata: os.stat_result, uid: int, gid: int,
+) -> bool:
+    """Adopt Electron's owner-created 0660 file, not arbitrary writable input.
+
+    The private directory chain prevents other group members from reaching
+    this entry. Check that chain and the opened inode before changing mode;
+    the ordinary strict reader remains unchanged for every other input.
+    """
+    if stat.S_IMODE(metadata.st_mode) != 0o660:
+        return False
+    if (metadata.st_uid != uid or metadata.st_gid != gid
+            or metadata.st_nlink != 1):
+        raise RuntimeError(f"Bitwarden autostart ownership is unsafe: {path}")
+    for directory in (account_home, os.path.join(account_home, ".config"),
+                      os.path.dirname(path)):
+        parent = os.lstat(directory)
+        if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != uid
+                or parent.st_mode & 0o077):
+            raise RuntimeError(f"Bitwarden autostart parent is not private: {directory}")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(descriptor)
+        if (not stat.S_ISREG(opened.st_mode)
+                or (opened.st_dev, opened.st_ino) != (metadata.st_dev, metadata.st_ino)
+                or opened.st_uid != uid or opened.st_gid != gid
+                or opened.st_nlink != 1 or stat.S_IMODE(opened.st_mode) != 0o660
+                or opened.st_size > MAX_DESKTOP_FILE_BYTES):
+            raise RuntimeError(f"Bitwarden autostart changed during validation: {path}")
+        os.fchmod(descriptor, MANAGED_FILE_MODE)
+    finally:
+        os.close(descriptor)
+    return True
+
+
 def synchronize_bitwarden_autostart(
     account_home: str,
     uid: int,
@@ -495,6 +530,9 @@ def synchronize_bitwarden_autostart(
     ):
         raise RuntimeError(f"Bitwarden autostart entry is unsafe: {autostart_path}")
 
+    mode_changed = normalize_bitwarden_autostart_mode(
+        account_home, autostart_path, metadata, uid, gid,
+    )
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.optionxform = str
     try:
@@ -515,7 +553,7 @@ def synchronize_bitwarden_autostart(
         entry["Exec"] = managed_command
         changed = True
     if not changed:
-        return False
+        return mode_changed
     write_desktop_file(autostart_path, parser, uid, gid, validate)
     return True
 

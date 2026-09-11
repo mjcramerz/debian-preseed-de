@@ -843,6 +843,10 @@ sub render_iface_stanza {
         push @lines,
             '',
             "iface $record->{iface} inet6 static",
+            # ifdown may lower the shared link while processing inet first.
+            # Retain only permanent static IPv6 addresses until inet6 removes
+            # them explicitly, instead of racing the kernel's link-down flush.
+            "    pre-up /usr/sbin/sysctl -q -w net/ipv6/conf/$record->{iface}/keep_addr_on_down=1",
             "    address $record->{ipv6_address}",
             "    netmask $CFG{MANAGED_NETWORK_IPV6_PREFIXLEN}",
             "    gateway $CFG{MANAGED_NETWORK_IPV6_GATEWAY}",

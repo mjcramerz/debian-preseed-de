@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Labwc Settings
+Comment=Configure the Labwc desktop
+Exec=/usr/bin/labwc-tweaks
+TryExec=/usr/bin/labwc-tweaks
+Icon=preferences-desktop
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupWMClass=labwc-tweaks

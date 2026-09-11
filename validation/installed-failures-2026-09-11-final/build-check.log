@@ -1,0 +1,32 @@
+Browser artifacts current
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:227: EncodingWarning: 'encoding' argument not specified
+  canonical = (SEED / 'scripts/common/credentials.sh').read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:230: EncodingWarning: 'encoding' argument not specified
+  text = path.read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:252: EncodingWarning: 'encoding' argument not specified
+  canonical = (SEED / 'scripts/common/debconf.sh').read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:255: EncodingWarning: 'encoding' argument not specified
+  text = path.read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:266: EncodingWarning: 'encoding' argument not specified
+  canonical = (SEED / 'scripts/common/lifecycle.sh').read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:269: EncodingWarning: 'encoding' argument not specified
+  text = path.read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:214: EncodingWarning: 'encoding' argument not specified
+  text = path.read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:217: EncodingWarning: 'encoding' argument not specified
+  expected = before + begin + (SEED / 'scripts/common/apt-sources.sh').read_text() + end + after
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:61: EncodingWarning: 'encoding' argument not specified
+  repo = (SEED / 'repo.env').read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:79: EncodingWarning: 'encoding' argument not specified
+  text = script.read_text().replace('\\\n', ' ')
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:89: EncodingWarning: 'encoding' argument not specified.
+  q = subprocess.run(['/bin/sh', '-n', str(p)], capture_output=True, text=True)
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:94: EncodingWarning: 'encoding' argument not specified
+  for number, line in enumerate(mapping.read_text().splitlines(), 1):
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:114: EncodingWarning: 'encoding' argument not specified
+  for stanza in re.split(r'\n\s*\n', p.read_text()):
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:146: EncodingWarning: 'encoding' argument not specified
+  source = (SEED / 'scripts/common/source.sh').read_text()
+/home/mcramer/Workspace/debian-preseed-de/tools/build.py:205: EncodingWarning: 'encoding' argument not specified.
+  parsed = subprocess.run([*shell, '-n', '-c', code], capture_output=True, text=True)
+snapshot, pins and preseed are current

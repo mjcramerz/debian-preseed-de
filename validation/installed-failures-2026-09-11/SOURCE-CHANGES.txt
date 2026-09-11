@@ -1,0 +1,37 @@
+ M d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops-restart.service.tmpl
+ M d-i/forky/hooks/target/data/config/podman/templates/devops/podman-devops.service.tmpl
+ M d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-session-client
+ M d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities
+ M d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+ M d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
+ M d-i/forky/hooks/target/etc/systemd/system/mullvad-apparmor.service
+ M d-i/forky/hooks/target/etc/systemd/system/user@.service.d/20-labwc-seatd.conf
+ M d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal-gtk.service.d/10-labwc-session.conf
+ M d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal-lxqt.service.d/10-labwc-session.conf
+ M d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal-wlr.service.d/10-labwc-session.conf
+ M d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal.service.d/10-labwc-session.conf
+ M d-i/forky/hooks/target/usr/local/bin/labwc-greeter-session.tmpl
+ M d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers
+ D d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Bitwarden.pm
+ M d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/CLI.pm
+ M d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm
+ M d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py
+ M d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py
+ M d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
+ D d-i/forky/hooks/target/usr/local/libexec/managed-bitwarden-package
+ M d-i/forky/payload.manifest
+ M d-i/forky/payload.tar.gz
+ M d-i/forky/preseed.cfg
+ M d-i/forky/scripts/desktop/components.sh
+ M d-i/forky/scripts/late/managed-network-generate.pl
+ M d-i/forky/scripts/late/software.sh
+ M d-i/forky/scripts/late/target-assets.sh
+ M d-i/forky/tests/test_desktop_sandbox.py
+ M d-i/forky/tests/test_installer_hardening.py
+ M d-i/forky/tests/test_podman_incus_redesign.py
+?? FIXES-2026-09-11.md
+?? d-i/forky/hooks/target/usr/local/libexec/labwc-chatgpt-session
+?? d-i/forky/hooks/target/usr/local/share/applications/hyprpolkitagent.desktop
+?? d-i/forky/hooks/target/usr/local/share/applications/labwc-tweaks.desktop
+?? d-i/forky/tests/fixtures/installed-apparmor-20260911.json
+?? d-i/forky/tests/test_installed_failures_20260911.py

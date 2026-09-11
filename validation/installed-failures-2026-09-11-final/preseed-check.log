@@ -1,0 +1,10 @@
+/home/mcramer/Workspace/debian-preseed-de/tools/check_preseeds.py:56: EncodingWarning: 'encoding' argument not specified
+  conf.write_text('Config: check_config\nTemplates: check_templates\n\n'
+/home/mcramer/Workspace/debian-preseed-de/tools/check_preseeds.py:64: EncodingWarning: 'encoding' argument not specified.
+  result=subprocess.run([checker,'--checkonly',*map(str,paths)],
+/home/mcramer/Workspace/debian-preseed-de/tools/check_preseeds.py:30: EncodingWarning: 'encoding' argument not specified.
+  subprocess.run(['debconf-set-selections', str(path)], env=env,
+/home/mcramer/Workspace/debian-preseed-de/tools/check_preseeds.py:32: EncodingWarning: 'encoding' argument not specified.
+  result = subprocess.run(['debconf-communicate', 'installer-bootstrap-test'],
+All four generated command values survived private debconf read-back unchanged
+59 preseed files checked; PASS

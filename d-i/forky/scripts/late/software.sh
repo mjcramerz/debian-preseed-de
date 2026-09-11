@@ -136,7 +136,6 @@ esac
 
 work_dir=/tmp/installer-software
 bitwarden_deb="${work_dir}/bitwarden-latest.deb"
-bitwarden_managed_deb="${work_dir}/bitwarden-managed.deb"
 obsidian_version=1.12.7
 obsidian_url="https://github.com/obsidianmd/obsidian-releases/releases/download/v${obsidian_version}/obsidian_${obsidian_version}_amd64.deb"
 obsidian_sha256=3644e3ef19bcd23db4d17f7c73311b5245429391a2a48b361da93375f59712b0
@@ -218,7 +217,6 @@ tuta_hash_file="${software_metadata_dir}/tuta.installed.sha256"
 ledger_hash_file="${software_metadata_dir}/ledger.installed.sha512"
 ledger_version_file="${software_metadata_dir}/ledger.installed.version"
 software_update_helper=/usr/local/libexec/managed-external-software-update
-software_bitwarden_package_helper=/usr/local/libexec/managed-bitwarden-package
 software_discord_archive_helper=/usr/local/libexec/managed-discord-distro
 software_notify_helper=/usr/local/libexec/managed-external-software-notify
 software_download_service=/etc/systemd/system/managed-external-software-download.service
@@ -277,7 +275,6 @@ software_validate_managed_app_default_exec "$LABWC_MANAGED_APP_DEFAULT_EXEC"
 for managed_path in \
   "$work_dir" \
   "$bitwarden_deb" \
-  "$bitwarden_managed_deb" \
   "$qoredb_deb" \
   "$obsidian_deb" \
   "$postman_archive" \
@@ -349,7 +346,6 @@ for managed_path in \
   "$ledger_hash_file" \
   "$ledger_version_file" \
   "$software_update_helper" \
-  "$software_bitwarden_package_helper" \
   "$software_discord_archive_helper" \
   "$software_notify_helper" \
   "$software_download_service" \
@@ -476,10 +472,6 @@ software_stage_external_servicing_runtime() {
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-external-software-update)" \
     "$software_update_helper" \
-    0755
-  software_stage_seed_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-bitwarden-package)" \
-    "$software_bitwarden_package_helper" \
     0755
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-discord-distro)" \
@@ -2064,15 +2056,11 @@ software_download \
   314572800 \
   artifact \
   "bitwarden.com github.com objects.githubusercontent.com release-assets.githubusercontent.com"
-chroot "$target_root" "$software_bitwarden_package_helper" \
-  transform \
-  --source "$bitwarden_deb" \
-  --destination "$bitwarden_managed_deb" \
-  --work-directory "$work_dir" ||
-  software_fatal "Bitwarden Desktop package transformation failed"
+# Install and retain the exact vendor download; never rewrite app.asar or
+# rebuild Bitwarden's Debian archive.
 software_install_deb \
   "Bitwarden Desktop" \
-  "$bitwarden_managed_deb" \
+  "$bitwarden_deb" \
   "bitwarden" \
   amd64 \
   /opt/Bitwarden/bitwarden \

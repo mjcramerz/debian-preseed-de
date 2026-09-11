@@ -1,0 +1,70 @@
+{
+  "repository": "debian-preseed-de",
+  "utc": "2026-09-11T21:04:59.932418+00:00",
+  "stages": [
+    {
+      "stage": "browser-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.265,
+      "log": "browser-check.log"
+    },
+    {
+      "stage": "build-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.468,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.316,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.815,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "tests",
+      "returncode": 1,
+      "timed_out": false,
+      "seconds": 22.162,
+      "log": "tests.log",
+      "tests_run": 624,
+      "skipped": 178
+    },
+    {
+      "stage": "audit",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 4.782,
+      "log": "audit.log"
+    }
+  ],
+  "success": false,
+  "audit_check_counts": {
+    "blocked-tool": 11,
+    "inventory-only": 479,
+    "pass": 559,
+    "structure-pass": 119,
+    "template-needs-render": 2
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "4b216707900c5326863da9af13a8a95ad5fb5a20709997c7bca54af87141dd3c",
+    "payload.manifest": "2ef7d36663fb5d1fb2c4e7ce07baf990091ac84976e3050be9dce8e38fe30aa0",
+    "payload.tar.gz": "7b02385a1de3daaa037dae56e63d87068ba98fc4ef625360b2aefcad8e201a60"
+  },
+  "limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance."
+  ]
+}

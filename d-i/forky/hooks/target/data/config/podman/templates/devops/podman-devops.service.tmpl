@@ -27,7 +27,7 @@ WorkingDirectory=/pool/podman/workspace
 ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start
 ExecStartPre=/usr/bin/install -d -m 0700 /run/podman-devops/containers /run/podman-devops/libpod/tmp /run/podman-devops/config /run/podman-devops/config/containers
 ExecStartPre=/usr/bin/install -m 0600 /etc/podman-devops/server/containers/registries.conf /run/podman-devops/config/containers/registries.conf
-ExecStart=/usr/bin/podman --log-level=info system service --time=0
+ExecStart=/usr/bin/podman --remote=false --log-level=info system service --time=0
 Delegate=yes
 KillMode=process
 KillSignal=SIGTERM

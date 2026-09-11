@@ -6,7 +6,7 @@ Before=mullvad-daemon.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/sbin/apparmor_parser --replace --skip-cache /etc/apparmor.d/mullvad
+ExecStart=/usr/sbin/apparmor_parser --replace --skip-read-cache --write-cache /etc/apparmor.d/mullvad
 RemainAfterExit=yes
 TimeoutStartSec=60
 

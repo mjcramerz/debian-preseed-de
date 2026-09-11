@@ -36,6 +36,29 @@ desktop_stage_role_asset() {
   desktop_log "staged_asset source=${source_path} target=${target_path} mode=${mode}"
 }
 
+desktop_normalize_public_desktop_directories() {
+  # d-i uses BusyBox install: under umask 077, -d -m 0755 sets only the
+  # final directory's mode. Existing/intermediate parents can remain 0700.
+  # Name public asset parents explicitly; never widen private user data.
+  for public_directory in \
+    /usr/local/share \
+    /usr/local/share/applications \
+    /usr/local/share/icons \
+    /usr/local/share/icons/hicolor \
+    /usr/local/share/icons/hicolor/64x64 \
+    /usr/local/share/icons/hicolor/64x64/apps
+  do
+    ensure_target_asset_parent "${public_directory}/.installer-directory"
+    public_directory_host=$(target_asset_host_path "$public_directory")
+    [ -d "$public_directory_host" ] && [ ! -L "$public_directory_host" ] ||
+      installer_fatal "public desktop directory is unsafe: ${public_directory}"
+    chown root:root "$public_directory_host"
+    chmod 0755 "$public_directory_host"
+  done
+  unset public_directory public_directory_host
+  desktop_log "normalized_public_desktop_directories owner=root:root mode=0755"
+}
+
 desktop_normalize_system_dbus_service_directories() {
   for dbus_service_directory in \
     /usr/local/share/dbus-1 \
@@ -3652,6 +3675,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/telbot /usr/local/bin/telbot 0755
   desktop_stage_labwc_managed_app_python_modules
   desktop_stage_role_asset usr/local/bin/labwc-managed-app /usr/local/bin/labwc-managed-app 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755
   desktop_stage_role_asset usr/local/bin/labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wayland-compat-app 0755
   desktop_stage_role_asset usr/local/libexec/labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime 0755
   desktop_stage_role_asset usr/local/bin/labwc-qbittorrent /usr/local/bin/labwc-qbittorrent 0755
@@ -3922,6 +3946,9 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset usr/local/bin/labwc-show-desktop /usr/local/bin/labwc-show-desktop 0755
   desktop_stage_role_asset usr/local/bin/labwc-health-notify /usr/local/bin/labwc-health-notify 0755
   desktop_stage_role_asset usr/share/applications/show-desktop.desktop /usr/share/applications/show-desktop.desktop 0644
+  desktop_normalize_public_desktop_directories
+  desktop_stage_role_asset usr/local/share/applications/labwc-tweaks.desktop /usr/local/share/applications/labwc-tweaks.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/hyprpolkitagent.desktop /usr/local/share/applications/hyprpolkitagent.desktop 0644
   desktop_stage_role_asset usr/local/share/icons/hicolor/64x64/apps/show-desktop.png /usr/local/share/icons/hicolor/64x64/apps/show-desktop.png 0644
   desktop_stage_role_asset etc/skel-desktop/.config/mako/config /etc/skel-desktop/.config/mako/config 0644
   desktop_stage_role_asset etc/skel-desktop/.config/satty/config.toml /etc/skel-desktop/.config/satty/config.toml 0644
@@ -4121,6 +4148,9 @@ fi
 find "$account_home" -xdev -type d -exec chmod 0700 {} +
 find "$account_home" -xdev -type f -perm /0100 -exec chmod 0700 {} +
 find "$account_home" -xdev -type f ! -perm /0100 -exec chmod 0600 {} +
+# Unit files and drop-ins are data, never programs. Do not preserve execute
+# bits from a copied/restored skeleton on Whisper or other user units.
+find "$account_home/.config/systemd/user" -xdev -type f -exec chmod 0600 {} +
 zsh_path=$(command -v zsh 2>/dev/null || true)
 if [ -n "$zsh_path" ]; then
   usermod -s "$zsh_path" "$account_user"

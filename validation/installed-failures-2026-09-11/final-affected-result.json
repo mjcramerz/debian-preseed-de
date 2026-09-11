@@ -1,0 +1,24 @@
+{
+  "modules": [
+    "test_installed_failures_20260911",
+    "test_desktop_sandbox",
+    "test_installer_hardening",
+    "test_podman_incus_redesign"
+  ],
+  "tests": 234,
+  "seconds": 15.769,
+  "passed": 232,
+  "failures": [
+    {
+      "test": "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+      "detail": "Traceback (most recent call last):\n  File \"/dev/shm/debian-preseed-de/d-i/forky/tests/test_desktop_sandbox.py\", line 1306, in test_apparmor_complain_incident_is_fully_mapped\n    self.assertTrue(incident.is_file())\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true\n"
+    }
+  ],
+  "errors": [],
+  "skipped": [
+    {
+      "test": "test_desktop_sandbox.InstalledFailureRegressionTests.test_auth_rainerscript_parses",
+      "reason": "rsyslogd is unavailable"
+    }
+  ]
+}

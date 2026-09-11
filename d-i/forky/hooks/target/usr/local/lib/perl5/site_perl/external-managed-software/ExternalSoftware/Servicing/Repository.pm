@@ -451,7 +451,16 @@ sub retain {
     );
     my $destination = ExternalSoftware::Servicing::Atomic->assert_child($self->directory(), $name);
     my $created = 0;
-    if (!-e $destination && !-l $destination) {
+    # Bitwarden used to be repacked under the vendor version. A version match
+    # must not keep that old archive, nor may apply-only trust an unmarked one.
+    my $vendor_digest = $metadata->{package} eq 'bitwarden'
+        ? ExternalSoftware::Servicing::Atomic->sha256_file($source, 536_870_912)
+        : undef;
+    my $replace_vendor = defined($vendor_digest) && -f $destination && !-l $destination
+        && $vendor_digest ne ExternalSoftware::Servicing::Atomic->sha256_file(
+            $destination, 536_870_912,
+        );
+    if ((!-e $destination && !-l $destination) || $replace_vendor) {
         my $temporary = "$destination.tmp.$$";
         copy($source, $temporary) or die "failed to retain validated Debian package: $!\n";
         chmod 0644, $temporary or die "failed to set retained package mode: $!\n";
@@ -460,8 +469,25 @@ sub retain {
     } elsif (!-f $destination || -l $destination) {
         die "retained Debian package path is unsafe: $destination\n";
     }
+    if (defined $vendor_digest) {
+        ExternalSoftware::Servicing::Atomic->write_text(
+            "$destination.vendor-sha256", "$vendor_digest\n", 0644,
+        );
+    }
     $self->refresh();
     return wantarray ? ($destination, $created) : $destination;
+}
+
+sub bitwarden_vendor_digest_matches {
+    my ($self, $receipt, $digest) = @_;
+    defined($digest) && $digest =~ /\A[0-9a-f]{64}\z/
+        or die "Bitwarden vendor digest is missing or invalid\n";
+    my @st = lstat $receipt;
+    return 0 if !@st;
+    -f _ && !-l _ && $st[4] == 0 && !($st[2] & 0022)
+        or die "Bitwarden vendor receipt is unsafe: $receipt\n";
+    return ExternalSoftware::Servicing::Atomic->read_limited($receipt, 65)
+        eq "$digest\n";
 }
 
 sub latest {
@@ -488,8 +514,18 @@ sub latest {
             );
         };
         next if !$metadata;
+        my $vendor_digest;
+        if ($spec->{name} eq 'bitwarden') {
+            $vendor_digest = ExternalSoftware::Servicing::Atomic->sha256_file(
+                $path, 536_870_912,
+            );
+            next if !$self->bitwarden_vendor_digest_matches(
+                "$path.vendor-sha256", $vendor_digest,
+            );
+        }
         if (!$candidate) {
-            $candidate = { path => $path, metadata => $metadata };
+            $candidate = { path => $path, metadata => $metadata,
+                vendor_sha256 => $vendor_digest };
             next;
         }
         my $comparison = system(
@@ -500,7 +536,8 @@ sub latest {
             $candidate->{metadata}{version},
         );
         if ($comparison == 0) {
-            $candidate = { path => $path, metadata => $metadata };
+            $candidate = { path => $path, metadata => $metadata,
+                vendor_sha256 => $vendor_digest };
         } elsif ($comparison != 256) {
             closedir $dh;
             die "managed Debian package version comparison failed\n";

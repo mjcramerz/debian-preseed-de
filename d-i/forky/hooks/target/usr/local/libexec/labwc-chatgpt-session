@@ -1,0 +1,8 @@
+#!/bin/sh
+# Host user-manager reentry only. Keep the caller's private logging pipes open.
+set -eu
+[ "$#" -ge 1 ] || exit 64
+mode=$1
+shift
+case "$mode" in auto|launch|intel|nvidia) ;; *) exit 64 ;; esac
+exec /usr/local/bin/labwc-managed-app "$mode" chatgpt "$@"

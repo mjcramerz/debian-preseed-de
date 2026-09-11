@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Authentication Agent
+Comment=Desktop privilege authentication
+Exec=/usr/bin/systemctl --user start hyprpolkitagent.service
+Icon=dialog-password
+Terminal=false
+NoDisplay=true
+StartupWMClass=hyprpolkitagent

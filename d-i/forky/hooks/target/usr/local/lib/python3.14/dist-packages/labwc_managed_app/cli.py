@@ -21,6 +21,7 @@ from .runtime import MANAGED_DEFAULTS_PATH, current_user_home, fail
 from .sandbox import run_persistent_sandbox, run_pure_privacy
 from .session import (
     redirect_bitwarden_to_session_unit,
+    redirect_native_from_private_users,
     redirect_wayland_compat_to_session_unit,
 )
 
@@ -73,6 +74,11 @@ def main(
                 options.application,
                 options.mode,
                 options.args,
+            )
+
+        if not wayland_compat and options.application != "bitwarden":
+            redirect_native_from_private_users(
+                options.application, options.mode, options.args,
             )
 
         acceleration_availability, default_mode = load_managed_launch_policy(

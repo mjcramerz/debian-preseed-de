@@ -1,0 +1,54 @@
+{
+  "runtime_acceptance": "NOT PERFORMED: no installed Debian target, GUI, hardware or loaded AppArmor kernel policy",
+  "new_regression_tests": {
+    "tests": 20,
+    "passed": 20,
+    "failed": 0
+  },
+  "recorded_apparmor_coverage": {
+    "events": 592,
+    "unique_groups": 182,
+    "method": "finite source-rule assertions, NOT a kernel-enforcement test"
+  },
+  "offline_apparmor_parse": {
+    "files": 3,
+    "passed": 3,
+    "kernel_interface": "unavailable; parser ran -Q -T with include overlay"
+  },
+  "shell": {
+    "success": true,
+    "shell_files": 266,
+    "parser_checks": 543,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "generated_outputs": "rebuilt 1241 payload files and passed build.py --check",
+  "preseed": "59 files; all four generated command values survived private debconf read-back",
+  "broad_suite": {
+    "tests": 573,
+    "passed": 567,
+    "failed": 5,
+    "skipped": 1,
+    "errors": 0,
+    "excluded": 49,
+    "timing": "before final ChatGPT profile-handoff regression"
+  },
+  "final_affected_suite": {
+    "tests": 234,
+    "passed": 232,
+    "failed": 1,
+    "skipped": 1,
+    "errors": 0,
+    "timing": "after final ChatGPT profile-handoff change"
+  },
+  "known_test_failures": [
+    "Missing historical todo/apparmor.log fixture (not supplied)",
+    "Missing Perl Moo/MooX dependencies for four broad-suite tests"
+  ],
+  "remaining_reported_failures": "See FIXES-2026-09-11.md: firstboot stage failure; Waypaper monitor enumerator warning; Bitwarden sshagent IPC; Qt/GTK warnings; target wallet write acceptance; Xwayland deliberately unchanged",
+  "environment_notes": [
+    "Overlay fsync returned EIO; build and filesystem tests used executable tmpfs without weakening production fsync",
+    "rsyslogd and desktop-file-validate unavailable",
+    "Test sets overlap; do not sum their counts"
+  ]
+}

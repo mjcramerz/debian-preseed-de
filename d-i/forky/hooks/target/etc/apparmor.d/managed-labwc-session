@@ -92,7 +92,7 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   include if exists <local/usr.bin.waybar>
 }
 
-profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected) {
+profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/managed-session-client>
   owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
   owner "@{HOME}/.config/Crystal Dock*" rwkl,
@@ -109,7 +109,7 @@ profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected) {
   include if exists <local/usr.bin.crystal-dock>
 }
 
-profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
+profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/managed-desktop-runtime>
   include if exists <abstractions/user-tmp>
   unix,
@@ -128,7 +128,8 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/ rw,
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/** rwklm,
   owner "@{HOME}/.local/share/kwalletd/#[0-9]*" rwklm,
-  owner link "@{HOME}/.local/share/kwalletd/*.kwl.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",
+  # QSaveFile also commits the Secret Service attributes JSON atomically.
+  owner link "@{HOME}/.local/share/kwalletd/*.{kwl,json}.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",
   owner @{HOME}/.gnupg/ rw,
   owner @{HOME}/.gnupg/** rwklm,
   owner /run/user/[0-9]*/{bus,gnupg/**,kwallet*} rwkl,
@@ -178,9 +179,12 @@ profile managed-session-glycin-bwrap flags=(attach_disconnected, mediate_deleted
   /usr/share/glycin-loaders/2+/conf.d/ r,
   /usr/share/glycin-loaders/2+/conf.d/** r,
   /usr/share/mime/mime.cache r,
-  /usr/share/icons/Papirus/24x24/panel/update-low.svg r,
-  /usr/share/backgrounds/desktop/wallpaper-1920x1080.png r,
-  /usr/share/backgrounds/login/lock-1920x1080.png r,
+  # Image-loader children inherit descriptors for any selected system icon
+  # or wallpaper, not only the installer's initial three images.
+  /usr/{,local/}share/icons/ r,
+  /usr/{,local/}share/icons/** r,
+  /usr/share/backgrounds/ r,
+  /usr/share/backgrounds/** r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
   owner @{HOME}/.config/swaylock/config r,
   owner @{HOME}/.cache/fontconfig/ r,
