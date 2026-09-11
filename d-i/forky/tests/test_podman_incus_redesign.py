@@ -683,20 +683,22 @@ class UnixHTTPTests(unittest.TestCase):
 
 
 class IntegrationContractTests(unittest.TestCase):
-    def test_primary_skeleton_is_role_scoped_and_devops_has_no_skeleton(self):
-        skeleton = TARGET / 'etc/skel'
-        self.assertEqual({path.name for path in skeleton.iterdir()}, {'primary'})
-        primary = skeleton / 'primary'
+    def test_desktop_skeleton_is_role_scoped_and_devops_has_no_skeleton(self):
+        skeleton = TARGET / 'etc/skel-desktop'
+        self.assertTrue(skeleton.is_dir())
         for relative in ('.profile', '.bashrc', '.config/labwc',
                          '.config/systemd/user/podman.service'):
-            path = primary / relative
+            path = skeleton / relative
             if relative.endswith('podman.service'):
                 self.assertFalse(path.exists())
             else:
                 self.assertTrue(path.exists(), path)
-        self.assertFalse((skeleton / 'devops').exists())
+
+        generic_skeleton = TARGET / 'etc/skel'
+        self.assertFalse((generic_skeleton / 'primary').exists())
+        self.assertFalse((generic_skeleton / 'devops').exists())
         hook = (FORKY / 'scripts/late/podman.sh').read_text()
-        self.assertIn('etc/skel/primary/.profile.d/71-devops-de.sh', hook)
+        self.assertIn('etc/skel-desktop/.profile.d/71-devops-de.sh', hook)
         self.assertNotIn('etc/skel/devops/', hook)
 
     def test_engine_templates_are_valid_toml_with_correct_paths(self):
@@ -846,7 +848,7 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertRegex(tmpfiles, r'd\s+/pool/podman\s+0711\s+root\s+root')
 
     def test_profile_has_native_selectors_without_identity_impersonation(self):
-        text = (TARGET / 'etc/skel/primary/.profile.d/71-devops-de.sh').read_text().split('podman_devops_apply_environment() {', 1)[1]
+        text = (TARGET / 'etc/skel-desktop/.profile.d/71-devops-de.sh').read_text().split('podman_devops_apply_environment() {', 1)[1]
         self.assertIn('CONTAINER_HOST=unix:///run/podman-devops/podman.sock', text)
         self.assertIn('DOCKER_HOST=$CONTAINER_HOST', text)
         self.assertIn('unset CONTAINER_CONNECTION', text)

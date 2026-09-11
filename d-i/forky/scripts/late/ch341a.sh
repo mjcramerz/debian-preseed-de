@@ -399,8 +399,8 @@ ch341a_render_target_asset \
   DIR_POOL_FIRMWARE "$DIR_POOL_FIRMWARE"
 
 ch341a_render_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.profile.d/75-firmware-workspace.sh.tmpl)" \
-  /etc/skel/primary/.profile.d/75-firmware-workspace.sh \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.profile.d/75-firmware-workspace.sh.tmpl)" \
+  /etc/skel-desktop/.profile.d/75-firmware-workspace.sh \
   0644 \
   ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
   DIR_POOL_FIRMWARE "$DIR_POOL_FIRMWARE" \
@@ -410,7 +410,7 @@ if [ -n "${ACCOUNT_HOME:-}" ]; then
   ch341a_validate_abs_path "ACCOUNT_HOME" "$ACCOUNT_HOME"
   install -d -m 0700 "${target_root}${ACCOUNT_HOME}/.profile.d"
   install -m 0644 \
-    "${target_root}/etc/skel/primary/.profile.d/75-firmware-workspace.sh" \
+    "${target_root}/etc/skel-desktop/.profile.d/75-firmware-workspace.sh" \
     "${target_root}${ACCOUNT_HOME}/.profile.d/75-firmware-workspace.sh"
   account_ids=$(target_passwd_ids "$ACCOUNT_USERNAME")
   if [ -n "$account_ids" ]; then

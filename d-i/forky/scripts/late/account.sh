@@ -7,17 +7,23 @@ provision_target_identity() {
 }
 
 stage_target_account_shell_assets() {
-  install -d -m 0755 /target/etc/skel/primary
-  install -d -m 0755 /target/etc/skel/primary/.profile.d
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.profile.installer-base)" /etc/skel/primary/.profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.bash_profile.installer-base)" /etc/skel/primary/.bash_profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.bashrc.installer-base)" /etc/skel/primary/.bashrc 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.dircolors)" /etc/skel/primary/.dircolors 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.vimrc)" /etc/skel/primary/.vimrc 0644
-  chown root:root /target/etc/skel/primary/.profile /target/etc/skel/primary/.bash_profile /target/etc/skel/primary/.bashrc
+  [ ! -L /target/etc/skel-desktop ] ||
+    installer_fatal "desktop skeleton root must not be a symlink: /target/etc/skel-desktop"
+  [ ! -L /target/etc/skel-desktop/.profile.d ] ||
+    installer_fatal "desktop skeleton profile directory must not be a symlink: /target/etc/skel-desktop/.profile.d"
+  install -d -m 0755 /target/etc/skel-desktop
+  install -d -m 0755 /target/etc/skel-desktop/.profile.d
+  chown root:root /target/etc/skel-desktop /target/etc/skel-desktop/.profile.d
+  chmod 0755 /target/etc/skel-desktop /target/etc/skel-desktop/.profile.d
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.profile.installer-base)" /etc/skel-desktop/.profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.bash_profile.installer-base)" /etc/skel-desktop/.bash_profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.bashrc.installer-base)" /etc/skel-desktop/.bashrc 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.dircolors)" /etc/skel-desktop/.dircolors 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.vimrc)" /etc/skel-desktop/.vimrc 0644
+  chown root:root /target/etc/skel-desktop/.profile /target/etc/skel-desktop/.bash_profile /target/etc/skel-desktop/.bashrc
   chown root:root \
-    /target/etc/skel/primary/.dircolors \
-    /target/etc/skel/primary/.vimrc
+    /target/etc/skel-desktop/.dircolors \
+    /target/etc/skel-desktop/.vimrc
 }
 
 install_target_account_shell_assets() {
@@ -59,7 +65,7 @@ gid=$(id -g "$account_user")
 
 install -d -m 0700 "$account_home"
 for rel_file in .profile .bash_profile .bashrc; do
-  src="/etc/skel/primary/${rel_file}"
+  src="/etc/skel-desktop/${rel_file}"
   dst="${account_home}/${rel_file}"
   [ -r "$src" ] || {
     printf "fatal: missing managed shell asset: %s\n" "$src" >&2
@@ -73,10 +79,10 @@ for rel_file in .profile .bash_profile .bashrc; do
   chown "$uid:$gid" "$dst"
 done
 
-if [ -d /etc/skel/primary/.profile.d ] && [ ! -L /etc/skel/primary/.profile.d ]; then
+if [ -d /etc/skel-desktop/.profile.d ] && [ ! -L /etc/skel-desktop/.profile.d ]; then
   install -d -m 0700 "$account_home/.profile.d"
   chown "$uid:$gid" "$account_home/.profile.d"
-  for src in /etc/skel/primary/.profile.d/[0-9][0-9]-*.sh; do
+  for src in /etc/skel-desktop/.profile.d/[0-9][0-9]-*.sh; do
     [ -e "$src" ] || break
     [ -f "$src" ] || continue
     file_name=$(basename "$src")
@@ -310,6 +316,54 @@ for group_name in $required_groups; do
       ;;
   esac
 done
+
+for authentication_path in /etc/shadow /usr/sbin/unix_chkpwd; do
+  [ -f "$authentication_path" ] && [ ! -L "$authentication_path" ] || {
+    printf "fatal: required authentication path must be a direct regular file: %s\n" \
+      "$authentication_path" >&2
+    exit 1
+  }
+done
+helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) || {
+  printf "fatal: unix_chkpwd is not owned by an installed package\n" >&2
+  exit 1
+}
+printf "%s\n" "$helper_package" |
+  grep -Eq "^libpam-modules-bin(:[^:[:space:]]+)?: /usr/sbin/unix_chkpwd$" || {
+    printf "fatal: unix_chkpwd has an unexpected package owner: %s\n" \
+      "$helper_package" >&2
+    exit 1
+  }
+shadow_group_entry=$(getent group shadow) || {
+  printf "fatal: required shadow group is missing\n" >&2
+  exit 1
+}
+shadow_gid=$(printf "%s\n" "$shadow_group_entry" | cut -d: -f3)
+case "$shadow_gid" in
+  ""|*[!0-9]*)
+    printf "fatal: shadow group has an invalid gid: %s\n" "$shadow_gid" >&2
+    exit 1
+    ;;
+esac
+
+# Debian pam_unix deliberately uses the narrow shadow-group helper
+# privilege chain. Reconcile package metadata here so graphical PAM clients
+# can obtain the password hash without granting them direct shadow access.
+chown root:shadow -- /etc/shadow /usr/sbin/unix_chkpwd
+chmod 0640 -- /etc/shadow
+chmod 2755 -- /usr/sbin/unix_chkpwd
+
+shadow_metadata=$(stat -c "%u:%g:%a" -- /etc/shadow)
+[ "$shadow_metadata" = "0:${shadow_gid}:640" ] || {
+  printf "fatal: /etc/shadow metadata is unsafe: %s\n" "$shadow_metadata" >&2
+  exit 1
+}
+helper_metadata=$(stat -c "%u:%g:%a" -- /usr/sbin/unix_chkpwd)
+[ "$helper_metadata" = "0:${shadow_gid}:2755" ] || {
+  printf "fatal: /usr/sbin/unix_chkpwd metadata is unsafe: %s\n" \
+    "$helper_metadata" >&2
+  exit 1
+}
 
 for root_owned_path in / /etc /usr /usr/bin /etc/passwd /etc/group /etc/sudo.conf; do
   [ -e "$root_owned_path" ] || {

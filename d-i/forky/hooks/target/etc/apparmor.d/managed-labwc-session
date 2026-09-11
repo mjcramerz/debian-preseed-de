@@ -33,6 +33,7 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
   /dev/nvidia* rw,
   /dev/nvidia-caps/** rw,
   /dev/char/ r,
+  include if exists <local/managed-desktop-graphics>
   deny /dev/char/*:* l,
   /dev/{tty,tty[0-9]*,udmabuf} rw,
   /dev/shm/ r,
@@ -158,6 +159,7 @@ profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-r
   owner /run/user/[0-9]*/wayscriber/ rw,
   owner /run/user/[0-9]*/wayscriber/** rwkl,
   /etc/default/labwc-desktop r,
+  owner /run/user/[0-9]*/labwc-swaylock.lock a,
   signal (send) set=(kill) peer=managed-session-glycin-bwrap,
   include if exists <local/managed-session-controls>
 }
@@ -177,11 +179,15 @@ profile managed-session-glycin-bwrap flags=(attach_disconnected, mediate_deleted
   /usr/share/glycin-loaders/2+/conf.d/** r,
   /usr/share/mime/mime.cache r,
   /usr/share/icons/Papirus/24x24/panel/update-low.svg r,
+  /usr/share/backgrounds/desktop/wallpaper-1920x1080.png r,
+  /usr/share/backgrounds/login/lock-1920x1080.png r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+  owner @{HOME}/.config/swaylock/config r,
   owner @{HOME}/.cache/fontconfig/ r,
   owner @{HOME}/.cache/fontconfig/** r,
   owner @{HOME}/.cache/glycin/ rw,
   owner @{HOME}/.cache/glycin/** rwkl,
+  owner /run/user/[0-9]*/labwc-swaylock.lock a,
 }
 
 profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags=(attach_disconnected) {

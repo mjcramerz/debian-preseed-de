@@ -1,0 +1,5 @@
+[Unit]
+# PipeWire's package units already refuse root. Keep WirePlumber out of root
+# and the isolated login greeter while retaining it for desktop user sessions.
+ConditionUser=!root
+ConditionUser=!__INSTALLER_LABWC_GREETER_USER__

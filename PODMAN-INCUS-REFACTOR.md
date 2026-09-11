@@ -39,7 +39,7 @@ use sudo, change the caller's UID, borrow the service session bus or silently fa
 back to a different store. `docker compose` uses the packaged Compose plugin.
 
 The shell integration is in the requested file:
-`d-i/forky/hooks/target/etc/skel/primary/.profile.d/71-devops-de.sh`. Native client variables,
+`d-i/forky/hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh`. Native client variables,
 fixed socket selection, aliases and clearly identified path metadata are provided.
 The desktop HOME, XDG_RUNTIME_DIR and session bus stay unchanged. Engine-native
 storage variables belong to the service, not the remote desktop client.

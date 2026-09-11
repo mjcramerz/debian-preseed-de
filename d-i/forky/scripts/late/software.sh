@@ -225,8 +225,8 @@ software_download_service=/etc/systemd/system/managed-external-software-download
 software_download_timer=/etc/systemd/system/managed-external-software-download.timer
 software_update_service=/etc/systemd/system/managed-external-software-update.service
 software_update_timer=/etc/systemd/system/managed-external-software-update.timer
-software_notify_service=/etc/skel/primary/.config/systemd/user/managed-external-software-notify.service
-software_notify_path=/etc/skel/primary/.config/systemd/user/managed-external-software-notify.path
+software_notify_service=/etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service
+software_notify_path=/etc/skel-desktop/.config/systemd/user/managed-external-software-notify.path
 temporary_unshare_hook=/usr/lib/pre-pkgsel.d/89temporary-unshare
 temporary_unshare_path=/usr/bin/unshare
 temporary_unshare_divert_path=/usr/bin/unshare.installer-real
@@ -2469,11 +2469,11 @@ software_stage_seed_asset \
   "$software_update_timer" \
   0644
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.config/systemd/user/managed-external-software-notify.service)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service)" \
   "$software_notify_service" \
   0644
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.config/systemd/user/managed-external-software-notify.path)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/managed-external-software-notify.path)" \
   "$software_notify_path" \
   0644
 

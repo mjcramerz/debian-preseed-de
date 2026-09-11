@@ -17,6 +17,7 @@ profile aa-status-reader /usr/{bin,sbin}/aa-status flags=(attach_disconnected) {
   @{sys}/kernel/security/apparmor/profiles r,
   @{sys}/module/apparmor/ r,
   @{sys}/module/apparmor/parameters/enabled r,
+  /var/lib/installer-state/logs/firstboot/data/apparmor-status.json w,
   capability sys_ptrace,
   ptrace (read),
 

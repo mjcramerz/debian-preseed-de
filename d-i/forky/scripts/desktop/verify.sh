@@ -109,6 +109,7 @@ for cmd in \
   mail \
   pkexec \
   eject \
+  findmnt \
   lsblk \
   sync \
   udisksctl \
@@ -268,6 +269,17 @@ require_absent() {
     fatal "retired desktop path is still present: $path"
 }
 
+desktop_skeleton=/etc/skel-desktop
+[ -d "$desktop_skeleton" ] && [ ! -L "$desktop_skeleton" ] ||
+  fatal "desktop skeleton root is missing or unsafe: $desktop_skeleton"
+[ "$(stat -c "%u:%g" "$desktop_skeleton")" = 0:0 ] ||
+  fatal "desktop skeleton root must be owned by root:root: $desktop_skeleton"
+require_mode "$desktop_skeleton" 755
+legacy_skeleton_parent=/etc/skel
+legacy_skeleton_name=primary
+require_absent "${legacy_skeleton_parent}/${legacy_skeleton_name}"
+unset desktop_skeleton legacy_skeleton_name legacy_skeleton_parent
+
 require_symlink_target() {
   path=$1
   expected_target=$2
@@ -388,25 +400,25 @@ for path in \
   /etc/systemd/user/xdg-desktop-portal-gtk.service.d/10-labwc-session.conf \
   /etc/systemd/user/xdg-desktop-portal-wlr.service.d/10-labwc-session.conf \
   /etc/systemd/user/xdg-desktop-portal-lxqt.service.d/10-labwc-session.conf \
-  /etc/skel/primary/.gnupg/gpg-agent.conf \
-  /etc/skel/primary/.config/systemd/user/waybar.service \
-  /etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
-  /etc/skel/primary/.config/systemd/user/labwc-adb-server.service \
-  /etc/skel/primary/.config/systemd/user/llama-server.service \
-  /etc/skel/primary/.config/systemd/user/labwc-output-watch.service \
-  /etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service \
-  /etc/skel/primary/.config/systemd/user/swaybg.service \
-  /etc/skel/primary/.config/systemd/user/kanshi.service \
-  /etc/skel/primary/.config/systemd/user/swayidle.service \
-  /etc/skel/primary/.config/systemd/user/crystal-dock.service \
-  /etc/skel/primary/.config/systemd/user/labwc-plans.service \
-  /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service \
-  /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path \
-  /etc/skel/primary/.profile.d \
+  /etc/skel-desktop/.gnupg/gpg-agent.conf \
+  /etc/skel-desktop/.config/systemd/user/waybar.service \
+  /etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
+  /etc/skel-desktop/.config/systemd/user/labwc-adb-server.service \
+  /etc/skel-desktop/.config/systemd/user/llama-server.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service \
+  /etc/skel-desktop/.config/systemd/user/swaybg.service \
+  /etc/skel-desktop/.config/systemd/user/kanshi.service \
+  /etc/skel-desktop/.config/systemd/user/swayidle.service \
+  /etc/skel-desktop/.config/systemd/user/crystal-dock.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
+  /etc/skel-desktop/.profile.d \
   /etc/systemd/system/greetd.service.d/20-labwc-vt.conf \
   /etc/systemd/system/bluetooth-controller-init.service \
-  /etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service \
-  /etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service \
+  /etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service \
   /etc/fonts/fonts.conf \
   /usr/local/share/labwc-greeter/rc.xml \
   /usr/local/share/labwc-greeter/autostart \
@@ -414,38 +426,87 @@ for path in \
   /usr/share/applications/computer-management.desktop \
   /usr/share/applications/remote-desktop-management.desktop \
   /usr/local/share/applications/foot.desktop \
-  /etc/skel/primary/.config/labwc/rc.xml \
-  /etc/skel/primary/.config/labwc/menu.xml \
-  /etc/skel/primary/.config/labwc/autostart \
-  /etc/skel/primary/.config/labwc/shutdown \
-  /etc/skel/primary/.config/labwc/environment \
-  /etc/skel/primary/.config/labwc/environment.d/10-wayland.env \
-  /etc/skel/primary/.config/waypaper/config.ini \
-  /etc/skel/primary/.config/waypaper/keybindings.ini \
-  /etc/skel/primary/.config/waypaper/style.css \
-  /etc/skel/primary/.config/satty/config.toml \
-  /etc/skel/primary/.config/satty/overrides.css \
-  /etc/skel/primary/.config/labwc/themerc-override \
-  /etc/skel/primary/.config/Code/User/settings.json \
-  /etc/skel/primary/.config/chromium/Default/Preferences \
-  /etc/skel/primary/.config/keepassxc/keepassxc.ini \
-  /etc/skel/primary/.config/microsoft-edge/Default/Preferences \
-  /etc/skel/primary/.config/obsidian/obsidian.json \
-  /etc/skel/primary/.config/Recoll.org/recoll.ini \
-  /etc/skel/primary/.recoll/recoll.conf \
-  /etc/skel/primary/.config/vivaldi/Default/Preferences \
-  /etc/skel/primary/.config/systemd/user/labwc-session.target \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.service \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.path \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.timer
+  /etc/skel-desktop/.config/labwc/rc.xml \
+  /etc/skel-desktop/.config/labwc/menu.xml \
+  /etc/skel-desktop/.config/labwc/autostart \
+  /etc/skel-desktop/.config/labwc/shutdown \
+  /etc/skel-desktop/.config/labwc/environment \
+  /etc/skel-desktop/.config/labwc/environment.d/10-wayland.env \
+  /etc/skel-desktop/.config/waypaper/config.ini \
+  /etc/skel-desktop/.config/waypaper/keybindings.ini \
+  /etc/skel-desktop/.config/waypaper/style.css \
+  /etc/skel-desktop/.config/btop/btop.conf \
+  /etc/skel-desktop/.config/fzf/default-opts \
+  /etc/skel-desktop/.config/satty/config.toml \
+  /etc/skel-desktop/.config/satty/overrides.css \
+  /etc/skel-desktop/.config/labwc/themerc-override \
+  /etc/skel-desktop/.config/Code/User/settings.json \
+  /etc/skel-desktop/.config/chromium/Default/Preferences \
+  /etc/skel-desktop/.config/keepassxc/keepassxc.ini \
+  /etc/skel-desktop/.config/microsoft-edge/Default/Preferences \
+  /etc/skel-desktop/.config/obsidian/obsidian.json \
+  /etc/skel-desktop/.config/Recoll.org/recoll.ini \
+  /etc/skel-desktop/.recoll/recoll.conf \
+  /etc/skel-desktop/.config/vivaldi/Default/Preferences \
+  /etc/skel-desktop/.config/systemd/user/labwc-session.target \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.timer
 do
   require_readable "$path"
   readable_count=$((readable_count + 1))
 done
 
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
-require_mode /etc/skel/primary/.config/systemd 700
-require_mode /etc/skel/primary/.config/systemd/user 700
+for background_directory in \
+  /usr/share/backgrounds \
+  /usr/share/backgrounds/desktop \
+  /usr/share/backgrounds/login
+do
+  [ -d "$background_directory" ] && [ ! -L "$background_directory" ] ||
+    fatal "managed background directory is missing or unsafe: $background_directory"
+  require_mode "$background_directory" 755
+  [ "$(stat -c "%u:%g" "$background_directory")" = 0:0 ] ||
+    fatal "managed background directory is not root-owned: $background_directory"
+done
+unset background_directory
+for background_file in \
+  /usr/share/backgrounds/desktop/wallpaper-1920x1080.png \
+  /usr/share/backgrounds/login/lock-1920x1080.png \
+  /usr/share/backgrounds/login/welcome-1920x1080.png
+do
+  [ -f "$background_file" ] && [ ! -L "$background_file" ] ||
+    fatal "managed background file is missing or unsafe: $background_file"
+  require_mode "$background_file" 644
+done
+unset background_file
+helper_package=$(dpkg-query -S /usr/sbin/unix_chkpwd 2>/dev/null) ||
+  fatal "unix_chkpwd is not owned by an installed package"
+printf "%s\n" "$helper_package" |
+  grep -Eq "^libpam-modules-bin(:[^:[:space:]]+)?: /usr/sbin/unix_chkpwd$" ||
+  fatal "unix_chkpwd has an unexpected package owner: $helper_package"
+shadow_group_entry=$(getent group shadow) ||
+  fatal "required shadow group is missing"
+shadow_gid=$(printf "%s\n" "$shadow_group_entry" | cut -d: -f3)
+case "$shadow_gid" in
+  ""|*[!0-9]*) fatal "shadow group gid is invalid: $shadow_gid" ;;
+esac
+for authentication_path in /etc/shadow /usr/sbin/unix_chkpwd; do
+  [ -f "$authentication_path" ] && [ ! -L "$authentication_path" ] ||
+    fatal "authentication path is missing or unsafe: $authentication_path"
+done
+[ "$(stat -c "%u:%g:%a" /etc/shadow)" = "0:$shadow_gid:640" ] ||
+  fatal "/etc/shadow must be root:shadow mode 0640"
+[ "$(stat -c "%u:%g:%a" /usr/sbin/unix_chkpwd)" = "0:$shadow_gid:2755" ] ||
+  fatal "/usr/sbin/unix_chkpwd must be root:shadow mode 2755"
+helper_mount_options=$(findmnt -n -o OPTIONS -T /usr/sbin/unix_chkpwd) ||
+  fatal "cannot resolve unix_chkpwd mount options"
+case ",$helper_mount_options," in
+  *,nosuid,*) fatal "unix_chkpwd resides on a nosuid mount" ;;
+esac
+unset authentication_path helper_mount_options helper_package shadow_gid shadow_group_entry
+require_mode /etc/skel-desktop/.config/systemd 700
+require_mode /etc/skel-desktop/.config/systemd/user 700
 require_mode /etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf 644
 for path in /etc/systemd/user/*.d; do
   [ -d "$path" ] || continue
@@ -455,15 +516,15 @@ for path in /etc/systemd/user/*.d; do
     require_mode "$dropin_path" 644
   done
 done
-require_mode /etc/skel/primary/.gnupg 700
-require_mode /etc/skel/primary/.gnupg/gpg-agent.conf 600
-for path in /etc/skel/primary/.config/systemd/user/*.d; do
+require_mode /etc/skel-desktop/.gnupg 700
+require_mode /etc/skel-desktop/.gnupg/gpg-agent.conf 600
+for path in /etc/skel-desktop/.config/systemd/user/*.d; do
   [ -d "$path" ] || continue
   require_mode "$path" 700
 done
-require_mode /etc/skel/primary/.local/share/dbus-1 755
-require_mode /etc/skel/primary/.local/share/dbus-1/services 755
-for path in /etc/skel/primary/.local/share/dbus-1/services/*.service; do
+require_mode /etc/skel-desktop/.local/share/dbus-1 755
+require_mode /etc/skel-desktop/.local/share/dbus-1/services 755
+for path in /etc/skel-desktop/.local/share/dbus-1/services/*.service; do
   require_mode "$path" 644
 done
 
@@ -498,45 +559,45 @@ require_mode /usr/local/share/browser-imports/PrivacyBadger_user_data-9_6_2026_1
 require_mode /usr/local/share/browser-imports/bookmark-coverage.json 600
 require_mode /usr/local/share/browser-imports/BROWSER-IMPORTS.md 600
 
-require_mode /etc/skel/primary/.config/keepassxc 700
-require_mode /etc/skel/primary/.config/keepassxc/keepassxc.ini 600
-require_mode /etc/skel/primary/.config/Code/User/settings.json 600
-require_mode /etc/skel/primary/.config/chromium/Default/Preferences 600
-require_mode /etc/skel/primary/.config/microsoft-edge/Default/Preferences 600
-require_mode /etc/skel/primary/.config/obsidian 700
-require_mode /etc/skel/primary/.config/obsidian/obsidian.json 600
-require_mode /etc/skel/primary/.config/vivaldi/Default/Preferences 600
-require_mode /etc/skel/primary/.config/Recoll.org 700
-require_mode /etc/skel/primary/.config/Recoll.org/recoll.ini 600
-require_mode /etc/skel/primary/.recoll 700
-require_mode /etc/skel/primary/.cache 700
-require_mode /etc/skel/primary/.cache/recoll 700
-require_readable /etc/skel/primary/Syncthing/.stignore
-require_mode /etc/skel/primary/Syncthing/.stignore 600
+require_mode /etc/skel-desktop/.config/keepassxc 700
+require_mode /etc/skel-desktop/.config/keepassxc/keepassxc.ini 600
+require_mode /etc/skel-desktop/.config/Code/User/settings.json 600
+require_mode /etc/skel-desktop/.config/chromium/Default/Preferences 600
+require_mode /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 600
+require_mode /etc/skel-desktop/.config/obsidian 700
+require_mode /etc/skel-desktop/.config/obsidian/obsidian.json 600
+require_mode /etc/skel-desktop/.config/vivaldi/Default/Preferences 600
+require_mode /etc/skel-desktop/.config/Recoll.org 700
+require_mode /etc/skel-desktop/.config/Recoll.org/recoll.ini 600
+require_mode /etc/skel-desktop/.recoll 700
+require_mode /etc/skel-desktop/.cache 700
+require_mode /etc/skel-desktop/.cache/recoll 700
+require_readable /etc/skel-desktop/Syncthing/.stignore
+require_mode /etc/skel-desktop/Syncthing/.stignore 600
 readable_count=$((readable_count + 1))
 
 for path in \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/app.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/appearance.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/backlink.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/bookmarks.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/command-palette.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/community-plugins.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/core-plugins.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/daily-notes.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/graph.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/hotkeys.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/templates.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/types.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css \
-  /etc/skel/primary/Syncthing/obsidian-md/archive/index.md \
-  /etc/skel/primary/Syncthing/obsidian-md/daily/index.md \
-  /etc/skel/primary/Syncthing/obsidian-md/home.md \
-  /etc/skel/primary/Syncthing/obsidian-md/inbox/welcome.md \
-  /etc/skel/primary/Syncthing/obsidian-md/templates/daily-note-template.md \
-  /etc/skel/primary/Syncthing/obsidian-md/templates/note-template.md
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css \
+  /etc/skel-desktop/Syncthing/obsidian-md/archive/index.md \
+  /etc/skel-desktop/Syncthing/obsidian-md/daily/index.md \
+  /etc/skel-desktop/Syncthing/obsidian-md/home.md \
+  /etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md \
+  /etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md \
+  /etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md
 do
   require_readable "$path"
   require_mode "$path" 600
@@ -544,18 +605,18 @@ do
 done
 
 for path in \
-  /etc/skel/primary/Syncthing \
-  /etc/skel/primary/Syncthing/obsidian-md \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes \
-  /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes \
-  /etc/skel/primary/Syncthing/obsidian-md/.trash \
-  /etc/skel/primary/Syncthing/obsidian-md/archive \
-  /etc/skel/primary/Syncthing/obsidian-md/attachments \
-  /etc/skel/primary/Syncthing/obsidian-md/daily \
-  /etc/skel/primary/Syncthing/obsidian-md/inbox \
-  /etc/skel/primary/Syncthing/obsidian-md/templates
+  /etc/skel-desktop/Syncthing \
+  /etc/skel-desktop/Syncthing/obsidian-md \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes \
+  /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes \
+  /etc/skel-desktop/Syncthing/obsidian-md/.trash \
+  /etc/skel-desktop/Syncthing/obsidian-md/archive \
+  /etc/skel-desktop/Syncthing/obsidian-md/attachments \
+  /etc/skel-desktop/Syncthing/obsidian-md/daily \
+  /etc/skel-desktop/Syncthing/obsidian-md/inbox \
+  /etc/skel-desktop/Syncthing/obsidian-md/templates
 do
   require_mode "$path" 700
 done
@@ -648,12 +709,12 @@ if [ "$(dpkg-query -W -f='${Status}' xwayland 2>/dev/null || true)" = "install o
   exit 1
 fi
 require_absent /etc/environment.d/90-labwc-session.conf
-require_absent /etc/skel/primary/.config/systemd/user/dbus-broker.service.d/10-broker-hardening.conf
+require_absent /etc/skel-desktop/.config/systemd/user/dbus-broker.service.d/10-broker-hardening.conf
 require_absent /etc/systemd/user/default.target.wants/mpris-proxy.service
 require_absent /etc/systemd/user/graphical-session.target.wants/foot-server.service
 require_absent /etc/systemd/user/labwc-session.target.wants/waybar.service
-require_absent /etc/skel/primary/.config/systemd/user/labwc-session.target.wants/foot-server.service
-require_absent /etc/skel/primary/.config/systemd/user/xdg-desktop-portal-xapp.service.d/10-labwc-session.conf
+require_absent /etc/skel-desktop/.config/systemd/user/labwc-session.target.wants/foot-server.service
+require_absent /etc/skel-desktop/.config/systemd/user/xdg-desktop-portal-xapp.service.d/10-labwc-session.conf
 for account_local_package_dropin in \
   filter-chain.service \
   foot-server.service \
@@ -671,7 +732,7 @@ for account_local_package_dropin in \
   xdg-desktop-portal-wlr.service \
   xdg-desktop-portal-lxqt.service
 do
-  require_absent "/etc/skel/primary/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
+  require_absent "/etc/skel-desktop/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
 done
 for legacy_user_unit in \
   waybar.service \
@@ -755,54 +816,52 @@ for path in \
   /usr/share/backgrounds/login/welcome-1920x1080.png \
   /usr/share/backgrounds/other/regreet-000-greeter-purple.svg \
   /usr/share/backgrounds/other/wp2653774-black-and-blue-wallpaper-hd.png \
-  /etc/skel/primary/.config/waybar/config \
-  /etc/skel/primary/.config/waybar/style.css \
-  /etc/skel/primary/.config/kanshi/config \
-  /etc/skel/primary/.config/featherpad/fp.conf \
-  /etc/skel/primary/.config/foot/foot.ini \
-  /etc/skel/primary/.config/gnote/addins/global.ini \
-  /etc/skel/primary/.config/GottCode/FocusWriter.conf \
-  /etc/skel/primary/.local/share/GottCode/FocusWriter/Themes/managed-word.theme \
-  /etc/skel/primary/.config/kitty/kitty.conf \
-  /etc/skel/primary/.config/kdiff3rc \
-  /etc/skel/primary/.config/micro/settings.json \
-  /etc/skel/primary/.config/nano/nanorc \
-  /etc/skel/primary/.config/xdg-terminals.list \
-  /etc/skel/primary/.config/nvim/init.lua \
-  /etc/skel/primary/.config/qalculate/qalc.cfg \
-  /etc/skel/primary/.config/qalculate/qalculate-qt.cfg \
-  /etc/skel/primary/.config/task/taskrc \
-  /etc/skel/primary/.config/retroarch/retroarch.cfg \
-  /etc/skel/primary/.config/tesseract/ocr-defaults.conf \
-  /etc/skel/primary/.config/tesseract/user-words/default.user-words \
-  /etc/skel/primary/.config/tesseract/user-patterns/default.user-patterns \
-  /etc/skel/primary/.config/vim/vimrc \
-  /etc/skel/primary/.vimrc \
-  /etc/skel/primary/.config/xfce4/helpers.rc \
-  /etc/skel/primary/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml \
+  /etc/skel-desktop/.config/waybar/config \
+  /etc/skel-desktop/.config/waybar/style.css \
+  /etc/skel-desktop/.config/kanshi/config \
+  /etc/skel-desktop/.config/featherpad/fp.conf \
+  /etc/skel-desktop/.config/foot/foot.ini \
+  /etc/skel-desktop/.config/gnote/addins/global.ini \
+  /etc/skel-desktop/.config/GottCode/FocusWriter.conf \
+  /etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/managed-word.theme \
+  /etc/skel-desktop/.config/kitty/kitty.conf \
+  /etc/skel-desktop/.config/kdiff3rc \
+  /etc/skel-desktop/.config/micro/settings.json \
+  /etc/skel-desktop/.config/nano/nanorc \
+  /etc/skel-desktop/.config/xdg-terminals.list \
+  /etc/skel-desktop/.config/nvim/init.lua \
+  /etc/skel-desktop/.config/qalculate/qalc.cfg \
+  /etc/skel-desktop/.config/qalculate/qalculate-qt.cfg \
+  /etc/skel-desktop/.config/task/taskrc \
+  /etc/skel-desktop/.config/retroarch/retroarch.cfg \
+  /etc/skel-desktop/.config/tesseract/ocr-defaults.conf \
+  /etc/skel-desktop/.config/tesseract/user-words/default.user-words \
+  /etc/skel-desktop/.config/tesseract/user-patterns/default.user-patterns \
+  /etc/skel-desktop/.config/vim/vimrc \
+  /etc/skel-desktop/.vimrc \
+  /etc/skel-desktop/.config/xfce4/helpers.rc \
+  /etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml \
   /usr/share/xfce4/helpers/foot.desktop \
-  /etc/skel/primary/.profile \
-  /etc/skel/primary/.bash_profile \
-  /etc/skel/primary/.bashrc \
-  /etc/skel/primary/.bash_aliases \
-  /etc/skel/primary/.zshenv \
-  /etc/skel/primary/.zprofile \
-  /etc/skel/primary/.zshrc \
-  /etc/skel/primary/.zlogout \
-  /etc/skel/primary/.zsh_aliases \
-  /etc/skel/primary/.dircolors \
-  /etc/skel/primary/.config/starship.toml \
-  /etc/skel/primary/.config/btop/btop.conf \
-  /etc/skel/primary/.config/fzf/default-opts \
-  /etc/skel/primary/.config/fuzzel/base.ini \
-  /etc/skel/primary/.config/fuzzel/base-internal.ini \
-  /etc/skel/primary/.config/fuzzel/fuzzel.ini \
-  /etc/skel/primary/.config/fuzzel/fuzzel-internal.ini \
-  /etc/skel/primary/.config/fuzzel/menu.ini \
-  /etc/skel/primary/.config/fuzzel/menu-internal.ini \
-  /etc/skel/primary/.config/Thunar/uca.xml \
-  /etc/skel/primary/.config/crystal-dock/labwc/appearance.conf \
-  /etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf \
+  /etc/skel-desktop/.profile \
+  /etc/skel-desktop/.bash_profile \
+  /etc/skel-desktop/.bashrc \
+  /etc/skel-desktop/.bash_aliases \
+  /etc/skel-desktop/.zshenv \
+  /etc/skel-desktop/.zprofile \
+  /etc/skel-desktop/.zshrc \
+  /etc/skel-desktop/.zlogout \
+  /etc/skel-desktop/.zsh_aliases \
+  /etc/skel-desktop/.dircolors \
+  /etc/skel-desktop/.config/starship.toml \
+  /etc/skel-desktop/.config/fuzzel/base.ini \
+  /etc/skel-desktop/.config/fuzzel/base-internal.ini \
+  /etc/skel-desktop/.config/fuzzel/fuzzel.ini \
+  /etc/skel-desktop/.config/fuzzel/fuzzel-internal.ini \
+  /etc/skel-desktop/.config/fuzzel/menu.ini \
+  /etc/skel-desktop/.config/fuzzel/menu-internal.ini \
+  /etc/skel-desktop/.config/Thunar/uca.xml \
+  /etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf \
+  /etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf \
   /etc/xdg/crystal-dock/labwc/appearance.conf \
   /etc/xdg/crystal-dock/labwc/panel_1.conf \
   /usr/local/bin/labwc-show-desktop \
@@ -812,32 +871,32 @@ for path in \
   /usr/share/applications/retroarch.desktop \
   /usr/share/applications/show-desktop.desktop \
   /usr/local/bin/labwc-health-notify \
-  /etc/skel/primary/.config/mako/config \
+  /etc/skel-desktop/.config/mako/config \
   /etc/systemd/user/mako.service.d/10-labwc-session.conf \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.service \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.path \
-  /etc/skel/primary/.config/systemd/user/labwc-health-notify.timer \
-  /etc/skel/primary/.config/swaylock/config \
-  /etc/skel/primary/.config/gtk-3.0/settings.ini \
-  /etc/skel/primary/.config/gtk-4.0/settings.ini \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
+  /etc/skel-desktop/.config/systemd/user/labwc-health-notify.timer \
+  /etc/skel-desktop/.config/swaylock/config \
+  /etc/skel-desktop/.config/gtk-3.0/settings.ini \
+  /etc/skel-desktop/.config/gtk-4.0/settings.ini \
   /etc/xdg/gtk-3.0/settings.ini \
   /etc/xdg/gtk-4.0/settings.ini \
-  /etc/skel/primary/.config/qt6ct/qt6ct.conf \
+  /etc/skel-desktop/.config/qt6ct/qt6ct.conf \
   /etc/xdg/qt6ct/qt6ct.conf \
-  /etc/skel/primary/.config/kwalletrc \
-  /etc/skel/primary/.config/user-dirs.dirs \
-  /etc/skel/primary/.config/xournalpp/settings.xml \
-  /etc/skel/primary/.config/xdg-desktop-portal/portals.conf \
+  /etc/skel-desktop/.config/kwalletrc \
+  /etc/skel-desktop/.config/user-dirs.dirs \
+  /etc/skel-desktop/.config/xournalpp/settings.xml \
+  /etc/skel-desktop/.config/xdg-desktop-portal/portals.conf \
   /etc/xdg/xdg-desktop-portal/labwc-portals.conf \
   /etc/bluetooth/main.conf \
   /etc/chromium.d/90-performance-flags \
-  /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service \
-  /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer \
-  /etc/skel/primary/.config/systemd/user/managed-external-software-notify.service \
-  /etc/skel/primary/.config/systemd/user/managed-external-software-notify.path \
-  /etc/skel/primary/.config/systemd/user/whisper-record.service \
-  /etc/skel/primary/.config/systemd/user/whisper-transcribe.service \
-  /etc/skel/primary/.config/systemd/user/whisper-server.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer \
+  /etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service \
+  /etc/skel-desktop/.config/systemd/user/managed-external-software-notify.path \
+  /etc/skel-desktop/.config/systemd/user/whisper-record.service \
+  /etc/skel-desktop/.config/systemd/user/whisper-transcribe.service \
+  /etc/skel-desktop/.config/systemd/user/whisper-server.service \
   /etc/systemd/system/bluetooth.service.d/override.conf \
   /etc/systemd/system/bluetooth-controller-init.service \
   /usr/local/libexec/bluetooth-controller-init \
@@ -852,7 +911,7 @@ for path in \
   /usr/share/glib-2.0/schemas/90-desktop-liferea.gschema.override \
   /usr/share/mime/packages/90-desktop-filetypes.xml \
   /etc/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf \
-  /etc/skel/primary/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf
+  /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf
 do
   check_optional_path "$path"
 done
@@ -927,7 +986,7 @@ check_optional_owned() {
 
 verify_skeleton_session_link() {
   unit=$1
-  link="/etc/skel/primary/.config/systemd/user/labwc-session.target.wants/${unit}"
+  link="/etc/skel-desktop/.config/systemd/user/labwc-session.target.wants/${unit}"
   [ -L "$link" ] || fatal "skeleton user session enablement link is missing: ${unit}"
   link_target=$(readlink "$link")
   case "$link_target" in
@@ -965,6 +1024,8 @@ for path in \
   "$account_home/.config/waypaper/config.ini" \
   "$account_home/.config/waypaper/keybindings.ini" \
   "$account_home/.config/waypaper/style.css" \
+  "$account_home/.config/btop/btop.conf" \
+  "$account_home/.config/fzf/default-opts" \
   "$account_home/.config/Code/User/settings.json" \
   "$account_home/.config/chromium/Default/Preferences" \
   "$account_home/.config/keepassxc/keepassxc.ini" \
@@ -1058,7 +1119,7 @@ for optional_user_unit in \
   whisper-transcribe.service \
   whisper-server.service
 do
-  [ -r "/etc/skel/primary/.config/systemd/user/${optional_user_unit}" ] || continue
+  [ -r "/etc/skel-desktop/.config/systemd/user/${optional_user_unit}" ] || continue
   check_required_owned "$account_home/.config/systemd/user/${optional_user_unit}"
 done
 
@@ -1097,15 +1158,15 @@ for independent_audio_unit in \
   wireplumber.service
 do
   require_absent "/etc/systemd/user/${independent_audio_unit}.d/10-labwc-session.conf"
-  require_absent "/etc/skel/primary/.config/systemd/user/labwc-session.target.wants/${independent_audio_unit}"
+  require_absent "/etc/skel-desktop/.config/systemd/user/labwc-session.target.wants/${independent_audio_unit}"
   require_absent "$account_home/.config/systemd/user/labwc-session.target.wants/${independent_audio_unit}"
 done
 unset independent_audio_unit
-if [ -r /etc/skel/primary/.config/systemd/user/whisper-server.service ]; then
+if [ -r /etc/skel-desktop/.config/systemd/user/whisper-server.service ]; then
   verify_skeleton_session_link whisper-server.service
   verify_account_session_link whisper-server.service
 fi
-if [ -r /etc/skel/primary/.config/systemd/user/managed-external-software-notify.path ]; then
+if [ -r /etc/skel-desktop/.config/systemd/user/managed-external-software-notify.path ]; then
   verify_skeleton_session_link managed-external-software-notify.path
   verify_account_session_link managed-external-software-notify.path
 fi
@@ -1126,7 +1187,7 @@ for on_demand_or_triggered_unit in \
   whisper-record.service \
   whisper-transcribe.service
 do
-  require_absent "/etc/skel/primary/.config/systemd/user/labwc-session.target.wants/${on_demand_or_triggered_unit}"
+  require_absent "/etc/skel-desktop/.config/systemd/user/labwc-session.target.wants/${on_demand_or_triggered_unit}"
   require_absent "$account_home/.config/systemd/user/labwc-session.target.wants/${on_demand_or_triggered_unit}"
 done
 unset on_demand_or_triggered_unit
@@ -1344,8 +1405,6 @@ for path in \
   "$account_home/.zsh_aliases" \
   "$account_home/.dircolors" \
   "$account_home/.config/starship.toml" \
-  "$account_home/.config/btop/btop.conf" \
-  "$account_home/.config/fzf/default-opts" \
   "$account_home/.config/gtk-3.0/settings.ini" \
   "$account_home/.config/gtk-4.0/settings.ini" \
   "$account_home/.config/vdirsyncer/config" \
@@ -1410,6 +1469,16 @@ checked=0
 present=
 missing=
 greeter_groups=$(id -nG "$greeter_user")
+wireplumber_dropin=/etc/systemd/user/wireplumber.service.d/20-no-root.conf
+[ -f "$wireplumber_dropin" ] && [ ! -L "$wireplumber_dropin" ] || {
+  printf "fatal: WirePlumber user-condition drop-in is missing or unsafe: %s\n" "$wireplumber_dropin" >&2
+  exit 1
+}
+grep -Fxq 'ConditionUser=!root' "$wireplumber_dropin" &&
+  grep -Fxq "ConditionUser=!${greeter_user}" "$wireplumber_dropin" || {
+    printf "fatal: WirePlumber is not excluded from the greeter user manager: %s\n" "$greeter_user" >&2
+    exit 1
+  }
 
 for group_name in seat render video; do
   if ! getent group "$group_name" >/dev/null 2>&1; then

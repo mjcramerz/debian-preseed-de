@@ -52,6 +52,23 @@ desktop_normalize_system_dbus_service_directories() {
   desktop_log "normalized_system_dbus_service_directories owner=root:root mode=0755"
 }
 
+desktop_normalize_background_directories() {
+  for background_directory in \
+    /usr/share/backgrounds \
+    /usr/share/backgrounds/desktop \
+    /usr/share/backgrounds/login
+  do
+    ensure_target_asset_parent "${background_directory}/.installer-directory"
+    background_directory_host=$(target_asset_host_path "$background_directory")
+    [ -d "$background_directory_host" ] && [ ! -L "$background_directory_host" ] ||
+      installer_fatal "managed background directory is unsafe: ${background_directory}"
+    chown root:root -- "$background_directory_host"
+    chmod 0755 -- "$background_directory_host"
+  done
+  unset background_directory background_directory_host
+  desktop_log "normalized_background_directories owner=root:root mode=0755"
+}
+
 desktop_reconcile_wtmpdb_common_session() {
   wtmpdb_target_root=${1:-/target}
   case "$wtmpdb_target_root" in
@@ -1759,8 +1776,8 @@ desktop_stage_mullvad_application_policy() {
     /usr/local/share/applications/mullvad-vpn.desktop \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/autostart/mullvad-vpn.desktop \
-    /etc/skel/primary/.config/autostart/mullvad-vpn.desktop \
+    etc/skel-desktop/.config/autostart/mullvad-vpn.desktop \
+    /etc/skel-desktop/.config/autostart/mullvad-vpn.desktop \
     0644
   desktop_log \
     "staged_mullvad_application_policy daemon_autostart=disabled gui_autostart=disabled launcher=/usr/local/bin/mullvad-vpn backend=wayland"
@@ -2086,7 +2103,7 @@ desktop_install_primary_account_calendar_stack() {
     "/target${vdirsyncer_status_root}"
 
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/vdirsyncer/config.tmpl" \
+    "etc/skel-desktop/.config/vdirsyncer/config.tmpl" \
     "$vdirsyncer_config" \
     0600 \
     FRUUX_ROOT_URL "$fruux_root_url" \
@@ -2094,12 +2111,12 @@ desktop_install_primary_account_calendar_stack() {
     FRUUX_TASKS_COLLECTION "$fruux_tasks_collection" \
     FRUUX_USERNAME "$escaped_fruux_username" \
     FRUUX_PASSWORD "$escaped_fruux_password"
-  desktop_stage_role_asset "etc/skel/primary/.config/khal/config" "$khal_config" 0600
-  desktop_stage_role_asset "etc/skel/primary/.config/todoman/config.py" "$todoman_config" 0600
-  desktop_stage_role_asset "etc/skel/primary/.local/share/calendars/personal/displayname" "$personal_displayname" 0600
-  desktop_stage_role_asset "etc/skel/primary/.local/share/calendars/personal/color" "$personal_color" 0600
-  desktop_stage_role_asset "etc/skel/primary/.local/share/calendars/tasks/displayname" "$tasks_displayname" 0600
-  desktop_stage_role_asset "etc/skel/primary/.local/share/calendars/tasks/color" "$tasks_color" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.config/khal/config" "$khal_config" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.config/todoman/config.py" "$todoman_config" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/personal/displayname" "$personal_displayname" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/personal/color" "$personal_color" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/tasks/displayname" "$tasks_displayname" 0600
+  desktop_stage_role_asset "etc/skel-desktop/.local/share/calendars/tasks/color" "$tasks_color" 0600
 
   chown "$account_uid:$account_gid" \
     "${target_account_home}/.local" \
@@ -2161,7 +2178,7 @@ gpg_user_id=$3
 passphrase_file=$4
 gnupg_dir="${account_home}/.gnupg"
 gpg_agent_conf="${gnupg_dir}/gpg-agent.conf"
-gpg_agent_template=/etc/skel/primary/.gnupg/gpg-agent.conf
+gpg_agent_template=/etc/skel-desktop/.gnupg/gpg-agent.conf
 
 fatal() {
   printf "fatal: %s\n" "$*" >&2
@@ -2338,7 +2355,7 @@ printf "desktop_gpg_bootstrap user=%s status=ready gnupg=%s fingerprint=%s\n" \
 }
 
 desktop_user_unit_template_dir() {
-  printf '%s\n' /etc/skel/primary/.config/systemd/user
+  printf '%s\n' /etc/skel-desktop/.config/systemd/user
 }
 
 desktop_user_unit_source_path() {
@@ -2448,6 +2465,24 @@ desktop_stage_global_user_unit_dropin_asset() {
   desktop_log "staged_global_user_unit_dropin unit=${unit} unit_path=${unit_path} target=${dropin_path}"
 }
 
+desktop_stage_wireplumber_user_conditions() {
+  : "${LABWC_GREETER_USER:?LABWC_GREETER_USER must be set}"
+  unit=wireplumber.service
+  unit_path=$(desktop_user_unit_source_path "$unit" || true)
+
+  if [ -z "$unit_path" ]; then
+    installer_warn "target user unit is unavailable; skipping drop-in: ${unit}"
+    return 0
+  fi
+
+  desktop_render_role_target_template \
+    etc/systemd/user/wireplumber.service.d/20-no-root.conf.tmpl \
+    /etc/systemd/user/wireplumber.service.d/20-no-root.conf \
+    0644 \
+    LABWC_GREETER_USER "$LABWC_GREETER_USER"
+  desktop_log "staged_wireplumber_user_conditions unit=${unit} unit_path=${unit_path} greeter=${LABWC_GREETER_USER}"
+}
+
 desktop_stage_labwc_package_user_unit_dropins() {
   for unit in \
     foot-server.service \
@@ -2489,10 +2524,10 @@ desktop_stage_kwallet_dbus_activation_assets() {
   # Debian already owns the portal, compatibility, and kwalletd6 service names.
   # Add only the Secret Service alias that the package does not provide.
   desktop_stage_role_asset \
-    etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service \
-    /etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service \
+    etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service \
+    /etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service \
     0644
-  desktop_log "staged_account_local_kwallet_secret_service_activation path=/etc/skel/primary/.local/share/dbus-1/services/org.freedesktop.secrets.service"
+  desktop_log "staged_account_local_kwallet_secret_service_activation path=/etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service"
 }
 
 desktop_stage_labwc_user_session_assets() {
@@ -2501,32 +2536,32 @@ desktop_stage_labwc_user_session_assets() {
     /etc/systemd/system/user@.service.d/20-labwc-seatd.conf \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-compositor.service \
-    /etc/skel/primary/.config/systemd/user/labwc-compositor.service \
+    etc/skel-desktop/.config/systemd/user/labwc-compositor.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-compositor.service \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-session.target \
-    /etc/skel/primary/.config/systemd/user/labwc-session.target \
+    etc/skel-desktop/.config/systemd/user/labwc-session.target \
+    /etc/skel-desktop/.config/systemd/user/labwc-session.target \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-health-notify.service \
-    /etc/skel/primary/.config/systemd/user/labwc-health-notify.service \
+    etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-health-notify.service \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-health-notify.path \
-    /etc/skel/primary/.config/systemd/user/labwc-health-notify.path \
+    etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
+    /etc/skel-desktop/.config/systemd/user/labwc-health-notify.path \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-health-notify.timer \
-    /etc/skel/primary/.config/systemd/user/labwc-health-notify.timer \
+    etc/skel-desktop/.config/systemd/user/labwc-health-notify.timer \
+    /etc/skel-desktop/.config/systemd/user/labwc-health-notify.timer \
     0644
   desktop_stage_role_asset \
-    etc/skel/primary/.config/systemd/user/labwc-plans.service \
-    /etc/skel/primary/.config/systemd/user/labwc-plans.service \
+    etc/skel-desktop/.config/systemd/user/labwc-plans.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
     0644
 
   desktop_stage_labwc_package_user_unit_dropins
-  desktop_stage_global_user_unit_dropin_asset wireplumber.service 20-no-root.conf
+  desktop_stage_wireplumber_user_conditions
   desktop_stage_wayscriber_service
   desktop_stage_kwallet_dbus_activation_assets
 
@@ -2539,9 +2574,9 @@ desktop_stage_labwc_user_session_assets() {
     chmod 0755 "$global_user_systemd_dir"
   done
   for user_systemd_dir in \
-    /target/etc/skel/primary/.config/systemd \
-    /target/etc/skel/primary/.config/systemd/user \
-    /target/etc/skel/primary/.config/systemd/user/*.d
+    /target/etc/skel-desktop/.config/systemd \
+    /target/etc/skel-desktop/.config/systemd/user \
+    /target/etc/skel-desktop/.config/systemd/user/*.d
   do
     [ -d "$user_systemd_dir" ] || continue
     chmod 0700 "$user_systemd_dir"
@@ -2795,8 +2830,8 @@ desktop_validate_cargo_policy() {
 desktop_render_cargo_config() {
   desktop_validate_cargo_policy
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/cargo/config.toml.tmpl" \
-    "/etc/skel/primary/.config/cargo/config.toml" \
+    "etc/skel-desktop/.config/cargo/config.toml.tmpl" \
+    "/etc/skel-desktop/.config/cargo/config.toml" \
     0644 \
     DEVOPS_CARGO_RUSTC_WRAPPER "$DEVOPS_CARGO_RUSTC_WRAPPER" \
     DEVOPS_CARGO_TARGET_TRIPLE "$DEVOPS_CARGO_TARGET_TRIPLE" \
@@ -2809,10 +2844,10 @@ desktop_render_cargo_config() {
 
 desktop_render_labwc_rc_xml() {
   workspace_count=${LABWC_WORKSPACE_COUNT:-4}
-  rc_path=/etc/skel/primary/.config/labwc/rc.xml
+  rc_path=/etc/skel-desktop/.config/labwc/rc.xml
 
   desktop_render_role_target_template_deferred \
-    "etc/skel/primary/.config/labwc/rc.xml.tmpl" \
+    "etc/skel-desktop/.config/labwc/rc.xml.tmpl" \
     "$rc_path" \
     0644 \
     LABWC_WORKSPACE_COUNT "$workspace_count" \
@@ -2838,15 +2873,15 @@ desktop_render_labwc_rc_xml() {
     "$rc_path" \
     "__INSTALLER_LABWC_RECORDING_KEYBIND_LINES__" \
     "$(desktop_labwc_recording_keybind_lines)"
-  desktop_assert_role_target_template_resolved "etc/skel/primary/.config/labwc/rc.xml.tmpl" "$rc_path"
+  desktop_assert_role_target_template_resolved "etc/skel-desktop/.config/labwc/rc.xml.tmpl" "$rc_path"
   desktop_log "rendered_labwc_rc_xml workspaces=${workspace_count}"
 }
 
 desktop_render_waybar_config() {
-  waybar_path=/etc/skel/primary/.config/waybar/config
+  waybar_path=/etc/skel-desktop/.config/waybar/config
 
   desktop_render_role_target_template_deferred \
-    "etc/skel/primary/.config/waybar/config.tmpl" \
+    "etc/skel-desktop/.config/waybar/config.tmpl" \
     "$waybar_path" \
     0644 \
     LABWC_WAYBAR_INTERNAL_OUTPUTS "$(desktop_waybar_internal_outputs_json)" \
@@ -2869,14 +2904,14 @@ desktop_render_waybar_config() {
     LABWC_CAPTURE_COMMAND "$(desktop_double_quote_escape "${LABWC_CAPTURE_COMMAND:-labwc-capture}")" \
     LABWC_POWER_SETTINGS_COMMAND "$(desktop_double_quote_escape "${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}")"
 
-  desktop_assert_role_target_template_resolved "etc/skel/primary/.config/waybar/config.tmpl" "$waybar_path"
+  desktop_assert_role_target_template_resolved "etc/skel-desktop/.config/waybar/config.tmpl" "$waybar_path"
   desktop_log "rendered_waybar_config native_workspaces=true internal_drawer=true"
 }
 
 desktop_render_waybar_style() {
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/waybar/style.css.tmpl" \
-    "/etc/skel/primary/.config/waybar/style.css" \
+    "etc/skel-desktop/.config/waybar/style.css.tmpl" \
+    "/etc/skel-desktop/.config/waybar/style.css" \
     0644 \
     LABWC_WAYBAR_FONT_SIZE "${LABWC_WAYBAR_FONT_SIZE:-15}" \
     LABWC_WAYBAR_TOOLTIP_FONT_SIZE "${LABWC_WAYBAR_TOOLTIP_FONT_SIZE:-15}" \
@@ -2954,8 +2989,8 @@ desktop_render_labwc_environment_assets() {
   gsk_renderer_line=$(desktop_optional_env_assignment_line GSK_RENDERER "${LABWC_GSK_RENDERER:-opengl}")
 
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/labwc/environment.tmpl" \
-    "/etc/skel/primary/.config/labwc/environment" \
+    "etc/skel-desktop/.config/labwc/environment.tmpl" \
+    "/etc/skel-desktop/.config/labwc/environment" \
     0644 \
     LABWC_WLR_RENDERER "${LABWC_WLR_RENDERER:-gles2}" \
     LABWC_GDK_DISABLE "${LABWC_GDK_DISABLE:-vulkan}" \
@@ -2966,8 +3001,8 @@ desktop_render_labwc_environment_assets() {
     LABWC_GSK_RENDERER_LINE "$gsk_renderer_line"
 
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/labwc/environment.d/10-wayland.env.tmpl" \
-    "/etc/skel/primary/.config/labwc/environment.d/10-wayland.env" \
+    "etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl" \
+    "/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env" \
     0644 \
     LABWC_WLR_RENDERER "${LABWC_WLR_RENDERER:-gles2}" \
     LABWC_GDK_DISABLE "${LABWC_GDK_DISABLE:-vulkan}" \
@@ -3032,8 +3067,8 @@ desktop_configure_local_mail_delivery() {
 
 desktop_render_kanshi_config() {
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/kanshi/config" \
-    "/etc/skel/primary/.config/kanshi/config" \
+    "etc/skel-desktop/.config/kanshi/config" \
+    "/etc/skel-desktop/.config/kanshi/config" \
     0644 \
     LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH "${LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH:-1920}" \
     LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT "${LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT:-1080}" \
@@ -3050,8 +3085,8 @@ desktop_render_terminal_configs() {
   terminal_font_size=${LABWC_TERMINAL_FONT_SIZE:-12}
 
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/foot/foot.ini" \
-    "/etc/skel/primary/.config/foot/foot.ini" \
+    "etc/skel-desktop/.config/foot/foot.ini" \
+    "/etc/skel-desktop/.config/foot/foot.ini" \
     0644 \
     LABWC_TERMINAL_FONT_FAMILY "$terminal_font_family" \
     LABWC_TERMINAL_FONT_SIZE "$terminal_font_size" \
@@ -3059,8 +3094,8 @@ desktop_render_terminal_configs() {
     LABWC_TERMINAL_WINDOW_COLUMNS "${LABWC_TERMINAL_WINDOW_COLUMNS:-96}" \
     LABWC_TERMINAL_WINDOW_ROWS "${LABWC_TERMINAL_WINDOW_ROWS:-26}"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/kitty/kitty.conf" \
-    "/etc/skel/primary/.config/kitty/kitty.conf" \
+    "etc/skel-desktop/.config/kitty/kitty.conf" \
+    "/etc/skel-desktop/.config/kitty/kitty.conf" \
     0644 \
     LABWC_TERMINAL_FONT_FAMILY "$terminal_font_family" \
     LABWC_TERMINAL_FONT_SIZE "$terminal_font_size" \
@@ -3075,10 +3110,10 @@ desktop_render_gtk_settings() {
   gtk_font_size=${LABWC_GTK_FONT_SIZE:-12}
 
   for gtk_variant in 3 4; do
-    template_path="etc/skel/primary/.config/gtk-${gtk_variant}.0/settings.ini.tmpl"
+    template_path="etc/skel-desktop/.config/gtk-${gtk_variant}.0/settings.ini.tmpl"
     desktop_render_role_target_template \
       "$template_path" \
-      "/etc/skel/primary/.config/gtk-${gtk_variant}.0/settings.ini" \
+      "/etc/skel-desktop/.config/gtk-${gtk_variant}.0/settings.ini" \
       0644 \
       LABWC_GTK_FONT_SIZE "$gtk_font_size"
     desktop_render_role_target_template \
@@ -3092,11 +3127,11 @@ desktop_render_gtk_settings() {
 
 desktop_render_qt6ct_config() {
   for target_path in \
-    /etc/skel/primary/.config/qt6ct/qt6ct.conf \
+    /etc/skel-desktop/.config/qt6ct/qt6ct.conf \
     /etc/xdg/qt6ct/qt6ct.conf
   do
     desktop_render_role_target_template \
-      etc/skel/primary/.config/qt6ct/qt6ct.conf.tmpl \
+      etc/skel-desktop/.config/qt6ct/qt6ct.conf.tmpl \
       "$target_path" \
       0644 \
       LABWC_ICON_THEME "${LABWC_ICON_THEME:-Papirus-Dark}" \
@@ -3108,8 +3143,8 @@ desktop_render_qt6ct_config() {
 
 desktop_render_fuzzel_configs() {
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/base.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/base.ini" \
+    "etc/skel-desktop/.config/fuzzel/base.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/base.ini" \
     0644 \
     LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_FONT_SIZE:-15}" \
     LABWC_FUZZEL_HORIZONTAL_PAD 12 \
@@ -3118,8 +3153,8 @@ desktop_render_fuzzel_configs() {
     LABWC_FUZZEL_LINE_HEIGHT 20 \
     LABWC_ICON_THEME "$(desktop_toml_escape "${LABWC_ICON_THEME:-Papirus-Dark}")"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/base.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/base-internal.ini" \
+    "etc/skel-desktop/.config/fuzzel/base.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/base-internal.ini" \
     0644 \
     LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}" \
     LABWC_FUZZEL_HORIZONTAL_PAD "${LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD:-10}" \
@@ -3128,29 +3163,29 @@ desktop_render_fuzzel_configs() {
     LABWC_FUZZEL_LINE_HEIGHT "${LABWC_FUZZEL_INTERNAL_LINE_HEIGHT:-16}" \
     LABWC_ICON_THEME "$(desktop_toml_escape "${LABWC_ICON_THEME:-Papirus-Dark}")"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/fuzzel.ini" \
+    "etc/skel-desktop/.config/fuzzel/fuzzel.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/fuzzel.ini" \
     0644 \
     LABWC_FUZZEL_BASE_CONFIG base.ini \
     LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_WIDTH:-54}" \
     LABWC_FUZZEL_LINES "${LABWC_FUZZEL_LINES:-10}"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/fuzzel-internal.ini" \
+    "etc/skel-desktop/.config/fuzzel/fuzzel.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/fuzzel-internal.ini" \
     0644 \
     LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
     LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_INTERNAL_WIDTH:-28}" \
     LABWC_FUZZEL_LINES "${LABWC_FUZZEL_INTERNAL_LINES:-10}"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/menu.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/menu.ini" \
+    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/menu.ini" \
     0644 \
     LABWC_FUZZEL_BASE_CONFIG base.ini \
     LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MENU_WIDTH:-28}" \
     LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MENU_LINES:-8}"
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/fuzzel/menu.ini.tmpl" \
-    "/etc/skel/primary/.config/fuzzel/menu-internal.ini" \
+    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/menu-internal.ini" \
     0644 \
     LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
     LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}" \
@@ -3159,11 +3194,11 @@ desktop_render_fuzzel_configs() {
 }
 desktop_render_crystal_dock_appearance() {
   for target_path in \
-    /etc/skel/primary/.config/crystal-dock/labwc/appearance.conf \
+    /etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf \
     /etc/xdg/crystal-dock/labwc/appearance.conf
   do
     desktop_render_role_target_template \
-      "etc/skel/primary/.config/crystal-dock/labwc/appearance.conf.tmpl" \
+      "etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf.tmpl" \
       "$target_path" \
       0644 \
       LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-50}" \
@@ -3191,15 +3226,15 @@ desktop_render_note_app_defaults() {
   gtk_font_size=${LABWC_GTK_FONT_SIZE:-12}
 
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/xournalpp/settings.xml.tmpl" \
-    "/etc/skel/primary/.config/xournalpp/settings.xml" \
+    "etc/skel-desktop/.config/xournalpp/settings.xml.tmpl" \
+    "/etc/skel-desktop/.config/xournalpp/settings.xml" \
     0644 \
     DIR_HOME_DOCUMENTS "$DIR_HOME_DOCUMENTS" \
     DIR_HOME_PICTURES "$DIR_HOME_PICTURES" \
     LABWC_GTK_FONT_SIZE "$gtk_font_size"
   desktop_stage_role_asset \
-    etc/skel/primary/.config/gnote/addins/global.ini \
-    /etc/skel/primary/.config/gnote/addins/global.ini \
+    etc/skel-desktop/.config/gnote/addins/global.ini \
+    /etc/skel-desktop/.config/gnote/addins/global.ini \
     0644
   desktop_render_role_target_template \
     "usr/share/glib-2.0/schemas/90-desktop-gnote.gschema.override.tmpl" \
@@ -3219,10 +3254,10 @@ desktop_render_note_app_defaults() {
 }
 
 desktop_stage_obsidian_default_vault() {
-  vault_root=/target/etc/skel/primary/Syncthing/obsidian-md
+  vault_root=/target/etc/skel-desktop/Syncthing/obsidian-md
 
   install -d -m 0700 \
-    /target/etc/skel/primary/Syncthing \
+    /target/etc/skel-desktop/Syncthing \
     "$vault_root" \
     "$vault_root/.obsidian" \
     "$vault_root/.obsidian/snippets" \
@@ -3235,30 +3270,30 @@ desktop_stage_obsidian_default_vault() {
     "$vault_root/inbox" \
     "$vault_root/templates"
 
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/app.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/app.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/appearance.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/appearance.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/backlink.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/backlink.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/bookmarks.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/bookmarks.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/command-palette.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/command-palette.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/community-plugins.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/community-plugins.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/core-plugins.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/core-plugins.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/daily-notes.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/daily-notes.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/graph.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/graph.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/hotkeys.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/hotkeys.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/templates.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/templates.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/types.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/types.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css /etc/skel/primary/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css /etc/skel/primary/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/home.md /etc/skel/primary/Syncthing/obsidian-md/home.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/archive/index.md /etc/skel/primary/Syncthing/obsidian-md/archive/index.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/daily/index.md /etc/skel/primary/Syncthing/obsidian-md/daily/index.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/inbox/welcome.md /etc/skel/primary/Syncthing/obsidian-md/inbox/welcome.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/templates/daily-note-template.md /etc/skel/primary/Syncthing/obsidian-md/templates/daily-note-template.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/obsidian-md/templates/note-template.md /etc/skel/primary/Syncthing/obsidian-md/templates/note-template.md 0600
-  desktop_stage_role_asset etc/skel/primary/Syncthing/.stignore /etc/skel/primary/Syncthing/.stignore 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/app.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/appearance.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/backlink.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/bookmarks.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/command-palette.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/community-plugins.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/core-plugins.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/daily-notes.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/graph.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/hotkeys.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/templates.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/types.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/snippets/managed-ux.css 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css /etc/skel-desktop/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/home.md /etc/skel-desktop/Syncthing/obsidian-md/home.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/archive/index.md /etc/skel-desktop/Syncthing/obsidian-md/archive/index.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/daily/index.md /etc/skel-desktop/Syncthing/obsidian-md/daily/index.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md /etc/skel-desktop/Syncthing/obsidian-md/inbox/welcome.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md /etc/skel-desktop/Syncthing/obsidian-md/templates/daily-note-template.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md /etc/skel-desktop/Syncthing/obsidian-md/templates/note-template.md 0600
+  desktop_stage_role_asset etc/skel-desktop/Syncthing/.stignore /etc/skel-desktop/Syncthing/.stignore 0600
 
-  desktop_log "staged_obsidian_default_vault path=/etc/skel/primary/Syncthing/obsidian-md theme=evergreen-notes"
+  desktop_log "staged_obsidian_default_vault path=/etc/skel-desktop/Syncthing/obsidian-md theme=evergreen-notes"
 }
 
 desktop_compile_glib_schemas() {
@@ -3590,8 +3625,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-adb-menu /usr/local/bin/labwc-adb-menu 0755
   desktop_stage_labwc_adb_perl_modules
   desktop_stage_role_asset usr/local/bin/labwc-adb-action /usr/local/bin/labwc-adb-action 0755
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-adb-server.service /etc/skel/primary/.config/systemd/user/labwc-adb-server.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/llama-server.service /etc/skel/primary/.config/systemd/user/llama-server.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-adb-server.service /etc/skel-desktop/.config/systemd/user/labwc-adb-server.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/llama-server.service /etc/skel-desktop/.config/systemd/user/llama-server.service 0644
   desktop_stage_role_asset usr/local/libexec/labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-firmware-extract 0755
   desktop_stage_role_asset usr/local/bin/labwc-maintenance-menu /usr/local/bin/labwc-maintenance-menu 0755
   desktop_stage_role_asset usr/local/bin/labwc-podman-menu /usr/local/bin/labwc-podman-menu 0755
@@ -3626,8 +3661,8 @@ desktop_stage_target_assets() {
     /usr/local/bin/labwc-sync-application-launchers \
     0755 \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path /etc/skel/primary/.config/systemd/user/labwc-sync-application-launchers.path 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path 0644
   desktop_stage_role_asset usr/local/bin/labwc-greeter-output /usr/local/bin/labwc-greeter-output 0755
   desktop_stage_role_asset usr/local/bin/labwc-greeter-power /usr/local/bin/labwc-greeter-power 0755
   desktop_stage_role_asset usr/local/libexec/labwc-greeter-client /usr/local/libexec/labwc-greeter-client 0755
@@ -3686,7 +3721,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/systemd/system/greetd.service.d/20-labwc-vt.conf /etc/systemd/system/greetd.service.d/20-labwc-vt.conf 0644
   desktop_stage_role_asset etc/systemd/system/bluetooth.service.d/override.conf /etc/systemd/system/bluetooth.service.d/override.conf 0644
   desktop_stage_mullvad_dns_policy
-  install -d -m 0700 /target/etc/skel/primary/.config/autostart
+  install -d -m 0700 /target/etc/skel-desktop/.config/autostart
   desktop_stage_mullvad_application_policy
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
@@ -3700,24 +3735,24 @@ desktop_stage_target_assets() {
   # account-local so the greeter's independent user manager cannot discover or
   # activate the desktop secret-service stack. Debian's D-Bus activation owns
   # the on-demand kwalletd6 compatibility daemon.
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service /etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-output-watch.service /etc/skel/primary/.config/systemd/user/labwc-output-watch.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server.service /etc/skel/primary/.config/systemd/user/codex-app-server.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server-proxy.service /etc/skel/primary/.config/systemd/user/codex-app-server-proxy.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server.socket /etc/skel/primary/.config/systemd/user/codex-app-server.socket 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service /etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-output-watch.service /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.service /etc/skel-desktop/.config/systemd/user/codex-app-server.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service /etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/codex-app-server.socket /etc/skel-desktop/.config/systemd/user/codex-app-server.socket 0644
   desktop_stage_role_asset etc/default/codex-app-server /etc/default/codex-app-server 0644
   desktop_stage_role_asset usr/local/libexec/codex-app-server-wait-ready /usr/local/libexec/codex-app-server-wait-ready 0755
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/swaybg.service /etc/skel/primary/.config/systemd/user/swaybg.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/kanshi.service /etc/skel/primary/.config/systemd/user/kanshi.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/swayidle.service /etc/skel/primary/.config/systemd/user/swayidle.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/crystal-dock.service /etc/skel/primary/.config/systemd/user/crystal-dock.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service /etc/skel/primary/.config/systemd/user/labwc-mute-default-microphone.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/swaybg.service /etc/skel-desktop/.config/systemd/user/swaybg.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/kanshi.service /etc/skel-desktop/.config/systemd/user/kanshi.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/swayidle.service /etc/skel-desktop/.config/systemd/user/swayidle.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/crystal-dock.service /etc/skel-desktop/.config/systemd/user/crystal-dock.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service 0644
   if desktop_whisper_addon_selected; then
     desktop_stage_role_asset etc/tmpfiles.d/55-whisper-runtime.conf /etc/tmpfiles.d/55-whisper-runtime.conf 0644
-    desktop_stage_role_asset etc/skel/primary/.config/systemd/user/whisper-record.service /etc/skel/primary/.config/systemd/user/whisper-record.service 0644
-    desktop_stage_role_asset etc/skel/primary/.config/systemd/user/whisper-transcribe.service /etc/skel/primary/.config/systemd/user/whisper-transcribe.service 0644
+    desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/whisper-record.service /etc/skel-desktop/.config/systemd/user/whisper-record.service 0644
+    desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/whisper-transcribe.service /etc/skel-desktop/.config/systemd/user/whisper-transcribe.service 0644
     if desktop_whisper_persistent_memory_enabled; then
-      desktop_stage_role_asset etc/skel/primary/.config/systemd/user/whisper-server.service /etc/skel/primary/.config/systemd/user/whisper-server.service 0644
+      desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/whisper-server.service /etc/skel-desktop/.config/systemd/user/whisper-server.service 0644
     fi
   fi
   # systemd dependency directives cannot be removed from a vendor unit with a
@@ -3725,8 +3760,8 @@ desktop_stage_target_assets() {
   # dependency survives Debian's Waybar unit. Labwc autostart requests it only
   # after activating the compositor session target, so LABWC_ENABLE_WAYBAR
   # remains the authoritative policy gate.
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/waybar.service /etc/skel/primary/.config/systemd/user/waybar.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf /etc/skel/primary/.config/systemd/user/waybar.service.d/20-tray-compat.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/waybar.service /etc/skel-desktop/.config/systemd/user/waybar.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf /etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf 0644
   if [ -x /target/opt/microsoft/msedge/msedge ]; then
     install -d -m 0755 /target/opt/microsoft/msedge/extensions
   fi
@@ -3766,156 +3801,157 @@ desktop_stage_target_assets() {
     /usr/share/glib-2.0/schemas/90-desktop-wsdd.gschema.override \
     0644
   desktop_stage_role_asset etc/xdg/xdg-desktop-portal/labwc-portals.conf /etc/xdg/xdg-desktop-portal/labwc-portals.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.gnupg/gpg-agent.conf /etc/skel/primary/.gnupg/gpg-agent.conf 0600
-  chmod 0700 /target/etc/skel/primary/.gnupg
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.service 0644
-  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer /etc/skel/primary/.config/systemd/user/labwc-calendar-sync.timer 0644
+  desktop_stage_role_asset etc/skel-desktop/.gnupg/gpg-agent.conf /etc/skel-desktop/.gnupg/gpg-agent.conf 0600
+  chmod 0700 /target/etc/skel-desktop/.gnupg
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer 0644
 
   desktop_stage_role_asset usr/share/backgrounds/desktop/wallpaper-1920x1080.png /usr/share/backgrounds/desktop/wallpaper-1920x1080.png 0644
   desktop_extract_role_wallpaper_archive
   desktop_stage_role_asset usr/share/backgrounds/login/lock-1920x1080.png /usr/share/backgrounds/login/lock-1920x1080.png 0644
   desktop_stage_role_asset usr/share/backgrounds/login/welcome-1920x1080.png /usr/share/backgrounds/login/welcome-1920x1080.png 0644
+  desktop_normalize_background_directories
 #  desktop_stage_role_asset_tree usr/share/backgrounds/other /usr/share/backgrounds/other
 
-  desktop_stage_role_asset etc/skel/primary/.config/labwc/autostart /etc/skel/primary/.config/labwc/autostart 0755
-  desktop_stage_role_asset etc/skel/primary/.config/labwc/shutdown /etc/skel/primary/.config/labwc/shutdown 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/labwc/autostart /etc/skel-desktop/.config/labwc/autostart 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/labwc/shutdown /etc/skel-desktop/.config/labwc/shutdown 0755
   desktop_stage_labwc_user_session_assets
-  remove_target_asset /etc/skel/primary/.config/labwc/xinitrc
-  remove_target_asset /etc/skel/primary/.config/gsimplecal/config
-  desktop_stage_role_asset etc/skel/primary/.config/labwc/themerc-override /etc/skel/primary/.config/labwc/themerc-override 0644
-  desktop_stage_role_asset etc/skel/primary/.config/waypaper/config.ini /etc/skel/primary/.config/waypaper/config.ini 0644
-  desktop_stage_role_asset etc/skel/primary/.config/waypaper/keybindings.ini /etc/skel/primary/.config/waypaper/keybindings.ini 0644
-  desktop_stage_role_asset etc/skel/primary/.config/waypaper/style.css /etc/skel/primary/.config/waypaper/style.css 0644
+  remove_target_asset /etc/skel-desktop/.config/labwc/xinitrc
+  remove_target_asset /etc/skel-desktop/.config/gsimplecal/config
+  desktop_stage_role_asset etc/skel-desktop/.config/labwc/themerc-override /etc/skel-desktop/.config/labwc/themerc-override 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/waypaper/config.ini /etc/skel-desktop/.config/waypaper/config.ini 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/waypaper/keybindings.ini /etc/skel-desktop/.config/waypaper/keybindings.ini 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/waypaper/style.css /etc/skel-desktop/.config/waypaper/style.css 0644
   desktop_render_labwc_rc_xml
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/labwc/menu.xml" \
-    "/etc/skel/primary/.config/labwc/menu.xml" \
+    "etc/skel-desktop/.config/labwc/menu.xml" \
+    "/etc/skel-desktop/.config/labwc/menu.xml" \
     0644 \
     ACCOUNT_HOME "$ACCOUNT_HOME"
   desktop_render_waybar_config
   desktop_render_waybar_style
   desktop_render_kanshi_config
   desktop_render_terminal_configs
-  desktop_stage_role_asset etc/skel/primary/.config/mpv/mpv.conf /etc/skel/primary/.config/mpv/mpv.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mpv/input.conf /etc/skel/primary/.config/mpv/input.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/featherpad/fp.conf /etc/skel/primary/.config/featherpad/fp.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/GottCode/FocusWriter.conf /etc/skel/primary/.config/GottCode/FocusWriter.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/zathura/zathurarc /etc/skel/primary/.config/zathura/zathurarc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mpv/mpv.conf /etc/skel-desktop/.config/mpv/mpv.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mpv/input.conf /etc/skel-desktop/.config/mpv/input.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/featherpad/fp.conf /etc/skel-desktop/.config/featherpad/fp.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/GottCode/FocusWriter.conf /etc/skel-desktop/.config/GottCode/FocusWriter.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/zathura/zathurarc /etc/skel-desktop/.config/zathura/zathurarc 0644
   desktop_stage_role_asset usr/local/bin/labwc-focuswriter-import /usr/local/bin/labwc-focuswriter-import 0755
   desktop_stage_role_asset usr/local/share/applications/labwc-focuswriter-import.desktop /usr/local/share/applications/labwc-focuswriter-import.desktop 0644
-  desktop_stage_role_asset etc/skel/primary/.local/share/GottCode/FocusWriter/Themes/managed-word.theme /etc/skel/primary/.local/share/GottCode/FocusWriter/Themes/managed-word.theme 0644
-  desktop_stage_role_asset etc/skel/primary/.config/Recoll.org/recoll.ini /etc/skel/primary/.config/Recoll.org/recoll.ini 0600
-  chmod 0700 /target/etc/skel/primary/.config/Recoll.org
-  desktop_stage_role_asset etc/skel/primary/.recoll/recoll.conf /etc/skel/primary/.recoll/recoll.conf 0644
-  chmod 0700 /target/etc/skel/primary/.recoll
-  install -d -m 0700 /target/etc/skel/primary/.cache /target/etc/skel/primary/.cache/recoll
-  desktop_stage_role_asset etc/skel/primary/.config/kdiff3rc /etc/skel/primary/.config/kdiff3rc 0644
-  desktop_stage_role_asset etc/skel/primary/.config/micro/settings.json /etc/skel/primary/.config/micro/settings.json 0644
-  desktop_stage_role_asset etc/skel/primary/.config/nano/nanorc /etc/skel/primary/.config/nano/nanorc 0644
-  desktop_stage_role_asset etc/skel/primary/.config/nvim/init.lua /etc/skel/primary/.config/nvim/init.lua 0644
-  desktop_stage_role_asset etc/skel/primary/.config/qalculate/qalc.cfg /etc/skel/primary/.config/qalculate/qalc.cfg 0644
-  desktop_stage_role_asset etc/skel/primary/.config/qalculate/qalculate-qt.cfg /etc/skel/primary/.config/qalculate/qalculate-qt.cfg 0644
-  install -d -m 0700 /target/etc/skel/primary/.config/xarchiver
+  desktop_stage_role_asset etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/managed-word.theme /etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/managed-word.theme 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/Recoll.org/recoll.ini /etc/skel-desktop/.config/Recoll.org/recoll.ini 0600
+  chmod 0700 /target/etc/skel-desktop/.config/Recoll.org
+  desktop_stage_role_asset etc/skel-desktop/.recoll/recoll.conf /etc/skel-desktop/.recoll/recoll.conf 0644
+  chmod 0700 /target/etc/skel-desktop/.recoll
+  install -d -m 0700 /target/etc/skel-desktop/.cache /target/etc/skel-desktop/.cache/recoll
+  desktop_stage_role_asset etc/skel-desktop/.config/kdiff3rc /etc/skel-desktop/.config/kdiff3rc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/micro/settings.json /etc/skel-desktop/.config/micro/settings.json 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/nano/nanorc /etc/skel-desktop/.config/nano/nanorc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/nvim/init.lua /etc/skel-desktop/.config/nvim/init.lua 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/qalculate/qalc.cfg /etc/skel-desktop/.config/qalculate/qalc.cfg 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/qalculate/qalculate-qt.cfg /etc/skel-desktop/.config/qalculate/qalculate-qt.cfg 0644
+  install -d -m 0700 /target/etc/skel-desktop/.config/xarchiver
   desktop_render_role_target_template \
-    etc/skel/primary/.config/xarchiver/xarchiverrc \
-    /etc/skel/primary/.config/xarchiver/xarchiverrc \
+    etc/skel-desktop/.config/xarchiver/xarchiverrc \
+    /etc/skel-desktop/.config/xarchiver/xarchiverrc \
     0600 \
     ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
     ACCOUNT_HOME "$ACCOUNT_HOME"
-  desktop_stage_role_asset etc/skel/primary/.config/task/taskrc /etc/skel/primary/.config/task/taskrc 0644
-  install -d -m 0700 /target/etc/skel/primary/.local/share/task /target/etc/skel/primary/.local/share/task/hooks
-  desktop_stage_role_asset etc/skel/primary/.config/vim/vimrc /etc/skel/primary/.config/vim/vimrc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/task/taskrc /etc/skel-desktop/.config/task/taskrc 0644
+  install -d -m 0700 /target/etc/skel-desktop/.local/share/task /target/etc/skel-desktop/.local/share/task/hooks
+  desktop_stage_role_asset etc/skel-desktop/.config/vim/vimrc /etc/skel-desktop/.config/vim/vimrc 0644
   desktop_render_note_app_defaults
   desktop_compile_glib_schemas
-  desktop_stage_role_asset etc/skel/primary/.config/xdg-terminals.list /etc/skel/primary/.config/xdg-terminals.list 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mimeapps.list /etc/skel/primary/.config/mimeapps.list 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/xdg-terminals.list /etc/skel-desktop/.config/xdg-terminals.list 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mimeapps.list /etc/skel-desktop/.config/mimeapps.list 0600
   desktop_stage_role_asset etc/xdg/mimeapps.list /etc/xdg/mimeapps.list 0644
   desktop_stage_role_asset usr/share/mime/packages/90-desktop-filetypes.xml /usr/share/mime/packages/90-desktop-filetypes.xml 0644
   run_in_target "update managed desktop MIME database" /bin/sh -eu -c '
 test -x /usr/bin/update-mime-database
 /usr/bin/update-mime-database /usr/share/mime
 ' sh
-  desktop_stage_role_asset etc/skel/primary/.config/xfce4/helpers.rc /etc/skel/primary/.config/xfce4/helpers.rc 0644
-  desktop_stage_role_asset etc/skel/primary/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml /etc/skel/primary/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/retroarch/retroarch.cfg /etc/skel/primary/.config/retroarch/retroarch.cfg 0644
-  install -d -m 0700 /target/etc/skel/primary/.config/sleek/userData
-  desktop_stage_role_asset etc/skel/primary/.config/sleek/userData/colors.json /etc/skel/primary/.config/sleek/userData/colors.json 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/xfce4/helpers.rc /etc/skel-desktop/.config/xfce4/helpers.rc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml /etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/retroarch/retroarch.cfg /etc/skel-desktop/.config/retroarch/retroarch.cfg 0644
+  install -d -m 0700 /target/etc/skel-desktop/.config/sleek/userData
+  desktop_stage_role_asset etc/skel-desktop/.config/sleek/userData/colors.json /etc/skel-desktop/.config/sleek/userData/colors.json 0600
   desktop_render_role_target_template \
-    "etc/skel/primary/.config/sleek/userData/config.json.tmpl" \
-    "/etc/skel/primary/.config/sleek/userData/config.json" \
+    "etc/skel-desktop/.config/sleek/userData/config.json.tmpl" \
+    "/etc/skel-desktop/.config/sleek/userData/config.json" \
     0600 \
     ACCOUNT_HOME "$ACCOUNT_HOME"
-  desktop_stage_role_asset etc/skel/primary/.config/sleek/userData/filters.json /etc/skel/primary/.config/sleek/userData/filters.json 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/sleek/userData/filters.json /etc/skel-desktop/.config/sleek/userData/filters.json 0600
   desktop_stage_role_asset usr/share/xfce4/helpers/foot.desktop /usr/share/xfce4/helpers/foot.desktop 0644
-  desktop_stage_role_asset etc/skel/primary/.profile /etc/skel/primary/.profile 0644
-  desktop_stage_role_asset etc/skel/primary/.bash_profile /etc/skel/primary/.bash_profile 0644
-  desktop_stage_role_asset etc/skel/primary/.bashrc /etc/skel/primary/.bashrc 0644
-  desktop_stage_role_asset etc/skel/primary/.bash_aliases /etc/skel/primary/.bash_aliases 0644
-  install -d -m 0755 /target/etc/skel/primary/.profile.d
-  desktop_stage_role_asset etc/skel/primary/.profile.d/71-devops-de.sh /etc/skel/primary/.profile.d/71-devops-de.sh 0644
-  install -d -m 0755 /target/etc/skel/primary/.config/cargo
+  desktop_stage_role_asset etc/skel-desktop/.profile /etc/skel-desktop/.profile 0644
+  desktop_stage_role_asset etc/skel-desktop/.bash_profile /etc/skel-desktop/.bash_profile 0644
+  desktop_stage_role_asset etc/skel-desktop/.bashrc /etc/skel-desktop/.bashrc 0644
+  desktop_stage_role_asset etc/skel-desktop/.bash_aliases /etc/skel-desktop/.bash_aliases 0644
+  install -d -m 0755 /target/etc/skel-desktop/.profile.d
+  desktop_stage_role_asset etc/skel-desktop/.profile.d/71-devops-de.sh /etc/skel-desktop/.profile.d/71-devops-de.sh 0644
+  install -d -m 0755 /target/etc/skel-desktop/.config/cargo
   desktop_render_cargo_config
-  install -d -m 0755 /target/etc/skel/primary/.config/mise/conf.d
-  desktop_stage_role_asset etc/skel/primary/.config/mise/config.toml /etc/skel/primary/.config/mise/config.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mise/config.development.toml /etc/skel/primary/.config/mise/config.development.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mise/config.local.toml /etc/skel/primary/.config/mise/config.local.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mise/config.development.local.toml /etc/skel/primary/.config/mise/config.development.local.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mise/conf.d/10-managed-tools.toml /etc/skel/primary/.config/mise/conf.d/10-managed-tools.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.zshenv /etc/skel/primary/.zshenv 0644
-  desktop_stage_role_asset etc/skel/primary/.zprofile /etc/skel/primary/.zprofile 0644
-  desktop_stage_role_asset etc/skel/primary/.zshrc /etc/skel/primary/.zshrc 0644
-  desktop_stage_role_asset etc/skel/primary/.zlogout /etc/skel/primary/.zlogout 0644
-  desktop_stage_role_asset etc/skel/primary/.zsh_aliases /etc/skel/primary/.zsh_aliases 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.dircolors)" /etc/skel/primary/.dircolors 0644
-  desktop_log "staged_asset source=$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.dircolors) target=/etc/skel/primary/.dircolors mode=0644"
-  desktop_stage_role_asset etc/skel/primary/.config/starship.toml /etc/skel/primary/.config/starship.toml 0644
-  desktop_stage_role_asset etc/skel/primary/btop/btop.conf /etc/skel/primary/.config/btop/btop.conf 0644
-  desktop_stage_role_asset etc/skel/primary/fzf/default-opts /etc/skel/primary/.config/fzf/default-opts 0644
+  install -d -m 0755 /target/etc/skel-desktop/.config/mise/conf.d
+  desktop_stage_role_asset etc/skel-desktop/.config/mise/config.toml /etc/skel-desktop/.config/mise/config.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mise/config.development.toml /etc/skel-desktop/.config/mise/config.development.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mise/config.local.toml /etc/skel-desktop/.config/mise/config.local.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mise/config.development.local.toml /etc/skel-desktop/.config/mise/config.development.local.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mise/conf.d/10-managed-tools.toml /etc/skel-desktop/.config/mise/conf.d/10-managed-tools.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.zshenv /etc/skel-desktop/.zshenv 0644
+  desktop_stage_role_asset etc/skel-desktop/.zprofile /etc/skel-desktop/.zprofile 0644
+  desktop_stage_role_asset etc/skel-desktop/.zshrc /etc/skel-desktop/.zshrc 0644
+  desktop_stage_role_asset etc/skel-desktop/.zlogout /etc/skel-desktop/.zlogout 0644
+  desktop_stage_role_asset etc/skel-desktop/.zsh_aliases /etc/skel-desktop/.zsh_aliases 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.dircolors)" /etc/skel-desktop/.dircolors 0644
+  desktop_log "staged_asset source=$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.dircolors) target=/etc/skel-desktop/.dircolors mode=0644"
+  desktop_stage_role_asset etc/skel-desktop/.config/starship.toml /etc/skel-desktop/.config/starship.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/btop/btop.conf /etc/skel-desktop/.config/btop/btop.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/fzf/default-opts /etc/skel-desktop/.config/fzf/default-opts 0644
   desktop_render_fuzzel_configs
-  desktop_stage_role_asset etc/skel/primary/.config/Thunar/uca.xml /etc/skel/primary/.config/Thunar/uca.xml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/ocr-defaults.conf /etc/skel/primary/.config/tesseract/ocr-defaults.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-words/default.user-words /etc/skel/primary/.config/tesseract/user-words/default.user-words 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-words/eng.user-words /etc/skel/primary/.config/tesseract/user-words/eng.user-words 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-words/swe.user-words /etc/skel/primary/.config/tesseract/user-words/swe.user-words 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-patterns/default.user-patterns /etc/skel/primary/.config/tesseract/user-patterns/default.user-patterns 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-patterns/eng.user-patterns /etc/skel/primary/.config/tesseract/user-patterns/eng.user-patterns 0644
-  desktop_stage_role_asset etc/skel/primary/.config/tesseract/user-patterns/swe.user-patterns /etc/skel/primary/.config/tesseract/user-patterns/swe.user-patterns 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/Thunar/uca.xml /etc/skel-desktop/.config/Thunar/uca.xml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/ocr-defaults.conf /etc/skel-desktop/.config/tesseract/ocr-defaults.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-words/default.user-words /etc/skel-desktop/.config/tesseract/user-words/default.user-words 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-words/eng.user-words /etc/skel-desktop/.config/tesseract/user-words/eng.user-words 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-words/swe.user-words /etc/skel-desktop/.config/tesseract/user-words/swe.user-words 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-patterns/default.user-patterns /etc/skel-desktop/.config/tesseract/user-patterns/default.user-patterns 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-patterns/eng.user-patterns /etc/skel-desktop/.config/tesseract/user-patterns/eng.user-patterns 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/tesseract/user-patterns/swe.user-patterns /etc/skel-desktop/.config/tesseract/user-patterns/swe.user-patterns 0644
   desktop_render_crystal_dock_appearance
-  desktop_stage_role_asset etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf /etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf /etc/xdg/crystal-dock/labwc/panel_1.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf /etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf /etc/xdg/crystal-dock/labwc/panel_1.conf 0644
   desktop_stage_role_asset usr/local/bin/labwc-show-desktop /usr/local/bin/labwc-show-desktop 0755
   desktop_stage_role_asset usr/local/bin/labwc-health-notify /usr/local/bin/labwc-health-notify 0755
   desktop_stage_role_asset usr/share/applications/show-desktop.desktop /usr/share/applications/show-desktop.desktop 0644
   desktop_stage_role_asset usr/local/share/icons/hicolor/64x64/apps/show-desktop.png /usr/local/share/icons/hicolor/64x64/apps/show-desktop.png 0644
-  desktop_stage_role_asset etc/skel/primary/.config/mako/config /etc/skel/primary/.config/mako/config 0644
-  desktop_stage_role_asset etc/skel/primary/.config/satty/config.toml /etc/skel/primary/.config/satty/config.toml 0644
-  desktop_stage_role_asset etc/skel/primary/.config/satty/overrides.css /etc/skel/primary/.config/satty/overrides.css 0644
-  desktop_stage_role_asset etc/skel/primary/.config/swaylock/config /etc/skel/primary/.config/swaylock/config 0644
-  desktop_stage_role_asset etc/skel/primary/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf /etc/skel/primary/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf /etc/skel/primary/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/mako/config /etc/skel-desktop/.config/mako/config 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/satty/config.toml /etc/skel-desktop/.config/satty/config.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/satty/overrides.css /etc/skel-desktop/.config/satty/overrides.css 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/swaylock/config /etc/skel-desktop/.config/swaylock/config 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/20-managed-audio-policy.conf 0644
   desktop_render_gtk_settings
   desktop_render_qt6ct_config
-  desktop_stage_role_asset etc/skel/primary/.config/kwalletrc /etc/skel/primary/.config/kwalletrc 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/kwalletrc /etc/skel-desktop/.config/kwalletrc 0644
   install -d -m 0700 \
-    /target/etc/skel/primary/.config/Code/User \
-    /target/etc/skel/primary/.config/chromium/Default \
-    /target/etc/skel/primary/.config/microsoft-edge/Default \
-    /target/etc/skel/primary/.config/obsidian \
-    /target/etc/skel/primary/.config/vivaldi/Default
-  desktop_stage_role_asset etc/skel/primary/.config/Code/User/settings.json /etc/skel/primary/.config/Code/User/settings.json 0600
-  desktop_stage_role_asset etc/skel/primary/.config/chromium/Default/Preferences /etc/skel/primary/.config/chromium/Default/Preferences 0600
-  desktop_stage_role_asset etc/skel/primary/.config/microsoft-edge/Default/Preferences /etc/skel/primary/.config/microsoft-edge/Default/Preferences 0600
-  desktop_stage_role_asset etc/skel/primary/.config/obsidian/obsidian.json /etc/skel/primary/.config/obsidian/obsidian.json 0600
-  desktop_stage_role_asset etc/skel/primary/.config/vivaldi/Default/Preferences /etc/skel/primary/.config/vivaldi/Default/Preferences 0600
+    /target/etc/skel-desktop/.config/Code/User \
+    /target/etc/skel-desktop/.config/chromium/Default \
+    /target/etc/skel-desktop/.config/microsoft-edge/Default \
+    /target/etc/skel-desktop/.config/obsidian \
+    /target/etc/skel-desktop/.config/vivaldi/Default
+  desktop_stage_role_asset etc/skel-desktop/.config/Code/User/settings.json /etc/skel-desktop/.config/Code/User/settings.json 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/chromium/Default/Preferences /etc/skel-desktop/.config/chromium/Default/Preferences 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/microsoft-edge/Default/Preferences /etc/skel-desktop/.config/microsoft-edge/Default/Preferences 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/obsidian/obsidian.json /etc/skel-desktop/.config/obsidian/obsidian.json 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/vivaldi/Default/Preferences /etc/skel-desktop/.config/vivaldi/Default/Preferences 0600
   desktop_stage_obsidian_default_vault
-  install -d -m 0700 /target/etc/skel/primary/.config/keepassxc
-  desktop_stage_role_asset etc/skel/primary/.config/keepassxc/keepassxc.ini /etc/skel/primary/.config/keepassxc/keepassxc.ini 0600
-  chmod 0700 /target/etc/skel/primary/.config/keepassxc
-  install -d -m 0700 /target/etc/skel/primary/.config/zoom
-  desktop_stage_role_asset etc/skel/primary/.config/zoom/zoomus.conf /etc/skel/primary/.config/zoom/zoomus.conf 0600
-  chmod 0700 /target/etc/skel/primary/.config/zoom
-  desktop_stage_role_asset etc/skel/primary/.config/xdg-desktop-portal/portals.conf /etc/skel/primary/.config/xdg-desktop-portal/portals.conf 0644
-  desktop_stage_role_asset etc/skel/primary/.config/user-dirs.dirs /etc/skel/primary/.config/user-dirs.dirs 0644
+  install -d -m 0700 /target/etc/skel-desktop/.config/keepassxc
+  desktop_stage_role_asset etc/skel-desktop/.config/keepassxc/keepassxc.ini /etc/skel-desktop/.config/keepassxc/keepassxc.ini 0600
+  chmod 0700 /target/etc/skel-desktop/.config/keepassxc
+  install -d -m 0700 /target/etc/skel-desktop/.config/zoom
+  desktop_stage_role_asset etc/skel-desktop/.config/zoom/zoomus.conf /etc/skel-desktop/.config/zoom/zoomus.conf 0600
+  chmod 0700 /target/etc/skel-desktop/.config/zoom
+  desktop_stage_role_asset etc/skel-desktop/.config/xdg-desktop-portal/portals.conf /etc/skel-desktop/.config/xdg-desktop-portal/portals.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/user-dirs.dirs /etc/skel-desktop/.config/user-dirs.dirs 0644
   desktop_render_chromium_flags
 }
 
@@ -4005,7 +4041,7 @@ gid=$(id -g "$account_user")
     .config/xournalpp \
     .config/xdg-desktop-portal
   do
-  src="/etc/skel/primary/${rel}"
+  src="/etc/skel-desktop/${rel}"
   dst="${account_home}/${rel}"
   [ -d "$src" ] || { printf "fatal: missing skel source: %s\n" "$src" >&2; exit 1; }
   install -d -m 0700 "$dst"
@@ -4022,8 +4058,8 @@ do
   chmod 0700 "$user_systemd_dir"
   chown "$uid:$gid" "$user_systemd_dir"
 done
-if [ -d /etc/skel/primary/.config/bazel ]; then
-  src=/etc/skel/primary/.config/bazel
+if [ -d /etc/skel-desktop/.config/bazel ]; then
+  src=/etc/skel-desktop/.config/bazel
   dst="${account_home}/.config/bazel"
   install -d -m 0700 "$dst"
   cp -a "$src/." "$dst/"
@@ -4053,7 +4089,7 @@ do
 done
 rm -f "$account_home/.config/labwc/xinitrc"
   for rel_file in .profile .bash_profile .bashrc .bash_aliases .zshenv .zprofile .zshrc .zlogout .zsh_aliases .dircolors .vimrc .config/kdiff3rc .config/kwalletrc .config/starship.toml .config/xdg-terminals.list .config/mimeapps.list .config/user-dirs.dirs Syncthing/.stignore; do
-  src="/etc/skel/primary/${rel_file}"
+  src="/etc/skel-desktop/${rel_file}"
   dst="${account_home}/${rel_file}"
   [ -r "$src" ] || { printf "fatal: missing skel source: %s\n" "$src" >&2; exit 1; }
   file_mode=0600

@@ -4,7 +4,7 @@ must not apply to server installs. Shared target assets stay under
 for example `target/etc/...` or `target/usr/local/...`.
 
 Keep custom desktop-account units under
-`target/etc/skel/primary/.config/systemd/user/`. The desktop late-command copies that
+`target/etc/skel-desktop/.config/systemd/user/`. The desktop late-command copies that
 tree into the primary account at `$HOME/.config/systemd/user/`, changes it to
 the account owner, keeps the unit directories private, and creates
 `labwc-session.target.wants/` links in both the skeleton and that account.
@@ -14,7 +14,7 @@ Keep administrator-owned user-manager policy under `target/etc/systemd/user/`.
 That includes complete drop-ins for Debian or vendor package units and custom
 units that must remain centrally root-owned rather than copied into a home. Do
 not move them into
-`target/etc/skel/primary/.config/systemd/user/`, because those files become mutable
+`target/etc/skel-desktop/.config/systemd/user/`, because those files become mutable
 account-owned copies and take precedence over the central policy. Every
 package-unit drop-in must be a complete tracked file; installer code may
 validate and stage it but must not construct its configuration body inline.
@@ -73,7 +73,7 @@ runtime confined to the Zoom and Discord compatibility launchers; never expose
 it to the compositor, greeter, autostart, or general user-manager environment.
 
 KWallet activation overrides that refer to these account-local units belong in
-`target/etc/skel/primary/.local/share/dbus-1/services/`. The desktop late-command copies
+`target/etc/skel-desktop/.local/share/dbus-1/services/`. The desktop late-command copies
 that directory into the managed account. Do not divert or replace the package
 files in `/usr/share/dbus-1/services/`: the account-local XDG data directory has
 higher activation precedence for the desktop user, while the greeter retains
@@ -412,7 +412,7 @@ Zoom's host-side `~/.config/zoom` directory is mounted as the sandbox's complete
 `~/.config` directory. This lets Qt create, lock, and atomically replace
 `zoomus.conf` while keeping every unrelated host configuration file outside the
 sandbox. The installer stages a mode-`0600` complete managed `[General]`
-baseline at `/etc/skel/primary/.config/zoom/zoomus.conf` and copies `.config/zoom` into
+baseline at `/etc/skel-desktop/.config/zoom/zoomus.conf` and copies `.config/zoom` into
 the primary desktop account. The seed enables Wayland sharing and QML caching,
 uses the system theme and locale, disables automatic meeting video, GIF
 autoplay, mini-window and test modes, and carries the full managed audio-device
@@ -424,7 +424,7 @@ legacy display-server startup assets such as `xinitrc`. Crystal Dock reads per-d
 role also stages the same preset under `/etc/xdg/crystal-dock/labwc/` so
 Crystal Dock can copy it on first run when a home directory does not already
 contain a dock configuration. The installer renders the profile-owned Qt6ct
-preset with the desktop-wide `Papirus-Dark` icon theme into both `/etc/skel/primary`
+preset with the desktop-wide `Papirus-Dark` icon theme into both `/etc/skel-desktop`
 and `/etc/xdg`, then copies the skel configuration into the primary account.
 The user service launches `/usr/bin/crystal-dock` directly only after the
 single target-owned `labwc-sync-application-launchers.service` transaction has
@@ -1361,7 +1361,7 @@ Vivaldi receive seeded system-frame preferences. Obsidian's global registry
 receives `frame=native`, an empty vault registry, and no pre-approved external
 URI schemes. A private default vault is staged at
 `~/Syncthing/obsidian-md` and copied into the primary account; later accounts
-receive the same tree through explicit `/etc/skel/primary` account provisioning. The runtime
+receive the same tree through explicit `/etc/skel-desktop` account provisioning. The runtime
 launcher never reads the skeleton. Before Obsidian starts, it validates the installed
 user-owned home vault and registry, derives a
 deterministic 16-character vault identifier from the absolute path, preserves

@@ -198,8 +198,8 @@ qemu_render_target_asset \
   DIR_POOL_QEMU "$DIR_POOL_QEMU" \
   DIR_POOL_INCUS "$DIR_POOL_INCUS"
 qemu_render_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel/primary/.profile.d/72-incus.sh.tmpl)" \
-  /etc/skel/primary/.profile.d/72-incus.sh \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.profile.d/72-incus.sh.tmpl)" \
+  /etc/skel-desktop/.profile.d/72-incus.sh \
   0644 \
   DIR_POOL_CACHE "$DIR_POOL_CACHE" \
   DIR_POOL_DB "$DIR_POOL_DB"
@@ -266,7 +266,7 @@ account_uid=${account_ids%:*}
 account_gid=${account_ids#*:}
 install -d -o "$account_uid" -g "$account_gid" -m 0700 "${target_root}${ACCOUNT_HOME}/.profile.d"
 install -o "$account_uid" -g "$account_gid" -m 0600 \
-  "${target_root}/etc/skel/primary/.profile.d/72-incus.sh" \
+  "${target_root}/etc/skel-desktop/.profile.d/72-incus.sh" \
   "${target_root}${ACCOUNT_HOME}/.profile.d/72-incus.sh"
 
 for service_unit in \

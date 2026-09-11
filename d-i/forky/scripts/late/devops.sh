@@ -1879,7 +1879,7 @@ devops_install_llama_runtime() {
 devops_render_cargo_config() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/cargo/config.toml.tmpl)
+    etc/skel-desktop/.config/cargo/config.toml.tmpl)
   template_tmp="${tmp_env_dir}/cargo-config.toml.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/cargo-config.toml.rendered.$$"
   target_cargo_dir="${target_root}${CARGO_HOME}"
@@ -2012,10 +2012,10 @@ devops_render_codex_logrotate() {
 devops_render_bazelrc() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/bazel/bazelrc.tmpl)
+    etc/skel-desktop/.config/bazel/bazelrc.tmpl)
   template_tmp="${tmp_env_dir}/bazelrc.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/bazelrc.rendered.$$"
-  target_bazel_dir="${target_root}/etc/skel/primary/.config/bazel"
+  target_bazel_dir="${target_root}/etc/skel-desktop/.config/bazel"
   target_bazelrc="${target_bazel_dir}/bazelrc"
 
   bootstrap_fetch_seed_file \
@@ -2052,10 +2052,10 @@ devops_render_bazelrc() {
 devops_render_packer_template() {
   template_repo_path=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/packer/template.pkr.hcl.tmpl)
+    etc/skel-desktop/.config/packer/template.pkr.hcl.tmpl)
   template_tmp="${tmp_env_dir}/packer-template.pkr.hcl.tmpl.$$"
   rendered_tmp="${tmp_env_dir}/packer-template.pkr.hcl.rendered.$$"
-  target_skel_dir="${target_root}/etc/skel/primary/.config/packer"
+  target_skel_dir="${target_root}/etc/skel-desktop/.config/packer"
   target_skel_template="${target_skel_dir}/template.pkr.hcl"
 
   bootstrap_fetch_seed_file \
@@ -2090,7 +2090,7 @@ packer_fatal() {
 
 account_user=$1
 account_home=$2
-source_template=/etc/skel/primary/.config/packer/template.pkr.hcl
+source_template=/etc/skel-desktop/.config/packer/template.pkr.hcl
 config_dir="${account_home}/.config"
 template_dir="${config_dir}/packer"
 target_template="${template_dir}/template.pkr.hcl"
@@ -3307,19 +3307,19 @@ devops_stage_codex_app_server() {
     etc/default/codex-app-server)
   service_source_repo=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/systemd/user/codex-app-server.service)
+    etc/skel-desktop/.config/systemd/user/codex-app-server.service)
   proxy_source_repo=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/systemd/user/codex-app-server-proxy.service)
+    etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service)
   socket_source_repo=$(installer_repo_join_var \
     DIR_HOOKS_TARGET \
-    etc/skel/primary/.config/systemd/user/codex-app-server.socket)
+    etc/skel-desktop/.config/systemd/user/codex-app-server.socket)
   environment_tmp="${tmp_env_dir}/codex-app-server.env.$$"
   service_tmp="${tmp_env_dir}/codex-app-server.service.$$"
   proxy_tmp="${tmp_env_dir}/codex-app-server-proxy.service.$$"
   socket_tmp="${tmp_env_dir}/codex-app-server.socket.$$"
   environment_target="${target_root}/etc/default/codex-app-server"
-  template_config_dir="${target_root}/etc/skel/primary/.config"
+  template_config_dir="${target_root}/etc/skel-desktop/.config"
   template_systemd_dir="${template_config_dir}/systemd"
   template_unit_dir="${template_systemd_dir}/user"
   template_wants_dir="${template_unit_dir}/sockets.target.wants"
@@ -3381,6 +3381,8 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server backend does not stop after its proxy exits"
   grep -Fqx 'ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not wait for its private socket"
+  grep -Fqx 'SuccessExitStatus=143 SIGTERM' "$service_tmp" ||
+    devops_fatal "Codex app-server backend does not treat managed idle shutdown as successful"
   grep -Fqx 'EnvironmentFile=/etc/default/codex-app-server' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
   grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||
@@ -3412,7 +3414,7 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server user units must inherit their account identity from the user manager"
   fi
 
-  for managed_base_dir in "${target_root}/etc/default" "${target_root}/etc/skel/primary"; do
+  for managed_base_dir in "${target_root}/etc/default" "${target_root}/etc/skel-desktop"; do
     if [ -e "$managed_base_dir" ] || [ -L "$managed_base_dir" ]; then
       [ -d "$managed_base_dir" ] && [ ! -L "$managed_base_dir" ] ||
         devops_fatal "Codex app-server base directory is indirect: $managed_base_dir"
@@ -4681,7 +4683,7 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "managed yt-dlp wrapper is missing after installation"
 [ -x "${target_root}${DEVOPS_YT_DLP_PAYLOAD_PATH}" ] ||
   devops_fatal "yt-dlp standalone payload with bundled yt-dlp-ejs is missing after installation"
-[ -r "${target_root}/etc/skel/primary/.config/bazel/bazelrc" ] ||
+[ -r "${target_root}/etc/skel-desktop/.config/bazel/bazelrc" ] ||
   devops_fatal "managed Bazel rc is missing from the desktop skeleton"
 [ -x "${target_root}${DEVOPS_ANSIBLE_CORE_BINARY_PATH}" ] ||
   devops_fatal "Ansible upstream executable is missing after installation"
@@ -4691,7 +4693,7 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "Terraform upstream executable is missing after installation"
 [ -x "${target_root}${DEVOPS_PACKER_BINARY_PATH}" ] ||
   devops_fatal "Packer upstream executable is missing after installation"
-[ -r "${target_root}/etc/skel/primary/.config/packer/template.pkr.hcl" ] ||
+[ -r "${target_root}/etc/skel-desktop/.config/packer/template.pkr.hcl" ] ||
   devops_fatal "managed Packer template is missing from the desktop skeleton"
 [ -r "${target_root}${ACCOUNT_HOME}/.config/packer/template.pkr.hcl" ] ||
   devops_fatal "managed Packer template is missing from the primary account"

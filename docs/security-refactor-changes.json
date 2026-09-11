@@ -282,7 +282,7 @@
       }
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/chromium/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/chromium/Default/Preferences",
       "status": "modified",
       "before": {
         "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
@@ -294,7 +294,7 @@
       }
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/microsoft-edge/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/microsoft-edge/Default/Preferences",
       "status": "modified",
       "before": {
         "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",
@@ -306,7 +306,7 @@
       }
     },
     {
-      "path": "d-i/forky/hooks/target/etc/skel/primary/.config/vivaldi/Default/Preferences",
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences",
       "status": "modified",
       "before": {
         "sha256": "354b1f891a5aadbdea2e75c4993a14e3d09d877520b3c4cfef91f49f2ffc5757",

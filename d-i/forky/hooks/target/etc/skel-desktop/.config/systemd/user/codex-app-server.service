@@ -23,6 +23,9 @@ ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
 ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready
 ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
+# The wrapper performs bounded cleanup, then reports a manager-requested
+# SIGTERM as the conventional shell status 143. Idle proxy shutdown is clean.
+SuccessExitStatus=143 SIGTERM
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=90s

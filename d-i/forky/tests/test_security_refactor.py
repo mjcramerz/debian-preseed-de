@@ -188,7 +188,7 @@ class BrowserConfigurationTests(unittest.TestCase):
             if '/policies/' in str(path):
                 self.assertNotIn('EnableDoNotTrack', json.loads(data))
         for profile in ('vivaldi','microsoft-edge','chromium'):
-            prefs = json.loads(self.products[TARGET/'etc/skel/primary/.config'/profile/'Default/Preferences'])
+            prefs = json.loads(self.products[TARGET/'etc/skel-desktop/.config'/profile/'Default/Preferences'])
             self.assertFalse(prefs['enable_do_not_track'])
 
     def test_native_urls_are_not_web_origins(self):

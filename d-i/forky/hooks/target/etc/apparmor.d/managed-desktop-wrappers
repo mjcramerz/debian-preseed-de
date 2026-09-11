@@ -79,18 +79,18 @@ profile code flags=(attach_disconnected) {
   include if exists <local/code>
 }
 
-profile managed-labwc-autostart-hook /{etc/skel/primary,home/*}/.config/labwc/autostart flags=(attach_disconnected) {
+profile managed-labwc-autostart-hook /{etc/skel-desktop,home/*}/.config/labwc/autostart flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-desktop>
 
-  /{etc/skel/primary,home/*}/.config/labwc/autostart rix,
+  /{etc/skel-desktop,home/*}/.config/labwc/autostart rix,
 
   include if exists <local/home.labwc.autostart>
 }
 
-profile managed-labwc-shutdown-hook /{etc/skel/primary,home/*}/.config/labwc/shutdown flags=(attach_disconnected) {
+profile managed-labwc-shutdown-hook /{etc/skel-desktop,home/*}/.config/labwc/shutdown flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-desktop>
 
-  /{etc/skel/primary,home/*}/.config/labwc/shutdown rix,
+  /{etc/skel-desktop,home/*}/.config/labwc/shutdown rix,
 
   include if exists <local/home.labwc.shutdown>
 }
@@ -456,6 +456,7 @@ profile managed-labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_dis
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
   /dev/rfkill r,
   /run/dbus/system_bus_socket rw,
+  /sys/devices/**/power_supply/*/status r,
 
   include if exists <local/usr.local.bin.labwc-bluetooth>
 }
@@ -468,7 +469,7 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
   /usr/bin/{brightnessctl,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /dev/rfkill r,
-  @{sys}/devices/**/power_supply/*/status r,
+  @{sys}/devices/**/power_supply/*/{online,status} r,
 
   include if exists <local/usr.local.bin.labwc-brightness-control>
 }
@@ -511,6 +512,7 @@ profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconn
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/satty rPx -> managed-satty,
   /dev/rfkill r,
+  /sys/devices/**/power_supply/*/status r,
   owner /run/user/[0-9]*/labwc-capture/ rw,
   owner /run/user/[0-9]*/labwc-capture/** rwkl,
   owner /run/user/[0-9]*/pipewire-[0-9]* rw,
@@ -1467,11 +1469,11 @@ profile managed-labwc-lock /usr/local/bin/labwc-lock flags=(attach_disconnected)
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-lock rix,
-  /usr/bin/flock rix,
+  /usr/bin/{flock,id,stat} rix,
   /usr/bin/swaylock pux,
   owner @{HOME}/.config/swaylock/config r,
   /usr/share/backgrounds/login/lock-1920x1080.png r,
-  owner /run/user/[0-9]*/labwc-swaylock.lock rwk,
+  owner /run/user/[0-9]*/labwc-swaylock{,.launch}.lock rwk,
 
   include if exists <local/usr.local.bin.labwc-lock>
 }
@@ -3342,6 +3344,7 @@ profile managed-apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes
   /tmp/apparmor-profile-names.* rw,
   /tmp/apparmor-profile-names.*/ rw,
   /tmp/apparmor-profile-names.*/** rwkl,
+  /var/lib/installer-state/logs/firstboot/data/validation-results.txt a,
 
   include if exists <local/usr.local.libexec.apparmor-managed-modes-run>
 }

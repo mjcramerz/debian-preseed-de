@@ -290,7 +290,7 @@ sanitize_target_xfs_scrub_systemd_units() {
     install -m 0644 "$xfs_unit_tmp" "$xfs_unit_dest"
     rm -f "$xfs_unit_tmp"
     grep -q '^[[:space:]]*CPUAccounting[[:space:]]*=' "$xfs_unit_dest" &&
-      installer_fatal "sanitized xfs scrub unit still contains CPUAccounting=: ${xfs_unit_dest#/target}"
+      installer_fatal "sanitized xfs scrub unit still contains a CPUAccounting directive: ${xfs_unit_dest#/target}"
 
     for xfs_unit_link in "/target${DIR_SYSTEMD_SYSTEM}"/*.wants/"$xfs_unit" "/target${DIR_SYSTEMD_SYSTEM}"/*.requires/"$xfs_unit"; do
       [ -L "$xfs_unit_link" ] || continue

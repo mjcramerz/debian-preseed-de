@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import stat
 import struct
@@ -253,9 +254,9 @@ class FuzzelOutputSizingTests(unittest.TestCase):
 
         renderer = (ROOT / 'scripts/desktop/components.sh').read_text()
         for target in (
-            '/etc/skel/primary/.config/fuzzel/base-internal.ini',
-            '/etc/skel/primary/.config/fuzzel/fuzzel-internal.ini',
-            '/etc/skel/primary/.config/fuzzel/menu-internal.ini',
+            '/etc/skel-desktop/.config/fuzzel/base-internal.ini',
+            '/etc/skel-desktop/.config/fuzzel/fuzzel-internal.ini',
+            '/etc/skel-desktop/.config/fuzzel/menu-internal.ini',
         ):
             self.assertIn(target, renderer)
         validator = (ROOT / 'scripts/desktop/detect.sh').read_text()
@@ -599,7 +600,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
                 self.assertEqual(self.helper.main(['reload-waybar',pid]),1)
 
     def test_codex_unit_leaves_nnp_to_bubblewrap(self):
-        data = (DESKTOP/'etc/skel/primary/.config/systemd/user/codex-app-server.service').read_text()
+        data = (DESKTOP/'etc/skel-desktop/.config/systemd/user/codex-app-server.service').read_text()
         self.assertIn('NoNewPrivileges=no\n',data)
         for line in data.splitlines():
             if line and not line.startswith('#'):
@@ -615,7 +616,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('EnvironmentFile=-%d/codex-mcp.env\n',data)
 
     def test_codex_app_server_is_socket_activated_and_idle_stopped(self):
-        unit_dir = DESKTOP / 'etc/skel/primary/.config/systemd/user'
+        unit_dir = DESKTOP / 'etc/skel-desktop/.config/systemd/user'
         backend = (unit_dir / 'codex-app-server.service').read_text()
         proxy = (unit_dir / 'codex-app-server-proxy.service').read_text()
         socket_unit = (unit_dir / 'codex-app-server.socket').read_text()
@@ -627,6 +628,7 @@ class SessionAndIntegrationTests(unittest.TestCase):
             backend,
         )
         self.assertIn('ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready\n', backend)
+        self.assertIn('SuccessExitStatus=143 SIGTERM\n', backend)
         self.assertNotIn('/data/codex/share/bin/codex app-server', backend)
         self.assertNotIn('WantedBy=', backend)
 
@@ -696,12 +698,12 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/mcp.env', data)
 
     def test_zathura_selection_uses_regular_clipboard(self):
-        data = (DESKTOP/'etc/skel/primary/.config/zathura/zathurarc').read_text()
+        data = (DESKTOP/'etc/skel-desktop/.config/zathura/zathurarc').read_text()
         self.assertIn('set selection-clipboard clipboard',data)
         self.assertIn('set recolor false',data)
 
     def test_docx_default_remains_focuswriter(self):
-        data = (DESKTOP/'etc/skel/primary/.config/mimeapps.list').read_text()
+        data = (DESKTOP/'etc/skel-desktop/.config/mimeapps.list').read_text()
         matches = [line for line in data.splitlines() if line.startswith('application/vnd.openxmlformats-officedocument.wordprocessingml.document=')]
         self.assertEqual(len(matches),2)
         self.assertTrue(all('=focuswriter.desktop;' in line for line in matches))
@@ -733,6 +735,69 @@ class SessionAndIntegrationTests(unittest.TestCase):
 
 
 class InstalledFailureRegressionTests(unittest.TestCase):
+    def test_desktop_skeleton_namespace_and_config_layout(self):
+        skeleton = DESKTOP / 'etc/skel-desktop'
+        legacy = DESKTOP / 'etc' / 'skel' / 'primary'
+
+        self.assertTrue(skeleton.is_dir())
+        self.assertFalse(legacy.exists())
+        self.assertFalse((skeleton / 'btop').exists())
+        self.assertFalse((skeleton / 'fzf').exists())
+        self.assertTrue((skeleton / '.config/btop/btop.conf').is_file())
+        self.assertTrue((skeleton / '.config/fzf/default-opts').is_file())
+        self.assertTrue(
+            (skeleton / '.config/systemd/user/codex-app-server.service').is_file()
+        )
+
+        account = (ROOT / 'scripts/late/account.sh').read_text()
+        staging = (ROOT / 'scripts/desktop/components.sh').read_text()
+        verification = (ROOT / 'scripts/desktop/verify.sh').read_text()
+        firstboot = (ROOT / 'scripts/firstboot/04-validation.sh').read_text()
+        self.assertIn('install -d -m 0755 /target/etc/skel-desktop', account)
+        self.assertIn(
+            'src="/etc/skel-desktop/' + chr(36) + '{rel_file}"',
+            account,
+        )
+        self.assertIn(
+            'src="/etc/skel-desktop/' + chr(36) + '{rel}"',
+            staging,
+        )
+        for relative_path in (
+            '.config/btop/btop.conf',
+            '.config/fzf/default-opts',
+        ):
+            staged_path = f'etc/skel-desktop/{relative_path}'
+            installed_path = f'/etc/skel-desktop/{relative_path}'
+            account_path = f'"$account_home/{relative_path}"'
+            self.assertIn(staged_path, staging)
+            self.assertIn(installed_path, staging)
+            self.assertIn(installed_path, verification)
+            self.assertIn(account_path, verification)
+            self.assertIn(installed_path, firstboot)
+        self.assertIn('desktop-skeleton-metadata', firstboot)
+
+        repository = ROOT.parents[1]
+        obsolete = 'skel/' + 'primary'
+        ignored_parts = {'.git', '__pycache__', 'todo', 'validation'}
+        offenders = []
+        for path in sorted(repository.rglob('*')):
+            relative = path.relative_to(repository)
+            if any(part in ignored_parts for part in relative.parts):
+                continue
+            if path.is_symlink() or not path.is_file():
+                continue
+            data = path.read_bytes()
+            if b'\0' in data:
+                continue
+            try:
+                text = data.decode('utf-8')
+            except UnicodeDecodeError:
+                continue
+            for line_number, line in enumerate(text.splitlines(), 1):
+                if obsolete in line:
+                    offenders.append(f'{relative}:{line_number}')
+        self.assertEqual(offenders, [])
+
     def test_auth_log_signals_only_explicit_failures(self):
         policy = (DESKTOP / 'etc/rsyslog.d/20-auth.conf').read_text()
         start = policy.index('  if (\n    $msg contains')
@@ -788,7 +853,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_failed_desktop_service_contracts_are_repaired(self):
-        plans = (DESKTOP / 'etc/skel/primary/.config/systemd/user/labwc-plans.service').read_text()
+        plans = (DESKTOP / 'etc/skel-desktop/.config/systemd/user/labwc-plans.service').read_text()
         self.assertIn('EnvironmentFile=/etc/default/labwc-plans\n', plans)
         self.assertNotIn('LoadCredential=', plans)
         self.assertNotIn('EnvironmentFile=%d/', plans)
@@ -807,6 +872,28 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('/usr/local/lib/perl5/site_perl/whisper/** r,', apparmor)
         for executable in ('flock', 'head', 'mktemp', 'mv', 'stat', 'timeout'):
             self.assertIn(executable, apparmor)
+
+    def test_removed_cpu_accounting_directive_is_not_staged(self):
+        staged_systemd = DESKTOP / 'etc/systemd'
+        offenders = []
+        for path in staged_systemd.rglob('*'):
+            if not path.is_file():
+                continue
+            for line_number, line in enumerate(path.read_text().splitlines(), 1):
+                if re.match(r'^[ \t]*CPUAccounting[ \t]*=', line):
+                    offenders.append(f'{path.relative_to(DESKTOP)}:{line_number}')
+        self.assertEqual(offenders, [])
+
+        user_slice = (
+            staged_systemd / 'system/user-1000.slice.d/50-resource-accounting.conf'
+        ).read_text()
+        self.assertIn('MemoryAccounting=yes\n', user_slice)
+        self.assertIn('TasksAccounting=yes\n', user_slice)
+        self.assertIn('IOAccounting=yes\n', user_slice)
+
+        sanitizer = (ROOT / 'scripts/late/storage-maintenance.sh').read_text()
+        self.assertIn("sed '/^[[:space:]]*CPUAccounting[[:space:]]*=/d'", sanitizer)
+        self.assertIn('CPUAccounting directive:', sanitizer)
 
     def test_wallpaper_and_xwayland_boot_contracts_are_explicit(self):
         expected = '/usr/share/backgrounds/desktop/wallpaper-1920x1080.png'
@@ -828,11 +915,26 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('resolved_saved_wallpaper=$(readlink -e', helper)
         self.assertIn('if [ -f "$resolved_saved_wallpaper" ]', helper)
         self.assertIn(f'wallpaper = {expected}',
-                      (DESKTOP / 'etc/skel/primary/.config/waypaper/config.ini').read_text())
+                      (DESKTOP / 'etc/skel-desktop/.config/waypaper/config.ini').read_text())
+
+        staging = (ROOT / 'scripts/desktop/components.sh').read_text()
+        verification = (ROOT / 'scripts/desktop/verify.sh').read_text()
+        self.assertEqual(staging.count('  desktop_normalize_background_directories\n'), 1)
+        self.assertIn('chown root:root -- "$background_directory_host"', staging)
+        self.assertIn('chmod 0755 -- "$background_directory_host"', staging)
+        for directory in (
+            '/usr/share/backgrounds',
+            '/usr/share/backgrounds/desktop',
+            '/usr/share/backgrounds/login',
+        ):
+            self.assertIn(directory, staging)
+            self.assertIn(directory, verification)
+        self.assertIn('require_mode "$background_directory" 755', verification)
+        self.assertIn('require_mode "$background_file" 644', verification)
 
         tmpfiles = (DESKTOP / 'etc/tmpfiles.d/tmp.conf').read_text()
         self.assertIn('d /tmp/.X11-unix 1777 root root -', tmpfiles)
-        compositor = (DESKTOP / 'etc/skel/primary/.config/systemd/user/labwc-compositor.service').read_text()
+        compositor = (DESKTOP / 'etc/skel-desktop/.config/systemd/user/labwc-compositor.service').read_text()
         self.assertNotIn('Environment=WLR_XWAYLAND=', compositor)
         self.assertIn('UnsetEnvironment=DISPLAY XAUTHORITY WLR_XWAYLAND ', compositor)
         self.assertIn('InaccessiblePaths=-/opt/xwayland', compositor)
@@ -858,6 +960,65 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket network-online.target apparmor-managed-modes.service', firstboot_unit)
         self.assertIn('WantedBy=multi-user.target', firstboot_unit)
         self.assertNotIn('Before=sysinit.target', firstboot_unit)
+
+    def test_background_directory_normalizer_repairs_modes_and_rejects_symlinks(self):
+        normalizer = r"""
+set -eu
+INSTALLER_TARGET_DIR=$1
+target_assets=$2
+components=$3
+installer_fatal() {
+  printf 'fatal: %s\n' "$*" >&2
+  return 1
+}
+target_normalize_systemd_config_parent_modes() { :; }
+desktop_log() { :; }
+chown() { :; }
+. "$target_assets"
+. "$components"
+desktop_normalize_background_directories
+"""
+        target_assets = ROOT / 'scripts/late/target-assets.sh'
+        components = ROOT / 'scripts/desktop/components.sh'
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            directories = (
+                target / 'usr/share/backgrounds',
+                target / 'usr/share/backgrounds/desktop',
+                target / 'usr/share/backgrounds/login',
+            )
+            for directory in directories:
+                directory.mkdir(parents=True, exist_ok=True)
+                directory.chmod(0o700)
+            subprocess.run(
+                ['/bin/sh', '-c', normalizer, 'background-mode-test',
+                 str(target), str(target_assets), str(components)],
+                check=True,
+                capture_output=True,
+                timeout=5,
+            )
+            self.assertEqual(
+                [stat.S_IMODE(directory.stat().st_mode) for directory in directories],
+                [0o755, 0o755, 0o755],
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            share = target / 'usr/share'
+            alternate = target / 'alternate-backgrounds'
+            share.mkdir(parents=True)
+            alternate.mkdir()
+            (share / 'backgrounds').symlink_to(alternate)
+            completed = subprocess.run(
+                ['/bin/sh', '-c', normalizer, 'background-symlink-test',
+                 str(target), str(target_assets), str(components)],
+                check=False,
+                capture_output=True,
+                timeout=5,
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn(b'managed background directory is unsafe', completed.stderr)
 
     def test_pool_and_apparmor_cache_contracts_are_consistent(self):
         codex = (DESKTOP / 'data/codex/lib/codex').read_text()
@@ -904,6 +1065,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             'owner /tmp/.X[0-9]*-lock rwk,',
             'owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,',
             'owner @{HOME}/.local/share/applications/*.desktop r,',
+            'include if exists <local/managed-desktop-graphics>',
             'deny /dev/char/*:* l,',
             'deny /var/cache/fontconfig/ w,',
         ):
@@ -932,6 +1094,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             'owner @{HOME}/.cache/glycin/ rw,',
             'owner @{HOME}/.cache/glycin/** rwkl,',
             'owner /run/user/[0-9]*/wayscriber/** rwkl,',
+            'owner /run/user/[0-9]*/labwc-swaylock.lock a,',
             'signal (send) set=(kill) peer=managed-session-glycin-bwrap,',
         ):
             self.assertIn(rule, controls)
@@ -940,7 +1103,11 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             '/dev/rfkill r,',
             '/usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,',
             '/usr/share/icons/Papirus/24x24/panel/update-low.svg r,',
+            '/usr/share/backgrounds/desktop/wallpaper-1920x1080.png r,',
+            '/usr/share/backgrounds/login/lock-1920x1080.png r,',
+            'owner @{HOME}/.config/swaylock/config r,',
             'owner @{HOME}/.cache/glycin/** rwkl,',
+            'owner /run/user/[0-9]*/labwc-swaylock.lock a,',
         ):
             self.assertIn(rule, glycin)
         explicit_link_rules = [line.strip() for line in policy.splitlines() if ' link ' in line]
@@ -1001,8 +1168,12 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             self.assertIn('/dev/rfkill r,', profile_block(wrappers, profile_name))
         keyboard = profile_block(wrappers, 'managed-labwc-keyboard-layout')
         self.assertIn('/sys/devices/**/power_supply/*/status r,', keyboard)
+        bluetooth = profile_block(wrappers, 'managed-labwc-bluetooth')
+        self.assertIn('/sys/devices/**/power_supply/*/status r,', bluetooth)
         brightness = profile_block(wrappers, 'managed-labwc-brightness-control')
-        self.assertIn('@{sys}/devices/**/power_supply/*/status r,', brightness)
+        self.assertIn('@{sys}/devices/**/power_supply/*/{online,status} r,', brightness)
+        capture = profile_block(wrappers, 'managed-labwc-capture')
+        self.assertIn('/sys/devices/**/power_supply/*/status r,', capture)
         self.assertIn('/dev/rfkill r,', profile_block(wrappers, 'managed-labwc-managed-app'))
         self.assertIn('/dev/rfkill r,', profile_block(wrappers, 'managed-labwc-terminal'))
 
@@ -1022,7 +1193,20 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         whisper = profile_block(wrappers, 'managed-whisper-record-toggle')
         self.assertIn('network inet6 dgram,', whisper)
         self.assertIn('#include <abstractions/managed-desktop-graphics>', whisper)
+        nvidia_graphics = (
+            DESKTOP / 'etc/apparmor.d/local/managed-desktop-graphics'
+        ).read_text()
+        self.assertIn('/dev/char/195:* rw,', nvidia_graphics)
+        self.assertIn('/dev/char/234:* rw,', nvidia_graphics)
         self.assertEqual(direct_device_link_grants(whisper), [])
+        lock = profile_block(wrappers, 'managed-labwc-lock')
+        self.assertIn('/usr/bin/{flock,id,stat} rix,', lock)
+        self.assertIn('owner /run/user/[0-9]*/labwc-swaylock{,.launch}.lock rwk,', lock)
+        managed_modes = profile_block(wrappers, 'managed-apparmor-managed-modes')
+        self.assertIn(
+            '/var/lib/installer-state/logs/firstboot/data/validation-results.txt a,',
+            managed_modes,
+        )
         external_notify = profile_block(wrappers, 'managed-managed-external-software-notify')
         self.assertIn('/usr/bin/timeout rix,', external_notify)
 
@@ -1033,8 +1217,29 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('/usr/local/libexec/ r,', crowdsec)
         managed_firstboot = profile_block(firstboot, 'managed-firstboot')
         for rule in (
+            'capability audit_write,',
             'capability chown,',
+            'capability dac_read_search,',
             'capability fowner,',
+            'capability net_admin,',
+            'capability setgid,',
+            'capability setuid,',
+            'capability sys_admin,',
+            'capability sys_ptrace,',
+            'capability syslog,',
+            'network create inet dgram,',
+            'network (create, bind, getattr, getopt, setopt, send, receive) netlink raw,',
+            'ptrace (read) peer=unconfined,',
+            'ptrace (read) peer=managed-firstboot,',
+            'ptrace (read) peer=managed-labwc-compositor,',
+            'ptrace (read) peer=managed-labwc-greeter-session,',
+            'ptrace (read) peer=managed-zram-writeback,',
+            'ptrace (read) peer=usr.sbin.tailscaled,',
+            '/usr/bin/{dpkg-query,passwd,perl,ps,readlink} rix,',
+            '/usr/sbin/runuser rix,',
+            '/dev/{kmsg,tty,urandom} r,',
+            '/home/*/.config/qt6ct/qt6ct.conf r,',
+            '/var/lib/dpkg/** r,',
             '/etc/default/labwc-desktop rw,',
         ):
             self.assertIn(rule, managed_firstboot)
@@ -1088,6 +1293,233 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         graphics = (DESKTOP / 'etc/apparmor.d/abstractions/managed-desktop-graphics').read_text()
         self.assertIn('deny /dev/char/*:* l,', graphics)
         self.assertEqual(direct_device_link_grants(graphics), [])
+        aa_status = (DESKTOP / 'etc/apparmor.d/usr.sbin.aa-status').read_text()
+        self.assertIn(
+            '/var/lib/installer-state/logs/firstboot/data/apparmor-status.json w,',
+            aa_status,
+        )
+
+    def test_apparmor_complain_incident_is_fully_mapped(self):
+        from collections import Counter
+
+        incident = ROOT.parents[1] / 'todo/apparmor.log'
+        self.assertTrue(incident.is_file())
+        field_re = re.compile(
+            r'(?:\A|[\s\x1d])([A-Za-z_][A-Za-z0-9_]*)='
+            r'(?:"((?:\\.|[^"\\])*)"|([^\s\x1d]+))'
+        )
+        events = []
+        for line_number, line in enumerate(
+                incident.read_text(errors='surrogateescape').splitlines(), 1):
+            fields = {
+                match.group(1): (
+                    match.group(2) if match.group(2) is not None
+                    else match.group(3)
+                )
+                for match in field_re.finditer(line)
+            }
+            if fields.get('apparmor') == 'ALLOWED':
+                fields['line_number'] = str(line_number)
+                events.append(fields)
+
+        firstboot_capabilities = {
+            'audit_write', 'dac_read_search', 'net_admin', 'setgid', 'setuid',
+            'sys_admin', 'sys_ptrace', 'syslog',
+        }
+        firstboot_peers = {
+            'unconfined', 'managed-firstboot', 'managed-labwc-compositor',
+            'managed-labwc-greeter-session', 'managed-zram-writeback',
+            'usr.sbin.tailscaled',
+        }
+        firstboot_exec = {
+            '/usr/bin/dpkg-query', '/usr/bin/env', '/usr/bin/passwd',
+            '/usr/bin/perl', '/usr/bin/ps', '/usr/bin/readlink',
+            '/usr/sbin/runuser',
+        }
+        firstboot_null_profiles = {
+            'managed-firstboot//null-/usr/bin/dpkg-query',
+            'managed-firstboot//null-/usr/bin/passwd',
+            'managed-firstboot//null-/usr/bin/ps',
+            'managed-firstboot//null-/usr/bin/readlink',
+            'managed-firstboot//null-/usr/sbin/runuser',
+            'managed-firstboot//null-/usr/sbin/runuser//null-/usr/bin/env',
+            ('managed-firstboot//null-/usr/sbin/runuser//null-/usr/bin/env'
+             '//null-/usr/bin/perl'),
+        }
+
+        def inherited_firstboot_file(fields):
+            name = fields.get('name', '')
+            operation = fields.get('operation', '')
+            denied = fields.get('denied_mask', '')
+            if operation == 'exec':
+                return name in firstboot_exec and denied == 'x'
+            if denied not in {'r', 'rm', 'a', 'w'}:
+                return False
+            if name == '/':
+                return denied == 'r'
+            if name in {'/dev/null', '/dev/tty', '/dev/urandom'}:
+                return denied in {'r', 'w'}
+            if name.startswith((
+                '/etc/', '/proc/', '/sys/', '/usr/lib/', '/usr/local/',
+                '/usr/share/', '/var/lib/dpkg/',
+                '/var/lib/installer-state/',
+            )):
+                return True
+            if name in {'/proc/', '/usr/lib/'}:
+                return denied == 'r'
+            return name in firstboot_exec | {'/usr/bin/pwd'} and denied == 'r'
+
+        exact = {
+            ('managed-apparmor-managed-modes', 'file_inherit',
+             '/var/lib/installer-state/logs/firstboot/data/validation-results.txt', 'a'):
+                'managed-modes-inherited-validation',
+            ('aa-status-reader', 'file_inherit',
+             '/var/lib/installer-state/logs/firstboot/data/apparmor-status.json', 'w'):
+                'aa-status-inherited-output',
+            ('managed-labwc-bluetooth', 'file_inherit',
+             '/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:19/PNP0C09:00/PNP0C0A:00/power_supply/BAT0/status', 'r'):
+                'bluetooth-inherited-power',
+            ('managed-labwc-brightness-control', 'file_inherit',
+             '/sys/devices/pci0000:00/0000:00:1f.0/PNP0C09:00/ACPI0003:00/power_supply/AC/online', 'r'):
+                'brightness-inherited-power',
+            ('managed-labwc-capture', 'file_inherit',
+             '/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:19/PNP0C09:00/PNP0C0A:00/power_supply/BAT0/status', 'r'):
+                'capture-inherited-power',
+            ('managed-session-controls', 'file_inherit',
+             '/run/user/1000/labwc-swaylock.lock', 'a'):
+                'swaylock-inherited-lifetime-lock',
+            ('managed-session-glycin-bwrap', 'file_inherit',
+             '/home/mcramer/.config/swaylock/config', 'r'):
+                'glycin-inherited-swaylock-config',
+            ('managed-session-glycin-bwrap', 'file_inherit',
+             '/run/user/1000/labwc-swaylock.lock', 'a'):
+                'glycin-inherited-lifetime-lock',
+            ('managed-session-glycin-bwrap', 'file_inherit',
+             '/usr/share/backgrounds/desktop/wallpaper-1920x1080.png', 'r'):
+                'glycin-inherited-desktop-background',
+            ('managed-session-glycin-bwrap', 'file_inherit',
+             '/usr/share/backgrounds/login/lock-1920x1080.png', 'r'):
+                'glycin-inherited-lock-background',
+            ('managed-labwc-compositor', 'symlink', '/dev/char/195:0', 'c'):
+                'compositor-nvidia-device-link',
+            ('managed-labwc-compositor', 'symlink', '/dev/char/195:255', 'c'):
+                'compositor-nvidia-device-link',
+            ('managed-whisper-record-toggle', 'symlink', '/dev/char/234:0', 'c'):
+                'whisper-nvidia-device-link',
+        }
+
+        coverage = Counter()
+        unmapped = []
+        for event in events:
+            profile = event.get('profile', '')
+            event_class = event.get('class', '')
+            operation = event.get('operation', '')
+            name = event.get('name', '')
+            denied = event.get('denied_mask', '')
+            category = None
+
+            if profile == 'managed-firstboot':
+                if (event_class == 'cap' and operation == 'capable'
+                        and event.get('capname') in firstboot_capabilities):
+                    category = 'firstboot-capability'
+                elif (event_class == 'ptrace' and operation == 'ptrace'
+                        and denied == 'read'
+                        and event.get('peer') in firstboot_peers):
+                    category = 'firstboot-ptrace'
+                elif event_class == 'net':
+                    if (event.get('family') == 'inet'
+                            and event.get('sock_type') == 'dgram'
+                            and operation == denied == 'create'):
+                        category = 'firstboot-inet-dgram'
+                    elif (event.get('family') == 'netlink'
+                          and event.get('sock_type') == 'raw'
+                          and denied in {'create', 'bind', 'getattr', 'getopt',
+                                         'setopt', 'send', 'receive'}):
+                        category = 'firstboot-netlink'
+                elif event_class == 'file':
+                    if (operation == 'exec' and name in firstboot_exec
+                            and denied == 'x'):
+                        category = 'firstboot-inherited-exec'
+                    elif (operation, name, denied) in {
+                        ('open', '/', 'r'), ('open', '/dev/', 'r'),
+                        ('open', '/dev/kmsg', 'r'),
+                    }:
+                        category = 'firstboot-direct-file'
+                    elif (denied == 'r' and re.fullmatch(
+                            r'/home/[^/]+/[.]config/qt6ct/qt6ct[.]conf',
+                            name)):
+                        category = 'firstboot-user-qt-config'
+            elif profile in firstboot_null_profiles:
+                if (event_class == 'cap' and operation == 'capable'
+                        and event.get('capname') in firstboot_capabilities):
+                    category = 'firstboot-null-capability-eliminated'
+                elif (event_class == 'ptrace' and operation == 'ptrace'
+                        and denied == 'read'
+                        and event.get('peer') in firstboot_peers):
+                    category = 'firstboot-null-ptrace-eliminated'
+                elif event_class == 'file' and inherited_firstboot_file(event):
+                    category = 'firstboot-null-file-eliminated'
+            elif profile in {
+                'managed-labwc-lock//null-/usr/bin/id',
+                'managed-labwc-lock//null-/usr/bin/stat',
+            } and event_class == 'file':
+                category = 'lock-null-profile-eliminated'
+            elif profile == 'managed-labwc-lock' and event_class == 'file':
+                if (operation == 'exec' and name in {
+                        '/usr/bin/id', '/usr/bin/stat'} and denied == 'x'):
+                    category = 'lock-inherited-exec'
+                elif (name == '/run/user/1000/labwc-swaylock.launch.lock'
+                      and denied in {'c', 'ac'}):
+                    category = 'lock-launch-file'
+            elif (profile == 'managed-crystal-dock'
+                  and event_class == 'file' and operation == 'link'
+                  and denied == 'l'
+                  and re.fullmatch(
+                      r'/home/[^/]+/[.]config/crystal-dock/labwc/'
+                      r'(?:#[0-9]+|appearance[.]conf[.][A-Za-z]+)', name)
+                  and (not event.get('target') or re.fullmatch(
+                      r'/home/[^/]+/[.]config/crystal-dock/labwc/#[0-9]+',
+                      event['target']))):
+                category = 'crystal-dock-qsave-link'
+            else:
+                category = exact.get((profile, operation, name, denied))
+
+            if category:
+                coverage[category] += 1
+            else:
+                unmapped.append(event)
+
+        self.assertEqual(unmapped, [])
+        self.assertEqual(len(events), 7223)
+        self.assertEqual(sum(coverage.values()), len(events))
+        self.assertEqual(coverage, Counter({
+            'firstboot-null-file-eliminated': 3241,
+            'firstboot-ptrace': 3160,
+            'firstboot-null-capability-eliminated': 14,
+            'firstboot-capability': 11,
+            'firstboot-null-ptrace-eliminated': 453,
+            'firstboot-netlink': 200,
+            'lock-null-profile-eliminated': 75,
+            'crystal-dock-qsave-link': 32,
+            'firstboot-inherited-exec': 8,
+            'compositor-nvidia-device-link': 4,
+            'lock-inherited-exec': 4,
+            'firstboot-direct-file': 3,
+            'firstboot-inet-dgram': 3,
+            'managed-modes-inherited-validation': 2,
+            'lock-launch-file': 2,
+            'firstboot-user-qt-config': 1,
+            'aa-status-inherited-output': 1,
+            'whisper-nvidia-device-link': 1,
+            'capture-inherited-power': 1,
+            'brightness-inherited-power': 1,
+            'bluetooth-inherited-power': 1,
+            'glycin-inherited-desktop-background': 1,
+            'swaylock-inherited-lifetime-lock': 1,
+            'glycin-inherited-swaylock-config': 1,
+            'glycin-inherited-lock-background': 1,
+            'glycin-inherited-lifetime-lock': 1,
+        }))
 
     def test_unix_chkpwd_local_policy_is_staged(self):
         include = DESKTOP / 'etc/apparmor.d/local/unix-chkpwd'
@@ -1099,11 +1531,43 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('for apparmor_local_include in $(apparmor_support_local_include_files); do',
                       security)
 
+        account = (ROOT / 'scripts/late/account.sh').read_text()
+        for fragment in (
+            'dpkg-query -S /usr/sbin/unix_chkpwd',
+            '^libpam-modules-bin(:[^:[:space:]]+)?: /usr/sbin/unix_chkpwd$',
+            'chown root:shadow -- /etc/shadow /usr/sbin/unix_chkpwd',
+            'chmod 0640 -- /etc/shadow',
+            'chmod 2755 -- /usr/sbin/unix_chkpwd',
+            '"0:${shadow_gid}:640"',
+            '"0:${shadow_gid}:2755"',
+        ):
+            self.assertIn(fragment, account)
+
+        verification = (ROOT / 'scripts/desktop/verify.sh').read_text()
+        firstboot = (ROOT / 'scripts/firstboot/04-validation.sh').read_text()
+        for source in (verification, firstboot):
+            self.assertIn('findmnt -n -o OPTIONS -T /usr/sbin/unix_chkpwd', source)
+            self.assertIn('*,nosuid,*', source)
+            self.assertIn('/usr/sbin/unix_chkpwd', source)
+            self.assertIn('/etc/shadow', source)
+        self.assertIn('desktop-swaylock-authentication-chain', firstboot)
+        self.assertIn('grep -Fxq "@include common-auth" /etc/pam.d/swaylock', firstboot)
+        self.assertIn('grep -Fxq "@include common-account" /etc/pam.d/swaylock', firstboot)
+        self.assertIn('pam_permit[.]so', firstboot)
+
+        wrappers = (DESKTOP / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
+        lock_start = wrappers.index('profile managed-labwc-lock ')
+        lock_end = wrappers.index('\nprofile ', lock_start + 1)
+        lock_profile = wrappers[lock_start:lock_end]
+        self.assertNotIn('/etc/shadow', lock_profile)
+
     def test_installed_service_and_sandbox_failures_are_repaired(self):
         staging = (ROOT / 'scripts/desktop/components.sh').read_text()
         for fragment in (
             'desktop_normalize_system_dbus_service_directories',
-            'desktop_stage_global_user_unit_dropin_asset wireplumber.service 20-no-root.conf',
+            'desktop_stage_wireplumber_user_conditions',
+            'etc/systemd/user/wireplumber.service.d/20-no-root.conf.tmpl',
+            'LABWC_GREETER_USER "$LABWC_GREETER_USER"',
             'etc/udev/rules.d/71-managed-nvidia-char-links.rules',
         ):
             self.assertIn(fragment, staging)
@@ -1130,8 +1594,9 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             nvidia_false_branch,
         )
 
-        wireplumber = (DESKTOP / 'etc/systemd/user/wireplumber.service.d/20-no-root.conf').read_text()
+        wireplumber = (DESKTOP / 'etc/systemd/user/wireplumber.service.d/20-no-root.conf.tmpl').read_text()
         self.assertIn('ConditionUser=!root', wireplumber)
+        self.assertIn('ConditionUser=!__INSTALLER_LABWC_GREETER_USER__', wireplumber)
         nvidia_rules = (DESKTOP / 'etc/udev/rules.d/71-managed-nvidia-char-links.rules').read_text()
         self.assertIn('KERNEL=="nvidia[0-9]*"', nvidia_rules)
         self.assertIn('KERNEL=="nvidiactl|nvidia-modeset|nvidia-uvm|nvidia-uvm-tools"', nvidia_rules)
@@ -1145,7 +1610,7 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         for label in (
             'desktop-defaults-metadata',
             'desktop-system-dbus-service-directory-metadata',
-            'desktop-wireplumber-root-condition',
+            'desktop-wireplumber-user-conditions',
             'desktop-nvidia-char-device-links',
         ):
             self.assertIn(label, firstboot_validation)

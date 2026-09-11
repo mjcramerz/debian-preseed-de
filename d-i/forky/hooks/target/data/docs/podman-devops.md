@@ -143,7 +143,7 @@ systemd sandbox. Container isolation remains the engine/runtime's job.
 ## Ordinary desktop commands (no sudo)
 
 Open a new desktop session after group membership changes. The shell fragment
-`/etc/skel/primary/.profile.d/71-devops-de.sh` exports the client-native variables
+`/etc/skel-desktop/.profile.d/71-devops-de.sh` exports the client-native variables
 `CONTAINER_HOST`, `DOCKER_HOST`, `CONTAINERS_CONF`, `PODMAN_COMPOSE_PROVIDER`,
 `REGISTRY_AUTH_FILE`, `DOCKER_CONFIG`, `DOCKER_BUILDKIT`, and `COMPOSE_BAKE`.
 It leaves the desktop HOME, XDG_RUNTIME_DIR and D-Bus address intact. Its
