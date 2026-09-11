@@ -795,8 +795,11 @@ for path in \
   /etc/skel/primary/.config/btop/btop.conf \
   /etc/skel/primary/.config/fzf/default-opts \
   /etc/skel/primary/.config/fuzzel/base.ini \
+  /etc/skel/primary/.config/fuzzel/base-internal.ini \
   /etc/skel/primary/.config/fuzzel/fuzzel.ini \
+  /etc/skel/primary/.config/fuzzel/fuzzel-internal.ini \
   /etc/skel/primary/.config/fuzzel/menu.ini \
+  /etc/skel/primary/.config/fuzzel/menu-internal.ini \
   /etc/skel/primary/.config/Thunar/uca.xml \
   /etc/skel/primary/.config/crystal-dock/labwc/appearance.conf \
   /etc/skel/primary/.config/crystal-dock/labwc/panel_1.conf \
@@ -1109,6 +1112,8 @@ fi
 
 for on_demand_or_triggered_unit in \
   codex-app-server.service \
+  codex-app-server-proxy.service \
+  codex-app-server.socket \
   labwc-adb-server.service \
   labwc-calendar-sync.service \
   labwc-compositor.service \
@@ -1316,8 +1321,11 @@ for path in \
   "$account_home/.config/xfce4/helpers.rc" \
   "$account_home/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml" \
   "$account_home/.config/fuzzel/base.ini" \
+  "$account_home/.config/fuzzel/base-internal.ini" \
   "$account_home/.config/fuzzel/fuzzel.ini" \
+  "$account_home/.config/fuzzel/fuzzel-internal.ini" \
   "$account_home/.config/fuzzel/menu.ini" \
+  "$account_home/.config/fuzzel/menu-internal.ini" \
   "$account_home/.config/Thunar/uca.xml" \
   "$account_home/.config/crystal-dock/labwc/appearance.conf" \
   "$account_home/.config/crystal-dock/labwc/panel_1.conf" \

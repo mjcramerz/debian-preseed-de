@@ -3,4 +3,4 @@
 # swaylock can be started from an existing terminal. PAM's fixed unix_chkpwd
 # helper may inherit that caller-owned PTY, but receives no broader device rule.
 
-owner /dev/pts/[0-9]* rw,
+/dev/pts/[0-9]* rw,

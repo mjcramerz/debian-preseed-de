@@ -1,11 +1,13 @@
 [Unit]
-Description=Managed Codex app server (repository build)
+Description=Managed Codex app-server backend (repository build)
 Documentation=https://developers.openai.com/codex/app-server
 ConditionFileIsExecutable=/data/codex/lib/codex
 ConditionFileIsExecutable=/data/codex/share/bin/codex
+ConditionFileIsExecutable=/usr/local/libexec/codex-app-server-wait-ready
 ConditionPathIsDirectory=/data/codex/usr/home
 ConditionPathIsDirectory=/data/codex/sockets
 ConditionPathIsDirectory=/data/codex/usr/home/app-server-control
+StopWhenUnneeded=yes
 StartLimitIntervalSec=60
 StartLimitBurst=5
 
@@ -17,7 +19,10 @@ EnvironmentFile=/etc/default/codex-app-server
 LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env
 EnvironmentFile=-%d/codex-mcp.env
 WorkingDirectory=%h/Workspace
-ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-control.sock
+ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
+ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock
+ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready
+ExecStopPost=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock
 Restart=on-failure
 RestartSec=5s
 TimeoutStartSec=90s
@@ -35,6 +40,3 @@ LimitCORE=0
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=codex-app-server
-
-[Install]
-WantedBy=default.target

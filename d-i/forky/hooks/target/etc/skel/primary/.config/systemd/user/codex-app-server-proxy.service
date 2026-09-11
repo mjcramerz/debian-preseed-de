@@ -1,0 +1,24 @@
+[Unit]
+Description=On-demand proxy for the managed Codex app server
+Documentation=man:systemd-socket-proxyd(8)
+Requires=codex-app-server.socket codex-app-server.service
+After=codex-app-server.socket codex-app-server.service
+ConditionFileIsExecutable=/usr/lib/systemd/systemd-socket-proxyd
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=notify
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min /data/codex/sockets/app-server-backend.sock
+Restart=on-failure
+RestartSec=2s
+TimeoutStartSec=90s
+TimeoutStopSec=15s
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=codex-app-server-proxy

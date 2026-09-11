@@ -39,6 +39,10 @@ managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
 menu_width_override=${LABWC_FUZZEL_MENU_WIDTH_OVERRIDE:-}
 menu_lines_override=${LABWC_FUZZEL_MENU_LINES_OVERRIDE:-}
 menu_font_size_override=${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}
+internal_output_prefixes=${LABWC_OUTPUT_INTERNAL_PREFIXES:-eDP LVDS DSI}
+internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}
+internal_menu_lines=${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}
+internal_font_size=${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}
 
 require_uint_range() {
   setting_name=$1
@@ -55,6 +59,29 @@ require_uint_range() {
      [ "$setting_value" -gt "$maximum" ]; then
     fatal "$setting_name must be an integer from $minimum to $maximum"
   fi
+}
+
+validate_output_name() {
+  output_name=$1
+  [ "${#output_name}" -le 128 ] || fatal 'Fuzzel output name exceeds 128 characters'
+  case "$output_name" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*)
+      fatal 'Fuzzel output name contains unsupported characters'
+      ;;
+  esac
+}
+
+fuzzel_output_is_internal() {
+  candidate_output=$1
+  [ -n "$internal_output_prefixes" ] ||
+    fatal 'LABWC_OUTPUT_INTERNAL_PREFIXES must not be empty'
+  for internal_prefix in $internal_output_prefixes; do
+    validate_output_name "$internal_prefix"
+    case "$candidate_output" in
+      "${internal_prefix}"-*|"${internal_prefix}"[0-9]*) return 0 ;;
+    esac
+  done
+  return 1
 }
 
 case "$managed_icons" in
@@ -94,26 +121,63 @@ for arg in "$@"; do
   esac
 done
 
-config_name=fuzzel.ini
-case "$mode" in
-  menu) config_name=menu.ini ;;
-esac
-
 have_config=false
+have_output=false
 managed_prompt=
 expect_prompt_value=false
+expect_output_value=false
+fuzzel_output=
 for arg in "$@"; do
   if [ "$expect_prompt_value" = true ]; then
     managed_prompt=$arg
     expect_prompt_value=false
     continue
   fi
+  if [ "$expect_output_value" = true ]; then
+    fuzzel_output=$arg
+    expect_output_value=false
+    continue
+  fi
   case "$arg" in
     --config|-c|--config=*) have_config=true ;;
+    --output|-o)
+      have_output=true
+      expect_output_value=true
+      ;;
+    --output=*)
+      have_output=true
+      fuzzel_output=${arg#--output=}
+      ;;
+    -o?*)
+      have_output=true
+      fuzzel_output=${arg#-o}
+      ;;
     --prompt) expect_prompt_value=true ;;
     --prompt=*) managed_prompt=${arg#--prompt=} ;;
   esac
 done
+[ "$expect_output_value" != true ] || fatal 'Fuzzel output option requires a value'
+
+if [ "$have_output" != true ] && [ -n "${WAYBAR_OUTPUT_NAME:-}" ]; then
+  fuzzel_output=$WAYBAR_OUTPUT_NAME
+  validate_output_name "$fuzzel_output"
+  set -- "--output=${fuzzel_output}" "$@"
+elif [ -n "$fuzzel_output" ]; then
+  validate_output_name "$fuzzel_output"
+fi
+
+internal_output=false
+if [ -n "$fuzzel_output" ] && fuzzel_output_is_internal "$fuzzel_output"; then
+  internal_output=true
+fi
+
+case "$mode:$internal_output" in
+  launcher:true) config_name=fuzzel-internal.ini ;;
+  launcher:false) config_name=fuzzel.ini ;;
+  menu:true) config_name=menu-internal.ini ;;
+  menu:false) config_name=menu.ini ;;
+  *) fatal 'invalid Fuzzel mode or output class' ;;
+esac
 
 if [ "$have_config" != true ] && [ -r "${fuzzel_config_dir}/${config_name}" ]; then
   set -- "--config=${fuzzel_config_dir}/${config_name}" "$@"
@@ -122,14 +186,37 @@ fi
 if [ "$mode" = menu ]; then
   if [ -n "$menu_width_override" ]; then
     require_uint_range LABWC_FUZZEL_MENU_WIDTH_OVERRIDE "$menu_width_override" 16 200
-    set -- "$@" "--width=${menu_width_override}"
   fi
   if [ -n "$menu_lines_override" ]; then
     require_uint_range LABWC_FUZZEL_MENU_LINES_OVERRIDE "$menu_lines_override" 1 32
-    set -- "$@" "--lines=${menu_lines_override}"
   fi
   if [ -n "$menu_font_size_override" ]; then
     require_uint_range LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE "$menu_font_size_override" 8 32
+  fi
+  if [ "$internal_output" = true ]; then
+    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_WIDTH "$internal_menu_width" 16 200
+    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "$internal_menu_lines" 1 32
+    require_uint_range LABWC_FUZZEL_INTERNAL_FONT_SIZE "$internal_font_size" 8 32
+    if [ -n "$menu_width_override" ] &&
+       [ "$menu_width_override" -gt "$internal_menu_width" ]; then
+      menu_width_override=$internal_menu_width
+    fi
+    if [ -n "$menu_lines_override" ] &&
+       [ "$menu_lines_override" -gt "$internal_menu_lines" ]; then
+      menu_lines_override=$internal_menu_lines
+    fi
+    if [ -n "$menu_font_size_override" ] &&
+       [ "$menu_font_size_override" -gt "$internal_font_size" ]; then
+      menu_font_size_override=$internal_font_size
+    fi
+  fi
+  if [ -n "$menu_width_override" ]; then
+    set -- "$@" "--width=${menu_width_override}"
+  fi
+  if [ -n "$menu_lines_override" ]; then
+    set -- "$@" "--lines=${menu_lines_override}"
+  fi
+  if [ -n "$menu_font_size_override" ]; then
     menu_font="Noto Sans:size=${menu_font_size_override},Noto Color Emoji:size=${menu_font_size_override},Font Awesome 6 Free:size=${menu_font_size_override}"
     set -- "$@" "--font=${menu_font}"
   fi

@@ -1,0 +1,49 @@
+#!/usr/bin/python3 -I
+"""Wait for the private Codex app-server backend socket."""
+
+from __future__ import annotations
+
+import os
+import stat
+import sys
+import time
+
+
+BACKEND_SOCKET = "/data/codex/sockets/app-server-backend.sock"
+READY_TIMEOUT_SECONDS = 60.0
+POLL_INTERVAL_SECONDS = 0.05
+
+
+def fail(message: str) -> int:
+    print(f"codex-app-server-wait-ready: {message}", file=sys.stderr)
+    return 1
+
+
+def main(arguments: list[str]) -> int:
+    if arguments:
+        return fail("this managed helper accepts no arguments")
+
+    deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+    account_uid = os.getuid()
+    while time.monotonic() < deadline:
+        try:
+            metadata = os.lstat(BACKEND_SOCKET)
+        except FileNotFoundError:
+            time.sleep(POLL_INTERVAL_SECONDS)
+            continue
+        except OSError as exc:
+            return fail(f"cannot inspect the backend socket: {exc}")
+
+        if not stat.S_ISSOCK(metadata.st_mode):
+            return fail("the backend endpoint is not a Unix socket")
+        if metadata.st_uid != account_uid:
+            return fail("the backend socket is not owned by the service account")
+        if stat.S_IMODE(metadata.st_mode) & 0o077:
+            return fail("the backend socket grants group or other access")
+        return 0
+
+    return fail("the backend socket did not become ready within 60 seconds")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

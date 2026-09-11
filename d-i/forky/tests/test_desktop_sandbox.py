@@ -120,6 +120,149 @@ class LauncherSynchronizationTests(unittest.TestCase):
                 self.launcher.read_system_desktop_text(str(self.desktop))
 
 
+class FuzzelOutputSizingTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix='labwc-fuzzel-output-')
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.home = self.root / 'home'
+        self.runtime = self.root / 'runtime'
+        self.bin = self.root / 'bin'
+        self.config = self.home / '.config/fuzzel'
+        for directory in (self.home, self.runtime, self.bin, self.config):
+            directory.mkdir(parents=True, exist_ok=True)
+            directory.chmod(0o700)
+        for name in ('fuzzel.ini', 'fuzzel-internal.ini', 'menu.ini', 'menu-internal.ini'):
+            (self.config / name).write_text('[main]\n')
+
+        source = (DESKTOP / 'usr/local/bin/labwc-fuzzel').read_text()
+        source = source.replace(
+            '/etc/default/labwc-desktop',
+            str(self.root / 'missing-defaults'),
+        ).replace(
+            '/usr/local/bin/labwc-fuzzel-log',
+            str(self.root / 'missing-logger'),
+        )
+        self.wrapper = self.root / 'labwc-fuzzel'
+        self.wrapper.write_text(source)
+        self.wrapper.chmod(0o700)
+
+        fake = self.bin / 'fuzzel'
+        fake.write_text(
+            '#!/bin/sh\n'
+            'printf "%s\\0" "$@" >"$FUZZEL_ARGUMENTS"\n'
+        )
+        fake.chmod(0o700)
+        self.arguments_file = self.root / 'arguments'
+        self.environment = {
+            'HOME': str(self.home),
+            'PATH': f'{self.bin}:/usr/bin:/bin',
+            'XDG_CONFIG_HOME': str(self.home / '.config'),
+            'XDG_RUNTIME_DIR': str(self.runtime),
+            'FUZZEL_ARGUMENTS': str(self.arguments_file),
+            'LABWC_OUTPUT_INTERNAL_PREFIXES': 'eDP LVDS DSI',
+            'LABWC_FUZZEL_INTERNAL_MENU_WIDTH': '18',
+            'LABWC_FUZZEL_INTERNAL_MENU_LINES': '8',
+            'LABWC_FUZZEL_INTERNAL_FONT_SIZE': '9',
+        }
+
+    def invoke(self, *arguments: str, output: str | None = None,
+               extra_environment: dict[str, str] | None = None) -> tuple[subprocess.CompletedProcess[bytes], list[str]]:
+        environment = dict(self.environment)
+        if output is not None:
+            environment['WAYBAR_OUTPUT_NAME'] = output
+        if extra_environment:
+            environment.update(extra_environment)
+        self.arguments_file.unlink(missing_ok=True)
+        result = subprocess.run(
+            ['/bin/sh', str(self.wrapper), *arguments],
+            input=b'',
+            capture_output=True,
+            env=environment,
+            timeout=10,
+        )
+        captured = []
+        if self.arguments_file.exists():
+            captured = [
+                value.decode()
+                for value in self.arguments_file.read_bytes().split(b'\0')
+                if value
+            ]
+        return result, captured
+
+    def test_waybar_output_selects_internal_or_external_config(self):
+        internal, internal_args = self.invoke('launcher', output='eDP-1')
+        self.assertEqual(internal.returncode, 0, internal.stderr.decode())
+        self.assertIn('--output=eDP-1', internal_args)
+        self.assertIn(f'--config={self.config}/fuzzel-internal.ini', internal_args)
+
+        external, external_args = self.invoke('launcher', output='DP-1')
+        self.assertEqual(external.returncode, 0, external.stderr.decode())
+        self.assertIn('--output=DP-1', external_args)
+        self.assertIn(f'--config={self.config}/fuzzel.ini', external_args)
+        self.assertNotIn(f'--config={self.config}/fuzzel-internal.ini', external_args)
+
+    def test_explicit_internal_output_clamps_category_menu_sizing(self):
+        result, arguments = self.invoke(
+            'menu',
+            '--dmenu',
+            '--output=eDP-1',
+            extra_environment={
+                'LABWC_FUZZEL_MENU_WIDTH_OVERRIDE': '40',
+                'LABWC_FUZZEL_MENU_LINES_OVERRIDE': '20',
+                'LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE': '16',
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertIn(f'--config={self.config}/menu-internal.ini', arguments)
+        self.assertIn('--width=18', arguments)
+        self.assertIn('--lines=8', arguments)
+        self.assertIn(
+            '--font=Noto Sans:size=9,Noto Color Emoji:size=9,'
+            'Font Awesome 6 Free:size=9',
+            arguments,
+        )
+        self.assertNotIn('--width=40', arguments)
+        self.assertNotIn('--font=Noto Sans:size=16', arguments)
+
+    def test_untrusted_waybar_output_is_rejected_before_fuzzel(self):
+        result, arguments = self.invoke('launcher', output='eDP-1;touch')
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(arguments)
+        self.assertIn(b'unsupported characters', result.stderr)
+
+    def test_profiles_and_renderer_define_compact_internal_dimensions(self):
+        expected = {
+            'LABWC_FUZZEL_INTERNAL_WIDTH': '28',
+            'LABWC_FUZZEL_INTERNAL_LINES': '10',
+            'LABWC_FUZZEL_INTERNAL_MENU_WIDTH': '18',
+            'LABWC_FUZZEL_INTERNAL_MENU_LINES': '8',
+            'LABWC_FUZZEL_INTERNAL_FONT_SIZE': '9',
+            'LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD': '10',
+            'LABWC_FUZZEL_INTERNAL_VERTICAL_PAD': '6',
+            'LABWC_FUZZEL_INTERNAL_INNER_PAD': '4',
+            'LABWC_FUZZEL_INTERNAL_LINE_HEIGHT': '16',
+        }
+        for profile in (ROOT / 'hosts/profiles').glob('*.env'):
+            values = {}
+            for line in profile.read_text().splitlines():
+                name, separator, value = line.partition('=')
+                if separator and name in expected:
+                    values[name] = value.strip('"')
+            self.assertEqual(values, expected, profile.name)
+
+        renderer = (ROOT / 'scripts/desktop/components.sh').read_text()
+        for target in (
+            '/etc/skel/primary/.config/fuzzel/base-internal.ini',
+            '/etc/skel/primary/.config/fuzzel/fuzzel-internal.ini',
+            '/etc/skel/primary/.config/fuzzel/menu-internal.ini',
+        ):
+            self.assertIn(target, renderer)
+        validator = (ROOT / 'scripts/desktop/detect.sh').read_text()
+        for name in expected:
+            self.assertIn(f'desktop_validate_uint_range {name} ', validator)
+
+
 class CodexTests(unittest.TestCase):
     def setUp(self):
         self.codex = load_script(SHARED / 'data/codex/lib/codex', 'tested_codex')
@@ -133,6 +276,14 @@ class CodexTests(unittest.TestCase):
 
     def test_appserver_requires_isolation(self):
         c = self.codex
+        self.assertEqual(
+            c.CODEX_APP_SERVER_ARGUMENTS,
+            (
+                'app-server',
+                '--listen',
+                'unix:///data/codex/sockets/app-server-backend.sock',
+            ),
+        )
         with self.assertRaises(c.CodexError):
             c.codex_parse_arguments(['--no-bwrap', *c.CODEX_APP_SERVER_ARGUMENTS])
         enabled, args = c.codex_parse_arguments(c.CODEX_APP_SERVER_ARGUMENTS)
@@ -418,6 +569,10 @@ class DocumentImportTests(unittest.TestCase):
 class SessionAndIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.helper = load_script(DESKTOP / 'usr/local/libexec/labwc-session-check','tested_session')
+        self.codex_ready = load_script(
+            DESKTOP / 'usr/local/libexec/codex-app-server-wait-ready',
+            'tested_codex_app_server_wait_ready',
+        )
 
     def test_arbitrary_commands_are_not_accepted(self):
         for args in [[],['sh','-c','true'],['session-ready','extra']]:
@@ -459,6 +614,77 @@ class SessionAndIntegrationTests(unittest.TestCase):
         self.assertIn('LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env\n',data)
         self.assertIn('EnvironmentFile=-%d/codex-mcp.env\n',data)
 
+    def test_codex_app_server_is_socket_activated_and_idle_stopped(self):
+        unit_dir = DESKTOP / 'etc/skel/primary/.config/systemd/user'
+        backend = (unit_dir / 'codex-app-server.service').read_text()
+        proxy = (unit_dir / 'codex-app-server-proxy.service').read_text()
+        socket_unit = (unit_dir / 'codex-app-server.socket').read_text()
+
+        self.assertIn('StopWhenUnneeded=yes\n', backend)
+        self.assertIn(
+            'ExecStart=/data/codex/lib/codex app-server --listen '
+            'unix:///data/codex/sockets/app-server-backend.sock\n',
+            backend,
+        )
+        self.assertIn('ExecStartPost=/usr/local/libexec/codex-app-server-wait-ready\n', backend)
+        self.assertNotIn('/data/codex/share/bin/codex app-server', backend)
+        self.assertNotIn('WantedBy=', backend)
+
+        self.assertIn('ListenStream=/data/codex/sockets/app-server-control.sock\n', socket_unit)
+        self.assertIn('Accept=no\n', socket_unit)
+        self.assertIn('SocketMode=0600\n', socket_unit)
+        self.assertIn('Service=codex-app-server-proxy.service\n', socket_unit)
+        self.assertIn('WantedBy=sockets.target\n', socket_unit)
+
+        self.assertIn(
+            'Requires=codex-app-server.socket codex-app-server.service\n',
+            proxy,
+        )
+        self.assertIn(
+            'ExecStart=/usr/lib/systemd/systemd-socket-proxyd '
+            '--exit-idle-time=10min '
+            '/data/codex/sockets/app-server-backend.sock\n',
+            proxy,
+        )
+        self.assertNotIn('WantedBy=', proxy)
+
+        process_exec_starts = [
+            line
+            for unit in (backend, proxy, socket_unit)
+            for line in unit.splitlines()
+            if line.startswith('ExecStart=')
+        ]
+        payload_starts = [
+            line for line in process_exec_starts
+            if ' app-server --listen ' in line
+        ]
+        self.assertEqual(len(payload_starts), 1)
+        self.assertIn('/data/codex/lib/codex app-server', payload_starts[0])
+
+    @skip_unless_filesystem_unix_socket
+    def test_codex_backend_ready_helper_accepts_only_private_owned_socket(self):
+        import socket
+        with tempfile.TemporaryDirectory() as tmp:
+            endpoint = Path(tmp) / 'backend.sock'
+            with socket.socket(socket.AF_UNIX) as listener:
+                listener.bind(str(endpoint))
+                endpoint.chmod(0o600)
+                with mock.patch.object(self.codex_ready, 'BACKEND_SOCKET', str(endpoint)):
+                    self.assertEqual(self.codex_ready.main([]), 0)
+
+                endpoint.chmod(0o660)
+                with mock.patch.object(self.codex_ready, 'BACKEND_SOCKET', str(endpoint)), \
+                        mock.patch('sys.stderr', new=io.StringIO()):
+                    self.assertEqual(self.codex_ready.main([]), 1)
+
+            endpoint.unlink()
+            endpoint.write_text('not a socket')
+            with mock.patch.object(self.codex_ready, 'BACKEND_SOCKET', str(endpoint)), \
+                    mock.patch('sys.stderr', new=io.StringIO()):
+                self.assertEqual(self.codex_ready.main([]), 1)
+        with mock.patch('sys.stderr', new=io.StringIO()):
+            self.assertEqual(self.codex_ready.main(['unexpected']), 1)
+
     def test_codex_policy_has_no_systemd_auth_credential_access(self):
         apparmor = (DESKTOP/'etc/apparmor.d/managed-desktop-wrappers').read_text()
         self.assertNotIn('codex-auth.json', apparmor)
@@ -484,6 +710,9 @@ class SessionAndIntegrationTests(unittest.TestCase):
         staging = (ROOT/'scripts/desktop/components.sh').read_text()
         for path in ['.config/zathura/zathurarc','usr/local/bin/labwc-focuswriter-import',
                      'usr/local/libexec/labwc-session-check','usr/local/libexec/whisper-record-timed',
+                     'usr/local/libexec/codex-app-server-wait-ready',
+                     '.config/systemd/user/codex-app-server-proxy.service',
+                     '.config/systemd/user/codex-app-server.socket',
                      'usr/local/share/applications/labwc-focuswriter-import.desktop']:
             self.assertIn(path,staging)
 
@@ -580,13 +809,20 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             self.assertIn(executable, apparmor)
 
     def test_wallpaper_and_xwayland_boot_contracts_are_explicit(self):
-        expected = '/usr/share/backgrounds/desktop/labwall0-1920x1080.png'
+        expected = '/usr/share/backgrounds/desktop/wallpaper-1920x1080.png'
         with tarfile.open(DESKTOP / 'usr/share/backgrounds/desktop/wallpapers.tar.gz', 'r:gz') as archive:
             self.assertIn('labwall0-1920x1080.png', archive.getnames())
         for profile in (ROOT / 'hosts/profiles').glob('*.env'):
             profile_text = profile.read_text()
             if 'LABWC_WALLPAPER_PATH=' in profile_text:
                 self.assertIn(f'LABWC_WALLPAPER_PATH="{expected}"', profile_text, profile.name)
+        fallback = DESKTOP / expected.lstrip('/')
+        self.assertTrue(fallback.is_file())
+        fallback_bytes = fallback.read_bytes()
+        self.assertGreaterEqual(len(fallback_bytes), 24)
+        self.assertEqual(fallback_bytes[:8], b'\x89PNG\r\n\x1a\n')
+        self.assertEqual(fallback_bytes[12:16], b'IHDR')
+        self.assertEqual(struct.unpack('>II', fallback_bytes[16:24]), (1920, 1080))
         helper = (DESKTOP / 'usr/local/libexec/labwc-swaybg').read_text()
         self.assertIn(f'LABWC_WALLPAPER_PATH:-{expected}', helper)
         self.assertIn('resolved_saved_wallpaper=$(readlink -e', helper)
@@ -605,6 +841,12 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         xwayland = (ROOT / 'scripts/desktop/xwayland.sh').read_text()
         self.assertIn('purge xwayland', xwayland)
         self.assertIn('public /usr/bin/Xwayland must not exist', xwayland)
+        profiles = (DESKTOP / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py').read_text()
+        sandbox = (DESKTOP / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py').read_text()
+        self.assertIn('WAYLAND_COMPAT_APPS = ("discord", "zoom")', profiles)
+        self.assertIn('WAYLAND_COMPAT_RUNTIME_ROOT = "/opt/xwayland"', profiles)
+        self.assertIn('if private_xwayland_binary is not None and app_name not in WAYLAND_COMPAT_APPS:', sandbox)
+        self.assertIn('private Xwayland is not permitted for {app_name}', sandbox)
         firstboot = (ROOT / 'scripts/firstboot/04-validation.sh').read_text()
         self.assertIn('desktop-x11-socket-directory-metadata', firstboot)
         self.assertIn('desktop-public-xwayland-binary', firstboot)
@@ -612,7 +854,10 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('desktop-wallpaper-config', firstboot)
         firstboot_unit = (DESKTOP / 'etc/systemd/system/firstboot.service').read_text()
         self.assertIn('Requires=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
-        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service', firstboot_unit)
+        self.assertIn('Wants=network-online.target apparmor-managed-modes.service', firstboot_unit)
+        self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket network-online.target apparmor-managed-modes.service', firstboot_unit)
+        self.assertIn('WantedBy=multi-user.target', firstboot_unit)
+        self.assertNotIn('Before=sysinit.target', firstboot_unit)
 
     def test_pool_and_apparmor_cache_contracts_are_consistent(self):
         codex = (DESKTOP / 'data/codex/lib/codex').read_text()
@@ -637,6 +882,20 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             end = source.find('\nprofile ', start + len(marker))
             return source[start:] if end < 0 else source[start:end]
 
+        def direct_device_link_grants(source):
+            grants = []
+            for raw_line in source.splitlines():
+                line = raw_line.strip()
+                if '/dev/char/' not in line or line.startswith(('#', 'deny ')):
+                    continue
+                if line.startswith(('link ', 'owner link ')):
+                    grants.append(line)
+                    continue
+                fields = line.rstrip(',').split()
+                if len(fields) >= 2 and 'l' in fields[-1]:
+                    grants.append(line)
+            return grants
+
         policy = (DESKTOP / 'etc/apparmor.d/managed-labwc-session').read_text()
         compositor = profile_block(policy, 'managed-labwc-compositor')
         for rule in (
@@ -649,28 +908,49 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             'deny /var/cache/fontconfig/ w,',
         ):
             self.assertIn(rule, compositor)
+        self.assertEqual(direct_device_link_grants(compositor), [])
 
         waybar = profile_block(policy, 'managed-waybar')
         for rule in (
             '/usr/bin/bwrap rPx -> managed-session-glycin-bwrap,',
-            'owner /proc/[0-9]*/net/dev r,',
+            '/proc/[0-9]*/net/dev r,',
+            'owner /proc/[0-9]*/task/[0-9]*/comm rw,',
             '/dev/rfkill r,',
             'owner @{HOME}/.local/share/gvfs-metadata/{root,root-*.log} r,',
+            'owner @{HOME}/.local/share/tutanota-desktop/ r,',
+            'owner @{HOME}/Desktop/ r,',
+            'signal (send) set=(kill) peer=managed-session-glycin-bwrap,',
         ):
             self.assertIn(rule, waybar)
+        self.assertNotIn('owner /proc/[0-9]*/net/dev r,', waybar)
 
         controls = profile_block(policy, 'managed-session-controls')
         for rule in (
             'deny network inet,',
             'deny network inet6,',
             'owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/ rw,',
+            'owner @{HOME}/.cache/glycin/ rw,',
+            'owner @{HOME}/.cache/glycin/** rwkl,',
             'owner /run/user/[0-9]*/wayscriber/** rwkl,',
+            'signal (send) set=(kill) peer=managed-session-glycin-bwrap,',
         ):
             self.assertIn(rule, controls)
         glycin = profile_block(policy, 'managed-session-glycin-bwrap')
-        self.assertIn('/usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,', glycin)
-        self.assertIn('owner @{HOME}/.cache/glycin/** rwkl,', glycin)
-        self.assertIn('crystal-dock/labwc/#[0-9]*', policy)
+        for rule in (
+            '/dev/rfkill r,',
+            '/usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,',
+            '/usr/share/icons/Papirus/24x24/panel/update-low.svg r,',
+            'owner @{HOME}/.cache/glycin/** rwkl,',
+        ):
+            self.assertIn(rule, glycin)
+        explicit_link_rules = [line.strip() for line in policy.splitlines() if ' link ' in line]
+        for rule in (
+            'owner link "@{HOME}/.config/crystal-dock/labwc/appearance.conf.*" -> "@{HOME}/.config/crystal-dock/labwc/#[0-9]*",',
+            'owner link "@{HOME}/.config/kwalletrc.*" -> "@{HOME}/.config/#[0-9]*",',
+            'owner link "@{HOME}/.local/share/kwalletd/*.kwl.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",',
+        ):
+            self.assertIn(rule, explicit_link_rules)
+        self.assertTrue(all(' subset ' not in rule for rule in explicit_link_rules))
         self.assertIn('@{PROC}/sys/kernel/core_pattern r,', policy)
         self.assertIn('@{PROC}/[0-9]*/mountinfo r,', policy)
 
@@ -691,17 +971,26 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             '/usr/bin/wayland-info rix,',
             '/etc/udev/udev.conf r,',
             '/etc/udev/udev.conf.d/** r,',
+            '/dev/dri/ r,',
+            '/dev/dri/card[0-9]* rw,',
+            '/dev/shm/wlroots-* r,',
+            '@{sys}/devices/pci*/**/{device,subsystem_device,subsystem_vendor,uevent,vendor} r,',
         ):
             self.assertIn(rule, output_watch)
         self.assertNotIn(' pux,', output_watch)
 
         codex = profile_block(wrappers, 'managed-codex-wrapper')
         for rule in (
+            '/dev/pts/[0-9]* rw,',
+            '@{PROC}/[0-9]*/fd/ r,',
             'owner /run/user/[0-9]*/{ansible,python}/ rw,',
             'owner /run/user/[0-9]*/ansible/{pc,ssh,tmp}/ rw,',
             'owner /run/user/[0-9]*/python/pycache/ rw,',
         ):
             self.assertIn(rule, codex)
+        codex_slirp = profile_block(wrappers, 'managed-codex-slirp4netns')
+        self.assertIn('/dev/pts/[0-9]* rw,', codex_slirp)
+        self.assertIn('ptrace (readby) peer=managed-desktop-launcher,', codex_slirp)
 
         for profile_name in (
             'managed-labwc-bluetooth',
@@ -712,6 +1001,10 @@ class InstalledFailureRegressionTests(unittest.TestCase):
             self.assertIn('/dev/rfkill r,', profile_block(wrappers, profile_name))
         keyboard = profile_block(wrappers, 'managed-labwc-keyboard-layout')
         self.assertIn('/sys/devices/**/power_supply/*/status r,', keyboard)
+        brightness = profile_block(wrappers, 'managed-labwc-brightness-control')
+        self.assertIn('@{sys}/devices/**/power_supply/*/status r,', brightness)
+        self.assertIn('/dev/rfkill r,', profile_block(wrappers, 'managed-labwc-managed-app'))
+        self.assertIn('/dev/rfkill r,', profile_block(wrappers, 'managed-labwc-terminal'))
 
         health = profile_block(wrappers, 'managed-labwc-health-notify')
         for executable in ('flock', 'head', 'mktemp', 'mv', 'stat', 'timeout'):
@@ -725,23 +1018,65 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('/usr/bin/{flock,grep,id,jq,sleep,stat} rix,', session)
         microphone = profile_block(wrappers, 'managed-labwc-mute-default-microphone')
         self.assertIn('/usr/local/lib/perl5/site_perl/whisper/** r,', microphone)
+        self.assertIn('owner /run/user/[0-9]*/whisper-record-toggle.{lock,recording} rwk,', microphone)
+        whisper = profile_block(wrappers, 'managed-whisper-record-toggle')
+        self.assertIn('network inet6 dgram,', whisper)
+        self.assertIn('#include <abstractions/managed-desktop-graphics>', whisper)
+        self.assertEqual(direct_device_link_grants(whisper), [])
+        external_notify = profile_block(wrappers, 'managed-managed-external-software-notify')
+        self.assertIn('/usr/bin/timeout rix,', external_notify)
 
         firstboot = (DESKTOP / 'etc/apparmor.d/managed-system-wrappers').read_text()
         crowdsec = profile_block(firstboot, 'managed-crowdsec-firstboot')
         self.assertIn('#include <abstractions/managed-wrapper-python>', crowdsec)
         self.assertIn('/usr/local/libexec/crowdsec-bouncer-verify rix,', crowdsec)
+        self.assertIn('/usr/local/libexec/ r,', crowdsec)
+        managed_firstboot = profile_block(firstboot, 'managed-firstboot')
+        for rule in (
+            'capability chown,',
+            'capability fowner,',
+            '/etc/default/labwc-desktop rw,',
+        ):
+            self.assertIn(rule, managed_firstboot)
         for executable in ('mktemp', 'stat', 'timeout'):
             self.assertIn(executable, crowdsec)
 
         launcher = (DESKTOP / 'etc/apparmor.d/managed-desktop-utilities').read_text()
         for rule in (
+            'capability sys_ptrace,',
             '/usr/ r,',
             '/data/bin/ r,',
+            '/data/codex/lib/ r,',
+            '/data/llama/{bin,lib}/ r,',
             '/var/log/ r,',
             '/run/log/journal/ r,',
             '/var/log/journal/*/user-[0-9]*.journal r,',
+            '/var/lib/systemd/catalog/database r,',
         ):
             self.assertIn(rule, launcher)
+        for peer in (
+            'managed-codex-slirp4netns',
+            'managed-codex-wrapper',
+            'managed-codex-wrapper//codex-bwrap',
+            'managed-crystal-dock',
+            'managed-ksecretd',
+            'managed-labwc-bluetooth',
+            'managed-labwc-calendar',
+            'managed-labwc-compositor',
+            'managed-labwc-fuzzel',
+            'managed-labwc-health-notify',
+            'managed-labwc-managed-app',
+            'managed-labwc-managed-app//managed-app-bwrap',
+            'managed-labwc-output-watch',
+            'managed-labwc-plans',
+            'managed-labwc-session',
+            'managed-session-controls',
+            'managed-session-glycin-bwrap',
+            'managed-waybar',
+            'managed-whisper-record-toggle',
+            'unconfined',
+        ):
+            self.assertIn(f'ptrace (read) peer={peer},', launcher)
 
         session_client = (DESKTOP / 'etc/apparmor.d/abstractions/managed-session-client').read_text()
         self.assertIn('/dev/shm/ r,', session_client)
@@ -752,15 +1087,121 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertIn('owner @{HOME}/.config/pulse/ rw,', audio)
         graphics = (DESKTOP / 'etc/apparmor.d/abstractions/managed-desktop-graphics').read_text()
         self.assertIn('deny /dev/char/*:* l,', graphics)
+        self.assertEqual(direct_device_link_grants(graphics), [])
 
     def test_unix_chkpwd_local_policy_is_staged(self):
         include = DESKTOP / 'etc/apparmor.d/local/unix-chkpwd'
         self.assertTrue(include.is_file())
-        self.assertIn('owner /dev/pts/[0-9]* rw,', include.read_text())
+        self.assertIn('/dev/pts/[0-9]* rw,', include.read_text())
+        self.assertNotIn('owner /dev/pts/[0-9]* rw,', include.read_text())
         security = (ROOT / 'scripts/late/security.sh').read_text()
         self.assertIn('usr.bin.pasta\nslirp4netns\nunix-chkpwd\nEOF', security)
         self.assertIn('for apparmor_local_include in $(apparmor_support_local_include_files); do',
                       security)
+
+    def test_installed_service_and_sandbox_failures_are_repaired(self):
+        staging = (ROOT / 'scripts/desktop/components.sh').read_text()
+        for fragment in (
+            'desktop_normalize_system_dbus_service_directories',
+            'desktop_stage_global_user_unit_dropin_asset wireplumber.service 20-no-root.conf',
+            'etc/udev/rules.d/71-managed-nvidia-char-links.rules',
+        ):
+            self.assertIn(fragment, staging)
+
+        nvidia_rule_asset = (
+            'desktop_stage_role_asset etc/udev/rules.d/71-managed-nvidia-char-links.rules '
+            '/etc/udev/rules.d/71-managed-nvidia-char-links.rules 0644'
+        )
+        self.assertEqual(staging.count(nvidia_rule_asset), 1)
+        nvidia_asset_offset = staging.index(nvidia_rule_asset)
+        nvidia_branch_start = staging.rfind(
+            '  if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then\n',
+            0,
+            nvidia_asset_offset,
+        )
+        self.assertNotEqual(nvidia_branch_start, -1)
+        nvidia_branch_else = staging.index('\n  else\n', nvidia_asset_offset)
+        nvidia_branch_end = staging.index('\n  fi\n', nvidia_branch_else)
+        self.assertLess(nvidia_branch_start, nvidia_asset_offset)
+        self.assertLess(nvidia_asset_offset, nvidia_branch_else)
+        nvidia_false_branch = staging[nvidia_branch_else:nvidia_branch_end]
+        self.assertIn(
+            '/target/etc/udev/rules.d/71-managed-nvidia-char-links.rules',
+            nvidia_false_branch,
+        )
+
+        wireplumber = (DESKTOP / 'etc/systemd/user/wireplumber.service.d/20-no-root.conf').read_text()
+        self.assertIn('ConditionUser=!root', wireplumber)
+        nvidia_rules = (DESKTOP / 'etc/udev/rules.d/71-managed-nvidia-char-links.rules').read_text()
+        self.assertIn('KERNEL=="nvidia[0-9]*"', nvidia_rules)
+        self.assertIn('KERNEL=="nvidiactl|nvidia-modeset|nvidia-uvm|nvidia-uvm-tools"', nvidia_rules)
+        self.assertEqual(nvidia_rules.count('SYMLINK+="char/%M:%m"'), 2)
+
+        firstboot_early = (ROOT / 'scripts/firstboot/01-early.sh').read_text()
+        self.assertIn('[ ! -f "$desktop_defaults" ] || [ -L "$desktop_defaults" ]', firstboot_early)
+        self.assertIn('chown root:root "$desktop_defaults"', firstboot_early)
+        self.assertIn('chmod 0644 "$desktop_defaults"', firstboot_early)
+        firstboot_validation = (ROOT / 'scripts/firstboot/04-validation.sh').read_text()
+        for label in (
+            'desktop-defaults-metadata',
+            'desktop-system-dbus-service-directory-metadata',
+            'desktop-wireplumber-root-condition',
+            'desktop-nvidia-char-device-links',
+        ):
+            self.assertIn(label, firstboot_validation)
+        self.assertNotIn('validation_deferred=true', firstboot_validation)
+
+        apparmor_modes = (DESKTOP / 'etc/systemd/system/apparmor-managed-modes.service').read_text()
+        self.assertIn('After=apparmor.service mullvad-apparmor.service', apparmor_modes)
+        greeter = (DESKTOP / 'usr/local/bin/labwc-greeter-session.tmpl').read_text()
+        self.assertIn('export GTK_USE_PORTAL=0', greeter)
+        self.assertIn('export GIO_USE_PORTALS=0', greeter)
+        verify = (ROOT / 'scripts/desktop/verify.sh').read_text()
+        self.assertIn('managed icon theme is unavailable', verify)
+
+        profiles = (DESKTOP / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py').read_text()
+        persistent = profiles.index('PERSISTENT_SANDBOX_CONFIG = {')
+        start = profiles.index('    "tutanota": {', persistent)
+        end = profiles.index('    "zoom": {', start)
+        tutanota = profiles[start:end]
+        self.assertIn('"require_system_bus": True,', tutanota)
+        self.assertIn('"system_dbus_names": TUTA_SYSTEM_DBUS_NAMES,', tutanota)
+        self.assertIn(
+            'TUTA_SYSTEM_DBUS_NAMES = (\n'
+            '    "org.freedesktop.UPower",\n'
+            ')',
+            profiles,
+        )
+
+    def test_tooling_resolves_python_when_sys_executable_is_empty(self):
+        modules = (
+            load_script(ROOT.parents[1] / 'tools/build.py', 'tested_build'),
+            load_script(ROOT.parents[1] / 'tools/validate.py', 'tested_validate'),
+        )
+        with tempfile.TemporaryDirectory(prefix='python-interpreter-') as directory:
+            candidate = Path(directory) / 'python3'
+            candidate.write_text('#!/bin/sh\nexit 0\n')
+            candidate.chmod(0o755)
+            for module in modules:
+                with self.subTest(module=module.__file__), \
+                     mock.patch.object(module.sys, 'executable', ''), \
+                     mock.patch.object(module.shutil, 'which', return_value=str(candidate)):
+                    self.assertEqual(module.resolve_python_interpreter(), str(candidate))
+                with self.subTest(module=module.__file__), \
+                     mock.patch.object(module.sys, 'executable', ''), \
+                     mock.patch.object(module.shutil, 'which', return_value=None), \
+                     self.assertRaises(ValueError):
+                    module.resolve_python_interpreter()
+
+        validate = modules[1]
+        with mock.patch.dict(validate.os.environ, {'PATH': '/caller-specific'}, clear=True):
+            child_environment = validate.validation_environment()
+            self.assertEqual(child_environment['PATH'], validate.VALIDATION_PATH)
+            self.assertEqual(validate.os.environ['PATH'], '/caller-specific')
+        self.assertEqual(
+            validate.VALIDATION_PATH,
+            '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        )
 
     def test_wayscriber_self_update_watcher_is_disabled(self):
         unit = (DESKTOP / 'etc/systemd/user/wayscriber.service.d/10-labwc-session.conf').read_text()

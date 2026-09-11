@@ -16,6 +16,8 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
 
   unix,
   dbus,
+  capability chown,
+  capability fowner,
 
   /usr/local/libexec/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,
@@ -25,7 +27,7 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
   /usr/local/lib/firstboot.d/ r,
   /usr/local/lib/firstboot.d/logging.sh r,
   /usr/local/lib/firstboot.d/{01-early,02-collect,03-network,04-validation,05-cleanup}.sh rix,
-  /usr/bin/{cat,chmod,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,
+  /usr/bin/{cat,chmod,chown,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,
   /usr/{bin,sbin}/ip rix,
   /usr/bin/{eglinfo,es2_info,wlr-randr} rix,
   /usr/bin/coredumpctl rix,
@@ -36,6 +38,7 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
   /boot/** r,
   /etc/ r,
   /etc/** r,
+  /etc/default/labwc-desktop rw,
   /run/ r,
   /run/** r,
   /usr/local/ r,
@@ -234,6 +237,7 @@ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(
 
   /usr/local/libexec/crowdsec-firstboot rix,
   /usr/local/libexec/crowdsec-bouncer-verify rix,
+  /usr/local/libexec/ r,
   /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sleep,ss,stat,systemctl,timeout} rix,
   /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
 

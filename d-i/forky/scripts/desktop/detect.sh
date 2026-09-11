@@ -463,6 +463,15 @@ desktop_validate_policy_env() {
   desktop_validate_uint_range LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MENU_WIDTH:-22}" 16 200
   desktop_validate_uint_range LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MENU_LINES:-5}" 1 32
   desktop_validate_uint_range LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_FONT_SIZE:-15}" 8 32
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_WIDTH "${LABWC_FUZZEL_INTERNAL_WIDTH:-28}" 20 200
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_LINES "${LABWC_FUZZEL_INTERNAL_LINES:-10}" 4 40
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}" 16 200
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}" 1 32
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_FONT_SIZE "${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}" 8 32
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD "${LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD:-10}" 0 64
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_VERTICAL_PAD "${LABWC_FUZZEL_INTERNAL_VERTICAL_PAD:-6}" 0 64
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_INNER_PAD "${LABWC_FUZZEL_INTERNAL_INNER_PAD:-4}" 0 64
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_LINE_HEIGHT "${LABWC_FUZZEL_INTERNAL_LINE_HEIGHT:-16}" 8 64
   desktop_validate_uint_range LABWC_FUZZEL_CONTAINER_MANAGEMENT_WIDTH "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}" 16 200
   desktop_validate_uint_range LABWC_FUZZEL_CONTAINER_MANAGEMENT_LINES "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}" 1 32
   desktop_validate_uint_range LABWC_FUZZEL_CONTAINER_MANAGEMENT_FONT_SIZE "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}" 8 32
@@ -537,7 +546,7 @@ desktop_validate_policy_env() {
   desktop_validate_identifier_list LABWC_GREETER_WLR_NO_HARDWARE_CURSORS "${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS-1}"
   desktop_validate_absolute_path LABWC_DESKTOP_DEFAULTS_FILE "${LABWC_DESKTOP_DEFAULTS_FILE:-/etc/default/labwc-desktop}"
   desktop_validate_absolute_path LABWC_DESKTOP_SESSION_COMMAND "${LABWC_DESKTOP_SESSION_COMMAND:-/usr/local/bin/labwc-session}"
-  desktop_validate_absolute_path LABWC_WALLPAPER_PATH "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}"
+  desktop_validate_absolute_path LABWC_WALLPAPER_PATH "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}"
   desktop_validate_absolute_path LABWC_LOCK_BACKGROUND_PATH "${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}"
   desktop_validate_absolute_path LABWC_GREETER_BACKGROUND_PATH "${LABWC_GREETER_BACKGROUND_PATH:-/usr/share/backgrounds/login/welcome-1920x1080.png}"
   desktop_validate_managed_app_default_exec \

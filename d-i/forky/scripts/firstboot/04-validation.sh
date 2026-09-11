@@ -190,6 +190,12 @@ validate_desktop_role() {
 
   record "desktop_role=selected"
   log_line validation info desktop "desktop_role=selected"
+  check_command desktop-defaults-metadata \
+    /bin/sh -eu -c '
+      [ -f /etc/default/labwc-desktop ]
+      [ ! -L /etc/default/labwc-desktop ]
+      [ "$(stat -c "%u:%g:%a" /etc/default/labwc-desktop)" = "0:0:644" ]
+    ' sh
   desktop_account_user=$(
     /bin/sh -eu -c '
       . /etc/default/labwc-desktop
@@ -218,6 +224,9 @@ validate_desktop_role() {
   esac
   for desktop_path in \
     /etc/default/labwc-desktop \
+    /usr/local/share/dbus-1 \
+    /usr/local/share/dbus-1/services \
+    /etc/systemd/user/wireplumber.service.d/20-no-root.conf \
     /etc/pam.d/greetd \
     /etc/pam.d/greetd-greeter \
     /etc/pam.d/swaylock \
@@ -373,7 +382,23 @@ validate_desktop_role() {
     check_path "desktop-path-${desktop_path}" "$desktop_path"
   done
 
-  desktop_wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}
+  check_command desktop-system-dbus-service-directory-metadata \
+    /bin/sh -eu -c '
+      for path in /usr/local/share/dbus-1 /usr/local/share/dbus-1/services; do
+        [ -d "$path" ]
+        [ ! -L "$path" ]
+        [ "$(stat -c "%u:%g:%a" "$path")" = "0:0:755" ]
+      done
+    ' sh
+  check_command desktop-wireplumber-root-condition \
+    grep -Fxq 'ConditionUser=!root' /etc/systemd/user/wireplumber.service.d/20-no-root.conf
+
+  desktop_wallpaper_path=$(
+    /bin/sh -eu -c '
+      . /etc/default/labwc-desktop
+      printf "%s\n" "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}"
+    ' sh 2>/dev/null || true
+  )
   case "$desktop_wallpaper_path" in
     /usr/share/backgrounds/desktop/*) ;;
     *)
@@ -389,6 +414,32 @@ validate_desktop_role() {
     log_line validation error desktop "unreadable_wallpaper=${desktop_wallpaper_path}"
     failures=$((failures + 1))
   fi
+
+  desktop_nvidia_acceleration_available=$(
+    /bin/sh -eu -c '
+      . /etc/default/labwc-desktop
+      printf "%s\n" "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}"
+    ' sh 2>/dev/null || true
+  )
+  if bool_is_true "$desktop_nvidia_acceleration_available"; then
+    check_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
+    check_command desktop-nvidia-char-device-links \
+      /bin/sh -eu -c '
+        for device in /dev/nvidia[0-9]* /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools; do
+          [ -c "$device" ] || continue
+          major_hex=$(stat -c %t "$device")
+          minor_hex=$(stat -c %T "$device")
+          major=$((0x${major_hex}))
+          minor=$((0x${minor_hex}))
+          link="/dev/char/${major}:${minor}"
+          [ -L "$link" ]
+          [ "$link" -ef "$device" ]
+        done
+      ' sh
+  else
+    check_absent_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
+  fi
+  unset desktop_nvidia_acceleration_available
 
   check_command desktop-x11-socket-directory-metadata \
     /bin/sh -eu -c '
@@ -965,21 +1016,10 @@ if command -v systemctl >/dev/null 2>&1; then
 fi
 
 if [ -x /usr/local/libexec/apparmor-managed-modes-run ]; then
-  # firstboot.service intentionally runs before sysinit.target, while the
-  # reconciliation unit runs only after apparmor.service. Avoid racing that
-  # later unit and producing transient source-mode mismatches during boot.
-  apparmor_mode_state=inactive
-  if command -v systemctl >/dev/null 2>&1; then
-    apparmor_mode_state=$(systemctl is-active apparmor-managed-modes.service 2>/dev/null || true)
-    [ -n "$apparmor_mode_state" ] || apparmor_mode_state=inactive
-  fi
-  if [ "$apparmor_mode_state" = active ]; then
-    check_command apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes-run --check
-    check_command apparmor-managed-modes-loaded /usr/local/libexec/apparmor-managed-modes-run --check-loaded
-  else
-    record "INFO apparmor-managed-modes: validation deferred to apparmor-managed-modes.service state=${apparmor_mode_state}"
-    log_line validation info apparmor-managed-modes "validation_deferred=true unit_state=${apparmor_mode_state}"
-  fi
+  # firstboot.service is ordered after the reconciliation unit, so source and
+  # loaded modes must already agree rather than being deferred as a boot race.
+  check_command apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes-run --check
+  check_command apparmor-managed-modes-loaded /usr/local/libexec/apparmor-managed-modes-run --check-loaded
 fi
 if command -v aa-status >/dev/null 2>&1; then
   capture apparmor-status.json aa-status --pretty-json

@@ -9,9 +9,10 @@ d __INSTALLER_DEVOPS_CODEX_USER_ROOT__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devop
 d __INSTALLER_DEVOPS_CODEX_AGENTS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_SKILLS__ 0750 __INSTALLER_ACCOUNT_USERNAME__ devops -
 d __INSTALLER_DEVOPS_CODEX_HOME__ 2770 __INSTALLER_ACCOUNT_USERNAME__ devops -
-# The app server is supervised by the account user manager. Its canonical
-# startup lock remains below CODEX_HOME, while the listener itself uses the
-# private /data/codex/sockets directory selected by the managed user unit.
+# The account user manager owns the public activation socket and proxies it to
+# a wrapper-backed private listener only while clients are connected. Its
+# canonical startup lock remains below CODEX_HOME; both sockets stay inside the
+# private /data/codex/sockets directory.
 # auth.json is deliberately omitted: Codex creates it only after user login.
 d __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control 0700 __INSTALLER_ACCOUNT_USERNAME__ devops -
 f __INSTALLER_DEVOPS_CODEX_HOME__/app-server-control/app-server-startup.lock 0600 __INSTALLER_ACCOUNT_USERNAME__ devops -

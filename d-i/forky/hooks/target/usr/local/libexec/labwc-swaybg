@@ -11,7 +11,7 @@ case "${LABWC_ENABLE_SWAYBG:-true}" in
   *) exit 0 ;;
 esac
 
-wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}
+wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}
 saved_wallpaper_path=$(
   /usr/local/bin/labwc-wallpaper-save --current 2>/dev/null || true
 )

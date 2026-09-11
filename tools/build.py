@@ -26,6 +26,15 @@ GENERATED = {'preseed.cfg', 'payload.tar.gz', 'payload.manifest'}
 EXCLUDED_DIRS = {'tests', '__pycache__', '.git', '.pytest_cache'}
 SAFE_PATH = re.compile(r'[A-Za-z0-9_./@+-]+\Z')
 
+def resolve_python_interpreter() -> str:
+    candidate = sys.executable or shutil.which('python3')
+    if not candidate:
+        raise ValueError('building browser configuration requires a Python 3 interpreter')
+    path = Path(candidate)
+    if not path.is_absolute() or not path.is_file() or not os.access(path, os.X_OK):
+        raise ValueError(f'unsafe Python interpreter path: {candidate!r}')
+    return str(path)
+
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -290,7 +299,7 @@ def main() -> int:
     parser.add_argument('--check', action='store_true', help='fail if generated files are stale')
     args = parser.parse_args()
     try:
-        subprocess.run([sys.executable, '-B', str(ROOT / 'tools/build_browser_config.py')] +
+        subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)
         sync_debconf_helpers(args.check)

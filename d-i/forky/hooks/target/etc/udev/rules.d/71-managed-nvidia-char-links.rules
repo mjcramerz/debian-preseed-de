@@ -1,0 +1,8 @@
+# Managed by unattended-installer.
+#
+# NVIDIA's userspace libraries may try to create /dev/char/<major>:<minor>
+# links from an unprivileged desktop process. Keep that operation denied by
+# AppArmor and have udev, running as root, create the bounded device links.
+
+ACTION=="add|change", KERNEL=="nvidia[0-9]*", SYMLINK+="char/%M:%m"
+ACTION=="add|change", KERNEL=="nvidiactl|nvidia-modeset|nvidia-uvm|nvidia-uvm-tools", SYMLINK+="char/%M:%m"

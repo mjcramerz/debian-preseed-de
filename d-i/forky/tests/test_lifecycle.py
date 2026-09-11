@@ -384,10 +384,13 @@ DIR_DATA=/data
         self.assertIn("APT::Update::Error-Mode=any", helper)
         self.assertIn("return 75", helper)
 
-    def test_firstboot_does_not_hold_sysinit_until_diagnostics_finish(self) -> None:
+    def test_firstboot_starts_after_boot_prerequisites_without_waiting_for_diagnostics(self) -> None:
         unit = (SHARED / "etc/systemd/system/firstboot.service").read_text()
         self.assertIn("Type=exec", unit)
         self.assertNotIn("Type=oneshot", unit)
+        self.assertIn("Wants=network-online.target apparmor-managed-modes.service", unit)
+        self.assertIn("WantedBy=multi-user.target", unit)
+        self.assertNotIn("Before=sysinit.target", unit)
         self.assertIn("RuntimeMaxSec=35min", unit)
         self.assertIn("KillMode=control-group", unit)
 

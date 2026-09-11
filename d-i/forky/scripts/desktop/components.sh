@@ -36,6 +36,22 @@ desktop_stage_role_asset() {
   desktop_log "staged_asset source=${source_path} target=${target_path} mode=${mode}"
 }
 
+desktop_normalize_system_dbus_service_directories() {
+  for dbus_service_directory in \
+    /usr/local/share/dbus-1 \
+    /usr/local/share/dbus-1/services
+  do
+    ensure_target_asset_parent "${dbus_service_directory}/.installer-directory"
+    dbus_service_directory_host=$(target_asset_host_path "$dbus_service_directory")
+    [ -d "$dbus_service_directory_host" ] && [ ! -L "$dbus_service_directory_host" ] ||
+      installer_fatal "system D-Bus service directory is unsafe: ${dbus_service_directory}"
+    chown root:root "$dbus_service_directory_host"
+    chmod 0755 "$dbus_service_directory_host"
+  done
+  unset dbus_service_directory dbus_service_directory_host
+  desktop_log "normalized_system_dbus_service_directories owner=root:root mode=0755"
+}
+
 desktop_reconcile_wtmpdb_common_session() {
   wtmpdb_target_root=${1:-/target}
   case "$wtmpdb_target_root" in
@@ -2510,6 +2526,7 @@ desktop_stage_labwc_user_session_assets() {
     0644
 
   desktop_stage_labwc_package_user_unit_dropins
+  desktop_stage_global_user_unit_dropin_asset wireplumber.service 20-no-root.conf
   desktop_stage_wayscriber_service
   desktop_stage_kwallet_dbus_activation_assets
 
@@ -2572,7 +2589,7 @@ desktop_render_labwc_default_config() {
     LABWC_NVIDIA_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_NVIDIA_ACCELERATION_AVAILABLE")" \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_MANAGED_APP_DEFAULT_EXEC")" \
     LABWC_WORKSPACE_COUNT "$(desktop_shell_config_value "${LABWC_WORKSPACE_COUNT:-4}")" \
-    LABWC_WALLPAPER_PATH "$(desktop_shell_config_value "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/labwall0-1920x1080.png}")" \
+    LABWC_WALLPAPER_PATH "$(desktop_shell_config_value "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}")" \
     LABWC_LOCK_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}")" \
     LABWC_GREETER_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_GREETER_BACKGROUND_PATH:-/usr/share/backgrounds/login/welcome-1920x1080.png}")" \
     LABWC_OUTPUT_POLICY "$(desktop_shell_config_value "${LABWC_OUTPUT_POLICY:-auto}")" \
@@ -2671,6 +2688,15 @@ desktop_render_labwc_default_config() {
     LABWC_FUZZEL_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MENU_WIDTH:-22}")" \
     LABWC_FUZZEL_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_MENU_LINES:-5}")" \
     LABWC_FUZZEL_FONT_SIZE "$(desktop_shell_config_value "${LABWC_FUZZEL_FONT_SIZE:-15}")" \
+    LABWC_FUZZEL_INTERNAL_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_WIDTH:-28}")" \
+    LABWC_FUZZEL_INTERNAL_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_LINES:-10}")" \
+    LABWC_FUZZEL_INTERNAL_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}")" \
+    LABWC_FUZZEL_INTERNAL_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}")" \
+    LABWC_FUZZEL_INTERNAL_FONT_SIZE "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}")" \
+    LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD:-10}")" \
+    LABWC_FUZZEL_INTERNAL_VERTICAL_PAD "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_VERTICAL_PAD:-6}")" \
+    LABWC_FUZZEL_INTERNAL_INNER_PAD "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_INNER_PAD:-4}")" \
+    LABWC_FUZZEL_INTERNAL_LINE_HEIGHT "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_LINE_HEIGHT:-16}")" \
     LABWC_FUZZEL_CONTAINER_MANAGEMENT_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}")" \
     LABWC_FUZZEL_CONTAINER_MANAGEMENT_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}")" \
     LABWC_FUZZEL_CONTAINER_MANAGEMENT_FONT_SIZE "$(desktop_shell_config_value "${LABWC_FUZZEL_CONTAINER_MANAGEMENT_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}")" \
@@ -3086,22 +3112,51 @@ desktop_render_fuzzel_configs() {
     "/etc/skel/primary/.config/fuzzel/base.ini" \
     0644 \
     LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_FONT_SIZE:-15}" \
+    LABWC_FUZZEL_HORIZONTAL_PAD 12 \
+    LABWC_FUZZEL_VERTICAL_PAD 10 \
+    LABWC_FUZZEL_INNER_PAD 6 \
+    LABWC_FUZZEL_LINE_HEIGHT 20 \
+    LABWC_ICON_THEME "$(desktop_toml_escape "${LABWC_ICON_THEME:-Papirus-Dark}")"
+  desktop_render_role_target_template \
+    "etc/skel/primary/.config/fuzzel/base.ini.tmpl" \
+    "/etc/skel/primary/.config/fuzzel/base-internal.ini" \
+    0644 \
+    LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}" \
+    LABWC_FUZZEL_HORIZONTAL_PAD "${LABWC_FUZZEL_INTERNAL_HORIZONTAL_PAD:-10}" \
+    LABWC_FUZZEL_VERTICAL_PAD "${LABWC_FUZZEL_INTERNAL_VERTICAL_PAD:-6}" \
+    LABWC_FUZZEL_INNER_PAD "${LABWC_FUZZEL_INTERNAL_INNER_PAD:-4}" \
+    LABWC_FUZZEL_LINE_HEIGHT "${LABWC_FUZZEL_INTERNAL_LINE_HEIGHT:-16}" \
     LABWC_ICON_THEME "$(desktop_toml_escape "${LABWC_ICON_THEME:-Papirus-Dark}")"
   desktop_render_role_target_template \
     "etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl" \
     "/etc/skel/primary/.config/fuzzel/fuzzel.ini" \
     0644 \
+    LABWC_FUZZEL_BASE_CONFIG base.ini \
     LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_WIDTH:-54}" \
     LABWC_FUZZEL_LINES "${LABWC_FUZZEL_LINES:-10}"
+  desktop_render_role_target_template \
+    "etc/skel/primary/.config/fuzzel/fuzzel.ini.tmpl" \
+    "/etc/skel/primary/.config/fuzzel/fuzzel-internal.ini" \
+    0644 \
+    LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
+    LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_INTERNAL_WIDTH:-28}" \
+    LABWC_FUZZEL_LINES "${LABWC_FUZZEL_INTERNAL_LINES:-10}"
   desktop_render_role_target_template \
     "etc/skel/primary/.config/fuzzel/menu.ini.tmpl" \
     "/etc/skel/primary/.config/fuzzel/menu.ini" \
     0644 \
+    LABWC_FUZZEL_BASE_CONFIG base.ini \
     LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MENU_WIDTH:-28}" \
     LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MENU_LINES:-8}"
-  desktop_log "rendered_fuzzel_configs launcher_width=${LABWC_FUZZEL_WIDTH:-54} menu_width=${LABWC_FUZZEL_MENU_WIDTH:-28}"
+  desktop_render_role_target_template \
+    "etc/skel/primary/.config/fuzzel/menu.ini.tmpl" \
+    "/etc/skel/primary/.config/fuzzel/menu-internal.ini" \
+    0644 \
+    LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
+    LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}" \
+    LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}"
+  desktop_log "rendered_fuzzel_configs launcher_width=${LABWC_FUZZEL_WIDTH:-54} internal_launcher_width=${LABWC_FUZZEL_INTERNAL_WIDTH:-28} menu_width=${LABWC_FUZZEL_MENU_WIDTH:-28} internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}"
 }
-
 desktop_render_crystal_dock_appearance() {
   for target_path in \
     /etc/skel/primary/.config/crystal-dock/labwc/appearance.conf \
@@ -3494,6 +3549,7 @@ done
 }
 
 desktop_stage_target_assets() {
+  desktop_normalize_system_dbus_service_directories
   desktop_stage_logging_policy
   desktop_stage_primary_account_pool_storage_policy
   desktop_stage_network_profile_storage_policy
@@ -3634,8 +3690,11 @@ desktop_stage_target_assets() {
   desktop_stage_mullvad_application_policy
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
+    desktop_stage_role_asset etc/udev/rules.d/71-managed-nvidia-char-links.rules /etc/udev/rules.d/71-managed-nvidia-char-links.rules 0644
   else
-    rm -f /target/etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf
+    rm -f \
+      /target/etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf \
+      /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules
   fi
   # KWallet belongs to the single managed Labwc account. Keep the portal unit
   # account-local so the greeter's independent user manager cannot discover or
@@ -3644,7 +3703,10 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service /etc/skel/primary/.config/systemd/user/labwc-kwallet-portal.service 0644
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/labwc-output-watch.service /etc/skel/primary/.config/systemd/user/labwc-output-watch.service 0644
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server.service /etc/skel/primary/.config/systemd/user/codex-app-server.service 0644
+  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server-proxy.service /etc/skel/primary/.config/systemd/user/codex-app-server-proxy.service 0644
+  desktop_stage_role_asset etc/skel/primary/.config/systemd/user/codex-app-server.socket /etc/skel/primary/.config/systemd/user/codex-app-server.socket 0644
   desktop_stage_role_asset etc/default/codex-app-server /etc/default/codex-app-server 0644
+  desktop_stage_role_asset usr/local/libexec/codex-app-server-wait-ready /usr/local/libexec/codex-app-server-wait-ready 0755
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/swaybg.service /etc/skel/primary/.config/systemd/user/swaybg.service 0644
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/kanshi.service /etc/skel/primary/.config/systemd/user/kanshi.service 0644
   desktop_stage_role_asset etc/skel/primary/.config/systemd/user/swayidle.service /etc/skel/primary/.config/systemd/user/swayidle.service 0644

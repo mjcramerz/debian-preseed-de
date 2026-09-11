@@ -429,6 +429,12 @@ class RealAptTests(unittest.TestCase):
                     'Dir::Cache::pkgcache': '', 'Dir::Cache::srcpkgcache': '',
                     'Dir::Log': str(self.work/'log'), 'APT::Architecture': 'amd64',
                     'APT::Sandbox::User': pwd.getpwuid(os.geteuid()).pw_name,
+                    # APT_CONFIG selects the disposable main file, but some
+                    # packaged apt launchers preseed a host default release
+                    # before command-line Dir overrides are applied. Clear it
+                    # explicitly so this fixture's Suite: fixture metadata is
+                    # evaluated independently of the development host suite.
+                    'APT::Default-Release': '',
                     'Acquire::Languages': 'none', 'Acquire::Retries': '0',
                     'Acquire::http::Proxy': 'DIRECT', 'Acquire::http::Timeout': '3',
                     'Acquire::AllowInsecureRepositories': 'false',

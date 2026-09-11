@@ -39,6 +39,9 @@ CHATGPT_SESSION_DBUS_NAMES = (
 CHATGPT_SYSTEM_DBUS_NAMES = (
     "org.freedesktop.UPower",
 )
+TUTA_SYSTEM_DBUS_NAMES = (
+    "org.freedesktop.UPower",
+)
 DISCORD_ROOT = "/opt/discord"
 DISCORD_MODULES_ROOT = f"{DISCORD_ROOT}/modules"
 DISCORD_RELEASE_FILE = f"{DISCORD_ROOT}/.managed-release"
@@ -652,6 +655,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "inner_sandbox_args": ("--no-sandbox",),
         "persistent_paths": TUTA_PERSISTENT_PATHS,
         "require_session_bus": True,
+        "require_system_bus": True,
         "ro_bind_paths": ("/opt/tuta-mail",),
         "ro_bind_home_directories": TUTA_ATTACHMENT_READ_ONLY_PATHS,
         "rw_bind_home_directories": TUTA_ATTACHMENT_READ_WRITE_PATHS,
@@ -662,6 +666,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": True,
+        "system_dbus_names": TUTA_SYSTEM_DBUS_NAMES,
     },
     "zoom": {
         "chdir": ".",

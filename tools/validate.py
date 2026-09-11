@@ -13,11 +13,29 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+VALIDATION_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def validation_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment['PATH'] = VALIDATION_PATH
+    return environment
+
+
+def resolve_python_interpreter() -> str:
+    candidate = sys.executable or shutil.which('python3')
+    if not candidate:
+        raise ValueError('repository validation requires a Python 3 interpreter')
+    path = Path(candidate)
+    if not path.is_absolute() or not path.is_file() or not os.access(path, os.X_OK):
+        raise ValueError(f'unsafe Python interpreter path: {candidate!r}')
+    return str(path)
 
 def unittest_counts(text: str) -> tuple[int | None, int]:
     run_match = re.search(r'Ran (\d+) tests? in ', text)
@@ -33,14 +51,16 @@ def main() -> int:
     args = parser.parse_args()
     output = args.output_dir.resolve()
     output.mkdir(parents=True,exist_ok=True)
+    interpreter = resolve_python_interpreter()
     stages = [
-        ('browser-check', [sys.executable,'-B','tools/build_browser_config.py','--check'],30),
-        ('build-check', [sys.executable,'-B','tools/build.py','--check'],90),
-        ('preseed-check', [sys.executable,'-B','tools/check_preseeds.py'],90),
-        ('shell-check', [sys.executable,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
-        ('tests', [sys.executable,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],300),
-        ('audit', [sys.executable,'-B','d-i/forky/tests/audit_codebase.py','--output',str(output/'audit.json')],120),
+        ('browser-check', [interpreter,'-B','tools/build_browser_config.py','--check'],30),
+        ('build-check', [interpreter,'-B','tools/build.py','--check'],90),
+        ('preseed-check', [interpreter,'-B','tools/check_preseeds.py'],90),
+        ('shell-check', [interpreter,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
+        ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],300),
+        ('audit', [interpreter,'-B','d-i/forky/tests/audit_codebase.py','--output',str(output/'audit.json')],120),
     ]
+    child_environment = validation_environment()
     results=[]
     for name,command,timeout in stages:
         print(f'[{name}] running; log: {output/name}.log',flush=True)
@@ -48,7 +68,14 @@ def main() -> int:
         log=output/(name+'.log')
         timed_out=False
         with log.open('w') as stream:
-            process=subprocess.Popen(command,cwd=ROOT,stdout=stream,stderr=subprocess.STDOUT,start_new_session=True)
+            process=subprocess.Popen(
+                command,
+                cwd=ROOT,
+                env=child_environment,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
             try:
                 status=process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:

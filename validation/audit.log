@@ -1,21 +1,21 @@
 {
-  "requested_unique_files": 1059,
-  "total_with_installers_and_hosts": 1163,
+  "requested_unique_files": 1064,
+  "total_with_installers_and_hosts": 1168,
   "check_counts": {
     "blocked-tool": 11,
-    "inventory-only": 476,
-    "pass": 558,
-    "structure-pass": 116,
+    "inventory-only": 477,
+    "pass": 559,
+    "structure-pass": 119,
     "template-needs-render": 2
   },
   "kind_counts": {
-    "config-or-data": 476,
+    "config-or-data": 477,
     "javascript": 11,
     "json": 41,
     "perl": 176,
-    "python": 71,
+    "python": 72,
     "shell": 255,
-    "systemd-structure": 116,
+    "systemd-structure": 119,
     "toml": 9,
     "xml": 8
   }

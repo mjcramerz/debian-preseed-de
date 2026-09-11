@@ -30,6 +30,24 @@ if [ -r /usr/local/lib/firstboot.d/logging.sh ]; then
   . /usr/local/lib/firstboot.d/logging.sh
 fi
 
+desktop_defaults=/etc/default/labwc-desktop
+if [ -e "$desktop_defaults" ] || [ -L "$desktop_defaults" ]; then
+  if [ ! -f "$desktop_defaults" ] || [ -L "$desktop_defaults" ]; then
+    log_line early error desktop-defaults "unsafe_path=${desktop_defaults}"
+    exit 1
+  fi
+  chown root:root "$desktop_defaults" || {
+    log_line early error desktop-defaults "owner_normalization_failed=${desktop_defaults}"
+    exit 1
+  }
+  chmod 0644 "$desktop_defaults" || {
+    log_line early error desktop-defaults "mode_normalization_failed=${desktop_defaults}"
+    exit 1
+  }
+  log_line early info desktop-defaults "normalized=${desktop_defaults} owner=root:root mode=0644"
+fi
+unset desktop_defaults
+
 redacted_cmdline() {
   redacted=
   if [ -r /proc/cmdline ]; then

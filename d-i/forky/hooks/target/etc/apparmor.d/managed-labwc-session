@@ -76,13 +76,17 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   owner @{HOME}/.cache/waybar/ rw,
   owner @{HOME}/.cache/waybar/** rwkl,
   # Waybar's network module reads counters through its own procfs view.
-  owner /proc/[0-9]*/net/dev r,
+  /proc/[0-9]*/net/dev r,
+  owner /proc/[0-9]*/task/[0-9]*/comm rw,
   /dev/rfkill r,
   owner @{HOME}/.local/share/gvfs-metadata/ r,
   owner @{HOME}/.local/share/gvfs-metadata/{root,root-*.log} r,
+  owner @{HOME}/.local/share/tutanota-desktop/ r,
+  owner @{HOME}/Desktop/ r,
   # Network/weather modules can use the network, without reading credentials.
   network inet stream,
   network inet6 stream,
+  signal (send) set=(kill) peer=managed-session-glycin-bwrap,
   signal (receive) set=(usr2) peer=managed-labwc-session-check,
   include if exists <local/usr.bin.waybar>
 }
@@ -94,6 +98,7 @@ profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected) {
   owner @{HOME}/.config/crystal-dock/** rwkl,
   # QSaveFile links a named temporary file to this disconnected inode form.
   owner "@{HOME}/.config/crystal-dock/labwc/#[0-9]*" rwkl,
+  owner link "@{HOME}/.config/crystal-dock/labwc/appearance.conf.*" -> "@{HOME}/.config/crystal-dock/labwc/#[0-9]*",
   owner "@{HOME}/.config/Crystal Dock/**" rwkl,
   owner @{HOME}/.local/share/{crystal-dock,applications}/ r,
   owner @{HOME}/.local/share/crystal-dock/** rwkl,
@@ -118,9 +123,11 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected) {
   owner @{HOME}/.config/{kwallet*,ksecret*,kdeglobals}* rwkl,
   owner @{HOME}/.config/qt6ct/qt6ct.conf r,
   owner "@{HOME}/.config/#[0-9]*" rwkl,
+  owner link "@{HOME}/.config/kwalletrc.*" -> "@{HOME}/.config/#[0-9]*",
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/ rw,
   owner @{HOME}/.local/share/{kwalletd,ksecretd}/** rwklm,
   owner "@{HOME}/.local/share/kwalletd/#[0-9]*" rwklm,
+  owner link "@{HOME}/.local/share/kwalletd/*.kwl.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",
   owner @{HOME}/.gnupg/ rw,
   owner @{HOME}/.gnupg/** rwklm,
   owner /run/user/[0-9]*/{bus,gnupg/**,kwallet*} rwkl,
@@ -146,9 +153,12 @@ profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-r
   owner @{HOME}/.local/share/{labwc,wayscriber}/** rwkl,
   owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/ rw,
   owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/** rwkl,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
   owner /run/user/[0-9]*/wayscriber/ rw,
   owner /run/user/[0-9]*/wayscriber/** rwkl,
   /etc/default/labwc-desktop r,
+  signal (send) set=(kill) peer=managed-session-glycin-bwrap,
   include if exists <local/managed-session-controls>
 }
 
@@ -159,12 +169,14 @@ profile managed-session-glycin-bwrap flags=(attach_disconnected, mediate_deleted
 
   signal (receive) set=(kill, term) peer=managed-waybar,
   signal (receive) set=(kill, term) peer=managed-session-controls,
+  /dev/rfkill r,
   /usr/bin/true rix,
   # Bubblewrap has already set no_new_privs; image loaders inherit this domain.
   /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
   /usr/share/glycin-loaders/2+/conf.d/ r,
   /usr/share/glycin-loaders/2+/conf.d/** r,
   /usr/share/mime/mime.cache r,
+  /usr/share/icons/Papirus/24x24/panel/update-low.svg r,
   owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
   owner @{HOME}/.cache/fontconfig/ r,
   owner @{HOME}/.cache/fontconfig/** r,

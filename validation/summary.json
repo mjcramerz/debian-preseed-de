@@ -1,64 +1,64 @@
 {
   "repository": "debian-preseed-de",
-  "utc": "2026-09-10T23:05:41.655984+00:00",
+  "utc": "2026-09-11T09:47:02.483584+00:00",
   "stages": [
     {
       "stage": "browser-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.215,
+      "seconds": 0.114,
       "log": "browser-check.log"
     },
     {
       "stage": "build-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 1.216,
+      "seconds": 0.966,
       "log": "build-check.log"
     },
     {
       "stage": "preseed-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.315,
+      "seconds": 0.165,
       "log": "preseed-check.log"
     },
     {
       "stage": "shell-check",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 0.716,
+      "seconds": 0.615,
       "log": "shell-check.log"
     },
     {
       "stage": "tests",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 21.01,
+      "seconds": 60.666,
       "log": "tests.log",
-      "tests_run": 591,
-      "skipped": 177
+      "tests_run": 599,
+      "skipped": 128
     },
     {
       "stage": "audit",
       "returncode": 0,
       "timed_out": false,
-      "seconds": 4.733,
+      "seconds": 4.936,
       "log": "audit.log"
     }
   ],
   "success": true,
   "audit_check_counts": {
     "blocked-tool": 11,
-    "inventory-only": 476,
-    "pass": 558,
-    "structure-pass": 116,
+    "inventory-only": 477,
+    "pass": 559,
+    "structure-pass": 119,
     "template-needs-render": 2
   },
   "runtime_product_sha256": {
-    "preseed.cfg": "c1d60f2b35fe9192c600b6f3373ecda980a0ba9f15d6c4fad5cdb40c68b391d9",
-    "payload.manifest": "e9152561f949727ba7b75c6fbadc117e82f5f204439bf7ce9f63e015d35809af",
-    "payload.tar.gz": "91dffd4071459cab459c108ba25e12b20eb48dbcb0f73bf6d324c12901e3a599"
+    "preseed.cfg": "41e74f504defa0ae4dbf8a2fd69fb18a5d6345a96cb1d16133d8ac30995f7f6b",
+    "payload.manifest": "88ccc8206a6236619fe947884aeaecf3d93937e7250dcb2c6c8914f0d96bc470",
+    "payload.tar.gz": "8c47d3e1a35f4457c8579cf92d9cf555c6f9f132d98982bf38b4236965d8249a"
   },
   "limits": [
     "Offline/loopback checks, not a booted Debian installer.",

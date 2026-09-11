@@ -50,7 +50,7 @@ PROFILE_SHELL = "/bin/sh"
 CODEX_APP_SERVER_ARGUMENTS = (
     "app-server",
     "--listen",
-    "unix:///data/codex/sockets/app-server-control.sock",
+    "unix:///data/codex/sockets/app-server-backend.sock",
 )
 CODEX_APP_SERVER_SECRET_ENV_NAMES_VARIABLE = (
     "CODEX_APP_SERVER_SECRET_ENV_NAMES"

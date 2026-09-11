@@ -1,0 +1,15 @@
+[Unit]
+Description=Managed Codex app-server activation socket
+Documentation=man:systemd.socket(5)
+ConditionPathIsDirectory=/data/codex/sockets
+
+[Socket]
+ListenStream=/data/codex/sockets/app-server-control.sock
+Accept=no
+SocketMode=0600
+DirectoryMode=0700
+RemoveOnStop=yes
+Service=codex-app-server-proxy.service
+
+[Install]
+WantedBy=sockets.target

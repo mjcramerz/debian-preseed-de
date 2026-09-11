@@ -7820,7 +7820,7 @@
       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "content_status": "unchanged",
-      "current_sha256": "29a064c77b275aad6f4c2106097a931c29dea5c2067919bc9f6cabd4ad943cc7",
+      "current_sha256": "9fe7e557d4567336306705da75b71d68e635372f3a7fae930a03a5c835dcb2c2",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7829,7 +7829,7 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
+      "current_sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7838,7 +7838,7 @@
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "content_status": "unchanged",
-      "current_sha256": "ee13f004fc15a26816f31f568136cfef16855716bea6bc5e6857decc046aa13d",
+      "current_sha256": "56a5be7073cbcb674f034b34a9da6c255ef26d95d3d6eed966138e8e223c32f0",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7847,7 +7847,7 @@
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "content_status": "unchanged",
-      "current_sha256": "cda3f9f055dcccde0a79795a60348a32a99e378f4a93020c2b0ce6cfc3985a86",
+      "current_sha256": "b1e6f2c40feff6efcb45e39be1db063b1e4d06616c3a686b1ec26ac9541c3c8a",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7856,7 +7856,7 @@
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "content_status": "unchanged",
-      "current_sha256": "fe51be1bff3e85ad24b637986f33002a50bb04e2ceb6504d110459f8b3611d58",
+      "current_sha256": "bc77bf499055d546947ee4416b47c5690ef23a1d2edc268a01049d012fdaaafd",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7865,7 +7865,7 @@
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "content_status": "unchanged",
-      "current_sha256": "c7fef027b3402711be8f0c809036108eb2b44f1566c9633c5665f909afdc137d",
+      "current_sha256": "2593e7fb87b53a7d8ea6c1b1d812cf6a219c715cfdd6b042489191c691ac3f49",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7874,7 +7874,7 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "23bdaea009c1ed2d06a41ba75aad3a1fe1d3d4cd78b8ca4c594a7467dcc5d6cc",
+      "current_sha256": "06a6102448397e82bc9c83aee9a9891757b668fa66846de2c9db930a895695c2",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained",
       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
     },
@@ -7884,7 +7884,7 @@
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "content_status": "unchanged",
-      "current_sha256": "e7601257593ac797e1cbef4c83b1d2af5ee97a42431e88c5b4d81f1a54be9403",
+      "current_sha256": "bd49e3404cc743f7eefd2ad8387683d627fac49776a85c78c9894abc37eace32",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7893,7 +7893,7 @@
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "content_status": "unchanged",
-      "current_sha256": "f5c6926f994b1b4f9b9deb55a40e7511f4d1fd7b995b791837223b4a5fdcbb2a",
+      "current_sha256": "884736e72e4a738fefe163c739d7d919f45fefacc5c2084992220c2e96921dc9",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7902,7 +7902,7 @@
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "content_status": "unchanged",
-      "current_sha256": "61c7de8c1571623dc51a7eab9c6813923d9ae2c1183992b3b4d9ea285da9fd06",
+      "current_sha256": "7460013920edd9c97ee8ac8a9790f565d261dc7d67b26f60fc013cfbf9fba714",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7911,7 +7911,7 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "305fe2c1fd508d96202addca89e4da014a0531b3cf469e81169f2a33ef86cf8f",
+      "current_sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7920,7 +7920,7 @@
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "content_status": "unchanged",
-      "current_sha256": "37a87b3ec1e2bdb40adc9f30c7074fbf2e1284c3c0f182c89c988ca31149dd2d",
+      "current_sha256": "df397f1964e7ad605c671232dea473fe944be4cdabe067439c63eb24c61eaadd",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {
@@ -7929,7 +7929,7 @@
       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "content_status": "unchanged",
-      "current_sha256": "5eeed0a3a6eabc3732b71e1ba3b5ce75ed1c181533ca562e0a4df3916e39704c",
+      "current_sha256": "8a55c86220da55f9fef2102e8129f163907916ffdce93a072de1452d230f18dc",
       "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained"
     },
     {

@@ -468,6 +468,7 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
   /usr/bin/{brightnessctl,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /dev/rfkill r,
+  @{sys}/devices/**/power_supply/*/status r,
 
   include if exists <local/usr.local.bin.labwc-brightness-control>
 }
@@ -908,6 +909,7 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   /opt/ r,
   /dev/ r,
   /dev/tty rw,
+  /dev/pts/[0-9]* rw,
   /dev/{accel,dri,nvidia-caps}/ r,
   /dev/{accel,dri,nvidia-caps}/** r,
   /dev/{kfd,nvidiactl,nvidia-uvm,nvidia-uvm-tools} r,
@@ -935,6 +937,7 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf r,
   /etc/tmpfiles.d/85-qemu-incus-storage.conf r,
   /proc/{acpi,bus,driver,scsi}/ r,
+  @{PROC}/[0-9]*/fd/ r,
   @{PROC}/sys/kernel/random/uuid r,
   @{PROC}/sys/kernel/unprivileged_userns_clone r,
   @{PROC}/sys/user/max_user_namespaces r,
@@ -1028,6 +1031,7 @@ profile managed-codex-slirp4netns flags=(attach_disconnected) {
   network inet dgram,
   ptrace (read) peer=managed-codex-wrapper//codex-bwrap,
   ptrace (read) peer=managed-codex-runtime//codex-bwrap,
+  ptrace (readby) peer=managed-desktop-launcher,
   ptrace (readby) peer=managed-devops-toolchain,
   # aa-status may inspect the helper label, while the user manager and shell
   # may only probe or hang up the supervised network helper.
@@ -1039,6 +1043,7 @@ profile managed-codex-slirp4netns flags=(attach_disconnected) {
   / r,
   /dev/null r,
   /dev/net/tun rw,
+  /dev/pts/[0-9]* rw,
   /dev/urandom r,
   /etc/ld.so.cache r,
   /etc/resolv.conf r,
@@ -1899,6 +1904,7 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
   /usr/bin/systemd-run rpux,
   /usr/bin/xdg-dbus-proxy pux,
   unix,
+  /dev/rfkill r,
   signal (send) peer=unconfined,
   signal (send) set=(kill) peer=managed-labwc-managed-app//managed-app-bwrap,
   /{lib32,lib64,opt,sbin}/ r,
@@ -2626,6 +2632,10 @@ profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(
   /etc/udev/udev.conf r,
   /etc/udev/udev.conf.d/ r,
   /etc/udev/udev.conf.d/** r,
+  /dev/dri/ r,
+  /dev/dri/card[0-9]* rw,
+  /dev/shm/wlroots-* r,
+  @{sys}/devices/pci*/**/{device,subsystem_device,subsystem_vendor,uevent,vendor} r,
   signal (send) peer=unconfined,
   owner /run/user/[0-9]*/labwc-fuzzel.{lock,pid} rwk,
   owner /run/user/[0-9]*/labwc/ rw,
@@ -2939,6 +2949,7 @@ profile managed-labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disco
 
   /usr/local/bin/labwc-terminal rix,
   /usr/bin/{footclient,kitty,x-terminal-emulator} pux,
+  /dev/rfkill r,
 
   include if exists <local/usr.local.bin.labwc-terminal>
 }
@@ -2993,6 +3004,7 @@ profile managed-labwc-mute-default-microphone /usr/local/libexec/labwc-mute-defa
   /usr/local/lib/perl5/site_perl/whisper/** r,
   /usr/bin/wpctl ix,
   /dev/null rw,
+  owner /run/user/[0-9]*/whisper-record-toggle.{lock,recording} rwk,
   @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,
   owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
 
@@ -3053,6 +3065,7 @@ profile managed-whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,
   /data/whisper/bin/ r,
   /pool/cache/whisper/models/** r,
   /dev/null rw,
+  network inet6 dgram,
   @{PROC}/devices r,
   @{PROC}/sys/vm/mmap_min_addr r,
   owner @{PROC}/@{pid}/cmdline r,
@@ -3140,6 +3153,7 @@ profile managed-managed-external-software-notify /usr/local/libexec/managed-exte
   /usr/local/lib/perl5/site_perl/external-managed-software/ r,
   /usr/local/lib/perl5/site_perl/external-managed-software/** r,
   /usr/bin/{chmod,find,grep,install,sed,tr,wc} rix,
+  /usr/bin/timeout rix,
   /usr/bin/notify-send rix,
   dbus send
   bus=session
