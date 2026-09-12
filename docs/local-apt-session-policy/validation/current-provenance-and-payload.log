@@ -1,0 +1,161 @@
+FFFFFFFFFFFFF.
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2d3222e777e3c1c6c7d5d9740892dd2d6e1877cacea62b3b12aa4607fff2e121' != '7460013920edd9c97ee8ac8a9790f565d261dc7d67b26f60fc013cfbf9fba714'
+- 2d3222e777e3c1c6c7d5d9740892dd2d6e1877cacea62b3b12aa4607fff2e121
++ 7460013920edd9c97ee8ac8a9790f565d261dc7d67b26f60fc013cfbf9fba714
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '0a8dafda10ac719636b3f92180a9fee88e5f23c80420309c4022ef490f2e0ba1' != 'bc77bf499055d546947ee4416b47c5690ef23a1d2edc268a01049d012fdaaafd'
+- 0a8dafda10ac719636b3f92180a9fee88e5f23c80420309c4022ef490f2e0ba1
++ bc77bf499055d546947ee4416b47c5690ef23a1d2edc268a01049d012fdaaafd
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '524c4134a216b4ce89ae4634394e786b4d6392ffc36dad48395b36746effd0fa' != '06a6102448397e82bc9c83aee9a9891757b668fa66846de2c9db930a895695c2'
+- 524c4134a216b4ce89ae4634394e786b4d6392ffc36dad48395b36746effd0fa
++ 06a6102448397e82bc9c83aee9a9891757b668fa66846de2c9db930a895695c2
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'be615ca24f9e83aa2df382938d238b2eb9838ac5a304f472f135de599d1447b3' != 'b1e6f2c40feff6efcb45e39be1db063b1e4d06616c3a686b1ec26ac9541c3c8a'
+- be615ca24f9e83aa2df382938d238b2eb9838ac5a304f472f135de599d1447b3
++ b1e6f2c40feff6efcb45e39be1db063b1e4d06616c3a686b1ec26ac9541c3c8a
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368' != '8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20'
+- 057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368
++ 8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'db8f367d7fdcce20f8a6bb791bcc1c137153cb26f51de7025dc50ba83f8e0f24' != 'df397f1964e7ad605c671232dea473fe944be4cdabe067439c63eb24c61eaadd'
+- db8f367d7fdcce20f8a6bb791bcc1c137153cb26f51de7025dc50ba83f8e0f24
++ df397f1964e7ad605c671232dea473fe944be4cdabe067439c63eb24c61eaadd
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368' != '8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20'
+- 057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368
++ 8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'e86e3d01d27930a0e7392fccfb03778e57f7a9fd1ab60f17a5c8d03a02619ac4' != '8a55c86220da55f9fef2102e8129f163907916ffdce93a072de1452d230f18dc'
+- e86e3d01d27930a0e7392fccfb03778e57f7a9fd1ab60f17a5c8d03a02619ac4
++ 8a55c86220da55f9fef2102e8129f163907916ffdce93a072de1452d230f18dc
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'bbc4a5ff0c00c58992f5e8913323222de95bf8333b1075567814765b6eacfb46' != 'bd49e3404cc743f7eefd2ad8387683d627fac49776a85c78c9894abc37eace32'
+- bbc4a5ff0c00c58992f5e8913323222de95bf8333b1075567814765b6eacfb46
++ bd49e3404cc743f7eefd2ad8387683d627fac49776a85c78c9894abc37eace32
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2169a8379d940e6db4968cf09e61705856772ce3003c81f61c8869d729f038fc' != '884736e72e4a738fefe163c739d7d919f45fefacc5c2084992220c2e96921dc9'
+- 2169a8379d940e6db4968cf09e61705856772ce3003c81f61c8869d729f038fc
++ 884736e72e4a738fefe163c739d7d919f45fefacc5c2084992220c2e96921dc9
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '52d0e1aee79defbf49fc631235f453903728302033ebef71be864ee2efe88052' != '2593e7fb87b53a7d8ea6c1b1d812cf6a219c715cfdd6b042489191c691ac3f49'
+- 52d0e1aee79defbf49fc631235f453903728302033ebef71be864ee2efe88052
++ 2593e7fb87b53a7d8ea6c1b1d812cf6a219c715cfdd6b042489191c691ac3f49
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fede98b3b73d5c0b7f3cfb8c408bd7386e071aed9745499bb526ce61964371e3' != '9fe7e557d4567336306705da75b71d68e635372f3a7fae930a03a5c835dcb2c2'
+- fede98b3b73d5c0b7f3cfb8c408bd7386e071aed9745499bb526ce61964371e3
++ 9fe7e557d4567336306705da75b71d68e635372f3a7fae930a03a5c835dcb2c2
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '8fc51f0203c904c512548c605ce73837b7579c786eb23252c788d0d385b03a3c' != '56a5be7073cbcb674f034b34a9da6c255ef26d95d3d6eed966138e8e223c32f0'
+- 8fc51f0203c904c512548c605ce73837b7579c786eb23252c788d0d385b03a3c
++ 56a5be7073cbcb674f034b34a9da6c255ef26d95d3d6eed966138e8e223c32f0
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 2.130s
+
+FAILED (failures=13)

@@ -8,7 +8,10 @@ ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
 [Service]
 Type=oneshot
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
-TimeoutStartSec=60s
+TimeoutStartSec=360s
+RuntimeDirectory=labwc-power
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 TimeoutStopSec=5s
 StandardOutput=journal
 StandardError=journal
@@ -25,10 +28,11 @@ ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
-ProtectProc=invisible
+# UID-scoped final cleanup must see processes outside the user slice.
+ProtectProc=default
 ProtectSystem=strict
 ProcSubset=pid
-CapabilityBoundingSet=
+CapabilityBoundingSet=CAP_KILL
 AmbientCapabilities=
 LockPersonality=yes
 MemoryDenyWriteExecute=yes

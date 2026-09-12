@@ -1,6 +1,6 @@
 # debian-preseed-de
 
-Local signed APT repository: see [weekly metadata-first refresh and `apt-local-repo`](docs/local-apt-repo-v2/README.md) for commands, provider discovery, migration and validation.
+Local APT policy, source normalization and desktop power changes: see [`local-apt-init` and session handoff](docs/local-apt-session-policy/README.md) for commands, migration, validation and safety limits.
 
 ## R4 CUDA-legacy compatibility repair
 

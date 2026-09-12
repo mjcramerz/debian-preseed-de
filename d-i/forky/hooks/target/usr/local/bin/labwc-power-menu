@@ -8,19 +8,19 @@ choice=$(
 
 case "$choice" in
   'Lock screen')
-    exec labwc-lock
+    exec /usr/local/bin/labwc-power-settings lock
     ;;
   'Logout session')
-    exec labwc-logout
+    exec /usr/local/bin/labwc-power-settings logout
     ;;
   Suspend)
-    exec labwc-admin-action suspend
+    exec /usr/local/bin/labwc-power-settings suspend
     ;;
   Reboot)
-    exec labwc-admin-action reboot
+    exec /usr/local/bin/labwc-power-settings reboot
     ;;
   'Power off')
-    exec labwc-admin-action poweroff
+    exec /usr/local/bin/labwc-power-settings poweroff
     ;;
 esac
 

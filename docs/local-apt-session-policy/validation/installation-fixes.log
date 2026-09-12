@@ -1,0 +1,22 @@
+fatal: ChatGPT launcher forbids ambient environment variable: LD_PRELOAD
+fatal: ChatGPT launcher forbids ambient environment variable: LD_LIBRARY_PATH
+fatal: ChatGPT launcher forbids ambient environment variable: PYTHONPATH
+fatal: ChatGPT launcher forbids ambient environment variable: BASH_ENV
+.....fatal: ChatGPT DevOps profile has unsafe ownership, type or mode: /tmp/tmpgueghd78/.profile.d/71-devops-de.sh
+................fatal: desktop env assignment cannot replace the account identity: HOME
+fatal: desktop env assignment conflicts with launch isolation: DISPLAY
+fatal: desktop env assignment conflicts with launch isolation: LD_PRELOAD
+fatal: desktop env assignment cannot replace the account identity: DBUS_SESSION_BUS_ADDRESS
+...fatal: Electron launcher refuses sandbox-disabling switch: --disable-gpu-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-namespace-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-seccomp-filter-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --in-process-gpu
+fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --no-zygote
+fatal: Electron launcher refuses sandbox-disabling switch: --single-process
+.fatal: Electron desktop Exec must name the executable, not a shell -c script
+.........
+----------------------------------------------------------------------
+Ran 34 tests in 1.254s
+
+OK

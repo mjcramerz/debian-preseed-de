@@ -2,7 +2,7 @@
 Type=Application
 Name=Labwc Settings
 Comment=Configure the Labwc desktop
-Exec=/usr/bin/labwc-tweaks
+Exec=/usr/local/bin/labwc-wayland-app auto -- /usr/bin/labwc-tweaks
 TryExec=/usr/bin/labwc-tweaks
 Icon=preferences-desktop
 Terminal=false

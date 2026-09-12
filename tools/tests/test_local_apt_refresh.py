@@ -324,7 +324,7 @@ class DiscoveryTests(Workspace):
             repo.http_headers(b'HTTP/2 200\r\nETag: "a"\r\nETag: "b"\r\n\r\n', 200)
 
     def test_new_wrapper_argument_contract_and_installer_units(self):
-        wrapper = TARGET / 'usr/local/bin/apt-local-repo'
+        wrapper = TARGET / 'usr/local/bin/local-apt-init'
         for argv, status in [([], 64), (['file.deb'], 64), (['--add'], 64), (['--refresh', 'extra'], 64), (['--help'], 0)]:
             result = subprocess.run(['/bin/sh', str(wrapper), *argv], capture_output=True)
             self.assertEqual(result.returncode, status)

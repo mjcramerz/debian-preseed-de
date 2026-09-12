@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore saved desktop application launchers after session readiness
+Requisite=labwc-session.target
+After=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/labwc-session-state restore
+TimeoutStartSec=120s
+TimeoutStopSec=5s
+UMask=0077
+StandardOutput=journal
+StandardError=journal

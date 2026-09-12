@@ -6,7 +6,7 @@ ConditionPathExists=/var/lib/software/repo/current
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/libexec/local-apt-repository refresh
+ExecStart=/usr/local/bin/local-apt-init --refresh
 User=root
 Group=root
 UMask=0077

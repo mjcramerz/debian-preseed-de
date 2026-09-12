@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_desktop_sandbox.py", line 1306, in test_apparmor_complain_incident_is_fully_mapped
+    self.assertTrue(incident.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (failures=1)

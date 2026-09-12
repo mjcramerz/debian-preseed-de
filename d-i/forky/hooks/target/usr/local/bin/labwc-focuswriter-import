@@ -255,7 +255,7 @@ def main(argv: list[str]) -> int:
         return int(bool(failures))
     try:
         # Absolute arguments cannot be mistaken for options; no shell involved.
-        result = subprocess.run(["/usr/bin/focuswriter", *drafts], env=environment, check=False)
+        result = subprocess.run(["/usr/local/bin/labwc-wayland-app", "auto", "--", "/usr/bin/focuswriter", *drafts], env=environment, check=False)
         return result.returncode if result.returncode >= 0 else 128 - result.returncode
     except OSError as exc:
         notify(f"Editor launch failed; drafts are saved: {exc}", environment)

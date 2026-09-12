@@ -270,6 +270,8 @@ validate_desktop_role() {
     /usr/local/bin/labwc-admin-action \
     /usr/local/libexec/labwc-admin-action-root \
     /usr/local/libexec/labwc-admin-action-worker \
+    /usr/local/libexec/labwc-logout-root \
+    /usr/local/libexec/labwc-session-state \
     /etc/systemd/system/labwc-admin-action@.service \
     /usr/local/bin/labwc-calendar \
     /usr/local/libexec/labwc-calendar \

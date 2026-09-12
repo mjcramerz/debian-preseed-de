@@ -4,6 +4,7 @@
 
 (function() {
     var ADMIN_GROUP = "sudo";
+    var LOGOUT_HELPER = "/usr/local/libexec/labwc-logout-root";
     var POWER_HELPER = "/usr/local/libexec/labwc-admin-action-root";
 
     function isRoot(subject) {
@@ -18,6 +19,11 @@
     polkit.addRule(function(action, subject) {
         if (action.id !== "org.freedesktop.policykit.exec") {
             return polkit.Result.NOT_HANDLED;
+        }
+        // No command-line parsing: this distinct executable accepts no args
+        // and can terminate only PKEXEC_UID's own desktop session.
+        if (lookupString(action, "program") === LOGOUT_HELPER) {
+            return polkit.Result.YES;
         }
         if (lookupString(action, "program") !== POWER_HELPER) {
             return polkit.Result.NOT_HANDLED;

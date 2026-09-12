@@ -483,8 +483,11 @@ software_stage_external_servicing_runtime() {
       "/usr/local/libexec/${software_local_helper}" 0755
   done
   software_stage_seed_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/apt-local-repo)" \
-    /usr/local/bin/apt-local-repo 0755
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/local-apt-init)" \
+    /usr/local/bin/local-apt-init 0755
+  software_stage_seed_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/software/package-policies.json)" \
+    /usr/local/share/software/package-policies.json 0644
   chroot "$target_root" /usr/local/libexec/local-apt-repository init ||
     software_fatal "local APT repository initialization failed"
 }
@@ -2102,9 +2105,6 @@ software_refresh_managed_deb_repository
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-external-software-notify)" \
   "$software_notify_helper" 0755
-software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy)" \
-  /etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy 0644
 for software_inbox_unit in local-apt-inbox.service local-apt-inbox.path local-apt-refresh.service local-apt-refresh.timer; do
   software_stage_seed_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/systemd/system/${software_inbox_unit}")" \

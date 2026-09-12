@@ -147,6 +147,11 @@ class DesktopHookTests(unittest.TestCase):
 
 
 class GenericWrapperTests(unittest.TestCase):
+    def setUp(self):
+        # These tests cover argv/environment construction, not a live runtime.
+        # The launch barrier itself has dedicated session-power regressions.
+        self.enterContext(mock.patch.object(generic, 'assert_launch_allowed'))
+
     def test_electron_flags_keep_zygote_and_namespace_sandbox(self):
         command = generic.electron_command(['/opt/demo', '--ozone-platform=x11', '--use-gl=desktop', 'a b', '%', '$HOME'])
         self.assertIn('--ozone-platform=wayland', command)
@@ -231,6 +236,7 @@ class ChatGPTEnvironmentTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(environment, 'current_user_name', return_value='alice'))
         self.stack.enter_context(mock.patch.object(environment, 'current_user_runtime_dir', return_value='/run/user/1000'))
         self.stack.enter_context(mock.patch.object(environment, 'validate_chatgpt_work_areas'))
+        self.stack.enter_context(mock.patch.object(session, 'assert_launch_allowed'))
 
     def test_inactive_desktop_launch_collects_all_exports(self):
         with mock.patch.dict(os.environ, {}, clear=True): result = environment.validated_chatgpt_devops_environment()

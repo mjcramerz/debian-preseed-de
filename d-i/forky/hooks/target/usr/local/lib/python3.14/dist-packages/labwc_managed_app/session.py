@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 
+from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
 from .environment import (
     CHATGPT_DEVOPS_ENVIRONMENT_RESERVED, CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT,
@@ -42,6 +43,7 @@ def bitwarden_session_unit_argv(
     mode: str,
     extra_args: list[str],
 ) -> list[str]:
+    assert_launch_allowed()
     return [
         systemd_run,
         "--user",
@@ -57,10 +59,14 @@ def bitwarden_session_unit_argv(
         "--property=Requires=labwc-session.target labwc-kwallet-portal.service",
         "--property=Requisite=labwc-session.target labwc-kwallet-portal.service",
         "--property=PartOf=labwc-session.target labwc-kwallet-portal.service",
-        "--property=KillMode=mixed",
+        "--slice=app.slice",
+        "--property=ExitType=cgroup",
+        "--property=KillMode=control-group",
+        "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
         "--property=SyslogIdentifier=labwc-bitwarden",
         f"--setenv={BITWARDEN_SESSION_UNIT_MARKER}=1",
+        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([MANAGED_APP_PATH, mode, "bitwarden", *extra_args]),
         "--",
         MANAGED_APP_PATH,
         mode,
@@ -108,6 +114,7 @@ def wayland_compat_session_unit_argv(
     if metadata is None:
         fail(f"managed compatibility session unit rejected {app_name}")
     display_name, syslog_identifier = metadata
+    assert_launch_allowed()
     return [
         systemd_run,
         "--user",
@@ -123,10 +130,15 @@ def wayland_compat_session_unit_argv(
         "--property=Requires=labwc-session.target",
         "--property=Requisite=labwc-session.target",
         "--property=PartOf=labwc-session.target",
-        "--property=KillMode=mixed",
+        "--slice=app.slice",
+        "--property=ExitType=cgroup",
+        "--property=KillMode=control-group",
+        "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
         f"--property=SyslogIdentifier={syslog_identifier}",
         f"--setenv={WAYLAND_COMPAT_SESSION_UNIT_MARKER}=1",
+        "--setenv=LABWC_SESSION_NESTED=1",
+        "--setenv=LABWC_SESSION_RESTORE=" + restart_token([WAYLAND_COMPAT_MANAGED_APP_PATH, mode, app_name, *extra_args]),
         "--",
         WAYLAND_COMPAT_MANAGED_APP_PATH,
         mode,
@@ -210,6 +222,7 @@ def redirect_native_from_private_users(
         if private_users:
             fail("managed application user manager still hides host ownership")
         return
+    assert_launch_allowed()
     # Every native launch gets its own service, including terminal launches.
     # Tuta additionally waits for the Secret Service provider below.
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
@@ -230,11 +243,13 @@ def redirect_native_from_private_users(
     if app_name == "chatgpt":
         command = [CHATGPT_SESSION_PATH, mode, *extra_args]
     environment["WAYLAND_DISPLAY"] = wayland_display
+    environment["LABWC_SESSION_APP"] = "1"
+    environment["LABWC_SESSION_RESTORE"] = restart_token([MANAGED_APP_PATH, mode, app_name, *extra_args])
     if app_name == "chatgpt":
         if (os.environ.get("DEVOPS_DE_ACTIVE") == "1"
                 and os.environ.get("DEVOPS_DE_ENVIRONMENT_READY") == "1"):
             for name, value in os.environ.items():
-                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED:
+                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED or name in {"LABWC_SESSION_APP", "LABWC_SESSION_RESTORE"}:
                     continue
                 if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
                     fail("ChatGPT received an invalid environment variable name")

@@ -47,30 +47,12 @@ if ($action eq 'defaults') {
     exit 0;
 }
 
-if ($action eq 'policy-before' || $action eq 'policy-after') {
-    @ARGV == 1 or die "unexpected policy arguments\n";
-    # An alternate dpkg root must not mutate the host's managed policy.
+if ($action eq 'configure-chatgpt') {
+    @ARGV == 1 or die "unexpected ChatGPT configure arguments\n";
+    # Repacked ChatGPT's own postinst calls this, never an unrelated dpkg transaction.
     exit 0 if ($ENV{DPKG_ROOT} // '/') ne '/' && ($ENV{DPKG_ROOT} // q{}) ne q{};
     exit 0 if ($ENV{DPKG_ADMINDIR} // '/var/lib/dpkg') ne '/var/lib/dpkg';
-    exit 0 if !$chatgpt->enabled();
-    if ($action eq 'policy-before') {
-        # The diversion is established by bootstrap, not while dpkg owns its
-        # database lock. Only verify it and install the existing script guard.
-        $chatgpt->_assert_diversion();
-        $chatgpt->_install_package_script_guard();
-    } else {
-        # A purged package is normal, not a failure of an unrelated dpkg transaction.
-        open my $query, '-|', '/usr/bin/dpkg-query', '-W', '-f=${Status}', 'chatgpt'
-            or die "cannot query ChatGPT package state: $!\n";
-        my $installed = do { local $/; <$query> // q{} };
-        my $queried = close $query;
-        (!$queried && ($? >> 8) > 1) and die "cannot read ChatGPT package state\n";
-        if ($installed eq 'install ok installed') {
-            $chatgpt->finalize_install(-d '/run/systemd/system' ? 'runtime' : 'installer');
-        } else {
-            $chatgpt->abort_install();
-        }
-    }
+    $chatgpt->finalize_install(-d '/run/systemd/system' ? 'runtime' : 'installer');
     exit 0;
 }
 

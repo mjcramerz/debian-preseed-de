@@ -440,6 +440,10 @@ install_target_firstboot_logger() {
   : "${DIR_INSTALL_LOG:?DIR_INSTALL_LOG must be set}"
   : "${DIR_INITRAMFS_LOG:?DIR_INITRAMFS_LOG must be set}"
 
+  # Finish-install normalizes every active source after vendor setup.
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/local-apt-normalize-sources)" \
+    /usr/local/libexec/local-apt-normalize-sources 0755
+
   # Shared by system and desktop command wrappers on every storage family.
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm)" \
     /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm 0644

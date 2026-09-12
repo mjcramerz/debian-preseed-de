@@ -1,0 +1,269 @@
+#!/usr/bin/python3 -I
+"""Normalize active APT inputs into vendor-named deb822 files, without networking."""
+from __future__ import annotations
+
+import hashlib
+import itertools
+import os
+from pathlib import Path
+import re
+import shlex
+import stat
+import subprocess
+import tempfile
+import urllib.parse
+
+
+class Error(Exception):
+    pass
+
+
+def regular(path: Path) -> bytes:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        st = os.fstat(stream.fileno())
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022 or st.st_size > 4 * 1024 * 1024:
+            raise Error(f"unsafe APT input: {path}")
+        return stream.read()
+
+
+def directory(path: Path) -> None:
+    for parent in reversed((path, *path.parents)):
+        if not parent.exists() and not parent.is_symlink():
+            parent.mkdir(mode=0o755)
+        st = parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            raise Error(f"unsafe APT directory: {parent}")
+
+
+def atomic(path: Path, data: bytes) -> None:
+    fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), 0o644)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def deb822(text: str) -> list[dict[str, str]]:
+    result, fields = [], {}
+    key = ""
+    for line in text.splitlines() + [""]:
+        if not line.strip():
+            if fields:
+                result.append(fields)
+                fields = {}
+            key = ""
+        elif line.lstrip().startswith("#"):
+            continue
+        elif line.startswith((" ", "\t")) and key:
+            fields[key] += "\n" + line
+        else:
+            match = re.fullmatch(r"([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)", line)
+            if not match or match[1].lower() in fields:
+                raise Error("malformed/duplicate deb822 source field")
+            key = match[1].lower()
+            fields[key] = match[2]
+    return result
+
+
+def oneline(text: str) -> list[dict[str, str]]:
+    result = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"(deb(?:-src)?)\s+(?:\[([^]]+)\]\s+)?(\S+)\s+(\S+)(.*)", line)
+        if not match:
+            raise Error("unsupported one-line source; run apt modernize-sources first")
+        fields = {"types": match[1], "uris": match[3], "suites": match[4]}
+        components = match[5].split("#", 1)[0].strip()
+        if components:
+            fields["components"] = components
+        for option in shlex.split(match[2] or ""):
+            key, separator, value = option.partition("=")
+            if not separator:
+                raise Error("malformed one-line source option")
+            key = {"arch": "architectures", "arch+": "architectures-add", "arch-": "architectures-remove",
+                   "lang": "languages", "lang+": "languages-add", "lang-": "languages-remove",
+                   "target": "targets", "target+": "targets-add", "target-": "targets-remove"}.get(key, key)
+            if key in fields:
+                raise Error("duplicate one-line source option")
+            fields[key] = value.replace(",", " ")
+        result.append(fields)
+    return result
+
+
+def vendor(uri: str) -> str:
+    parsed = urllib.parse.urlsplit(uri)
+    if parsed.scheme == "file" and parsed.path.rstrip("/") == "/var/lib/software/repo":
+        return "apt-local-repository"
+    host = (parsed.hostname or "").lower()
+    for label, domains in {
+        "debian": ("debian.org",), "microsoft": ("microsoft.com",),
+        "vivaldi": ("vivaldi.com", "vivaldi.net"), "mise": ("mise.jdx.dev",),
+        "xanmod": ("xanmod.org",), "mullvad": ("mullvad.net",),
+        "crowdsec": ("packagecloud.io",), "cramerz": ("cramerz.ch", "cramerz.com"),
+    }.items():
+        if any(host == domain or host.endswith("." + domain) for domain in domains):
+            if label == "crowdsec" and "/crowdsec/" not in parsed.path:
+                break
+            return label
+    host = re.sub(r"^(?:repository|packages|repo|repos|deb)\.", "", host)
+    label = re.sub(r"[^a-z0-9-]+", "-", host).strip("-")
+    if not label:
+        label = "local-" + hashlib.sha256(uri.encode()).hexdigest()[:12]
+    return label
+
+
+def uri_key(uri: str) -> str:
+    parsed = urllib.parse.urlsplit(uri)
+    if parsed.scheme not in {"http", "https", "file", "mirror+https", "mirror+http"}:
+        raise Error(f"unsupported APT URI scheme: {parsed.scheme}")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise Error("APT URI must not contain credentials or a fragment")
+    scheme = {"http": "https", "mirror+http": "mirror+https"}.get(parsed.scheme, parsed.scheme)
+    return urllib.parse.urlunsplit((scheme, parsed.netloc.lower(), parsed.path.rstrip("/"), parsed.query, ""))
+
+
+def signed_identity(value: str, root: Path, cache: dict) -> tuple:
+    if "-----BEGIN PGP" in value:
+        return (value,)
+    identities = []
+    for token in value.split():
+        if token.startswith("/"):
+            path = root / token.lstrip("/")
+            if token not in cache:
+                if not path.exists():
+                    cache[token] = ("missing", token)
+                else:
+                    data = regular(path)
+                    # Same bytes and same keys (armored/binary or differently named)
+                    # denote the same trust. Never merge genuinely different keys.
+                    with tempfile.TemporaryDirectory(prefix="apt-keys-") as work:
+                        proc = subprocess.run(["/usr/bin/gpg", "--batch", "--no-options", "--homedir", work,
+                                               "--with-colons", "--show-keys", str(path)],
+                                              capture_output=True, timeout=15, check=False,
+                                              env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+                    fingerprints = tuple(sorted(line.split(":")[9] for line in proc.stdout.decode().splitlines()
+                                                if line.startswith("fpr:")))
+                    cache[token] = ("keys", fingerprints) if proc.returncode == 0 and fingerprints else ("bytes", hashlib.sha256(data).hexdigest())
+            identities.append(cache[token])
+        else:
+            identities.append(("selector", token.upper()))
+    return tuple(sorted(identities))
+
+
+def normalize(root: Path = Path("/")) -> list[str]:
+    apt = root / "etc/apt"
+    parts = apt / "sources.list.d"
+    directory(parts)
+    inputs = [path for path in sorted(parts.iterdir()) if path.suffix in {".list", ".sources"}]
+    for path in (apt / "sources.list", apt / "debian.sources", apt / "debian-backports.sources"):
+        if path.exists() or path.is_symlink():
+            inputs.append(path)
+    originals = {path: regular(path) for path in inputs}
+    entries, key_cache, trust = {}, {}, {}
+    # Expand the deb822 cross-product, then deduplicate complete targets and
+    # options. Different suites/architectures/trust policies are not discarded.
+    for path, data in originals.items():
+        stanzas = deb822(data.decode()) if path.suffix == ".sources" else oneline(data.decode())
+        for stanza in stanzas:
+            if not all(stanza.get(key) for key in ("types", "uris", "suites")):
+                raise Error(f"source stanza lacks Types/URIs/Suites: {path}")
+            for kind, uri, suite in itertools.product(stanza["types"].split(), stanza["uris"].split(), stanza["suites"].split()):
+                if kind not in {"deb", "deb-src"}:
+                    raise Error("invalid source type")
+                if uri.startswith("cdrom:"):
+                    continue
+                uri = uri_key(uri)
+                if "developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64" in uri:
+                    continue
+                fields = dict(stanza, types=kind, uris=uri, suites=suite)
+                for key in ("components", "architectures", "architectures-add", "architectures-remove", "languages", "targets"):
+                    if key in fields:
+                        fields[key] = " ".join(sorted(set(fields[key].split())))
+                label = vendor(uri)
+                if label == "debian" and not fields.get("signed-by"):
+                    fields["signed-by"] = "/usr/share/keyrings/debian-archive-keyring.gpg"
+                if suite.endswith("/") and fields.get("components"):
+                    raise Error("flat APT repository must not specify Components")
+                # APT requires one trust policy for a URI/suite even when the
+                # stanzas select different architectures, types or components.
+                trust_key = (uri, suite, fields.get("enabled", "yes").lower())
+                signature = signed_identity(fields.get("signed-by", ""), root, key_cache)
+                if trust_key in trust and trust[trust_key][0] != signature:
+                    raise Error(f"conflicting Signed-By policies for {uri} {suite}; no files changed")
+                trust.setdefault(trust_key, (signature, []))[1].append(fields)
+                # Merge architecture selections only when every other option,
+                # including Components, agrees. Absence means all architectures.
+                # Never merge both component and architecture cross-products.
+                merge_arches = not any(key in fields for key in ("architectures-add", "architectures-remove"))
+                omitted = {"signed-by", "architectures"} if merge_arches else {"signed-by"}
+                identity = tuple(sorted((key, value) for key, value in fields.items() if key not in omitted))
+                if identity in entries:
+                    old = entries[identity][1]
+                    if merge_arches:
+                        if "architectures" not in old or "architectures" not in fields:
+                            old.pop("architectures", None)
+                        else:
+                            old["architectures"] = " ".join(sorted(set(old["architectures"].split()) | set(fields["architectures"].split())))
+                else:
+                    entries[identity] = (label, fields)
+    for _, alternatives in trust.values():
+        keys = [fields["signed-by"] for fields in alternatives if "signed-by" in fields]
+        if keys:
+            for fields in alternatives:
+                fields["signed-by"] = min(keys)
+    grouped = {}
+    order = ("types", "uris", "suites", "components", "architectures", "signed-by")
+    spelling = {"uris": "URIs", "signed-by": "Signed-By", "by-hash": "By-Hash"}
+    for identity, (label, fields) in sorted(entries.items()):
+        keys = [key for key in order if key in fields] + sorted(set(fields) - set(order))
+        text = "\n".join(spelling.get(key, key.title()) + ": " + fields[key] for key in keys) + "\n"
+        grouped.setdefault(label + ".sources", []).append(text)
+    outputs = {parts / name: ("# Managed vendor grouping; original inputs are retained in /var/lib/apt/source-normalization.\n\n" + "\n".join(stanzas)).encode()
+               for name, stanzas in grouped.items()}
+    outputs[apt / "sources.list"] = b"# Active sources are in /etc/apt/sources.list.d/*.sources.\n"
+    inactive = [path for path in sorted(parts.iterdir())
+                if re.search(r"\.(?:list|sources)\.(?:bak|save|distUpgrade)$", path.name)]
+    inactive_data = {path: regular(path) for path in inactive}
+    if (not inactive and all(path in originals and originals[path] == data for path, data in outputs.items())
+            and not set(originals) - set(outputs)):
+        return sorted(grouped)
+    backup = root / "var/lib/apt/source-normalization"
+    directory(backup)
+    # Preserve exact input bytes, including comments and disabled one-line entries.
+    for path, data in originals.items():
+        name = str(path.relative_to(apt)).replace("/", "--") + "." + hashlib.sha256(data).hexdigest()
+        destination = backup / name
+        if not destination.exists():
+            atomic(destination, data)
+    for path, data in outputs.items():
+        atomic(path, data)
+    for path in set(originals) - set(outputs):
+        path.unlink()
+    # APT's modernization backups are inactive, but belong outside sourceparts.
+    for path, data in inactive_data.items():
+        atomic(backup / (path.name + "." + hashlib.sha256(data).hexdigest()), data)
+        path.unlink()
+    fd = os.open(parts, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return sorted(grouped)
+
+
+if __name__ == "__main__":
+    try:
+        if os.geteuid() != 0:
+            raise Error("run source normalization as root")
+        print("Normalized APT sources: " + ", ".join(normalize()))
+    except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"local-apt-normalize-sources: {exc}")

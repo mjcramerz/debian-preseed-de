@@ -350,6 +350,7 @@ integrity.py
 mounts.py
 network_namespace.py
 profiles.py
+recovery.py
 runtime.py
 sandbox.py
 session.py
@@ -3628,6 +3629,9 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-admin-action /usr/local/bin/labwc-admin-action 0755
   desktop_stage_role_asset usr/local/libexec/labwc-admin-action-root /usr/local/libexec/labwc-admin-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-logout-root /usr/local/libexec/labwc-logout-root 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-session-state /usr/local/libexec/labwc-session-state 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service /etc/systemd/system/labwc-admin-action@.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755

@@ -56,4 +56,7 @@ profile managed-focuswriter-import /usr/local/bin/labwc-focuswriter-import flags
   owner @{HOME}/Documents/FocusWriter-import-*/{text-copy.txt,IMPORT-NOTICE.txt} rw,
   signal (send, receive) peer=managed-focuswriter,
   include if exists <local/usr.local.bin.labwc-focuswriter-import>
+  # The editor belongs to its own transient user service, not the importer.
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
+
 }

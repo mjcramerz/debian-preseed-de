@@ -1,0 +1,17 @@
+d-i/forky/hooks/target/usr/local/bin/labwc-focuswriter-import
+d-i/forky/hooks/target/usr/local/bin/labwc-qbittorrent
+d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py
+d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py
+d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
+d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker
+d-i/forky/hooks/target/usr/local/libexec/labwc-session-state
+d-i/forky/hooks/target/usr/local/libexec/local-apt-normalize-sources
+d-i/forky/hooks/target/usr/local/libexec/local-apt-repository
+d-i/forky/tests/test_installation_fixes_20260912.py
+tools/tests/test_apt_vendor_normalization.py
+tools/tests/test_labwc_power_handoff.py
+tools/tests/test_local_apt_refresh.py
+tools/tests/test_local_apt_repository.py
+tools/tests/test_persisted_package_policy.py
+16 changed/new Python files: AST syntax PASS; no bytecode or application compilation

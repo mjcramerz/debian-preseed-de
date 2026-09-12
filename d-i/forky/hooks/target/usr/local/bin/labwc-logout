@@ -1,25 +1,10 @@
 #!/bin/sh
 set -eu
-
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
+[ "${LABWC_SESSION_OWNER:-}" = desktop ] || {
+  printf 'fatal: labwc-logout must run in the managed desktop session\n' >&2
   exit 1
 }
-
-[ "${LABWC_SESSION_OWNER:-}" = desktop ] ||
-  fatal "labwc-logout must run in the managed desktop session"
-
-systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
-[ -n "$systemctl_cmd" ] ||
-  fatal "systemctl is unavailable"
-
-# Queue one target-first stop transaction and return before this helper's
-# calling service is stopped. Reverse ordering then stops desktop clients before
-# the target and the compositor last, while its Wayland socket is still usable.
-/usr/bin/timeout --kill-after=1s 5s "$systemctl_cmd" \
-  --user \
-  --no-block \
-  --quiet \
-  stop \
-  labwc-session.target labwc-compositor.service >/dev/null 2>&1 ||
-  fatal "unable to queue the managed Labwc session stop"
+[ "$#" -eq 0 ] || exit 64
+# The fixed self-logout helper needs no administrator password, but validates
+# PKEXEC_UID and uses the same save/clipboard/teardown worker as power actions.
+exec /usr/local/bin/labwc-admin-action logout

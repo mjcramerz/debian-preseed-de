@@ -111,6 +111,5 @@ export \
   QT_QPA_PLATFORM \
   SDL_VIDEODRIVER
 
-exec "$vendor_launcher" \
-  --enable-features=UseOzonePlatform \
-  --ozone-platform=wayland
+# The GUI must outlive the panel and remain separate from its namespace/cgroup.
+exec /usr/local/bin/labwc-electron-app auto -- "$vendor_launcher"

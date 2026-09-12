@@ -243,17 +243,8 @@ sub _fetch_generic_deb {
         );
         $stage = 'source-metadata';
         my $metadata = $deb->validate_spec($path, $app, $app->{label});
-        if (exists $app->{remove_dependencies}) {
-            my %repack = (
-                label        => $app->{label},
-                path         => $path,
-                work         => $work,
-                name         => $app->{name},
-                dependencies => $app->{remove_dependencies},
-            );
-            $stage = 'control-rewrite';
-            $path = $deb->repack_without_dependencies(%repack);
-        }
+        # The repository applies its persisted package policy before publishing;
+        # retain the original download so later policy changes can be reapplied.
         $metadata;
     };
     if (!$metadata) {

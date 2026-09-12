@@ -35,6 +35,7 @@ CORE_MODULES = (
     "mounts.py",
     "network_namespace.py",
     "profiles.py",
+    "recovery.py",
     "runtime.py",
     "sandbox.py",
     "session.py",

@@ -244,9 +244,142 @@ def ar_header(name: str, size: int) -> bytes:
     return f"{name:<16}{0:<12}{0:<6}{0:<6}{'100644':<8}{size:<10}`\n".encode("ascii")
 
 
+MAINTAINER_SCRIPTS = {"preinst", "postinst", "prerm", "postrm", "config"}
+EDIT_KEYS = {"remove_depends", "remove_depends_patterns", "remove_paths",
+             "remove_vendor_apt", "drop_maintainer_scripts", "managed_assets"}
+PUBLIC_POLICY_KEYS = EDIT_KEYS - {"managed_assets"} | {"automatic", "url"}
+
+
+def archive_name(value: str) -> str:
+    while value.startswith("./"):
+        value = value[2:]
+    if value in ("", "."):
+        return "."
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts or "\0" in value or "\n" in value:
+        raise Error("unsafe package archive path")
+    return str(path)
+
+
+def policy_digest(policy: dict) -> str:
+    edits = {key: policy[key] for key in sorted(EDIT_KEYS) if key in policy and policy[key]}
+    return hashlib.sha256(json.dumps(edits, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def validate_policy(policy: dict) -> dict:
+    if not isinstance(policy, dict):
+        raise Error("package policy must be an object")
+    allowed = PUBLIC_POLICY_KEYS | {"managed_assets", "configured", "local_revision", "source", "tracking", "adapter", "binary_revision"}
+    if set(policy) - allowed:
+        raise Error("unknown package policy fields: " + ", ".join(sorted(set(policy) - allowed)))
+    for key in ("automatic", "configured", "remove_vendor_apt"):
+        if key in policy and type(policy[key]) is not bool:
+            raise Error(f"{key} must be a boolean")
+    for key in ("local_revision", "binary_revision"):
+        if key in policy and (type(policy[key]) is not int or not 0 <= policy[key] <= 1000000000):
+            raise Error(f"invalid {key}")
+    for key in ("remove_depends", "remove_depends_patterns", "remove_paths", "drop_maintainer_scripts"):
+        values = policy.get(key, [])
+        if not isinstance(values, list) or len(values) > 512 or any(not isinstance(v, str) or len(v) > 512 for v in values):
+            raise Error(f"invalid {key}")
+        for value in values:
+            if key == "remove_depends" and not NAME.fullmatch(value):
+                raise Error("use exact unqualified dependency names")
+            if key == "remove_depends_patterns" and not re.fullmatch(r"[a-z0-9*?+.-]+", value):
+                raise Error("invalid dependency pattern")
+            if key == "remove_paths" and (not value.startswith("/") or archive_name(value[1:]) == "."):
+                raise Error("use an exact absolute package path")
+            if key == "drop_maintainer_scripts" and value not in MAINTAINER_SCRIPTS | {"triggers"}:
+                raise Error("invalid maintainer script name")
+    if policy.get("managed_assets") not in (None, "chatgpt-v1"):
+        raise Error("unsupported managed asset policy")
+    if "url" in policy:
+        if not isinstance(policy["url"], str):
+            raise Error("url must be a string")
+        https_url(policy["url"])
+    return copy.deepcopy(policy)
+
+
+def vendor_apt_path(name: str) -> bool:
+    return (name == "etc/apt/sources.list" or
+            name.startswith(("etc/apt/sources.list.d/", "etc/apt/keyrings/", "etc/apt/trusted.gpg.d/", "usr/share/keyrings/")) or
+            name == "etc/apt/trusted.gpg")
+
+
+def vendor_apt_script(blob: bytes) -> bool:
+    # Never delete individual shell lines/blocks: that can silently change
+    # control flow. Fail closed and require an explicit, persisted script review.
+    return bool(re.search(rb"(?:sources\.list|/keyrings/|trusted\.gpg|apt-key|add-apt-repository|apt-add-repository)", blob))
+
+
+def rewrite_data(source: Path, destination: Path, policy: dict,
+                 assets: dict[str, bytes], removed: set[str]) -> None:
+    """Stream archive members, never extract paths or execute package scripts."""
+    command = ["/usr/bin/dpkg-deb", "--fsys-tarfile", str(source)]
+    with tempfile.TemporaryFile() as errors, destination.open("xb") as output:
+        proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=errors, env=ENV)
+        try:
+            with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as compressed:
+                with tarfile.open(fileobj=compressed, mode="w|", format=tarfile.GNU_FORMAT) as new:
+                    with tarfile.open(fileobj=proc.stdout, mode="r|") as old:
+                        seen, non_directories, total, count = set(), set(), 0, 0
+                        for item in old:
+                            name = archive_name(item.name)
+                            count += 1
+                            total += item.size
+                            if count > 200000 or total > 4 * MAX_DEB or name in seen:
+                                raise Error("duplicate or oversized data archive")
+                            seen.add(name)
+                            if not item.isdir():
+                                non_directories.add(name)
+                            if any(str(parent) in non_directories for parent in Path(name).parents):
+                                raise Error("package member has a non-directory parent")
+                            if not (item.isfile() or item.isdir() or item.issym() or item.islnk()):
+                                raise Error("special file in package payload")
+                            drop = ("/" + name in policy.get("remove_paths", []) or
+                                    policy.get("remove_vendor_apt") and vendor_apt_path(name))
+                            if drop and not item.isdir():
+                                removed.add(name)
+                                continue
+                            if name in assets:
+                                if not item.isfile():
+                                    raise Error("managed asset would replace a non-regular file")
+                                continue
+                            if item.islnk() and (archive_name(item.linkname) in removed or
+                                                archive_name(item.linkname) in assets or
+                                                policy.get("remove_vendor_apt") and vendor_apt_path(archive_name(item.linkname)) or
+                                                "/" + archive_name(item.linkname) in policy.get("remove_paths", [])):
+                                raise Error("hardlink targets a removed/replaced package file")
+                            new.addfile(item, old.extractfile(item) if item.isfile() else None)
+                        for name, blob in sorted(assets.items()):
+                            # No archive-created symlink may parent a replacement.
+                            if any(str(parent) in non_directories for parent in Path(name).parents):
+                                raise Error("managed asset has a non-directory parent")
+                            info = tarfile.TarInfo("./" + name)
+                            info.mode, info.size = 0o644, len(blob)
+                            new.addfile(info, io.BytesIO(blob))
+            proc.stdout.close()
+            if proc.wait(timeout=240):
+                raise Error("failed to decompress package payload")
+            output.flush()
+            os.fsync(output.fileno())
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            proc.stdout.close()
+
+
 def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
-                    names: list[str], revision: int = 1) -> None:
+                    names: list[str], revision: int = 1, *, policy: dict | None = None,
+                    assets: dict[str, bytes] | None = None, base_version: str | None = None) -> None:
     fields = dict(fields)
+    policy = policy or {}
+    assets = assets or {}
+    removed: set[str] = set()
+    data_rewrite = bool(policy.get("remove_vendor_apt") or policy.get("remove_paths") or assets)
+    if base_version is not None:
+        fields["Version"] = base_version
     if names:
         value = remove_dependencies(fields.get("Depends", ""), names)
         if value:
@@ -254,13 +387,24 @@ def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
         else:
             fields.pop("Depends", None)
     fields["Version"] += f"+localrepo{revision}"
+    fields["X-Local-Policy-SHA256"] = policy_digest(policy)
     raw = run(["/usr/bin/dpkg-deb", "--ctrl-tarfile", str(source)])
     payload = io.BytesIO()
     found = False
+    rewritten_data = destination.with_suffix(".data.tar.gz")
+    if data_rewrite:
+        rewrite_data(source, rewritten_data, policy, assets, removed)
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as old:
         with tarfile.open(fileobj=payload, mode="w:", format=tarfile.GNU_FORMAT) as new:
+            seen_control = set()
             for info in old:
-                if info.name.lstrip("./") == "control":
+                member = archive_name(info.name)
+                if member in seen_control:
+                    raise Error("duplicate control archive member")
+                seen_control.add(member)
+                if member in policy.get("drop_maintainer_scripts", []):
+                    continue
+                if member == "control":
                     if found or not info.isfile():
                         raise Error("invalid control archive")
                     found = True
@@ -268,13 +412,40 @@ def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
                     info = copy.copy(info)
                     info.size = len(data)
                     new.addfile(info, io.BytesIO(data))
+                elif member in {"conffiles", "md5sums"} and data_rewrite:
+                    if not info.isfile():
+                        raise Error("invalid package metadata member")
+                    lines = old.extractfile(info).read().decode("utf-8").splitlines()
+                    kept = []
+                    for line in lines:
+                        name = line.split(None, 1)[1] if member == "md5sums" and len(line.split(None, 1)) == 2 else line.split()[0] if line.split() else ""
+                        if archive_name(name.lstrip("/")) not in removed | set(assets):
+                            kept.append(line)
+                    if member == "md5sums":
+                        kept += [hashlib.md5(blob).hexdigest() + "  " + name for name, blob in sorted(assets.items())]
+                    blob = ("\n".join(kept) + "\n").encode()
+                    info = copy.copy(info)
+                    info.size = len(blob)
+                    new.addfile(info, io.BytesIO(blob))
                 else:
-                    new.addfile(info, old.extractfile(info) if info.isfile() else None)
+                    if not (info.isfile() or info.isdir()):
+                        raise Error("unsupported control archive member")
+                    blob = old.extractfile(info).read() if info.isfile() else None
+                    if policy.get("remove_vendor_apt") and member in MAINTAINER_SCRIPTS and vendor_apt_script(blob or b""):
+                        raise Error(f"{member} may recreate an APT source/key; explicitly review and drop that maintainer script")
+                    new.addfile(info, io.BytesIO(blob) if blob is not None else None)
+            if policy.get("managed_assets") == "chatgpt-v1":
+                # This is a package-local configure script, not an APT/dpkg hook.
+                # No upstream maintainer script survives the mandatory policy.
+                blob = b'#!/bin/sh\nset -eu\ncase "${1-}" in\n configure) /usr/local/libexec/local-apt-vendor configure-chatgpt ;;\nesac\n'
+                info = tarfile.TarInfo("./postinst")
+                info.mode, info.size = 0o755, len(blob)
+                new.addfile(info, io.BytesIO(blob))
     if not found:
         raise Error("control file is missing")
     packed = gzip.compress(payload.getvalue(), mtime=0)
-    # Only control metadata is reassembled. data.tar.* remains byte-for-byte
-    # vendor supplied; no build, binary patch or maintainer script is executed.
+    # Dependency-only edits retain data.tar.* byte-for-byte. File policies
+    # stream a replacement archive; no binary build or package script is run.
     with os.fdopen(checked_file(source), "rb") as old, destination.open("xb") as new:
         new.write(b"!<arch>\n")
         seen = set()
@@ -292,6 +463,14 @@ def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
                 continue
             if name != "debian-binary" and not re.fullmatch(r"data\.tar(?:\.(?:gz|xz|zst|bz2|lzma))?", name):
                 raise Error("unsupported Debian archive member")
+            if name.startswith("data.tar") and data_rewrite:
+                size = rewritten_data.stat().st_size
+                new.write(ar_header("data.tar.gz", size))
+                with rewritten_data.open("rb") as rewritten:
+                    shutil.copyfileobj(rewritten, new, 1024 * 1024)
+                if size % 2:
+                    new.write(b"\n")
+                continue
             new.write(ar_header(name, size))
             old.seek(offset)
             remaining = size
@@ -308,6 +487,7 @@ def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
         new.flush()
         os.fsync(new.fileno())
     os.chmod(destination, 0o600)
+    rewritten_data.unlink(missing_ok=True)
 
 
 def https_url(value: str) -> str:
@@ -381,7 +561,7 @@ def request(url: str, destination: Path, *, method: str = "GET", maximum: int = 
     command = ["/usr/bin/curl", "-q", "--fail", "--silent", "--show-error", "--location",
                "--globoff", "--disallow-username-in-url", "--proto", "=https", "--proto-redir", "=https",
                "--max-redirs", "8", "--connect-timeout", "20", "--max-time", "240",
-               "--retry", "2", "--retry-max-time", "300", "--user-agent", "apt-local-repo/2",
+               "--retry", "2", "--retry-max-time", "300", "--user-agent", "local-apt-init/3",
                "--header", "Accept-Encoding: identity", "--dump-header", str(header_path),
                "--write-out", "%{http_code}\n%{url_effective}\n"]
     for name, value in (headers or {}).items():
@@ -990,7 +1170,8 @@ class Repository:
         self.inbox = root / "inbox"
         self.signing = root / "repository-signing"
         self.keyring = etc / "apt/keyrings/managed-external-software.gpg"
-        self.source = etc / "apt/sources.list.d/managed-external-software.list"
+        self.source = etc / "apt/sources.list.d/apt-local-repository.sources"
+        self.policy_file = etc.parent / "usr/local/share/software/package-policies.json"
         self.architectures = {run(["/usr/bin/dpkg", "--print-architecture"]).decode().strip()}
         self.architectures.update(run(["/usr/bin/dpkg", "--print-foreign-architectures"]).decode().split())
         self.catalog = {"format": 1, "packages": {}, "disabled_seeds": [], "migrated": False}
@@ -1073,6 +1254,87 @@ class Repository:
         path.unlink(missing_ok=True)
         Path(str(path) + ".json").unlink(missing_ok=True)
 
+    def effective_policy(self, package: str, policy: dict) -> dict:
+        policy = validate_policy(policy)
+        if self.policy_file.exists() or self.policy_file.is_symlink():
+            defaults = json.loads(read_bytes(self.policy_file, 65536))
+            if not isinstance(defaults, dict) or any(not NAME.fullmatch(key) for key in defaults):
+                raise Error("invalid mandatory package policy registry")
+            required = validate_policy(defaults.get(package, {}))
+            for key, value in required.items():
+                if isinstance(value, list):
+                    policy[key] = sorted(set(policy.get(key, [])) | set(value))
+                else:
+                    policy[key] = value
+        return policy
+
+    def policy_assets(self, policy: dict) -> dict[str, bytes]:
+        if policy.get("managed_assets") != "chatgpt-v1":
+            return {}
+        directory = self.etc.parent / "usr/local/share/software/chatgpt"
+        return {path: read_bytes(directory / name, 1024 * 1024) for path, name in {
+            "etc/default/chatgpt": "default", "etc/apparmor.d/chatgpt": "apparmor.profile",
+            "usr/share/applications/chatgpt.desktop": "chatgpt.desktop",
+            "usr/share/pixmaps/chatgpt.png": "chatgpt.png",
+        }.items()}
+
+    def retain_upstream(self, source: Path, package: str, digest: str) -> str:
+        directory = self.root / "upstream" / package
+        safe_dir(self.root / "upstream", 0o700)
+        safe_dir(directory, 0o700)
+        destination = directory / (digest + ".deb")
+        if not destination.exists():
+            temporary = directory / ("." + uuid.uuid4().hex)
+            try:
+                shutil.copyfile(source, temporary, follow_symlinks=False)
+                with temporary.open("rb") as stream:
+                    os.fchmod(stream.fileno(), 0o600)
+                    os.fsync(stream.fileno())
+                os.replace(temporary, destination)
+                fsync_dir(directory)
+            finally:
+                temporary.unlink(missing_ok=True)
+        if digest_file(destination) != digest:
+            raise Error("retained upstream digest mismatch")
+        return str(destination.relative_to(self.root))
+
+    def select(self, name: str) -> tuple[str, dict]:
+        matches = [(key, record) for key, record in self.catalog["packages"].items()
+                   if name in (key, record["package"])]
+        if len(matches) != 1:
+            raise Error("select one published package, using package:architecture if needed")
+        return matches[0]
+
+    def reapply(self, name: str, changes: dict | None = None) -> dict:
+        key, previous = self.select(name)
+        policy = copy.deepcopy(previous.get("policy", {}))
+        if changes is not None:
+            if not isinstance(changes, dict):
+                raise Error("package policy changes must be an object")
+            if set(changes) - PUBLIC_POLICY_KEYS:
+                raise Error("only documented public policy fields may be changed")
+            policy.update(validate_policy(changes))
+            policy["configured"] = True
+            if "url" in changes:
+                policy["source"] = source_for(policy["url"])
+                policy.pop("tracking", None)
+        policy = self.effective_policy(previous["package"], policy)
+        policy["local_revision"] = previous.get("policy", {}).get("local_revision", 0) + 1
+        relative = previous.get("upstream_filename")
+        if not relative or not re.fullmatch(r"upstream/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}\.deb", relative):
+            raise Error("original upstream archive is not retained; add the original .deb again to reapply this policy")
+        source = self.root / relative
+        if digest_file(source) != previous["upstream_sha256"]:
+            raise Error("retained upstream archive failed verification")
+        ready = self.stage(source, policy=policy, expected=(previous["package"], previous["architecture"]))
+        try:
+            result = self.ingest(ready)
+            self.publish()
+            return result
+        except BaseException:
+            self.discard(ready)
+            raise
+
     def ingest(self, path: Path, policy: dict | None = None, expected: tuple[str, str] | None = None) -> dict:
         sidecar = Path(str(path) + ".json")
         if sidecar.exists() or sidecar.is_symlink():
@@ -1097,6 +1359,7 @@ class Repository:
         key = ":".join(identity)
         previous = self.catalog["packages"].get(key)
         actual_policy = copy.deepcopy(policy if policy is not None else previous.get("policy", {}) if previous else {})
+        actual_policy = self.effective_policy(identity[0], actual_policy)
         upstream_version = fields["Version"]
         upstream_sha256 = digest_file(path)
         revised = None
@@ -1105,10 +1368,15 @@ class Repository:
             dependency_names = re.findall(r"(?:^|[,|])\s*([a-z0-9][a-z0-9+.-]+)", fields.get("Depends", "").replace("\n", " "))
             removals = sorted({name for name in dependency_names if name in actual_policy.get("remove_depends", [])
                                or any(fnmatch.fnmatchcase(name, pattern) for pattern in actual_policy.get("remove_depends_patterns", []))})
-            if removals or actual_policy.get("local_revision"):
+            needs_edit = removals or any(actual_policy.get(key) for key in EDIT_KEYS) or actual_policy.get("local_revision")
+            if needs_edit:
+                actual_policy["local_revision"] = max(1, actual_policy.get("local_revision", 0))
+                if previous and policy_digest(actual_policy) != policy_digest(previous.get("policy", {})):
+                    actual_policy["local_revision"] = max(actual_policy["local_revision"], previous.get("policy", {}).get("local_revision", 0) + 1)
                 revised = self.inbox / (".edit-" + uuid.uuid4().hex + ".part")
                 rewrite_depends(path, revised, fields, removals,
-                                actual_policy.get("local_revision", 1))
+                                actual_policy["local_revision"], policy=actual_policy,
+                                assets=self.policy_assets(actual_policy))
                 fields = inspect_deb(revised, self.architectures)
                 payload_path = revised
             sha = digest_file(payload_path)
@@ -1139,8 +1407,10 @@ class Repository:
                 # Preserve the existing unmodified-vendor receipt contract for
                 # explicit offline repair after a normal APT-driven refresh.
                 atomic_bytes(Path(str(destination) + ".vendor-sha256"), (sha + "\n").encode())
+            upstream_filename = self.retain_upstream(path, identity[0], upstream_sha256)
             record = {"package": identity[0], "architecture": identity[1], "version": fields["Version"],
-                      "upstream_version": upstream_version, "upstream_sha256": upstream_sha256, "sha256": sha, "size": destination.stat().st_size,
+                      "upstream_version": upstream_version, "upstream_sha256": upstream_sha256,
+                      "upstream_filename": upstream_filename, "sha256": sha, "size": destination.stat().st_size,
                       "filename": str(destination.relative_to(self.repo)), "control": fields, "policy": actual_policy}
             if previous != record:
                 self.catalog["packages"][key] = record
@@ -1150,6 +1420,7 @@ class Repository:
         finally:
             if revised is not None:
                 revised.unlink(missing_ok=True)
+                revised.with_suffix(".data.tar.gz").unlink(missing_ok=True)
 
     def signing_key(self) -> str:
         safe_dir(self.keyring.parent)
@@ -1175,7 +1446,39 @@ class Repository:
             atomic_bytes(self.keyring, exported)
         return fingerprints[0]
 
+    def ensure_policies(self) -> None:
+        """Reconcile edit policies even when upstream metadata reports no update.
+
+        Old catalogues can adopt an unmodified pool object as the original. A
+        previously edited object is not a substitute for the original archive:
+        fail closed until the administrator imports the original vendor .deb.
+        """
+        for key, record in list(self.catalog["packages"].items()):
+            policy = self.effective_policy(record["package"], record.get("policy", {}))
+            stamp = record["control"].get("X-Local-Policy-SHA256")
+            needs_edit = any(policy.get(field) for field in EDIT_KEYS)
+            if (needs_edit or stamp) and stamp != policy_digest(policy):
+                relative = record.get("upstream_filename")
+                if not relative:
+                    source = self.repo / record["filename"]
+                    if digest_file(source) != record["upstream_sha256"]:
+                        raise Error(f"{key}: edited legacy archive lacks the original; "
+                                    "use local-apt-init --add ORIGINAL.deb --yes before republishing")
+                    relative = self.retain_upstream(source, record["package"], record["upstream_sha256"])
+                if not re.fullmatch(r"upstream/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}\.deb", relative):
+                    raise Error("invalid retained upstream filename")
+                source = self.root / relative
+                if digest_file(source) != record["upstream_sha256"]:
+                    raise Error("retained upstream digest mismatch")
+                policy["local_revision"] = record.get("policy", {}).get("local_revision", 0) + 1
+                self.ingest(self.stage(source, policy=policy,
+                    expected=(record["package"], record["architecture"])))
+            elif record.get("policy", {}) != policy:
+                record["policy"] = policy
+                self.changed = True
+
     def publish(self, force: bool = False) -> None:
+        self.ensure_policies()
         if not (force or self.changed or not (self.repo / "current").is_symlink()):
             self.finish_inbox()
             return
@@ -1255,9 +1558,35 @@ class Repository:
 
     def write_source(self) -> None:
         safe_dir(self.source.parent)
-        text = f"deb [signed-by={self.keyring} by-hash=force] file:{self.repo} ./\n".encode()
+        text = (f"Types: deb\nURIs: file:{self.repo}\nSuites: ./\n"
+                f"Signed-By: {self.keyring}\nBy-Hash: force\n").encode()
+        retired = []
+        # Recognize only the exact legacy publisher record, not a mixed file
+        # that happens to contain this repository's path.
+        for name in ("managed-external-software.list", "managed-external-software.sources"):
+            old = self.source.parent / name
+            if old.exists() or old.is_symlink():
+                body = read_bytes(old).decode()
+                active = "\n".join(line.strip() for line in body.splitlines()
+                                   if line.strip() and not line.lstrip().startswith("#"))
+                if name.endswith(".list"):
+                    expected = f"deb [signed-by={self.keyring} by-hash=force] file:{self.repo} ./"
+                    recognized = active == expected
+                else:
+                    expected_fields = {"types": "deb", "uris": f"file:{self.repo}",
+                                       "suites": "./", "signed-by": str(self.keyring), "by-hash": "force"}
+                    lines = [line.partition(":") for line in active.splitlines()]
+                    recognized = (len(lines) == len(expected_fields) and
+                        {key.lower(): value.strip() for key, sep, value in lines if sep} == expected_fields)
+                if not recognized:
+                    raise Error(f"customized legacy local source needs explicit normalization: {old}")
+                retired.append(old)
         if not self.source.exists() or read_bytes(self.source) != text:
             atomic_bytes(self.source, text)
+        for old in retired:
+            old.unlink()
+        if retired:
+            fsync_dir(self.source.parent)
 
     def finish_inbox(self) -> None:
         for path in self.pending:
@@ -1314,9 +1643,8 @@ class Repository:
             if key in self.catalog["disabled_seeds"] or record.get("policy", {}).get("configured"):
                 continue
             if record["package"] in defaults:
-                record["policy"] = defaults[record["package"]]
-                if record["policy"].get("remove_depends_patterns"):
-                    record["policy"]["local_revision"] = 1
+                record["policy"] = self.effective_policy(record["package"],
+                    dict(record.get("policy", {}), **defaults[record["package"]]))
                 with tempfile.TemporaryDirectory(prefix=".probe-", dir=self.inbox) as directory:
                     self.initialize_tracking(record, Path(directory))
                 self.changed = True
@@ -1382,7 +1710,8 @@ class Repository:
                    "X-Local-Source-Digest": source_id, "X-Local-Upstream-Version": upstream}
         output = work / "vendor.deb"
         assemble_binary_package(output, tree, descriptor["install_root"], control, descriptor["state_files"], app)
-        policy = {"automatic": True, "adapter": app, "binary_revision": revision}
+        policy = copy.deepcopy(previous.get("policy", {})) if previous else {}
+        policy.update({"automatic": True, "adapter": app, "binary_revision": revision})
         if tracking is not None:
             policy["tracking"] = tracking
         expected = (descriptor["package"], "amd64")
@@ -1442,7 +1771,7 @@ class Repository:
                     warn(f"{record['package']}: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest")
                 policy["tracking"] = candidate
             else:
-                warn(f"{record['package']}: a newer release is advertised; apt-local-repo --refresh will retrieve it")
+                warn(f"{record['package']}: a newer release is advertised; local-apt-init --refresh will retrieve it")
         except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
             warn(f"{record['package']}: package registration is local; initial metadata check unavailable: {exc}")
 
@@ -1589,11 +1918,40 @@ class Repository:
             if normalized != 'APT::Update::Pre-Invoke { "/usr/local/libexec/local-apt-repository refresh"; };':
                 raise Error("legacy APT hook was customized; remove its refresh action explicitly before initializing")
             remove.append(path)
+        hook = self.etc / "dpkg/dpkg.cfg.d/94-local-apt-vendor-policy"
+        if hook.exists() or hook.is_symlink():
+            body = read_bytes(hook, 65536).decode()
+            active = [line.strip() for line in body.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+            expected = [f'{phase}-invoke=if [ -x /usr/local/libexec/local-apt-vendor ]; then /usr/local/libexec/local-apt-vendor policy-{action}; fi'
+                        for phase, action in (("pre", "before"), ("post", "after"))]
+            if active != expected:
+                raise Error("customized legacy vendor hook must be retired explicitly")
+            remove.append(hook)
+        old_cli = self.etc.parent / "usr/local/bin/apt-local-repo"
+        if old_cli.exists() or old_cli.is_symlink():
+            if hashlib.sha256(read_bytes(old_cli, 65536)).hexdigest() != "0df4e5f6bab6f11ef642570a448fe2a07b167cc360931355d0ec1b745b232cb4":
+                raise Error("customized apt-local-repo must be retired explicitly")
+            remove.append(old_cli)
         for item in remove:
             item.unlink()
             fsync_dir(item.parent)
         if path in remove:
             print("Removed the legacy local repository APT pre-update hook.")
+
+
+def inspect_policy_input(path: Path, architectures: set[str]) -> dict:
+    fields = inspect_deb(path, architectures)
+    scripts = {}
+    raw = run(["/usr/bin/dpkg-deb", "--ctrl-tarfile", str(path)])
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive:
+        for info in archive:
+            name = archive_name(info.name)
+            if name in MAINTAINER_SCRIPTS and info.isfile():
+                blob = archive.extractfile(info).read()
+                scripts[name] = {"sha256": hashlib.sha256(blob).hexdigest(),
+                                 "may_write_vendor_apt": vendor_apt_script(blob)}
+    return {"control": fields, "maintainer_scripts": scripts,
+            "sha256": digest_file(path)}
 
 
 def yes_no(prompt: str) -> bool:
@@ -1606,15 +1964,20 @@ def yes_no(prompt: str) -> bool:
         print("Please enter Y or n.")
 
 
-def interactive_add(repository: Repository, source: Path) -> None:
+def interactive_add(repository: Repository, source: Path, options=None) -> None:
     name = source.name
-    if not yes_no(f"Do you want to add {name} to local APT repository? [Y/n]"):
+    noninteractive = bool(options and options.yes)
+    if not noninteractive and not yes_no(f"Do you want to add {name} to local APT repository? [Y/n]"):
         return
     ready = repository.stage(source, active=False)
     try:
         fields = inspect_deb(ready, repository.architectures)
-        policy: dict = {"automatic": False, "configured": True, "remove_depends": [], "local_revision": 0}
-        if yes_no(f"Do you want to remove any dependencies from Depends for {name}? [Y/n]"):
+        key = fields["Package"] + ":" + fields["Architecture"]
+        previous = repository.catalog["packages"].get(key)
+        policy = copy.deepcopy(previous.get("policy", {})) if previous else {"automatic": False, "remove_depends": [], "local_revision": 0}
+        policy["configured"] = True
+        policy.setdefault("remove_depends", [])
+        if not noninteractive and yes_no(f"Do you want to remove any dependencies from Depends for {name}? [Y/n]"):
             print("Depends: " + fields.get("Depends", "(none)"))
             value = input("Enter name of dependencies to remove from package (comma-separated for multiple): ").strip()
             if value:
@@ -1623,11 +1986,25 @@ def interactive_add(repository: Repository, source: Path) -> None:
                 policy["remove_depends"] = names
                 policy["local_revision"] = 1
                 print("Warning: only Depends is changed; missing runtime libraries can still prevent this application from working.")
-        if yes_no(f"Do you want {name} to receive automatic updates? [Y/n]"):
-            policy["url"] = https_url(input("Enter the HTTPS URL to the .deb (or its release page): ").strip())
-            policy["automatic"] = True
-            policy["source"] = source_for(policy["url"])
-            print("Update discovery: " + policy["source"]["kind"] + " (metadata first)")
+        if options:
+            if options.remove_depends:
+                names = [word.strip() for word in options.remove_depends.split(",")]
+                remove_dependencies(fields.get("Depends", ""), names)
+                policy["remove_depends"] = sorted(set(policy.get("remove_depends", [])) | set(names))
+            if options.remove_vendor_apt:
+                policy["remove_vendor_apt"] = True
+            if options.drop_maintainer_script:
+                policy["drop_maintainer_scripts"] = sorted(set(policy.get("drop_maintainer_scripts", [])) | set(options.drop_maintainer_script))
+            if options.url:
+                policy.update(automatic=True, url=https_url(options.url), source=source_for(options.url))
+                policy.pop("tracking", None)
+        if not noninteractive:
+            policy["automatic"] = yes_no(f"Do you want {name} to receive automatic updates? [Y/n]")
+            if policy["automatic"]:
+                policy["url"] = https_url(input("Enter the HTTPS URL to the .deb (or its release page): ").strip())
+                policy["source"] = source_for(policy["url"])
+                policy.pop("tracking", None)
+                print("Update discovery: " + policy["source"]["kind"] + " (metadata first)")
         key = fields["Package"] + ":" + fields["Architecture"]
         previous = repository.catalog["packages"].get(key)
         if previous:
@@ -1656,7 +2033,7 @@ def interactive_add(repository: Repository, source: Path) -> None:
         raise
 
 
-def interactive_delete(repository: Repository) -> None:
+def interactive_delete(repository: Repository, package: str | None = None) -> None:
     records = sorted(repository.catalog["packages"].items())
     if not records:
         print("The local APT repository is empty.")
@@ -1664,7 +2041,7 @@ def interactive_delete(repository: Repository) -> None:
     for number, (key, record) in enumerate(records, 1):
         status = "automatic" if record.get("policy", {}).get("automatic") else "static"
         print(f"{number}: {key} {record['version']} [{status}]")
-    choice = input("Enter the number or package[:architecture] to delete from the repo (blank to cancel): ").strip()
+    choice = package if package is not None else input("Enter the number or package[:architecture] to delete from the repo (blank to cancel): ").strip()
     if not choice:
         return
     if choice.isdigit() and 1 <= int(choice) <= len(records):
@@ -1686,14 +2063,29 @@ def interactive_delete(repository: Repository) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for command in ("init", "refresh", "process-inbox", "delete", "list", "rebuild", "seed-defaults", "adopt-vendors"):
+    for command in ("init", "refresh", "process-inbox", "list", "rebuild", "seed-defaults", "adopt-vendors", "status"):
         sub.add_parser(command)
-    for command in ("add", "import"):
+    deletion = sub.add_parser("delete")
+    deletion.add_argument("package", nargs="?")
+    for command in ("show", "policy", "reapply", "remove-vendor-apt", "remove-depends", "set-policy"):
+        option = sub.add_parser(command)
+        option.add_argument("package")
+        if command == "set-policy":
+            option.add_argument("file", type=Path)
+        if command == "remove-depends":
+            option.add_argument("names", help="comma-separated exact dependency names")
+    for command in ("add", "import", "inspect"):
         option = sub.add_parser(command)
         option.add_argument("file", type=Path)
+        if command == "add":
+            option.add_argument("--yes", action="store_true", help="approve noninteractive publication")
+            option.add_argument("--remove-depends", metavar="NAME,NAME")
+            option.add_argument("--remove-vendor-apt", action="store_true")
+            option.add_argument("--drop-maintainer-script", action="append", choices=sorted(MAINTAINER_SCRIPTS | {"triggers"}))
+            option.add_argument("--url", help="HTTPS update URL (enables automatic updates)")
     args = parser.parse_args(argv)
     if os.geteuid() != 0:
-        raise Error("run this command as root (sudo apt-local-repo)")
+        raise Error("run this command as root (sudo local-apt-init)")
     if hasattr(args, "file"):
         args.file = args.file.absolute()
     os.environ.clear()
@@ -1714,13 +2106,32 @@ def main(argv: list[str] | None = None) -> int:
             for path in repository.adopt_vendors():
                 print(path)
         elif args.command == "add":
-            interactive_add(repository, args.file.absolute())
+            interactive_add(repository, args.file.absolute(), args)
         elif args.command == "delete":
-            interactive_delete(repository)
+            interactive_delete(repository, args.package)
         elif args.command == "import":
             record = repository.ingest(repository.stage(args.file.absolute()))
             repository.publish()
             print(repository.repo / record["filename"])
+        elif args.command == "inspect":
+            print(json.dumps(inspect_policy_input(args.file, repository.architectures), indent=2, sort_keys=True))
+        elif args.command in {"show", "policy"}:
+            _, record = repository.select(args.package)
+            print(json.dumps(record["policy"] if args.command == "policy" else record, indent=2, sort_keys=True))
+        elif args.command == "status":
+            path = repository.root / "state/last-refresh.json"
+            print(read_bytes(path).decode() if path.exists() else '{"status": "not-yet-refreshed"}')
+        elif args.command in {"set-policy", "remove-vendor-apt", "remove-depends", "reapply"}:
+            changes = None
+            if args.command == "set-policy":
+                changes = json.loads(read_bytes(args.file, 65536))
+            elif args.command == "remove-vendor-apt":
+                changes = {"remove_vendor_apt": True}
+            elif args.command == "remove-depends":
+                _, old = repository.select(args.package)
+                changes = {"remove_depends": sorted(set(old.get("policy", {}).get("remove_depends", [])) | set(args.names.split(",")))}
+            record = repository.reapply(args.package, changes)
+            print(f"Published {record['package']} {record['version']} with persisted policy. No packages were installed.")
         elif args.command == "list":
             print(json.dumps(repository.catalog, sort_keys=True))
         elif args.command == "refresh":

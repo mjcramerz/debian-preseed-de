@@ -635,6 +635,8 @@ for path in \
   /usr/local/bin/labwc-admin-action \
   /usr/local/libexec/labwc-admin-action-root \
   /usr/local/libexec/labwc-admin-action-worker \
+  /usr/local/libexec/labwc-logout-root \
+  /usr/local/libexec/labwc-session-state \
   /usr/local/bin/labwc-calendar \
   /usr/local/libexec/labwc-calendar \
   /usr/local/bin/labwc-ocr \

@@ -36,9 +36,9 @@ esac
 
 action=${1:-}
 [ "$#" -eq 1 ] && [ -n "$action" ] ||
-  fatal "usage: labwc-admin-action-root <suspend|reboot|poweroff>"
+  fatal "usage: labwc-admin-action-root <suspend|reboot|poweroff|logout>"
 case "$action" in
-  suspend|reboot|poweroff) ;;
+  suspend|reboot|poweroff|logout) ;;
   *) fatal "unsupported privileged power action: ${action}" ;;
 esac
 

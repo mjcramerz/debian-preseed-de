@@ -1,6 +1,18 @@
 #!/bin/sh
 set -eu
 
+# No arguments retain the existing CPU power-profile menu. Explicit actions
+# use the same authenticated, session-safe path as the Waybar power menu.
+if [ "$#" -ne 0 ]; then
+  [ "$#" -eq 1 ] || exit 64
+  case "$1" in
+    lock) exec /usr/local/bin/labwc-lock ;;
+    logout) exec /usr/local/bin/labwc-logout ;;
+    suspend|reboot|poweroff) exec /usr/local/bin/labwc-admin-action "$1" ;;
+    *) printf 'usage: labwc-power-settings [lock|logout|suspend|reboot|poweroff]\n' >&2; exit 64 ;;
+  esac
+fi
+
 command -v labwc-fuzzel >/dev/null 2>&1 || {
   printf 'fatal: labwc-fuzzel is not installed\n' >&2
   exit 1

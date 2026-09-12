@@ -1,0 +1,342 @@
+#!/usr/bin/python3 -I
+"""User-only graceful close and restart handoff. Never signal GUI applications.
+
+Window close requests let each editor save/recover its own documents. A save
+prompt, hidden/tray process or nested compositor blocks destructive teardown.
+Restart descriptors are not memory snapshots and never run with root rights.
+"""
+from __future__ import annotations
+import base64
+import fcntl
+import json
+import os
+from pathlib import Path
+import pwd
+import re
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+TARGET = "labwc-session.target"
+MAX_STATE = 1024 * 1024
+DOCUMENT_APPS = {"featherpad", "fpad", "focuswriter", "gnumeric", "code", "code-insiders",
+                 "libreoffice", "lowriter", "localc", "soffice", "gedit", "kate", "mousepad"}
+WRAPPERS = {"/usr/local/bin/labwc-wayland-app", "/usr/local/bin/labwc-electron-app",
+            "/usr/local/bin/labwc-managed-app", "/usr/local/bin/labwc-managed-wayland-compat-app"}
+
+
+class Error(Exception):
+    pass
+
+
+def run(argv: list[str], *, timeout: int = 15, accepted: tuple[int, ...] = (0,), cwd: str | None = None) -> str:
+    result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                            text=True, timeout=timeout, check=False, cwd=cwd)
+    if result.returncode not in accepted:
+        raise Error(f"{Path(argv[0]).name} failed ({result.returncode}): {result.stderr.strip()[:600]}")
+    if len(result.stdout) > 4 * MAX_STATE:
+        raise Error("session command output exceeds size limit")
+    return result.stdout
+
+
+def ctl(*args: str, **kwargs) -> str:
+    return run(["/usr/bin/systemctl", "--user", "--no-pager", *args], **kwargs)
+
+
+def notify(message: str) -> None:
+    try:
+        run(["/usr/bin/notify-send", "--app-name=Desktop Power", "--urgency=critical",
+             "--expire-time=0", "--", "Desktop session", message], timeout=5)
+    except (Error, OSError, subprocess.SubprocessError):
+        pass
+
+
+def checked_fd(path: Path, *, create: bool = False) -> int:
+    flags = os.O_RDWR if create else os.O_RDONLY
+    fd = os.open(path, flags | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK | (os.O_CREAT if create else 0), 0o600)
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1 or st.st_size > MAX_STATE:
+        os.close(fd)
+        raise Error(f"unsafe session-state file: {path.name}")
+    return fd
+
+
+def private_directory(path: Path, home: Path) -> None:
+    if not path.is_relative_to(home):
+        raise Error("state directory is outside the account home")
+    for parent in reversed((path, *path.parents)):
+        if not parent.is_relative_to(home):
+            continue
+        if not parent.exists() and not parent.is_symlink():
+            parent.mkdir(mode=0o700)
+        st = parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise Error("unsafe session-state directory")
+    if stat.S_IMODE(path.stat().st_mode) != 0o700:
+        raise Error("session-state directory must have mode 0700")
+
+
+def atomic(path: Path, data: dict) -> None:
+    blob = (json.dumps(data, ensure_ascii=True, indent=2) + "\n").encode()
+    if len(blob) > MAX_STATE:
+        raise Error("too many application restart records")
+    fd, temporary = tempfile.mkstemp(prefix=".state-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(blob)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        parent = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent)
+        finally:
+            os.close(parent)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def descriptor(value: object) -> dict:
+    if not isinstance(value, dict) or set(value) != {"argv", "cwd"}:
+        raise Error("invalid application restart descriptor")
+    argv, cwd = value["argv"], value["cwd"]
+    if not isinstance(argv, list) or not 3 <= len(argv) <= 128 or any(
+            not isinstance(arg, str) or len(arg) > 8192 or any(c in arg for c in "\x00\n\r") for arg in argv):
+        raise Error("invalid restart arguments")
+    if argv[0] not in WRAPPERS or argv[1] not in {"launch", "intel", "nvidia"}:
+        raise Error("restart must use a managed application launcher")
+    if not isinstance(cwd, str) or not cwd.startswith("/") or len(cwd) > 4096 or any(c in cwd for c in "\x00\n\r"):
+        raise Error("invalid restart working directory")
+    if ".." in Path(cwd).parts:
+        raise Error("restart working directory contains traversal")
+    if argv[0].endswith(("labwc-wayland-app", "labwc-electron-app")):
+        if len(argv) < 4 or argv[2] != "--" or Path(argv[3]).name not in DOCUMENT_APPS:
+            raise Error("automatic restart is limited to document editors, not shell/job launchers")
+    elif not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", argv[2]):
+        raise Error("invalid managed application identifier")
+    return value
+
+
+def load(path: Path) -> list[dict]:
+    if not path.exists() and not path.is_symlink():
+        return []
+    with os.fdopen(checked_fd(path), "r") as stream:
+        saved = json.load(stream)
+    if not isinstance(saved, dict) or saved.get("format") != 1 or not isinstance(saved.get("apps"), list) or len(saved["apps"]) > 256:
+        raise Error("invalid saved desktop state")
+    return [descriptor(app) for app in saved["apps"]]
+
+
+def properties(unit: str) -> dict[str, str]:
+    text = ctl("show", "--property=Environment,Transient,PartOf,Requires,Requisite,LoadState,ActiveState", "--", unit, accepted=(0, 1))
+    return dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+
+
+def services() -> dict[str, dict[str, str]]:
+    units = json.loads(ctl("list-units", "--type=service", "--state=active,activating,reloading", "--output=json"))
+    if not isinstance(units, list) or len(units) > 512:
+        raise Error("unexpected user-service list")
+    result = {}
+    for item in units:
+        name = item["unit"]
+        if not re.fullmatch(r"[A-Za-z0-9_.@:\\-]+\.service", name):
+            raise Error("invalid user-service identifier")
+        props = properties(name)
+        # shlex is a tokenizer, never a shell. Restart data is base64 ASCII.
+        environment = dict(token.split("=", 1) for token in shlex.split(props.get("Environment", "")) if "=" in token)
+        props.update({key: environment[key] for key in ("LABWC_SESSION_APP", "LABWC_SESSION_RESTORE", "LABWC_SESSION_NESTED") if key in environment})
+        result[name] = props
+    return result
+
+
+def windows() -> str:
+    # Unlike repeated close commands, repeated list commands cannot dismiss a
+    # newly-created Save/Discard dialog. Failure is never treated as no windows.
+    visible = run(["/usr/bin/wlrctl", "toplevel", "list"], timeout=5).strip()
+    if visible:
+        return visible
+    # list omits handles without an app-id; find matches those too.
+    probe = subprocess.run(["/usr/bin/wlrctl", "toplevel", "find"],
+                           capture_output=True, text=True, timeout=5, check=False)
+    if probe.returncode == 0:
+        return "(unidentified toplevel)"
+    if probe.returncode != 1 or probe.stderr.strip():
+        raise Error("cannot verify that all Wayland windows have closed")
+    return ""
+
+
+def collect(apps: dict[str, dict[str, str]], prior: list[dict]) -> list[dict]:
+    result = list(prior)
+    for props in apps.values():
+        token = props.get("LABWC_SESSION_RESTORE", "")
+        if not token or len(token) > 65536:
+            continue
+        try:
+            data = base64.b64decode(token, altchars=b"-_", validate=True)
+            item = descriptor(json.loads(data))
+            if (item["argv"][0].endswith("labwc-wayland-app")
+                    and Path(item["argv"][3]).name in {"featherpad", "fpad"}):
+                # FeatherPad restores its complete last-files/cursor session only
+                # when no file operands are supplied. Replaying its first launch
+                # filename would hide tabs saved later during this close request.
+                item = dict(item, argv=item["argv"][:4])
+        except (Error, ValueError, TypeError):
+            # Non-document generic launchers still block closing while alive;
+            # they simply aren't safe to replay automatically at next login.
+            continue
+        if item not in result:
+            result.append(item)
+    if len(result) > 256:
+        raise Error("too many application restart records")
+    return result
+
+
+def clear_clipboard() -> None:
+    # Stop the history watcher before clearing, so it cannot repopulate history.
+    names = ctl("list-units", "--all", "--plain", "--no-legend", "--type=service", "*cliphist*")
+    watchers = [line.split()[0] for line in names.splitlines() if line.split()]
+    for unit in watchers:
+        if re.fullmatch(r"[A-Za-z0-9_.@-]+\.service", unit):
+            ctl("stop", unit)
+    run(["/usr/bin/wl-copy", "--clear"], timeout=5)
+    run(["/usr/bin/wl-copy", "--primary", "--clear"], timeout=5)
+    if Path("/usr/bin/cliphist").is_file():
+        run(["/usr/bin/cliphist", "wipe"], timeout=5)
+
+
+def stop_orphans() -> None:
+    # Only session-owned non-application services are eligible. Never kill an
+    # editor simply because one of its dependencies failed.
+    for unit, props in services().items():
+        if TARGET not in props.get("PartOf", "").split() or props.get("LABWC_SESSION_APP") == "1":
+            continue
+        required = set((props.get("Requisite", "") + " " + props.get("Requires", "")).split())
+        absent = [name for name in required if properties(name).get("LoadState") in {"not-found", "error", "bad-setting"}]
+        if absent:
+            ctl("stop", unit, timeout=25)
+
+
+def prepare(state: Path, runtime: Path, *, timeout: float = 120) -> None:
+    marker = runtime / "labwc-session-closing"
+    fd = checked_fd(marker, create=True)
+    os.close(fd)
+    try:
+        ctl("--quiet", "is-active", TARGET)
+        initial = services()
+        if any(props.get("LABWC_SESSION_NESTED") == "1" for props in initial.values()):
+            raise Error("Quit nested Cage applications (Discord/Zoom) first; their outer window cannot safely save the inner client")
+        saved = collect(initial, load(state / "pending.json"))
+        atomic(state / "pending.json", {"format": 1, "apps": saved})
+        visible = windows()
+        notify("Closing applications normally. Save any requested documents. An unresolved dialog or tray application will cancel this request.")
+        if visible:
+            # A single protocol round-trip closes only the currently advertised
+            # toplevels. Never simulate shortcuts, click Discard, or send SIGTERM.
+            run(["/usr/bin/wlrctl", "toplevel", "close"], timeout=5, accepted=(0, 1))
+        deadline = time.monotonic() + timeout
+        while True:
+            active = services()
+            live = [name for name, props in active.items() if props.get("LABWC_SESSION_APP") == "1"]
+            visible = windows()
+            if not visible and not live:
+                break
+            if time.monotonic() >= deadline:
+                raise Error("Save/close the remaining application or quit its tray process, then retry. No session teardown was performed")
+            time.sleep(1)
+        atomic(state / "resume.json", {"format": 1, "apps": saved})
+        clear_clipboard()
+        stop_orphans()
+    except BaseException:
+        marker.unlink(missing_ok=True)
+        raise
+
+
+def restore(state: Path, runtime: Path) -> None:
+    # A previous interrupted logout must not leave the next login unable to launch.
+    (runtime / "labwc-session-closing").unlink(missing_ok=True)
+    ctl("--quiet", "is-active", TARGET)
+    apps = load(state / "resume.json")
+    if not apps:
+        return
+    atomic(state / "last-session.json", {"format": 1, "apps": apps})
+    remaining = list(apps)
+    for app in apps:
+        try:
+            executable = Path(app["argv"][0])
+            st = executable.lstat()
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+                raise Error("restart wrapper is not a trusted system file")
+            working = app["cwd"]
+            # The wrapper creates the actual independent application unit. This
+            # short-lived handoff also prevents ChatGPT's log pipe from blocking
+            # restoration of all the other applications.
+            run(["/usr/bin/systemd-run", "--user", "--quiet", "--collect",
+                 "--service-type=exec", "--expand-environment=no",
+                 "--unit=labwc-restore-" + uuid.uuid4().hex + ".service",
+                 "--property=PartOf=" + TARGET, "--property=Requisite=" + TARGET,
+                 "--property=After=" + TARGET, "--property=ExitType=cgroup",
+                 "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+                 "--working-directory=" + working, "--", *app["argv"]])
+            remaining.remove(app)
+            atomic(state / "resume.json", {"format": 1, "apps": remaining})
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            notify("An application could not be restarted: " + str(exc))
+    if not remaining:
+        (state / "pending.json").unlink(missing_ok=True)
+        (state / "resume.json").unlink(missing_ok=True)
+
+
+def main(argv: list[str]) -> int:
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        raise Error("session preparation must run as the invoking desktop user, never root")
+    if len(argv) != 1 or argv[0] not in {"prepare", "restore", "cancel", "locked", "error"}:
+        raise Error("usage: labwc-session-state prepare|restore|cancel|locked|error")
+    os.umask(0o077)
+    runtime = Path(f"/run/user/{os.getuid()}")
+    st = runtime.lstat()
+    if os.environ.get("XDG_RUNTIME_DIR") != str(runtime) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Error("unsafe desktop runtime directory")
+    action = argv[0]
+    if action == "cancel":
+        (runtime / "labwc-session-closing").unlink(missing_ok=True)
+        return 0
+    if action == "error":
+        notify("The power/logout request stopped. Your session was not forcibly closed while applications were awaiting a save. See journalctl -b -u 'labwc-admin-action@*'.")
+        return 0
+    if action == "locked":
+        fd = checked_fd(runtime / "labwc-swaylock.lock")
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return 0
+            raise Error("screen-lock lifetime lock is not held; suspend cancelled")
+        finally:
+            os.close(fd)
+    home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+    state = home / ".local/state/labwc-session"
+    private_directory(state, home)
+    fd = checked_fd(state / "state.lock", create=True)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if action == "prepare":
+            prepare(state, runtime)
+        else:
+            restore(state, runtime)
+    finally:
+        os.close(fd)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"labwc-session-state: {exc}", file=sys.stderr)
+        notify(str(exc))
+        sys.exit(1)

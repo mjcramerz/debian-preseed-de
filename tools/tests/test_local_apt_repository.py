@@ -79,7 +79,7 @@ class RepositoryTests(unittest.TestCase):
             self.assertIn('pool/', (self.repository.repo / 'Packages').read_text())
             self.assertEqual(gzip.decompress((self.repository.repo / 'Packages.gz').read_bytes()), (self.repository.repo / 'Packages').read_bytes())
             self.assertIn('Acquire-By-Hash: yes', (self.repository.repo / 'Release').read_text())
-            self.assertIn('by-hash=force', self.repository.source.read_text())
+            self.assertIn('By-Hash: force', self.repository.source.read_text())
             subprocess.run(['/usr/bin/gpgv', '--keyring', str(self.repository.keyring), str(self.repository.repo / 'InRelease')], check=True, capture_output=True)
             for parent in (self.repository.repo / item['filename']).parents:
                 if parent == self.root:

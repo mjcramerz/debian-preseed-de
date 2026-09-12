@@ -1,3 +1,5 @@
+> Historical implementation report. The current CLI is `local-apt-init`; package-policy and power behavior below is superseded by [the current change report](../local-apt-session-policy/README.md). Validation counts below describe the earlier delivery.
+
 # Local APT repository v2: weekly, metadata-first refresh
 
 Date: 2026-09-12. Baseline: the complete `debian-preseed-de-scoped-fixes.tar.gz` supplied in this conversation. This revision changes only local-repository discovery, refresh scheduling, its command-line entrypoint, necessary installer/AppArmor integration, tests and documentation. The earlier desktop, Whisper, session-isolation and rfkill changes are retained.

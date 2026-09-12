@@ -18,6 +18,7 @@ from .environment import (
     acceleration_availability_from_defaults, load_managed_defaults,
     validate_acceleration_mode,
 )
+from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
 from .profiles import INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV
 from .runtime import (
@@ -149,6 +150,9 @@ def session_environment() -> dict[str, str]:
 
 
 def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict[str, str]) -> list[str]:
+    assert_launch_allowed()
+    environment["LABWC_SESSION_APP"] = "1"
+    environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
     return [

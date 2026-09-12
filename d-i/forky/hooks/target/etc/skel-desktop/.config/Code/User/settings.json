@@ -74,6 +74,8 @@
     "sv-SE": true
   },
   "diffEditor.ignoreTrimWhitespace": false,
+  "files.hotExit": "onExitAndWindowClose",
+  "window.restoreWindows": "all",
   "files.autoSave": "afterDelay",
   "files.autoSaveDelay": 1000,
   "files.encoding": "utf8",

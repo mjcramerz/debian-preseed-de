@@ -1,94 +1,158 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -I
+"""Authorized PID-1-owned power worker; user documents never run as root."""
+from __future__ import annotations
+import fcntl
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import subprocess
+import sys
+import time
+import uuid
 
-PATH=/usr/sbin:/usr/bin:/sbin:/bin
-LC_ALL=C.UTF-8
-export PATH LC_ALL
-umask 077
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8"}
 
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
-  exit 1
-}
 
-[ "$(/usr/bin/id -u)" -eq 0 ] ||
-  fatal "system power worker must run as root"
+class Error(Exception):
+    pass
 
-[ "$#" -eq 1 ] && [ -n "$1" ] ||
-  fatal "usage: labwc-admin-action-worker <uid>-<suspend|reboot|poweroff>"
-instance=$1
-case "$instance" in
-  *-suspend)
-    invoker_uid=${instance%-suspend}
-    action=suspend
-    ;;
-  *-reboot)
-    invoker_uid=${instance%-reboot}
-    action=reboot
-    ;;
-  *-poweroff)
-    invoker_uid=${instance%-poweroff}
-    action=poweroff
-    ;;
-  *)
-    fatal "invalid system power worker instance: $instance"
-    ;;
-esac
-case "$invoker_uid" in
-  ''|0|0*|*[!0-9]*)
-    fatal "invalid system power worker uid: ${invoker_uid:-unset}"
-    ;;
-esac
 
-invoker_passwd=$(/usr/bin/getent passwd "$invoker_uid" 2>/dev/null) ||
-  fatal "system power worker account does not exist: $invoker_uid"
-invoker_name=${invoker_passwd%%:*}
-invoker_passwd_tail=${invoker_passwd#*:}
-invoker_passwd_tail=${invoker_passwd_tail#*:}
-invoker_record_uid=${invoker_passwd_tail%%:*}
-case "$invoker_name" in
-  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*)
-    fatal "system power worker account name is unsafe: ${invoker_name:-unset}"
-    ;;
-esac
-[ "${#invoker_name}" -le 64 ] ||
-  fatal "system power worker account name exceeds the managed identifier limit"
-[ "$invoker_record_uid" = "$invoker_uid" ] ||
-  fatal "system power worker account identity does not match its uid"
+def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,)) -> str:
+    proc = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                          text=True, env=ENV, timeout=timeout, check=False)
+    if proc.returncode not in accepted:
+        raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {proc.stderr.strip()[:1000]}")
+    return proc.stdout
 
-[ -x /usr/bin/systemctl ] ||
-  fatal "required executable is not available: /usr/bin/systemctl"
-[ -x /usr/bin/timeout ] ||
-  fatal "required executable is not available: /usr/bin/timeout"
 
-stop_managed_desktop_session() {
-  session_machine="${invoker_name}@.host"
-  session_stop_status=0
-  /usr/bin/timeout \
-    --foreground \
-    --signal=TERM \
-    --kill-after=5s \
-    45s \
-    /usr/bin/systemctl \
-      --user \
-      --machine="$session_machine" \
-      --no-ask-password \
-      --quiet \
-      stop \
-      labwc-session.target || session_stop_status=$?
-  if [ "$session_stop_status" -ne 0 ]; then
-    printf 'warning: managed desktop session did not stop cleanly before %s (status %s)\n' \
-      "$action" "$session_stop_status" >&2
-  fi
-}
+class Worker:
+    def __init__(self, uid: int, user: str, action: str):
+        self.uid, self.user, self.action = uid, user, action
+        self.machine = user + "@.host"
 
-case "$action" in
-  reboot|poweroff)
-    # Stop desktop clients while PipeWire, BlueZ, DRM, libvirt, the user bus,
-    # and the system manager are still available. This worker is owned by PID 1
-    # and cannot be killed by stopping the requester's user-session target.
-    stop_managed_desktop_session
-    ;;
-esac
+    def userctl(self, *args: str, **kwargs) -> str:
+        return run(["/usr/bin/systemctl", "--user", "--machine=" + self.machine,
+                    "--no-ask-password", *args], **kwargs)
 
-exec /usr/bin/systemctl --no-block "$action"
+    def helper(self, action: str) -> None:
+        run(["/usr/bin/systemd-run", "--user", "--machine=" + self.machine,
+             "--quiet", "--wait", "--collect", "--service-type=exec", "--expand-environment=no",
+             "--unit=labwc-power-" + action + "-" + uuid.uuid4().hex + ".service",
+             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+             "--property=PartOf=labwc-session.target", "--property=RuntimeMaxSec=145s",
+             "--property=TimeoutStopSec=5s",
+             "--property=StandardInput=null", "--property=StandardOutput=journal",
+             "--property=StandardError=journal", "--", "/usr/local/libexec/labwc-session-state", action],
+            timeout=160 if action == "prepare" else 15)
+
+    def protect_other_sessions(self) -> None:
+        if self.action == "logout":
+            return
+        listing = run(["/usr/bin/loginctl", "list-sessions", "--no-legend", "--no-pager"])
+        for line in listing.splitlines():
+            fields = line.split()
+            if len(fields) < 2 or not fields[1].isdigit() or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fields[0]):
+                raise Error("unexpected login session listing")
+            if int(fields[1]) == self.uid:
+                continue
+            session_class = run(["/usr/bin/loginctl", "show-session", fields[0], "--property=Class", "--value"]).strip()
+            if session_class in {"user", "user-early", "user-light"}:
+                raise Error("another interactive account is logged in; ask that user to save and log out first")
+
+    def lock(self) -> None:
+        # Type=forking waits for labwc-lock's swaylock -f readiness handshake.
+        # Unlike an exec oneshot, its daemon stays in a live independent unit.
+        run(["/usr/bin/systemd-run", "--user", "--machine=" + self.machine,
+             "--quiet", "--collect", "--service-type=forking", "--expand-environment=no",
+             "--unit=labwc-power-lock-" + uuid.uuid4().hex + ".service",
+             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+             "--property=PartOf=labwc-session.target", "--property=TimeoutStartSec=20s",
+             "--property=TimeoutStopSec=5s", "--", "/usr/local/bin/labwc-lock"], timeout=25)
+        self.helper("locked")
+
+    def remaining(self) -> bool:
+        return bool(run(["/usr/bin/pgrep", "--uid", str(self.uid)], accepted=(0, 1)).strip())
+
+    def terminate_user(self) -> None:
+        # This phase is reachable only after all managed GUI cgroups exited and
+        # no toplevel/save dialogs remained. Neither pkexec nor the panel owns it.
+        self.userctl("stop", "labwc-session.target", "labwc-compositor.service", timeout=50)
+        # Logind/PID 1 reap session scopes and lingering user services. These are
+        # explicit stops, not a system shutdown.target transaction.
+        run(["/usr/bin/loginctl", "terminate-user", str(self.uid)], accepted=(0, 1), timeout=30)
+        run(["/usr/bin/systemctl", "stop", f"user@{self.uid}.service", f"user-{self.uid}.slice"], timeout=55)
+        # Also handle processes started for this UID outside its user slice.
+        run(["/usr/bin/pkill", "--signal", "TERM", "--uid", str(self.uid)], accepted=(0, 1))
+        until = time.monotonic() + 3
+        while self.remaining() and time.monotonic() < until:
+            time.sleep(0.2)
+        if self.remaining():
+            run(["/usr/bin/pkill", "--signal", "KILL", "--uid", str(self.uid)], accepted=(0, 1))
+        until = time.monotonic() + 5
+        while self.remaining() and time.monotonic() < until:
+            time.sleep(0.2)
+        if self.remaining():
+            raise Error("invoking-user processes remain; refusing the final forced power action")
+
+    def execute(self) -> None:
+        self.userctl("--quiet", "is-active", "labwc-session.target")
+        self.protect_other_sessions()
+        if self.action == "suspend":
+            self.lock()
+            # One --force bypasses login1 routing, not systemd-sleep or GPU hooks.
+            # Never write /sys/power/state, unload drivers, or stop user apps.
+            run(["/usr/bin/systemctl", "--force", "suspend"], timeout=60)
+            return
+        self.helper("prepare")
+        self.terminate_user()
+        os.sync()
+        if self.action != "logout":
+            # A SINGLE --force avoids shutdown.target's dependency transaction
+            # while retaining PID 1's process and filesystem shutdown handling.
+            run(["/usr/bin/systemctl", "--force", self.action], timeout=60)
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0 or len(argv) != 1:
+        raise Error("usage (system service only): labwc-admin-action-worker UID-suspend|reboot|poweroff|logout")
+    match = re.fullmatch(r"([1-9][0-9]{0,9})-(suspend|reboot|poweroff|logout)", argv[0])
+    if not match:
+        raise Error("invalid power-worker instance")
+    uid, action = int(match[1]), match[2]
+    account = pwd.getpwuid(uid)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", account.pw_name):
+        raise Error("unsafe invoking account identifier")
+    os.umask(0o077)
+    directory = Path("/run/labwc-power")
+    st = directory.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Error("unsafe system power lock directory")
+    fd = os.open(directory / "action.lock", os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
+            raise Error("unsafe system power lock")
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        worker = Worker(uid, account.pw_name, action)
+        try:
+            worker.execute()
+        except BaseException:
+            for operation in ("cancel", "error"):
+                try:
+                    worker.helper(operation)
+                except (Error, OSError, subprocess.SubprocessError):
+                    pass  # The user manager may already have exited.
+            raise
+    finally:
+        os.close(fd)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (Error, OSError, KeyError, ValueError, subprocess.SubprocessError) as exc:
+        print(f"labwc-admin-action-worker: {exc}", file=sys.stderr)
+        sys.exit(1)

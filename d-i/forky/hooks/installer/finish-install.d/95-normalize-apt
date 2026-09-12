@@ -202,94 +202,6 @@ remove_cuda_legacy_repo_state() {
   log "removed all staged legacy CUDA Debian 12 source artifacts and keyring state"
 }
 
-normalize_backports_signed_by() {
-  src=$1
-  dest=$2
-
-  awk -v signed_by="Signed-By: ${DEBIAN_KEYRING}" '
-    BEGIN {
-      in_stanza = 0
-      have_signed_by = 0
-    }
-    /^[[:space:]]*$/ {
-      if (in_stanza && !have_signed_by) {
-        print signed_by
-      }
-      print
-      in_stanza = 0
-      have_signed_by = 0
-      next
-    }
-    {
-      in_stanza = 1
-    }
-    /^Signed-By:[[:space:]]*/ {
-      if (!have_signed_by) {
-        print signed_by
-        have_signed_by = 1
-      }
-      next
-    }
-    {
-      print
-    }
-    END {
-      if (in_stanza && !have_signed_by) {
-        print signed_by
-      }
-    }
-  ' "$src" >"$dest"
-}
-
-merge_backports_into_debian_sources() {
-  backports_src=
-  debian_sources="${SOURCES_DIR}/debian.sources"
-  temp_backports="${SOURCES_DIR}/debian-backports.normalized.$$"
-
-  if [ ! -f "$debian_sources" ] && [ -f "${TARGET}/etc/apt/debian.sources" ]; then
-    mv "${TARGET}/etc/apt/debian.sources" "$debian_sources"
-  fi
-
-  for backports_src in \
-    "${SOURCES_DIR}/debian-backports.sources" \
-    "${TARGET}/etc/apt/debian-backports.sources"
-  do
-    [ -f "$backports_src" ] || continue
-    normalize_backports_signed_by "$backports_src" "$temp_backports"
-    : >"${debian_sources}.tmp.$$"
-    if [ -f "$debian_sources" ]; then
-      cat "$debian_sources" >"${debian_sources}.tmp.$$"
-    fi
-    append_with_separator "${debian_sources}.tmp.$$" "$temp_backports"
-    mv "${debian_sources}.tmp.$$" "$debian_sources"
-    rm -f "$backports_src" "$temp_backports"
-  done
-}
-
-combine_named_sources() {
-  output_name=$1
-  match_pattern=$2
-  temp_output="${SOURCES_DIR}/${output_name}.tmp.$$"
-  found=0
-
-  : >"$temp_output"
-  for src in $(find "$SOURCES_DIR" -maxdepth 1 -type f -name "$match_pattern" | sort); do
-    found=1
-    append_with_separator "$temp_output" "$src"
-  done
-
-  if [ "$found" -eq 0 ]; then
-    rm -f "$temp_output"
-    return 0
-  fi
-
-  mv "$temp_output" "${SOURCES_DIR}/${output_name}"
-  for src in $(find "$SOURCES_DIR" -maxdepth 1 -type f -name "$match_pattern" | sort); do
-    [ "$src" = "${SOURCES_DIR}/${output_name}" ] || rm -f "$src"
-  done
-}
-
-
 install_default_release_policy() {
   default_release_dir="${TARGET}/etc/apt/apt.conf.d"
   default_release_file=95default-release-forky
@@ -327,9 +239,7 @@ remove_cuda_legacy_repo_state
 log "running apt modernize-sources in target"
 run_in_target env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt -y modernize-sources
 
-merge_backports_into_debian_sources
-combine_named_sources cramerz.sources '*cramerz*.sources'
-combine_named_sources crowdsec.sources '*crowdsec*.sources'
+run_in_target /usr/local/libexec/local-apt-normalize-sources
 rewrite_apt_http_to_https
 install_default_release_policy
 

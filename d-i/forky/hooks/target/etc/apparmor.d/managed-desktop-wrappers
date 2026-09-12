@@ -370,6 +370,8 @@ profile managed-labwc-admin-action /usr/local/bin/labwc-admin-action flags=(atta
   /usr/bin/{flock,id,stat} rix,
   /usr/bin/{notify-send,pkexec} PUx,
   /usr/local/libexec/labwc-admin-action-root rix,
+  /usr/local/libexec/labwc-logout-root rix,
+  @{PROC}/[0-9]*/fd/9 r,
   owner /run/user/[0-9]*/labwc-admin-action.lock rwk,
 
   include if exists <local/usr.local.bin.labwc-admin-action>
@@ -386,13 +388,57 @@ profile managed-labwc-admin-action-root /usr/local/libexec/labwc-admin-action-ro
 }
 
 profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/managed-wrapper-python>
 
   /usr/local/libexec/labwc-admin-action-worker rix,
-  /usr/bin/{getent,id,timeout} rix,
-  /usr/bin/systemctl PUx,
+  # NoNewPrivileges=yes is intentional: these fixed utilities inherit this
+  # profile instead of requiring a privilege-widening PUx transition. The
+  # user@.host transport spawns its PAM/stdio bridge through PID 1, not here.
+  /usr/bin/{systemctl,systemd-run,loginctl,pgrep,pkill} rix,
+  #include <abstractions/dbus-strict>
+  network unix stream,
+  /etc/machine-id r,
+  /run/systemd/system/ r,
+  /run/systemd/private rw,
+  dbus (send) bus=system peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=system peer=(name=org.freedesktop.login1),
+  dbus (receive) bus=system peer=(label=unconfined),
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/ r,
+  @{PROC}/[0-9]*/{stat,status,cmdline,comm} r,
+  ptrace (read),
+  /run/labwc-power/ r,
+  /run/labwc-power/action.lock rwk,
+  capability kill,
+  signal (send),
+  signal (receive) peer=unconfined,
 
   include if exists <local/usr.local.libexec.labwc-admin-action-worker>
+}
+
+profile managed-labwc-logout-root /usr/local/libexec/labwc-logout-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  /usr/local/libexec/labwc-logout-root rix,
+  /usr/local/libexec/labwc-admin-action-root rPx -> managed-labwc-admin-action-root,
+  include if exists <local/usr.local.libexec.labwc-logout-root>
+}
+
+profile managed-labwc-session-state /usr/local/libexec/labwc-session-state flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-session-state rix,
+  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} PUx,
+  /usr/local/bin/labwc-{managed-app,managed-wayland-compat-app,wayland-app,electron-app} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/labwc-session/ rw,
+  owner @{HOME}/.local/state/labwc-session/** rwk,
+  owner @{HOME}/**/ r,
+  owner /run/user/[0-9]*/labwc-session-closing rw,
+  owner /run/user/[0-9]*/labwc-swaylock.lock rk,
+  signal (send, receive) peer=unconfined,
+  include if exists <local/usr.local.libexec.labwc-session-state>
 }
 
 profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnected) {
@@ -404,7 +450,7 @@ profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnecte
   /usr/bin/timeout rix,
   /usr/bin/{pkexec,systemctl} PUx,
   /usr/local/libexec/mullvad-daemon-start rix,
-  "/opt/Mullvad VPN/mullvad-vpn" pux,
+  /usr/local/bin/labwc-electron-app rPx -> managed-labwc-generic-app,
 
   include if exists <local/usr.local.bin.mullvad-vpn>
 }
@@ -1487,7 +1533,7 @@ profile managed-labwc-logout /usr/local/bin/labwc-logout flags=(attach_disconnec
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-logout rix,
-  /usr/bin/systemctl pux,
+  /usr/local/bin/labwc-admin-action rPx -> managed-labwc-admin-action,
 
   include if exists <local/usr.local.bin.labwc-logout>
 }
@@ -1904,6 +1950,7 @@ profile managed-chatgpt-slirp4netns flags=(attach_disconnected) {
 }
 
 profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach_disconnected) {
+  owner /run/user/[0-9]*/labwc-session-closing r,
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
 
@@ -2167,6 +2214,7 @@ profile managed-labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-
 }
 
 profile managed-labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wayland-compat-app flags=(attach_disconnected) {
+  owner /run/user/[0-9]*/labwc-session-closing r,
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
 
@@ -2696,6 +2744,7 @@ profile managed-labwc-power-menu /usr/local/bin/labwc-power-menu flags=(attach_d
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-power-menu rix,
+  /usr/local/bin/labwc-power-settings rPx -> managed-labwc-power-settings,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-lock rPx -> managed-labwc-lock,
   /usr/local/bin/labwc-logout rPx -> managed-labwc-logout,
@@ -2708,6 +2757,9 @@ profile managed-labwc-power-settings /usr/local/bin/labwc-power-settings flags=(
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-power-settings rix,
+  /usr/local/bin/labwc-lock rPx -> managed-labwc-lock,
+  /usr/local/bin/labwc-logout rPx -> managed-labwc-logout,
+  /usr/local/bin/labwc-admin-action rPx -> managed-labwc-admin-action,
   /usr/bin/powerprofilesctl pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
 
@@ -2719,6 +2771,8 @@ profile managed-labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach
   #include <abstractions/managed-wrapper-python>
 
   /usr/local/bin/labwc-qbittorrent rix,
+  /usr/bin/systemd-run PUx,
+  owner /run/user/[0-9]*/labwc-session-closing r,
   /usr/bin/bwrap rCx -> qbittorrent-bwrap,
   /etc/default/labwc-desktop r,
   /run/media/ r,
@@ -3717,6 +3771,7 @@ profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconn
 # Generic package desktop launchers. Only validation occurs here; the user
 # manager owns the payload service and the package's own AppArmor attachment.
 profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(attach_disconnected) {
+  owner /run/user/[0-9]*/labwc-session-closing r,
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
   include if exists <abstractions/dbus-session-strict>
@@ -3758,8 +3813,9 @@ profile managed-labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-f
 
 # Repository maintenance is not an installer: inspection/decompression/signing
 # are inherited, but apt execution and dpkg database writes are not granted.
-profile managed-local-apt-repository /usr/local/{bin/apt-local-repo,libexec/local-apt-repository} flags=(attach_disconnected) {
+profile managed-local-apt-repository /usr/local/{bin/local-apt-init,libexec/local-apt-repository} flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-python>
+  #include <abstractions/managed-wrapper-perl>
   #include <abstractions/nameservice>
   #include <abstractions/openssl>
   #include <abstractions/user-tmp>
@@ -3773,14 +3829,24 @@ profile managed-local-apt-repository /usr/local/{bin/apt-local-repo,libexec/loca
   network inet6 stream,
   signal (send, receive) peer=managed-local-apt-repository,
   signal (receive) peer=unconfined,
-  /usr/local/bin/apt-local-repo rix,
+  /usr/local/bin/local-apt-init rix,
   # Remove only the previous managed entrypoints during explicit init.
   /usr/local/bin/local-add-deb rw,
+  /usr/local/bin/apt-local-repo rw,
+  /etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy rw,
   /etc/apt/apt.conf.d/90-local-apt-repository rw,
   /etc/apt/apt.conf.d/ r,
   /usr/local/bin/ r,
   /usr/local/libexec/local-apt-repository rix,
-  /usr/local/libexec/local-apt-vendor rPx -> managed-local-apt-vendor,
+  # The refresh service uses NNP. Fetch-only bridge calls inherit these
+  # repository-only permissions; package-local configure runs separately under
+  # managed-local-apt-vendor and cannot gain its install permissions here.
+  /usr/local/libexec/local-apt-vendor rix,
+  /usr/local/libexec/managed-discord-distro rix,
+  /usr/local/lib/perl5/site_perl/external-managed-software/{,**} r,
+  /usr/bin/{openssl,tar,brotli,dpkg-query} rix,
+  /dev/log w,
+  /run/lock/managed-external-software-update.lock rwk,
   /usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,
   /usr/bin/{gzip,xz,zstd,bzip2,lzma} rix,
   /usr/lib/gnupg/{,**} mr,
@@ -3794,6 +3860,8 @@ profile managed-local-apt-repository /usr/local/{bin/apt-local-repo,libexec/loca
   /dev/pts/[0-9]* rw,
   # Administrator-selected input packages; never grant execution of them.
   /**.deb r,
+  /**.json r,
+  /usr/local/share/software/{,**} r,
   /opt/{discord,postman,tuta-mail,ledger-live}/{,**} r,
   /usr/share/applications/{discord,postman,ledger-live}.desktop r,
   /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop,tuta-mail}.png r,
@@ -3801,14 +3869,14 @@ profile managed-local-apt-repository /usr/local/{bin/apt-local-repo,libexec/loca
   /etc/apt/keyrings/ rw,
   /etc/apt/keyrings/{managed-external-software.gpg,.managed-external-software.gpg.*} rw,
   /etc/apt/sources.list.d/ rw,
-  /etc/apt/sources.list.d/{managed-external-software.list,.managed-external-software.list.*} rw,
+  /etc/apt/sources.list.d/{managed-external-software.list,managed-external-software.sources,apt-local-repository.sources,.apt-local-repository.sources.*} rw,
   /run/user/0/gnupg/{,**} rwkl,
   include if exists <local/usr.local.libexec.local-apt-repository>
 }
 
 # Reuse the established vendor signature/hash verifiers. This bridge may stage
 # bytes under the inbox, but it cannot publish to /opt or run apt/dpkg installs.
-# Its dpkg pre/post actions only restore the existing ChatGPT security policy.
+# Repacked ChatGPT alone calls its package-local configure action; no global hooks.
 profile managed-local-apt-vendor /usr/local/libexec/local-apt-vendor flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-perl>
   #include <abstractions/nameservice>

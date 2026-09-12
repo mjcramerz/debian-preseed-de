@@ -1,0 +1,43 @@
+{
+  "date": "2026-09-12",
+  "tools_tests": {
+    "passed": 109,
+    "new": 45
+  },
+  "targeted_installer_suites": {
+    "installation_fixes_passed": 34,
+    "configuration_safety_passed": 19,
+    "lifecycle_passed": 22,
+    "dbus_broker_passed": 16,
+    "nvidia_power_passed": 13
+  },
+  "shell_files": 267,
+  "shell_parser_checks_passed": 545,
+  "changed_python_ast_files_passed": 16,
+  "payload_files": 1257,
+  "payload_pins_current": true,
+  "apparmor": {
+    "names_only_parser_exit": 0,
+    "kernel_load_or_enforcing_test": false
+  },
+  "systemd": {
+    "offline_worker_refresh_verify_exit": 0,
+    "offline_restore_verify_exit": 0,
+    "man_lookup": false,
+    "live_power_actions": false
+  },
+  "known_limits": {
+    "desktop_sandbox": {
+      "passed": 68,
+      "skipped": 1,
+      "missing_original_fixture_failure": 1
+    },
+    "original_profile_provenance_subtest_failures": 13,
+    "perl_vendor_tests_blocked_by_missing_Moo_pm": 4,
+    "full_installer_discovery_completed": false,
+    "full_repository_integrity_run_completed": false,
+    "booted_installer_or_hardware_acceptance": false,
+    "universal_unsaved_memory_checkpoint": false
+  },
+  "no_software_compilation": true
+}

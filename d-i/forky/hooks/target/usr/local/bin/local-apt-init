@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+usage() {
+    cat <<'EOF'
+Usage: sudo local-apt-init --init|--refresh|--list|--status|--rebuild
+       sudo local-apt-init --add FILE.deb [--yes] [--remove-depends NAME,NAME]
+              [--remove-vendor-apt] [--drop-maintainer-script SCRIPT] [--url HTTPS_URL]
+       sudo local-apt-init --delete [PACKAGE[:ARCH]]
+       sudo local-apt-init --show|--policy|--reapply PACKAGE[:ARCH]
+       sudo local-apt-init --inspect FILE.deb
+       sudo local-apt-init --set-policy PACKAGE[:ARCH] ROOT_OWNED_POLICY.json
+       sudo local-apt-init --remove-vendor-apt PACKAGE[:ARCH]
+       sudo local-apt-init --remove-depends PACKAGE[:ARCH] NAME,NAME
+Policy edits repackage retained upstream bytes before publishing a new local revision.
+Vendor APT removal refuses potentially recreating scripts unless explicitly reviewed/dropped.
+--rebuild regenerates signed indexes; --reapply repackages. Neither installs packages.
+EOF
+}
+[ "$#" -gt 0 ] || { usage >&2; exit 64; }
+case "$1" in
+    --help|-h) usage; exit 0 ;;
+    --init|--refresh|--list|--status|--rebuild|--add|--delete|--show|--policy|--reapply|--inspect|--set-policy|--remove-vendor-apt|--remove-depends)
+        action=${1#--}
+        shift
+        case "$action" in
+            init|refresh|list|status|rebuild) [ "$#" -eq 0 ] || { usage >&2; exit 64; } ;;
+            add) [ "$#" -ge 1 ] || { usage >&2; exit 64; } ;;
+            delete) [ "$#" -le 1 ] || { usage >&2; exit 64; } ;;
+            set-policy|remove-depends) [ "$#" -eq 2 ] || { usage >&2; exit 64; } ;;
+            *) [ "$#" -eq 1 ] || { usage >&2; exit 64; } ;;
+        esac
+        exec /usr/local/libexec/local-apt-repository "$action" "$@"
+        ;;
+    *) usage >&2; exit 64 ;;
+esac
