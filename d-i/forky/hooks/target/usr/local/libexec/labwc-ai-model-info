@@ -1,5 +1,38 @@
 #!/usr/bin/python3 -I
+"""Read model metadata using only the staged, system-owned package."""
+import stat
+import sys
+from pathlib import Path
 
+sys.dont_write_bytecode = True
+PACKAGE_ROOT = Path("/usr/local/lib/python3.14/dist-packages")
+PACKAGE_DIRECTORY = PACKAGE_ROOT / "labwc_ai_copilots"
+PACKAGE_MODULES = ("__init__.py", "cli.py", "gguf.py")
+
+
+def require_managed_path(path: Path, *, directory: bool, owner: tuple[int, int]) -> None:
+    metadata = path.lstat()
+    expected = stat.S_ISDIR if directory else stat.S_ISREG
+    if (not expected(metadata.st_mode) or (metadata.st_uid, metadata.st_gid) != owner
+            or metadata.st_mode & 0o022):
+        raise ValueError(f"unsafe managed model package path: {path}")
+
+
+try:
+    # Match the system anchor in a compositor PrivateUsers namespace too.
+    anchor = Path("/usr").lstat()
+    owner = (anchor.st_uid, anchor.st_gid)
+    for path in reversed((PACKAGE_DIRECTORY, *PACKAGE_DIRECTORY.parents)):
+        if path == Path("/"):
+            continue
+        require_managed_path(path, directory=True, owner=owner)
+    for name in PACKAGE_MODULES:
+        require_managed_path(PACKAGE_DIRECTORY / name, directory=False, owner=owner)
+except (OSError, ValueError) as exc:
+    print(f"fatal: managed model package unavailable: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+sys.path.insert(0, str(PACKAGE_ROOT))
 from labwc_ai_copilots.cli import main
 
 raise SystemExit(main())

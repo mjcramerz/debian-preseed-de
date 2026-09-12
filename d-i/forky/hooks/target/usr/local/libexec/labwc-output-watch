@@ -223,6 +223,9 @@ sub _event_requires_refresh {
 
 package main;
 
+use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use Managed::Process ();
+
 use Fcntl qw(:DEFAULT :flock F_SETFD FD_CLOEXEC);
 use File::Basename qw(dirname);
 use File::Temp qw(tempfile);
@@ -931,101 +934,12 @@ sub find_command {
 # Capture limits and wall-clock limits also cover descendants retaining pipes.
 sub run_command {
     my ($seconds, $limit, @argv) = @_;
-    require IO::Select;
-    require POSIX;
-    require Time::HiRes;
-    require Errno;
-    defined($seconds) && $seconds > 0 && $seconds <= 3600
+    defined($seconds) && !ref($seconds) && $seconds =~ /\A[0-9]+(?:\.[0-9]+)?\z/
+        && $seconds > 0 && $seconds <= 3600
         or die "invalid subprocess deadline\n";
-    defined($limit) && $limit >= 1 && $limit <= 16 * 1024 * 1024
-        or die "invalid subprocess capture limit\n";
-    @argv && defined($argv[0]) && $argv[0] =~ m{\A/}
-        or die "subprocess requires an absolute executable path\n";
-    for (@argv) {
-        defined($_) && !ref($_) && !/\0/ or die "invalid subprocess argument\n";
-    }
-    pipe(my $out_r, my $out_w) or die "cannot create stdout pipe: $!\n";
-    pipe(my $err_r, my $err_w) or die "cannot create stderr pipe: $!\n";
-    pipe(my $ready_r, my $ready_w) or die "cannot create process readiness pipe: $!\n";
-    my $interrupted;
-    my %previous = map { $_ => $SIG{$_} } qw(HUP INT TERM);
-    local $SIG{HUP} = sub { $interrupted //= 'HUP' };
-    local $SIG{INT} = sub { $interrupted //= 'INT' };
-    local $SIG{TERM} = sub { $interrupted //= 'TERM' };
-    my $pid = fork;
-    defined($pid) or die "cannot fork subprocess: $!\n";
-    if (!$pid) {
-        $SIG{$_} = 'DEFAULT' for qw(HUP INT TERM PIPE);
-        close $out_r; close $err_r; close $ready_r;
-        setpgrp(0, 0) or POSIX::_exit(126);
-        syswrite($ready_w, '1', 1) == 1 or POSIX::_exit(126);
-        close $ready_w;
-        open STDIN, '<', '/dev/null' or POSIX::_exit(126);
-        open STDOUT, '>&', $out_w or POSIX::_exit(126);
-        open STDERR, '>&', $err_w or POSIX::_exit(126);
-        close $out_w; close $err_w;
-        exec { $argv[0] } @argv or POSIX::_exit(127);
-    }
-    close $out_w; close $err_w; close $ready_w;
-    my $select = IO::Select->new($out_r, $err_r, $ready_r);
-    my %kind = (fileno($out_r) => 'stdout', fileno($err_r) => 'stderr', fileno($ready_r) => 'ready');
-    my %result = (stdout => q{}, stderr => q{});
-    my ($group_ready, $reaped, $status, $failure) = (0, 0, 0, q{});
-    my $deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) + $seconds;
-    my $ok = eval {
-        while (1) {
-            if ($interrupted) { $failure = "interrupted by $interrupted"; last; }
-            my $left = $deadline - Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC());
-            if ($left <= 0) { $failure = 'timeout'; last; }
-            for my $fh ($select->can_read($left < 0.1 ? $left : 0.1)) {
-                my $read = sysread($fh, my $chunk, 8192);
-                if (!defined $read) {
-                    next if $! == Errno::EINTR();
-                    die "cannot read subprocess output: $!\n";
-                }
-                if (!$read) { $select->remove($fh); close $fh; next; }
-                my $stream = $kind{fileno($fh)};
-                if ($stream eq 'ready') { $group_ready = 1; next; }
-                $result{$stream} .= $chunk;
-                length($result{stdout}) + length($result{stderr}) <= $limit
-                    or die "subprocess output exceeded $limit bytes\n";
-            }
-            if (!$select->count) {
-                my $waited = waitpid($pid, POSIX::WNOHANG());
-                if ($waited == $pid) { $status = $?; $reaped = 1; last; }
-                die "subprocess wait failed: $!\n" if $waited < 0 && $! != Errno::EINTR();
-                Time::HiRes::sleep(0.02);
-            }
-        }
-        1;
-    };
-    my $error = $@;
-    if (!$reaped) {
-        # The direct child has not been reaped, so its PID/process-group ID
-        # cannot be recycled while escalation is in progress.
-        kill 'TERM', ($group_ready ? -$pid : $pid);
-        Time::HiRes::sleep(0.2);
-        # If interruption happened before the handshake, terminate both the
-        # child and any group it managed to establish in the meantime.
-        kill 'KILL', -$pid;
-        kill 'KILL', $pid;
-        while (1) {
-            my $waited = waitpid($pid, 0);
-            next if $waited < 0 && $! == Errno::EINTR();
-            $status = $? if $waited == $pid;
-            last;
-        }
-    }
-    close $_ for $select->handles;
-    die $error if !$ok;
-    if ($interrupted) {
-        my $handler = $previous{$interrupted};
-        $handler->($interrupted) if ref($handler) eq 'CODE';
-        die "subprocess interrupted by $interrupted\n";
-    }
-    $result{status} = $failure eq 'timeout' ? (124 << 8) : $status;
-    $result{error} = $failure;
-    return \%result;
+    return Managed::Process::capture_command(
+        argv => \@argv, timeout => $seconds, limit => $limit,
+    );
 }
 
 sub command_deadline {

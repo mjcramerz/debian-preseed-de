@@ -7,8 +7,8 @@ use Moo;
 use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Base qw(Str);
 
-use IPC::Open3 qw(open3);
-use Symbol qw(gensym);
+use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use Managed::Process qw(capture_command);
 use Time::HiRes qw(sleep);
 use Zram::Config qw(cfg);
 use Zram::Error qw(fatal);
@@ -20,18 +20,19 @@ has raw_path    => (is => 'ro', isa => Str, default => sub { cfg('ZRAM_BACKING_R
 
 sub _capture {
     my ($self, @command) = @_;
-    my $stderr = gensym;
-    my $pid = open3(undef, my $stdout, $stderr, @command);
-    my $out = do { local $/; <$stdout> // '' };
-    my $err = do { local $/; <$stderr> // '' };
-    waitpid $pid, 0;
-    return ($? >> 8, $out, $err);
+    my $result = capture_command(argv => \@command, timeout => 25, limit => 1_048_576);
+    my $raw = $result->{status};
+    # A signal is failure, not the zero exit code produced by shifting alone.
+    my $status = ($raw & 127) ? 128 + ($raw & 127) : $raw >> 8;
+    return ($status, $result->{stdout}, $result->{stderr});
 }
 
 sub _run {
     my ($self, @command) = @_;
-    system @command;
-    return $? == 0;
+    my ($status, $out, $err) = $self->_capture(@command);
+    print STDOUT $out if length $out;
+    print STDERR $err if length $err;
+    return $status == 0;
 }
 
 sub _wait_for_mapper {

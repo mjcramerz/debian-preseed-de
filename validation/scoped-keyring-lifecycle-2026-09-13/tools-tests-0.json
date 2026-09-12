@@ -1,0 +1,16 @@
+{
+  "suite": "tools/tests",
+  "batch": 0,
+  "batches": 4,
+  "modules": [
+    "test_apt_vendor_normalization",
+    "test_local_apt_repository"
+  ],
+  "tests_run": 24,
+  "seconds": 1.59,
+  "success": true,
+  "failures": [],
+  "errors": [],
+  "skipped": [],
+  "native_tool_denials": []
+}

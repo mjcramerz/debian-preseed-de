@@ -1,0 +1,30 @@
+{
+  "modules": [
+    "test_installation_fixes_20260912",
+    "test_installed_failures_20260911",
+    "test_desktop_sandbox",
+    "test_environment",
+    "test_security_refactor",
+    "test_process_capture",
+    "test_lifecycle"
+  ],
+  "tests_run": 185,
+  "failures": [
+    {
+      "test": "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+      "detail": "Traceback (most recent call last):\n  File \"/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_desktop_sandbox.py\", line 1306, in test_apparmor_complain_incident_is_fully_mapped\n    self.assertTrue(incident.is_file())\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^\nAssertionError: False is not true\n"
+    }
+  ],
+  "errors": [
+    {
+      "test": "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events",
+      "detail": "Traceback (most recent call last):\n  File \"/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_installed_failures_20260911.py\", line 284, in test_fixture_exactly_matches_the_supplied_raw_audit_events\n    raw_text = raw_path.read_text()\n  File \"/usr/lib/python3.13/pathlib/_local.py\", line 548, in read_text\n    return PathBase.read_text(self, encoding, errors, newline)\n           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/pathlib/_abc.py\", line 632, in read_text\n    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:\n         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/pathlib/_local.py\", line 539, in open\n    return io.open(self, mode, buffering, encoding, errors, newline)\n           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/work/debian-preseed-de/todo/managed/apparmor/apparmor.log'\n"
+    }
+  ],
+  "skipped": [
+    {
+      "test": "test_desktop_sandbox.InstalledFailureRegressionTests.test_auth_rainerscript_parses",
+      "reason": "rsyslogd is unavailable"
+    }
+  ]
+}

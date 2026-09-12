@@ -27,6 +27,7 @@ MAX_BYTES = 1024 * 1024
 WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/local/bin/labwc-wayland-app'}
 # These have existing dedicated sandbox/compatibility/logging entrypoints.
 MANAGED = {
+    '/usr/local/bin/labwc-terminal',
     '/usr/local/bin/labwc-managed-app', '/usr/local/bin/labwc-managed-wayland-compat-app',
     '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
     '/usr/local/bin/discord', '/usr/local/bin/zoom', *WRAPPERS.values(),
@@ -105,13 +106,17 @@ def managed_exec(value: str) -> bool:
         words = shlex.split(value, comments=False)
     except ValueError as exc:
         raise ValueError('malformed desktop Exec quoting') from exc
-    for word in words:
-        # Also leave existing repository commands with nonstandard whole-prefix
-        # quoting alone; their correction is not this hook's responsibility.
-        if word in MANAGED or any(word.startswith(path + ' ') for path in MANAGED):
-            return True
-    return False
-
+    if words and words[0] in {'env', '/usr/bin/env', '/bin/env'}:
+        words = words[1:]
+        if words and words[0] == '--':
+            words = words[1:]
+        while words and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', words[0], re.DOTALL):
+            words = words[1:]
+    if not words:
+        return False
+    # Recognize only the executable, never a managed path passed as data.
+    # Preserve legacy whole-prefix quoting without rewriting vendor arguments.
+    return words[0] in MANAGED or any(words[0].startswith(path + ' ') for path in MANAGED)
 
 
 def original_generic_exec(value: str) -> str | None:
@@ -138,12 +143,11 @@ def rewrite_desktop(text: str, prefix: str) -> str:
             if key in main:
                 raise ValueError(f'duplicate Desktop Entry key: {key}')
             main[key] = value.strip()
-    if main.get('Type', 'Application') != 'Application' or main.get('NoDisplay', '').lower() == 'true' or main.get('Hidden', '').lower() == 'true':
+    if main.get('Type', 'Application') != 'Application' or main.get('Hidden', '').lower() == 'true':
         return text
     if not main.get('Exec'):
         return text
-    if managed_exec(main['Exec']) and original_generic_exec(main['Exec']) is None:
-        return text
+    terminal = main.get('Terminal', '').lower() == 'true'
     section = ''
     result = []
     for line in lines:
@@ -154,11 +158,19 @@ def rewrite_desktop(text: str, prefix: str) -> str:
         application_section = section == '[Desktop Entry]' or section.startswith('[Desktop Action ')
         if separator and application_section and key.strip() == 'Exec' and value.strip():
             original = original_generic_exec(value.strip())
-            if original is not None:
+            if terminal:
+                # Wrap the terminal, not its interactive child: the latter
+                # needs the terminal's PTY and belongs to that service cgroup.
+                original = original if original is not None else value.strip()
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=/usr/local/bin/labwc-terminal -e ' + original + ending
+            elif original is not None:
                 ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
                 line = key + '=' + prefix + ' -- ' + original + ending
             elif not managed_exec(value.strip()):
                 line = key + '=' + prefix + ' -- ' + value.lstrip()
+        elif separator and section == '[Desktop Entry]' and terminal and key.strip() == 'Terminal':
+            line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
         elif separator and section == '[Desktop Entry]' and key.strip() == 'DBusActivatable':
             # Otherwise compliant launchers bypass Exec and its service wrapper.
             line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')

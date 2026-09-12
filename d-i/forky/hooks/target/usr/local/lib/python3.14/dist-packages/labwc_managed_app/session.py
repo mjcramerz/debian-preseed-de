@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import re
+import uuid
 
 from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
@@ -38,10 +40,43 @@ WAYLAND_COMPAT_SESSION_UNIT_METADATA = {
 }
 
 
+def _session_unit(prefix: str) -> str:
+    if re.fullmatch(r"labwc-[a-z0-9-]+", prefix) is None:
+        fail("invalid managed session unit prefix")
+    return f"{prefix}-{uuid.uuid4().hex}.service"
+
+
+def _consume_session_marker(name: str, prefix: str) -> bool:
+    """Accept reentry only inside the expected manager-owned service cgroup.
+
+    The flag is a loop guard, not authority by itself. Consume it before any
+    payload is created so subsequently launched applications get new services.
+    """
+    marker = os.environ.pop(name, "")
+    if not marker:
+        return False
+    if marker != "1":
+        fail(f"{name} has an invalid value")
+    try:
+        with Path("/proc/self/cgroup").open(encoding="ascii") as stream:
+            membership = stream.read(65537)
+    except (OSError, UnicodeError) as exc:
+        fail(f"cannot validate managed session cgroup: {exc}")
+    pattern = re.escape(prefix) + r"-[0-9a-f]{32}\.service"
+    if len(membership) <= 65536:
+        for line in membership.splitlines():
+            fields = line.split(":", 2)
+            if (len(fields) == 3 and fields[1] in {"", "name=systemd"}
+                    and re.fullmatch(pattern, fields[2].rsplit("/", 1)[-1])):
+                return True
+    fail(f"{name} is set outside its managed session service")
+
+
 def bitwarden_session_unit_argv(
     systemd_run: str,
     mode: str,
     extra_args: list[str],
+    environment: dict[str, str] | None = None,
 ) -> list[str]:
     assert_launch_allowed()
     return [
@@ -55,6 +90,7 @@ def bitwarden_session_unit_argv(
         "--property=StandardOutput=journal",
         "--property=StandardError=journal",
         "--description=Managed Bitwarden desktop client",
+        "--unit=" + _session_unit("labwc-bitwarden"),
         "--property=After=labwc-session.target labwc-kwallet-portal.service",
         "--property=Requires=labwc-session.target labwc-kwallet-portal.service",
         "--property=Requisite=labwc-session.target labwc-kwallet-portal.service",
@@ -64,9 +100,14 @@ def bitwarden_session_unit_argv(
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes",
+        "--property=Restart=no",
+        "--property=UMask=0077",
         "--property=SyslogIdentifier=labwc-bitwarden",
         f"--setenv={BITWARDEN_SESSION_UNIT_MARKER}=1",
         "--setenv=LABWC_SESSION_RESTORE=" + restart_token([MANAGED_APP_PATH, mode, "bitwarden", *extra_args]),
+        f"--working-directory={os.getcwd()}",
+        *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
         MANAGED_APP_PATH,
         mode,
@@ -95,13 +136,20 @@ def managed_session_unit_environment(
             "XDG_RUNTIME_DIR": runtime_dir,
             "DBUS_SESSION_BUS_ADDRESS": session_bus_address,
             "SYSTEMD_COLORS": "0",
+            "LABWC_SESSION_OWNER": "desktop",
         }
     )
     return environment
 
 
 def bitwarden_session_unit_environment() -> dict[str, str]:
-    return managed_session_unit_environment("Bitwarden")
+    environment = managed_session_unit_environment("Bitwarden")
+    wayland_display = validate_runtime_entry_name(
+        "WAYLAND_DISPLAY", os.environ.get("WAYLAND_DISPLAY", ""),
+    )
+    current_user_runtime_socket("Wayland socket", wayland_display)
+    environment["WAYLAND_DISPLAY"] = wayland_display
+    return environment
 
 
 def wayland_compat_session_unit_argv(
@@ -109,6 +157,7 @@ def wayland_compat_session_unit_argv(
     app_name: str,
     mode: str,
     extra_args: list[str],
+    environment: dict[str, str] | None = None,
 ) -> list[str]:
     metadata = WAYLAND_COMPAT_SESSION_UNIT_METADATA.get(app_name)
     if metadata is None:
@@ -126,6 +175,7 @@ def wayland_compat_session_unit_argv(
         "--property=StandardOutput=journal",
         "--property=StandardError=journal",
         f"--description=Managed {display_name} Cage compatibility session",
+        "--unit=" + _session_unit(f"labwc-compat-{app_name}"),
         "--property=After=labwc-session.target",
         "--property=Requires=labwc-session.target",
         "--property=Requisite=labwc-session.target",
@@ -135,10 +185,15 @@ def wayland_compat_session_unit_argv(
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes",
+        "--property=Restart=no",
+        "--property=UMask=0077",
         f"--property=SyslogIdentifier={syslog_identifier}",
         f"--setenv={WAYLAND_COMPAT_SESSION_UNIT_MARKER}=1",
         "--setenv=LABWC_SESSION_NESTED=1",
         "--setenv=LABWC_SESSION_RESTORE=" + restart_token([WAYLAND_COMPAT_MANAGED_APP_PATH, mode, app_name, *extra_args]),
+        f"--working-directory={os.getcwd()}",
+        *(f"--setenv={name}" for name in sorted(environment or {})),
         "--",
         WAYLAND_COMPAT_MANAGED_APP_PATH,
         mode,
@@ -159,15 +214,12 @@ def wayland_compat_session_unit_environment() -> dict[str, str]:
 
 
 def redirect_bitwarden_to_session_unit(mode: str, extra_args: list[str]) -> None:
-    marker = os.environ.get(BITWARDEN_SESSION_UNIT_MARKER, "")
-    if marker == "1":
+    if _consume_session_marker(BITWARDEN_SESSION_UNIT_MARKER, "labwc-bitwarden"):
         return
-    if marker:
-        fail(f"{BITWARDEN_SESSION_UNIT_MARKER} has an invalid value")
 
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
-    argv = bitwarden_session_unit_argv(systemd_run, mode, extra_args)
     environment = bitwarden_session_unit_environment()
+    argv = bitwarden_session_unit_argv(systemd_run, mode, extra_args, environment)
     try:
         os.execve(systemd_run, argv, environment)
     except OSError as exc:
@@ -179,20 +231,18 @@ def redirect_wayland_compat_to_session_unit(
     mode: str,
     extra_args: list[str],
 ) -> None:
-    marker = os.environ.get(WAYLAND_COMPAT_SESSION_UNIT_MARKER, "")
-    if marker == "1":
+    if _consume_session_marker(WAYLAND_COMPAT_SESSION_UNIT_MARKER, f"labwc-compat-{app_name}"):
         return
-    if marker:
-        fail(f"{WAYLAND_COMPAT_SESSION_UNIT_MARKER} has an invalid value")
 
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+    environment = wayland_compat_session_unit_environment()
     argv = wayland_compat_session_unit_argv(
         systemd_run,
         app_name,
         mode,
         extra_args,
+        environment,
     )
-    environment = wayland_compat_session_unit_environment()
     try:
         os.execve(systemd_run, argv, environment)
     except OSError as exc:
@@ -214,11 +264,9 @@ def redirect_native_from_private_users(
     Only ChatGPT retains its private output pipes. Other applications use
     independent journal streams, never the panel/compositor stdout descriptors.
     """
-    marker = os.environ.get(NATIVE_SESSION_UNIT_MARKER, "")
-    if marker not in {"", "1"}:
-        fail(f"{NATIVE_SESSION_UNIT_MARKER} has an invalid value")
+    marker = _consume_session_marker(NATIVE_SESSION_UNIT_MARKER, f"labwc-native-{app_name}")
     private_users = system_owner()[0] != 0
-    if marker == "1":
+    if marker:
         if private_users:
             fail("managed application user manager still hides host ownership")
         return
@@ -281,12 +329,14 @@ def redirect_native_from_private_users(
         "--slice=app.slice",
         "--service-type=exec", "--expand-environment=no",
         f"--description=Managed {app_name} desktop client",
+        "--unit=" + _session_unit(f"labwc-native-{app_name}"),
         f"--property=After={startup_dependencies}",
         f"--property=Requires={startup_dependencies}",
         f"--property=Requisite={startup_dependencies}",
         f"--property=PartOf={dependencies}",
         "--property=ExitType=cgroup",
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+        "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         f"--working-directory={os.getcwd()}",
         f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
         # Values, including optional credentials, are not exposed in argv.

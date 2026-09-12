@@ -29,12 +29,14 @@ case "${1:-}" in
     ;;
 esac
 
+# A footclient would move every shell into the persistent server's cgroup.
+# Standalone terminals and their PTYs instead live in one transient service.
 seen_terminals=' '
-for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" footclient kitty x-terminal-emulator; do
+for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" foot kitty x-terminal-emulator; do
   [ -n "$terminal_cmd" ] || continue
   case "$terminal_cmd" in
     foot|footclient|*/foot|*/footclient)
-      terminal_exec=footclient
+      terminal_exec=foot
       ;;
     *)
       terminal_exec=$terminal_cmd
@@ -46,29 +48,20 @@ for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK
   seen_terminals="${seen_terminals}${terminal_exec} "
   if command -v "$terminal_exec" >/dev/null 2>&1; then
     case "$terminal_exec" in
-      footclient)
-        case "${XDG_RUNTIME_DIR:-}" in
-          /*)
-            foot_server_socket=${XDG_RUNTIME_DIR}/foot.sock
-            ;;
-          *)
-            printf 'fatal: labwc-terminal requires an absolute XDG_RUNTIME_DIR for Foot\n' >&2
-            exit 1
-            ;;
-        esac
+      foot)
         if [ "$xterm_execute_mode" -eq 1 ]; then
-          exec "$terminal_exec" --server-socket="$foot_server_socket" -e "$@"
+          exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" -e "$@"
         fi
-        exec "$terminal_exec" --server-socket="$foot_server_socket" "$@"
+        exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" "$@"
         ;;
-      kitty)
-        exec "$terminal_exec" "$@"
+      kitty|*/kitty)
+        exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" "$@"
         ;;
     esac
     if [ "$xterm_execute_mode" -eq 1 ]; then
-      exec "$terminal_exec" -e "$@"
+      exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" -e "$@"
     fi
-    exec "$terminal_exec" "$@"
+    exec /usr/local/bin/labwc-wayland-app auto -- "$terminal_exec" "$@"
   fi
 done
 

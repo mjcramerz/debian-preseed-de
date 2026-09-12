@@ -1,0 +1,67 @@
+{
+  "review_date": "2026-09-13",
+  "tool_tests": {
+    "run": 152,
+    "passed": 152,
+    "failed": 0,
+    "skipped": 0,
+    "new_regressions_included": 43,
+    "all_four_completed_batches": true
+  },
+  "focused_installer_tests": {
+    "run": 185,
+    "passed": 182,
+    "failures": 1,
+    "errors": 1,
+    "skipped": 1,
+    "baseline_missing_fixture_results": [
+      "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+      "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events"
+    ]
+  },
+  "requested_scope": {
+    "perl": 151,
+    "python": 33,
+    "libexec": 71,
+    "syntax_pass": 104,
+    "dependency_blocked": 151
+  },
+  "shells": {
+    "files": 267,
+    "parser_checks": 545,
+    "success": true
+  },
+  "preseed": {
+    "files": 59,
+    "generated_commands_debconf_readback": 4,
+    "success": true
+  },
+  "payload": {
+    "files": 1257,
+    "generator_check": "pass",
+    "meaning": "archive/manifest/preseed generation, not native compilation"
+  },
+  "native_compilation_performed": false,
+  "incomplete_runs": [
+    {
+      "log": "repository-tests-0.log",
+      "reason": "command execution window expired during broad bootstrap tests; no completed suite result"
+    },
+    {
+      "log": "repository-tests-0-final.log",
+      "reason": "second broad batch with bootstrap tests skipped exceeded execution window during root-login tests; no completed suite result"
+    },
+    {
+      "log": "tools-tests.log",
+      "reason": "initial unbatched tooling run exceeded command execution window; superseded by four completed passing batches"
+    }
+  ],
+  "not_performed": [
+    "Live Debian Installer boot",
+    "Live systemd user service/cgroup and Wayland session acceptance",
+    "AppArmor policy compilation/loading/enforcement tests",
+    "Hardware/GPU/storage tests",
+    "Python 3.14 runtime execution",
+    "Full dependency-loaded Perl module checks"
+  ]
+}

@@ -60,8 +60,8 @@ class DesktopHookTests(unittest.TestCase):
         self.assertEqual(updated, once.replace('labwc-electron-app nvidia', 'labwc-electron-app intel'))
         self.assertEqual(self.hook.rewrite_desktop(updated, '/usr/local/bin/labwc-electron-app intel'), updated)
 
-    def test_nodisplay_hidden_and_nonapplication_unchanged(self):
-        for entry in ('NoDisplay=true', 'Hidden=true'):
+    def test_hidden_and_nonapplication_unchanged(self):
+        for entry in ('Hidden=true',):
             text = self.text.replace('Type=Application', 'Type=Application\n' + entry)
             self.assertEqual(self.hook.rewrite_desktop(text, self.prefix), text)
         text = self.text.replace('Type=Application', 'Type=Link')

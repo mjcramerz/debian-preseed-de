@@ -1,0 +1,153 @@
+{
+  "input_archive": "debian-preseed-de.zip",
+  "input_sha256": "c263e5c88be685f1b2b7f14098c4b15e1fde4a0540d8768c6c9be7aa92b47cbc",
+  "original_files": 1503,
+  "original_files_deleted": 0,
+  "original_file_mode_changes": 0,
+  "original_files_unchanged": 1481,
+  "original_files_modified": 22,
+  "modified_by_category": {
+    "runtime-or-policy": 17,
+    "generated": 3,
+    "test": 2
+  },
+  "added_source_test": {
+    "path": "tools/tests/test_scoped_lifecycle_keyrings.py",
+    "sha256": "5de810c0c93f3a6f2397d61ec8912c48e68739b3272ee69c8e7431ff06fac1cb"
+  },
+  "added_documentation_and_evidence": "docs/SCOPED-KEYRING-LIFECYCLE-REVIEW-2026-09-13.md and validation/scoped-keyring-lifecycle-2026-09-13/",
+  "files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "old_sha256": "e4c3115b1c2f834a060d5efeefc182a8398db35fa9bfc075dbe3b37aec646a26",
+      "new_sha256": "a802cca411e7995d74f3eb0476620ec0fc4effee6b70e0b01d2b12a517ad11b5",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "old_sha256": "890d0d8b9b521043c7c20a6bf26f81e045dbac035de015aacba7057375b69f53",
+      "new_sha256": "ac15e33c02253cdf9bd1fcad7d1ebc65d8fa63478ae4b5d6d99459a717f4925d",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-terminal",
+      "old_sha256": "3487bcec1e112540b49026efab7eb4b8ad130226a9762dfd3290446d71cefc29",
+      "new_sha256": "bcfaf6c43066ed062641132d8ac88850fdd68a5a4b170e6f41b51a8751b2f5f1",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm",
+      "old_sha256": "6630af3522180dbed3f4803e7dbbc5ce72dac9b8a07d46f1bb8d9446b0457462",
+      "new_sha256": "d9fe54f28b38056139877a6502505b8afc38fe0be2d2af844b5e93db58519e47",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Command.pm",
+      "old_sha256": "785be27dceb709fda033caf044d4fe57e43446678ccfadc3c543a95375a02f7a",
+      "new_sha256": "86d051fc31f3c9c5e00db5316ea8b2fcb485a074cb38954d29f89ea0c7e392fa",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/whisper/WhisperMode/Systemd.pm",
+      "old_sha256": "453be291fdff877001f0bbd178388017facb0ee7d679a2205f2bc0e14d75f0b1",
+      "new_sha256": "2892ac401789ff5951e4f0b2490090689f092b7563d1db30bed46ba4829ce881",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Setup/Mapper.pm",
+      "old_sha256": "d72fee2a4b0b6913d8e0362ba064e4654d2f6a50dc2ee70fd29692bc9eaf40d8",
+      "new_sha256": "51f1f9afaa130d35dbe89a37de3807bd82209d5fd2d14903977f6b1d7082ef64",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/files.py",
+      "old_sha256": "883d2fc49a1555d4a72466da89e7e075de642c2276c9393f3d3db0d8035308ce",
+      "new_sha256": "0e79f1c28133b67ce29f81411fb7ad7ab208ff93606568564ac17944bbe3db72",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/nftables.py",
+      "old_sha256": "dc5f155a8847eee993fdb59b404885ca0a8c37fce4e9c2398ce2098f46f12983",
+      "new_sha256": "51716f1b9a6248d49abd90f00f85a995a75af03951a3c9c2c8404f7f5551d86e",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py",
+      "old_sha256": "916e93e30ce031cfe22fda6dac5cf5708859c26cca2dd8d53eeffef3b8d5a949",
+      "new_sha256": "540863adc762d9b1f177641ffc69abd32bd3c950a321cdfd8a0ed5cc84e670e4",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "old_sha256": "171da1ae2aca6d0921ed70ad82e38b9f59dcd5c23aa0c25fc929c5e9dca6a893",
+      "new_sha256": "cbafcd0100dfd89f0d35b8191308a9e3369d4ad432da883481d3631efc87f154",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "old_sha256": "dd1589e6e245b808d334b950f66f39bfc1357539243e4d2f4d6d55acfc22bf44",
+      "new_sha256": "f7cf78ce818bd133e69ad9a94b96e0764381591363271eed43db5e4db237fa9e",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-ai-model-info",
+      "old_sha256": "5adcf02e251104571057eabcaec2d7c3a97672a1b800e814093e2210dc82a4fe",
+      "new_sha256": "e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-firewall-action-root",
+      "old_sha256": "fbc021cbadf6ff0f4e66cf1f9b0c619ef3d40d089be7ccfaec7cc8c05b835014",
+      "new_sha256": "b22d816ffdb808d1c698a39293e55584ae8b7cd5c93c0368d8e2da6c49c1a3b4",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-output-watch",
+      "old_sha256": "b082c19991e1784032ad8663107e9b56d39a2ea78bbabcb90f2a188092cf4a7d",
+      "new_sha256": "feff630cc7df1ede6914061e455008c1a687140bbab1c946b1d59752a2f568cf",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files",
+      "old_sha256": "df809b78f4784b71063cedc54a5149c468c33db38c47b103b6cb19120f0cbef1",
+      "new_sha256": "764ded9443fdf2385dd4ca2e8fd4509bbe793e3ff1a587d52d4a2a56b5b0cd74",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/local-apt-normalize-sources",
+      "old_sha256": "77e8b14f39acb2bd29da9737d7aaeb8e59abefcd2ce68d3fa846223d0283cc37",
+      "new_sha256": "013c697d00e3e1643532b932ce8fdf56bb24a403f9a64ecb70d1b3f6757fd405",
+      "category": "runtime-or-policy"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "old_sha256": "5fde9ed56c6239b3291315b350c351c2e79ee7a68cd71d619f222a1321d730f3",
+      "new_sha256": "824c044843d7f24c99c518c50083e768fbbeb76cc2d341d73a0c29f755324c6b",
+      "category": "generated"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "old_sha256": "3c774ecd4cf9c607b9f2bd38fc6ea5a463569bb5ccc64b236a989b19417ee690",
+      "new_sha256": "71a1801e64ecd006740337c5682f36988d6fd9af39e2d25ca249cafc78bc3053",
+      "category": "generated"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "old_sha256": "92bd0fd3c7aca863547e16b7a77271e3fdfe7b5a59e4c1fae5cdaf0dceceb750",
+      "new_sha256": "43b4137eb56f9b94fc993b896df06b4dc1acc106e56504998d903b48d93c7032",
+      "category": "generated"
+    },
+    {
+      "path": "d-i/forky/tests/test_installation_fixes_20260912.py",
+      "old_sha256": "d5bfe849657986d96a242e7562d2ab6ce7b5843442a2bbd0f83b6cd686a749e0",
+      "new_sha256": "98c69554fbc129907972d936b845ae41c3c40580de2cf4ac6be5ef29c54a0e64",
+      "category": "test"
+    },
+    {
+      "path": "d-i/forky/tests/test_installed_failures_20260911.py",
+      "old_sha256": "b694b7920f1e0ce82c1c26e1f497c5b98e2636d050066aff3cee511530172d0b",
+      "new_sha256": "90a70cac144dff804ac9b4e2f45af502b11d6ca44152a6855e05f589ce70398c",
+      "category": "test"
+    }
+  ]
+}

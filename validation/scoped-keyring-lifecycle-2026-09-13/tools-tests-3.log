@@ -1,0 +1,115 @@
+test_all_architecture_does_not_select_amd64 (test_local_apt_refresh.DiscoveryTests.test_all_architecture_does_not_select_amd64) ... ok
+test_ambiguous_edition_fails_closed (test_local_apt_refresh.DiscoveryTests.test_ambiguous_edition_fails_closed) ... ok
+test_changed_direct_etag_does_not_get_overruled_by_equal_filename_version (test_local_apt_refresh.DiscoveryTests.test_changed_direct_etag_does_not_get_overruled_by_equal_filename_version) ... ok
+test_changed_validators_between_head_and_get_fail_closed (test_local_apt_refresh.DiscoveryTests.test_changed_validators_between_head_and_get_fail_closed) ... ok
+test_customized_legacy_hook_is_not_silently_deleted (test_local_apt_refresh.DiscoveryTests.test_customized_legacy_hook_is_not_silently_deleted) ... ok
+test_debian_epoch_does_not_hide_upstream_tag_update (test_local_apt_refresh.DiscoveryTests.test_debian_epoch_does_not_hide_upstream_tag_update) ... ok
+test_discovered_size_and_digest_are_verified (test_local_apt_refresh.DiscoveryTests.test_discovered_size_and_digest_are_verified) ... ok
+test_gitlab_old_asset_url_uses_latest_list_not_old_tag (test_local_apt_refresh.DiscoveryTests.test_gitlab_old_asset_url_uses_latest_list_not_old_tag) ... ok
+test_header_parser_uses_final_redirect_block_and_rejects_duplicates (test_local_apt_refresh.DiscoveryTests.test_header_parser_uses_final_redirect_block_and_rejects_duplicates) ... ok
+test_hook_with_additional_custom_command_is_preserved (test_local_apt_refresh.DiscoveryTests.test_hook_with_additional_custom_command_is_preserved) ... ok
+test_init_removes_known_legacy_hook_and_wrapper (test_local_apt_refresh.DiscoveryTests.test_init_removes_known_legacy_hook_and_wrapper) ... ok
+test_last_modified_only_check_and_download_precondition (test_local_apt_refresh.DiscoveryTests.test_last_modified_only_check_and_download_precondition) ... ok
+test_matching_vendor_manifest_skips_fetch_even_without_upgrade (test_local_apt_refresh.DiscoveryTests.test_matching_vendor_manifest_skips_fetch_even_without_upgrade) ... ok
+test_metadata_cache_reuses_body_after_304_and_honors_sf_interval (test_local_apt_refresh.DiscoveryTests.test_metadata_cache_reuses_body_after_304_and_honors_sf_interval) ... ok
+test_new_wrapper_argument_contract_and_installer_units (test_local_apt_refresh.DiscoveryTests.test_new_wrapper_argument_contract_and_installer_units) ... ok
+test_no_payload_request_when_release_version_not_newer (test_local_apt_refresh.DiscoveryTests.test_no_payload_request_when_release_version_not_newer) ... ok
+test_old_source_etag_is_not_sent_to_new_source (test_local_apt_refresh.DiscoveryTests.test_old_source_etag_is_not_sent_to_new_source) ... ok
+test_only_stable_published_releases_are_considered (test_local_apt_refresh.DiscoveryTests.test_only_stable_published_releases_are_considered) ... ok
+test_pinned_github_asset_tracks_new_releases_and_preserves_edition (test_local_apt_refresh.DiscoveryTests.test_pinned_github_asset_tracks_new_releases_and_preserves_edition) ... ok
+test_release_candidate_is_not_committed_when_download_fails (test_local_apt_refresh.DiscoveryTests.test_release_candidate_is_not_committed_when_download_fails) ... local-apt-repository: update unavailable for fixture-app:all: network unavailable; keeping published version 1.0
+local-apt-repository: update unavailable for fixture-app:all: network unavailable; keeping published version 1.0
+ok
+test_release_filename_prerelease_is_excluded (test_local_apt_refresh.DiscoveryTests.test_release_filename_prerelease_is_excluded) ... ok
+test_release_same_version_mutation_does_not_download_again (test_local_apt_refresh.DiscoveryTests.test_release_same_version_mutation_does_not_download_again) ... ok
+test_republished_old_release_cannot_win_by_timestamp (test_local_apt_refresh.DiscoveryTests.test_republished_old_release_cannot_win_by_timestamp) ... ok
+test_same_version_conflicting_release_digest_is_not_adopted (test_local_apt_refresh.DiscoveryTests.test_same_version_conflicting_release_digest_is_not_adopted) ... ok
+test_sourceforge_feed_uses_matching_latest_deb (test_local_apt_refresh.DiscoveryTests.test_sourceforge_feed_uses_matching_latest_deb) ... ok
+test_sourceforge_rejects_entities (test_local_apt_refresh.DiscoveryTests.test_sourceforge_rejects_entities) ... ok
+test_stale_body_cannot_satisfy_new_release_metadata (test_local_apt_refresh.DiscoveryTests.test_stale_body_cannot_satisfy_new_release_metadata) ... local-apt-repository: update unavailable for fixture-app:all: new release metadata returned a package without a newer Version; keeping published version 1.0
+ok
+test_static_package_makes_no_metadata_or_body_requests (test_local_apt_refresh.DiscoveryTests.test_static_package_makes_no_metadata_or_body_requests) ... ok
+test_unknown_direct_baseline_does_not_trigger_initial_body_download (test_local_apt_refresh.DiscoveryTests.test_unknown_direct_baseline_does_not_trigger_initial_body_download) ... local-apt-repository: fixture-app:all: metadata baseline established without a package download; initial remote/local equality is unverified
+ok
+test_unverified_baseline_does_not_silently_become_verified (test_local_apt_refresh.DiscoveryTests.test_unverified_baseline_does_not_silently_become_verified) ... ok
+test_weekly_noop_refresh_does_not_republish_or_retrieve (test_local_apt_refresh.DiscoveryTests.test_weekly_noop_refresh_does_not_republish_or_retrieve) ... ok
+test_apt_update_reads_signed_metadata_without_contacting_upstream (test_local_apt_refresh.RealTransportTests.test_apt_update_reads_signed_metadata_without_contacting_upstream) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_bad_body_cannot_advance_validator_receipt_and_retry_recovers (test_local_apt_refresh.RealTransportTests.test_bad_body_cannot_advance_validator_receipt_and_retry_recovers) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+local-apt-repository: update unavailable for fixture-app:all: download is not a Debian archive (HTML/API responses are not packages); keeping published version 1.0
+ok
+test_curl_refuses_https_to_http_redirect (test_local_apt_refresh.RealTransportTests.test_curl_refuses_https_to_http_redirect) ... ok
+test_head_unsupported_or_missing_validators_never_falls_back_to_get (test_local_apt_refresh.RealTransportTests.test_head_unsupported_or_missing_validators_never_falls_back_to_get) ... local-apt-repository: update unavailable for fixture-app:all: endpoint provides neither ETag nor Last-Modified; no blind package download is allowed; keeping published version 1.0
+local-apt-repository: update unavailable for fixture-app:all: curl failed (22): curl: (22) The requested URL returned error: 405; keeping published version 1.0
+ok
+test_real_head_304_then_changed_get_publish_then_no_get (test_local_apt_refresh.RealTransportTests.test_real_head_304_then_changed_get_publish_then_no_get) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_signing_failure_does_not_commit_download_validators (test_local_apt_refresh.RealTransportTests.test_signing_failure_does_not_commit_download_validators) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_each_terminal_keeps_host_admin_access_but_has_its_own_cgroup (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_each_terminal_keeps_host_admin_access_but_has_its_own_cgroup) ... ok
+test_hidden_is_not_resurrected (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_hidden_is_not_resurrected) ... ok
+test_managed_main_does_not_hide_unmanaged_desktop_actions (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_managed_main_does_not_hide_unmanaged_desktop_actions) ... ok
+test_managed_path_in_arguments_does_not_bypass_wrapping (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_managed_path_in_arguments_does_not_bypass_wrapping) ... ok
+test_nodisplay_mime_handler_still_gets_a_service (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_nodisplay_mime_handler_still_gets_a_service) ... ok
+test_terminal_desktop_keeps_pty_and_is_idempotent (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_terminal_desktop_keeps_pty_and_is_idempotent) ... ok
+test_terminal_script_preserves_arguments_and_does_not_use_server (test_scoped_lifecycle_keyrings.DesktopIsolationTests.test_terminal_script_preserves_arguments_and_does_not_use_server) ... ok
+test_absolute_link_resolves_inside_target_not_host (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_absolute_link_resolves_inside_target_not_host) ... ok
+test_backports_gets_requested_signed_by_and_is_idempotent (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_backports_gets_requested_signed_by_and_is_idempotent) ... ok
+test_custom_key_and_fingerprint_restriction_are_preserved (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_custom_key_and_fingerprint_restriction_are_preserved) ... ok
+test_dangling_link_is_rejected_before_source_changes (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_dangling_link_is_rejected_before_source_changes) ... ok
+test_equivalent_pgp_spelling_becomes_requested_gpg_alias (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_equivalent_pgp_spelling_becomes_requested_gpg_alias) ... ok
+test_fifo_target_is_rejected_without_waiting_for_a_writer (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_fifo_target_is_rejected_without_waiting_for_a_writer) ... ok
+test_gpg_reads_validated_bytes_not_reopened_link (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_gpg_reads_validated_bytes_not_reopened_link) ... ok
+test_missing_unstaged_nonlink_retains_existing_contract (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_missing_unstaged_nonlink_retains_existing_contract) ... ok
+test_nonroot_key_owner_is_rejected (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_nonroot_key_owner_is_rejected) ... ok
+test_nonroot_link_owner_is_rejected (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_nonroot_link_owner_is_rejected) ... ok
+test_relative_escape_above_target_root_is_rejected (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_relative_escape_above_target_root_is_rejected) ... ok
+test_relative_package_link_is_read_without_modification (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_relative_package_link_is_read_without_modification) ... ok
+test_safe_directory_link_is_supported (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_safe_directory_link_is_supported) ... ok
+test_source_symlink_guard_is_not_relaxed (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_source_symlink_guard_is_not_relaxed) ... ok
+test_true_cycle_is_rejected_before_source_changes (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_true_cycle_is_rejected_before_source_changes) ... ok
+test_writable_key_directory_is_rejected (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_writable_key_directory_is_rejected) ... ok
+test_writable_key_is_rejected (test_scoped_lifecycle_keyrings.KeyringRegressionTests.test_writable_key_is_rejected) ... ok
+test_all_capture_adapters_preserve_status_streams_and_handle_auto_reaper (test_scoped_lifecycle_keyrings.PerlLifecycleTests.test_all_capture_adapters_preserve_status_streams_and_handle_auto_reaper) ... ok
+test_capture_adapters_bound_descendants_holding_pipes (test_scoped_lifecycle_keyrings.PerlLifecycleTests.test_capture_adapters_bound_descendants_holding_pipes) ... ok
+test_mapper_preserves_signal_failure_and_drains_both_streams (test_scoped_lifecycle_keyrings.PerlLifecycleTests.test_mapper_preserves_signal_failure_and_drains_both_streams) ... ok
+test_failed_live_restore_is_not_reported_as_success (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_failed_live_restore_is_not_reported_as_success) ... ok
+test_firewall_lock_is_private_and_released (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_firewall_lock_is_private_and_released) ... ok
+test_firewall_lock_rejects_symlink_fifo_and_foreign_owner (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_firewall_lock_rejects_symlink_fifo_and_foreign_owner) ... ok
+test_proxy_diagnostic_read_does_not_wait_on_inherited_writer (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_proxy_diagnostic_read_does_not_wait_on_inherited_writer) ... ok
+test_proxy_diagnostics_are_bounded_and_sanitized (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_proxy_diagnostics_are_bounded_and_sanitized) ... ok
+test_proxy_empty_open_pipe_returns_immediately (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_proxy_empty_open_pipe_returns_immediately) ... ok
+test_reload_timeout_restores_disk_and_live_policy (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_reload_timeout_restores_disk_and_live_policy) ... ok
+test_success_does_not_rollback (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_success_does_not_rollback) ... ok
+test_validation_timeout_rolls_back_without_reload (test_scoped_lifecycle_keyrings.PythonLifecycleTests.test_validation_timeout_rolls_back_without_reload) ... ok
+test_bitwarden_wayland_socket_and_session_owner_are_explicit (test_scoped_lifecycle_keyrings.SessionHandoffTests.test_bitwarden_wayland_socket_and_session_owner_are_explicit) ... ok
+test_marker_cannot_skip_service_creation_from_other_cgroup (test_scoped_lifecycle_keyrings.SessionHandoffTests.test_marker_cannot_skip_service_creation_from_other_cgroup) ... ok
+test_marker_is_consumed_only_in_corresponding_service (test_scoped_lifecycle_keyrings.SessionHandoffTests.test_marker_is_consumed_only_in_corresponding_service) ... ok
+test_safe_environment_is_forwarded_by_name_for_bitwarden_and_compat (test_scoped_lifecycle_keyrings.SessionHandoffTests.test_safe_environment_is_forwarded_by_name_for_bitwarden_and_compat) ... ok
+test_ai_bootstrap_has_explicit_isolated_versioned_package_path (test_scoped_lifecycle_keyrings.WiringTests.test_ai_bootstrap_has_explicit_isolated_versioned_package_path) ... ok
+test_apparmor_allows_new_imports_without_broadening_package_read (test_scoped_lifecycle_keyrings.WiringTests.test_apparmor_allows_new_imports_without_broadening_package_read) ... ok
+test_python_staging_manifests_cover_every_module (test_scoped_lifecycle_keyrings.WiringTests.test_python_staging_manifests_cover_every_module) ... ok
+
+----------------------------------------------------------------------
+Ran 80 tests in 8.431s
+
+OK
+Removed the legacy local repository APT pre-update hook.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 1 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.

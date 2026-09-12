@@ -1,0 +1,16 @@
+{
+  "suite": "tools/tests",
+  "batch": 2,
+  "batches": 4,
+  "modules": [
+    "test_local_apt_integration",
+    "test_scoped_desktop_fixes"
+  ],
+  "tests_run": 12,
+  "seconds": 21.407,
+  "success": true,
+  "failures": [],
+  "errors": [],
+  "skipped": [],
+  "native_tool_denials": []
+}

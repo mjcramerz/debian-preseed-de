@@ -53,10 +53,14 @@ def validate_nft_conf(path: Path) -> None:
 @contextmanager
 def locked(lock_file: Path, *, exclusive: bool) -> None:
     try:
-        descriptor = os.open(lock_file, os.O_CREAT | os.O_RDWR, 0o600)
+        descriptor = os.open(lock_file, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
     except OSError as exc:
         raise FirewallError(f"cannot open firewall lock: {lock_file}: {exc}") from exc
     try:
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
+            raise FirewallError(f"unsafe firewall lock file: {lock_file}")
         fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
         yield
     except OSError as exc:

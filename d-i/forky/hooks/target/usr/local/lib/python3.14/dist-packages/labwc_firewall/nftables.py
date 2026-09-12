@@ -98,27 +98,39 @@ def validate_and_apply(
             "candidate nftables policy installation failed",
         )
 
-    syntax = runner.run(nft, "-c", "-f", str(nft_conf))
+    try:
+        syntax = runner.run(nft, "-c", "-f", str(nft_conf))
+    except FirewallError as exc:
+        _rollback_or_fail(mutation, f"candidate nftables policy validation failed: {exc}")
     if syntax.returncode != 0:
         _rollback_or_fail(
             mutation,
             "candidate nftables policy failed syntax validation",
         )
 
-    reload = runner.run(systemctl, "reload", "nftables.service")
-    if reload.returncode == 0:
-        return
+    failure = "nftables reload failed"
+    try:
+        reload = runner.run(systemctl, "reload", "nftables.service")
+    except FirewallError as exc:
+        # A timed-out reload may already have changed the live rules. Restore
+        # both the on-disk policy and the previous live rules below.
+        failure += f": {exc}"
+    else:
+        if reload.returncode == 0:
+            return
 
     try:
         mutation.rollback()
     except FirewallError as exc:
         raise FirewallError(
-            "nftables reload failed and the previous rules could not be restored: "
-            f"{exc}"
+            f"{failure}; previous rules could not be restored: {exc}"
         ) from exc
-    restore = runner.run(nft, "-f", str(nft_conf))
+    try:
+        restore = runner.run(nft, "-f", str(nft_conf))
+    except FirewallError as exc:
+        raise FirewallError(f"{failure}; previous live rules could not be restored: {exc}") from exc
     if restore.returncode != 0:
         raise FirewallError(
-            "nftables reload failed and the previous rules could not be restored"
+            f"{failure}; previous live rules could not be restored"
         )
-    raise FirewallError("nftables reload failed; previous rules restored")
+    raise FirewallError(f"{failure}; previous rules restored")

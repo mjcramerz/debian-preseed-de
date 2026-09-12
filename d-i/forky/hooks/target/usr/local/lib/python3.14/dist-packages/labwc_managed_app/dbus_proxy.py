@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import io
 import os
 import re
 import signal
@@ -52,7 +53,14 @@ def _bounded_proxy_stderr(proxy_process: subprocess.Popen | None) -> str:
     if stderr_pipe is None or stderr_pipe.closed:
         return ""
     try:
-        payload = stderr_pipe.read(PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
+        if isinstance(stderr_pipe, (io.StringIO, io.BytesIO)):
+            payload = stderr_pipe.read(PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
+        else:
+            # Reaping the direct proxy does not prove that every inherited
+            # writer has closed stderr. Never wait for EOF during teardown.
+            fd = stderr_pipe.fileno()
+            os.set_blocking(fd, False)
+            payload = os.read(fd, PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
     except (OSError, ValueError):
         payload = ""
     finally:
@@ -108,7 +116,8 @@ def stop_dbus_proxy(
 
     Closing the lifecycle socket is the normal xdg-dbus-proxy shutdown path.
     Signals are bounded fallbacks. Diagnostics are collected only after the
-    child has been reaped so a pipe read cannot hold up sandbox teardown.
+    child has been reaped, using a nonblocking read even if a descendant
+    retains the pipe. Diagnostics must never hold up sandbox teardown.
     """
 
     _close_socket(proxy_lifecycle)

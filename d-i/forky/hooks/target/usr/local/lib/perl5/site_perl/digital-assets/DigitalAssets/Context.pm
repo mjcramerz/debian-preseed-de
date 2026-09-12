@@ -270,17 +270,11 @@ sub notify_result {
     return if !defined($ENV{DBUS_SESSION_BUS_ADDRESS}) || !length($ENV{DBUS_SESSION_BUS_ADDRESS});
     my $notify = eval { $self->command_path('notify-send') };
     return if !$notify;
-    my $pid = fork();
-    return if !defined $pid;
-    if ($pid == 0) {
-        open STDOUT, '>', '/dev/null' or POSIX::_exit(0);
-        open STDERR, '>&', \*STDOUT or POSIX::_exit(0);
-        my $executed = exec { $notify } $notify, '-a', 'Digital Assets', '-u', 'normal',
-            '-i', 'document-save', '-c', 'x-labwc.maintenance', '-t', '10000',
-            $summary, $body;
-        POSIX::_exit($executed ? 0 : 127);
-    }
-    waitpid($pid, 0);
+    # A notification server must not hold the completed foreground task open.
+    # Non-zero/timeout status is best effort; supervisor failures remain visible.
+    capture_command(argv => [$notify, '-a', 'Digital Assets', '-u', 'normal',
+        '-i', 'document-save', '-c', 'x-labwc.maintenance', '-t', '10000',
+        '--', $summary, $body], timeout => 5, limit => 65_536);
 }
 
 sub prompt_line {

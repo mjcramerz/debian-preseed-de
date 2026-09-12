@@ -312,6 +312,10 @@ profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_d
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+
   /usr/local/bin/labwc-adb-action rix,
   /usr/local/lib/perl5/site_perl/labwc-adb/ r,
   /usr/local/lib/perl5/site_perl/labwc-adb/** r,
@@ -1614,7 +1618,7 @@ profile managed-labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected,
   /usr/local/bin/labwc-managed-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
@@ -1957,7 +1961,7 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
   /usr/local/bin/labwc-managed-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -2695,6 +2699,10 @@ profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+
   network netlink raw,
   /usr/local/libexec/labwc-output-watch rix,
   /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} rix,
@@ -3024,7 +3032,7 @@ profile managed-labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disco
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-terminal rix,
-  /usr/bin/{footclient,kitty,x-terminal-emulator} pux,
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
   /dev/rfkill r,
 
   include if exists <local/usr.local.bin.labwc-terminal>
@@ -3075,6 +3083,10 @@ profile managed-labwc-mute-default-microphone /usr/local/libexec/labwc-mute-defa
   #include <abstractions/managed-pipewire-audio>
   #include <abstractions/managed-wrapper-perl>
 
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+
   /usr/local/libexec/labwc-mute-default-microphone rix,
   /usr/local/lib/perl5/site_perl/whisper/ r,
   /usr/local/lib/perl5/site_perl/whisper/** r,
@@ -3114,6 +3126,10 @@ profile managed-whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,
   #include <abstractions/managed-desktop-graphics>
   #include <abstractions/managed-pipewire-audio>
   #include <abstractions/managed-wrapper-perl>
+
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
 
   /usr/local/libexec/whisper-record-{toggle,timed} rix,
   signal (send, receive) set=(int, term, hup, kill, chld) peer=managed-whisper-record-toggle,

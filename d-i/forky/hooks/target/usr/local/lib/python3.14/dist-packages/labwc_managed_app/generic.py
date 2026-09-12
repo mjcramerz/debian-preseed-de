@@ -155,6 +155,12 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
+    # A terminal is an interactive host administration boundary: implicit
+    # PrivateUsers from filesystem/IPC isolation would break sudo/pkexec.
+    # Keep its previous host access, but give each window its own cgroup.
+    terminal = kind == "wayland" and arguments[0] in {
+        "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
+    }
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
@@ -168,8 +174,10 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=StandardInput=null", "--property=StandardOutput=journal",
         "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
-        "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
-        "--property=ProtectSystem=full",
+        *([] if terminal else [
+            "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
+            "--property=ProtectSystem=full",
+        ]),
         "--property=UnsetEnvironment=" + " ".join(name for name in UNSET_ENVIRONMENT if name not in environment),
         f"--working-directory={os.getcwd()}",
         # Passing only names keeps tokens and other values out of argv.

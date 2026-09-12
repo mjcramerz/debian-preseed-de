@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "file_count": 1401,
+  "check_counts": {
+    "binary-inventory-only": 11,
+    "inventory-only": 948,
+    "python-syntax-pass": 126,
+    "shell-syntax-pass": 198,
+    "template-needs-render": 118
+  },
+  "shellcheck": "NOT RUN: executable unavailable",
+  "perl": "See make audit / validation/audit.json; missing dependencies are BLOCKED, not PASS.",
+  "limits": [
+    "No code execution for Python AST or shell -n checks.",
+    "Templates require renderer/runtime tests; inventory is not runtime validation.",
+    ".git and self-generated validation evidence excluded from the source inventory."
+  ],
+  "errors": []
+}

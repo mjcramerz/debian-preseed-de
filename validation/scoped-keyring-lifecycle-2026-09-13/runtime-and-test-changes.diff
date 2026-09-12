@@ -1,0 +1,1662 @@
+--- original/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ modified/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -311,6 +311,10 @@
+ profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_disconnected) {
+   #include <abstractions/managed-wrapper-desktop>
+   #include <abstractions/managed-wrapper-perl>
++
++  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+ 
+   /usr/local/bin/labwc-adb-action rix,
+   /usr/local/lib/perl5/site_perl/labwc-adb/ r,
+@@ -1614,7 +1618,7 @@
+   /usr/local/bin/labwc-managed-app rix,
+   /usr/local/lib/python3.14/dist-packages/ r,
+   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
++  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
+   # ChatGPT lifecycle events use stderr so the existing capture runner sends
+   # them only to its private rsyslog socket; generic syslog remains denied.
+@@ -1957,7 +1961,7 @@
+   /usr/local/bin/labwc-managed-app rix,
+   /usr/local/lib/python3.14/dist-packages/ r,
+   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
++  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,recovery,runtime,sandbox,session,user_state}.py r,
+   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
+   /dev/log w,
+   /run/systemd/journal/dev-log w,
+@@ -2695,6 +2699,10 @@
+   #include <abstractions/managed-wrapper-desktop>
+   #include <abstractions/managed-wrapper-perl>
+ 
++  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
++
+   network netlink raw,
+   /usr/local/libexec/labwc-output-watch rix,
+   /usr/bin/{systemctl,timeout,udevadm,wlopm,wlr-randr} rix,
+@@ -3024,7 +3032,7 @@
+   #include <abstractions/managed-wrapper-desktop>
+ 
+   /usr/local/bin/labwc-terminal rix,
+-  /usr/bin/{footclient,kitty,x-terminal-emulator} pux,
++  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
+   /dev/rfkill r,
+ 
+   include if exists <local/usr.local.bin.labwc-terminal>
+@@ -3074,6 +3082,10 @@
+   #include <abstractions/managed-wrapper-desktop>
+   #include <abstractions/managed-pipewire-audio>
+   #include <abstractions/managed-wrapper-perl>
++
++  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+ 
+   /usr/local/libexec/labwc-mute-default-microphone rix,
+   /usr/local/lib/perl5/site_perl/whisper/ r,
+@@ -3114,6 +3126,10 @@
+   #include <abstractions/managed-desktop-graphics>
+   #include <abstractions/managed-pipewire-audio>
+   #include <abstractions/managed-wrapper-perl>
++
++  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+ 
+   /usr/local/libexec/whisper-record-{toggle,timed} rix,
+   signal (send, receive) set=(int, term, hup, kill, chld) peer=managed-whisper-record-toggle,
+--- original/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
++++ modified/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+@@ -632,6 +632,11 @@
+ profile managed-zram-device-setup /usr/local/libexec/zram-device-setup flags=(attach_disconnected) {
+   #include <abstractions/managed-wrapper-perl>
+ 
++  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
++  signal (send, receive) set=(term, kill, chld) peer=managed-zram-device-setup,
++
+   capability dac_override,
+   capability sys_admin,
+   capability sys_module,
+--- original/d-i/forky/hooks/target/usr/local/bin/labwc-terminal
++++ modified/d-i/forky/hooks/target/usr/local/bin/labwc-terminal
+@@ -29,12 +29,14 @@
+     ;;
+ esac
+ 
++# A footclient would move every shell into the persistent server's cgroup.
++# Standalone terminals and their PTYs instead live in one transient service.
+ seen_terminals=' '
+-for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" footclient kitty x-terminal-emulator; do
++for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" foot kitty x-terminal-emulator; do
+   [ -n "$terminal_cmd" ] || continue
+   case "$terminal_cmd" in
+     foot|footclient|*/foot|*/footclient)
+-      terminal_exec=footclient
++      terminal_exec=foot
+       ;;
+     *)
+       terminal_exec=$terminal_cmd
+@@ -46,29 +48,20 @@
+   seen_terminals="${seen_terminals}${terminal_exec} "
+   if command -v "$terminal_exec" >/dev/null 2>&1; then
+     case "$terminal_exec" in
+-      footclient)
+-        case "${XDG_RUNTIME_DIR:-}" in
+-          /*)
+-            foot_server_socket=${XDG_RUNTIME_DIR}/foot.sock
+-            ;;
+-          *)
+-            printf 'fatal: labwc-terminal requires an absolute XDG_RUNTIME_DIR for Foot\n' >&2
+-            exit 1
+-            ;;
+-        esac
++      foot)
+         if [ "$xterm_execute_mode" -eq 1 ]; then
+-          exec "$terminal_exec" --server-socket="$foot_server_socket" -e "$@"
++          exec /usr/local/bin/labwc-wayland-app launch -- "$terminal_exec" -e "$@"
+         fi
+-        exec "$terminal_exec" --server-socket="$foot_server_socket" "$@"
++        exec /usr/local/bin/labwc-wayland-app launch -- "$terminal_exec" "$@"
+         ;;
+-      kitty)
+-        exec "$terminal_exec" "$@"
++      kitty|*/kitty)
++        exec /usr/local/bin/labwc-wayland-app launch -- "$terminal_exec" "$@"
+         ;;
+     esac
+     if [ "$xterm_execute_mode" -eq 1 ]; then
+-      exec "$terminal_exec" -e "$@"
++      exec /usr/local/bin/labwc-wayland-app launch -- "$terminal_exec" -e "$@"
+     fi
+-    exec "$terminal_exec" "$@"
++    exec /usr/local/bin/labwc-wayland-app launch -- "$terminal_exec" "$@"
+   fi
+ done
+ 
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
++++ modified/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
+@@ -270,17 +270,11 @@
+     return if !defined($ENV{DBUS_SESSION_BUS_ADDRESS}) || !length($ENV{DBUS_SESSION_BUS_ADDRESS});
+     my $notify = eval { $self->command_path('notify-send') };
+     return if !$notify;
+-    my $pid = fork();
+-    return if !defined $pid;
+-    if ($pid == 0) {
+-        open STDOUT, '>', '/dev/null' or POSIX::_exit(0);
+-        open STDERR, '>&', \*STDOUT or POSIX::_exit(0);
+-        my $executed = exec { $notify } $notify, '-a', 'Digital Assets', '-u', 'normal',
+-            '-i', 'document-save', '-c', 'x-labwc.maintenance', '-t', '10000',
+-            $summary, $body;
+-        POSIX::_exit($executed ? 0 : 127);
+-    }
+-    waitpid($pid, 0);
++    # A notification server must not hold the completed foreground task open.
++    # Non-zero/timeout status is best effort; supervisor failures remain visible.
++    capture_command(argv => [$notify, '-a', 'Digital Assets', '-u', 'normal',
++        '-i', 'document-save', '-c', 'x-labwc.maintenance', '-t', '10000',
++        '--', $summary, $body], timeout => 5, limit => 65_536);
+ }
+ 
+ sub prompt_line {
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Command.pm
++++ modified/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Command.pm
+@@ -2,6 +2,9 @@
+ 
+ use strict;
+ use warnings;
++
++use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
++use Managed::Process ();
+ 
+ use Errno qw(EINTR);
+ use Fcntl qw(O_CREAT O_EXCL O_NOFOLLOW O_TRUNC O_WRONLY);
+@@ -191,101 +194,12 @@
+ # Capture limits and wall-clock limits also cover descendants retaining pipes.
+ sub run_command {
+     my ($seconds, $limit, @argv) = @_;
+-    require IO::Select;
+-    require POSIX;
+-    require Time::HiRes;
+-    require Errno;
+-    defined($seconds) && $seconds > 0 && $seconds <= 172800
++    defined($seconds) && !ref($seconds) && $seconds =~ /\A[0-9]+(?:\.[0-9]+)?\z/
++        && $seconds > 0 && $seconds <= 172800
+         or die "invalid subprocess deadline\n";
+-    defined($limit) && $limit >= 1 && $limit <= 16 * 1024 * 1024
+-        or die "invalid subprocess capture limit\n";
+-    @argv && defined($argv[0]) && $argv[0] =~ m{\A/}
+-        or die "subprocess requires an absolute executable path\n";
+-    for (@argv) {
+-        defined($_) && !ref($_) && !/\0/ or die "invalid subprocess argument\n";
+-    }
+-    pipe(my $out_r, my $out_w) or die "cannot create stdout pipe: $!\n";
+-    pipe(my $err_r, my $err_w) or die "cannot create stderr pipe: $!\n";
+-    pipe(my $ready_r, my $ready_w) or die "cannot create process readiness pipe: $!\n";
+-    my $interrupted;
+-    my %previous = map { $_ => $SIG{$_} } qw(HUP INT TERM);
+-    local $SIG{HUP} = sub { $interrupted //= 'HUP' };
+-    local $SIG{INT} = sub { $interrupted //= 'INT' };
+-    local $SIG{TERM} = sub { $interrupted //= 'TERM' };
+-    my $pid = fork;
+-    defined($pid) or die "cannot fork subprocess: $!\n";
+-    if (!$pid) {
+-        $SIG{$_} = 'DEFAULT' for qw(HUP INT TERM PIPE);
+-        close $out_r; close $err_r; close $ready_r;
+-        setpgrp(0, 0) or POSIX::_exit(126);
+-        syswrite($ready_w, '1', 1) == 1 or POSIX::_exit(126);
+-        close $ready_w;
+-        open STDIN, '<', '/dev/null' or POSIX::_exit(126);
+-        open STDOUT, '>&', $out_w or POSIX::_exit(126);
+-        open STDERR, '>&', $err_w or POSIX::_exit(126);
+-        close $out_w; close $err_w;
+-        exec { $argv[0] } @argv or POSIX::_exit(127);
+-    }
+-    close $out_w; close $err_w; close $ready_w;
+-    my $select = IO::Select->new($out_r, $err_r, $ready_r);
+-    my %kind = (fileno($out_r) => 'stdout', fileno($err_r) => 'stderr', fileno($ready_r) => 'ready');
+-    my %result = (stdout => q{}, stderr => q{});
+-    my ($group_ready, $reaped, $status, $failure) = (0, 0, 0, q{});
+-    my $deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) + $seconds;
+-    my $ok = eval {
+-        while (1) {
+-            if ($interrupted) { $failure = "interrupted by $interrupted"; last; }
+-            my $left = $deadline - Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC());
+-            if ($left <= 0) { $failure = 'timeout'; last; }
+-            for my $fh ($select->can_read($left < 0.1 ? $left : 0.1)) {
+-                my $read = sysread($fh, my $chunk, 8192);
+-                if (!defined $read) {
+-                    next if $! == Errno::EINTR();
+-                    die "cannot read subprocess output: $!\n";
+-                }
+-                if (!$read) { $select->remove($fh); close $fh; next; }
+-                my $stream = $kind{fileno($fh)};
+-                if ($stream eq 'ready') { $group_ready = 1; next; }
+-                $result{$stream} .= $chunk;
+-                length($result{stdout}) + length($result{stderr}) <= $limit
+-                    or die "subprocess output exceeded $limit bytes\n";
+-            }
+-            if (!$select->count) {
+-                my $waited = waitpid($pid, POSIX::WNOHANG());
+-                if ($waited == $pid) { $status = $?; $reaped = 1; last; }
+-                die "subprocess wait failed: $!\n" if $waited < 0 && $! != Errno::EINTR();
+-                Time::HiRes::sleep(0.02);
+-            }
+-        }
+-        1;
+-    };
+-    my $error = $@;
+-    if (!$reaped) {
+-        # The direct child has not been reaped, so its PID/process-group ID
+-        # cannot be recycled while escalation is in progress.
+-        kill 'TERM', ($group_ready ? -$pid : $pid);
+-        Time::HiRes::sleep(0.2);
+-        # If interruption happened before the handshake, terminate both the
+-        # child and any group it managed to establish in the meantime.
+-        kill 'KILL', -$pid;
+-        kill 'KILL', $pid;
+-        while (1) {
+-            my $waited = waitpid($pid, 0);
+-            next if $waited < 0 && $! == Errno::EINTR();
+-            $status = $? if $waited == $pid;
+-            last;
+-        }
+-    }
+-    close $_ for $select->handles;
+-    die $error if !$ok;
+-    if ($interrupted) {
+-        my $handler = $previous{$interrupted};
+-        $handler->($interrupted) if ref($handler) eq 'CODE';
+-        die "subprocess interrupted by $interrupted\n";
+-    }
+-    $result{status} = $failure eq 'timeout' ? (124 << 8) : $status;
+-    $result{error} = $failure;
+-    return \%result;
++    return Managed::Process::capture_command(
++        argv => \@argv, timeout => $seconds, limit => $limit,
++    );
+ }
+ 
+ sub _capture {
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/whisper/WhisperMode/Systemd.pm
++++ modified/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/whisper/WhisperMode/Systemd.pm
+@@ -2,6 +2,9 @@
+ 
+ use strict;
+ use warnings;
++
++use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
++use Managed::Process ();
+ 
+ use Moo;
+ use MooX::StrictConstructor;
+@@ -23,101 +26,12 @@
+ # Capture limits and wall-clock limits also cover descendants retaining pipes.
+ sub run_command {
+     my ($seconds, $limit, @argv) = @_;
+-    require IO::Select;
+-    require POSIX;
+-    require Time::HiRes;
+-    require Errno;
+-    defined($seconds) && $seconds > 0 && $seconds <= 3600
++    defined($seconds) && !ref($seconds) && $seconds =~ /\A[0-9]+(?:\.[0-9]+)?\z/
++        && $seconds > 0 && $seconds <= 3600
+         or die "invalid subprocess deadline\n";
+-    defined($limit) && $limit >= 1 && $limit <= 16 * 1024 * 1024
+-        or die "invalid subprocess capture limit\n";
+-    @argv && defined($argv[0]) && $argv[0] =~ m{\A/}
+-        or die "subprocess requires an absolute executable path\n";
+-    for (@argv) {
+-        defined($_) && !ref($_) && !/\0/ or die "invalid subprocess argument\n";
+-    }
+-    pipe(my $out_r, my $out_w) or die "cannot create stdout pipe: $!\n";
+-    pipe(my $err_r, my $err_w) or die "cannot create stderr pipe: $!\n";
+-    pipe(my $ready_r, my $ready_w) or die "cannot create process readiness pipe: $!\n";
+-    my $interrupted;
+-    my %previous = map { $_ => $SIG{$_} } qw(HUP INT TERM);
+-    local $SIG{HUP} = sub { $interrupted //= 'HUP' };
+-    local $SIG{INT} = sub { $interrupted //= 'INT' };
+-    local $SIG{TERM} = sub { $interrupted //= 'TERM' };
+-    my $pid = fork;
+-    defined($pid) or die "cannot fork subprocess: $!\n";
+-    if (!$pid) {
+-        $SIG{$_} = 'DEFAULT' for qw(HUP INT TERM PIPE);
+-        close $out_r; close $err_r; close $ready_r;
+-        setpgrp(0, 0) or POSIX::_exit(126);
+-        syswrite($ready_w, '1', 1) == 1 or POSIX::_exit(126);
+-        close $ready_w;
+-        open STDIN, '<', '/dev/null' or POSIX::_exit(126);
+-        open STDOUT, '>&', $out_w or POSIX::_exit(126);
+-        open STDERR, '>&', $err_w or POSIX::_exit(126);
+-        close $out_w; close $err_w;
+-        exec { $argv[0] } @argv or POSIX::_exit(127);
+-    }
+-    close $out_w; close $err_w; close $ready_w;
+-    my $select = IO::Select->new($out_r, $err_r, $ready_r);
+-    my %kind = (fileno($out_r) => 'stdout', fileno($err_r) => 'stderr', fileno($ready_r) => 'ready');
+-    my %result = (stdout => q{}, stderr => q{});
+-    my ($group_ready, $reaped, $status, $failure) = (0, 0, 0, q{});
+-    my $deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) + $seconds;
+-    my $ok = eval {
+-        while (1) {
+-            if ($interrupted) { $failure = "interrupted by $interrupted"; last; }
+-            my $left = $deadline - Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC());
+-            if ($left <= 0) { $failure = 'timeout'; last; }
+-            for my $fh ($select->can_read($left < 0.1 ? $left : 0.1)) {
+-                my $read = sysread($fh, my $chunk, 8192);
+-                if (!defined $read) {
+-                    next if $! == Errno::EINTR();
+-                    die "cannot read subprocess output: $!\n";
+-                }
+-                if (!$read) { $select->remove($fh); close $fh; next; }
+-                my $stream = $kind{fileno($fh)};
+-                if ($stream eq 'ready') { $group_ready = 1; next; }
+-                $result{$stream} .= $chunk;
+-                length($result{stdout}) + length($result{stderr}) <= $limit
+-                    or die "subprocess output exceeded $limit bytes\n";
+-            }
+-            if (!$select->count) {
+-                my $waited = waitpid($pid, POSIX::WNOHANG());
+-                if ($waited == $pid) { $status = $?; $reaped = 1; last; }
+-                die "subprocess wait failed: $!\n" if $waited < 0 && $! != Errno::EINTR();
+-                Time::HiRes::sleep(0.02);
+-            }
+-        }
+-        1;
+-    };
+-    my $error = $@;
+-    if (!$reaped) {
+-        # The direct child has not been reaped, so its PID/process-group ID
+-        # cannot be recycled while escalation is in progress.
+-        kill 'TERM', ($group_ready ? -$pid : $pid);
+-        Time::HiRes::sleep(0.2);
+-        # If interruption happened before the handshake, terminate both the
+-        # child and any group it managed to establish in the meantime.
+-        kill 'KILL', -$pid;
+-        kill 'KILL', $pid;
+-        while (1) {
+-            my $waited = waitpid($pid, 0);
+-            next if $waited < 0 && $! == Errno::EINTR();
+-            $status = $? if $waited == $pid;
+-            last;
+-        }
+-    }
+-    close $_ for $select->handles;
+-    die $error if !$ok;
+-    if ($interrupted) {
+-        my $handler = $previous{$interrupted};
+-        $handler->($interrupted) if ref($handler) eq 'CODE';
+-        die "subprocess interrupted by $interrupted\n";
+-    }
+-    $result{status} = $failure eq 'timeout' ? (124 << 8) : $status;
+-    $result{error} = $failure;
+-    return \%result;
++    return Managed::Process::capture_command(
++        argv => \@argv, timeout => $seconds, limit => $limit,
++    );
+ }
+ 
+ sub _run {
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Setup/Mapper.pm
++++ modified/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Setup/Mapper.pm
+@@ -7,8 +7,8 @@
+ use MooX::StrictConstructor;
+ use MooX::Types::MooseLike::Base qw(Str);
+ 
+-use IPC::Open3 qw(open3);
+-use Symbol qw(gensym);
++use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
++use Managed::Process qw(capture_command);
+ use Time::HiRes qw(sleep);
+ use Zram::Config qw(cfg);
+ use Zram::Error qw(fatal);
+@@ -20,18 +20,19 @@
+ 
+ sub _capture {
+     my ($self, @command) = @_;
+-    my $stderr = gensym;
+-    my $pid = open3(undef, my $stdout, $stderr, @command);
+-    my $out = do { local $/; <$stdout> // '' };
+-    my $err = do { local $/; <$stderr> // '' };
+-    waitpid $pid, 0;
+-    return ($? >> 8, $out, $err);
++    my $result = capture_command(argv => \@command, timeout => 25, limit => 1_048_576);
++    my $raw = $result->{status};
++    # A signal is failure, not the zero exit code produced by shifting alone.
++    my $status = ($raw & 127) ? 128 + ($raw & 127) : $raw >> 8;
++    return ($status, $result->{stdout}, $result->{stderr});
+ }
+ 
+ sub _run {
+     my ($self, @command) = @_;
+-    system @command;
+-    return $? == 0;
++    my ($status, $out, $err) = $self->_capture(@command);
++    print STDOUT $out if length $out;
++    print STDERR $err if length $err;
++    return $status == 0;
+ }
+ 
+ sub _wait_for_mapper {
+--- original/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/files.py
++++ modified/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/files.py
+@@ -53,10 +53,14 @@
+ @contextmanager
+ def locked(lock_file: Path, *, exclusive: bool) -> None:
+     try:
+-        descriptor = os.open(lock_file, os.O_CREAT | os.O_RDWR, 0o600)
++        descriptor = os.open(lock_file, os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+     except OSError as exc:
+         raise FirewallError(f"cannot open firewall lock: {lock_file}: {exc}") from exc
+     try:
++        metadata = os.fstat(descriptor)
++        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
++                or metadata.st_nlink != 1 or stat.S_IMODE(metadata.st_mode) != 0o600):
++            raise FirewallError(f"unsafe firewall lock file: {lock_file}")
+         fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+         yield
+     except OSError as exc:
+--- original/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/nftables.py
++++ modified/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/nftables.py
+@@ -98,27 +98,39 @@
+             "candidate nftables policy installation failed",
+         )
+ 
+-    syntax = runner.run(nft, "-c", "-f", str(nft_conf))
++    try:
++        syntax = runner.run(nft, "-c", "-f", str(nft_conf))
++    except FirewallError as exc:
++        _rollback_or_fail(mutation, f"candidate nftables policy validation failed: {exc}")
+     if syntax.returncode != 0:
+         _rollback_or_fail(
+             mutation,
+             "candidate nftables policy failed syntax validation",
+         )
+ 
+-    reload = runner.run(systemctl, "reload", "nftables.service")
+-    if reload.returncode == 0:
+-        return
++    failure = "nftables reload failed"
++    try:
++        reload = runner.run(systemctl, "reload", "nftables.service")
++    except FirewallError as exc:
++        # A timed-out reload may already have changed the live rules. Restore
++        # both the on-disk policy and the previous live rules below.
++        failure += f": {exc}"
++    else:
++        if reload.returncode == 0:
++            return
+ 
+     try:
+         mutation.rollback()
+     except FirewallError as exc:
+         raise FirewallError(
+-            "nftables reload failed and the previous rules could not be restored: "
+-            f"{exc}"
++            f"{failure}; previous rules could not be restored: {exc}"
+         ) from exc
+-    restore = runner.run(nft, "-f", str(nft_conf))
++    try:
++        restore = runner.run(nft, "-f", str(nft_conf))
++    except FirewallError as exc:
++        raise FirewallError(f"{failure}; previous live rules could not be restored: {exc}") from exc
+     if restore.returncode != 0:
+         raise FirewallError(
+-            "nftables reload failed and the previous rules could not be restored"
++            f"{failure}; previous live rules could not be restored"
+         )
+-    raise FirewallError("nftables reload failed; previous rules restored")
++    raise FirewallError(f"{failure}; previous rules restored")
+--- original/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py
++++ modified/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py
+@@ -4,6 +4,7 @@
+ 
+ from collections.abc import Callable
+ from dataclasses import dataclass
++import io
+ import os
+ import re
+ import signal
+@@ -52,7 +53,14 @@
+     if stderr_pipe is None or stderr_pipe.closed:
+         return ""
+     try:
+-        payload = stderr_pipe.read(PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
++        if isinstance(stderr_pipe, (io.StringIO, io.BytesIO)):
++            payload = stderr_pipe.read(PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
++        else:
++            # Reaping the direct proxy does not prove that every inherited
++            # writer has closed stderr. Never wait for EOF during teardown.
++            fd = stderr_pipe.fileno()
++            os.set_blocking(fd, False)
++            payload = os.read(fd, PROXY_DIAGNOSTIC_MAX_CHARACTERS + 1)
+     except (OSError, ValueError):
+         payload = ""
+     finally:
+@@ -108,7 +116,8 @@
+ 
+     Closing the lifecycle socket is the normal xdg-dbus-proxy shutdown path.
+     Signals are bounded fallbacks. Diagnostics are collected only after the
+-    child has been reaped so a pipe read cannot hold up sandbox teardown.
++    child has been reaped, using a nonblocking read even if a descendant
++    retains the pipe. Diagnostics must never hold up sandbox teardown.
+     """
+ 
+     _close_socket(proxy_lifecycle)
+--- original/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
++++ modified/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py
+@@ -155,6 +155,12 @@
+     environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
+     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
+     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
++    # A terminal is an interactive host administration boundary: implicit
++    # PrivateUsers from filesystem/IPC isolation would break sudo/pkexec.
++    # Keep its previous host access, but give each window its own cgroup.
++    terminal = kind == "wayland" and arguments[0] in {
++        "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
++    }
+     return [
+         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
+         "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
+@@ -168,8 +174,10 @@
+         "--property=StandardInput=null", "--property=StandardOutput=journal",
+         "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
+         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
+-        "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
+-        "--property=ProtectSystem=full",
++        *([] if terminal else [
++            "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
++            "--property=ProtectSystem=full",
++        ]),
+         "--property=UnsetEnvironment=" + " ".join(name for name in UNSET_ENVIRONMENT if name not in environment),
+         f"--working-directory={os.getcwd()}",
+         # Passing only names keeps tokens and other values out of argv.
+--- original/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
++++ modified/d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py
+@@ -3,7 +3,9 @@
+ from __future__ import annotations
+ 
+ import os
++from pathlib import Path
+ import re
++import uuid
+ 
+ from .recovery import assert_launch_allowed, restart_token
+ from .integrity import system_owner
+@@ -38,10 +40,43 @@
+ }
+ 
+ 
++def _session_unit(prefix: str) -> str:
++    if re.fullmatch(r"labwc-[a-z0-9-]+", prefix) is None:
++        fail("invalid managed session unit prefix")
++    return f"{prefix}-{uuid.uuid4().hex}.service"
++
++
++def _consume_session_marker(name: str, prefix: str) -> bool:
++    """Accept reentry only inside the expected manager-owned service cgroup.
++
++    The flag is a loop guard, not authority by itself. Consume it before any
++    payload is created so subsequently launched applications get new services.
++    """
++    marker = os.environ.pop(name, "")
++    if not marker:
++        return False
++    if marker != "1":
++        fail(f"{name} has an invalid value")
++    try:
++        with Path("/proc/self/cgroup").open(encoding="ascii") as stream:
++            membership = stream.read(65537)
++    except (OSError, UnicodeError) as exc:
++        fail(f"cannot validate managed session cgroup: {exc}")
++    pattern = re.escape(prefix) + r"-[0-9a-f]{32}\.service"
++    if len(membership) <= 65536:
++        for line in membership.splitlines():
++            fields = line.split(":", 2)
++            if (len(fields) == 3 and fields[1] in {"", "name=systemd"}
++                    and re.fullmatch(pattern, fields[2].rsplit("/", 1)[-1])):
++                return True
++    fail(f"{name} is set outside its managed session service")
++
++
+ def bitwarden_session_unit_argv(
+     systemd_run: str,
+     mode: str,
+     extra_args: list[str],
++    environment: dict[str, str] | None = None,
+ ) -> list[str]:
+     assert_launch_allowed()
+     return [
+@@ -55,6 +90,7 @@
+         "--property=StandardOutput=journal",
+         "--property=StandardError=journal",
+         "--description=Managed Bitwarden desktop client",
++        "--unit=" + _session_unit("labwc-bitwarden"),
+         "--property=After=labwc-session.target labwc-kwallet-portal.service",
+         "--property=Requires=labwc-session.target labwc-kwallet-portal.service",
+         "--property=Requisite=labwc-session.target labwc-kwallet-portal.service",
+@@ -64,9 +100,14 @@
+         "--property=KillMode=control-group",
+         "--setenv=LABWC_SESSION_APP=1",
+         "--property=TimeoutStopSec=20s",
++        "--property=SendSIGKILL=yes",
++        "--property=Restart=no",
++        "--property=UMask=0077",
+         "--property=SyslogIdentifier=labwc-bitwarden",
+         f"--setenv={BITWARDEN_SESSION_UNIT_MARKER}=1",
+         "--setenv=LABWC_SESSION_RESTORE=" + restart_token([MANAGED_APP_PATH, mode, "bitwarden", *extra_args]),
++        f"--working-directory={os.getcwd()}",
++        *(f"--setenv={name}" for name in sorted(environment or {})),
+         "--",
+         MANAGED_APP_PATH,
+         mode,
+@@ -95,13 +136,20 @@
+             "XDG_RUNTIME_DIR": runtime_dir,
+             "DBUS_SESSION_BUS_ADDRESS": session_bus_address,
+             "SYSTEMD_COLORS": "0",
++            "LABWC_SESSION_OWNER": "desktop",
+         }
+     )
+     return environment
+ 
+ 
+ def bitwarden_session_unit_environment() -> dict[str, str]:
+-    return managed_session_unit_environment("Bitwarden")
++    environment = managed_session_unit_environment("Bitwarden")
++    wayland_display = validate_runtime_entry_name(
++        "WAYLAND_DISPLAY", os.environ.get("WAYLAND_DISPLAY", ""),
++    )
++    current_user_runtime_socket("Wayland socket", wayland_display)
++    environment["WAYLAND_DISPLAY"] = wayland_display
++    return environment
+ 
+ 
+ def wayland_compat_session_unit_argv(
+@@ -109,6 +157,7 @@
+     app_name: str,
+     mode: str,
+     extra_args: list[str],
++    environment: dict[str, str] | None = None,
+ ) -> list[str]:
+     metadata = WAYLAND_COMPAT_SESSION_UNIT_METADATA.get(app_name)
+     if metadata is None:
+@@ -126,6 +175,7 @@
+         "--property=StandardOutput=journal",
+         "--property=StandardError=journal",
+         f"--description=Managed {display_name} Cage compatibility session",
++        "--unit=" + _session_unit(f"labwc-compat-{app_name}"),
+         "--property=After=labwc-session.target",
+         "--property=Requires=labwc-session.target",
+         "--property=Requisite=labwc-session.target",
+@@ -135,10 +185,15 @@
+         "--property=KillMode=control-group",
+         "--setenv=LABWC_SESSION_APP=1",
+         "--property=TimeoutStopSec=20s",
++        "--property=SendSIGKILL=yes",
++        "--property=Restart=no",
++        "--property=UMask=0077",
+         f"--property=SyslogIdentifier={syslog_identifier}",
+         f"--setenv={WAYLAND_COMPAT_SESSION_UNIT_MARKER}=1",
+         "--setenv=LABWC_SESSION_NESTED=1",
+         "--setenv=LABWC_SESSION_RESTORE=" + restart_token([WAYLAND_COMPAT_MANAGED_APP_PATH, mode, app_name, *extra_args]),
++        f"--working-directory={os.getcwd()}",
++        *(f"--setenv={name}" for name in sorted(environment or {})),
+         "--",
+         WAYLAND_COMPAT_MANAGED_APP_PATH,
+         mode,
+@@ -159,15 +214,12 @@
+ 
+ 
+ def redirect_bitwarden_to_session_unit(mode: str, extra_args: list[str]) -> None:
+-    marker = os.environ.get(BITWARDEN_SESSION_UNIT_MARKER, "")
+-    if marker == "1":
++    if _consume_session_marker(BITWARDEN_SESSION_UNIT_MARKER, "labwc-bitwarden"):
+         return
+-    if marker:
+-        fail(f"{BITWARDEN_SESSION_UNIT_MARKER} has an invalid value")
+ 
+     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
+-    argv = bitwarden_session_unit_argv(systemd_run, mode, extra_args)
+     environment = bitwarden_session_unit_environment()
++    argv = bitwarden_session_unit_argv(systemd_run, mode, extra_args, environment)
+     try:
+         os.execve(systemd_run, argv, environment)
+     except OSError as exc:
+@@ -179,20 +231,18 @@
+     mode: str,
+     extra_args: list[str],
+ ) -> None:
+-    marker = os.environ.get(WAYLAND_COMPAT_SESSION_UNIT_MARKER, "")
+-    if marker == "1":
++    if _consume_session_marker(WAYLAND_COMPAT_SESSION_UNIT_MARKER, f"labwc-compat-{app_name}"):
+         return
+-    if marker:
+-        fail(f"{WAYLAND_COMPAT_SESSION_UNIT_MARKER} has an invalid value")
+ 
+     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
++    environment = wayland_compat_session_unit_environment()
+     argv = wayland_compat_session_unit_argv(
+         systemd_run,
+         app_name,
+         mode,
+         extra_args,
+-    )
+-    environment = wayland_compat_session_unit_environment()
++        environment,
++    )
+     try:
+         os.execve(systemd_run, argv, environment)
+     except OSError as exc:
+@@ -214,11 +264,9 @@
+     Only ChatGPT retains its private output pipes. Other applications use
+     independent journal streams, never the panel/compositor stdout descriptors.
+     """
+-    marker = os.environ.get(NATIVE_SESSION_UNIT_MARKER, "")
+-    if marker not in {"", "1"}:
+-        fail(f"{NATIVE_SESSION_UNIT_MARKER} has an invalid value")
++    marker = _consume_session_marker(NATIVE_SESSION_UNIT_MARKER, f"labwc-native-{app_name}")
+     private_users = system_owner()[0] != 0
+-    if marker == "1":
++    if marker:
+         if private_users:
+             fail("managed application user manager still hides host ownership")
+         return
+@@ -281,12 +329,14 @@
+         "--slice=app.slice",
+         "--service-type=exec", "--expand-environment=no",
+         f"--description=Managed {app_name} desktop client",
++        "--unit=" + _session_unit(f"labwc-native-{app_name}"),
+         f"--property=After={startup_dependencies}",
+         f"--property=Requires={startup_dependencies}",
+         f"--property=Requisite={startup_dependencies}",
+         f"--property=PartOf={dependencies}",
+         "--property=ExitType=cgroup",
+         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
++        "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
+         f"--working-directory={os.getcwd()}",
+         f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
+         # Values, including optional credentials, are not exposed in argv.
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-ai-model-info
++++ modified/d-i/forky/hooks/target/usr/local/libexec/labwc-ai-model-info
+@@ -1,5 +1,38 @@
+ #!/usr/bin/python3 -I
++"""Read model metadata using only the staged, system-owned package."""
++import stat
++import sys
++from pathlib import Path
+ 
++sys.dont_write_bytecode = True
++PACKAGE_ROOT = Path("/usr/local/lib/python3.14/dist-packages")
++PACKAGE_DIRECTORY = PACKAGE_ROOT / "labwc_ai_copilots"
++PACKAGE_MODULES = ("__init__.py", "cli.py", "gguf.py")
++
++
++def require_managed_path(path: Path, *, directory: bool, owner: tuple[int, int]) -> None:
++    metadata = path.lstat()
++    expected = stat.S_ISDIR if directory else stat.S_ISREG
++    if (not expected(metadata.st_mode) or (metadata.st_uid, metadata.st_gid) != owner
++            or metadata.st_mode & 0o022):
++        raise ValueError(f"unsafe managed model package path: {path}")
++
++
++try:
++    # Match the system anchor in a compositor PrivateUsers namespace too.
++    anchor = Path("/usr").lstat()
++    owner = (anchor.st_uid, anchor.st_gid)
++    for path in reversed((PACKAGE_DIRECTORY, *PACKAGE_DIRECTORY.parents)):
++        if path == Path("/"):
++            continue
++        require_managed_path(path, directory=True, owner=owner)
++    for name in PACKAGE_MODULES:
++        require_managed_path(PACKAGE_DIRECTORY / name, directory=False, owner=owner)
++except (OSError, ValueError) as exc:
++    print(f"fatal: managed model package unavailable: {exc}", file=sys.stderr)
++    raise SystemExit(1)
++
++sys.path.insert(0, str(PACKAGE_ROOT))
+ from labwc_ai_copilots.cli import main
+ 
+ raise SystemExit(main())
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-firewall-action-root
++++ modified/d-i/forky/hooks/target/usr/local/libexec/labwc-firewall-action-root
+@@ -35,7 +35,8 @@
+         raise SystemExit(1)
+ 
+ 
+-require_managed_path(PACKAGE_DIRECTORY, directory=True)
++for package_parent in reversed((PACKAGE_DIRECTORY, *PACKAGE_DIRECTORY.parents)):
++    require_managed_path(package_parent, directory=True)
+ for package_module in PACKAGE_MODULES:
+     require_managed_path(PACKAGE_DIRECTORY / package_module, directory=False)
+ 
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-output-watch
++++ modified/d-i/forky/hooks/target/usr/local/libexec/labwc-output-watch
+@@ -223,6 +223,9 @@
+ 
+ package main;
+ 
++use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
++use Managed::Process ();
++
+ use Fcntl qw(:DEFAULT :flock F_SETFD FD_CLOEXEC);
+ use File::Basename qw(dirname);
+ use File::Temp qw(tempfile);
+@@ -931,101 +934,12 @@
+ # Capture limits and wall-clock limits also cover descendants retaining pipes.
+ sub run_command {
+     my ($seconds, $limit, @argv) = @_;
+-    require IO::Select;
+-    require POSIX;
+-    require Time::HiRes;
+-    require Errno;
+-    defined($seconds) && $seconds > 0 && $seconds <= 3600
++    defined($seconds) && !ref($seconds) && $seconds =~ /\A[0-9]+(?:\.[0-9]+)?\z/
++        && $seconds > 0 && $seconds <= 3600
+         or die "invalid subprocess deadline\n";
+-    defined($limit) && $limit >= 1 && $limit <= 16 * 1024 * 1024
+-        or die "invalid subprocess capture limit\n";
+-    @argv && defined($argv[0]) && $argv[0] =~ m{\A/}
+-        or die "subprocess requires an absolute executable path\n";
+-    for (@argv) {
+-        defined($_) && !ref($_) && !/\0/ or die "invalid subprocess argument\n";
+-    }
+-    pipe(my $out_r, my $out_w) or die "cannot create stdout pipe: $!\n";
+-    pipe(my $err_r, my $err_w) or die "cannot create stderr pipe: $!\n";
+-    pipe(my $ready_r, my $ready_w) or die "cannot create process readiness pipe: $!\n";
+-    my $interrupted;
+-    my %previous = map { $_ => $SIG{$_} } qw(HUP INT TERM);
+-    local $SIG{HUP} = sub { $interrupted //= 'HUP' };
+-    local $SIG{INT} = sub { $interrupted //= 'INT' };
+-    local $SIG{TERM} = sub { $interrupted //= 'TERM' };
+-    my $pid = fork;
+-    defined($pid) or die "cannot fork subprocess: $!\n";
+-    if (!$pid) {
+-        $SIG{$_} = 'DEFAULT' for qw(HUP INT TERM PIPE);
+-        close $out_r; close $err_r; close $ready_r;
+-        setpgrp(0, 0) or POSIX::_exit(126);
+-        syswrite($ready_w, '1', 1) == 1 or POSIX::_exit(126);
+-        close $ready_w;
+-        open STDIN, '<', '/dev/null' or POSIX::_exit(126);
+-        open STDOUT, '>&', $out_w or POSIX::_exit(126);
+-        open STDERR, '>&', $err_w or POSIX::_exit(126);
+-        close $out_w; close $err_w;
+-        exec { $argv[0] } @argv or POSIX::_exit(127);
+-    }
+-    close $out_w; close $err_w; close $ready_w;
+-    my $select = IO::Select->new($out_r, $err_r, $ready_r);
+-    my %kind = (fileno($out_r) => 'stdout', fileno($err_r) => 'stderr', fileno($ready_r) => 'ready');
+-    my %result = (stdout => q{}, stderr => q{});
+-    my ($group_ready, $reaped, $status, $failure) = (0, 0, 0, q{});
+-    my $deadline = Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC()) + $seconds;
+-    my $ok = eval {
+-        while (1) {
+-            if ($interrupted) { $failure = "interrupted by $interrupted"; last; }
+-            my $left = $deadline - Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC());
+-            if ($left <= 0) { $failure = 'timeout'; last; }
+-            for my $fh ($select->can_read($left < 0.1 ? $left : 0.1)) {
+-                my $read = sysread($fh, my $chunk, 8192);
+-                if (!defined $read) {
+-                    next if $! == Errno::EINTR();
+-                    die "cannot read subprocess output: $!\n";
+-                }
+-                if (!$read) { $select->remove($fh); close $fh; next; }
+-                my $stream = $kind{fileno($fh)};
+-                if ($stream eq 'ready') { $group_ready = 1; next; }
+-                $result{$stream} .= $chunk;
+-                length($result{stdout}) + length($result{stderr}) <= $limit
+-                    or die "subprocess output exceeded $limit bytes\n";
+-            }
+-            if (!$select->count) {
+-                my $waited = waitpid($pid, POSIX::WNOHANG());
+-                if ($waited == $pid) { $status = $?; $reaped = 1; last; }
+-                die "subprocess wait failed: $!\n" if $waited < 0 && $! != Errno::EINTR();
+-                Time::HiRes::sleep(0.02);
+-            }
+-        }
+-        1;
+-    };
+-    my $error = $@;
+-    if (!$reaped) {
+-        # The direct child has not been reaped, so its PID/process-group ID
+-        # cannot be recycled while escalation is in progress.
+-        kill 'TERM', ($group_ready ? -$pid : $pid);
+-        Time::HiRes::sleep(0.2);
+-        # If interruption happened before the handshake, terminate both the
+-        # child and any group it managed to establish in the meantime.
+-        kill 'KILL', -$pid;
+-        kill 'KILL', $pid;
+-        while (1) {
+-            my $waited = waitpid($pid, 0);
+-            next if $waited < 0 && $! == Errno::EINTR();
+-            $status = $? if $waited == $pid;
+-            last;
+-        }
+-    }
+-    close $_ for $select->handles;
+-    die $error if !$ok;
+-    if ($interrupted) {
+-        my $handler = $previous{$interrupted};
+-        $handler->($interrupted) if ref($handler) eq 'CODE';
+-        die "subprocess interrupted by $interrupted\n";
+-    }
+-    $result{status} = $failure eq 'timeout' ? (124 << 8) : $status;
+-    $result{error} = $failure;
+-    return \%result;
++    return Managed::Process::capture_command(
++        argv => \@argv, timeout => $seconds, limit => $limit,
++    );
+ }
+ 
+ sub command_deadline {
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files
++++ modified/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files
+@@ -27,6 +27,7 @@
+ WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/local/bin/labwc-wayland-app'}
+ # These have existing dedicated sandbox/compatibility/logging entrypoints.
+ MANAGED = {
++    '/usr/local/bin/labwc-terminal',
+     '/usr/local/bin/labwc-managed-app', '/usr/local/bin/labwc-managed-wayland-compat-app',
+     '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
+     '/usr/local/bin/discord', '/usr/local/bin/zoom', *WRAPPERS.values(),
+@@ -105,13 +106,17 @@
+         words = shlex.split(value, comments=False)
+     except ValueError as exc:
+         raise ValueError('malformed desktop Exec quoting') from exc
+-    for word in words:
+-        # Also leave existing repository commands with nonstandard whole-prefix
+-        # quoting alone; their correction is not this hook's responsibility.
+-        if word in MANAGED or any(word.startswith(path + ' ') for path in MANAGED):
+-            return True
+-    return False
+-
++    if words and words[0] in {'env', '/usr/bin/env', '/bin/env'}:
++        words = words[1:]
++        if words and words[0] == '--':
++            words = words[1:]
++        while words and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*=.*', words[0], re.DOTALL):
++            words = words[1:]
++    if not words:
++        return False
++    # Recognize only the executable, never a managed path passed as data.
++    # Preserve legacy whole-prefix quoting without rewriting vendor arguments.
++    return words[0] in MANAGED or any(words[0].startswith(path + ' ') for path in MANAGED)
+ 
+ 
+ def original_generic_exec(value: str) -> str | None:
+@@ -138,12 +143,11 @@
+             if key in main:
+                 raise ValueError(f'duplicate Desktop Entry key: {key}')
+             main[key] = value.strip()
+-    if main.get('Type', 'Application') != 'Application' or main.get('NoDisplay', '').lower() == 'true' or main.get('Hidden', '').lower() == 'true':
++    if main.get('Type', 'Application') != 'Application' or main.get('Hidden', '').lower() == 'true':
+         return text
+     if not main.get('Exec'):
+         return text
+-    if managed_exec(main['Exec']) and original_generic_exec(main['Exec']) is None:
+-        return text
++    terminal = main.get('Terminal', '').lower() == 'true'
+     section = ''
+     result = []
+     for line in lines:
+@@ -154,11 +158,19 @@
+         application_section = section == '[Desktop Entry]' or section.startswith('[Desktop Action ')
+         if separator and application_section and key.strip() == 'Exec' and value.strip():
+             original = original_generic_exec(value.strip())
+-            if original is not None:
++            if terminal:
++                # Wrap the terminal, not its interactive child: the latter
++                # needs the terminal's PTY and belongs to that service cgroup.
++                original = original if original is not None else value.strip()
++                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
++                line = key + '=/usr/local/bin/labwc-terminal -e ' + original + ending
++            elif original is not None:
+                 ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                 line = key + '=' + prefix + ' -- ' + original + ending
+             elif not managed_exec(value.strip()):
+                 line = key + '=' + prefix + ' -- ' + value.lstrip()
++        elif separator and section == '[Desktop Entry]' and terminal and key.strip() == 'Terminal':
++            line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
+         elif separator and section == '[Desktop Entry]' and key.strip() == 'DBusActivatable':
+             # Otherwise compliant launchers bypass Exec and its service wrapper.
+             line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
+--- original/d-i/forky/hooks/target/usr/local/libexec/local-apt-normalize-sources
++++ modified/d-i/forky/hooks/target/usr/local/libexec/local-apt-normalize-sources
+@@ -2,6 +2,7 @@
+ """Normalize active APT inputs into vendor-named deb822 files, without networking."""
+ from __future__ import annotations
+ 
++from collections import deque
+ import hashlib
+ import itertools
+ import os
+@@ -18,13 +19,73 @@
+     pass
+ 
+ 
+-def regular(path: Path) -> bytes:
+-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
++def regular_fd(fd: int, path: Path) -> bytes:
+     with os.fdopen(fd, "rb") as stream:
+         st = os.fstat(stream.fileno())
+         if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022 or st.st_size > 4 * 1024 * 1024:
+             raise Error(f"unsafe APT input: {path}")
+-        return stream.read()
++        data = stream.read(4 * 1024 * 1024 + 1)
++        if len(data) > 4 * 1024 * 1024:
++            raise Error(f"oversized APT input: {path}")
++        return data
++
++
++def regular(path: Path) -> bytes:
++    return regular_fd(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), path)
++
++
++def keyring_bytes(token: str, root: Path) -> bytes | None:
++    """Read package-managed keyring links, without relaxing source-file policy.
++
++    Resolve links relative to the supplied target root, not the host filesystem.
++    Every traversed directory and link must be root-owned; directories and the
++    final regular file must not be writable by other users. Directory FDs and
++    O_NOFOLLOW prevent a pathname replacement from bypassing these checks.
++    """
++    pending = deque(Path(token).parts[1:])
++    descriptors = [os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]
++    links = 0
++    try:
++        while pending:
++            part = pending.popleft()
++            if part in {"", "."}:
++                continue
++            if part == "..":
++                if len(descriptors) == 1:
++                    raise Error(f"keyring link escapes target root: {token}")
++                os.close(descriptors.pop())
++                continue
++            parent = descriptors[-1]
++            st = os.fstat(parent)
++            if st.st_uid != 0 or st.st_mode & 0o022:
++                raise Error(f"unsafe keyring directory: {token}")
++            try:
++                st = os.stat(part, dir_fd=parent, follow_symlinks=False)
++            except FileNotFoundError:
++                # Preserve the normalizer's existing handling of unstaged keys,
++                # but never silently accept a broken package-managed link.
++                if links:
++                    raise Error(f"dangling keyring symlink: {token}") from None
++                return None
++            if stat.S_ISLNK(st.st_mode):
++                links += 1
++                if st.st_uid != 0 or links > 40:
++                    raise Error(f"unsafe or cyclic keyring symlink: {token}")
++                target = os.readlink(part, dir_fd=parent)
++                if target.startswith("/"):
++                    while len(descriptors) > 1:
++                        os.close(descriptors.pop())
++                pending.extendleft(reversed(target.split("/")))
++            elif pending:
++                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
++                descriptors.append(child)
++            else:
++                return regular_fd(os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
++                                          dir_fd=parent), root / token.lstrip("/"))
++        raise Error(f"keyring does not name a regular file: {token}")
++    finally:
++        for fd in reversed(descriptors):
++            os.close(fd)
+ 
+ 
+ def directory(path: Path) -> None:
+@@ -137,18 +198,17 @@
+     identities = []
+     for token in value.split():
+         if token.startswith("/"):
+-            path = root / token.lstrip("/")
+             if token not in cache:
+-                if not path.exists():
++                data = keyring_bytes(token, root)
++                if data is None:
+                     cache[token] = ("missing", token)
+                 else:
+-                    data = regular(path)
+                     # Same bytes and same keys (armored/binary or differently named)
+                     # denote the same trust. Never merge genuinely different keys.
+                     with tempfile.TemporaryDirectory(prefix="apt-keys-") as work:
+                         proc = subprocess.run(["/usr/bin/gpg", "--batch", "--no-options", "--homedir", work,
+-                                               "--with-colons", "--show-keys", str(path)],
+-                                              capture_output=True, timeout=15, check=False,
++                                               "--with-colons", "--show-keys"],
++                                              input=data, capture_output=True, timeout=15, check=False,
+                                               env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+                     fingerprints = tuple(sorted(line.split(":")[9] for line in proc.stdout.decode().splitlines()
+                                                 if line.startswith("fpr:")))
+@@ -191,6 +251,13 @@
+                 label = vendor(uri)
+                 if label == "debian" and not fields.get("signed-by"):
+                     fields["signed-by"] = "/usr/share/keyrings/debian-archive-keyring.gpg"
++                elif label == "debian" and fields.get("signed-by") == "/usr/share/keyrings/debian-archive-keyring.pgp":
++                    canonical = "/usr/share/keyrings/debian-archive-keyring.gpg"
++                    # New APT/keyring packages may emit the .pgp spelling. Use
++                    # the requested stable alias only when it has equal trust;
++                    # custom keys and fingerprint selectors remain untouched.
++                    if signed_identity(fields["signed-by"], root, key_cache) == signed_identity(canonical, root, key_cache):
++                        fields["signed-by"] = canonical
+                 if suite.endswith("/") and fields.get("components"):
+                     raise Error("flat APT repository must not specify Components")
+                 # APT requires one trust policy for a URI/suite even when the
+@@ -219,7 +286,8 @@
+         keys = [fields["signed-by"] for fields in alternatives if "signed-by" in fields]
+         if keys:
+             for fields in alternatives:
+-                fields["signed-by"] = min(keys)
++                canonical = "/usr/share/keyrings/debian-archive-keyring.gpg"
++                fields["signed-by"] = canonical if vendor(fields["uris"]) == "debian" and canonical in keys else min(keys)
+     grouped = {}
+     order = ("types", "uris", "suites", "components", "architectures", "signed-by")
+     spelling = {"uris": "URIs", "signed-by": "Signed-By", "by-hash": "By-Hash"}
+--- original/d-i/forky/tests/test_installation_fixes_20260912.py
++++ modified/d-i/forky/tests/test_installation_fixes_20260912.py
+@@ -60,8 +60,8 @@
+         self.assertEqual(updated, once.replace('labwc-electron-app nvidia', 'labwc-electron-app intel'))
+         self.assertEqual(self.hook.rewrite_desktop(updated, '/usr/local/bin/labwc-electron-app intel'), updated)
+ 
+-    def test_nodisplay_hidden_and_nonapplication_unchanged(self):
+-        for entry in ('NoDisplay=true', 'Hidden=true'):
++    def test_hidden_and_nonapplication_unchanged(self):
++        for entry in ('Hidden=true',):
+             text = self.text.replace('Type=Application', 'Type=Application\n' + entry)
+             self.assertEqual(self.hook.rewrite_desktop(text, self.prefix), text)
+         text = self.text.replace('Type=Application', 'Type=Link')
+--- original/d-i/forky/tests/test_installed_failures_20260911.py
++++ modified/d-i/forky/tests/test_installed_failures_20260911.py
+@@ -109,6 +109,9 @@
+             stack.enter_context(mock.patch.object(session, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
+             stack.enter_context(mock.patch.object(session, 'managed_session_unit_environment', return_value={'HOME': '/home/test'}))
+             stack.enter_context(mock.patch.object(session, 'current_user_runtime_socket'))
++            stack.enter_context(mock.patch.object(session, 'assert_launch_allowed'))
++            stack.enter_context(mock.patch.object(session.Path, 'open', mock.mock_open(
++                read_data='0::/user.slice/app.slice/labwc-native-' + app + '-' + 'a' * 32 + '.service\n')))
+             call = stack.enter_context(mock.patch.object(session.os, 'execve'))
+             session.redirect_native_from_private_users(app, 'intel', args or [])
+             return call
+--- /dev/null
++++ modified/tools/tests/test_scoped_lifecycle_keyrings.py
+@@ -0,0 +1,472 @@
++#!/usr/bin/env python3
++"""Offline regressions for the keyring, module and service-lifecycle fixes.
++
++No compiler, installer, service manager, firewall or AppArmor policy is run.
++Ownership tests need root in a disposable environment; subprocess tests use
++short-lived fixture children, never the installed desktop/storage commands.
++"""
++from __future__ import annotations
++
++from contextlib import ExitStack
++import importlib.machinery
++import importlib.util
++import io
++import json
++import os
++from pathlib import Path
++import re
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++import types
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[2]
++TARGET = ROOT / 'd-i/forky/hooks/target'
++LIB = TARGET / 'usr/local/lib/perl5/site_perl'
++PYLIB = TARGET / 'usr/local/lib/python3.14/dist-packages'
++sys.path.insert(0, str(PYLIB))
++from labwc_managed_app import dbus_proxy, generic, integrity, session
++from labwc_firewall import files as firewall_files, nftables
++from labwc_firewall.validation import FirewallError
++
++
++def load_script(name: str):
++    loader = importlib.machinery.SourceFileLoader('scoped_' + name.replace('-', '_'),
++        str(TARGET / 'usr/local/libexec' / name))
++    spec = importlib.util.spec_from_loader(loader.name, loader)
++    module = importlib.util.module_from_spec(spec)
++    loader.exec_module(module)
++    return module
++
++
++normalizer = load_script('local-apt-normalize-sources')
++desktops = load_script('labwc-wrap-desktop-files')
++KEY = '/usr/share/keyrings/debian-archive-keyring.gpg'
++PGP = KEY[:-4] + '.pgp'
++
++
++@unittest.skipUnless(os.geteuid() == 0, 'root-owned fixture checks require a disposable root environment')
++class KeyringRegressionTests(unittest.TestCase):
++    def setUp(self):
++        # The production function intentionally rejects world-writable /tmp.
++        self.temp = tempfile.TemporaryDirectory(prefix='keyring-regression-', dir='/var/lib')
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name)
++        self.parts = self.root / 'etc/apt/sources.list.d'
++        self.parts.mkdir(parents=True)
++        self.link = self.root / KEY.lstrip('/')
++        self.key = self.root / PGP.lstrip('/')
++        self.key.parent.mkdir(parents=True)
++        self.key.write_bytes(b'fixture-key-material-not-for-production')
++        self.link.symlink_to(self.key.name)
++
++    def source(self, *, signed_by=''):
++        text = ('Types: deb deb-src\nURIs: https://deb.debian.org/debian\n'
++                'Suites: forky forky-backports\nComponents: main contrib non-free non-free-firmware\n')
++        if signed_by:
++            text += 'Signed-By: ' + signed_by + '\n'
++        path = self.parts / 'original.sources'
++        path.write_text(text)
++        return path
++
++    def test_relative_package_link_is_read_without_modification(self):
++        self.assertEqual(normalizer.keyring_bytes(KEY, self.root), self.key.read_bytes())
++        self.assertTrue(self.link.is_symlink())
++        self.assertEqual(os.readlink(self.link), self.key.name)
++
++    def test_absolute_link_resolves_inside_target_not_host(self):
++        self.link.unlink(); self.link.symlink_to(PGP)
++        self.assertEqual(normalizer.keyring_bytes(KEY, self.root), self.key.read_bytes())
++
++    def test_safe_directory_link_is_supported(self):
++        self.link.unlink(); self.key.unlink(); self.key.parent.rmdir()
++        directory = self.root / 'usr/share/package-keys'
++        directory.mkdir(); (directory / self.key.name).write_bytes(b'package keys')
++        self.key.parent.symlink_to('package-keys', target_is_directory=True)
++        self.link.symlink_to(self.key.name)
++        self.assertEqual(normalizer.keyring_bytes(KEY, self.root), b'package keys')
++
++    def test_backports_gets_requested_signed_by_and_is_idempotent(self):
++        self.source()
++        normalizer.normalize(self.root)
++        output = self.parts / 'debian.sources'
++        records = normalizer.deb822(output.read_text())
++        backports = [r for r in records if r['suites'] == 'forky-backports']
++        self.assertEqual({r['types'] for r in backports}, {'deb', 'deb-src'})
++        self.assertTrue(all(r['signed-by'] == KEY for r in backports))
++        before = (output.read_bytes(), output.stat().st_mtime_ns)
++        normalizer.normalize(self.root)
++        self.assertEqual(before, (output.read_bytes(), output.stat().st_mtime_ns))
++        self.assertTrue(self.link.is_symlink())
++
++    def test_equivalent_pgp_spelling_becomes_requested_gpg_alias(self):
++        self.source(signed_by=PGP)
++        normalizer.normalize(self.root)
++        records = normalizer.deb822((self.parts / 'debian.sources').read_text())
++        self.assertTrue(all(r['signed-by'] == KEY for r in records))
++
++    def test_custom_key_and_fingerprint_restriction_are_preserved(self):
++        value = KEY + ' ' + 'A' * 40 + '!'
++        self.source(signed_by=value)
++        normalizer.normalize(self.root)
++        records = normalizer.deb822((self.parts / 'debian.sources').read_text())
++        self.assertTrue(all(r['signed-by'] == value for r in records))
++
++    def test_gpg_reads_validated_bytes_not_reopened_link(self):
++        completed = types.SimpleNamespace(returncode=1, stdout=b'')
++        with mock.patch.object(normalizer.subprocess, 'run', return_value=completed) as run:
++            normalizer.signed_identity(KEY, self.root, {})
++        self.assertEqual(run.call_args.kwargs['input'], self.key.read_bytes())
++        self.assertNotIn(str(self.link), run.call_args.args[0])
++
++    def assert_rejected_without_writes(self):
++        path = self.source()
++        before = path.read_bytes()
++        with self.assertRaises((normalizer.Error, OSError)):
++            normalizer.normalize(self.root)
++        self.assertEqual(path.read_bytes(), before)
++        self.assertFalse((self.parts / 'debian.sources').exists())
++
++    def test_true_cycle_is_rejected_before_source_changes(self):
++        self.key.unlink(); self.key.symlink_to(self.link.name)
++        self.assert_rejected_without_writes()
++
++    def test_dangling_link_is_rejected_before_source_changes(self):
++        self.key.unlink()
++        self.assert_rejected_without_writes()
++
++    def test_relative_escape_above_target_root_is_rejected(self):
++        self.link.unlink(); self.link.symlink_to('../../../../../../etc/passwd')
++        self.assert_rejected_without_writes()
++
++    def test_writable_key_is_rejected(self):
++        self.key.chmod(0o666)
++        self.assert_rejected_without_writes()
++
++    def test_writable_key_directory_is_rejected(self):
++        self.key.parent.chmod(0o777)
++        self.assert_rejected_without_writes()
++
++    def test_nonroot_link_owner_is_rejected(self):
++        os.lchown(self.link, 65534, 65534)
++        self.assert_rejected_without_writes()
++
++    def test_nonroot_key_owner_is_rejected(self):
++        os.chown(self.key, 65534, 65534)
++        self.assert_rejected_without_writes()
++
++    def test_fifo_target_is_rejected_without_waiting_for_a_writer(self):
++        self.key.unlink(); os.mkfifo(self.key)
++        started = time.monotonic()
++        self.assert_rejected_without_writes()
++        self.assertLess(time.monotonic() - started, 1)
++
++    def test_source_symlink_guard_is_not_relaxed(self):
++        original = self.source(); original.rename(self.parts / 'saved')
++        original.symlink_to('saved')
++        with self.assertRaises(OSError):
++            normalizer.normalize(self.root)
++        self.assertTrue(original.is_symlink())
++
++    def test_missing_unstaged_nonlink_retains_existing_contract(self):
++        self.assertIsNone(normalizer.keyring_bytes('/etc/apt/keyrings/future.gpg', self.root))
++
++
++class DesktopIsolationTests(unittest.TestCase):
++    prefix = '/usr/local/bin/labwc-wayland-app launch'
++
++    def test_nodisplay_mime_handler_still_gets_a_service(self):
++        original = '[Desktop Entry]\nType=Application\nNoDisplay=true\nExec=/usr/bin/viewer %U\n'
++        result = desktops.rewrite_desktop(original, self.prefix)
++        self.assertIn('NoDisplay=true\n', result)
++        self.assertIn('Exec=' + self.prefix + ' -- /usr/bin/viewer %U', result)
++
++    def test_managed_main_does_not_hide_unmanaged_desktop_actions(self):
++        original = ('[Desktop Entry]\nType=Application\nExec=/usr/local/bin/chatgpt auto %U\n'
++            'DBusActivatable=true\n[Desktop Action Other]\nExec=/usr/bin/viewer %f\n')
++        result = desktops.rewrite_desktop(original, self.prefix)
++        self.assertIn('Exec=/usr/local/bin/chatgpt auto %U\n', result)
++        self.assertIn('DBusActivatable=false\n', result)
++        self.assertIn('Exec=' + self.prefix + ' -- /usr/bin/viewer %f\n', result)
++
++    def test_managed_path_in_arguments_does_not_bypass_wrapping(self):
++        self.assertFalse(desktops.managed_exec('/usr/bin/viewer /usr/local/bin/labwc-managed-app'))
++        self.assertFalse(desktops.managed_exec('/usr/bin/echo "hello /usr/local/bin/chatgpt"'))
++        self.assertTrue(desktops.managed_exec('/usr/bin/env VAR=value /usr/local/bin/chatgpt auto'))
++
++    def test_terminal_desktop_keeps_pty_and_is_idempotent(self):
++        original = ('[Desktop Entry]\nType=Application\nTerminal=true\nExec=/usr/bin/nnn %F\n'
++            '[Desktop Action Other]\nExec=/usr/bin/nnn -d\n')
++        result = desktops.rewrite_desktop(original, self.prefix)
++        self.assertIn('Terminal=false\n', result)
++        self.assertIn('Exec=/usr/local/bin/labwc-terminal -e /usr/bin/nnn %F\n', result)
++        self.assertIn('Exec=/usr/local/bin/labwc-terminal -e /usr/bin/nnn -d\n', result)
++        self.assertEqual(desktops.rewrite_desktop(result, self.prefix), result)
++
++    def test_hidden_is_not_resurrected(self):
++        text = '[Desktop Entry]\nHidden=true\nExec=/usr/bin/viewer\n'
++        self.assertEqual(desktops.rewrite_desktop(text, self.prefix), text)
++
++    def test_each_terminal_keeps_host_admin_access_but_has_its_own_cgroup(self):
++        with mock.patch.object(generic, 'assert_launch_allowed'):
++            argv = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
++            second = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
++        for setting in ('ExitType=cgroup', 'KillMode=control-group', 'TimeoutStopSec=20s',
++                        'Requisite=labwc-session.target', 'PartOf=labwc-session.target'):
++            self.assertIn('--property=' + setting, argv)
++        self.assertIn('--service-type=exec', argv)
++        self.assertNotIn('--scope', argv)
++        self.assertFalse(any('PrivateTmp=' in a or 'PrivateIPC=' in a or 'ProtectSystem=' in a for a in argv))
++        self.assertNotEqual(next(a for a in argv if a.startswith('--unit=')),
++                            next(a for a in second if a.startswith('--unit=')))
++        with mock.patch.object(generic, 'assert_launch_allowed'):
++            viewer = generic.transient_argv('wayland', 'launch', ['/usr/bin/viewer'], {})
++        self.assertIn('--property=ProtectSystem=full', viewer)
++
++    def test_terminal_script_preserves_arguments_and_does_not_use_server(self):
++        with tempfile.TemporaryDirectory() as name:
++            root = Path(name)
++            recorder = root / 'recorder'
++            recorder.write_text('#!/usr/bin/python3\nimport json,sys\nprint(json.dumps(sys.argv[1:]))\n')
++            recorder.chmod(0o755)
++            for executable in ('foot', 'kitty'):
++                path = root / executable; path.write_text('#!/bin/sh\nexit 99\n'); path.chmod(0o755)
++            source = (TARGET / 'usr/local/bin/labwc-terminal').read_text()
++            source = source.replace('/etc/default/labwc-desktop', str(root / 'no-defaults'))
++            source = source.replace('/usr/local/bin/labwc-wayland-app', str(recorder))
++            script = root / 'terminal'; script.write_text(source)
++            for terminal, expected in [('footclient', ['foot', '-e']), ('kitty', ['kitty']),
++                                       (str(root / 'kitty'), [str(root / 'kitty')])]:
++                result = subprocess.run(['/bin/sh', str(script), '-e', '/bin/echo', 'a b', '$HOME'],
++                    capture_output=True, text=True, timeout=5,
++                    env={'PATH': str(root) + ':/usr/bin:/bin', 'LABWC_TERMINAL_PRIMARY': terminal})
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertEqual(json.loads(result.stdout), ['launch', '--', *expected, '/bin/echo', 'a b', '$HOME'])
++
++
++class SessionHandoffTests(unittest.TestCase):
++    def test_safe_environment_is_forwarded_by_name_for_bitwarden_and_compat(self):
++        env = {'HOME': '/home/alice', 'WAYLAND_DISPLAY': 'wayland-2',
++               'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus',
++               'LABWC_SESSION_OWNER': 'desktop'}
++        with ExitStack() as stack:
++            stack.enter_context(mock.patch.dict(os.environ, {}, clear=True))
++            stack.enter_context(mock.patch.object(session, 'assert_launch_allowed'))
++            stack.enter_context(mock.patch.object(session, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
++            stack.enter_context(mock.patch.object(session, 'bitwarden_session_unit_environment', return_value=env.copy()))
++            stack.enter_context(mock.patch.object(session, 'wayland_compat_session_unit_environment', return_value=env.copy()))
++            execute = stack.enter_context(mock.patch.object(session.os, 'execve'))
++            for invoke in (lambda: session.redirect_bitwarden_to_session_unit('intel', ['a b', '$HOME']),
++                           lambda: session.redirect_wayland_compat_to_session_unit('discord', 'intel', ['a b', '$HOME'])):
++                invoke()
++                executable, argv, environment = execute.call_args.args
++                self.assertEqual(environment, env)
++                for key in env:
++                    self.assertIn('--setenv=' + key, argv)
++                self.assertNotIn('/home/alice', ' '.join(argv))
++                self.assertEqual(argv[-2:], ['a b', '$HOME'])
++                self.assertIn('--expand-environment=no', argv)
++                self.assertIn('--property=KillMode=control-group', argv)
++                self.assertTrue(any(a.startswith('--working-directory=') for a in argv))
++                self.assertTrue(any(a.startswith('--unit=labwc-') for a in argv))
++
++    def test_bitwarden_wayland_socket_and_session_owner_are_explicit(self):
++        with ExitStack() as stack:
++            stack.enter_context(mock.patch.dict(os.environ, {
++                'LABWC_SESSION_OWNER': 'desktop', 'WAYLAND_DISPLAY': 'wayland-4',
++                'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1000/bus'}, clear=True))
++            stack.enter_context(mock.patch.object(session, 'current_user_home', return_value='/home/alice'))
++            stack.enter_context(mock.patch.object(session, 'current_user_name', return_value='alice'))
++            stack.enter_context(mock.patch.object(session, 'current_user_runtime_dir', return_value='/run/user/1000'))
++            stack.enter_context(mock.patch.object(session, 'validate_session_bus_address', side_effect=lambda x: x))
++            socket = stack.enter_context(mock.patch.object(session, 'current_user_runtime_socket'))
++            env = session.bitwarden_session_unit_environment()
++        self.assertEqual(env['WAYLAND_DISPLAY'], 'wayland-4')
++        self.assertEqual(env['LABWC_SESSION_OWNER'], 'desktop')
++        socket.assert_called_once_with('Wayland socket', 'wayland-4')
++
++    def test_marker_cannot_skip_service_creation_from_other_cgroup(self):
++        with mock.patch.dict(os.environ, {session.NATIVE_SESSION_UNIT_MARKER: '1'}, clear=True), \
++             mock.patch.object(session.Path, 'open', mock.mock_open(read_data='0::/app.slice/terminal.service\n')), \
++             mock.patch('sys.stderr', new=io.StringIO()):
++            with self.assertRaises(SystemExit):
++                session.redirect_native_from_private_users('filen', 'intel', [])
++
++    def test_marker_is_consumed_only_in_corresponding_service(self):
++        name = session.NATIVE_SESSION_UNIT_MARKER
++        cgroup = '0::/user.slice/app.slice/labwc-native-filen-' + 'a' * 32 + '.service\n'
++        with mock.patch.dict(os.environ, {name: '1'}, clear=True), \
++             mock.patch.object(session.Path, 'open', mock.mock_open(read_data=cgroup)), \
++             mock.patch.object(session, 'system_owner', return_value=(0, 0)), \
++             mock.patch.object(session.os, 'execve') as execute:
++            session.redirect_native_from_private_users('filen', 'intel', [])
++            self.assertNotIn(name, os.environ)
++            execute.assert_not_called()
++
++
++class PythonLifecycleTests(unittest.TestCase):
++    @unittest.skipUnless(os.geteuid() == 0, 'root-owned lock fixture')
++    def test_firewall_lock_rejects_symlink_fifo_and_foreign_owner(self):
++        with tempfile.TemporaryDirectory() as name:
++            root = Path(name)
++            target = root / 'target'; target.write_text('untouched'); target.chmod(0o600)
++            lock = root / 'lock'; lock.symlink_to(target)
++            with self.assertRaises(FirewallError), firewall_files.locked(lock, exclusive=True):
++                self.fail('symlink lock accepted')
++            self.assertEqual(target.read_text(), 'untouched')
++            lock.unlink(); os.mkfifo(lock)
++            with self.assertRaises(FirewallError), firewall_files.locked(lock, exclusive=True):
++                self.fail('FIFO lock accepted')
++            lock.unlink(); lock.write_text(''); lock.chmod(0o600); os.chown(lock, 65534, 65534)
++            with self.assertRaises(FirewallError), firewall_files.locked(lock, exclusive=True):
++                self.fail('foreign lock accepted')
++
++    @unittest.skipUnless(os.geteuid() == 0, 'root-owned lock fixture')
++    def test_firewall_lock_is_private_and_released(self):
++        with tempfile.TemporaryDirectory() as name:
++            lock = Path(name) / 'lock'
++            for _ in range(2):
++                with firewall_files.locked(lock, exclusive=True):
++                    self.assertEqual(lock.stat().st_mode & 0o777, 0o600)
++
++    def test_proxy_diagnostic_read_does_not_wait_on_inherited_writer(self):
++        # Keep a real writer open: reading to EOF here used to deadlock.
++        read_fd, write_fd = os.pipe()
++        os.write(write_fd, b'proxy error\n')
++        stream = os.fdopen(read_fd, 'r', encoding='utf-8')
++        process = types.SimpleNamespace(stderr=stream)
++        try:
++            start = time.monotonic()
++            self.assertEqual(dbus_proxy._bounded_proxy_stderr(process), 'proxy error')
++            self.assertLess(time.monotonic() - start, 1)
++            self.assertTrue(stream.closed)
++        finally:
++            os.close(write_fd)
++            stream.close()
++
++    def test_proxy_empty_open_pipe_returns_immediately(self):
++        read_fd, write_fd = os.pipe()
++        stream = os.fdopen(read_fd, 'r')
++        try:
++            self.assertEqual(dbus_proxy._bounded_proxy_stderr(types.SimpleNamespace(stderr=stream)), '')
++        finally:
++            os.close(write_fd); stream.close()
++
++    def test_proxy_diagnostics_are_bounded_and_sanitized(self):
++        stream = io.StringIO('a\0\n' + 'b' * 20000)
++        result = dbus_proxy._bounded_proxy_stderr(types.SimpleNamespace(stderr=stream))
++        self.assertTrue(result.endswith('[truncated]'))
++        self.assertNotIn('\0', result)
++        self.assertIn('\\0', result)
++
++    def firewall(self, outcomes):
++        runner = mock.Mock()
++        runner.require.side_effect = lambda name: {'nft': '/usr/sbin/nft', 'systemctl': '/usr/bin/systemctl'}[name]
++        runner.run.side_effect = outcomes
++        return runner, mock.Mock()
++
++    def test_validation_timeout_rolls_back_without_reload(self):
++        runner, mutation = self.firewall([FirewallError('timeout')])
++        with self.assertRaisesRegex(FirewallError, 'previous rules restored'):
++            nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
++        mutation.rollback.assert_called_once()
++        self.assertEqual(runner.run.call_count, 1)
++
++    def test_reload_timeout_restores_disk_and_live_policy(self):
++        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), FirewallError('timeout'), types.SimpleNamespace(returncode=0)])
++        with self.assertRaisesRegex(FirewallError, 'previous rules restored'):
++            nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
++        mutation.rollback.assert_called_once()
++        self.assertEqual(runner.run.call_args.args, ('/usr/sbin/nft', '-f', '/etc/nftables.conf'))
++
++    def test_failed_live_restore_is_not_reported_as_success(self):
++        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), FirewallError('timeout'), FirewallError('restore timeout')])
++        with self.assertRaisesRegex(FirewallError, 'previous live rules could not be restored'):
++            nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
++        mutation.rollback.assert_called_once()
++
++    def test_success_does_not_rollback(self):
++        runner, mutation = self.firewall([types.SimpleNamespace(returncode=0), types.SimpleNamespace(returncode=0)])
++        nftables.validate_and_apply(runner, mutation, Path('/etc/nftables.conf'))
++        mutation.rollback.assert_not_called()
++
++
++class PerlLifecycleTests(unittest.TestCase):
++    paths = [LIB / 'whisper/WhisperMode/Systemd.pm', LIB / 'labwc-adb/AndroidADB/Command.pm',
++             TARGET / 'usr/local/libexec/labwc-output-watch']
++
++    def runner(self, source: str, invocation: str, argv: list[str]):
++        code = ('use strict; use warnings; use Managed::Process qw(capture_command); '
++                'use JSON::PP qw(encode_json);\n' + source + '\n' + invocation)
++        return subprocess.run(['/usr/bin/perl', '-I', str(LIB / 'managed-runtime'), '-e', code, *argv],
++                              capture_output=True, text=True, timeout=8)
++
++    def test_all_capture_adapters_preserve_status_streams_and_handle_auto_reaper(self):
++        for path in self.paths:
++            with self.subTest(path=path.name):
++                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', path.read_text()).group()
++                result = self.runner(body, 'local $SIG{CHLD} = "IGNORE"; print encode_json(run_command(2, 100000, @ARGV));',
++                                     ['/bin/sh', '-c', 'printf out; printf err >&2; exit 7'])
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertEqual(json.loads(result.stdout), {'stdout': 'out', 'stderr': 'err', 'status': 7 << 8, 'error': ''})
++
++    def test_capture_adapters_bound_descendants_holding_pipes(self):
++        for path in self.paths:
++            with self.subTest(path=path.name):
++                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', path.read_text()).group()
++                result = self.runner(body, 'print encode_json(run_command(0.2, 100000, @ARGV));',
++                    ['/usr/bin/python3', '-c', 'import os,time; child=os.fork(); os._exit(0) if child else time.sleep(30)'])
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertEqual(json.loads(result.stdout)['status'], 124 << 8)
++
++    def test_mapper_preserves_signal_failure_and_drains_both_streams(self):
++        path = LIB / 'zram-writeback/Zram/Setup/Mapper.pm'
++        body = re.search(r'(?ms)^sub _capture \{\n.*?^\}', path.read_text()).group()
++        result = self.runner(body, 'print encode_json([_capture(undef, @ARGV)]);', ['/bin/sh', '-c', 'kill -TERM $$'])
++        self.assertEqual(result.returncode, 0, result.stderr)
++        self.assertEqual(json.loads(result.stdout)[0], 128 + signal.SIGTERM)
++        result = self.runner(body, 'print encode_json([_capture(undef, @ARGV)]);',
++            ['/usr/bin/python3', '-c', "import os; os.write(2,b'e'*200000); os.write(1,b'o'*200000)"])
++        self.assertEqual(result.returncode, 0, result.stderr)
++        status, out, err = json.loads(result.stdout)
++        self.assertEqual((status, len(out), len(err)), (0, 200000, 200000))
++
++
++class WiringTests(unittest.TestCase):
++    def test_python_staging_manifests_cover_every_module(self):
++        source = (ROOT / 'd-i/forky/scripts/desktop/components.sh').read_text()
++        for function, package in [('desktop_ai_copilots_python_modules', 'labwc_ai_copilots'),
++                                  ('desktop_labwc_managed_app_python_modules', 'labwc_managed_app'),
++                                  ('desktop_labwc_firewall_python_modules', 'labwc_firewall')]:
++            match = re.search(function + r"\(\) \{\s*cat <<'EOF'\n(.*?)\nEOF", source, re.S)
++            self.assertIsNotNone(match, function)
++            self.assertEqual(set(match[1].splitlines()), {p.name for p in (PYLIB / package).glob('*.py')})
++        self.assertEqual(set(integrity.ALL_MODULES), {p.name for p in (PYLIB / 'labwc_managed_app').glob('*.py')})
++
++    def test_apparmor_allows_new_imports_without_broadening_package_read(self):
++        text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
++        for profile in ('managed-labwc-chatgpt', 'managed-labwc-managed-app'):
++            block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]
++            self.assertIn('network_namespace,profiles,recovery,runtime', block)
++        for profile in ('managed-labwc-adb-action', 'managed-labwc-output-watch',
++                        'managed-labwc-mute-default-microphone', 'managed-whisper-record-toggle'):
++            block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]
++            self.assertIn('/managed-runtime/Managed/Process.pm r,', block)
++        block = text.split('profile managed-labwc-terminal ', 1)[1].split('\nprofile ', 1)[0]
++        self.assertIn('/usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,', block)
++
++    def test_ai_bootstrap_has_explicit_isolated_versioned_package_path(self):
++        source = (TARGET / 'usr/local/libexec/labwc-ai-model-info').read_text()
++        self.assertTrue(source.startswith('#!/usr/bin/python3 -I\n'))
++        self.assertIn('sys.dont_write_bytecode = True', source)
++        self.assertLess(source.index('require_managed_path(PACKAGE_DIRECTORY / name'), source.index('sys.path.insert'))
++        self.assertIn('sys.path.insert(0, str(PACKAGE_ROOT))', source)
++        self.assertIn('("__init__.py", "cli.py", "gguf.py")', source)
++
++
++if __name__ == '__main__':
++    unittest.main()

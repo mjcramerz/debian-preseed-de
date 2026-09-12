@@ -632,6 +632,11 @@ profile managed-unattended-upgrades-notify /usr/local/libexec/unattended-upgrade
 profile managed-zram-device-setup /usr/local/libexec/zram-device-setup flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-perl>
 
+  /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/ r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm r,
+  signal (send, receive) set=(term, kill, chld) peer=managed-zram-device-setup,
+
   capability dac_override,
   capability sys_admin,
   capability sys_module,

@@ -109,6 +109,9 @@ class SessionOwnershipTests(unittest.TestCase):
             stack.enter_context(mock.patch.object(session, 'require_root_owned_executable', return_value='/usr/bin/systemd-run'))
             stack.enter_context(mock.patch.object(session, 'managed_session_unit_environment', return_value={'HOME': '/home/test'}))
             stack.enter_context(mock.patch.object(session, 'current_user_runtime_socket'))
+            stack.enter_context(mock.patch.object(session, 'assert_launch_allowed'))
+            stack.enter_context(mock.patch.object(session.Path, 'open', mock.mock_open(
+                read_data='0::/user.slice/app.slice/labwc-native-' + app + '-' + 'a' * 32 + '.service\n')))
             call = stack.enter_context(mock.patch.object(session.os, 'execve'))
             session.redirect_native_from_private_users(app, 'intel', args or [])
             return call

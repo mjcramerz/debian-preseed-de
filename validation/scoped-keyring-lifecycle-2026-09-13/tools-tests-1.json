@@ -1,0 +1,16 @@
+{
+  "suite": "tools/tests",
+  "batch": 1,
+  "batches": 4,
+  "modules": [
+    "test_labwc_power_handoff",
+    "test_persisted_package_policy"
+  ],
+  "tests_run": 36,
+  "seconds": 2.521,
+  "success": true,
+  "failures": [],
+  "errors": [],
+  "skipped": [],
+  "native_tool_denials": []
+}

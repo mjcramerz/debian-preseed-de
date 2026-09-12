@@ -1,0 +1,16 @@
+{
+  "suite": "tools/tests",
+  "batch": 3,
+  "batches": 4,
+  "modules": [
+    "test_local_apt_refresh",
+    "test_scoped_lifecycle_keyrings"
+  ],
+  "tests_run": 80,
+  "seconds": 8.431,
+  "success": true,
+  "failures": [],
+  "errors": [],
+  "skipped": [],
+  "native_tool_denials": []
+}

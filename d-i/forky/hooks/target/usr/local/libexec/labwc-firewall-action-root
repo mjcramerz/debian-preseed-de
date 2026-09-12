@@ -35,7 +35,8 @@ def require_managed_path(path: Path, *, directory: bool) -> None:
         raise SystemExit(1)
 
 
-require_managed_path(PACKAGE_DIRECTORY, directory=True)
+for package_parent in reversed((PACKAGE_DIRECTORY, *PACKAGE_DIRECTORY.parents)):
+    require_managed_path(package_parent, directory=True)
 for package_module in PACKAGE_MODULES:
     require_managed_path(PACKAGE_DIRECTORY / package_module, directory=False)
 

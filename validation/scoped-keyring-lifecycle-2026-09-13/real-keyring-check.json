@@ -1,0 +1,10 @@
+{
+  "path": "/usr/share/keyrings/debian-archive-keyring.gpg",
+  "link_target": "debian-archive-keyring.pgp",
+  "original_open_errno": 40,
+  "validated_read_bytes": 55918,
+  "validated_read_sha256": "506b815cbb32d9b6066b4a2aa524071e071761e7e7f68c3ac74f3061ba852017",
+  "gpg_and_pgp_trust_identity_equal": true,
+  "keyring_modified": false,
+  "host_apt_sources_modified": false
+}

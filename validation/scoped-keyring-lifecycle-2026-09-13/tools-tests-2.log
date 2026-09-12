@@ -1,0 +1,18 @@
+test_signed_file_repository_changes_candidate_without_installing (test_local_apt_integration.AptIntegrationTests.test_signed_file_repository_changes_candidate_without_installing) ... ok
+test_administrator_override_and_edits_preserved (test_scoped_desktop_fixes.DesktopOverrideTests.test_administrator_override_and_edits_preserved) ... labwc desktop hook: preserving administrator override: /tmp/tmpfdohbaq1/local/example.desktop
+ok
+test_crash_after_output_before_manifest_is_recoverable (test_scoped_desktop_fixes.DesktopOverrideTests.test_crash_after_output_before_manifest_is_recoverable) ... ok
+test_pristine_vendor_idempotent_generated_override (test_scoped_desktop_fixes.DesktopOverrideTests.test_pristine_vendor_idempotent_generated_override) ... ok
+test_stale_owned_override_removed (test_scoped_desktop_fixes.DesktopOverrideTests.test_stale_owned_override_removed) ... ok
+test_only_exact_repeats_coalesced (test_scoped_desktop_fixes.PanelTests.test_only_exact_repeats_coalesced) ... ok
+test_reload_is_forwarded (test_scoped_desktop_fixes.PanelTests.test_reload_is_forwarded) ... ok
+test_supervisor_retains_error_and_exit_status (test_scoped_desktop_fixes.PanelTests.test_supervisor_retains_error_and_exit_status) ... ok
+test_fifteen_second_limit_is_graceful (test_scoped_desktop_fixes.WhisperSupervisorTests.test_fifteen_second_limit_is_graceful) ... ok
+test_intentional_stop_status_one_with_complete_wav_is_success (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_status_one_with_complete_wav_is_success) ... ok
+test_intentional_stop_with_invalid_wav_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_with_invalid_wav_remains_failure) ... ok
+test_spontaneous_status_one_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_spontaneous_status_one_remains_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 21.407s
+
+OK
