@@ -203,14 +203,14 @@ class PersistedPolicyTests(unittest.TestCase):
         self.assertTrue(result['maintainer_scripts']['postinst']['may_write_vendor_apt'])
         self.assertEqual(result['sha256'], repo.digest_file(self.package))
 
-    def test_only_exact_legacy_source_is_removed(self):
+    def test_canonical_source_is_reconciled(self):
         with self.repository.locked():
-            legacy = self.etc / 'apt/sources.list.d/managed-external-software.list'
-            legacy.parent.mkdir(parents=True, exist_ok=True)
-            legacy.write_text('deb https://custom.test stable main\n')
-            with self.assertRaises(repo.Error):
-                self.repository.write_source()
-            self.assertIn('custom.test', legacy.read_text())
+            source = self.repository.source
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text('Types: deb\nURIs: https://custom.test\nSuites: stable\n')
+            self.repository.write_source()
+            self.assertNotIn('custom.test', source.read_text())
+            self.assertIn(f'Signed-By: {self.repository.keyring}\n', source.read_text())
 
     def test_global_vendor_hooks_are_not_shipped(self):
         self.assertFalse((TARGET / 'etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy').exists())

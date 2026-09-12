@@ -1169,8 +1169,8 @@ class Repository:
         self.repo = root / "repo"
         self.inbox = root / "inbox"
         self.signing = root / "repository-signing"
-        self.keyring = etc / "apt/keyrings/managed-external-software.gpg"
-        self.source = etc / "apt/sources.list.d/apt-local-repository.sources"
+        self.keyring = etc / "apt/keyrings/local-apt-repository.gpg"
+        self.source = etc / "apt/sources.list.d/local-apt-repository.sources"
         self.policy_file = etc.parent / "usr/local/share/software/package-policies.json"
         self.architectures = {run(["/usr/bin/dpkg", "--print-architecture"]).decode().strip()}
         self.architectures.update(run(["/usr/bin/dpkg", "--print-foreign-architectures"]).decode().split())
@@ -1560,33 +1560,8 @@ class Repository:
         safe_dir(self.source.parent)
         text = (f"Types: deb\nURIs: file:{self.repo}\nSuites: ./\n"
                 f"Signed-By: {self.keyring}\nBy-Hash: force\n").encode()
-        retired = []
-        # Recognize only the exact legacy publisher record, not a mixed file
-        # that happens to contain this repository's path.
-        for name in ("managed-external-software.list", "managed-external-software.sources"):
-            old = self.source.parent / name
-            if old.exists() or old.is_symlink():
-                body = read_bytes(old).decode()
-                active = "\n".join(line.strip() for line in body.splitlines()
-                                   if line.strip() and not line.lstrip().startswith("#"))
-                if name.endswith(".list"):
-                    expected = f"deb [signed-by={self.keyring} by-hash=force] file:{self.repo} ./"
-                    recognized = active == expected
-                else:
-                    expected_fields = {"types": "deb", "uris": f"file:{self.repo}",
-                                       "suites": "./", "signed-by": str(self.keyring), "by-hash": "force"}
-                    lines = [line.partition(":") for line in active.splitlines()]
-                    recognized = (len(lines) == len(expected_fields) and
-                        {key.lower(): value.strip() for key, sep, value in lines if sep} == expected_fields)
-                if not recognized:
-                    raise Error(f"customized legacy local source needs explicit normalization: {old}")
-                retired.append(old)
         if not self.source.exists() or read_bytes(self.source) != text:
             atomic_bytes(self.source, text)
-        for old in retired:
-            old.unlink()
-        if retired:
-            fsync_dir(self.source.parent)
 
     def finish_inbox(self) -> None:
         for path in self.pending:

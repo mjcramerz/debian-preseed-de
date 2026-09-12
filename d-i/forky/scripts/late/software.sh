@@ -210,8 +210,8 @@ software_deb_repository_inrelease="${software_deb_archive_dir}/InRelease"
 software_deb_repository_release_gpg="${software_deb_archive_dir}/Release.gpg"
 software_deb_repository_signing_home="${software_state_dir}/repository-signing"
 software_deb_repository_apt_tmp="${software_state_dir}/apt-tmp"
-software_deb_repository_keyring=/etc/apt/keyrings/managed-external-software.gpg
-software_deb_repository_source=/etc/apt/sources.list.d/managed-external-software.list
+software_deb_repository_keyring=/etc/apt/keyrings/local-apt-repository.gpg
+software_deb_repository_source=/etc/apt/sources.list.d/local-apt-repository.sources
 postman_state_file="${software_metadata_dir}/postman.installed"
 tuta_hash_file="${software_metadata_dir}/tuta.installed.sha256"
 ledger_hash_file="${software_metadata_dir}/ledger.installed.sha512"
@@ -1086,7 +1086,7 @@ software_refresh_managed_deb_repository() {
     TMPDIR="$software_deb_repository_apt_tmp" \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     /usr/bin/apt-get \
-      -o Dir::Etc::sourcelist="sources.list.d/managed-external-software.list" \
+      -o Dir::Etc::sourcelist="sources.list.d/local-apt-repository.sources" \
       -o Dir::Etc::sourceparts="-" \
       -o APT::Get::List-Cleanup=false \
       update
@@ -1687,7 +1687,7 @@ trap software_cleanup_work_dir EXIT HUP INT TERM
 software_ensure_temporary_unshare
 software_stage_external_servicing_runtime
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/sources.list.d/managed-external-software.list)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/sources.list.d/local-apt-repository.sources)" \
   "$software_deb_repository_source" \
   0644
 software_enable_chatgpt_integration

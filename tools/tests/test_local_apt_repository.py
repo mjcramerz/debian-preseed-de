@@ -79,6 +79,10 @@ class RepositoryTests(unittest.TestCase):
             self.assertIn('pool/', (self.repository.repo / 'Packages').read_text())
             self.assertEqual(gzip.decompress((self.repository.repo / 'Packages.gz').read_bytes()), (self.repository.repo / 'Packages').read_bytes())
             self.assertIn('Acquire-By-Hash: yes', (self.repository.repo / 'Release').read_text())
+            self.assertEqual(self.repository.keyring, self.etc / 'apt/keyrings/local-apt-repository.gpg')
+            self.assertTrue(self.repository.keyring.is_file())
+            self.assertEqual(self.repository.source, self.etc / 'apt/sources.list.d/local-apt-repository.sources')
+            self.assertTrue(self.repository.source.is_file())
             self.assertIn('By-Hash: force', self.repository.source.read_text())
             subprocess.run(['/usr/bin/gpgv', '--keyring', str(self.repository.keyring), str(self.repository.repo / 'InRelease')], check=True, capture_output=True)
             for parent in (self.repository.repo / item['filename']).parents:

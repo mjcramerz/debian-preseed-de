@@ -3646,9 +3646,9 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
   /etc/apparmor.d/disable/chatgpt{,.tmp.*} rw,
   /etc/magic r,
   /etc/apt/keyrings/ rw,
-  /etc/apt/keyrings/managed-external-software.gpg{,.tmp.*} rw,
+  /etc/apt/keyrings/local-apt-repository.gpg{,.tmp.*} rw,
   /etc/apt/sources.list.d/ rw,
-  /etc/apt/sources.list.d/managed-external-software.list{,.tmp.*} rw,
+  /etc/apt/sources.list.d/local-apt-repository.sources{,.tmp.*} rw,
   /etc/apt/sources.list.d/chatgpt.{list,sources} rw,
   /usr/share/keyrings/chatgpt-archive-keyring.gpg rw,
   /usr/share/applications/{Filen.desktop,Zoom.desktop,bitwarden.desktop,discord.desktop,ledger-live.desktop,obsidian.desktop,postman.desktop,sleek.desktop,tuta-mail.desktop} r,
@@ -3867,9 +3867,9 @@ profile managed-local-apt-repository /usr/local/{bin/local-apt-init,libexec/loca
   /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop,tuta-mail}.png r,
   /var/lib/software/{,**} rwkl,
   /etc/apt/keyrings/ rw,
-  /etc/apt/keyrings/{managed-external-software.gpg,.managed-external-software.gpg.*} rw,
+  /etc/apt/keyrings/{local-apt-repository.gpg,.local-apt-repository.gpg.*} rw,
   /etc/apt/sources.list.d/ rw,
-  /etc/apt/sources.list.d/{managed-external-software.list,managed-external-software.sources,apt-local-repository.sources,.apt-local-repository.sources.*} rw,
+  /etc/apt/sources.list.d/{local-apt-repository.sources,.local-apt-repository.sources.*} rw,
   /run/user/0/gnupg/{,**} rwkl,
   include if exists <local/usr.local.libexec.local-apt-repository>
 }

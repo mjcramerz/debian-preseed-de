@@ -36,7 +36,7 @@ The new root-only `/usr/local/libexec/local-apt-repository` owns these paths:
     by-hash/SHA256/...            immutable indexes for concurrent APT readers
 ```
 
-The source is a signed flat file repository, using `/etc/apt/keyrings/managed-external-software.gpg` and `by-hash=force`. There is no `trusted=yes`. The existing repository key is retained when present; an empty signing home gets a local Ed25519 signing key.
+The source is a signed flat file repository, using `/etc/apt/keyrings/local-apt-repository.gpg` and `by-hash=force`. There is no `trusted=yes`. The existing repository key is retained when present; an empty signing home gets a local Ed25519 signing key.
 
 An input is copied to a private partial file, validated, assigned its Package/Version/Architecture identity, and published in the immutable pool. The new catalog and signed indexes become current together with a single symlink replacement. Files and directories are synchronized before publication. Signing failure leaves the previous generation selected. APT by-hash indexes and immutable package paths avoid invalidating readers that already fetched older metadata.
 

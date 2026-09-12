@@ -253,6 +253,9 @@ class WiringTests(unittest.TestCase):
         repository = profiles.split('profile managed-local-apt-repository ', 1)[1].split('\n}', 1)[0]
         self.assertIn('/usr/local/libexec/local-apt-vendor rix,', repository)
         self.assertIn('/usr/local/libexec/managed-discord-distro rix,', repository)
+        self.assertIn('/etc/apt/keyrings/{local-apt-repository.gpg,.local-apt-repository.gpg.*} rw,', repository)
+        self.assertIn('local-apt-repository.sources,.local-apt-repository.sources.*', repository)
+        self.assertIn('/etc/apt/keyrings/local-apt-repository.gpg{,.tmp.*} rw,', profiles)
         self.assertNotIn('rPx', repository)
 
     def test_polkit_uses_exact_helpers_and_non_cached_admin_auth(self):

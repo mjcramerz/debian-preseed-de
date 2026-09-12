@@ -157,7 +157,7 @@ For installed vendors, the output names are:
 /etc/apt/sources.list.d/mise.sources
 /etc/apt/sources.list.d/xanmod.sources
 /etc/apt/sources.list.d/mullvad.sources
-/etc/apt/sources.list.d/apt-local-repository.sources
+/etc/apt/sources.list.d/local-apt-repository.sources
 ```
 
 A vendor file can contain several stanzas: combining vendors into files does not
@@ -177,9 +177,9 @@ active source files are rewritten; the normalizer never resolves this by adding
 Exact original files and inactive APT backup artifacts are retained outside the
 active source directory under `/var/lib/apt/source-normalization`. Output files
 are replaced atomically individually; this is not a crash-atomic whole-directory
-transaction. Repeated normalization is idempotent. The existing local repository
-signing key filename `managed-external-software.gpg` is retained deliberately to
-avoid unnecessary key migration; only the source file has its new canonical name.
+transaction. Repeated normalization is idempotent. The local repository uses the
+canonical keyring and source filenames `local-apt-repository.gpg` and
+`local-apt-repository.sources`.
 
 ## 4. Authenticated power, logout, isolation and recovery
 

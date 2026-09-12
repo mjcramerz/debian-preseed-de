@@ -1,1 +1,0 @@
-deb [signed-by=/etc/apt/keyrings/managed-external-software.gpg by-hash=force] file:/var/lib/software/repo ./

@@ -36,16 +36,18 @@ class VendorSourcesTests(unittest.TestCase):
         self.write('microsoft-edge.sources', 'Types: deb\nURIs: https://packages.microsoft.com/repos/edge/\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n')
         self.write('code-stable.list', 'deb https://packages.microsoft.com/repos/code stable main\n')
         self.write('microsoft-debian-trixie-prod-trixie.list', 'deb https://packages.microsoft.com/debian/13/prod trixie main\n')
+        self.write('local-apt-repository.sources', 'Types: deb\nURIs: file:/var/lib/software/repo\nSuites: ./\nSigned-By: /etc/apt/keyrings/local-apt-repository.gpg\nBy-Hash: force\n')
         self.write('misc.list', '\n'.join([
             'deb http://deb.debian.org/debian forky main non-free-firmware',
             'deb https://repo.vivaldi.com/stable/deb stable main',
             'deb https://mise.jdx.dev/deb stable main',
             'deb https://deb.xanmod.org releases main',
             'deb https://repository.mullvad.net/deb/stable stable main',
-            'deb [signed-by=/etc/apt/keyrings/managed-external-software.gpg] file:/var/lib/software/repo ./',
         ]) + '\n')
         names = normalizer.normalize(self.root)
-        self.assertEqual(names, ['apt-local-repository.sources', 'debian.sources', 'microsoft.sources', 'mise.sources', 'mullvad.sources', 'vivaldi.sources', 'xanmod.sources'])
+        self.assertEqual(names, ['debian.sources', 'local-apt-repository.sources', 'microsoft.sources', 'mise.sources', 'mullvad.sources', 'vivaldi.sources', 'xanmod.sources'])
+        self.assertTrue((self.parts / 'local-apt-repository.sources').is_file())
+        self.assertIn('Signed-By: /etc/apt/keyrings/local-apt-repository.gpg\n', (self.parts / 'local-apt-repository.sources').read_text())
         microsoft = (self.parts / 'microsoft.sources').read_text()
         self.assertEqual(microsoft.count('URIs: https://packages.microsoft.com/repos/edge\n'), 1)
         self.assertNotIn('Architectures:', microsoft)

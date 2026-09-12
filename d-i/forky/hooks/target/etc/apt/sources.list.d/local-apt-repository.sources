@@ -1,0 +1,5 @@
+Types: deb
+URIs: file:/var/lib/software/repo
+Suites: ./
+Signed-By: /etc/apt/keyrings/local-apt-repository.gpg
+By-Hash: force

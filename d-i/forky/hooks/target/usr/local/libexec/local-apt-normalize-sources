@@ -102,7 +102,7 @@ def oneline(text: str) -> list[dict[str, str]]:
 def vendor(uri: str) -> str:
     parsed = urllib.parse.urlsplit(uri)
     if parsed.scheme == "file" and parsed.path.rstrip("/") == "/var/lib/software/repo":
-        return "apt-local-repository"
+        return "local-apt-repository"
     host = (parsed.hostname or "").lower()
     for label, domains in {
         "debian": ("debian.org",), "microsoft": ("microsoft.com",),

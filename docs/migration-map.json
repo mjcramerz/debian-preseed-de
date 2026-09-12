@@ -858,10 +858,10 @@
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/apt/sources.list.d/managed-external-software.list",
-      "destination": "d-i/forky/hooks/target/etc/apt/sources.list.d/managed-external-software.list",
+      "destination": "d-i/forky/hooks/target/etc/apt/sources.list.d/local-apt-repository.sources",
       "source_sha256": "b6e7a725e260b51daa88b1ee59a90910a6375ae75c58531fb5cff4ee9816148d",
-      "destination_sha256": "b6e7a725e260b51daa88b1ee59a90910a6375ae75c58531fb5cff4ee9816148d",
-      "content_status": "unchanged"
+      "destination_sha256": "14af3767cce83b315e7b0c09f2eb7fe2dbc3fd6f0eb1e8e73f91f1b88e4dde0a",
+      "content_status": "refactored"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/bluetooth/main.conf",
