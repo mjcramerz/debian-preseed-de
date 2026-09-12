@@ -1,0 +1,27 @@
+.............E.fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+..fatal: LABWC_NATIVE_APP_SESSION_UNIT has an invalid value
+.fatal: managed application user manager still hides host ownership
+...
+======================================================================
+ERROR: test_fixture_exactly_matches_the_supplied_raw_audit_events (__main__.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_installed_failures_20260911.py", line 281, in test_fixture_exactly_matches_the_supplied_raw_audit_events
+    raw_text = raw_path.read_text()
+  File "/usr/lib/python3.13/pathlib/_local.py", line 548, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_abc.py", line 632, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 539, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/work/debian-preseed-de/todo/managed/apparmor/apparmor.log'
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.057s
+
+FAILED (errors=1)

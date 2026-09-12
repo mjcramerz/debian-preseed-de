@@ -213,10 +213,10 @@ sub _rollback {
 }
 
 sub fetch {
-    my ($self, $work) = @_;
+    my ($self, $work, $for_repository) = @_;
     my $install = '/opt/ledger-live';
-    return (2, 'missing') if !-d $install || -l $install || !-x "$install/AppRun"
-        || !-x "$install/ledger-live-desktop" || !-u "$install/chrome-sandbox";
+    return (2, 'missing') if !$for_repository && (!-d $install || -l $install || !-x "$install/AppRun"
+        || !-x "$install/ledger-live-desktop" || !-u "$install/chrome-sandbox");
 
     my $key = '/usr/local/share/software/ledger/ledgerlive.pem';
     my ($metadata, $manifest, $signature, $image) = map { "$work/$_" } qw(

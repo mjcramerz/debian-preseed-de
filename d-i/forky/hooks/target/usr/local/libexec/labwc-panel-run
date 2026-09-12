@@ -1,0 +1,138 @@
+#!/usr/bin/python3 -I
+"""Run one fixed panel, coalescing two exact known upstream diagnostic floods.
+
+The first occurrence, all other output and the real exit status remain visible.
+This is a journal-volume workaround, not a patch of either panel's binary.
+"""
+import os
+from pathlib import Path
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+MESSAGES = {
+    'waybar': {b'Plugged'},
+    'crystal-dock': {b'LayerShellQt.Window.screenConfiguration is deprecated use screen and wantsToBeOnActiveScreen instead'},
+}
+SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2)
+
+
+class Coalescer:
+    def __init__(self, messages: set[bytes], interval: float = 60.0):
+        self.messages = messages
+        self.interval = interval
+        self.last = time.monotonic()
+        self.seen = set()
+        self.repeats = {}
+
+    def line(self, stream, data: bytes) -> None:
+        text = data.rstrip(b'\r\n')
+        key = (stream, text)
+        if text in self.messages:
+            if key in self.seen:
+                self.repeats[key] = self.repeats.get(key, 0) + 1
+                return
+            self.seen.add(key)
+        stream.write(data)
+        stream.flush()
+
+    def flush(self, final: bool = False) -> None:
+        now = time.monotonic()
+        if not final and now - self.last < self.interval:
+            return
+        for (stream, text), count in self.repeats.items():
+            stream.write(b'[labwc-panel-run] repeated ' + str(count).encode() + b' times: ' + text + b'\n')
+            stream.flush()
+        self.repeats.clear()
+        self.last = now
+
+
+def supervise(command: list[str], messages: set[bytes]) -> int:
+    child = None
+    pending = []
+    def forward(number, _frame):
+        if child is None:
+            pending.append(number)
+        else:
+            # Popen retains the live child's PID until wait/poll reaps it.
+            child.send_signal(number)
+    previous = {number: signal.signal(number, forward) for number in SIGNALS}
+    coalescer = Coalescer(messages)
+    buffers = {}
+    try:
+        child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, close_fds=True, bufsize=0)
+        for number in pending:
+            child.send_signal(number)
+        with selectors.DefaultSelector() as selector:
+            for source, destination in ((child.stdout, sys.stdout.buffer), (child.stderr, sys.stderr.buffer)):
+                os.set_blocking(source.fileno(), False)
+                selector.register(source, selectors.EVENT_READ, destination)
+                buffers[source] = bytearray()
+            exited_at = None
+            while selector.get_map():
+                for key, _ in selector.select(timeout=0.5):
+                    source, destination = key.fileobj, key.data
+                    data = os.read(source.fileno(), 65536)
+                    if not data:
+                        if buffers[source]:
+                            coalescer.line(destination, bytes(buffers[source]))
+                        selector.unregister(source)
+                        source.close()
+                        continue
+                    buffer = buffers[source]
+                    buffer.extend(data)
+                    while b'\n' in buffer:
+                        end = buffer.index(b'\n') + 1
+                        coalescer.line(destination, bytes(buffer[:end]))
+                        del buffer[:end]
+                    if len(buffer) > 8192:
+                        # Never retain an unbounded line or discard unfamiliar output.
+                        coalescer.line(destination, bytes(buffer))
+                        buffer.clear()
+                coalescer.flush()
+                if child.poll() is not None:
+                    exited_at = exited_at or time.monotonic()
+                    # A stray descendant must not pin an already-failed panel
+                    # service by retaining its inherited output pipe forever.
+                    if time.monotonic() - exited_at > 2:
+                        for key in list(selector.get_map().values()):
+                            if buffers[key.fileobj]:
+                                coalescer.line(key.data, bytes(buffers[key.fileobj]))
+                            selector.unregister(key.fileobj)
+                            key.fileobj.close()
+                        break
+        status = child.wait()
+        coalescer.flush(final=True)
+        return status if status >= 0 else 128 - status
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
+        if child is not None and child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+
+
+def main(args: list[str]) -> int:
+    if os.getuid() == 0 or len(args) != 1 or args[0] not in MESSAGES:
+        return 2
+    panel = args[0]
+    command = ['/usr/bin/' + panel]
+    if panel == 'waybar':
+        directory = Path.home() / '.config/waybar'
+        command += ['-c', str(directory / 'config'), '-s', str(directory / 'style.css')]
+    return supervise(command, MESSAGES[panel])
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f'labwc-panel-run: {exc}', file=sys.stderr)
+        raise SystemExit(1)

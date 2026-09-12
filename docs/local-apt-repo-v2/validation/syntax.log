@@ -1,0 +1,5 @@
+PASS: Python syntax: d-i/forky/hooks/target/usr/local/libexec/local-apt-repository
+PASS: Python syntax: tools/tests/test_local_apt_refresh.py
+PASS: Python syntax: tools/tests/test_local_apt_repository.py
+PASS: POSIX shell syntax: d-i/forky/scripts/late/software.sh
+PASS: POSIX shell syntax: d-i/forky/hooks/target/usr/local/bin/apt-local-repo

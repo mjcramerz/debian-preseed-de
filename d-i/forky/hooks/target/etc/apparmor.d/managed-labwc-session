@@ -90,6 +90,8 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   network inet6 stream,
   signal (send) set=(kill) peer=managed-session-glycin-bwrap,
   signal (receive) set=(usr2) peer=managed-labwc-session-check,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=managed-labwc-panel-run,
+  signal (send) set=(chld) peer=managed-labwc-panel-run,
   include if exists <local/usr.bin.waybar>
 }
 
@@ -107,6 +109,8 @@ profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, m
   owner @{HOME}/.local/share/applications/** r,
   owner @{HOME}/.cache/crystal-dock/ rw,
   owner @{HOME}/.cache/crystal-dock/** rwkl,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=managed-labwc-panel-run,
+  signal (send) set=(chld) peer=managed-labwc-panel-run,
   include if exists <local/usr.bin.crystal-dock>
 }
 
@@ -139,6 +143,8 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected, mediate_d
 }
 
 profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,gammastep,wayscriber,mako,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected) {
+  # Read-only inherited Bluetooth status descriptor; never rfkill writes.
+  /dev/rfkill r,
   #include <abstractions/managed-session-client>
   /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
   #include <abstractions/managed-user-documents>
@@ -204,7 +210,23 @@ profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags
   owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
   owner @{HOME}/.config/labwc/rc.xml r,
   owner /proc/[0-9]*/ r,
-  owner /proc/[0-9]*/comm r,
+  owner /proc/[0-9]*/{comm,cmdline} r,
   signal (send) set=(usr2) peer=managed-waybar,
+  signal (send) set=(usr2) peer=managed-labwc-panel-run,
   include if exists <local/usr.local.libexec.labwc-session-check>
+}
+
+# Fixed foreground panel supervisor: no arbitrary executable, home-data or
+# network access. Real panel children transition into their existing policies.
+profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-panel-run r,
+  /usr/bin/waybar rPx -> managed-waybar,
+  /usr/bin/crystal-dock rPx -> managed-crystal-dock,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
+  signal (receive) set=(usr2) peer=managed-labwc-session-check,
+  signal (receive) set=(chld) peer=managed-waybar,
+  signal (receive) set=(chld) peer=managed-crystal-dock,
+  signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-waybar,
+  signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-crystal-dock,
 }

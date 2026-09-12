@@ -21,7 +21,8 @@ use constant WORK_PREFIX        => 'managed-external-software-update.';
 use constant WORK_RANDOM_LENGTH => 6;
 
 sub event_dir { return $_[0]->root() . '/events'; }
-sub deb_dir   { return $_[0]->root() . '/debs'; }
+sub deb_dir   { return $_[0]->root() . '/repo'; }
+sub inbox_dir { return $_[0]->root() . '/inbox'; }
 sub artifact_dir { return $_[0]->root() . '/artifacts'; }
 sub state_dir { return $_[0]->root() . '/state'; }
 sub lock_path { return '/run/lock/managed-external-software-update.lock'; }
@@ -31,6 +32,7 @@ sub prepare {
     ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->root(), 0755);
     ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->event_dir(), 0755);
     ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->deb_dir(), 0755);
+    ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->inbox_dir(), 0700);
     ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->artifact_dir(), 0755);
     ExternalSoftware::Servicing::Atomic->ensure_root_directory($self->state_dir(), 0755);
     return 1;

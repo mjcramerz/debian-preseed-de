@@ -1,0 +1,5 @@
+PASS: all 1472 source files at initial archive verification read back with matching SHA-256 and file mode.
+PASS: all 1252 embedded installer payload files match manifest and source.
+PASS: no out-of-scope source/hash/mode changes; host profiles and old provenance ledger unchanged.
+PASS: removed hook and wrapper absent from both source tree and embedded payload.
+This verification log was then added and the entire final archive read back and verified again.

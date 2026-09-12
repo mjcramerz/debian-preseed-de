@@ -17,12 +17,13 @@ StandardError=journal
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecStart=/usr/local/libexec/whisper-record-timed
 ExecStopPost=/usr/local/libexec/whisper-record-toggle finalize-recording
-SuccessExitStatus=124
 Restart=no
+# The worker has a 15s capture limit plus 5s graceful shutdown.
+RuntimeMaxSec=25s
 TimeoutStartSec=15s
 TimeoutStopSec=15s
 KillSignal=SIGINT
-KillMode=control-group
+KillMode=mixed
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=full

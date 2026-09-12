@@ -220,7 +220,7 @@ sub _stage_deb {
         return (1, 'validation');
     }
     if ($created) {
-        $event->emit('downloaded', $app->{name}, $installed // 'missing', $metadata->{version});
+        $event->emit('downloaded', $app->{name}, $installed // 'not-installed', $metadata->{version});
         return (0, 'downloaded');
     }
     return (2, 'current');
@@ -365,7 +365,7 @@ sub _apply_deb {
     }
     my $blocked = $self->_application_update_blocker($app);
     return (1, $blocked) if defined $blocked;
-    $event->emit('applying', $app->{name}, $installed // 'missing', $metadata->{version});
+    $event->emit('applying', $app->{name}, $installed // 'not-installed', $metadata->{version});
     my $stage = $app->{name} eq 'chatgpt' ? 'prepare' : 'apt';
     my $applied = eval {
         $chatgpt->prepare_install() if $app->{name} eq 'chatgpt';
@@ -415,7 +415,7 @@ sub _apply_deb {
             return (1, 'postinstall');
         }
     }
-    $event->emit('updated', $app->{name}, $installed // 'missing', $metadata->{version});
+    $event->emit('updated', $app->{name}, $installed // 'not-installed', $metadata->{version});
     return (0, 'updated');
 }
 
@@ -660,7 +660,13 @@ sub run_updater {
     $architecture eq 'amd64'
         or die "managed external software updates are supported only on amd64\n";
 
-    my $mode = $argv[0] // '--apply-only';
+    # Retired scheduled entry points can only refresh the catalogue. They must
+    # never install software behind APT or acquire its locks from an update hook.
+    if (!@argv || $argv[0] eq '--download-only' || $argv[0] eq '--apply-only') {
+        exec '/usr/local/libexec/local-apt-repository', 'refresh'
+            or die "cannot execute local APT repository refresh: $!\n";
+    }
+    my $mode = $argv[0];
     my $state = ExternalSoftware::Servicing::State->new();
     $state->prepare();
     my $lock = $state->lock();

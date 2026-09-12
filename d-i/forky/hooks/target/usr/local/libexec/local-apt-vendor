@@ -1,0 +1,193 @@
+#!/usr/bin/perl
+# Narrow bridge to the existing vendor verifiers. No APT/dpkg installation and
+# no live /opt publication is reachable from fetch/stage-discord.
+use strict;
+use warnings;
+use lib '/usr/local/lib/perl5/site_perl/external-managed-software';
+use JSON::PP;
+use Digest::SHA qw(sha256_hex);
+use MIME::Base64 qw(decode_base64);
+use ExternalSoftware::Servicing::State;
+use ExternalSoftware::Servicing::Event;
+use ExternalSoftware::Servicing::HTTP;
+use ExternalSoftware::Servicing::CLI;
+use ExternalSoftware::Servicing::ChatGPT;
+use ExternalSoftware::Servicing::Discord;
+use ExternalSoftware::Servicing::Postman;
+use ExternalSoftware::Servicing::Tuta;
+use ExternalSoftware::Servicing::Ledger;
+
+$> == 0 or die "local-apt-vendor must run as root\n";
+my ($action, $app, $work) = @ARGV;
+defined $action or die "missing local-apt-vendor action\n";
+my $json = JSON::PP->new->canonical;
+my $state = ExternalSoftware::Servicing::State->new();
+my $chatgpt = ExternalSoftware::Servicing::ChatGPT->new(state => $state);
+open my $result_fh, '>&', \*STDOUT or die "cannot preserve result stream: $!\n";
+open STDOUT, '>&', \*STDERR or die "cannot redirect verifier diagnostics: $!\n";
+sub result { print {$result_fh} $json->encode($_[0]), "\n" or die "cannot write result\n"; }
+
+if ($action eq 'defaults') {
+    @ARGV == 1 or die "unexpected defaults arguments\n";
+    my $cli = ExternalSoftware::Servicing::CLI->new();
+    my %defaults;
+    for my $spec ($cli->_generic_deb_specs($chatgpt)) {
+        for my $package (@{$spec->{packages}}) {
+            $defaults{$package} = {
+                automatic => JSON::PP::true,
+                url => $spec->{url},
+                remove_depends_patterns => $spec->{remove_dependencies} // [],
+            };
+        }
+    }
+    $defaults{obsidian} = { automatic => JSON::PP::true, url => 'https://github.com/obsidianmd/obsidian-releases/releases/latest' };
+    $defaults{sleek} = { automatic => JSON::PP::true, url => 'https://github.com/ransome1/sleek/releases/latest' };
+    $defaults{'qore-db'} = { automatic => JSON::PP::true, url => 'https://github.com/QoreDB/QoreDB/releases/latest' };
+    result(\%defaults);
+    exit 0;
+}
+
+if ($action eq 'policy-before' || $action eq 'policy-after') {
+    @ARGV == 1 or die "unexpected policy arguments\n";
+    # An alternate dpkg root must not mutate the host's managed policy.
+    exit 0 if ($ENV{DPKG_ROOT} // '/') ne '/' && ($ENV{DPKG_ROOT} // q{}) ne q{};
+    exit 0 if ($ENV{DPKG_ADMINDIR} // '/var/lib/dpkg') ne '/var/lib/dpkg';
+    exit 0 if !$chatgpt->enabled();
+    if ($action eq 'policy-before') {
+        # The diversion is established by bootstrap, not while dpkg owns its
+        # database lock. Only verify it and install the existing script guard.
+        $chatgpt->_assert_diversion();
+        $chatgpt->_install_package_script_guard();
+    } else {
+        # A purged package is normal, not a failure of an unrelated dpkg transaction.
+        open my $query, '-|', '/usr/bin/dpkg-query', '-W', '-f=${Status}', 'chatgpt'
+            or die "cannot query ChatGPT package state: $!\n";
+        my $installed = do { local $/; <$query> // q{} };
+        my $queried = close $query;
+        (!$queried && ($? >> 8) > 1) and die "cannot read ChatGPT package state\n";
+        if ($installed eq 'install ok installed') {
+            $chatgpt->finalize_install(-d '/run/systemd/system' ? 'runtime' : 'installer');
+        } else {
+            $chatgpt->abort_install();
+        }
+    }
+    exit 0;
+}
+
+$action =~ /\A(?:installed|probe|fetch|stage-discord)\z/ && defined $app
+    && $app =~ /\A(?:discord|postman|tuta|ledger)\z/
+    or die "unsupported vendor action\n";
+if ($action ne 'installed') {
+    @ARGV == 3 && defined $work
+        && $work =~ m{\A/var/lib/software/inbox/\.vendor-(?:discord|postman|tuta|ledger)-[A-Za-z0-9_-]+\z}
+        or die "unsafe vendor workspace\n";
+    my @st = lstat $work;
+    @st && -d _ && !-l _ && $st[4] == 0 && !($st[2] & 0077)
+        or die "vendor workspace is not private\n";
+} else {
+    @ARGV == 2 or die "unexpected installed arguments\n";
+}
+$state->prepare();
+my $lock = $state->lock();
+defined $lock or die "another explicit vendor operation is running\n";
+my %classes = (discord => 'Discord', postman => 'Postman', tuta => 'Tuta', ledger => 'Ledger');
+my $class = 'ExternalSoftware::Servicing::' . $classes{$app};
+my $vendor = $class->new(
+    http => ExternalSoftware::Servicing::HTTP->new(),
+    event => ExternalSoftware::Servicing::Event->new(directory => $state->event_dir()),
+    state => $state,
+);
+# Metadata-only gate. The Python repository compares this identity against
+# the PUBLISHED package, not the installed version (apt upgrade may run later).
+if ($action eq 'probe') {
+    if ($app eq 'discord') {
+        my $manifest = "$work/probe-discord.json";
+        $vendor->http()->download(
+            label => 'Discord release metadata',
+            url => ExternalSoftware::Servicing::Discord::MANIFEST_URL(),
+            destination => $manifest, minimum => 256, maximum => 1_048_576,
+            allowed_hosts => ['updates.discord.com'], content_policy => 'metadata',
+            user_agent => ExternalSoftware::Servicing::Discord::DISTRO_USER_AGENT(),
+        );
+        my $metadata = $vendor->_manifest($manifest);
+        # Construct the existing canonical receipt from advertised hashes only;
+        # no host/module distribution is downloaded by this operation.
+        my $release = $vendor->_artifact_record($metadata, $manifest, q{}, {});
+        my $receipt = $vendor->_state_record($release);
+        $vendor->_validate_state_record($receipt);
+        result({ source_id => sha256_hex($vendor->_canonical_json($receipt) . "\n"),
+                 upstream_version => $receipt->{version} });
+    } elsif ($app eq 'ledger') {
+        my $metadata = "$work/probe-ledger.yml";
+        $vendor->http()->download(
+            label => 'Ledger release metadata',
+            url => 'https://download.live.ledger.com/latest-linux.yml',
+            destination => $metadata, minimum => 128, maximum => 65_536,
+            allowed_hosts => ['download.live.ledger.com'], content_policy => 'metadata',
+        );
+        my $release = $vendor->_parse_metadata($metadata);
+        result({ source_id => unpack('H*', decode_base64($release->{sha512})),
+                 upstream_version => $release->{version} });
+    } else {
+        die "this vendor uses the repository's HEAD metadata probe\n";
+    }
+    exit 0;
+}
+
+if ($action eq 'fetch') {
+    my ($status, $reason) = $vendor->fetch($work, 1);
+    $status != 1 or die "verified $app fetch failed: $reason\n";
+    if ($status == 2 && $reason eq 'current') {
+        result({ current => JSON::PP::true });
+        exit 0;
+    }
+    $reason ne 'missing' or die "vendor metadata is missing\n";
+}
+my $installed = $action eq 'installed';
+my %root = (discord => '/opt/discord', postman => '/opt/postman', tuta => '/opt/tuta-mail', ledger => '/opt/ledger-live');
+my %package = (discord => 'discord', postman => 'postman', tuta => 'tutanota-desktop', ledger => 'ledger-live-desktop');
+my $record = { app => $app, package => $package{$app}, install_root => $root{$app}, state_files => {} };
+if ($installed && (!-d $root{$app} || -l $root{$app})) {
+    result({ absent => JSON::PP::true });
+    exit 0;
+}
+if ($app eq 'discord') {
+    my $release = $installed ? $vendor->_installed() : $vendor->_pending();
+    defined $release or die "Discord release receipt is missing\n";
+    my $receipt = $vendor->_canonical_json($release) . "\n";
+    $record->{source_id} = sha256_hex($receipt);
+    $record->{upstream_version} = $release->{version};
+    $record->{state_files}->{'discord.installed.json'} = $receipt;
+    if ($action eq 'stage-discord') {
+        my $tree = "$work/discord-tree";
+        my ($status, $reason) = $vendor->_publish($work, $release, $vendor->_installed(), $tree);
+        $status == 0 or die "verified Discord staging failed: $reason\n";
+        $record->{tree} = $tree;
+    }
+} elsif ($app eq 'postman') {
+    my $release = $installed ? $vendor->_installed() : $vendor->_pending();
+    defined $release or die "Postman release receipt is missing\n";
+    $record->{source_id} = $release->{sha256};
+    $record->{upstream_version} = $release->{version};
+    $record->{state_files}->{'postman.installed'} = "$release->{version}|$release->{sha256}\n";
+    $record->{archive} = $state->artifact_path('postman', $release->{name}) if !$installed;
+} elsif ($app eq 'tuta') {
+    my $release = $installed ? { hash => $vendor->_installed_hash() } : $vendor->_pending();
+    defined $release && $release->{hash} =~ /\A[0-9a-f]{64}\z/ or die "Tuta receipt is missing\n";
+    $record->{source_id} = $release->{hash};
+    # Tuta's existing signed download is hash-versioned. A monotonically
+    # increasing local package revision avoids inventing a vendor version.
+    $record->{upstream_version} = '0';
+    $record->{state_files}->{'tuta.installed.sha256'} = "$release->{hash}\n";
+    $record->{archive} = $state->artifact_path('tuta', $release->{name}) if !$installed;
+} elsif ($app eq 'ledger') {
+    my $release = $installed ? { hash => $vendor->_installed_hash(), version => $vendor->_installed_version() } : $vendor->_pending();
+    defined $release && $release->{hash} =~ /\A[0-9a-f]{128}\z/ or die "Ledger receipt is missing\n";
+    $record->{source_id} = $release->{hash};
+    $record->{upstream_version} = $release->{version};
+    $record->{state_files}->{'ledger.installed.sha512'} = "$release->{hash}\n";
+    $record->{state_files}->{'ledger.installed.version'} = "$release->{version}\n";
+    $record->{archive} = $state->artifact_path('ledger', $release->{name}) if !$installed;
+}
+$record->{tree} = $root{$app} if $installed;
+result($record);

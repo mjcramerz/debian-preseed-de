@@ -1,0 +1,36 @@
+test_signed_file_repository_changes_candidate_without_installing (test_local_apt_integration.AptIntegrationTests.test_signed_file_repository_changes_candidate_without_installing) ... ok
+test_atomic_signing_failure_retains_previous_generation (test_local_apt_repository.RepositoryTests.test_atomic_signing_failure_retains_previous_generation) ... ok
+test_delete_publishes_empty_keeps_cached_pool (test_local_apt_repository.RepositoryTests.test_delete_publishes_empty_keeps_cached_pool) ... ok
+test_dependency_metadata_only (test_local_apt_repository.RepositoryTests.test_dependency_metadata_only) ... ok
+test_empty_repository_is_signed (test_local_apt_repository.RepositoryTests.test_empty_repository_is_signed) ... ok
+test_github_gitlab_sourceforge_raw_resolution (test_local_apt_repository.RepositoryTests.test_github_gitlab_sourceforge_raw_resolution) ... ok
+test_https_only (test_local_apt_repository.RepositoryTests.test_https_only) ... ok
+test_ingest_signed_indexes_and_no_nested_apt (test_local_apt_repository.RepositoryTests.test_ingest_signed_indexes_and_no_nested_apt) ... ok
+test_prebuilt_payload_archival_preserves_bytes_and_hardlinks (test_local_apt_repository.RepositoryTests.test_prebuilt_payload_archival_preserves_bytes_and_hardlinks) ... ok
+test_prebuilt_payload_escape_rejected (test_local_apt_repository.RepositoryTests.test_prebuilt_payload_escape_rejected) ... ok
+test_reject_html_wrong_arch_and_identity (test_local_apt_repository.RepositoryTests.test_reject_html_wrong_arch_and_identity) ... ok
+test_reject_same_version_changed_bytes_and_downgrade (test_local_apt_repository.RepositoryTests.test_reject_same_version_changed_bytes_and_downgrade) ... ok
+test_release_api_urls_and_malformed_metadata (test_local_apt_repository.RepositoryTests.test_release_api_urls_and_malformed_metadata) ... ok
+test_static_package_never_downloads (test_local_apt_repository.RepositoryTests.test_static_package_never_downloads) ... ok
+test_symlink_source_and_symlink_root_rejected (test_local_apt_repository.RepositoryTests.test_symlink_source_and_symlink_root_rejected) ... ok
+test_unknown_dependency_rejected (test_local_apt_repository.RepositoryTests.test_unknown_dependency_rejected) ... ok
+test_administrator_override_and_edits_preserved (test_scoped_desktop_fixes.DesktopOverrideTests.test_administrator_override_and_edits_preserved) ... labwc desktop hook: preserving administrator override: /tmp/tmphgundk2t/local/example.desktop
+ok
+test_crash_after_output_before_manifest_is_recoverable (test_scoped_desktop_fixes.DesktopOverrideTests.test_crash_after_output_before_manifest_is_recoverable) ... ok
+test_pristine_vendor_idempotent_generated_override (test_scoped_desktop_fixes.DesktopOverrideTests.test_pristine_vendor_idempotent_generated_override) ... ok
+test_stale_owned_override_removed (test_scoped_desktop_fixes.DesktopOverrideTests.test_stale_owned_override_removed) ... ok
+test_only_exact_repeats_coalesced (test_scoped_desktop_fixes.PanelTests.test_only_exact_repeats_coalesced) ... ok
+test_reload_is_forwarded (test_scoped_desktop_fixes.PanelTests.test_reload_is_forwarded) ... ok
+test_supervisor_retains_error_and_exit_status (test_scoped_desktop_fixes.PanelTests.test_supervisor_retains_error_and_exit_status) ... ok
+test_fifteen_second_limit_is_graceful (test_scoped_desktop_fixes.WhisperSupervisorTests.test_fifteen_second_limit_is_graceful) ... ok
+test_intentional_stop_status_one_with_complete_wav_is_success (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_status_one_with_complete_wav_is_success) ... ok
+test_intentional_stop_with_invalid_wav_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_with_invalid_wav_remains_failure) ... ok
+test_spontaneous_status_one_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_spontaneous_status_one_remains_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 21.228s
+
+OK
+1: fixture-app:all 1.0 [static]
+Removed fixture-app:all from the published repository and its automatic update policy.
+Installed files are unchanged; use apt remove to uninstall. Retained immutable files protect existing APT readers.

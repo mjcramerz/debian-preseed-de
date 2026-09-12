@@ -1,0 +1,11 @@
+[Unit]
+Description=Publish completed local Debian package inbox entries
+
+[Path]
+PathExistsGlob=/var/lib/software/inbox/*.deb
+Unit=local-apt-inbox.service
+MakeDirectory=true
+DirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

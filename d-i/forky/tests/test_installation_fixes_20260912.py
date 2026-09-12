@@ -122,9 +122,9 @@ class DesktopHookTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); source = root / 'original.desktop'; source.write_text('original')
             link = root / 'alias.desktop'; link.symlink_to(source)
-            before, metadata = link.lstat(), source.stat()
+            before = link.lstat()
             with mock.patch.object(self.hook.os, 'fsync'):
-                self.hook.write_atomic(link, 'wrapped', before, metadata)
+                self.hook.write_atomic(link, 'wrapped', before)
             self.assertFalse(link.is_symlink())
             self.assertEqual(link.read_text(), 'wrapped')
             self.assertEqual(source.read_text(), 'original')

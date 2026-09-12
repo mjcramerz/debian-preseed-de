@@ -1,0 +1,31 @@
+[Unit]
+Description=Discover updates and atomically publish the local APT repository
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/var/lib/software/repo/current
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/local-apt-repository refresh
+User=root
+Group=root
+UMask=0077
+TimeoutStartSec=2h
+TimeoutStopSec=30s
+KillMode=control-group
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=-/run/user/0/gnupg
+ReadWritePaths=/var/lib/software /etc/apt/keyrings /etc/apt/sources.list.d /run/lock
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=local-apt-refresh

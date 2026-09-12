@@ -922,7 +922,7 @@ sub _rollback {
 }
 
 sub _publish {
-    my ($self, $work, $release, $old) = @_;
+    my ($self, $work, $release, $old, $repository_stage) = @_;
     $self->_clear_failure_detail();
     my $version = $release->{version};
     my $host = $self->_retained_path($release->{host});
@@ -962,11 +962,11 @@ sub _publish {
         1;
     } or return (1, 'validation');
 
-    my $staged = "/opt/.discord.new.$$";
+    my $staged = $repository_stage // "/opt/.discord.new.$$";
     my $backup = '/opt/.discord.previous';
     return (1, 'publish') if -l $staged || -l $backup;
     eval {
-        $self->_recover_publication_state($old);
+        $self->_recover_publication_state($old) if !defined $repository_stage;
         $self->_remove_tree_checked($staged);
         1;
     } or return (1, 'publish');
@@ -1038,6 +1038,8 @@ sub _publish {
         return (1, 'extract');
     }
 
+    return (0, 'staged') if defined $repository_stage;
+
     my $install = INSTALL_ROOT;
     my $had_install = -e $install || -l $install;
     if ($had_install) {
@@ -1097,7 +1099,7 @@ sub fetch {
     $self->event()->emit(
         'downloaded',
         'discord',
-        $installed ? $installed->{version} : 'missing',
+        $installed ? $installed->{version} : 'not-installed',
         $release->{version},
     ) if $created || !defined $previous_pending
         || $self->_canonical_json($previous_pending) ne $self->_canonical_json($state_release);
@@ -1150,7 +1152,7 @@ sub apply {
     $self->event()->emit(
         'applying',
         'discord',
-        $installed ? $installed->{version} : 'missing',
+        $installed ? $installed->{version} : 'not-installed',
         $pending->{version},
     );
     my ($result, $reason) = $self->_publish(
@@ -1162,7 +1164,7 @@ sub apply {
         $self->event()->emit(
             'updated',
             'discord',
-            $installed ? $installed->{version} : 'missing',
+            $installed ? $installed->{version} : 'not-installed',
             $pending->{version},
         );
     }

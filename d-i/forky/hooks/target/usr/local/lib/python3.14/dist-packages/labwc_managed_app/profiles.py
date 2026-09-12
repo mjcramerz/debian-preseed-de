@@ -662,6 +662,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "ro_bind_home_paths": (
             ".config/mimeapps.list",
             ".config/user-dirs.dirs",
+            ".local/share/applications/tutanota-desktop.desktop",
         ),
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),

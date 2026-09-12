@@ -3062,7 +3062,7 @@ profile managed-whisper-record-toggle /usr/local/libexec/whisper-record-{toggle,
   #include <abstractions/managed-wrapper-perl>
 
   /usr/local/libexec/whisper-record-{toggle,timed} rix,
-  /usr/bin/timeout rix,
+  signal (send, receive) set=(int, term, hup, kill, chld) peer=managed-whisper-record-toggle,
   /usr/local/lib/perl5/site_perl/whisper/** r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -3553,6 +3553,8 @@ profile managed-managed-discord-distro /usr/local/libexec/managed-discord-distro
   owner /tmp/managed-external-software-update.*/** r,
   /opt/.discord.new.*/ rw,
   /opt/.discord.new.*/** rwkl,
+  /var/lib/software/inbox/.vendor-discord-*/{,**} rwkl,
+  /var/lib/software/artifacts/discord/{,**} r,
 
   include if exists <local/usr.local.libexec.managed-discord-distro>
 }
@@ -3568,6 +3570,7 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
   unix,
 
   /usr/local/libexec/managed-external-software-update rix,
+  /usr/local/libexec/local-apt-repository rPx -> managed-local-apt-repository,
   /usr/local/libexec/managed-discord-distro rPx -> managed-managed-discord-distro,
   /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
   /usr/local/lib/perl5/site_perl/external-managed-software/ r,
@@ -3596,7 +3599,8 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
   /usr/share/keyrings/chatgpt-archive-keyring.gpg rw,
   /usr/share/applications/{Filen.desktop,Zoom.desktop,bitwarden.desktop,discord.desktop,ledger-live.desktop,obsidian.desktop,postman.desktop,sleek.desktop,tuta-mail.desktop} r,
   /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop r,
-  /usr/share/applications/chatgpt.desktop{,.tmp.*} rw,
+  /usr/local/share/applications/ rw,
+  /usr/local/share/applications/chatgpt.desktop{,.tmp.*} rw,
   /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop.png,tuta-mail.png} rw,
   /usr/share/pixmaps/chatgpt.png{,.tmp.*} rw,
   /usr/bin/chatgpt r,
@@ -3745,7 +3749,101 @@ profile managed-labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-f
   /usr/{,local/}share/{,**} r,
   /usr/lib/{,**} r,
   /opt/{,**} r,
-  /usr/{,local/}share/applications/{,**} rw,
+  /usr/share/applications/{,**} r,
+  /usr/local/share/applications/{,**} rw,
+  /var/lib/labwc-desktop-files/{,**} rw,
   /{,var/}run/lock/labwc-desktop-files.lock rwk,
   include if exists <local/usr.local.libexec.labwc-wrap-desktop-files>
+}
+
+# Repository maintenance is not an installer: inspection/decompression/signing
+# are inherited, but apt execution and dpkg database writes are not granted.
+profile managed-local-apt-repository /usr/local/{bin/apt-local-repo,libexec/local-apt-repository} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+  #include <abstractions/user-tmp>
+
+  capability dac_read_search,
+  capability chown,
+  capability fowner,
+  capability fsetid,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  signal (send, receive) peer=managed-local-apt-repository,
+  signal (receive) peer=unconfined,
+  /usr/local/bin/apt-local-repo rix,
+  # Remove only the previous managed entrypoints during explicit init.
+  /usr/local/bin/local-add-deb rw,
+  /etc/apt/apt.conf.d/90-local-apt-repository rw,
+  /etc/apt/apt.conf.d/ r,
+  /usr/local/bin/ r,
+  /usr/local/libexec/local-apt-repository rix,
+  /usr/local/libexec/local-apt-vendor rPx -> managed-local-apt-vendor,
+  /usr/bin/{curl,dpkg,dpkg-deb,gpg,gpg-agent,gpgv,gpgconf,unsquashfs} rix,
+  /usr/bin/{gzip,xz,zstd,bzip2,lzma} rix,
+  /usr/lib/gnupg/{,**} mr,
+  /usr/share/gnupg/{,**} r,
+  /etc/gnupg/{,**} r,
+  /etc/dpkg/{,**} r,
+  /var/lib/dpkg/{,**} r,
+  /root/.dpkg.cfg r,
+  /dev/tty rw,
+  /dev/tty[0-9]* rw,
+  /dev/pts/[0-9]* rw,
+  # Administrator-selected input packages; never grant execution of them.
+  /**.deb r,
+  /opt/{discord,postman,tuta-mail,ledger-live}/{,**} r,
+  /usr/share/applications/{discord,postman,ledger-live}.desktop r,
+  /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop,tuta-mail}.png r,
+  /var/lib/software/{,**} rwkl,
+  /etc/apt/keyrings/ rw,
+  /etc/apt/keyrings/{managed-external-software.gpg,.managed-external-software.gpg.*} rw,
+  /etc/apt/sources.list.d/ rw,
+  /etc/apt/sources.list.d/{managed-external-software.list,.managed-external-software.list.*} rw,
+  /run/user/0/gnupg/{,**} rwkl,
+  include if exists <local/usr.local.libexec.local-apt-repository>
+}
+
+# Reuse the established vendor signature/hash verifiers. This bridge may stage
+# bytes under the inbox, but it cannot publish to /opt or run apt/dpkg installs.
+# Its dpkg pre/post actions only restore the existing ChatGPT security policy.
+profile managed-local-apt-vendor /usr/local/libexec/local-apt-vendor flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+  #include <abstractions/user-tmp>
+  capability chown,
+  capability fowner,
+  unix,
+  network inet stream,
+  network inet6 stream,
+  signal (receive) peer=managed-local-apt-repository,
+  signal (send, receive) peer=managed-local-apt-vendor,
+  /usr/local/libexec/local-apt-vendor rix,
+  /usr/local/libexec/managed-discord-distro rPx -> managed-managed-discord-distro,
+  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
+  /usr/local/lib/perl5/site_perl/external-managed-software/{,**} r,
+  /usr/bin/{curl,openssl,tar,brotli,env,dpkg-query,dpkg-divert,desktop-file-validate,update-desktop-database} rix,
+  /usr/bin/{gzip,xz,zstd,bzip2} rix,
+  /dev/log w,
+  /var/lib/software/{,**} rwkl,
+  /run/lock/managed-external-software-update.lock rwk,
+  /usr/local/share/software/{,**} r,
+  /etc/dpkg/{,**} r,
+  /var/lib/dpkg/{,**} r,
+  /root/.dpkg.cfg r,
+  /opt/{discord,postman,tuta-mail,ledger-live}/{,**} r,
+  /usr/bin/chatgpt r,
+  /usr/lib/chatgpt/{,**} r,
+  /etc/default/chatgpt{,.tmp.*} rw,
+  /etc/apparmor.d/chatgpt{,.tmp.*} rw,
+  /etc/apparmor.d/disable/ rw,
+  /etc/apparmor.d/disable/chatgpt{,.tmp.*} rw,
+  /etc/apt/sources.list.d/chatgpt.{list,sources} rw,
+  /usr/share/keyrings/chatgpt-archive-keyring.gpg rw,
+  /usr/share/pixmaps/chatgpt.png{,.tmp.*} rw,
+  /usr/local/share/applications/{,**} rw,
+  include if exists <local/usr.local.libexec.local-apt-vendor>
 }

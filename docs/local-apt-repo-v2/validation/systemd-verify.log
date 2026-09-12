@@ -1,0 +1,1 @@
+PASS: systemd-analyze verify. Real helper was staged for executable-path validation only; no service started. Helper removed afterward.

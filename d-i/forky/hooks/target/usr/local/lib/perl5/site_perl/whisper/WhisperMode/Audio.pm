@@ -6,7 +6,9 @@ use warnings;
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
-use POSIX qw(_exit);
+use POSIX qw(_exit WNOHANG);
+use Errno qw(EINTR);
+use Fcntl qw(O_RDONLY O_NOFOLLOW O_NONBLOCK);
 use WhisperMode::Systemd ();
 use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
 
@@ -217,9 +219,66 @@ sub record {
     _command_status($wpctl, 'set-mute', $source->{id}, '0');
     # wpctl's numeric IDs are control handles. pw-record targets a node.name or
     # object.serial, so use the name requested from `wpctl status --name`.
-    exec { $binary } $binary, "--target=$source->{name}",
-        '--rate=16000', '--channels=1', '--format=s16', $destination
-        or _fatal("cannot exec pw-record: $!");
+    return $self->_supervise_recording($destination, $binary,
+        "--target=$source->{name}", '--rate=16000', '--channels=1',
+        '--format=s16', $destination);
+}
+
+sub _completed_wav {
+    my ($path) = @_;
+    sysopen my $fh, $path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK or return 0;
+    my @st = stat $fh;
+    return 0 if !-f $fh || $st[4] != $< || $st[3] != 1 || $st[7] <= 44;
+    my $header = q{};
+    my $read = sysread($fh, $header, 12);
+    return 0 if !defined($read) || $read != 12;
+    return 0 if substr($header, 0, 4) ne 'RIFF' || substr($header, 8, 4) ne 'WAVE';
+    # libsndfile finalizes RIFF's size on a graceful stop. An unfinished file
+    # is not evidence that an exit status of 1 was the expected SIGINT path.
+    return 0 if unpack('V', substr($header, 4, 4)) + 8 != $st[7];
+    return 1;
+}
+
+sub _supervise_recording {
+    my ($self, $destination, @command) = @_;
+    my ($requested, $sent, $deadline, $killed) = (0, 0, 0, 0);
+    local $SIG{INT} = sub { $requested = 1 };
+    local $SIG{TERM} = sub { $requested = 1 };
+    local $SIG{HUP} = sub { $requested = 1 };
+    my $pid = fork;
+    defined $pid or _fatal("cannot start pw-record: $!");
+    if (!$pid) {
+        $SIG{$_} = 'DEFAULT' for qw(INT TERM HUP);
+        exec { $command[0] } @command or _exit(127);
+    }
+    my $end = clock_gettime(CLOCK_MONOTONIC) + 15;
+    my $status;
+    while (1) {
+        my $waited = waitpid($pid, WNOHANG);
+        if ($waited == $pid) { $status = $?; last; }
+        if ($waited < 0) {
+            next if $! == EINTR;
+            _fatal("cannot wait for pw-record: $!");
+        }
+        my $now = clock_gettime(CLOCK_MONOTONIC);
+        $requested = 1 if $now >= $end;
+        if ($requested && !$sent) {
+            kill 'INT', $pid;
+            $sent = 1;
+            $deadline = $now + 5;
+        } elsif ($sent && !$killed && $now >= $deadline) {
+            kill 'KILL', $pid;
+            $killed = 1;
+        }
+        sleep 0.02;
+    }
+    return 1 if $status == 0 && _completed_wav($destination);
+    # pw-cat versions which exit 1 after a handled SIGINT still produce a
+    # finalized WAV. Accept only that intentional, bounded shutdown, never an
+    # unsolicited status 1, startup failure, crash, or escalation to SIGKILL.
+    return 1 if $sent && !$killed && $status == (1 << 8)
+        && _completed_wav($destination);
+    _fatal('pw-record failed: ' . WhisperMode::Systemd::_detail($status));
 }
 
 1;

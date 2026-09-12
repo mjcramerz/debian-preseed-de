@@ -117,8 +117,9 @@ class SessionOwnershipTests(unittest.TestCase):
         call = self.launch(args=['--example', 'a b', '$HOME', ';false'])
         executable, argv, env = call.call_args.args
         self.assertEqual(executable, '/usr/bin/systemd-run')
-        self.assertIn('--pipe', argv)
-        self.assertIn('--wait', argv)
+        self.assertNotIn('--pipe', argv)
+        self.assertIn('--property=StandardOutput=journal', argv)
+        self.assertNotIn('--wait', argv)
         self.assertIn('--expand-environment=no', argv)
         self.assertEqual(argv[-4:], ['--example', 'a b', '$HOME', ';false'])
         self.assertIn('--property=Requisite=labwc-session.target', argv)
@@ -251,7 +252,10 @@ ensure_target_asset_parent /private/subdir/data
         self.assertIn('$vendor_installed &&', cli)
         repository = (TARGET / 'usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm').read_text()
         self.assertIn('next if !$self->bitwarden_vendor_digest_matches(', repository)
-        self.assertIn('$replace_vendor', repository)
+        engine = (TARGET / 'usr/local/libexec/local-apt-repository').read_text()
+        self.assertIn('payload_path == path', engine)
+        self.assertIn('.vendor-sha256', engine)
+        self.assertIn('immutable pool object failed its digest check', engine)
 
     def test_misc_failure_contracts(self):
         templates = TARGET / 'data/config/podman/templates/devops'

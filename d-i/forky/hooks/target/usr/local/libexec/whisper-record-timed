@@ -1,4 +1,5 @@
 #!/bin/sh
-# No arguments accepted; all recording control remains in the existing worker.
+# The recorder supervises pw-record directly so an intentional SIGINT can be
+# distinguished from a real capture failure. Do not wrap it in GNU timeout.
 [ "$#" -eq 0 ] || exit 64
-exec /usr/bin/timeout --foreground --signal=INT --kill-after=1s 15s /usr/local/libexec/whisper-record-toggle record-worker
+exec /usr/local/libexec/whisper-record-toggle record-worker

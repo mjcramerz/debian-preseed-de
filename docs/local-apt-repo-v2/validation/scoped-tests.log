@@ -1,0 +1,104 @@
+test_signed_file_repository_changes_candidate_without_installing (test_local_apt_integration.AptIntegrationTests.test_signed_file_repository_changes_candidate_without_installing) ... ok
+test_all_architecture_does_not_select_amd64 (test_local_apt_refresh.DiscoveryTests.test_all_architecture_does_not_select_amd64) ... ok
+test_ambiguous_edition_fails_closed (test_local_apt_refresh.DiscoveryTests.test_ambiguous_edition_fails_closed) ... ok
+test_changed_direct_etag_does_not_get_overruled_by_equal_filename_version (test_local_apt_refresh.DiscoveryTests.test_changed_direct_etag_does_not_get_overruled_by_equal_filename_version) ... ok
+test_changed_validators_between_head_and_get_fail_closed (test_local_apt_refresh.DiscoveryTests.test_changed_validators_between_head_and_get_fail_closed) ... ok
+test_customized_legacy_hook_is_not_silently_deleted (test_local_apt_refresh.DiscoveryTests.test_customized_legacy_hook_is_not_silently_deleted) ... ok
+test_debian_epoch_does_not_hide_upstream_tag_update (test_local_apt_refresh.DiscoveryTests.test_debian_epoch_does_not_hide_upstream_tag_update) ... ok
+test_discovered_size_and_digest_are_verified (test_local_apt_refresh.DiscoveryTests.test_discovered_size_and_digest_are_verified) ... ok
+test_gitlab_old_asset_url_uses_latest_list_not_old_tag (test_local_apt_refresh.DiscoveryTests.test_gitlab_old_asset_url_uses_latest_list_not_old_tag) ... ok
+test_header_parser_uses_final_redirect_block_and_rejects_duplicates (test_local_apt_refresh.DiscoveryTests.test_header_parser_uses_final_redirect_block_and_rejects_duplicates) ... ok
+test_hook_with_additional_custom_command_is_preserved (test_local_apt_refresh.DiscoveryTests.test_hook_with_additional_custom_command_is_preserved) ... ok
+test_init_removes_known_legacy_hook_and_wrapper (test_local_apt_refresh.DiscoveryTests.test_init_removes_known_legacy_hook_and_wrapper) ... ok
+test_last_modified_only_check_and_download_precondition (test_local_apt_refresh.DiscoveryTests.test_last_modified_only_check_and_download_precondition) ... ok
+test_matching_vendor_manifest_skips_fetch_even_without_upgrade (test_local_apt_refresh.DiscoveryTests.test_matching_vendor_manifest_skips_fetch_even_without_upgrade) ... ok
+test_metadata_cache_reuses_body_after_304_and_honors_sf_interval (test_local_apt_refresh.DiscoveryTests.test_metadata_cache_reuses_body_after_304_and_honors_sf_interval) ... ok
+test_new_wrapper_argument_contract_and_installer_units (test_local_apt_refresh.DiscoveryTests.test_new_wrapper_argument_contract_and_installer_units) ... ok
+test_no_payload_request_when_release_version_not_newer (test_local_apt_refresh.DiscoveryTests.test_no_payload_request_when_release_version_not_newer) ... ok
+test_old_source_etag_is_not_sent_to_new_source (test_local_apt_refresh.DiscoveryTests.test_old_source_etag_is_not_sent_to_new_source) ... ok
+test_only_stable_published_releases_are_considered (test_local_apt_refresh.DiscoveryTests.test_only_stable_published_releases_are_considered) ... ok
+test_pinned_github_asset_tracks_new_releases_and_preserves_edition (test_local_apt_refresh.DiscoveryTests.test_pinned_github_asset_tracks_new_releases_and_preserves_edition) ... ok
+test_release_candidate_is_not_committed_when_download_fails (test_local_apt_refresh.DiscoveryTests.test_release_candidate_is_not_committed_when_download_fails) ... local-apt-repository: update unavailable for fixture-app:all: network unavailable; keeping published version 1.0
+local-apt-repository: update unavailable for fixture-app:all: network unavailable; keeping published version 1.0
+ok
+test_release_filename_prerelease_is_excluded (test_local_apt_refresh.DiscoveryTests.test_release_filename_prerelease_is_excluded) ... ok
+test_release_same_version_mutation_does_not_download_again (test_local_apt_refresh.DiscoveryTests.test_release_same_version_mutation_does_not_download_again) ... ok
+test_republished_old_release_cannot_win_by_timestamp (test_local_apt_refresh.DiscoveryTests.test_republished_old_release_cannot_win_by_timestamp) ... ok
+test_same_version_conflicting_release_digest_is_not_adopted (test_local_apt_refresh.DiscoveryTests.test_same_version_conflicting_release_digest_is_not_adopted) ... ok
+test_sourceforge_feed_uses_matching_latest_deb (test_local_apt_refresh.DiscoveryTests.test_sourceforge_feed_uses_matching_latest_deb) ... ok
+test_sourceforge_rejects_entities (test_local_apt_refresh.DiscoveryTests.test_sourceforge_rejects_entities) ... ok
+test_stale_body_cannot_satisfy_new_release_metadata (test_local_apt_refresh.DiscoveryTests.test_stale_body_cannot_satisfy_new_release_metadata) ... local-apt-repository: update unavailable for fixture-app:all: new release metadata returned a package without a newer Version; keeping published version 1.0
+ok
+test_static_package_makes_no_metadata_or_body_requests (test_local_apt_refresh.DiscoveryTests.test_static_package_makes_no_metadata_or_body_requests) ... ok
+test_unknown_direct_baseline_does_not_trigger_initial_body_download (test_local_apt_refresh.DiscoveryTests.test_unknown_direct_baseline_does_not_trigger_initial_body_download) ... local-apt-repository: fixture-app:all: metadata baseline established without a package download; initial remote/local equality is unverified
+ok
+test_unverified_baseline_does_not_silently_become_verified (test_local_apt_refresh.DiscoveryTests.test_unverified_baseline_does_not_silently_become_verified) ... ok
+test_weekly_noop_refresh_does_not_republish_or_retrieve (test_local_apt_refresh.DiscoveryTests.test_weekly_noop_refresh_does_not_republish_or_retrieve) ... ok
+test_apt_update_reads_signed_metadata_without_contacting_upstream (test_local_apt_refresh.RealTransportTests.test_apt_update_reads_signed_metadata_without_contacting_upstream) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_bad_body_cannot_advance_validator_receipt_and_retry_recovers (test_local_apt_refresh.RealTransportTests.test_bad_body_cannot_advance_validator_receipt_and_retry_recovers) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+local-apt-repository: update unavailable for fixture-app:all: download is not a Debian archive (HTML/API responses are not packages); keeping published version 1.0
+ok
+test_curl_refuses_https_to_http_redirect (test_local_apt_refresh.RealTransportTests.test_curl_refuses_https_to_http_redirect) ... ok
+test_head_unsupported_or_missing_validators_never_falls_back_to_get (test_local_apt_refresh.RealTransportTests.test_head_unsupported_or_missing_validators_never_falls_back_to_get) ... local-apt-repository: update unavailable for fixture-app:all: endpoint provides neither ETag nor Last-Modified; no blind package download is allowed; keeping published version 1.0
+local-apt-repository: update unavailable for fixture-app:all: curl failed (22): curl: (22) The requested URL returned error: 405; keeping published version 1.0
+ok
+test_real_head_304_then_changed_get_publish_then_no_get (test_local_apt_refresh.RealTransportTests.test_real_head_304_then_changed_get_publish_then_no_get) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_signing_failure_does_not_commit_download_validators (test_local_apt_refresh.RealTransportTests.test_signing_failure_does_not_commit_download_validators) ... local-apt-repository: fixture-app: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest
+ok
+test_atomic_signing_failure_retains_previous_generation (test_local_apt_repository.RepositoryTests.test_atomic_signing_failure_retains_previous_generation) ... ok
+test_delete_publishes_empty_keeps_cached_pool (test_local_apt_repository.RepositoryTests.test_delete_publishes_empty_keeps_cached_pool) ... ok
+test_dependency_metadata_only (test_local_apt_repository.RepositoryTests.test_dependency_metadata_only) ... ok
+test_empty_repository_is_signed (test_local_apt_repository.RepositoryTests.test_empty_repository_is_signed) ... ok
+test_https_only (test_local_apt_repository.RepositoryTests.test_https_only) ... ok
+test_ingest_signed_indexes_and_no_nested_apt (test_local_apt_repository.RepositoryTests.test_ingest_signed_indexes_and_no_nested_apt) ... ok
+test_prebuilt_payload_archival_preserves_bytes_and_hardlinks (test_local_apt_repository.RepositoryTests.test_prebuilt_payload_archival_preserves_bytes_and_hardlinks) ... ok
+test_prebuilt_payload_escape_rejected (test_local_apt_repository.RepositoryTests.test_prebuilt_payload_escape_rejected) ... ok
+test_reject_html_wrong_arch_and_identity (test_local_apt_repository.RepositoryTests.test_reject_html_wrong_arch_and_identity) ... ok
+test_reject_same_version_changed_bytes_and_downgrade (test_local_apt_repository.RepositoryTests.test_reject_same_version_changed_bytes_and_downgrade) ... ok
+test_release_api_urls_and_malformed_metadata (test_local_apt_repository.RepositoryTests.test_release_api_urls_and_malformed_metadata) ... ok
+test_release_asset_urls_discover_project_releases (test_local_apt_repository.RepositoryTests.test_release_asset_urls_discover_project_releases) ... ok
+test_static_package_never_downloads (test_local_apt_repository.RepositoryTests.test_static_package_never_downloads) ... ok
+test_symlink_source_and_symlink_root_rejected (test_local_apt_repository.RepositoryTests.test_symlink_source_and_symlink_root_rejected) ... ok
+test_unknown_dependency_rejected (test_local_apt_repository.RepositoryTests.test_unknown_dependency_rejected) ... ok
+test_administrator_override_and_edits_preserved (test_scoped_desktop_fixes.DesktopOverrideTests.test_administrator_override_and_edits_preserved) ... labwc desktop hook: preserving administrator override: /tmp/tmppdnvdmxj/local/example.desktop
+ok
+test_crash_after_output_before_manifest_is_recoverable (test_scoped_desktop_fixes.DesktopOverrideTests.test_crash_after_output_before_manifest_is_recoverable) ... ok
+test_pristine_vendor_idempotent_generated_override (test_scoped_desktop_fixes.DesktopOverrideTests.test_pristine_vendor_idempotent_generated_override) ... ok
+test_stale_owned_override_removed (test_scoped_desktop_fixes.DesktopOverrideTests.test_stale_owned_override_removed) ... ok
+test_only_exact_repeats_coalesced (test_scoped_desktop_fixes.PanelTests.test_only_exact_repeats_coalesced) ... ok
+test_reload_is_forwarded (test_scoped_desktop_fixes.PanelTests.test_reload_is_forwarded) ... ok
+test_supervisor_retains_error_and_exit_status (test_scoped_desktop_fixes.PanelTests.test_supervisor_retains_error_and_exit_status) ... ok
+test_fifteen_second_limit_is_graceful (test_scoped_desktop_fixes.WhisperSupervisorTests.test_fifteen_second_limit_is_graceful) ... ok
+test_intentional_stop_status_one_with_complete_wav_is_success (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_status_one_with_complete_wav_is_success) ... ok
+test_intentional_stop_with_invalid_wav_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_intentional_stop_with_invalid_wav_remains_failure) ... ok
+test_spontaneous_status_one_remains_failure (test_scoped_desktop_fixes.WhisperSupervisorTests.test_spontaneous_status_one_remains_failure) ... ok
+
+----------------------------------------------------------------------
+Ran 64 tests in 27.245s
+
+OK
+Removed the legacy local repository APT pre-update hook.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 1 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 1 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 1 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+Local APT refresh: 0 updated, 1 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.
+1: fixture-app:all 1.0 [static]
+Removed fixture-app:all from the published repository and its automatic update policy.
+Installed files are unchanged; use apt remove to uninstall. Retained immutable files protect existing APT readers.
+Local APT refresh: 0 updated, 0 current, 0 baseline, 0 error, 0 inbox rejected. No packages were installed.

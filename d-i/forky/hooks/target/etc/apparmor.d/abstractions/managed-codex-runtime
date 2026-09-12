@@ -89,7 +89,7 @@ deny /opt/vivaldi/extensions/ w,
 /var/lib/dpkg/status r,
 /var/lib/dpkg/triggers/{File,Unincorp} r,
 /var/lib/dpkg/updates/ r,
-/var/lib/software/debs/Packages r,
+/var/lib/software/repo/{Packages,.snapshots/*/Packages} r,
 /run/codex-synthetic-bin/ r,
 /run/codex-synthetic-bin/payload-launcher.py r,
 

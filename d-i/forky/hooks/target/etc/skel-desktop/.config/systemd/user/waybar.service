@@ -21,6 +21,9 @@ KillMode=control-group
 Type=exec
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
-ExecStart=/usr/bin/waybar -c %h/.config/waybar/config -s %h/.config/waybar/style.css
+ExecStart=/usr/local/libexec/labwc-panel-run waybar
 ExecReload=/usr/local/libexec/labwc-session-check reload-waybar $MAINPID
 Restart=on-failure
+SyslogIdentifier=waybar
+StandardOutput=journal
+StandardError=journal

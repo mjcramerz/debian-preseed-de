@@ -231,9 +231,9 @@ sub _normalize_tree {
 }
 
 sub fetch {
-    my ($self, $work) = @_;
+    my ($self, $work, $for_repository) = @_;
     my $install = '/opt/postman';
-    return (2, 'missing') if !-d $install || -l $install || !-x "$install/app/Postman";
+    return (2, 'missing') if !$for_repository && (!-d $install || -l $install || !-x "$install/app/Postman");
     my $archive = "$work/postman-linux64.tar.gz";
     eval {
         $self->http()->download(

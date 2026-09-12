@@ -1,0 +1,14 @@
+......................................F.s.............................
+======================================================================
+FAIL: test_apparmor_complain_incident_is_fully_mapped (__main__.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_desktop_sandbox.py", line 1306, in test_apparmor_complain_incident_is_fully_mapped
+    self.assertTrue(incident.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 70 tests in 0.509s
+
+FAILED (failures=1, skipped=1)

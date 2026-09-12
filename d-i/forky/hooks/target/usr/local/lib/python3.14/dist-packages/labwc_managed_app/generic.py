@@ -161,6 +161,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         # Do not force NNP/seccomp before package AppArmor -> bwrap
         # transitions. Electron and Bubblewrap set NNP inside their sandboxes.
+        "--property=StandardInput=null", "--property=StandardOutput=journal",
+        "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
         "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
         "--property=ProtectSystem=full",

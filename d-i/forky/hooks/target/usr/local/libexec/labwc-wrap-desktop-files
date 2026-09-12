@@ -1,11 +1,13 @@
 #!/usr/bin/python3 -I
-"""Idempotent dpkg post-invoke wrapping of package-owned desktop entries.
+"""Idempotent local overrides of package-owned desktop entries; never write vendor files.
 
 No shell evaluation, user-profile sourcing, dpkg writes, or user-home writes.
 Desktop Exec text is prefixed verbatim: quoting and % field codes are preserved.
 """
 from __future__ import annotations
 import fcntl
+import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -16,7 +18,11 @@ import sys
 import tempfile
 
 DEFAULTS = Path('/etc/default/labwc-desktop')
-APPLICATION_DIRS = (Path('/usr/share/applications'), Path('/usr/local/share/applications'))
+APPLICATION_DIRS = (Path('/usr/share/applications'),)
+OUTPUT_DIR = Path('/usr/local/share/applications')
+STATE_DIR = Path('/var/lib/labwc-desktop-files')
+MANIFEST = STATE_DIR / 'overrides.json'
+PENDING = STATE_DIR / 'pending.json'
 MAX_BYTES = 1024 * 1024
 WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/local/bin/labwc-wayland-app'}
 # These have existing dedicated sandbox/compatibility/logging entrypoints.
@@ -198,23 +204,121 @@ def is_electron(package: str) -> bool:
     return any(path.endswith('/resources/app.asar') and Path(path).is_file() for path in paths)
 
 
-def write_atomic(path: Path, text: str, before: os.stat_result, source: os.stat_result | None = None) -> None:
-    source = before if source is None else source
+def write_atomic(path: Path, text: str, before: os.stat_result | None = None) -> None:
+    """Publish a local file only; source ownership/modes never propagate here."""
     fd, temporary = tempfile.mkstemp(prefix=f'.{path.name}.labwc-', dir=path.parent)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8', newline='') as stream:
-            os.fchmod(stream.fileno(), stat.S_IMODE(source.st_mode))
-            os.fchown(stream.fileno(), source.st_uid, source.st_gid)
+            os.fchmod(stream.fileno(), 0o644)
             stream.write(text)
             stream.flush()
             os.fsync(stream.fileno())
-        after = path.lstat()
-        if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size) != (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size):
-            raise ValueError(f'desktop file changed during update: {path}')
+        if before is not None:
+            after = path.lstat()
+            if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size) != (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size):
+                raise ValueError(f'local desktop override changed during update: {path}')
+        elif path.exists() or path.is_symlink():
+            raise ValueError(f'local desktop override appeared during update: {path}')
         os.replace(temporary, path)
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def load_manifest(path: Path | None = None) -> dict[str, str]:
+    path = MANIFEST if path is None else path
+    if not path.exists():
+        return {}
+    trusted_file(path)
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        raise ValueError('invalid desktop override manifest')
+    for name, digest in data.items():
+        parts = Path(name).parts
+        if not parts or Path(name).is_absolute() or any(p in {'.', '..'} for p in parts) or not name.endswith('.desktop'):
+            raise ValueError('unsafe desktop override manifest path')
+        if not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest):
+            raise ValueError('invalid desktop override manifest digest')
+    return data
+
+
+def owned_override(path: Path, expected: str | None) -> bool:
+    if expected is None or not path.exists() or path.is_symlink():
+        return False
+    text, _, _ = read_desktop(path)
+    return hashlib.sha256(text.encode('utf-8')).hexdigest() == expected
+
+
+def generate_overrides(defaults: dict[str, str]) -> bool:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True, mode=0o755)
+    STATE_DIR.mkdir(parents=True, exist_ok=True, mode=0o755)
+    trusted_directory(OUTPUT_DIR)
+    trusted_directory(STATE_DIR)
+    previous = load_manifest()
+    pending = load_manifest(PENDING)
+    # A durable ownership journal bridges a crash between publishing a local
+    # file and committing the manifest. Only an exact staged digest is adopted.
+    for name, digest in pending.items():
+        if owned_override(OUTPUT_DIR / name, digest):
+            previous[name] = digest
+    current: dict[str, str] = {}
+    cache: dict[str, bool] = {}
+    changed = False
+    for directory in APPLICATION_DIRS:
+        if not directory.exists():
+            continue
+        trusted_directory(directory)
+        for path in sorted(directory.rglob('*.desktop')):
+            text, _, _ = read_desktop(path)
+            if rewrite_desktop(text, defaults['wayland']) == text:
+                continue
+            package = package_for(path)
+            if package is None:
+                continue
+            if package not in cache:
+                cache[package] = is_electron(package)
+            output = rewrite_desktop(text, defaults['electron' if cache[package] else 'wayland'])
+            name = path.relative_to(directory).as_posix()
+            destination = OUTPUT_DIR / name
+            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+            trusted_directory(destination.parent)
+            before = None
+            if destination.exists() or destination.is_symlink():
+                if not owned_override(destination, previous.get(name)):
+                    print(f'labwc desktop hook: preserving administrator override: {destination}', file=sys.stderr)
+                    continue
+                before = destination.lstat()
+            digest = hashlib.sha256(output.encode('utf-8')).hexdigest()
+            if before is None or previous.get(name) != digest:
+                pending[name] = digest
+                write_atomic(PENDING, json.dumps(pending, sort_keys=True) + '\n',
+                             PENDING.lstat() if PENDING.exists() else None)
+                write_atomic(destination, output, before)
+                changed = True
+            current[name] = digest
+    # Package removals, Hidden/NoDisplay changes and newly dedicated launchers
+    # must not leave stale overrides shadowing vendor entries. Never delete a
+    # local file edited or replaced by the administrator since our last run.
+    for name, digest in previous.items():
+        if name not in current and owned_override(OUTPUT_DIR / name, digest):
+            (OUTPUT_DIR / name).unlink()
+            changed = True
+    payload = json.dumps(current, sort_keys=True, indent=2) + '\n'
+    if current != previous or not MANIFEST.exists() or PENDING.exists():
+        write_atomic(MANIFEST, payload, MANIFEST.lstat() if MANIFEST.exists() else None)
+    if PENDING.exists():
+        PENDING.unlink()
+        directory_fd = os.open(STATE_DIR, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    return changed
 
 
 def main() -> int:
@@ -235,29 +339,8 @@ def main() -> int:
         if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022:
             raise ValueError('unsafe desktop hook lock')
         fcntl.flock(handle, fcntl.LOCK_EX)
-        cache: dict[str, bool] = {}
-        changed = set()
-        for directory in APPLICATION_DIRS:
-            if not directory.exists():
-                continue
-            trusted_directory(directory)
-            for path in sorted(directory.rglob('*.desktop')):
-                text, before, source = read_desktop(path)
-                # Skip hidden/managed entries before doing package queries.
-                if rewrite_desktop(text, defaults['wayland']) == text:
-                    continue
-                package = package_for(path)
-                if package is None:
-                    continue
-                if package not in cache:
-                    cache[package] = is_electron(package)
-                output = rewrite_desktop(text, defaults['electron' if cache[package] else 'wayland'])
-                if output != text:
-                    write_atomic(path, output, before, source)
-                    changed.add(directory)
-        for directory in sorted(changed):
-            if Path('/usr/bin/update-desktop-database').is_file():
-                subprocess.run(['/usr/bin/update-desktop-database', str(directory)], check=True, timeout=30)
+        if generate_overrides(defaults) and Path('/usr/bin/update-desktop-database').is_file():
+            subprocess.run(['/usr/bin/update-desktop-database', str(OUTPUT_DIR)], check=True, timeout=30)
     return 0
 
 

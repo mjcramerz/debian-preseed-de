@@ -1,0 +1,27 @@
+[Unit]
+Description=Validate and atomically publish the local APT inbox
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/local-apt-repository process-inbox
+User=root
+Group=root
+UMask=0077
+# Wait for the same repository lock if the weekly refresh is still running.
+TimeoutStartSec=2h15min
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=-/run/user/0/gnupg
+ReadWritePaths=/var/lib/software /etc/apt/keyrings /etc/apt/sources.list.d
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=local-apt-inbox

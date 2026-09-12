@@ -19,7 +19,7 @@ use constant CANONICAL_DESKTOP         => CANONICAL_DIRECTORY . '/chatgpt.deskto
 use constant CANONICAL_APPARMOR        => CANONICAL_DIRECTORY . '/apparmor.profile';
 use constant CANONICAL_ICON            => CANONICAL_DIRECTORY . '/chatgpt.png';
 use constant DEFAULT_PATH              => '/etc/default/chatgpt';
-use constant DESKTOP_PATH              => '/usr/share/applications/chatgpt.desktop';
+use constant DESKTOP_PATH              => '/usr/local/share/applications/chatgpt.desktop';
 use constant ICON_PATH                 => '/usr/share/pixmaps/chatgpt.png';
 use constant APPARMOR_PATH             => '/etc/apparmor.d/chatgpt';
 use constant APPARMOR_DISABLE_DIRECTORY => '/etc/apparmor.d/disable';
@@ -433,6 +433,9 @@ sub finalize_install {
         0644,
         1024 * 1024,
     );
+    ExternalSoftware::Servicing::Atomic->ensure_root_directory(
+        '/usr/local/share/applications', 0755,
+    );
     $self->_install_canonical_text(
         CANONICAL_DESKTOP,
         DESKTOP_PATH,
@@ -442,7 +445,7 @@ sub finalize_install {
     $self->_remove_vendor_repository_paths();
     system('/usr/bin/desktop-file-validate', DESKTOP_PATH) == 0
         or die "managed ChatGPT desktop entry failed validation\n";
-    system('/usr/bin/update-desktop-database', '/usr/share/applications') == 0
+    system('/usr/bin/update-desktop-database', '/usr/local/share/applications') == 0
         or die "managed ChatGPT desktop database refresh failed\n";
     $self->assert_policy();
     $self->_finalize_policy($execution_context);

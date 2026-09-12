@@ -1,5 +1,7 @@
 # debian-preseed-de
 
+Local signed APT repository: see [weekly metadata-first refresh and `apt-local-repo`](docs/local-apt-repo-v2/README.md) for commands, provider discovery, migration and validation.
+
 ## R4 CUDA-legacy compatibility repair
 
 Explicit `addon/cuda-legacy` selection now authorizes the NVIDIA Debian 12 amd64

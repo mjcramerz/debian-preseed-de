@@ -1,0 +1,4 @@
+# Preserve the existing managed ChatGPT security policy under ordinary APT/dpkg
+# transactions. These hooks do not install packages or take the repository lock.
+pre-invoke=if [ -x /usr/local/libexec/local-apt-vendor ]; then /usr/local/libexec/local-apt-vendor policy-before; fi
+post-invoke=if [ -x /usr/local/libexec/local-apt-vendor ]; then /usr/local/libexec/local-apt-vendor policy-after; fi

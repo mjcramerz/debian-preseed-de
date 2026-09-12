@@ -25,7 +25,7 @@ Environment=QT_QPA_PLATFORM=wayland
 Environment=QSG_RHI_BACKEND=opengl
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecCondition=/usr/local/libexec/labwc-output-watch --wait-for-current-output
-ExecStart=/usr/bin/crystal-dock
+ExecStart=/usr/local/libexec/labwc-panel-run crystal-dock
 Restart=on-failure
 RestartMode=direct
 RestartSec=2s

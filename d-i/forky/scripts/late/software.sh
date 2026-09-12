@@ -176,7 +176,7 @@ ledger_icon_file=/usr/share/icons/hicolor/512x512/apps/ledger-live-desktop.png
 ledger_udev_rules=/etc/udev/rules.d/53-ledger-wallet.rules
 software_state_dir=/var/lib/software
 software_event_dir="${software_state_dir}/events"
-software_deb_archive_dir="${software_state_dir}/debs"
+software_deb_archive_dir="${software_state_dir}/repo"
 software_artifact_dir="${software_state_dir}/artifacts"
 software_vendor_dir="${software_state_dir}/vendor"
 software_postman_artifact_dir="${software_artifact_dir}/postman"
@@ -194,7 +194,7 @@ chatgpt_launcher=/usr/local/bin/chatgpt
 chatgpt_log_runner=/usr/local/libexec/labwc-chatgpt-log-runner
 chatgpt_log_socket_helper=/usr/local/libexec/rsyslog-managed-openai-socket
 chatgpt_default=/etc/default/chatgpt
-chatgpt_desktop=/usr/share/applications/chatgpt.desktop
+chatgpt_desktop=/usr/local/share/applications/chatgpt.desktop
 chatgpt_apparmor=/etc/apparmor.d/chatgpt
 chatgpt_icon=/usr/share/pixmaps/chatgpt.png
 chatgpt_rsyslog_config=/etc/rsyslog.d/38-openai-chatgpt.conf
@@ -477,6 +477,16 @@ software_stage_external_servicing_runtime() {
     "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-discord-distro)" \
     "$software_discord_archive_helper" \
     0755
+  for software_local_helper in local-apt-repository local-apt-vendor; do
+    software_stage_seed_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/libexec/${software_local_helper}")" \
+      "/usr/local/libexec/${software_local_helper}" 0755
+  done
+  software_stage_seed_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/bin/apt-local-repo)" \
+    /usr/local/bin/apt-local-repo 0755
+  chroot "$target_root" /usr/local/libexec/local-apt-repository init ||
+    software_fatal "local APT repository initialization failed"
 }
 
 software_enable_chatgpt_integration() {
@@ -953,290 +963,17 @@ software_deb_contains_path() {
     '
 }
 
-software_validate_deb_archive_component() {
-  label=$1
-  value=$2
-
-  [ "${#value}" -le 128 ] ||
-    software_fatal "$label exceeds 128 characters"
-  case "$value" in
-    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.+:~_-]*)
-      software_fatal "$label contains unsupported archive-path characters: ${value:-unset}"
-      ;;
-  esac
-}
-
-software_managed_deb_archive_path() {
-  package_name=$1
-  package_version=$2
-  package_architecture=$3
-
-  software_validate_deb_archive_component "managed package name" "$package_name"
-  software_validate_deb_archive_component "managed package version" "$package_version"
-  [ "$package_architecture" = amd64 ] ||
-    software_fatal "managed package archive has unsupported architecture: ${package_architecture:-unset}"
-
-  printf '%s/%s_%s_%s.deb\n' \
-    "$software_deb_archive_dir" \
-    "$package_name" \
-    "$package_version" \
-    "$package_architecture"
-}
-
-software_managed_deb_repository_codename() {
-  repository_codename=$(
-    chroot "$target_root" /usr/bin/awk -F= \
-      '$1 == "VERSION_CODENAME" { print $2; exit }' \
-      /etc/os-release 2>/dev/null || true
-  )
-  case "$repository_codename" in
-    \"*\")
-      repository_codename=${repository_codename#\"}
-      repository_codename=${repository_codename%\"}
-      ;;
-  esac
-  software_validate_deb_archive_component \
-    "managed package repository codename" \
-    "$repository_codename"
-  printf '%s\n' "$repository_codename"
-}
-
-software_managed_deb_repository_gpg() {
-  chroot "$target_root" /usr/bin/env -i \
-    GNUPGHOME="$software_deb_repository_signing_home" \
-    HOME="$software_deb_repository_signing_home" \
-    LC_ALL=C.UTF-8 \
-    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    /usr/bin/gpg \
-      --batch \
-      --no-options \
-      --homedir "$software_deb_repository_signing_home" \
-      "$@"
-}
-
-software_managed_deb_repository_fingerprint() {
-  key_listing=$(software_managed_deb_repository_gpg \
-    --with-colons \
-    --list-secret-keys 2>/dev/null) ||
-    software_fatal "managed repository signing key inventory failed"
-  key_count=$(
-    printf '%s\n' "$key_listing" |
-      awk -F: '$1 == "sec" { count++ } END { print count + 0 }'
-  )
-  key_fingerprint=$(
-    printf '%s\n' "$key_listing" |
-      awk -F: '
-        $1 == "sec" {
-          want_fingerprint = 1
-          next
-        }
-        want_fingerprint && $1 == "fpr" {
-          print toupper($10)
-          exit
-        }
-      '
-  )
-  [ "$key_count" -eq 1 ] ||
-    software_fatal "managed repository signing home must contain exactly one secret key"
-  case "$key_fingerprint" in
-    ''|*[!0123456789ABCDEF]*)
-      software_fatal "managed repository signing key fingerprint is invalid"
-      ;;
-  esac
-  case "${#key_fingerprint}" in
-    40|64) ;;
-    *) software_fatal "managed repository signing key fingerprint has an invalid length" ;;
-  esac
-  printf '%s\n' "$key_fingerprint"
-}
-
-software_target_file_owner() {
-  target_path=$1
-
-  software_validate_abs_path "target file ownership path" "$target_path"
-  chroot "$target_root" /usr/bin/stat -c '%u:%g' -- "$target_path" 2>/dev/null
-}
-
-software_prepare_managed_repository_generated_path() {
-  generated_path=$1
-  generated_host_path="${target_root}${generated_path}"
-
-  software_validate_abs_path "managed repository generated path" "$generated_path"
-  if [ -e "$generated_host_path" ] || [ -L "$generated_host_path" ]; then
-    [ -f "$generated_host_path" ] && [ ! -L "$generated_host_path" ] ||
-      software_fatal "managed repository generated path is unsafe: $generated_path"
-    generated_owner=$(software_target_file_owner "$generated_path") ||
-      software_fatal "managed repository generated path metadata is unavailable: $generated_path"
-    [ "$generated_owner" = 0:0 ] ||
-      software_fatal "managed repository generated path is not root-owned: $generated_path"
-    rm -f -- "$generated_host_path"
-  fi
-}
-
-software_publish_managed_repository_file() {
-  generated_path=$1
-  destination_path=$2
-  destination_mode=$3
-  maximum_bytes=$4
-  generated_host_path="${target_root}${generated_path}"
-  destination_host_path="${target_root}${destination_path}"
-
-  software_validate_abs_path "managed repository generated file" "$generated_path"
-  software_validate_abs_path "managed repository destination file" "$destination_path"
-  [ -f "$generated_host_path" ] && [ ! -L "$generated_host_path" ] ||
-    software_fatal "managed repository generated file is unavailable: $generated_path"
-  generated_owner=$(software_target_file_owner "$generated_path") ||
-    software_fatal "managed repository generated file metadata is unavailable: $generated_path"
-  [ "$generated_owner" = 0:0 ] ||
-    software_fatal "managed repository generated file is not root-owned: $generated_path"
-  generated_size=$(wc -c <"$generated_host_path" | awk '{print $1}')
-  case "$generated_size" in
-    ''|*[!0123456789]*)
-      software_fatal "managed repository generated file size is invalid: $generated_path"
-      ;;
-  esac
-  [ "$generated_size" -ge 1 ] && [ "$generated_size" -le "$maximum_bytes" ] ||
-    software_fatal "managed repository generated file exceeds its size bounds: $generated_path"
-  if [ -e "$destination_host_path" ] || [ -L "$destination_host_path" ]; then
-    [ -f "$destination_host_path" ] && [ ! -L "$destination_host_path" ] ||
-      software_fatal "managed repository destination is unsafe: $destination_path"
-    destination_owner=$(software_target_file_owner "$destination_path") ||
-      software_fatal "managed repository destination metadata is unavailable: $destination_path"
-    [ "$destination_owner" = 0:0 ] ||
-      software_fatal "managed repository destination is not root-owned: $destination_path"
-  fi
-  chmod "$destination_mode" "$generated_host_path"
-  mv -f -- "$generated_host_path" "$destination_host_path"
-}
-
-software_ensure_managed_deb_repository_signing_key() {
-  signing_home_host="${target_root}${software_deb_repository_signing_home}"
-  keyring_directory=$(dirname "$software_deb_repository_keyring")
-  keyring_directory_host="${target_root}${keyring_directory}"
-
-  [ ! -L "$signing_home_host" ] ||
-    software_fatal "managed repository signing home must not be a symlink"
-  [ ! -L "$keyring_directory_host" ] ||
-    software_fatal "managed repository keyring directory must not be a symlink"
-  install -d -m 0700 "$signing_home_host"
-  install -d -m 0755 "$keyring_directory_host"
-  chown root:root "$signing_home_host" "$keyring_directory_host"
-  chmod 0700 "$signing_home_host"
-  chmod 0755 "$keyring_directory_host"
-
-  key_listing=$(software_managed_deb_repository_gpg \
-    --with-colons \
-    --list-secret-keys 2>/dev/null) ||
-    software_fatal "managed repository signing key inventory failed"
-  key_count=$(
-    printf '%s\n' "$key_listing" |
-      awk -F: '$1 == "sec" { count++ } END { print count + 0 }'
-  )
-  case "$key_count" in
-    0)
-      software_managed_deb_repository_gpg \
-        --pinentry-mode loopback \
-        --passphrase '' \
-        --quick-generate-key \
-        'Managed External Software Repository <managed-external-software@localhost>' \
-        ed25519 \
-        sign \
-        0 >/dev/null 2>&1 ||
-        software_fatal "managed repository signing key generation failed"
-      ;;
-    1) ;;
-    *) software_fatal "managed repository signing home contains multiple secret keys" ;;
-  esac
-
-  key_fingerprint=$(software_managed_deb_repository_fingerprint)
-  keyring_tmp="${software_deb_repository_keyring}.tmp.$$"
-  software_prepare_managed_repository_generated_path "$keyring_tmp"
-  software_managed_deb_repository_gpg \
-    --output "$keyring_tmp" \
-    --export-options export-minimal \
-    --export "$key_fingerprint" >/dev/null 2>&1 ||
-    software_fatal "managed repository public key export failed"
-  software_publish_managed_repository_file \
-    "$keyring_tmp" \
-    "$software_deb_repository_keyring" \
-    0644 \
-    1048576
-  printf '%s\n' "$key_fingerprint"
-}
-
-software_sign_managed_deb_repository() {
-  [ -f "${target_root}${software_deb_repository_release}" ] &&
-    [ ! -L "${target_root}${software_deb_repository_release}" ] ||
-    software_fatal "managed repository Release file is unavailable for signing"
-  key_fingerprint=$(software_ensure_managed_deb_repository_signing_key)
-  inrelease_tmp="${software_deb_repository_inrelease}.tmp.$$"
-  release_gpg_tmp="${software_deb_repository_release_gpg}.tmp.$$"
-  software_prepare_managed_repository_generated_path "$inrelease_tmp"
-  software_prepare_managed_repository_generated_path "$release_gpg_tmp"
-
-  software_managed_deb_repository_gpg \
-    --yes \
-    --local-user "$key_fingerprint" \
-    --output "$inrelease_tmp" \
-    --clearsign "$software_deb_repository_release" >/dev/null 2>&1 ||
-    software_fatal "managed repository InRelease signing failed"
-  software_managed_deb_repository_gpg \
-    --yes \
-    --local-user "$key_fingerprint" \
-    --armor \
-    --output "$release_gpg_tmp" \
-    --detach-sign "$software_deb_repository_release" >/dev/null 2>&1 ||
-    software_fatal "managed repository detached signing failed"
-  chroot "$target_root" /usr/bin/gpgv \
-    --quiet \
-    --keyring "$software_deb_repository_keyring" \
-    "$inrelease_tmp" >/dev/null 2>&1 ||
-    software_fatal "managed repository InRelease verification failed"
-  chroot "$target_root" /usr/bin/gpgv \
-    --quiet \
-    --keyring "$software_deb_repository_keyring" \
-    "$release_gpg_tmp" \
-    "$software_deb_repository_release" >/dev/null 2>&1 ||
-    software_fatal "managed repository Release signature verification failed"
-
-  software_publish_managed_repository_file \
-    "$release_gpg_tmp" \
-    "$software_deb_repository_release_gpg" \
-    0644 \
-    1048576
-  software_publish_managed_repository_file \
-    "$inrelease_tmp" \
-    "$software_deb_repository_inrelease" \
-    0644 \
-    2097152
-}
-
 software_store_managed_deb_archive() {
   label=$1
   deb_path=$2
-  package_name=$3
-  package_version=$4
-  package_architecture=$5
-  archive_path=$(software_managed_deb_archive_path \
-    "$package_name" \
-    "$package_version" \
-    "$package_architecture")
-  archive_host_path="${target_root}${archive_path}"
-  archive_tmp="${archive_host_path}.tmp.$$"
-
-  software_validate_abs_path "$label managed package archive" "$archive_path"
-  [ -f "${target_root}${deb_path}" ] && [ ! -L "${target_root}${deb_path}" ] ||
-    software_fatal "$label package is unavailable for managed archive retention"
-  if [ -e "$archive_host_path" ] && [ ! -f "$archive_host_path" ]; then
-    software_fatal "$label managed package archive path is not a regular file: $archive_path"
-  fi
-
-  install -d -m 0755 "${target_root}${software_deb_archive_dir}"
-  install -m 0644 "${target_root}${deb_path}" "$archive_tmp"
-  chroot "$target_root" /usr/bin/dpkg-deb --info "${archive_path}.tmp.$$" >/dev/null 2>&1 ||
-    software_fatal "$label managed package archive failed validation after retention copy"
-  chmod 0644 "$archive_tmp"
-  mv -f -- "$archive_tmp" "$archive_host_path"
+  software_validate_abs_path "$label package path" "$deb_path"
+  managed_archive_path=$(
+    chroot "$target_root" /usr/local/libexec/local-apt-repository import -- "$deb_path"
+  ) || software_fatal "$label could not be imported into the local APT repository"
+  case "$managed_archive_path" in
+    /var/lib/software/repo/pool/*.deb) ;;
+    *) software_fatal "local APT repository returned an invalid retained package path" ;;
+  esac
 }
 
 software_store_managed_artifact() {
@@ -1282,94 +1019,8 @@ software_store_managed_artifact() {
 }
 
 software_write_managed_deb_repository() {
-  repository_host_dir="${target_root}${software_deb_archive_dir}"
-  packages_tmp="${repository_host_dir}/.Packages.$$"
-  packages_path="${repository_host_dir}/Packages"
-  archive_count=0
-
-  install -d -m 0755 "$repository_host_dir"
-  : >"$packages_tmp"
-  chmod 0644 "$packages_tmp"
-
-  for archive_host_path in "$repository_host_dir"/*.deb; do
-    [ -f "$archive_host_path" ] && [ ! -L "$archive_host_path" ] || continue
-    archive_path=${archive_host_path#"$target_root"}
-    archive_name=${archive_path##*/}
-    case "$archive_name" in
-      *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.+:~_-]*)
-        software_fatal "managed package repository contains an unsafe archive name: $archive_name"
-        ;;
-    esac
-
-    archive_package=$(
-      chroot "$target_root" /usr/bin/dpkg-deb -f "$archive_path" Package 2>/dev/null || true
-    )
-    archive_version=$(
-      chroot "$target_root" /usr/bin/dpkg-deb -f "$archive_path" Version 2>/dev/null || true
-    )
-    archive_architecture=$(
-      chroot "$target_root" /usr/bin/dpkg-deb -f "$archive_path" Architecture 2>/dev/null || true
-    )
-    software_validate_deb_archive_component "managed repository package name" "$archive_package"
-    software_validate_deb_archive_component "managed repository package version" "$archive_version"
-    [ "$archive_architecture" = amd64 ] ||
-      software_fatal "managed repository package has unsupported architecture: ${archive_architecture:-unset}"
-    [ "$archive_name" = "${archive_package}_${archive_version}_${archive_architecture}.deb" ] ||
-      software_fatal "managed repository archive name does not match its Debian control fields: $archive_name"
-
-    chroot "$target_root" /usr/bin/dpkg-deb -f "$archive_path" >>"$packages_tmp" ||
-      software_fatal "unable to read managed package control metadata: $archive_path"
-    archive_size=$(wc -c <"$archive_host_path" | awk '{print $1}')
-    archive_sha256=$(
-      chroot "$target_root" /usr/bin/sha256sum "$archive_path" |
-        awk '{print $1}'
-    )
-    case "$archive_size:$archive_sha256" in
-      *[!0123456789abcdef:]*|:|*:)
-        software_fatal "managed package repository archive metadata is invalid: $archive_name"
-        ;;
-    esac
-    [ "${#archive_sha256}" -eq 64 ] ||
-      software_fatal "managed package repository archive SHA-256 has an unexpected length: $archive_name"
-    printf 'Filename: ./%s\nSize: %s\nSHA256: %s\n\n' \
-      "$archive_name" \
-      "$archive_size" \
-      "$archive_sha256" >>"$packages_tmp"
-    archive_count=$((archive_count + 1))
-  done
-
-  [ "$archive_count" -gt 0 ] || {
-    rm -f -- "$packages_tmp"
-    software_fatal "managed package repository has no retained Debian archives"
-  }
-  mv -f -- "$packages_tmp" "$packages_path"
-
-  repository_codename=$(software_managed_deb_repository_codename)
-  repository_release_tmp="${repository_host_dir}/.Release.$$"
-  repository_packages_size=$(wc -c <"$packages_path" | awk '{print $1}')
-  repository_packages_sha256=$(sha256sum "$packages_path" | awk '{print $1}')
-  repository_release_date=$(LC_ALL=C date -Ru)
-  case "$repository_packages_size:$repository_packages_sha256" in
-    *[!0123456789abcdef:]*|:|*:)
-      software_fatal "managed package repository Packages metadata is invalid"
-      ;;
-  esac
-  [ "${#repository_packages_sha256}" -eq 64 ] ||
-    software_fatal "managed package repository Packages SHA-256 has an unexpected length"
-  printf '%s\n' \
-    'Origin: Managed External Software' \
-    'Label: Managed External Software' \
-    "Suite: ${repository_codename}" \
-    "Codename: ${repository_codename}" \
-    'Architectures: amd64' \
-    "Date: ${repository_release_date}" \
-    'SHA256:' \
-    " ${repository_packages_sha256} ${repository_packages_size} Packages" \
-    'Description: Retained validated vendor Debian packages' >"$repository_release_tmp"
-  chmod 0644 "$repository_release_tmp"
-  mv -f -- "$repository_release_tmp" \
-    "${target_root}${software_deb_repository_release}"
-  software_sign_managed_deb_repository
+  chroot "$target_root" /usr/local/libexec/local-apt-repository rebuild ||
+    software_fatal "local APT repository atomic publication failed"
 }
 
 software_prepare_managed_deb_repository_apt_tmp() {
@@ -1535,10 +1186,6 @@ software_install_deb() {
     "$package_name" \
     "$package_version" \
     "$package_architecture"
-  managed_archive_path=$(software_managed_deb_archive_path \
-    "$package_name" \
-    "$package_version" \
-    "$package_architecture")
   software_refresh_managed_deb_repository
 
   if command -v purge_target_cdrom_apt_sources >/dev/null 2>&1; then
@@ -1548,8 +1195,7 @@ software_install_deb() {
   # services or user sessions to inspect or restart, and current needrestart
   # scanners may invoke unshare(1), which the installer environment can deny.
   # Suppress restart handling for this automatic installer-time package
-  # transaction. The scheduled external-software updater uses the same policy;
-  # administrator-initiated target operations remain outside it.
+  # transaction. Administrator-initiated target APT operations remain outside it.
   if ! chroot "$target_root" /usr/bin/env -i \
     DEBIAN_FRONTEND=noninteractive \
     DEBCONF_NONINTERACTIVE_SEEN=true \
@@ -2432,44 +2078,52 @@ mv -f -- "$ledger_version_tmp" "${target_root}${ledger_version_file}"
 
 software_refresh_managed_deb_repository
 
-software_external_cpu_quota=$(software_managed_external_cpu_quota)
+# Adopt the verified, already-installed binary distributions without compiling
+# or modifying their binaries. APT/dpkg now own their files and future upgrades.
+software_binary_packages=$(
+  chroot "$target_root" /usr/local/libexec/local-apt-repository adopt-vendors
+) || software_fatal "verified binary package adoption failed"
+for software_binary_package in $software_binary_packages; do
+  case "$software_binary_package" in
+    /var/lib/software/repo/pool/*.deb) ;;
+    *) software_fatal "invalid adopted binary package path" ;;
+  esac
+  chroot "$target_root" /usr/bin/env -i \
+    DEBIAN_FRONTEND=noninteractive \
+    NEEDRESTART_SUSPEND=1 HOME=/root \
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 --no-install-recommends \
+    install "$software_binary_package" || software_fatal "adopted binary package installation failed"
+done
+chroot "$target_root" /usr/local/libexec/local-apt-repository seed-defaults ||
+  software_fatal "managed local APT update policy initialization failed"
+software_refresh_managed_deb_repository
 
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-external-software-notify)" \
-  "$software_notify_helper" \
-  0755
-software_render_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-external-software-download.service.tmpl)" \
-  "$software_download_service" \
-  0644 \
-  MANAGED_EXTERNAL_SOFTWARE_CPU_QUOTA "$software_external_cpu_quota"
+  "$software_notify_helper" 0755
 software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-external-software-download.timer)" \
-  "$software_download_timer" \
-  0644
-software_render_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-external-software-update.service.tmpl)" \
-  "$software_update_service" \
-  0644 \
-  MANAGED_EXTERNAL_SOFTWARE_CPU_QUOTA "$software_external_cpu_quota"
-software_stage_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-external-software-update.timer)" \
-  "$software_update_timer" \
-  0644
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy)" \
+  /etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy 0644
+for software_inbox_unit in local-apt-inbox.service local-apt-inbox.path local-apt-refresh.service local-apt-refresh.timer; do
+  software_stage_seed_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/systemd/system/${software_inbox_unit}")" \
+    "/etc/systemd/system/${software_inbox_unit}" 0644
+done
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service)" \
-  "$software_notify_service" \
-  0644
+  "$software_notify_service" 0644
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/managed-external-software-notify.path)" \
-  "$software_notify_path" \
-  0644
+  "$software_notify_path" 0644
 
-run_in_target "enable managed external software update units" /bin/sh -eu -c '
-systemctl --root=/ enable managed-external-software-download.timer >/dev/null
-systemctl --root=/ is-enabled managed-external-software-download.timer >/dev/null
-systemctl --root=/ enable managed-external-software-update.timer >/dev/null
-systemctl --root=/ is-enabled managed-external-software-update.timer >/dev/null
+run_in_target "enable local APT inbox and weekly refresh; retire old install timers" /bin/sh -eu -c '
+for legacy in managed-external-software-download managed-external-software-update; do
+  systemctl --root=/ disable "$legacy.timer" 2>/dev/null || :
+  rm -f -- "/etc/systemd/system/$legacy.timer" "/etc/systemd/system/$legacy.service"
+done
+systemctl --root=/ enable local-apt-inbox.path local-apt-refresh.timer >/dev/null
+systemctl --root=/ is-enabled local-apt-inbox.path local-apt-refresh.timer >/dev/null
 ' sh
 
 software_cleanup_work_dir

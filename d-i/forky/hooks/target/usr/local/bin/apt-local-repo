@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+usage() {
+    printf '%s\n' 'Usage: sudo apt-local-repo --add FILE.deb' \
+        '       sudo apt-local-repo --delete' \
+        '       sudo apt-local-repo --refresh' \
+        '       sudo apt-local-repo --list'
+}
+case "${1-}" in
+    --add)
+        if [ "$#" -eq 2 ]; then
+            exec /usr/local/libexec/local-apt-repository add -- "$2"
+        fi
+        ;;
+    --delete|--refresh|--list)
+        if [ "$#" -eq 1 ]; then
+            exec /usr/local/libexec/local-apt-repository "${1#--}"
+        fi
+        ;;
+    --help|-h)
+        if [ "$#" -eq 1 ]; then usage; exit 0; fi
+        ;;
+esac
+usage >&2
+exit 64

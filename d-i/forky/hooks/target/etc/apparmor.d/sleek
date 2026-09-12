@@ -15,6 +15,9 @@ profile sleek /{usr/bin/sleek,opt/sleek/sleek} flags=(attach_disconnected) {
   network inet6 dgram,
   network netlink raw,
 
+  # Read-only inherited Bluetooth status descriptor.
+  /dev/rfkill r,
+
   /usr/bin/sleek mr,
   /opt/sleek/ r,
   /opt/sleek/** mrix,

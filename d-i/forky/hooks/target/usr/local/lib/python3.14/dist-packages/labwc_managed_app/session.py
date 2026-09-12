@@ -48,6 +48,10 @@ def bitwarden_session_unit_argv(
         "--quiet",
         "--collect",
         "--service-type=exec",
+        "--expand-environment=no",
+        "--property=StandardInput=null",
+        "--property=StandardOutput=journal",
+        "--property=StandardError=journal",
         "--description=Managed Bitwarden desktop client",
         "--property=After=labwc-session.target labwc-kwallet-portal.service",
         "--property=Requires=labwc-session.target labwc-kwallet-portal.service",
@@ -110,6 +114,10 @@ def wayland_compat_session_unit_argv(
         "--quiet",
         "--collect",
         "--service-type=exec",
+        "--expand-environment=no",
+        "--property=StandardInput=null",
+        "--property=StandardOutput=journal",
+        "--property=StandardError=journal",
         f"--description=Managed {display_name} Cage compatibility session",
         "--property=After=labwc-session.target",
         "--property=Requires=labwc-session.target",
@@ -191,8 +199,8 @@ def redirect_native_from_private_users(
     In it root and supplementary group ownership cannot be distinguished.
     Do not weaken all the later ownership checks or alter that sandbox: ask
     the same user's manager to execute the existing wrapper outside it.
-    --pipe/--wait retain the caller's output capture and exit-status semantics,
-    including ChatGPT's dedicated, private log runner.
+    Only ChatGPT retains its private output pipes. Other applications use
+    independent journal streams, never the panel/compositor stdout descriptors.
     """
     marker = os.environ.get(NATIVE_SESSION_UNIT_MARKER, "")
     if marker not in {"", "1"}:
@@ -248,7 +256,14 @@ def redirect_native_from_private_users(
     if app_name == "chatgpt":
         startup_dependencies += " codex-app-server.socket codex-app-server-proxy.service"
     argv = [
-        systemd_run, "--user", "--quiet", "--collect", "--pipe", "--wait",
+        systemd_run, "--user", "--quiet", "--collect",
+        *(["--pipe", "--wait"] if app_name == "chatgpt" else [
+            "--property=StandardInput=null",
+            "--property=StandardOutput=journal",
+            "--property=StandardError=journal",
+            f"--property=SyslogIdentifier=labwc-{app_name}",
+        ]),
+        "--slice=app.slice",
         "--service-type=exec", "--expand-environment=no",
         f"--description=Managed {app_name} desktop client",
         f"--property=After={startup_dependencies}",

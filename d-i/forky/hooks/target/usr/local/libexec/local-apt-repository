@@ -1,0 +1,1745 @@
+#!/usr/bin/python3 -I
+"""Publish the host's signed, flat APT repository; never run apt or dpkg installs.
+
+The inbox is private, pool objects are immutable, and a single current symlink
+commits both the catalogue and its signed indexes. Old by-hash indexes and pool
+objects deliberately remain usable by concurrent/cached APT readers.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import copy
+import datetime
+import email.utils
+import email.message
+import fcntl
+import fnmatch
+import functools
+import gzip
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import re
+import resource
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.parse
+import uuid
+import xml.etree.ElementTree as ET
+
+MAX_DEB = 1024 * 1024 * 1024
+MAX_CONTROL = 16 * 1024 * 1024
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": "/root", "LC_ALL": "C.UTF-8"}
+NAME = re.compile(r"[a-z0-9][a-z0-9+.-]+\Z")
+ARCH = re.compile(r"[a-z0-9][a-z0-9-]{0,31}\Z")
+VERSION = re.compile(r"[0-9][A-Za-z0-9.+:~\-]{0,127}\Z")
+INDEX_FIELDS = {"filename", "size", "md5sum", "sha1", "sha256", "sha512"}
+
+
+class Error(Exception):
+    """A rejected input or a failed repository transaction."""
+
+
+def warn(message: str) -> None:
+    print(f"local-apt-repository: {message}", file=sys.stderr)
+
+
+def checked_file(path: Path, *, private: bool = True, limit: int = MAX_DEB, single_link: bool = True) -> int:
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    st = os.fstat(fd)
+    if (not stat.S_ISREG(st.st_mode) or (single_link and st.st_nlink != 1) or st.st_size > limit
+            or (private and (st.st_uid != 0 or st.st_mode & 0o022))):
+        os.close(fd)
+        raise Error(f"unsafe regular file: {path}")
+    return fd
+
+
+def read_bytes(path: Path, limit: int = MAX_CONTROL) -> bytes:
+    with os.fdopen(checked_file(path, limit=limit), "rb") as stream:
+        data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise Error(f"file exceeds limit: {path}")
+        return data
+
+
+def safe_dir(path: Path, mode: int = 0o755) -> None:
+    # Check each existing ancestor, not only the final component. The production
+    # roots are fixed; callers cannot redirect privileged writes with an env var.
+    for parent in reversed((path, *path.parents)):
+        if not parent.exists() and not parent.is_symlink():
+            created_mode = mode if parent == path else 0o755
+            parent.mkdir(mode=created_mode)
+            os.chmod(parent, created_mode)
+        st = parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            raise Error(f"unsafe repository directory: {parent}")
+    os.chmod(path, mode)
+
+
+def fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def atomic_bytes(path: Path, data: bytes, mode: int = 0o644) -> None:
+    if path.exists() or path.is_symlink():
+        fd = checked_file(path)
+        os.close(fd)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), mode)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        fsync_dir(path.parent)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def _child_limits(file_limit: int) -> None:
+    resource.setrlimit(resource.RLIMIT_FSIZE, (file_limit, file_limit))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def run(argv: list[str], *, timeout: int = 180, limit: int = MAX_CONTROL,
+        env: dict[str, str] | None = None, file_limit: int = MAX_CONTROL) -> bytes:
+    # Capture into bounded files rather than allocating unbounded child output.
+    with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+        try:
+            proc = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=out,
+                                  stderr=err, env=env or ENV, timeout=timeout,
+                                  check=False, preexec_fn=functools.partial(_child_limits, file_limit))
+        except subprocess.TimeoutExpired as exc:
+            raise Error(f"{Path(argv[0]).name} timed out") from exc
+        out.seek(0)
+        result = out.read(limit + 1)
+        err.seek(0)
+        detail = err.read(4096).decode("utf-8", "replace").strip()
+        if proc.returncode or len(result) > limit:
+            raise Error(f"{Path(argv[0]).name} failed ({proc.returncode}): {detail}")
+        return result
+
+
+def newer(left: str, right: str) -> bool:
+    proc = subprocess.run(["/usr/bin/dpkg", "--compare-versions", left, "gt", right],
+                          env=ENV, stdin=subprocess.DEVNULL, capture_output=True,
+                          timeout=10, check=False)
+    if proc.returncode not in (0, 1):
+        raise Error("invalid Debian version comparison")
+    return proc.returncode == 0
+
+
+def digest_file(path: Path) -> str:
+    with os.fdopen(checked_file(path), "rb") as stream:
+        digest = hashlib.sha256()
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+        return digest.hexdigest()
+
+
+def parse_control(raw: bytes) -> dict[str, str]:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeError as exc:
+        raise Error("control metadata is not UTF-8") from exc
+    if "\0" in text or "\r" in text or len(raw) > MAX_CONTROL:
+        raise Error("invalid control metadata")
+    fields: dict[str, str] = {}
+    seen: set[str] = set()
+    key = ""
+    for line in text.rstrip("\n").split("\n"):
+        if line.startswith((" ", "\t")) and key:
+            fields[key] += "\n" + line
+            continue
+        match = re.fullmatch(r"([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)", line)
+        if not match or match[1].lower() in seen:
+            raise Error("duplicate or malformed control field")
+        key = match[1]
+        seen.add(key.lower())
+        fields[key] = match[2]
+    for name, pattern in (("Package", NAME), ("Version", VERSION), ("Architecture", ARCH)):
+        if not pattern.fullmatch(fields.get(name, "")):
+            raise Error(f"invalid or missing {name}")
+    run(["/usr/bin/dpkg", "--validate-version", fields["Version"]], timeout=10)
+    return fields
+
+
+def control_bytes(fields: dict[str, str]) -> bytes:
+    return ("\n".join(f"{key}: {value}" for key, value in fields.items()) + "\n").encode()
+
+
+def inspect_deb(path: Path, architectures: set[str]) -> dict[str, str]:
+    with os.fdopen(checked_file(path), "rb") as stream:
+        if stream.read(8) != b"!<arch>\n":
+            raise Error("download is not a Debian archive (HTML/API responses are not packages)")
+    fields = parse_control(run(["/usr/bin/dpkg-deb", "--field", str(path)]))
+    if fields["Architecture"] not in architectures | {"all"}:
+        raise Error(f"unsupported architecture: {fields['Architecture']}")
+    # This walks/decompresses the complete payload but never extracts or runs it.
+    run(["/usr/bin/dpkg-deb", "--contents", str(path)], timeout=240)
+    return fields
+
+
+def remove_dependencies(depends: str, names: list[str]) -> str:
+    requested = set(names)
+    if not requested or any(not NAME.fullmatch(name) for name in requested):
+        raise Error("enter exact, unqualified Debian dependency names")
+    found: set[str] = set()
+    groups = []
+    for group in depends.replace("\n", " ").split(","):
+        alternatives = []
+        for atom in group.split("|"):
+            atom = atom.strip()
+            match = re.match(r"([a-z0-9][a-z0-9+.-]+)(?=[:\s(\[]|$)", atom)
+            if not match:
+                raise Error("cannot safely parse Depends")
+            if match[1] in requested:
+                found.add(match[1])
+            else:
+                alternatives.append(atom)
+        if alternatives:
+            groups.append(" | ".join(alternatives))
+    if requested - found:
+        raise Error("not present in Depends: " + ", ".join(sorted(requested - found)))
+    return ", ".join(groups)
+
+
+def ar_members(stream):
+    if stream.read(8) != b"!<arch>\n":
+        raise Error("invalid ar framing")
+    while header := stream.read(60):
+        if len(header) != 60 or header[58:] != b"`\n":
+            raise Error("invalid ar member header")
+        try:
+            name = header[:16].decode("ascii").strip().rstrip("/")
+            size = int(header[48:58].decode("ascii").strip())
+        except (ValueError, UnicodeError) as exc:
+            raise Error("invalid ar member") from exc
+        if not re.fullmatch(r"[A-Za-z0-9_.+-]+", name) or not 0 <= size <= MAX_DEB:
+            raise Error("unsupported ar member")
+        offset = stream.tell()
+        yield name, size, offset
+        stream.seek(offset + size + (size % 2))
+    if stream.tell() != os.fstat(stream.fileno()).st_size:
+        raise Error("truncated ar member")
+
+
+def ar_header(name: str, size: int) -> bytes:
+    if len(name) > 16 or size > MAX_DEB:
+        raise Error("ar member exceeds format bounds")
+    return f"{name:<16}{0:<12}{0:<6}{0:<6}{'100644':<8}{size:<10}`\n".encode("ascii")
+
+
+def rewrite_depends(source: Path, destination: Path, fields: dict[str, str],
+                    names: list[str], revision: int = 1) -> None:
+    fields = dict(fields)
+    if names:
+        value = remove_dependencies(fields.get("Depends", ""), names)
+        if value:
+            fields["Depends"] = value
+        else:
+            fields.pop("Depends", None)
+    fields["Version"] += f"+localrepo{revision}"
+    raw = run(["/usr/bin/dpkg-deb", "--ctrl-tarfile", str(source)])
+    payload = io.BytesIO()
+    found = False
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as old:
+        with tarfile.open(fileobj=payload, mode="w:", format=tarfile.GNU_FORMAT) as new:
+            for info in old:
+                if info.name.lstrip("./") == "control":
+                    if found or not info.isfile():
+                        raise Error("invalid control archive")
+                    found = True
+                    data = control_bytes(fields)
+                    info = copy.copy(info)
+                    info.size = len(data)
+                    new.addfile(info, io.BytesIO(data))
+                else:
+                    new.addfile(info, old.extractfile(info) if info.isfile() else None)
+    if not found:
+        raise Error("control file is missing")
+    packed = gzip.compress(payload.getvalue(), mtime=0)
+    # Only control metadata is reassembled. data.tar.* remains byte-for-byte
+    # vendor supplied; no build, binary patch or maintainer script is executed.
+    with os.fdopen(checked_file(source), "rb") as old, destination.open("xb") as new:
+        new.write(b"!<arch>\n")
+        seen = set()
+        for name, size, offset in ar_members(old):
+            if name in seen:
+                raise Error("duplicate ar member")
+            seen.add(name)
+            if name.startswith("_gpg"):
+                continue  # A vendor signature cannot attest to edited control data.
+            if name.startswith("control.tar"):
+                new.write(ar_header("control.tar.gz", len(packed)))
+                new.write(packed)
+                if len(packed) % 2:
+                    new.write(b"\n")
+                continue
+            if name != "debian-binary" and not re.fullmatch(r"data\.tar(?:\.(?:gz|xz|zst|bz2|lzma))?", name):
+                raise Error("unsupported Debian archive member")
+            new.write(ar_header(name, size))
+            old.seek(offset)
+            remaining = size
+            while remaining:
+                data = old.read(min(1024 * 1024, remaining))
+                if not data:
+                    raise Error("truncated Debian archive")
+                new.write(data)
+                remaining -= len(data)
+            if size % 2:
+                new.write(b"\n")
+        if "debian-binary" not in seen or sum(n.startswith("data.tar") for n in seen) != 1 or sum(n.startswith("control.tar") for n in seen) != 1:
+            raise Error("invalid Debian archive structure")
+        new.flush()
+        os.fsync(new.fileno())
+    os.chmod(destination, 0o600)
+
+
+def https_url(value: str) -> str:
+    if len(value) > 8192 or re.search(r"[\x00-\x20\x7f]", value):
+        raise Error("invalid URL")
+    parts = urllib.parse.urlsplit(value)
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.fragment:
+        raise Error("use an HTTPS URL without embedded credentials or fragment")
+    try:
+        if parts.port not in (None, 443):
+            raise Error("only HTTPS port 443 is supported")
+    except ValueError as exc:
+        raise Error("invalid HTTPS port") from exc
+    return value
+
+
+# Update discovery is deliberately separate from artifact retrieval. A metadata
+# request may GET bounded JSON/RSS/signatures; it never GETs a package to find
+# out whether the package changed.
+MAX_METADATA = 8 * 1024 * 1024
+MAX_HEADERS = 64 * 1024
+ARCH_ALIASES = {
+    "amd64": ("amd64", "x86_64", "x86-64", "x64"),
+    "arm64": ("arm64", "aarch64"),
+    "i386": ("i386", "i486", "i586", "i686", "x86"),
+    "armhf": ("armhf", "armv7l", "armv7"),
+    "armel": ("armel", "armv6l"),
+    "ppc64el": ("ppc64el", "ppc64le"),
+    "riscv64": ("riscv64",), "s390x": ("s390x",), "all": ("all",),
+}
+
+
+def http_headers(raw: bytes, status: int) -> dict[str, str]:
+    """Use the final response, not a redirect/CONNECT/informational header."""
+    if len(raw) > MAX_HEADERS or b"\0" in raw:
+        raise Error("HTTP response headers exceed bounds or contain NUL")
+    blocks = re.split(rb"\r?\n\r?\n", raw)
+    final = None
+    for block in blocks:
+        lines = block.splitlines()
+        if lines and re.fullmatch(rb"HTTP/[0-9.]+ [0-9]{3}(?: .*)?", lines[0]):
+            final = lines
+    if not final or int(final[0].split()[1]) != status:
+        raise Error("HTTP response headers do not match the final status")
+    result = {}
+    selected = {"etag", "last-modified", "content-length", "content-type", "content-disposition", "content-encoding"}
+    for line in final[1:]:
+        if b":" not in line or line.startswith((b" ", b"\t")):
+            raise Error("malformed HTTP response header")
+        name, value = line.split(b":", 1)
+        key = name.decode("ascii").lower()
+        if key not in selected:
+            continue
+        value = value.strip().decode("latin-1")
+        if key in result or len(value) > 4096 or re.search(r"[\x00-\x1f\x7f]", value):
+            raise Error("duplicate or unsafe HTTP representation header")
+        result[key] = value
+    return result
+
+
+def request(url: str, destination: Path, *, method: str = "GET", maximum: int = MAX_DEB,
+            headers: dict[str, str] | None = None) -> dict:
+    https_url(url)
+    if method not in ("GET", "HEAD"):
+        raise Error("unsupported HTTP method")
+    if destination.exists() or destination.is_symlink():
+        raise Error("HTTP destination already exists")
+    header_path = destination.with_name(destination.name + ".headers")
+    if header_path.exists() or header_path.is_symlink():
+        raise Error("HTTP header destination already exists")
+    command = ["/usr/bin/curl", "-q", "--fail", "--silent", "--show-error", "--location",
+               "--globoff", "--disallow-username-in-url", "--proto", "=https", "--proto-redir", "=https",
+               "--max-redirs", "8", "--connect-timeout", "20", "--max-time", "240",
+               "--retry", "2", "--retry-max-time", "300", "--user-agent", "apt-local-repo/2",
+               "--header", "Accept-Encoding: identity", "--dump-header", str(header_path),
+               "--write-out", "%{http_code}\n%{url_effective}\n"]
+    for name, value in (headers or {}).items():
+        if name not in {"If-None-Match", "If-Modified-Since", "If-Match", "If-Unmodified-Since", "Accept"}:
+            raise Error("unsupported HTTP request header")
+        if not isinstance(value, str) or len(value) > 4096 or re.search(r"[\x00-\x1f\x7f]", value):
+            raise Error("unsafe HTTP request header")
+        command += ["--header", name + ": " + value]
+    if method == "HEAD":
+        # --request HEAD alone would still allow curl to consume a body.
+        command += ["--head", "--output", "/dev/null"]
+    else:
+        command += ["--max-filesize", str(maximum), "--output", str(destination)]
+    command += ["--url", url]
+    try:
+        result = run(command, timeout=330, limit=16384,
+                     file_limit=max(MAX_HEADERS, maximum) if method == "GET" else MAX_HEADERS)
+        lines = result.decode("utf-8").splitlines()
+        if len(lines) != 2 or not re.fullmatch(r"[0-9]{3}", lines[0]):
+            raise Error("invalid curl response metadata")
+        status = int(lines[0])
+        if status not in (200, 304):
+            raise Error(f"unexpected HTTP status {status}; partial bodies are not accepted")
+        effective = https_url(lines[1])
+        response = {"status": status, "url": effective,
+                    "headers": http_headers(read_bytes(header_path, MAX_HEADERS), status)}
+        if method == "GET" and status == 200:
+            with os.fdopen(checked_file(destination, limit=maximum), "rb") as stream:
+                if os.fstat(stream.fileno()).st_size == 0:
+                    raise Error("empty HTTP response")
+                os.fsync(stream.fileno())
+        return response
+    finally:
+        header_path.unlink(missing_ok=True)
+
+
+def download(url: str, destination: Path, maximum: int = MAX_DEB) -> dict:
+    return request(url, destination, maximum=maximum)
+
+
+def validators(response: dict) -> dict:
+    headers = response["headers"]
+    result = {}
+    etag = headers.get("etag", "")
+    if etag:
+        if len(etag) > 1024 or not re.fullmatch(r'(?:W/)?"[\x21\x23-\x7e]*"', etag):
+            raise Error("invalid ETag")
+        result["etag"] = etag
+    modified = headers.get("last-modified", "")
+    if modified:
+        try:
+            when = email.utils.parsedate_to_datetime(modified)
+            if when.tzinfo is None:
+                raise ValueError("no timezone")
+            result["last_modified"] = email.utils.format_datetime(when.astimezone(datetime.timezone.utc), usegmt=True)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise Error("invalid Last-Modified header") from exc
+    return result
+
+
+def conditional_headers(saved: dict) -> dict[str, str]:
+    if saved.get("etag"):
+        return {"If-None-Match": saved["etag"]}
+    if saved.get("last_modified"):
+        return {"If-Modified-Since": saved["last_modified"]}
+    return {}
+
+
+def asset_family(name: str) -> str:
+    # Replace only version-shaped components, not edition or architecture.
+    # A URL for an old release therefore pins the product, not the old release.
+    return re.sub(r"(?<![a-z0-9])v?[0-9]+(?:\.[0-9]+)+(?:~[a-z]+[0-9]*)?(?:-[0-9]+)?",
+                  "{version}", name.lower())
+
+
+def source_for(url: str) -> dict:
+    parts = urllib.parse.urlsplit(https_url(url))
+    path = parts.path.rstrip("/")
+    source = {"kind": "direct", "url": url}
+    hint = ""
+    if parts.hostname == "github.com":
+        match = re.fullmatch(r"/([^/]+)/([^/]+)(?:/releases(?:/.*)?)?", path)
+        if match:
+            source = {"kind": "github", "url": f"https://api.github.com/repos/{match[1]}/{match[2]}/releases?per_page=100"}
+            hint = path.rsplit("/", 1)[-1]
+    elif parts.hostname == "api.github.com":
+        match = re.fullmatch(r"/repos/([^/]+)/([^/]+)/releases(?:/.*)?", path)
+        if match:
+            source = {"kind": "github", "url": f"https://api.github.com/repos/{match[1]}/{match[2]}/releases?per_page=100"}
+    if "/-/releases" in path:
+        project, _ = path.split("/-/releases", 1)
+        if not project.strip("/"):
+            raise Error("GitLab release URL lacks a project")
+        project = urllib.parse.quote(urllib.parse.unquote(project.strip("/")), safe="")
+        source = {"kind": "gitlab", "url": f"https://{parts.netloc}/api/v4/projects/{project}/releases?per_page=100&order_by=released_at&sort=desc"}
+        hint = path.rsplit("/", 1)[-1]
+    elif match := re.fullmatch(r"/api/v4/projects/([^/]+)/releases(?:/.*)?", path):
+        source = {"kind": "gitlab", "url": f"https://{parts.netloc}/api/v4/projects/{match[1]}/releases?per_page=100&order_by=released_at&sort=desc"}
+        hint = path.rsplit("/", 1)[-1]
+    if parts.hostname in ("sourceforge.net", "www.sourceforge.net"):
+        match = re.fullmatch(r"/projects/([^/]+)(?:/(?:files|rss)(?:/.*)?)?", path)
+        if match:
+            source = {"kind": "sourceforge", "url": f"https://sourceforge.net/projects/{match[1]}/rss?path=/&limit=100", "project": match[1]}
+            hint = path.removesuffix("/download").rsplit("/", 1)[-1]
+    elif parts.hostname == "downloads.sourceforge.net" or (parts.hostname or "").endswith(".dl.sourceforge.net"):
+        match = re.fullmatch(r"/project/([^/]+)/(.+)", path)
+        if match:
+            source = {"kind": "sourceforge", "url": f"https://sourceforge.net/projects/{match[1]}/rss?path=/&limit=100", "project": match[1]}
+            hint = path.rsplit("/", 1)[-1]
+    hint = urllib.parse.unquote(hint)
+    if hint.lower().endswith(".deb"):
+        source["family"] = asset_family(hint)
+    return source
+
+
+def source_id(source: dict) -> str:
+    return hashlib.sha256(json.dumps(source, sort_keys=True).encode()).hexdigest()
+
+
+def timestamp(value: str) -> float:
+    if not isinstance(value, str) or not value:
+        return 0
+    try:
+        moment = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            moment = email.utils.parsedate_to_datetime(value)
+        except (ValueError, TypeError, OverflowError):
+            return 0
+    return moment.timestamp() if moment.tzinfo else 0
+
+
+def advertised_version(tag: str = "", name: str = "") -> str:
+    # Filename first: it can include the Debian packaging revision absent from
+    # the release tag. Unknown tags remain unknown, never invented versions.
+    decoded = urllib.parse.unquote(name)
+    match = re.search(r"(?:^|[_-])v?([0-9]+(?:\.[0-9]+)+(?:~[a-z]+[0-9]*)?(?:-[0-9]+)?)(?=[_-]|\.deb$)", decoded, re.I)
+    if match:
+        return match[1]
+    if isinstance(tag, str):
+        match = re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_.-]*[-/])?v?([0-9]+(?:\.[0-9]+)+(?:[-+~][A-Za-z0-9.+~]+)?)", tag)
+        if match and VERSION.fullmatch(match[1]):
+            return match[1]
+    return ""
+
+
+def prerelease(tag: str) -> bool:
+    return bool(re.search(r"(?:^|[-_./~])(?:alpha|beta|rc|pre|preview|nightly|dev)(?:[0-9]|$|[-_./])", tag, re.I))
+
+
+def compatible_asset(name: str, architecture: str) -> bool:
+    text = name.lower()
+    detected = set()
+    # Longest aliases first; x86 must not also identify x86_64 as i386.
+    for arch, aliases in ARCH_ALIASES.items():
+        for alias in aliases:
+            if re.search(r"(?<![a-z0-9])" + re.escape(alias) + r"(?![a-z0-9])", text):
+                if alias == "x86" and re.search(r"x86[_-]64", text):
+                    continue
+                detected.add(arch)
+    return not detected or detected <= {architecture, "all"}
+
+
+def select_asset(assets: list[dict], source: dict, package: str, architecture: str) -> dict | None:
+    candidates = [asset for asset in assets if compatible_asset(asset["name"], architecture)]
+    if source.get("family"):
+        candidates = [asset for asset in candidates if asset_family(asset["name"]) == source["family"]]
+    else:
+        compact = re.sub(r"[-_.]", "", package.lower())
+        matched = [asset for asset in candidates if re.sub(r"[-_.]", "", asset["name"].lower()).startswith(compact)]
+        if matched:
+            candidates = matched
+    if len(candidates) > 1:
+        raise Error("ambiguous .deb assets; re-add with the release asset URL for the intended product/edition")
+    return candidates[0] if candidates else None
+
+
+class Discovery:
+    def __init__(self, root: Path):
+        self.cache = root / "state/upstream-metadata"
+        self.memory: dict[str, bytes] = {}
+
+    def metadata(self, url: str, directory: Path, *, interval: int = 0) -> bytes:
+        """Conditional metadata GET; failed artifact downloads do not poison it."""
+        if url in self.memory:
+            return self.memory[url]
+        safe_dir(self.cache, 0o700)
+        path = self.cache / (hashlib.sha256(url.encode()).hexdigest() + ".json")
+        cached = {}
+        if path.exists():
+            cached = json.loads(read_bytes(path, 2 * MAX_METADATA))
+            if not isinstance(cached, dict) or cached.get("url") != url or not isinstance(cached.get("body"), str):
+                raise Error("invalid metadata cache")
+        # SourceForge asks clients not to poll a feed more than once per 30 min.
+        age = time.time() - cached.get("checked_at", 0)
+        if cached and interval and 0 <= age < interval:
+            body = cached["body"].encode("utf-8")
+        else:
+            destination = directory / ("metadata-" + uuid.uuid4().hex)
+            response = request(url, destination, maximum=MAX_METADATA,
+                               headers=conditional_headers(cached.get("validators", {})))
+            if response["status"] == 304:
+                if not cached:
+                    raise Error("metadata server returned 304 without a cached representation")
+                body = cached["body"].encode("utf-8")
+            else:
+                body = read_bytes(destination, MAX_METADATA)
+                cached = {"url": url, "body": body.decode("utf-8"), "validators": validators(response)}
+            cached["checked_at"] = time.time()
+            atomic_bytes(path, (json.dumps(cached, ensure_ascii=False) + "\n").encode(), 0o600)
+        if len(body) > MAX_METADATA:
+            raise Error("metadata cache exceeds bounds")
+        self.memory[url] = body
+        return body
+
+    def release(self, source: dict, package: str, architecture: str, directory: Path) -> dict:
+        kind = source["kind"]
+        raw = self.metadata(source["url"], directory, interval=1800 if kind == "sourceforge" else 0)
+        candidates = []
+        if kind == "sourceforge":
+            if re.search(br"<!\s*(?:DOCTYPE|ENTITY)", raw, re.I):
+                raise Error("DTD/entity declarations are not allowed in release feeds")
+            try:
+                root = ET.fromstring(raw)
+            except ET.ParseError as exc:
+                raise Error("invalid SourceForge release feed") from exc
+            if root.tag != "rss":
+                raise Error("SourceForge did not return an RSS file feed")
+            items = root.findall("./channel/item")
+            if len(items) > 1000:
+                raise Error("release feed exceeds item limit")
+            assets = []
+            for item in items:
+                url = (item.findtext("link") or "").strip()
+                if url.startswith("http://sourceforge.net/"):
+                    url = "https://" + url[len("http://"):]
+                parts = urllib.parse.urlsplit(url)
+                prefix = f"/projects/{source['project']}/files/"
+                if parts.hostname not in ("sourceforge.net", "www.sourceforge.net") or not parts.path.startswith(prefix):
+                    continue
+                name = urllib.parse.unquote(parts.path.removesuffix("/download").rsplit("/", 1)[-1])
+                if not name.lower().endswith(".deb") or prerelease(urllib.parse.unquote(parts.path)):
+                    continue
+                published = timestamp(item.findtext("pubDate") or "")
+                if not published or published > time.time() + 300:
+                    continue
+                assets.append({"name": name, "url": https_url(url), "version": advertised_version(name=name),
+                               "published": published, "release": url, "updated": published})
+            # Choose a product family before choosing its newest file; the feed
+            # commonly contains older releases of the very same .deb.
+            families = {}
+            for asset in assets:
+                families.setdefault(asset_family(asset["name"]), []).append(asset)
+            representatives = [values[0] for values in families.values()]
+            selected = select_asset(representatives, source, package, architecture)
+            if selected:
+                candidates = families[asset_family(selected["name"])]
+        else:
+            document = json.loads(raw)
+            if not isinstance(document, list) or len(document) > 100:
+                raise Error("release API did not return a bounded release list")
+            for release in document:
+                if not isinstance(release, dict):
+                    raise Error("malformed release entry")
+                tag = release.get("tag_name", "")
+                if not isinstance(tag, str):
+                    raise Error("invalid release tag")
+                if release.get("draft") or release.get("prerelease") or release.get("upcoming_release") or prerelease(tag):
+                    continue
+                published = timestamp(release.get("published_at" if kind == "github" else "released_at", ""))
+                if not published or published > time.time() + 300:
+                    continue
+                assets = release.get("assets", [] if kind == "github" else {})
+                if kind == "gitlab":
+                    if not isinstance(assets, dict):
+                        raise Error("malformed GitLab assets")
+                    assets = assets.get("links", [])
+                if not isinstance(assets, list) or any(not isinstance(a, dict) for a in assets):
+                    raise Error("malformed release assets")
+                links = []
+                for asset in assets:
+                    url = asset.get("browser_download_url", "") if kind == "github" else asset.get("direct_asset_url") or asset.get("url", "")
+                    name = asset.get("name", "")
+                    if not isinstance(url, str) or not isinstance(name, str):
+                        raise Error("invalid release asset name/URL")
+                    url_name = urllib.parse.unquote(urllib.parse.urlsplit(url).path.rsplit("/", 1)[-1])
+                    if not name.lower().endswith(".deb"):
+                        if not url_name.lower().endswith(".deb"):
+                            continue
+                        name = url_name
+                    if prerelease(name):
+                        continue
+                    if kind == "github" and asset.get("state", "uploaded") != "uploaded":
+                        continue
+                    entry = {"name": name, "url": https_url(url), "version": advertised_version(tag, name),
+                             "published": published, "release": release.get("id", tag), "asset": asset.get("id", name),
+                             "updated": asset.get("updated_at", "")}
+                    if kind == "github":
+                        size = asset.get("size")
+                        if size is not None:
+                            if type(size) is not int or not 0 < size <= MAX_DEB:
+                                raise Error("release asset size outside bounds")
+                            entry["size"] = size
+                        digest = asset.get("digest")
+                        if digest:
+                            if not isinstance(digest, str) or not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest):
+                                raise Error("unsupported release asset digest")
+                            entry["sha256"] = digest.split(":", 1)[1].lower()
+                    links.append(entry)
+                candidate = select_asset(links, source, package, architecture)
+                if candidate:
+                    candidates.append(candidate)
+        if not candidates:
+            raise Error("no unique stable matching .deb in the latest release metadata; nothing downloaded")
+        # Debian order where available; a republished old release must not win
+        # merely because its timestamp moved forward.
+        def compare(a, b):
+            if a["version"] and b["version"] and a["version"] != b["version"]:
+                return 1 if newer(a["version"], b["version"]) else -1
+            return (a["published"] > b["published"]) - (a["published"] < b["published"])
+        candidate = max(candidates, key=functools.cmp_to_key(compare))
+        candidate["source"] = source_id(source)
+        # Exclude signed CDN query strings and mutable release descriptions.
+        fingerprint = {k: v for k, v in candidate.items() if k not in ("url", "source")}
+        candidate["token"] = hashlib.sha256(json.dumps(fingerprint, sort_keys=True).encode()).hexdigest()
+        candidate["kind"] = kind
+        return candidate
+
+    def direct(self, source: dict, directory: Path, saved: dict | None = None) -> dict:
+        old = saved if saved and saved.get("source") == source_id(source) else {}
+        response = request(source["url"], directory / ("head-" + uuid.uuid4().hex), method="HEAD",
+                           headers=conditional_headers(old.get("validators", {})))
+        if response["status"] == 304:
+            if not old:
+                raise Error("endpoint returned 304 without a recorded metadata baseline")
+            return copy.deepcopy(old)
+        header = response["headers"]
+        if header.get("content-type", "").split(";", 1)[0].lower() in ("text/html", "application/json", "application/xml", "text/xml"):
+            raise Error("direct endpoint returned web/API metadata rather than a package resource")
+        state = validators(response)
+        if not state:
+            raise Error("endpoint provides neither ETag nor Last-Modified; no blind package download is allowed")
+        name = urllib.parse.unquote(urllib.parse.urlsplit(response["url"]).path.rsplit("/", 1)[-1])
+        disposition = header.get("content-disposition")
+        if disposition:
+            message = email.message.Message()
+            message["Content-Disposition"] = disposition
+            name = message.get_filename() or name
+        candidate = {"kind": "direct", "source": source_id(source), "url": source["url"],
+                     "validators": state, "version": advertised_version(name=name), "name": name,
+                     "published": timestamp(state.get("last_modified", ""))}
+        size = header.get("content-length", "")
+        if size:
+            if not size.isdigit() or not 0 < int(size) <= MAX_DEB:
+                raise Error("direct endpoint size is invalid or exceeds bounds")
+            candidate["size"] = int(size)
+        candidate["token"] = hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
+        return candidate
+
+    def candidate(self, source: dict, record: dict, directory: Path) -> dict:
+        saved = record.get("policy", {}).get("tracking")
+        if source["kind"] == "direct":
+            return self.direct(source, directory, saved)
+        return self.release(source, record["package"], record["architecture"], directory)
+
+
+def update_decision(candidate: dict, record: dict) -> str:
+    """Return download/current/baseline. A baseline is explicitly not proof."""
+    saved = record.get("policy", {}).get("tracking", {})
+    if saved.get("source") != candidate["source"]:
+        saved = {}
+    if saved and saved.get("token") == candidate["token"]:
+        return "current"
+    if candidate.get("sha256") and candidate["sha256"] == record.get("upstream_sha256", record["sha256"]):
+        return "current"
+    if candidate["kind"] == "direct" and saved:
+        old = saved.get("validators", {})
+        new = candidate["validators"]
+        if old.get("etag") and new.get("etag"):
+            return "current" if old["etag"] == new["etag"] else "download"
+        if old.get("last_modified") and new.get("last_modified"):
+            if timestamp(new["last_modified"]) < timestamp(old["last_modified"]):
+                raise Error("endpoint Last-Modified moved backwards; keeping the published package")
+            return "current" if old["last_modified"] == new["last_modified"] else "download"
+        raise Error("endpoint validators changed type; cannot establish an update without a new baseline")
+    version = candidate.get("version", "")
+    previous = record.get("upstream_version", record["version"])
+    if version:
+        # Release tags normally omit the package maintainer's Debian epoch.
+        comparable = previous.split(":", 1)[-1] if ":" not in version else previous
+        if newer(version, comparable):
+            return "download"
+        if version == comparable and candidate.get("sha256") and candidate["sha256"] != record.get("upstream_sha256", record["sha256"]):
+            raise Error("release advertises different bytes under the published version; nothing downloaded")
+        if saved and version == comparable and saved.get("token") != candidate["token"]:
+            raise Error("release asset changed without a newer package version; nothing downloaded")
+        return "current"
+    if saved:
+        if candidate.get("published", 0) < saved.get("published", 0):
+            raise Error("release metadata moved backwards; keeping the published package")
+        return "download"
+    return "baseline"
+
+
+def retrieve_candidate(candidate: dict, saved: dict, destination: Path) -> dict:
+    if saved.get("source") != candidate["source"]:
+        saved = {}
+    headers = {}
+    if candidate["kind"] == "direct":
+        state = candidate["validators"]
+        if state.get("etag") and not state["etag"].startswith("W/"):
+            headers["If-Match"] = state["etag"]
+        elif state.get("last_modified"):
+            headers["If-Unmodified-Since"] = state["last_modified"]
+        if saved.get("validators", {}).get("etag"):
+            headers["If-None-Match"] = saved["validators"]["etag"]
+    response = request(candidate["url"], destination, headers=headers)
+    if response["status"] != 200:
+        raise Error("upstream changed between discovery and retrieval; retry refresh")
+    if candidate.get("size") is not None and destination.stat().st_size != candidate["size"]:
+        raise Error("artifact size differs from discovery metadata")
+    if candidate.get("sha256") and digest_file(destination) != candidate["sha256"]:
+        raise Error("artifact SHA-256 differs from release metadata")
+    if candidate["kind"] == "direct":
+        actual = validators(response)
+        if not actual:
+            raise Error("download omitted the representation validators seen during discovery")
+        for key, value in candidate["validators"].items():
+            if key in actual and actual[key] != value:
+                raise Error("endpoint changed between HEAD and GET; retry refresh")
+        if not set(actual) & set(candidate["validators"]):
+            raise Error("download validators cannot be associated with the metadata probe")
+        # Commit the GET validators, not speculative HEAD state.
+        candidate = dict(candidate, validators=actual)
+        candidate["token"] = hashlib.sha256(json.dumps(actual, sort_keys=True).encode()).hexdigest()
+    return candidate
+
+
+# Dependencies used by the already-prebuilt Electron runtimes in the bundle.
+# No dependency scanning/build/link step is performed on the host.
+BINARY_DEPENDS = ", ".join(("libc6", "libasound2t64", "libatk-bridge2.0-0t64", "libatk1.0-0t64",
+    "libcairo2", "libcups2t64", "libdbus-1-3", "libdrm2", "libexpat1", "libgbm1", "libglib2.0-0t64",
+    "libgtk-3-0t64", "libnspr4", "libnss3", "libpango-1.0-0", "libudev1", "libx11-6", "libxcb1",
+    "libxcomposite1", "libxdamage1", "libxext6", "libxfixes3", "libxkbcommon0", "libxrandr2"))
+
+
+def extract_postman(archive: Path, destination: Path) -> None:
+    with tarfile.open(archive, "r:gz") as source:
+        members = source.getmembers()
+        if len(members) > 5000 or sum(m.size for m in members) > MAX_DEB:
+            raise Error("Postman payload exceeds its existing bounds")
+        for member in members:
+            path = Path(member.name)
+            if path.is_absolute() or ".." in path.parts or not path.parts or path.parts[0] != "Postman":
+                raise Error("unsafe Postman archive path")
+            if member.issym():
+                if member.name != "Postman/Postman" or member.linkname != "app/Postman":
+                    raise Error("unsupported Postman symlink")
+            elif not (member.isfile() or member.isdir()):
+                raise Error("unsupported Postman archive member")
+        destination.mkdir(mode=0o700)
+        source.extractall(destination, members=members, filter="data")
+
+
+def extract_appimage(archive: Path, destination: Path) -> None:
+    # Inspect/extract with the distribution's SquashFS tool, never execute an
+    # AppImage runtime as root. Probe a bounded number of plausible superblocks.
+    offsets = []
+    with os.fdopen(checked_file(archive), "rb") as stream:
+        prefix = stream.read(16 * 1024 * 1024)
+    if prefix[:4] != b"\x7fELF":
+        raise Error("verified AppImage is not ELF")
+    offset = prefix.find(b"hsqs", 64)
+    while offset >= 0 and len(offsets) < 16:
+        offsets.append(offset)
+        offset = prefix.find(b"hsqs", offset + 1)
+    valid = None
+    for candidate in offsets:
+        try:
+            run(["/usr/bin/unsquashfs", "-s", "-o", str(candidate), str(archive)], timeout=30)
+            valid = candidate
+            break
+        except Error:
+            continue
+    if valid is None:
+        raise Error("no supported SquashFS payload was found in the signed AppImage")
+    run(["/usr/bin/unsquashfs", "-no-progress", "-no-xattrs", "-processors", "1", "-strict-errors",
+         "-o", str(valid), "-d", str(destination), str(archive)], timeout=600, file_limit=2 * MAX_DEB)
+
+
+def normalize_staged_tree(tree: Path) -> None:
+    # Only called for verified archives inside the private inbox workspace,
+    # never for live /opt installations. Preserve bytes; discard archive UIDs
+    # and privileged/writeable modes before creating an ordinary binary deb.
+    items = [tree, *tree.rglob("*")]
+    if len(items) > 30000:
+        raise Error("staged payload exceeds file-count bounds")
+    for path in items:
+        st = path.lstat()
+        if not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)):
+            raise Error("special file in staged payload")
+        os.chown(path, 0, 0, follow_symlinks=False)
+        if not stat.S_ISLNK(st.st_mode):
+            os.chmod(path, 0o755 if stat.S_ISDIR(st.st_mode) or st.st_mode & 0o111 else 0o644)
+
+
+def assemble_binary_package(output: Path, tree: Path, install_root: str, control: dict[str, str],
+                            state_files: dict[str, str], app: str) -> None:
+    st = tree.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0:
+        raise Error("unsafe prebuilt payload root")
+    items = [tree, *sorted(tree.rglob("*"))]
+    if len(items) > 30000:
+        raise Error("prebuilt payload exceeds file-count bounds")
+    total = 0
+    for path in items:
+        st = path.lstat()
+        if st.st_uid != 0 or (not stat.S_ISLNK(st.st_mode) and st.st_mode & 0o022):
+            raise Error(f"unsafe prebuilt payload ownership/mode: {path}")
+        if stat.S_ISREG(st.st_mode):
+            total += st.st_size
+        elif stat.S_ISLNK(st.st_mode):
+            if not path.resolve().is_relative_to(tree.resolve()):
+                raise Error("prebuilt payload symlink escapes its application root")
+        elif not stat.S_ISDIR(st.st_mode):
+            raise Error("special file in prebuilt payload")
+    if total > 2 * MAX_DEB:
+        raise Error("prebuilt payload exceeds expanded-size bounds")
+    control = dict(control, **{"Installed-Size": str((total + 1023) // 1024)})
+    control_stream = io.BytesIO()
+    with tarfile.open(fileobj=control_stream, mode="w:", format=tarfile.GNU_FORMAT) as archive:
+        blob = control_bytes(control)
+        info = tarfile.TarInfo("./control")
+        info.mode, info.size, info.mtime = 0o644, len(blob), 0
+        archive.addfile(info, io.BytesIO(blob))
+    packed_control = gzip.compress(control_stream.getvalue(), mtime=0)
+    data_path = output.with_suffix(".data.tar.xz")
+    try:
+        with tarfile.open(data_path, mode="w:xz", preset=1, format=tarfile.GNU_FORMAT) as archive:
+            for path in items:
+                name = "./" + install_root.lstrip("/")
+                if path != tree:
+                    name += "/" + str(path.relative_to(tree))
+                info = archive.gettarinfo(str(path), arcname=name)
+                info.uid = info.gid = info.mtime = 0
+                info.uname = info.gname = "root"
+                if info.isdir():
+                    info.mode = 0o755
+                elif info.issym():
+                    info.mode = 0o777
+                else:
+                    info.mode = 0o755 if info.mode & 0o111 else 0o644
+                if info.isfile():
+                    with os.fdopen(checked_file(path, limit=2 * MAX_DEB, single_link=False), "rb") as stream:
+                        archive.addfile(info, stream)
+                else:
+                    archive.addfile(info)
+            for name, value in sorted(state_files.items()):
+                if not re.fullmatch(r"(?:discord\.installed\.json|postman\.installed|tuta\.installed\.sha256|ledger\.installed\.(?:sha512|version))", name):
+                    raise Error("unsupported vendor receipt path")
+                blob = value.encode("utf-8")
+                if len(blob) > MAX_CONTROL:
+                    raise Error("vendor receipt exceeds size limit")
+                info = tarfile.TarInfo("./var/lib/software/state/" + name)
+                info.mode, info.size, info.mtime = 0o644, len(blob), 0
+                archive.addfile(info, io.BytesIO(blob))
+            # Retain existing installer-rendered launchers/icons unchanged, now
+            # owned by the package. No /usr/share desktop file is rewritten.
+            desktop_paths = {"discord": ("/usr/share/applications/discord.desktop",),
+                             "postman": ("/usr/share/applications/postman.desktop",),
+                             "ledger": ("/usr/share/applications/ledger-live.desktop", "/usr/share/icons/hicolor/512x512/apps/ledger-live-desktop.png"),
+                             "tuta": ("/usr/share/icons/hicolor/512x512/apps/tuta-mail.png",)}
+            for filename in desktop_paths[app]:
+                path = Path(filename)
+                if not path.exists():
+                    continue
+                blob = read_bytes(path)
+                info = tarfile.TarInfo("./" + filename.lstrip("/"))
+                info.mode, info.size, info.mtime = 0o644, len(blob), 0
+                archive.addfile(info, io.BytesIO(blob))
+        with output.open("xb") as archive:
+            archive.write(b"!<arch>\n")
+            for name, blob in (("debian-binary", b"2.0\n"), ("control.tar.gz", packed_control)):
+                archive.write(ar_header(name, len(blob)))
+                archive.write(blob)
+                if len(blob) % 2:
+                    archive.write(b"\n")
+            size = data_path.stat().st_size
+            archive.write(ar_header("data.tar.xz", size))
+            with data_path.open("rb") as stream:
+                shutil.copyfileobj(stream, archive, 1024 * 1024)
+            if size % 2:
+                archive.write(b"\n")
+            archive.flush()
+            os.fsync(archive.fileno())
+        os.chmod(output, 0o600)
+    finally:
+        data_path.unlink(missing_ok=True)
+
+
+class Repository:
+    def __init__(self, root: Path = Path("/var/lib/software"), etc: Path = Path("/etc")):
+        self.root = root
+        self.etc = etc
+        self.repo = root / "repo"
+        self.inbox = root / "inbox"
+        self.signing = root / "repository-signing"
+        self.keyring = etc / "apt/keyrings/managed-external-software.gpg"
+        self.source = etc / "apt/sources.list.d/managed-external-software.list"
+        self.architectures = {run(["/usr/bin/dpkg", "--print-architecture"]).decode().strip()}
+        self.architectures.update(run(["/usr/bin/dpkg", "--print-foreign-architectures"]).decode().split())
+        self.catalog = {"format": 1, "packages": {}, "disabled_seeds": [], "migrated": False}
+        self.pending: list[Path] = []
+        self.changed = False
+        self.discovery = Discovery(root)
+
+    @contextlib.contextmanager
+    def locked(self):
+        safe_dir(self.root)
+        safe_dir(self.root / "state")
+        path = self.root / "state/local-apt-repository.lock"
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != 0 or st.st_mode & 0o077:
+            os.close(fd)
+            raise Error("unsafe repository lock")
+        try:
+            # Only our lock; never an APT/dpkg lock. Wait rather than lose a drop.
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            for path, mode in ((self.repo, 0o755), (self.repo / "pool", 0o755),
+                               (self.repo / ".snapshots", 0o755), (self.inbox, 0o700),
+                               (self.root / "rejected", 0o700), (self.signing, 0o700)):
+                safe_dir(path, mode)
+            current = self.repo / "current"
+            if current.is_symlink():
+                target = os.readlink(current)
+                if not re.fullmatch(r"\.snapshots/[0-9a-f]{32}", target):
+                    raise Error("unsafe repository generation pointer")
+                data = json.loads(read_bytes(self.repo / target / "catalog.json"))
+                if data.get("format") != 1 or not isinstance(data.get("packages"), dict) or not isinstance(data.get("disabled_seeds"), list):
+                    raise Error("invalid repository catalogue")
+                self.catalog = data
+            elif current.exists():
+                raise Error("repository current pointer is not a symlink")
+            yield self
+        finally:
+            os.close(fd)
+
+    def stage(self, source: Path, *, policy: dict | None = None, expected: tuple[str, str] | None = None, active: bool = True) -> Path:
+        fd = checked_file(source, private=False)
+        destination = self.inbox / (uuid.uuid4().hex + ".part")
+        try:
+            with os.fdopen(fd, "rb") as old, destination.open("xb") as new:
+                before = os.fstat(old.fileno())
+                remaining = MAX_DEB
+                while chunk := old.read(min(1024 * 1024, remaining + 1)):
+                    remaining -= len(chunk)
+                    if remaining < 0:
+                        raise Error("package exceeds size limit")
+                    new.write(chunk)
+                after = os.fstat(old.fileno())
+                if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                    raise Error("source changed while copying")
+                os.fchmod(new.fileno(), 0o600)
+                new.flush()
+                os.fsync(new.fileno())
+            if active:
+                return self.activate(destination, policy=policy, expected=expected)
+            return destination
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+
+    def activate(self, partial: Path, *, policy: dict | None = None,
+                 expected: tuple[str, str] | None = None) -> Path:
+        if partial.parent != self.inbox or partial.suffix != ".part":
+            raise Error("only a private inbox partial can be activated")
+        ready = partial.with_suffix(".deb")
+        if policy is not None or expected is not None:
+            metadata = {"policy": policy, "expected": expected}
+            atomic_bytes(Path(str(ready) + ".json"), (json.dumps(metadata) + "\n").encode(), 0o600)
+        os.replace(partial, ready)
+        fsync_dir(self.inbox)
+        return ready
+
+    def discard(self, path: Path) -> None:
+        if path.parent != self.inbox:
+            raise Error("refusing to remove a non-inbox input")
+        path.unlink(missing_ok=True)
+        Path(str(path) + ".json").unlink(missing_ok=True)
+
+    def ingest(self, path: Path, policy: dict | None = None, expected: tuple[str, str] | None = None) -> dict:
+        sidecar = Path(str(path) + ".json")
+        if sidecar.exists() or sidecar.is_symlink():
+            metadata = json.loads(read_bytes(sidecar, 65536))
+            if not isinstance(metadata, dict) or set(metadata) != {"policy", "expected"}:
+                raise Error("invalid inbox transaction metadata")
+            saved_policy, saved_expected = metadata["policy"], metadata["expected"]
+            if saved_policy is not None and not isinstance(saved_policy, dict):
+                raise Error("invalid inbox update policy")
+            if saved_expected is not None and (not isinstance(saved_expected, list) or len(saved_expected) != 2
+                    or not isinstance(saved_expected[0], str) or not isinstance(saved_expected[1], str)
+                    or not NAME.fullmatch(saved_expected[0]) or not ARCH.fullmatch(saved_expected[1])):
+                raise Error("invalid inbox expected package identity")
+            if policy is None:
+                policy = saved_policy
+            if expected is None and saved_expected is not None:
+                expected = tuple(saved_expected)
+        fields = inspect_deb(path, self.architectures)
+        identity = fields["Package"], fields["Architecture"]
+        if expected and identity != expected:
+            raise Error("download changed Package/Architecture; previous package remains published")
+        key = ":".join(identity)
+        previous = self.catalog["packages"].get(key)
+        actual_policy = copy.deepcopy(policy if policy is not None else previous.get("policy", {}) if previous else {})
+        upstream_version = fields["Version"]
+        upstream_sha256 = digest_file(path)
+        revised = None
+        payload_path = path
+        try:
+            dependency_names = re.findall(r"(?:^|[,|])\s*([a-z0-9][a-z0-9+.-]+)", fields.get("Depends", "").replace("\n", " "))
+            removals = sorted({name for name in dependency_names if name in actual_policy.get("remove_depends", [])
+                               or any(fnmatch.fnmatchcase(name, pattern) for pattern in actual_policy.get("remove_depends_patterns", []))})
+            if removals or actual_policy.get("local_revision"):
+                revised = self.inbox / (".edit-" + uuid.uuid4().hex + ".part")
+                rewrite_depends(path, revised, fields, removals,
+                                actual_policy.get("local_revision", 1))
+                fields = inspect_deb(revised, self.architectures)
+                payload_path = revised
+            sha = digest_file(payload_path)
+            if previous:
+                if newer(previous["version"], fields["Version"]):
+                    raise Error(f"refusing downgrade for {key}")
+                if previous["version"] == fields["Version"] and previous["sha256"] != sha:
+                    raise Error(f"different bytes under the same version for {key}; use a new version")
+            filename = f"{fields['Package']}_{fields['Version']}_{fields['Architecture']}.deb"
+            directory = self.repo / "pool" / fields["Package"] / sha
+            safe_dir(directory)
+            destination = directory / filename
+            if destination.exists() or destination.is_symlink():
+                if digest_file(destination) != sha:
+                    raise Error("immutable pool object failed its digest check")
+            else:
+                temporary = directory / ("." + uuid.uuid4().hex)
+                try:
+                    shutil.copyfile(payload_path, temporary, follow_symlinks=False)
+                    with temporary.open("rb") as stream:
+                        os.fchmod(stream.fileno(), 0o644)
+                        os.fsync(stream.fileno())
+                    os.replace(temporary, destination)
+                    fsync_dir(directory)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            if identity[0] == "bitwarden" and payload_path == path:
+                # Preserve the existing unmodified-vendor receipt contract for
+                # explicit offline repair after a normal APT-driven refresh.
+                atomic_bytes(Path(str(destination) + ".vendor-sha256"), (sha + "\n").encode())
+            record = {"package": identity[0], "architecture": identity[1], "version": fields["Version"],
+                      "upstream_version": upstream_version, "upstream_sha256": upstream_sha256, "sha256": sha, "size": destination.stat().st_size,
+                      "filename": str(destination.relative_to(self.repo)), "control": fields, "policy": actual_policy}
+            if previous != record:
+                self.catalog["packages"][key] = record
+                self.changed = True
+            self.pending.append(path)
+            return record
+        finally:
+            if revised is not None:
+                revised.unlink(missing_ok=True)
+
+    def signing_key(self) -> str:
+        safe_dir(self.keyring.parent)
+        base = ["/usr/bin/gpg", "--batch", "--no-options", "--homedir", str(self.signing)]
+        listing = run(base + ["--with-colons", "--list-secret-keys"]).decode()
+        if not any(line.startswith("sec:") for line in listing.splitlines()):
+            run(base + ["--pinentry-mode", "loopback", "--passphrase", "", "--quick-generate-key",
+                        "Managed External Software Repository <managed-external-software@localhost>", "ed25519", "sign", "0"])
+            listing = run(base + ["--with-colons", "--list-secret-keys"]).decode()
+        fingerprints = []
+        primary = False
+        for line in listing.splitlines():
+            fields = line.split(":")
+            if fields[0] == "sec":
+                primary = True
+            elif fields[0] == "fpr" and primary:
+                fingerprints.append(fields[9])
+                primary = False
+        if len(fingerprints) != 1 or not re.fullmatch(r"[0-9A-F]{40,64}", fingerprints[0]):
+            raise Error("repository must have exactly one signing key")
+        exported = run(base + ["--export", fingerprints[0]])
+        if not self.keyring.exists() or read_bytes(self.keyring) != exported:
+            atomic_bytes(self.keyring, exported)
+        return fingerprints[0]
+
+    def publish(self, force: bool = False) -> None:
+        if not (force or self.changed or not (self.repo / "current").is_symlink()):
+            self.finish_inbox()
+            return
+        fingerprint = self.signing_key()
+        generation = self.repo / ".snapshots" / uuid.uuid4().hex
+        safe_dir(generation)
+        try:
+            stanzas = []
+            for key, record in sorted(self.catalog["packages"].items()):
+                filename = record["filename"]
+                if not re.fullmatch(r"pool/[a-z0-9][a-z0-9+.-]+/[0-9a-f]{64}/[A-Za-z0-9_.+:~\-]+\.deb", filename):
+                    raise Error(f"invalid catalogue filename for {key}")
+                archive = self.repo / filename
+                if digest_file(archive) != record["sha256"] or archive.stat().st_size != record["size"]:
+                    raise Error(f"published package digest mismatch for {key}")
+                fields = {k: v for k, v in record["control"].items() if k.lower() not in INDEX_FIELDS}
+                fields.update({"Filename": "./" + filename, "Size": str(record["size"]), "SHA256": record["sha256"]})
+                stanzas.append(control_bytes(fields) + b"\n")
+            packages = b"".join(stanzas)
+            if len(packages) > MAX_CONTROL:
+                raise Error("repository index exceeds size bound")
+            indexes = {"Packages": packages, "Packages.gz": gzip.compress(packages, mtime=0)}
+            by_hash = self.repo / "by-hash/SHA256"
+            safe_dir(by_hash)
+            release = ["Origin: Managed External Software", "Label: Managed External Software",
+                       "Suite: local", "Codename: local", "Architectures: " + " ".join(sorted(self.architectures | {"all"})),
+                       "Date: " + email.utils.format_datetime(datetime.datetime.now(datetime.timezone.utc)),
+                       "Acquire-By-Hash: yes", "Description: Validated locally managed binary packages", "SHA256:"]
+            for name, payload in indexes.items():
+                atomic_bytes(generation / name, payload)
+                sha = hashlib.sha256(payload).hexdigest()
+                hashed = by_hash / sha
+                if hashed.exists():
+                    if read_bytes(hashed) != payload:
+                        raise Error("immutable by-hash index differs")
+                else:
+                    atomic_bytes(hashed, payload)
+                release.append(f" {sha} {len(payload)} {name}")
+            atomic_bytes(generation / "Release", ("\n".join(release) + "\n").encode())
+            atomic_bytes(generation / "catalog.json", (json.dumps(self.catalog, sort_keys=True, indent=2) + "\n").encode(), 0o600)
+            base = ["/usr/bin/gpg", "--batch", "--no-options", "--homedir", str(self.signing),
+                    "--local-user", fingerprint, "--digest-algo", "SHA256"]
+            run(base + ["--output", str(generation / "InRelease"), "--clearsign", str(generation / "Release")])
+            run(base + ["--output", str(generation / "Release.gpg"), "--detach-sign", str(generation / "Release")])
+            for name in ("InRelease", "Release.gpg"):
+                with (generation / name).open("rb") as stream:
+                    os.fchmod(stream.fileno(), 0o644)
+                    os.fsync(stream.fileno())
+            run(["/usr/bin/gpgv", "--keyring", str(self.keyring), str(generation / "InRelease")])
+            fsync_dir(generation)
+            fsync_dir(generation.parent)
+            # These fixed aliases are installed once, before the first commit.
+            for name in ("Packages", "Packages.gz", "Release", "InRelease", "Release.gpg"):
+                alias = self.repo / name
+                expected = "current/" + name
+                if alias.is_symlink():
+                    if os.readlink(alias) != expected:
+                        raise Error("unexpected repository index symlink")
+                elif alias.exists():
+                    raise Error("unexpected repository index file")
+                else:
+                    alias.symlink_to(expected)
+            temporary = self.repo / (".current-" + uuid.uuid4().hex)
+            temporary.symlink_to(str(generation.relative_to(self.repo)))
+            os.replace(temporary, self.repo / "current")
+            fsync_dir(self.repo)
+            self.changed = False
+        except BaseException:
+            # Uncommitted snapshots are not referenced by any reader.
+            current = self.repo / "current"
+            committed = current.is_symlink() and os.readlink(current) == str(generation.relative_to(self.repo))
+            if not committed:
+                shutil.rmtree(generation)
+            raise
+        self.write_source()
+        self.finish_inbox()
+
+    def write_source(self) -> None:
+        safe_dir(self.source.parent)
+        text = f"deb [signed-by={self.keyring} by-hash=force] file:{self.repo} ./\n".encode()
+        if not self.source.exists() or read_bytes(self.source) != text:
+            atomic_bytes(self.source, text)
+
+    def finish_inbox(self) -> None:
+        for path in self.pending:
+            if path.parent != self.inbox or path.suffix != ".deb":
+                raise Error("refusing to remove a non-inbox file")
+            self.discard(path)
+        self.pending.clear()
+        fsync_dir(self.inbox)
+
+    def process_inbox(self) -> int:
+        rejected = 0
+        for path in sorted(self.inbox.glob("*.deb")):
+            if path in self.pending:
+                continue
+            try:
+                self.ingest(path)
+            except (Error, OSError, ValueError) as exc:
+                # Only root can enqueue a completed .deb; producers must write a
+                # .part and rename it. Quarantine bad entries to avoid path-unit
+                # restart loops, but do not hide the error from the administrator.
+                target = self.root / "rejected" / (uuid.uuid4().hex + "-" + path.name)
+                os.replace(path, target)
+                sidecar = Path(str(path) + ".json")
+                if sidecar.exists() or sidecar.is_symlink():
+                    os.replace(sidecar, Path(str(target) + ".json"))
+                atomic_bytes(Path(str(target) + ".reason"), (str(exc) + "\n").encode(), 0o600)
+                fsync_dir(target.parent)
+                fsync_dir(self.inbox)
+                rejected += 1
+                warn(f"rejected {path.name}: {exc}; retained at {target}")
+        return rejected
+
+    def migrate(self) -> None:
+        if self.catalog.get("migrated"):
+            return
+        legacy = self.root / "debs"
+        if legacy.exists():
+            safe_dir(legacy)
+            # Ascending Debian versions makes the newest retained archive win.
+            from functools import cmp_to_key
+            candidates = []
+            for path in legacy.glob("*.deb"):
+                fields = inspect_deb(path, self.architectures)
+                candidates.append((path, fields["Version"]))
+            candidates.sort(key=cmp_to_key(lambda a, b: 1 if newer(a[1], b[1]) else -1 if newer(b[1], a[1]) else 0))
+            for path, _ in candidates:
+                self.ingest(self.stage(path))
+        self.catalog["migrated"] = True
+        self.changed = True
+
+    def seed_defaults(self) -> None:
+        defaults = json.loads(run(["/usr/local/libexec/local-apt-vendor", "defaults"]))
+        for key, record in self.catalog["packages"].items():
+            if key in self.catalog["disabled_seeds"] or record.get("policy", {}).get("configured"):
+                continue
+            if record["package"] in defaults:
+                record["policy"] = defaults[record["package"]]
+                if record["policy"].get("remove_depends_patterns"):
+                    record["policy"]["local_revision"] = 1
+                with tempfile.TemporaryDirectory(prefix=".probe-", dir=self.inbox) as directory:
+                    self.initialize_tracking(record, Path(directory))
+                self.changed = True
+        self.publish()
+
+    def vendor_descriptor(self, action: str, app: str, work: Path | None = None) -> dict:
+        argv = ["/usr/local/libexec/local-apt-vendor", action, app]
+        if work is not None:
+            argv.append(str(work))
+        return json.loads(run(argv, timeout=1200, file_limit=4 * MAX_DEB))
+
+    def vendor_package(self, descriptor: dict, work: Path, previous: dict | None = None,
+                       tracking: dict | None = None) -> dict:
+        app = descriptor["app"]
+        layouts = {"discord": ("discord", "/opt/discord"), "postman": ("postman", "/opt/postman"),
+                   "tuta": ("tutanota-desktop", "/opt/tuta-mail"), "ledger": ("ledger-live-desktop", "/opt/ledger-live")}
+        if app not in layouts or (descriptor["package"], descriptor["install_root"]) != layouts[app]:
+            raise Error("invalid verified vendor layout")
+        source_id = descriptor["source_id"]
+        if not re.fullmatch(r"[0-9a-f]{64}|[0-9a-f]{128}", source_id):
+            raise Error("invalid vendor source receipt")
+        if previous and previous["control"].get("X-Local-Source-Digest") == source_id:
+            return previous
+        upstream = descriptor["upstream_version"]
+        if not VERSION.fullmatch(upstream):
+            raise Error("invalid verified vendor version")
+        if previous:
+            old_upstream = previous["control"].get("X-Local-Upstream-Version", "0")
+            if newer(old_upstream, upstream):
+                raise Error("vendor binary update would downgrade the upstream release")
+        revision = previous.get("policy", {}).get("binary_revision", 0) + 1 if previous else 1
+        if "tree" not in descriptor:
+            if app == "discord":
+                staged = self.vendor_descriptor("stage-discord", app, work)
+                if staged["source_id"] != source_id:
+                    raise Error("Discord release changed during staging")
+                descriptor = staged
+            elif app == "postman":
+                archive = Path(descriptor["archive"])
+                if digest_file(archive) != source_id:
+                    raise Error("Postman retained archive digest mismatch")
+                extract_postman(archive, work / "extracted")
+                descriptor["tree"] = str(work / "extracted/Postman")
+            else:
+                archive = Path(descriptor["archive"])
+                with os.fdopen(checked_file(archive), "rb") as stream:
+                    hasher = hashlib.sha512() if len(source_id) == 128 else hashlib.sha256()
+                    while chunk := stream.read(1024 * 1024):
+                        hasher.update(chunk)
+                if hasher.hexdigest() != source_id:
+                    raise Error("signed AppImage receipt no longer matches its retained bytes")
+                extract_appimage(archive, work / "extracted")
+                descriptor["tree"] = str(work / "extracted")
+        tree = Path(descriptor["tree"])
+        if tree != Path(descriptor["install_root"]) and not tree.is_relative_to(work):
+            raise Error("vendor staging tree escaped its workspace")
+        if tree != Path(descriptor["install_root"]):
+            normalize_staged_tree(tree)
+        control = {"Package": descriptor["package"], "Version": upstream + f"+localrepo{revision}",
+                   "Architecture": "amd64", "Maintainer": "Local software administrator <root@localhost>",
+                   "Section": "misc", "Priority": "optional", "Depends": BINARY_DEPENDS,
+                   "Description": f"Locally managed {app} vendor binaries\n Prebuilt vendor payload; installation and removal are owned by dpkg.",
+                   "X-Local-Source-Digest": source_id, "X-Local-Upstream-Version": upstream}
+        output = work / "vendor.deb"
+        assemble_binary_package(output, tree, descriptor["install_root"], control, descriptor["state_files"], app)
+        policy = {"automatic": True, "adapter": app, "binary_revision": revision}
+        if tracking is not None:
+            policy["tracking"] = tracking
+        expected = (descriptor["package"], "amd64")
+        return self.ingest(self.stage(output, policy=policy, expected=expected))
+
+    def adopt_vendors(self) -> list[str]:
+        paths = []
+        if "amd64" not in self.architectures:
+            return paths
+        for app, package in (("discord", "discord"), ("postman", "postman"),
+                             ("tuta", "tutanota-desktop"), ("ledger", "ledger-live-desktop")):
+            key = package + ":amd64"
+            if key in self.catalog["disabled_seeds"]:
+                continue
+            previous = self.catalog["packages"].get(key)
+            if previous:
+                continue
+            descriptor = self.vendor_descriptor("installed", app)
+            if descriptor.get("absent"):
+                continue
+            with tempfile.TemporaryDirectory(prefix=f".vendor-{app}-", dir=self.inbox) as directory:
+                record = self.vendor_package(descriptor, Path(directory))
+                try:
+                    candidate = self.vendor_candidate(app, record, Path(directory))
+                    decision = self.vendor_decision(candidate, record)
+                    if decision != "download":
+                        self.remember_candidate(record, candidate, baseline=decision == "baseline")
+                except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+                    warn(f"{key}: initial vendor metadata unavailable: {exc}")
+            self.publish()
+            paths.append(str(self.repo / record["filename"]))
+        return paths
+
+    def remember_candidate(self, record: dict, candidate: dict, *, baseline: bool = False) -> None:
+        candidate = copy.deepcopy(candidate)
+        previous = record.get("policy", {}).get("tracking", {})
+        if baseline or (previous.get("observed_only") and previous.get("source") == candidate.get("source")):
+            candidate["observed_only"] = True
+        if record.get("policy", {}).get("tracking") != candidate:
+            record.setdefault("policy", {})["tracking"] = candidate
+            self.changed = True
+
+    def initialize_tracking(self, record: dict, directory: Path) -> None:
+        """Associate metadata at registration, without retrieving remote bytes."""
+        policy = record.get("policy", {})
+        if not policy.get("automatic") or not policy.get("url"):
+            return
+        source = source_for(policy["url"])
+        policy["source"] = source
+        try:
+            candidate = self.discovery.candidate(source, record, directory)
+            decision = update_decision(candidate, record)
+            if decision != "download":
+                candidate = copy.deepcopy(candidate)
+                if decision == "baseline":
+                    candidate["observed_only"] = True
+                    warn(f"{record['package']}: recorded metadata baseline only; the unversioned remote file cannot be proven identical to the supplied package without a digest")
+                policy["tracking"] = candidate
+            else:
+                warn(f"{record['package']}: a newer release is advertised; apt-local-repo --refresh will retrieve it")
+        except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+            warn(f"{record['package']}: package registration is local; initial metadata check unavailable: {exc}")
+
+    def vendor_candidate(self, app: str, record: dict, work: Path) -> dict:
+        if app in ("discord", "ledger"):
+            metadata = self.vendor_descriptor("probe", app, work)
+            digest = metadata.get("source_id", "")
+            version = metadata.get("upstream_version", "")
+            if not re.fullmatch(r"[0-9a-f]{64}|[0-9a-f]{128}", digest) or not VERSION.fullmatch(version):
+                raise Error("invalid vendor discovery metadata")
+            return {"kind": "vendor", "source": hashlib.sha256(("vendor:" + app).encode()).hexdigest(),
+                    "token": digest, "source_digest": digest, "version": version}
+        endpoints = {"postman": "https://dl.pstmn.io/download/latest/linux64",
+                     "tuta": "https://app.tuta.com/desktop/tutanota-desktop-linux.AppImage"}
+        if app not in endpoints:
+            raise Error("unknown vendor adapter")
+        return self.discovery.direct(source_for(endpoints[app]), work, record.get("policy", {}).get("tracking"))
+
+    def vendor_decision(self, candidate: dict, record: dict) -> str:
+        if candidate["kind"] != "vendor":
+            return update_decision(candidate, record)
+        if candidate["source_digest"] == record["control"].get("X-Local-Source-Digest"):
+            return "current"
+        previous = record["control"].get("X-Local-Upstream-Version", "0")
+        if newer(previous, candidate["version"]):
+            raise Error("vendor metadata would downgrade the published release")
+        # Discord modules may change without a new host version. The existing
+        # local binary revision gives this genuine new distribution an APT version.
+        return "download"
+
+    def refresh_vendors(self, results: list[dict]) -> None:
+        for key, previous in list(sorted(self.catalog["packages"].items())):
+            policy = previous.get("policy", {})
+            app = policy.get("adapter")
+            if not policy.get("automatic") or not app:
+                continue
+            try:
+                with tempfile.TemporaryDirectory(prefix=f".vendor-{app}-", dir=self.inbox) as directory:
+                    work = Path(directory)
+                    candidate = self.vendor_candidate(app, previous, work)
+                    decision = self.vendor_decision(candidate, previous)
+                    if decision != "download":
+                        self.remember_candidate(previous, candidate, baseline=decision == "baseline")
+                        result = {"package": key, "status": decision, "version": previous["version"]}
+                        if decision == "baseline":
+                            warn(f"{key}: unversioned vendor endpoint baseline recorded without downloading; initial remote/local equality is unverified")
+                    else:
+                        descriptor = self.vendor_descriptor("fetch", app, work)
+                        if descriptor.get("current"):
+                            descriptor = self.vendor_descriptor("installed", app)
+                        if candidate.get("source_digest") and descriptor.get("source_id") != candidate["source_digest"]:
+                            raise Error("vendor release changed after metadata discovery; retry refresh")
+                        if candidate["kind"] == "direct":
+                            checked = self.discovery.direct(source_for(candidate["url"]), work)
+                            if checked["token"] != candidate["token"]:
+                                raise Error("vendor endpoint changed during the verified download; retry refresh")
+                        updated = self.vendor_package(descriptor, work, previous, tracking=candidate)
+                        self.remember_candidate(updated, candidate)
+                        result = {"package": key, "status": "updated" if updated["version"] != previous["version"] else "current",
+                                  "version": updated["version"]}
+            except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+                warn(f"verified vendor update unavailable for {key}: {exc}; keeping {previous['version']}")
+                results.append({"package": key, "status": "error", "detail": str(exc)})
+                continue
+            # Publication errors are fatal, never disguised as upstream failures.
+            self.publish()
+            results.append(result)
+
+    def refresh(self) -> int:
+        started = time.time()
+        self.discovery.memory.clear()
+        rejected = self.process_inbox()
+        self.publish()
+        results = []
+        for key, record in list(sorted(self.catalog["packages"].items())):
+            policy = record.get("policy", {})
+            if not policy.get("automatic") or not policy.get("url"):
+                continue
+            ready = None
+            try:
+                with tempfile.TemporaryDirectory(prefix=".fetch-", dir=self.inbox) as temp:
+                    directory = Path(temp)
+                    source = source_for(policy["url"])
+                    candidate = self.discovery.candidate(source, record, directory)
+                    decision = update_decision(candidate, record)
+                    if decision != "download":
+                        self.remember_candidate(record, candidate, baseline=decision == "baseline")
+                        result = {"package": key, "status": decision, "version": record["version"]}
+                        if decision == "baseline":
+                            warn(f"{key}: metadata baseline established without a package download; initial remote/local equality is unverified")
+                    else:
+                        partial = directory / "download.part"
+                        committed_candidate = retrieve_candidate(candidate, policy.get("tracking", {}), partial)
+                        # A new release must actually advance the package version.
+                        # Never commit a release-2 receipt for stale release-1 bytes.
+                        # Direct URLs can legitimately only change HTTP validators;
+                        # ingest still rejects downgrades and same-version new bytes.
+                        fields = inspect_deb(partial, self.architectures)
+                        if candidate["kind"] != "direct" and not newer(fields["Version"], record.get("upstream_version", record["version"])):
+                            raise Error("new release metadata returned a package without a newer Version")
+                        committed_candidate.pop("observed_only", None)
+                        updated_policy = copy.deepcopy(policy)
+                        updated_policy["source"] = source
+                        updated_policy["tracking"] = committed_candidate
+                        expected = (record["package"], record["architecture"])
+                        ready = self.stage(partial, policy=updated_policy, expected=expected)
+                        updated = self.ingest(ready)
+                        result = {"package": key, "status": "updated" if updated["version"] != record["version"] else "current",
+                                  "version": updated["version"]}
+            except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+                if ready is not None:
+                    self.discard(ready)
+                warn(f"update unavailable for {key}: {exc}; keeping published version {record['version']}")
+                results.append({"package": key, "status": "error", "detail": str(exc)})
+                continue
+            self.publish()
+            results.append(result)
+        self.refresh_vendors(results)
+        counts = {status: sum(item["status"] == status for item in results)
+                  for status in ("updated", "current", "baseline", "error")}
+        report = {"started_at": started, "finished_at": time.time(), "results": results,
+                  "counts": counts, "inbox_rejected": rejected}
+        atomic_bytes(self.root / "state/last-refresh.json", (json.dumps(report, indent=2) + "\n").encode(), 0o600)
+        print("Local APT refresh: " + ", ".join(f"{count} {status}" for status, count in counts.items())
+              + f", {rejected} inbox rejected. No packages were installed.")
+        # Partial upstream failure must be visible to both the CLI and systemd.
+        return 3 if counts["error"] or rejected else 0
+
+    def retire_pre_update_hook(self) -> None:
+        # Only the exact shipped wrapper and a comment/whitespace-equivalent
+        # single old hook are ours to delete. Validate both before removing any.
+        obsolete = self.etc.parent / "usr/local/bin/local-add-deb"
+        path = self.etc / "apt/apt.conf.d/90-local-apt-repository"
+        remove = []
+        if obsolete.exists() or obsolete.is_symlink():
+            data = read_bytes(obsolete, 65536)
+            if hashlib.sha256(data).hexdigest() != "8f4e7916a9646ecce0221fd789276e6a2fd41ec6fb4ed35187e60c07e569a2c3":
+                raise Error("legacy local-add-deb was customized; retire it explicitly")
+            remove.append(obsolete)
+        if path.exists() or path.is_symlink():
+            data = read_bytes(path, 65536).decode("utf-8")
+            normalized = " ".join(line.strip() for line in data.splitlines()
+                                  if line.strip() and not line.lstrip().startswith("//"))
+            if normalized != 'APT::Update::Pre-Invoke { "/usr/local/libexec/local-apt-repository refresh"; };':
+                raise Error("legacy APT hook was customized; remove its refresh action explicitly before initializing")
+            remove.append(path)
+        for item in remove:
+            item.unlink()
+            fsync_dir(item.parent)
+        if path in remove:
+            print("Removed the legacy local repository APT pre-update hook.")
+
+
+def yes_no(prompt: str) -> bool:
+    while True:
+        value = input(prompt + " ").strip().lower()
+        if value in ("", "y", "yes"):
+            return True
+        if value in ("n", "no"):
+            return False
+        print("Please enter Y or n.")
+
+
+def interactive_add(repository: Repository, source: Path) -> None:
+    name = source.name
+    if not yes_no(f"Do you want to add {name} to local APT repository? [Y/n]"):
+        return
+    ready = repository.stage(source, active=False)
+    try:
+        fields = inspect_deb(ready, repository.architectures)
+        policy: dict = {"automatic": False, "configured": True, "remove_depends": [], "local_revision": 0}
+        if yes_no(f"Do you want to remove any dependencies from Depends for {name}? [Y/n]"):
+            print("Depends: " + fields.get("Depends", "(none)"))
+            value = input("Enter name of dependencies to remove from package (comma-separated for multiple): ").strip()
+            if value:
+                names = [word.strip() for word in value.split(",")]
+                remove_dependencies(fields.get("Depends", ""), names)
+                policy["remove_depends"] = names
+                policy["local_revision"] = 1
+                print("Warning: only Depends is changed; missing runtime libraries can still prevent this application from working.")
+        if yes_no(f"Do you want {name} to receive automatic updates? [Y/n]"):
+            policy["url"] = https_url(input("Enter the HTTPS URL to the .deb (or its release page): ").strip())
+            policy["automatic"] = True
+            policy["source"] = source_for(policy["url"])
+            print("Update discovery: " + policy["source"]["kind"] + " (metadata first)")
+        key = fields["Package"] + ":" + fields["Architecture"]
+        previous = repository.catalog["packages"].get(key)
+        if previous:
+            old_policy = previous.get("policy", {})
+            policy["local_revision"] = old_policy.get("local_revision", 0)
+            if (policy["remove_depends"] != old_policy.get("remove_depends", [])
+                    or old_policy.get("remove_depends_patterns")):
+                policy["local_revision"] += 1
+        initial = {"package": fields["Package"], "architecture": fields["Architecture"],
+                   "version": fields["Version"], "upstream_version": fields["Version"],
+                   "sha256": digest_file(ready), "policy": policy}
+        with tempfile.TemporaryDirectory(prefix=".probe-", dir=repository.inbox) as directory:
+            repository.initialize_tracking(initial, Path(directory))
+        ready = repository.activate(ready, policy=policy, expected=(fields["Package"], fields["Architecture"]))
+        result = repository.ingest(ready)
+        if key in repository.catalog["disabled_seeds"]:
+            repository.catalog["disabled_seeds"].remove(key)
+            repository.changed = True
+        repository.publish()
+        print(f"Published {result['package']} {result['version']} ({result['architecture']}).")
+        print(f"Run sudo apt update, then sudo apt install {result['package']} (or sudo apt upgrade).")
+    except BaseException:
+        # An interrupted dialog must not later publish an unapproved input via
+        # the inbox watcher. Successful transactions remove their own inputs.
+        repository.discard(ready)
+        raise
+
+
+def interactive_delete(repository: Repository) -> None:
+    records = sorted(repository.catalog["packages"].items())
+    if not records:
+        print("The local APT repository is empty.")
+        return
+    for number, (key, record) in enumerate(records, 1):
+        status = "automatic" if record.get("policy", {}).get("automatic") else "static"
+        print(f"{number}: {key} {record['version']} [{status}]")
+    choice = input("Enter the number or package[:architecture] to delete from the repo (blank to cancel): ").strip()
+    if not choice:
+        return
+    if choice.isdigit() and 1 <= int(choice) <= len(records):
+        key = records[int(choice) - 1][0]
+    else:
+        matches = [key for key, record in records if choice in (key, record["package"])]
+        if len(matches) != 1:
+            raise Error("choose one unambiguous listed package")
+        key = matches[0]
+    del repository.catalog["packages"][key]
+    if key not in repository.catalog["disabled_seeds"]:
+        repository.catalog["disabled_seeds"].append(key)
+    repository.changed = True
+    repository.publish()
+    print(f"Removed {key} from the published repository and its automatic update policy.")
+    print("Installed files are unchanged; use apt remove to uninstall. Retained immutable files protect existing APT readers.")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    for command in ("init", "refresh", "process-inbox", "delete", "list", "rebuild", "seed-defaults", "adopt-vendors"):
+        sub.add_parser(command)
+    for command in ("add", "import"):
+        option = sub.add_parser(command)
+        option.add_argument("file", type=Path)
+    args = parser.parse_args(argv)
+    if os.geteuid() != 0:
+        raise Error("run this command as root (sudo apt-local-repo)")
+    if hasattr(args, "file"):
+        args.file = args.file.absolute()
+    os.environ.clear()
+    os.environ.update(ENV)
+    os.chdir("/")
+    os.umask(0o077)
+    repository = Repository()
+    with repository.locked():
+        if args.command == "init":
+            repository.retire_pre_update_hook()
+            repository.migrate()
+            repository.process_inbox()
+            repository.publish()
+            repository.write_source()
+        elif args.command == "seed-defaults":
+            repository.seed_defaults()
+        elif args.command == "adopt-vendors":
+            for path in repository.adopt_vendors():
+                print(path)
+        elif args.command == "add":
+            interactive_add(repository, args.file.absolute())
+        elif args.command == "delete":
+            interactive_delete(repository)
+        elif args.command == "import":
+            record = repository.ingest(repository.stage(args.file.absolute()))
+            repository.publish()
+            print(repository.repo / record["filename"])
+        elif args.command == "list":
+            print(json.dumps(repository.catalog, sort_keys=True))
+        elif args.command == "refresh":
+            return repository.refresh()
+        elif args.command == "process-inbox":
+            rejected = repository.process_inbox()
+            repository.publish()
+            return 3 if rejected else 0
+        elif args.command == "rebuild":
+            repository.publish(force=True)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (Error, OSError, ValueError, EOFError, subprocess.SubprocessError) as exc:
+        warn(str(exc))
+        sys.exit(1)
+    except KeyboardInterrupt:
+        warn("cancelled; no package installation was performed")
+        sys.exit(130)

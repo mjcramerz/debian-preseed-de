@@ -66,9 +66,9 @@ sub _event_hash {
 }
 
 sub fetch {
-    my ($self, $work) = @_;
+    my ($self, $work, $for_repository) = @_;
     my $install = '/opt/tuta-mail';
-    return (2, 'missing') if !-d $install || -l $install || !-x "$install/AppRun";
+    return (2, 'missing') if !$for_repository && (!-d $install || -l $install || !-x "$install/AppRun");
     my $key = '/usr/local/share/software/tuta/tutao-pub.pem';
     return (1, 'signature') if !-r $key || -l $key;
 

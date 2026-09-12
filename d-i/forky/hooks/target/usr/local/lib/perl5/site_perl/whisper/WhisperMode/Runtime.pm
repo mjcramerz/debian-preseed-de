@@ -61,7 +61,7 @@ sub run {
     }
     if ($action eq 'record-worker') {
         my $lock = $self->state()->lock(0, 0);
-        $self->_recorder()->record_worker();
+        $self->_recorder()->record_worker(\$lock);
         return 0;
     }
     if ($action eq 'transcribe') {

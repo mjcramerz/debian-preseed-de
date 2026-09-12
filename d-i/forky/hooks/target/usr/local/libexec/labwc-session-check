@@ -34,7 +34,15 @@ def main(args: list[str]) -> int:
         fd = os.pidfd_open(pid)
         try:
             proc = Path(f"/proc/{pid}")
-            if proc.stat().st_uid != os.getuid() or (proc / "comm").read_text().strip() != "waybar":
+            if proc.stat().st_uid != os.getuid():
+                return 1
+            arguments = (proc / "cmdline").read_bytes().split(b"\0")
+            expected = [b"/usr/local/libexec/labwc-panel-run", b"waybar"]
+            # Accept the fixed, root-owned supervisor, not an arbitrary Python
+            # process. Retain compatibility with a direct Waybar during reload.
+            supervised = arguments[1:4] == [b"-I", *expected]
+            direct = (proc / "comm").read_text().strip() == "waybar"
+            if not (supervised or direct):
                 return 1
             signal.pidfd_send_signal(fd, signal.SIGUSR2)
             return 0

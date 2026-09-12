@@ -606,7 +606,7 @@ install_target_mullvad_vpn_if_selected() (
         installer_fatal "Mullvad VPN artifact Version field is unsafe for local repository retention"
         ;;
     esac
-    mullvad_repository_dir=/var/lib/software/debs
+    mullvad_repository_dir=/var/lib/software/inbox
     mullvad_repository_deb="${mullvad_repository_dir}/${mullvad_package_name}_${mullvad_package_version}_${mullvad_package_arch}.deb"
     mullvad_repository_tmp="${mullvad_repository_deb}.tmp.$$"
     mullvad_validate_target_path "Mullvad local repository directory" "$mullvad_repository_dir"
@@ -620,7 +620,8 @@ repository_dir=$2
 destination=$3
 temporary=$4
 
-install -d -m 0755 -- /var/lib/software "$repository_dir"
+install -d -m 0755 -- /var/lib/software
+install -d -m 0700 -- "$repository_dir"
 [ ! -L "$repository_dir" ]
 if [ -e "$destination" ] || [ -L "$destination" ]; then
   [ -f "$destination" ] && [ ! -L "$destination" ]
@@ -629,7 +630,8 @@ install -m 0644 -- "$source_path" "$temporary"
 [ "$(sha256sum "$source_path" | awk "{print \$1}")" = "$(sha256sum "$temporary" | awk "{print \$1}")" ]
 mv -f -- "$temporary" "$destination"
 ' sh "$mullvad_deb_path" "$mullvad_repository_dir" "$mullvad_repository_deb" "$mullvad_repository_tmp"
-    mullvad_install_deb_path=$mullvad_repository_deb
+    # Install the original verified path: the inbox consumer may remove its copy.
+    mullvad_install_deb_path=$mullvad_deb_path
   fi
 
   run_in_target \

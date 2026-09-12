@@ -3707,6 +3707,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-output-watch /usr/local/libexec/labwc-output-watch 0755
   desktop_stage_role_asset usr/local/libexec/labwc-kanshi /usr/local/libexec/labwc-kanshi 0755
   desktop_stage_role_asset usr/local/libexec/labwc-session-check /usr/local/libexec/labwc-session-check 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-panel-run /usr/local/libexec/labwc-panel-run 0755
   desktop_stage_role_asset usr/local/libexec/whisper-record-timed /usr/local/libexec/whisper-record-timed 0755
   desktop_stage_role_asset usr/local/libexec/labwc-swaybg /usr/local/libexec/labwc-swaybg 0755
   desktop_stage_role_asset usr/local/libexec/labwc-swayidle /usr/local/libexec/labwc-swayidle 0755

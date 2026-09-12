@@ -1,0 +1,10 @@
+local-apt-inbox.service: Command /usr/local/libexec/local-apt-repository is not executable: No such file or directory
+waybar.service: Command /usr/local/libexec/labwc-session-check is not executable: No such file or directory
+waybar.service: Command /usr/local/libexec/labwc-panel-run is not executable: No such file or directory
+waybar.service: Command /usr/local/libexec/labwc-session-check is not executable: No such file or directory
+crystal-dock.service: Command /usr/local/libexec/labwc-session-check is not executable: No such file or directory
+crystal-dock.service: Command /usr/local/libexec/labwc-output-watch is not executable: No such file or directory
+crystal-dock.service: Command /usr/local/libexec/labwc-panel-run is not executable: No such file or directory
+whisper-record.service: Command /usr/local/libexec/labwc-session-check is not executable: No such file or directory
+whisper-record.service: Command /usr/local/libexec/whisper-record-timed is not executable: No such file or directory
+whisper-record.service: Command /usr/local/libexec/whisper-record-toggle is not executable: No such file or directory

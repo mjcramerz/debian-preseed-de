@@ -1,0 +1,7 @@
+Original ZIP files: 1435
+Unmodified original files (byte-identical): 1395
+Modified originals: 36
+Intentionally removed old timer/service templates: 4
+Added files before this verification report and the change ledger: 25
+All unrelated host profiles remain byte-identical.
+Only the four explicitly retired templates are absent.

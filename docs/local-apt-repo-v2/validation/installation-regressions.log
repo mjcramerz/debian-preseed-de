@@ -1,0 +1,56 @@
+test_active_handoff_rejects_loader_injection_before_exec (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_active_handoff_rejects_loader_injection_before_exec) ... fatal: ChatGPT launcher forbids ambient environment variable: LD_PRELOAD
+fatal: ChatGPT launcher forbids ambient environment variable: LD_LIBRARY_PATH
+fatal: ChatGPT launcher forbids ambient environment variable: PYTHONPATH
+fatal: ChatGPT launcher forbids ambient environment variable: BASH_ENV
+ok
+test_backend_identity_and_canonical_wrapper (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_backend_identity_and_canonical_wrapper) ... ok
+test_chatgpt_handoff_preserves_exports_not_untrusted_identity (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_chatgpt_handoff_preserves_exports_not_untrusted_identity) ... ok
+test_inactive_desktop_launch_collects_all_exports (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_inactive_desktop_launch_collects_all_exports) ... ok
+test_partial_activation_marker_is_repaired (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_partial_activation_marker_is_repaired) ... ok
+test_writable_profile_is_rejected (test_installation_fixes_20260912.ChatGPTEnvironmentTests.test_writable_profile_is_rejected) ... fatal: ChatGPT DevOps profile has unsafe ownership, type or mode: /tmp/tmpqx8ktzor/.profile.d/71-devops-de.sh
+ok
+test_atomic_replace_rejects_inode_change (test_installation_fixes_20260912.DesktopHookTests.test_atomic_replace_rejects_inode_change) ... ok
+test_changing_default_gpu_replaces_only_our_prefix (test_installation_fixes_20260912.DesktopHookTests.test_changing_default_gpu_replaces_only_our_prefix) ... ok
+test_configuration_never_evaluates_shell (test_installation_fixes_20260912.DesktopHookTests.test_configuration_never_evaluates_shell) ... ok
+test_crlf_and_literal_dollar_are_preserved (test_installation_fixes_20260912.DesktopHookTests.test_crlf_and_literal_dollar_are_preserved) ... ok
+test_duplicate_keys_rejected (test_installation_fixes_20260912.DesktopHookTests.test_duplicate_keys_rejected) ... ok
+test_foreign_dpkg_root_does_not_touch_host (test_installation_fixes_20260912.DesktopHookTests.test_foreign_dpkg_root_does_not_touch_host) ... ok
+test_managed_entries_untouched (test_installation_fixes_20260912.DesktopHookTests.test_managed_entries_untouched) ... ok
+test_multiarch_package_ownership (test_installation_fixes_20260912.DesktopHookTests.test_multiarch_package_ownership) ... ok
+test_nodisplay_hidden_and_nonapplication_unchanged (test_installation_fixes_20260912.DesktopHookTests.test_nodisplay_hidden_and_nonapplication_unchanged) ... ok
+test_original_command_quoting_fields_actions_and_dbus (test_installation_fixes_20260912.DesktopHookTests.test_original_command_quoting_fields_actions_and_dbus) ... ok
+test_package_query_is_read_only_and_checks_app_asar (test_installation_fixes_20260912.DesktopHookTests.test_package_query_is_read_only_and_checks_app_asar) ... ok
+test_repeat_execution_does_not_stack_wrappers (test_installation_fixes_20260912.DesktopHookTests.test_repeat_execution_does_not_stack_wrappers) ... ok
+test_root_group_writable_vendor_file_only (test_installation_fixes_20260912.DesktopHookTests.test_root_group_writable_vendor_file_only) ... ok
+test_symlink_publication_replaces_link_not_target (test_installation_fixes_20260912.DesktopHookTests.test_symlink_publication_replaces_link_not_target) ... ok
+test_electron_flags_keep_zygote_and_namespace_sandbox (test_installation_fixes_20260912.GenericWrapperTests.test_electron_flags_keep_zygote_and_namespace_sandbox) ... ok
+test_env_assignments_are_not_shell_evaluated (test_installation_fixes_20260912.GenericWrapperTests.test_env_assignments_are_not_shell_evaluated) ... fatal: desktop env assignment cannot replace the account identity: HOME
+fatal: desktop env assignment conflicts with launch isolation: DISPLAY
+fatal: desktop env assignment conflicts with launch isolation: LD_PRELOAD
+fatal: desktop env assignment cannot replace the account identity: DBUS_SESSION_BUS_ADDRESS
+ok
+test_native_wrapper_uses_toolkit_environment_not_electron_arguments (test_installation_fixes_20260912.GenericWrapperTests.test_native_wrapper_uses_toolkit_environment_not_electron_arguments) ... ok
+test_new_scopes_participate_in_integrity_inventory (test_installation_fixes_20260912.GenericWrapperTests.test_new_scopes_participate_in_integrity_inventory) ... ok
+test_sandbox_disabling_arguments_rejected (test_installation_fixes_20260912.GenericWrapperTests.test_sandbox_disabling_arguments_rejected) ... fatal: Electron launcher refuses sandbox-disabling switch: --disable-gpu-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-namespace-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-seccomp-filter-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --in-process-gpu
+fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --no-zygote
+fatal: Electron launcher refuses sandbox-disabling switch: --single-process
+ok
+test_shell_electron_entry_does_not_receive_fake_flags (test_installation_fixes_20260912.GenericWrapperTests.test_shell_electron_entry_does_not_receive_fake_flags) ... fatal: Electron desktop Exec must name the executable, not a shell -c script
+ok
+test_transient_cgroup_lifetime_and_argument_integrity (test_installation_fixes_20260912.GenericWrapperTests.test_transient_cgroup_lifetime_and_argument_integrity) ... ok
+test_vendor_features_merged_without_vulkan (test_installation_fixes_20260912.GenericWrapperTests.test_vendor_features_merged_without_vulkan) ... ok
+test_apparmor_covers_root_cause_not_null_profiles_or_root_codex (test_installation_fixes_20260912.InstallerRegressionTests.test_apparmor_covers_root_cause_not_null_profiles_or_root_codex) ... ok
+test_every_host_profile_defines_both_launchers (test_installation_fixes_20260912.InstallerRegressionTests.test_every_host_profile_defines_both_launchers) ... ok
+test_firstboot_renderer_nested_shell_is_not_truncated (test_installation_fixes_20260912.InstallerRegressionTests.test_firstboot_renderer_nested_shell_is_not_truncated) ... ok
+test_generic_hardware_fallback_matches_selected_hardware (test_installation_fixes_20260912.InstallerRegressionTests.test_generic_hardware_fallback_matches_selected_hardware) ... ok
+test_tool_version_probes_have_disposable_homes (test_installation_fixes_20260912.InstallerRegressionTests.test_tool_version_probes_have_disposable_homes) ... ok
+test_tuta_is_home_scoped_and_installed_with_ownership (test_installation_fixes_20260912.InstallerRegressionTests.test_tuta_is_home_scoped_and_installed_with_ownership) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 1.373s
+
+OK

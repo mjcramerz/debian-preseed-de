@@ -109,12 +109,15 @@ sub finalize {
 }
 
 sub record_worker {
-    my ($self) = @_;
+    my ($self, $control_guard) = @_;
     my $recording = $self->state()->read()
         or _fatal('recorder service started without managed runtime state');
     my $guard = $self->state()->lock(1, 1)
         or _fatal('a Whisper recording is already active');
     my $wav = $self->artifacts()->validate_wav($recording);
+    # The supervisor no longer execs: release the control lock explicitly once
+    # the recording lock is held, otherwise a stop action deadlocks behind it.
+    undef ${$control_guard} if ref($control_guard) eq 'GLOB' || ref($control_guard) eq 'REF' || ref($control_guard) eq 'SCALAR';
     $self->audio()->record($wav, $recording, $self->state());
 }
 
