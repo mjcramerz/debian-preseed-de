@@ -1,0 +1,724 @@
+{
+  "source_zip_sha256": "9a829360c052f138bc882f7573d7ac60fc56bfbba54101a8198ef45fc2e9edf1",
+  "unchanged_files": 1382,
+  "changes": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/vivaldi-bin",
+      "change": "modified",
+      "before": {
+        "sha256": "2505a93e974eb395cb6b8662b95f9bb66ad8a0bd227f27a1ec0bc261f9893541",
+        "mode": "0o640",
+        "bytes": 4448
+      },
+      "after": {
+        "sha256": "d9d610533616e614b022f3f56274f6589f0f2bde24b9665213087c87c2a459fc",
+        "mode": "0o640",
+        "bytes": 4746
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/vivaldi-stable",
+      "change": "modified",
+      "before": {
+        "sha256": "8438fbfc3c4944057157ffda6a12cae8c71e8e5297e96ef186171a49e93d44b0",
+        "mode": "0o640",
+        "bytes": 811
+      },
+      "after": {
+        "sha256": "e39fd3ba6c1fbec0b0c718234a60b619086a4847a3fe1f55165c008a8bc419de",
+        "mode": "0o640",
+        "bytes": 914
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "change": "modified",
+      "before": {
+        "sha256": "03f47a7b0d2e0ed9fa46d5de43104bddb21fdd624921f67f4c476fd7f0ddf26b",
+        "mode": "0o660",
+        "bytes": 5895
+      },
+      "after": {
+        "sha256": "a6889aedb5879c9d5c2e1fdbcda0c9bd172add48f2e46a6593f17880aa18fab7",
+        "mode": "0o660",
+        "bytes": 7130
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "change": "modified",
+      "before": {
+        "sha256": "2a7d7648dc8c8606dc555151cb19e5a8f125b2c088d34220dfccf87e04bd555b",
+        "mode": "0o660",
+        "bytes": 147374
+      },
+      "after": {
+        "sha256": "1721596ca4cf7c646d1736738a858c5f8c87d2d31cbf9d243132a7c6c667363c",
+        "mode": "0o660",
+        "bytes": 149344
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
+      "change": "modified",
+      "before": {
+        "sha256": "d04359d754c2ff979e111beef4624e091f428e5ddbb7c0f78147f5d4d8f449e2",
+        "mode": "0o660",
+        "bytes": 9101
+      },
+      "after": {
+        "sha256": "fe61e94acbd140ccd5ccfc4761b7a2aeaaa68b0885b89f4ab2fd306c16ffad04",
+        "mode": "0o660",
+        "bytes": 9118
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden",
+      "change": "modified",
+      "before": {
+        "sha256": "f443bf94b24f2200449166b90b539e3744c26e086e6fd9cace8640a575a97293",
+        "mode": "0o640",
+        "bytes": 3280
+      },
+      "after": {
+        "sha256": "552e717a7422270cf3cd910c8f79c1cefbac72f334e47cd53e40d099150d5fae",
+        "mode": "0o640",
+        "bytes": 3329
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.Filen.Filen",
+      "change": "modified",
+      "before": {
+        "sha256": "7a9289342eb7723557a12fd33e727949198c2d982a3ad179b3c8ea28102dd39c",
+        "mode": "0o640",
+        "bytes": 1414
+      },
+      "after": {
+        "sha256": "67e66dbb15676d0e2bbb65d3aee75752f54e446884de6a0ec5c25f7da5f79557",
+        "mode": "0o640",
+        "bytes": 1463
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl",
+      "change": "modified",
+      "before": {
+        "sha256": "9c7f07335cc8fb873619d5b741109919c23fe0c2e4e49adf34ffb47390eec50a",
+        "mode": "0o640",
+        "bytes": 13215
+      },
+      "after": {
+        "sha256": "b72fbaa9143c4a7138d704417f1aa669856bbf58b829638041486f5c042603d8",
+        "mode": "0o640",
+        "bytes": 13369
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "a9b5ffaddf47aadf2e38d9cad7eea68c324fb35b09cbfad02d9215950b412a02",
+        "mode": "0o644",
+        "bytes": 407
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/codex-app-server.service",
+      "change": "modified",
+      "before": {
+        "sha256": "c1f6745738d107929b63b2bb025ac144c58cc8f4b0cc922ac27c822943c0009f",
+        "mode": "0o640",
+        "bytes": 2014
+      },
+      "after": {
+        "sha256": "8a5c0391f2d0676531e7a5800ed49510d2160851d828a1b141bd60200e751c24",
+        "mode": "0o640",
+        "bytes": 2408
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "be4f3ab114e8867cb576233c9436fc8f055b0effd5f8aea0a56687e23b927540",
+        "mode": "0o640",
+        "bytes": 358
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "0e5b59e232b307862991059ea6a38043ddc2d8b6ae8ab32cbfec0d542458a9de",
+        "mode": "0o640",
+        "bytes": 29842
+      },
+      "after": {
+        "sha256": "94bc2f27ddcde517136325ba60aae01a4ea6df4fed422ae8a7c4ace70522783f",
+        "mode": "0o640",
+        "bytes": 30167
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-electron-app",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "dff78693465be40c78f7cb79de31c088c444da1b6313e18ca54855f300a550c5",
+        "mode": "0o755",
+        "bytes": 3287
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-wayland-app",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "edfa38b6e8e92dc500867ecbc46e555835a126b65312bbb8c40a148f59ce25dd",
+        "mode": "0o755",
+        "bytes": 3285
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Tuta.pm",
+      "change": "modified",
+      "before": {
+        "sha256": "3783d994414e891e3b2ce64cccc53a93263689dd69022edfb9e30128802b3928",
+        "mode": "0o640",
+        "bytes": 7794
+      },
+      "after": {
+        "sha256": "34035a6c90e03b7375c13857d989a86d983e0bd160f60e1d5dc85b8bb09cf6fe",
+        "mode": "0o640",
+        "bytes": 7821
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bootstrap.py",
+      "change": "modified",
+      "before": {
+        "sha256": "914f669acc7e13c021fba89b7b1ab7da549a7fe73f04c3e252852d75b02d7336",
+        "mode": "0o640",
+        "bytes": 2158
+      },
+      "after": {
+        "sha256": "0488970772825dd2a4252d19429a95610956e1e0f7c5dba3e7241bf390124131",
+        "mode": "0o640",
+        "bytes": 2319
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py",
+      "change": "modified",
+      "before": {
+        "sha256": "7996cfed29121b76296cc348509ba340bb4fdf24da2c1ca90d596cb2836efd58",
+        "mode": "0o640",
+        "bytes": 40247
+      },
+      "after": {
+        "sha256": "fd8227f0b2ef95baf3903ab95e28e7d79b62a1c970ba2cf1a6d724e63e53732a",
+        "mode": "0o640",
+        "bytes": 42888
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "03d4179fcc4f6b2ab659784a1b3ff6810cc10c522f38fdd9ee5533a11612b790",
+        "mode": "0o644",
+        "bytes": 10856
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py",
+      "change": "modified",
+      "before": {
+        "sha256": "2d96758291cfea287551c05671d03b6bcac04064138c2ffc3d7c8a4fab9c5487",
+        "mode": "0o640",
+        "bytes": 8543
+      },
+      "after": {
+        "sha256": "621a3b0bc3afdfbc10d6624e697b94f402e730a6239dbfac4020774a9ba44629",
+        "mode": "0o640",
+        "bytes": 8722
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py",
+      "change": "modified",
+      "before": {
+        "sha256": "59551a52c4997e391d29cf49578757510c57b99b716fe25fe5529f1be4e23cd8",
+        "mode": "0o660",
+        "bytes": 7257
+      },
+      "after": {
+        "sha256": "9b56af38465dbeb3a92ccd01bb153580a7017eb92f0a86c7a41d6ddc0f835217",
+        "mode": "0o660",
+        "bytes": 7477
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "change": "modified",
+      "before": {
+        "sha256": "2d874bee50829b9d5c5289fc62e323710574f82ae246834f37c84c5aaf8ebfc9",
+        "mode": "0o660",
+        "bytes": 8737
+      },
+      "after": {
+        "sha256": "073352797c6e94cbdb1d6de03e4571b85cc3f99fb2231ec4adfc8e94fd71931b",
+        "mode": "0o660",
+        "bytes": 10485
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "8226e5b1d09ccda789951729cf33cfdca7753caae68a54f59c6e8908051fa241",
+        "mode": "0o755",
+        "bytes": 12601
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/share/applications/tuta-mail.desktop",
+      "change": "removed",
+      "before": {
+        "sha256": "be4f3ab114e8867cb576233c9436fc8f055b0effd5f8aea0a56687e23b927540",
+        "mode": "0o640",
+        "bytes": 358
+      },
+      "after": null
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "change": "modified",
+      "before": {
+        "sha256": "56a5be7073cbcb674f034b34a9da6c255ef26d95d3d6eed966138e8e223c32f0",
+        "mode": "0o640",
+        "bytes": 44383
+      },
+      "after": {
+        "sha256": "8fc51f0203c904c512548c605ce73837b7579c786eb23252c788d0d385b03a3c",
+        "mode": "0o640",
+        "bytes": 44531
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "change": "modified",
+      "before": {
+        "sha256": "b1e6f2c40feff6efcb45e39be1db063b1e4d06616c3a686b1ec26ac9541c3c8a",
+        "mode": "0o640",
+        "bytes": 44311
+      },
+      "after": {
+        "sha256": "be615ca24f9e83aa2df382938d238b2eb9838ac5a304f472f135de599d1447b3",
+        "mode": "0o640",
+        "bytes": 44459
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "change": "modified",
+      "before": {
+        "sha256": "bc77bf499055d546947ee4416b47c5690ef23a1d2edc268a01049d012fdaaafd",
+        "mode": "0o640",
+        "bytes": 44088
+      },
+      "after": {
+        "sha256": "0a8dafda10ac719636b3f92180a9fee88e5f23c80420309c4022ef490f2e0ba1",
+        "mode": "0o640",
+        "bytes": 44236
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "change": "modified",
+      "before": {
+        "sha256": "2593e7fb87b53a7d8ea6c1b1d812cf6a219c715cfdd6b042489191c691ac3f49",
+        "mode": "0o640",
+        "bytes": 44159
+      },
+      "after": {
+        "sha256": "52d0e1aee79defbf49fc631235f453903728302033ebef71be864ee2efe88052",
+        "mode": "0o640",
+        "bytes": 44307
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "change": "modified",
+      "before": {
+        "sha256": "5ad159bf65743521b78ed9d71d4cf8da26afedc11bed5fec401480000429d201",
+        "mode": "0o660",
+        "bytes": 44492
+      },
+      "after": {
+        "sha256": "524c4134a216b4ce89ae4634394e786b4d6392ffc36dad48395b36746effd0fa",
+        "mode": "0o660",
+        "bytes": 44640
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "change": "modified",
+      "before": {
+        "sha256": "bd49e3404cc743f7eefd2ad8387683d627fac49776a85c78c9894abc37eace32",
+        "mode": "0o640",
+        "bytes": 44114
+      },
+      "after": {
+        "sha256": "bbc4a5ff0c00c58992f5e8913323222de95bf8333b1075567814765b6eacfb46",
+        "mode": "0o640",
+        "bytes": 44262
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "change": "modified",
+      "before": {
+        "sha256": "9fe7e557d4567336306705da75b71d68e635372f3a7fae930a03a5c835dcb2c2",
+        "mode": "0o640",
+        "bytes": 44088
+      },
+      "after": {
+        "sha256": "fede98b3b73d5c0b7f3cfb8c408bd7386e071aed9745499bb526ce61964371e3",
+        "mode": "0o640",
+        "bytes": 44236
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "change": "modified",
+      "before": {
+        "sha256": "884736e72e4a738fefe163c739d7d919f45fefacc5c2084992220c2e96921dc9",
+        "mode": "0o640",
+        "bytes": 43716
+      },
+      "after": {
+        "sha256": "2169a8379d940e6db4968cf09e61705856772ce3003c81f61c8869d729f038fc",
+        "mode": "0o640",
+        "bytes": 43864
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "change": "modified",
+      "before": {
+        "sha256": "7460013920edd9c97ee8ac8a9790f565d261dc7d67b26f60fc013cfbf9fba714",
+        "mode": "0o640",
+        "bytes": 43764
+      },
+      "after": {
+        "sha256": "2d3222e777e3c1c6c7d5d9740892dd2d6e1877cacea62b3b12aa4607fff2e121",
+        "mode": "0o640",
+        "bytes": 43912
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "change": "modified",
+      "before": {
+        "sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
+        "mode": "0o640",
+        "bytes": 43666
+      },
+      "after": {
+        "sha256": "057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368",
+        "mode": "0o640",
+        "bytes": 43814
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "change": "modified",
+      "before": {
+        "sha256": "df397f1964e7ad605c671232dea473fe944be4cdabe067439c63eb24c61eaadd",
+        "mode": "0o640",
+        "bytes": 43672
+      },
+      "after": {
+        "sha256": "db8f367d7fdcce20f8a6bb791bcc1c137153cb26f51de7025dc50ba83f8e0f24",
+        "mode": "0o640",
+        "bytes": 43820
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "change": "modified",
+      "before": {
+        "sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
+        "mode": "0o640",
+        "bytes": 43666
+      },
+      "after": {
+        "sha256": "057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368",
+        "mode": "0o640",
+        "bytes": 43814
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "change": "modified",
+      "before": {
+        "sha256": "8a55c86220da55f9fef2102e8129f163907916ffdce93a072de1452d230f18dc",
+        "mode": "0o640",
+        "bytes": 43866
+      },
+      "after": {
+        "sha256": "e86e3d01d27930a0e7392fccfb03778e57f7a9fd1ab60f17a5c8d03a02619ac4",
+        "mode": "0o640",
+        "bytes": 44014
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "change": "modified",
+      "before": {
+        "sha256": "b6cd536b177b8fd3abf950b518130d2557e4421274ceaafc92613506f013e244",
+        "mode": "0o660",
+        "bytes": 152884
+      },
+      "after": {
+        "sha256": "b7d0d47b51e793bb55d1329226b2904c46ae0b34a725b70ec3380c306bb71842",
+        "mode": "0o644",
+        "bytes": 153524
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "change": "modified",
+      "before": {
+        "sha256": "ace7bf0a6332d23987bd29900abe1770b553aa44c00bde1677818f8b5bf36ddb",
+        "mode": "0o660",
+        "bytes": 6815152
+      },
+      "after": {
+        "sha256": "480a45a461e7a80eec95d265f8e3a9a9e8a830d08bd2e7bf9f1b1f78672d02ee",
+        "mode": "0o644",
+        "bytes": 6827816
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "change": "modified",
+      "before": {
+        "sha256": "e2a5cc7686605c37fa457a9f5f4257a3d848c656e937d04009e71d960350f039",
+        "mode": "0o660",
+        "bytes": 85499
+      },
+      "after": {
+        "sha256": "2bdcfe172194e5c161178c9dd490b36067ccdf3b1fb17a600f28da8b1c970862",
+        "mode": "0o644",
+        "bytes": 85499
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/common/target.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "6a62bccfd2d71a9e0f2a9afde47ddd308a1346521fa2c3ab92fe86315219326f",
+        "mode": "0o750",
+        "bytes": 13692
+      },
+      "after": {
+        "sha256": "fc778cc2c14aa6b410244e1409e86edf375c0c088127fb3a0a2f88ed869647b7",
+        "mode": "0o750",
+        "bytes": 14103
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "815467f62c7a9574dbaf5167696bd8689e011c02169f336e7d56899d012e9075",
+        "mode": "0o770",
+        "bytes": 201007
+      },
+      "after": {
+        "sha256": "b66fe6a551b2549281fa604973fe299ff3f128456b0394b327302cc63c8da971",
+        "mode": "0o770",
+        "bytes": 202289
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/detect.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "16d53ccaccd664759675494b63a89aaf940b9be099cb0c46e9faedb66e437c42",
+        "mode": "0o750",
+        "bytes": 34745
+      },
+      "after": {
+        "sha256": "76d4b5032acdf84c5d266477b7475330896920475c57dbccc918280c361b3543",
+        "mode": "0o750",
+        "bytes": 36000
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/labwc.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "ad738f0184c27cd43def0ca1d68ceac41ba5d784e1b628a45aa838cf7723392f",
+        "mode": "0o750",
+        "bytes": 10892
+      },
+      "after": {
+        "sha256": "7c805d1e7245fea6f823d43ae00106284f28003af6ed4fd73f9e40fa184a2534",
+        "mode": "0o750",
+        "bytes": 11034
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/verify.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "c951d51b0cfd805a0774de82a3b3c335cf82c3383a2f633aaf94726fc3a2bed1",
+        "mode": "0o750",
+        "bytes": 58555
+      },
+      "after": {
+        "sha256": "c659671e609f1312e2e3eb4ec98534f46cd4e9fc8bf72d1977718165a7a5ac23",
+        "mode": "0o750",
+        "bytes": 58853
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/firstboot/04-validation.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "aceb01481e01908bd0e6234d336f39612bd8c2eabb1cd35e905d1bc256071f1d",
+        "mode": "0o750",
+        "bytes": 47432
+      },
+      "after": {
+        "sha256": "ea52590db25a98413b18a9c08d230a85249b2a2b116eecb5fc38791e37d02af1",
+        "mode": "0o750",
+        "bytes": 47456
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/firstboot/firstboot.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "3b2ec69de1821e98c5e4c521688f8a128c84ec6308c9c964fc83e5b21d4f94b6",
+        "mode": "0o750",
+        "bytes": 5320
+      },
+      "after": {
+        "sha256": "5ba1678ada90176e1e34173a6876b07579000d5a3b98096d3fd82293cb777d8d",
+        "mode": "0o750",
+        "bytes": 5618
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/devops-tools.py",
+      "change": "modified",
+      "before": {
+        "sha256": "c496b4071af2d8279c75622e26bde8dc381a4a1a54fda972d6cefc59f28dcda7",
+        "mode": "0o750",
+        "bytes": 81839
+      },
+      "after": {
+        "sha256": "82b61bae8a2886ba323356779991afb2a358a4291c24bc82622cb5b9c916127c",
+        "mode": "0o750",
+        "bytes": 82901
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/devops.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "bfc49c8384e01eb14e0626232939005f4a8d01c0ec7e0459019d36c41512ead6",
+        "mode": "0o750",
+        "bytes": 226063
+      },
+      "after": {
+        "sha256": "795ada95b61653d07ecbc0e372c8b52490700b0619b2fae2f0f3c0cd86166972",
+        "mode": "0o750",
+        "bytes": 227025
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/software.sh",
+      "change": "modified",
+      "before": {
+        "sha256": "8b48f2607fb79f20c632b1f010a9ae49f38435082bc93623c68f02567b5f6709",
+        "mode": "0o770",
+        "bytes": 95135
+      },
+      "after": {
+        "sha256": "dab5b2aa9e9ca2ffeb617886000336bd9d7164cfe87f5428187c44572325fb66",
+        "mode": "0o770",
+        "bytes": 95189
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_codex_installer_session.py",
+      "change": "modified",
+      "before": {
+        "sha256": "6fba27fff2356b62ab41a984ba14dfbe59730969a405b9df8bea664562497da3",
+        "mode": "0o640",
+        "bytes": 24598
+      },
+      "after": {
+        "sha256": "6cb6bb7d6d7d1afb5a4d4c64ff157b79690537c076ee855fcbaead6651ff3a32",
+        "mode": "0o640",
+        "bytes": 24583
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_installation_fixes_20260912.py",
+      "change": "added",
+      "before": null,
+      "after": {
+        "sha256": "247424eec7202ab29de85d0f2c4e4af9bbcc3a1100270199adb8a20b8cbc561f",
+        "mode": "0o644",
+        "bytes": 23417
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_installed_failures_20260911.py",
+      "change": "modified",
+      "before": {
+        "sha256": "3d7472c5aa5eeb30660756fdf0b6564275e62c0de068f5c71c0e31b6e0c9c6f4",
+        "mode": "0o660",
+        "bytes": 20207
+      },
+      "after": {
+        "sha256": "100aae50dd6900b17ec2e5e4eeabce89dfd9dd127d82e54891e8319e973ac4d4",
+        "mode": "0o660",
+        "bytes": 20385
+      }
+    }
+  ],
+  "validation": {
+    "modules": [
+      "test_installation_fixes_20260912",
+      "test_installed_failures_20260911",
+      "test_lifecycle",
+      "test_codex_installer_session",
+      "test_desktop_sandbox"
+    ],
+    "tests_run": 167,
+    "failures": 0,
+    "errors": 0,
+    "skipped": [
+      [
+        "test_desktop_sandbox.InstalledFailureRegressionTests.test_auth_rainerscript_parses",
+        "rsyslogd is unavailable"
+      ]
+    ],
+    "excluded_missing_original_fixtures": {
+      "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events": "Original September 11 raw fixture todo/managed/apparmor/apparmor.log is absent from the supplied ZIP.",
+      "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped": "Original raw fixture todo/apparmor.log is absent from the supplied ZIP."
+    }
+  }
+}

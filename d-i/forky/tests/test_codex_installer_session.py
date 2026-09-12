@@ -432,7 +432,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
         publication_offset = function.index(publication)
         for required_preflight in (
             'python3 "$archive_helper_path"',
-            'version_output=$(timeout --kill-after=5 30 "$candidate_binary_path" --version',
+            'version_output=$(codex_verify_version "$candidate_binary_path"',
             'git clone',
             'actual_repository_commit=$(git -C "$repository_staging" rev-parse HEAD)',
             'cp -a -- "$repository_staging/etc/." "$config_staging/"',

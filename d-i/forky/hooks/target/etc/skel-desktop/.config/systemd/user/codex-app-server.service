@@ -13,6 +13,12 @@ StartLimitBurst=5
 
 [Service]
 Type=exec
+# User managers do not source shell profiles. The wrapper below applies the
+# complete 71-devops-de.sh environment; seed identity before any Exec command.
+Environment=HOME=%h USER=%u LOGNAME=%u XDG_RUNTIME_DIR=%t
+Environment=CODEX_HOME=/data/codex/usr/home
+Environment=XDG_CONFIG_HOME=%h/.config XDG_CACHE_HOME=%h/.cache
+Environment=XDG_DATA_HOME=%h/.local/share XDG_STATE_HOME=%h/.local/state
 EnvironmentFile=/etc/default/codex-app-server
 # CODEX_HOME/auth.json is application-managed and absent until user login.
 # Never synthesize, load as a credential, or read-only-overmount that file.

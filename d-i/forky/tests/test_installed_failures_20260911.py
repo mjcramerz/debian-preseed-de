@@ -139,8 +139,12 @@ class SessionOwnershipTests(unittest.TestCase):
         self.assertIn('usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755',
                       (FORKY / 'scripts/desktop/components.sh').read_text())
 
-    def test_host_namespace_does_not_redirect_normal_apps(self):
-        self.launch(owner=0).assert_not_called()
+    def test_host_namespace_also_isolates_normal_apps(self):
+        call = self.launch(owner=0)
+        call.assert_called_once()
+        argv = call.call_args.args[1]
+        self.assertIn('--property=ExitType=cgroup', argv)
+        self.assertIn('--property=KillMode=control-group', argv)
 
     def test_native_marker_prevents_loop(self):
         self.launch(owner=0, marker='1').assert_not_called()

@@ -6,6 +6,7 @@ abi "/usr/share/apparmor-features/features",
 
 profile filen /{usr/bin/{filen,filen-desktop},opt/Filen/Filen} flags=(attach_disconnected) {
   #include <abstractions/managed-electron-application>
+  ptrace (readby) peer=managed-desktop-launcher,
   #include <abstractions/managed-user-documents>
   #include <abstractions/managed-pipewire-audio>
   include if exists <abstractions/user-tmp>

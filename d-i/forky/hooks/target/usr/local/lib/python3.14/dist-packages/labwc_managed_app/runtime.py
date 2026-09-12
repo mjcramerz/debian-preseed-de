@@ -17,6 +17,8 @@ MANAGED_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 MANAGED_DEFAULTS_PATH = pathlib.Path("/etc/default/labwc-desktop")
 MAX_MANAGED_DEFAULTS_BYTES = 65536
 MANAGED_DEFAULTS_KEYS = {
+    "LABWC_ELECTRON_APP_DEFAULT_EXEC",
+    "LABWC_WAYLAND_APP_DEFAULT_EXEC",
     "LABWC_INTEL_ACCELERATION_AVAILABLE",
     "LABWC_MANAGED_APP_DEFAULT_EXEC",
     "LABWC_NVIDIA_ACCELERATION_AVAILABLE",
@@ -111,6 +113,8 @@ def current_user_home() -> str:
     account = current_user_account()
     home_dir = account.pw_dir
     validate_absolute_path("current desktop HOME", home_dir)
+    if home_dir == "/" or os.path.realpath(home_dir) != home_dir:
+        fail("current desktop HOME must be a normalized non-root directory")
     try:
         metadata = os.lstat(home_dir)
     except OSError as exc:

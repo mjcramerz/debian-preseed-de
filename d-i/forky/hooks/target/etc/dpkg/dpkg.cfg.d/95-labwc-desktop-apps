@@ -1,0 +1,4 @@
+# Package installs, upgrades and removals refresh generic desktop launchers.
+# During bootstrap the helper/defaults may not exist yet; desktop provisioning
+# invokes it once explicitly after installing and rendering those assets.
+post-invoke=if [ -x /usr/local/libexec/labwc-wrap-desktop-files ] && [ -x /usr/bin/python3 ] && [ -x /usr/bin/dpkg-query ]; then /usr/local/libexec/labwc-wrap-desktop-files; fi

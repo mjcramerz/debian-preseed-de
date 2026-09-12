@@ -1,0 +1,94 @@
+#!/usr/bin/python3 -I
+"""Generic electron desktop application entrypoint."""
+
+from __future__ import annotations
+
+from pathlib import Path
+import stat
+import sys
+
+
+sys.dont_write_bytecode = True
+PACKAGE_SCOPE = 'electron'
+PACKAGE_ROOT = Path("/usr/local/lib/python3.14/dist-packages")
+PACKAGE_DIRECTORY = PACKAGE_ROOT / "labwc_managed_app"
+SYSTEM_OWNER_ANCHOR = Path("/usr")
+TRUSTED_DIRECTORIES = (
+    SYSTEM_OWNER_ANCHOR,
+    Path("/usr/local"),
+    Path("/usr/local/lib"),
+    Path("/usr/local/lib/python3.14"),
+    PACKAGE_ROOT,
+    PACKAGE_DIRECTORY,
+)
+BOOTSTRAP_FILES = (
+    PACKAGE_DIRECTORY / "__init__.py",
+    PACKAGE_DIRECTORY / "bootstrap.py",
+    PACKAGE_DIRECTORY / "integrity.py",
+)
+
+
+def bootstrap_fatal(message: str) -> "NoReturn":
+    print(f"fatal: managed application bootstrap {PACKAGE_SCOPE}: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def path_metadata(path: Path, *, directory: bool):
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        bootstrap_fatal(f"path is unavailable: {path}: {exc}")
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    if stat.S_ISLNK(metadata.st_mode) or not expected_type(metadata.st_mode):
+        bootstrap_fatal(f"path has the wrong type: {path}")
+    return metadata
+
+
+owner_metadata = path_metadata(SYSTEM_OWNER_ANCHOR, directory=True)
+if stat.S_IMODE(owner_metadata.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+    bootstrap_fatal(
+        "system-owner anchor is group/other writable: "
+        f"{SYSTEM_OWNER_ANCHOR}: mode={stat.S_IMODE(owner_metadata.st_mode):04o}"
+    )
+SYSTEM_OWNER = (owner_metadata.st_uid, owner_metadata.st_gid)
+
+for trusted_directory in TRUSTED_DIRECTORIES:
+    metadata = path_metadata(trusted_directory, directory=True)
+    actual_owner = (metadata.st_uid, metadata.st_gid)
+    actual_mode = stat.S_IMODE(metadata.st_mode)
+    if actual_owner != SYSTEM_OWNER:
+        bootstrap_fatal(
+            "directory owner mismatch: "
+            f"{trusted_directory}: expected={SYSTEM_OWNER[0]}:{SYSTEM_OWNER[1]} "
+            f"actual={actual_owner[0]}:{actual_owner[1]}"
+        )
+    if actual_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        bootstrap_fatal(
+            f"directory is group/other writable: {trusted_directory}: mode={actual_mode:04o}"
+        )
+    if trusted_directory == PACKAGE_DIRECTORY and actual_mode != 0o755:
+        bootstrap_fatal(
+            f"package directory mode mismatch: {trusted_directory}: "
+            f"expected=0755 actual={actual_mode:04o}"
+        )
+
+for bootstrap_file in BOOTSTRAP_FILES:
+    metadata = path_metadata(bootstrap_file, directory=False)
+    actual_owner = (metadata.st_uid, metadata.st_gid)
+    actual_mode = stat.S_IMODE(metadata.st_mode)
+    if actual_owner != SYSTEM_OWNER:
+        bootstrap_fatal(
+            "bootstrap file owner mismatch: "
+            f"{bootstrap_file}: expected={SYSTEM_OWNER[0]}:{SYSTEM_OWNER[1]} "
+            f"actual={actual_owner[0]}:{actual_owner[1]}"
+        )
+    if actual_mode != 0o644:
+        bootstrap_fatal(
+            f"bootstrap file mode mismatch: {bootstrap_file}: "
+            f"expected=0644 actual={actual_mode:04o}"
+        )
+
+sys.path.insert(0, str(PACKAGE_ROOT))
+from labwc_managed_app.bootstrap import run
+
+raise SystemExit(run(PACKAGE_SCOPE))

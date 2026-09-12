@@ -1,0 +1,269 @@
+#!/usr/bin/python3 -I
+"""Idempotent dpkg post-invoke wrapping of package-owned desktop entries.
+
+No shell evaluation, user-profile sourcing, dpkg writes, or user-home writes.
+Desktop Exec text is prefixed verbatim: quoting and % field codes are preserved.
+"""
+from __future__ import annotations
+import fcntl
+import os
+from pathlib import Path
+import re
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+
+DEFAULTS = Path('/etc/default/labwc-desktop')
+APPLICATION_DIRS = (Path('/usr/share/applications'), Path('/usr/local/share/applications'))
+MAX_BYTES = 1024 * 1024
+WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/local/bin/labwc-wayland-app'}
+# These have existing dedicated sandbox/compatibility/logging entrypoints.
+MANAGED = {
+    '/usr/local/bin/labwc-managed-app', '/usr/local/bin/labwc-managed-wayland-compat-app',
+    '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
+    '/usr/local/bin/discord', '/usr/local/bin/zoom', *WRAPPERS.values(),
+}
+
+
+def trusted_file(path: Path, *, vendor: bool = False) -> os.stat_result:
+    metadata = path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+            or metadata.st_nlink != 1 or metadata.st_mode & (0o002 if vendor and metadata.st_gid == 0 else 0o022)
+            or metadata.st_mode & 0o7000
+            or metadata.st_size > MAX_BYTES or path.resolve() != path):
+        raise ValueError(f'unsafe package/configuration file: {path}')
+    return metadata
+
+
+def trusted_directory(path: Path) -> None:
+    for parent in (path, *path.parents):
+        metadata = parent.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & (0o002 if metadata.st_gid == 0 else 0o022)):
+            raise ValueError(f'unsafe application directory: {parent}')
+
+
+def read_desktop(path: Path) -> tuple[str, os.stat_result, os.stat_result]:
+    """Follow only root-owned system data; writes replace the entry, not its target."""
+    trusted_directory(path.parent)
+    entry = path.lstat()
+    source = path
+    if stat.S_ISLNK(entry.st_mode):
+        if entry.st_uid != 0 or entry.st_nlink != 1:
+            raise ValueError(f'unsafe desktop symlink: {path}')
+        source = path.resolve(strict=True)
+        if not str(source).startswith(('/usr/', '/opt/')):
+            raise ValueError(f'desktop symlink escapes system application trees: {path}')
+        trusted_directory(source.parent)
+    metadata = trusted_file(source, vendor=True)
+    fd = os.open(source, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'r', encoding='utf-8', newline='') as stream:
+        opened = os.fstat(stream.fileno())
+        if (opened.st_dev, opened.st_ino, opened.st_mtime_ns, opened.st_size) != (metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns, metadata.st_size):
+            raise ValueError(f'desktop source changed while opening: {path}')
+        text = stream.read(MAX_BYTES + 1)
+        if len(text.encode('utf-8')) > MAX_BYTES:
+            raise ValueError(f'desktop source grew beyond its size limit: {path}')
+    return text, entry, metadata
+
+
+def load_defaults() -> dict[str, str]:
+    trusted_file(DEFAULTS)
+    keys = {f'LABWC_{kind.upper()}_APP_DEFAULT_EXEC': kind for kind in WRAPPERS}
+    result = {}
+    for line in DEFAULTS.read_text(encoding='utf-8').splitlines():
+        key, separator, value = line.partition('=')
+        key = key.strip()
+        if not separator or key not in keys:
+            continue
+        if keys[key] in result:
+            raise ValueError(f'duplicate launcher default: {key}')
+        words = shlex.split(value, comments=True)
+        if len(words) != 1:
+            raise ValueError(f'invalid launcher default: {key}')
+        command = shlex.split(words[0])
+        if len(command) != 2 or command[0] != WRAPPERS[keys[key]] or command[1] not in {'intel', 'nvidia', 'launch'}:
+            raise ValueError(f'unsafe launcher default: {key}')
+        result[keys[key]] = ' '.join(command)
+    if set(result) != set(WRAPPERS):
+        raise ValueError('both generic launcher defaults must be configured')
+    return result
+
+
+def managed_exec(value: str) -> bool:
+    # This is only recognition; Exec is never reconstructed from shlex tokens.
+    # Double-quoted executable paths and env prefixes are commonly used.
+    try:
+        words = shlex.split(value, comments=False)
+    except ValueError as exc:
+        raise ValueError('malformed desktop Exec quoting') from exc
+    for word in words:
+        # Also leave existing repository commands with nonstandard whole-prefix
+        # quoting alone; their correction is not this hook's responsibility.
+        if word in MANAGED or any(word.startswith(path + ' ') for path in MANAGED):
+            return True
+    return False
+
+
+
+def original_generic_exec(value: str) -> str | None:
+    # Only unwrap the exact prefix written by this hook, never a shell command
+    # or another managed launcher. This permits changing the configured GPU.
+    match = re.fullmatch(
+        r"/usr/local/bin/labwc-(?:electron|wayland)-app (?:intel|nvidia|launch) -- (.+)",
+        value,
+    )
+    return match.group(1) if match else None
+
+
+def rewrite_desktop(text: str, prefix: str) -> str:
+    lines = text.splitlines(keepends=True)
+    section = ''
+    main = {}
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        elif section == '[Desktop Entry]' and '=' in line and not stripped.startswith('#'):
+            key, value = line.split('=', 1)
+            key = key.strip()
+            if key in main:
+                raise ValueError(f'duplicate Desktop Entry key: {key}')
+            main[key] = value.strip()
+    if main.get('Type', 'Application') != 'Application' or main.get('NoDisplay', '').lower() == 'true' or main.get('Hidden', '').lower() == 'true':
+        return text
+    if not main.get('Exec'):
+        return text
+    if managed_exec(main['Exec']) and original_generic_exec(main['Exec']) is None:
+        return text
+    section = ''
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        key, separator, value = line.partition('=')
+        application_section = section == '[Desktop Entry]' or section.startswith('[Desktop Action ')
+        if separator and application_section and key.strip() == 'Exec' and value.strip():
+            original = original_generic_exec(value.strip())
+            if original is not None:
+                ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+                line = key + '=' + prefix + ' -- ' + original + ending
+            elif not managed_exec(value.strip()):
+                line = key + '=' + prefix + ' -- ' + value.lstrip()
+        elif separator and section == '[Desktop Entry]' and key.strip() == 'DBusActivatable':
+            # Otherwise compliant launchers bypass Exec and its service wrapper.
+            line = key + '=false' + ('\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '')
+        result.append(line)
+    return ''.join(result)
+
+
+def query(arguments: list[str]) -> str:
+    result = subprocess.run(arguments, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'HOME': '/root'},
+                            text=True, timeout=30)
+    if result.returncode:
+        raise ValueError(f'package query failed: {arguments[0]} (status {result.returncode})')
+    return result.stdout
+
+
+def package_for(path: Path) -> str | None:
+    # dpkg-query -S treats its argument as a glob: escape literal metacharacters.
+    pattern = re.sub(r'([*?\[\\])', r'\\\1', str(path))
+    result = subprocess.run(['/usr/bin/dpkg-query', '-S', '--', pattern], check=False,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30,
+                            env={'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': '/root'})
+    if result.returncode == 1:
+        return None  # locally installed entries are not owned by dpkg
+    if result.returncode:
+        raise ValueError(f'cannot query package owner: {path}')
+    owners = set()
+    for line in result.stdout.splitlines():
+        owner, separator, installed_path = line.rpartition(': ')
+        if separator and installed_path == str(path):
+            owners.update(owner.split(', '))
+    if len(owners) != 1:
+        raise ValueError(f'ambiguous package ownership: {path}')
+    package = owners.pop()
+    if not re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::[a-z0-9-]+)?', package):
+        raise ValueError(f'invalid package owner: {path}')
+    return package
+
+
+def is_electron(package: str) -> bool:
+    # Read-only dpkg -L does not invoke post-invoke hooks or need a second lock.
+    paths = query(['/usr/bin/dpkg', '-L', '--', package]).splitlines()
+    return any(path.endswith('/resources/app.asar') and Path(path).is_file() for path in paths)
+
+
+def write_atomic(path: Path, text: str, before: os.stat_result, source: os.stat_result | None = None) -> None:
+    source = before if source is None else source
+    fd, temporary = tempfile.mkstemp(prefix=f'.{path.name}.labwc-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as stream:
+            os.fchmod(stream.fileno(), stat.S_IMODE(source.st_mode))
+            os.fchown(stream.fileno(), source.st_uid, source.st_gid)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        after = path.lstat()
+        if (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size) != (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size):
+            raise ValueError(f'desktop file changed during update: {path}')
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        raise ValueError('desktop package hook must run as root')
+    # --root/--instdir must never accidentally rewrite the host. Installer
+    # chroot runs use their own / and are supported normally.
+    if os.environ.get('DPKG_ROOT', '') not in {'', '/'} or os.environ.get('DPKG_ADMINDIR', '/var/lib/dpkg') != '/var/lib/dpkg':
+        return 0
+    if os.environ.get('DPKG_HOOK_ACTION', 'configure') not in {'install', 'unpack', 'configure', 'triggers-only', 'remove', 'purge'}:
+        return 0
+    if not DEFAULTS.exists():
+        return 0  # desktop role has not been rendered yet
+    defaults = load_defaults()
+    lock = os.open('/run/lock/labwc-desktop-files.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(lock, 'r+') as handle:
+        metadata = os.fstat(handle.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o022:
+            raise ValueError('unsafe desktop hook lock')
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        cache: dict[str, bool] = {}
+        changed = set()
+        for directory in APPLICATION_DIRS:
+            if not directory.exists():
+                continue
+            trusted_directory(directory)
+            for path in sorted(directory.rglob('*.desktop')):
+                text, before, source = read_desktop(path)
+                # Skip hidden/managed entries before doing package queries.
+                if rewrite_desktop(text, defaults['wayland']) == text:
+                    continue
+                package = package_for(path)
+                if package is None:
+                    continue
+                if package not in cache:
+                    cache[package] = is_electron(package)
+                output = rewrite_desktop(text, defaults['electron' if cache[package] else 'wayland'])
+                if output != text:
+                    write_atomic(path, output, before, source)
+                    changed.add(directory)
+        for directory in sorted(changed):
+            if Path('/usr/bin/update-desktop-database').is_file():
+                subprocess.run(['/usr/bin/update-desktop-database', str(directory)], check=True, timeout=30)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        print(f'labwc desktop hook: {exc}', file=sys.stderr)
+        raise SystemExit(1)

@@ -249,6 +249,32 @@ desktop_resolve_managed_app_default_exec() {
   esac
 }
 
+# The generic wrappers share the existing hardware availability policy, but
+# remain independently configurable. Never evaluate a profile command string.
+desktop_resolve_generic_app_default_exec() (
+  wrapper=$1
+  requested=$2
+  case "$requested" in
+    "/usr/local/bin/${wrapper} nvidia")
+      if [ "$LABWC_NVIDIA_ACCELERATION_AVAILABLE" = true ]; then mode=nvidia
+      elif [ "$LABWC_INTEL_ACCELERATION_AVAILABLE" = true ]; then mode=intel
+      else mode=launch; fi ;;
+    "/usr/local/bin/${wrapper} intel")
+      if [ "$LABWC_INTEL_ACCELERATION_AVAILABLE" = true ]; then mode=intel
+      else mode=launch; fi ;;
+    "/usr/local/bin/${wrapper} launch") mode=launch ;;
+    *) desktop_fatal "invalid ${wrapper} default: $requested"; exit 1 ;;
+  esac
+  printf '/usr/local/bin/%s %s\n' "$wrapper" "$mode"
+)
+
+desktop_resolve_generic_app_defaults() {
+  LABWC_ELECTRON_APP_DEFAULT_EXEC=$(desktop_resolve_generic_app_default_exec \
+    labwc-electron-app "${LABWC_ELECTRON_APP_DEFAULT_EXEC:?desktop profile must define the Electron launcher}") || return 1
+  LABWC_WAYLAND_APP_DEFAULT_EXEC=$(desktop_resolve_generic_app_default_exec \
+    labwc-wayland-app "${LABWC_WAYLAND_APP_DEFAULT_EXEC:?desktop profile must define the Wayland launcher}") || return 1
+}
+
 desktop_validate_identifier_list() {
   var_name=$1
   var_value=$2

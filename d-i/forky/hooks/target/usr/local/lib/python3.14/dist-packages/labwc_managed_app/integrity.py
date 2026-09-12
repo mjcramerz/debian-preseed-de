@@ -49,18 +49,22 @@ INNER_RUNTIME_MODULES = (
     "runtime.py",
     "wayland_compat_runtime.py",
 )
-ALL_MODULES = tuple(dict.fromkeys((*CORE_MODULES, *COMPATIBILITY_MODULES)))
+ALL_MODULES = tuple(dict.fromkeys((*CORE_MODULES, *COMPATIBILITY_MODULES, "generic.py")))
 
 
 class PackageScope(StrEnum):
     """Import surface required by one trusted package entrypoint."""
 
+    ELECTRON = "electron"
+    WAYLAND = "wayland"
     NATIVE = "native"
     WAYLAND_COMPAT = "wayland-compat"
     COMPAT_RUNTIME = "compat-runtime"
 
 
 MODULES_BY_SCOPE = {
+    PackageScope.ELECTRON: (*CORE_MODULES, "generic.py"),
+    PackageScope.WAYLAND: (*CORE_MODULES, "generic.py"),
     PackageScope.NATIVE: CORE_MODULES,
     PackageScope.WAYLAND_COMPAT: ALL_MODULES,
     PackageScope.COMPAT_RUNTIME: INNER_RUNTIME_MODULES,

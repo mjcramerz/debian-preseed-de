@@ -199,7 +199,7 @@ sub apply {
     }
     my $published = eval {
         $self->state()->write_state('tuta.installed.sha256', "$hash\n");
-        system('/usr/bin/desktop-file-validate', '/usr/share/applications/tuta-mail.desktop') == 0
+        system('/usr/bin/desktop-file-validate', '/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop') == 0
             or die "Tuta desktop entry validation failed\n";
         -x "$install/AppRun" && !-l "$install/AppRun"
             or die "Tuta post-install payload validation failed\n";

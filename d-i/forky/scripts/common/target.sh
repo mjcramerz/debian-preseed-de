@@ -182,7 +182,11 @@ target_exec() {
             DEBCONF_NOWARNINGS \
             DEBCONF_TERSE \
             DEBIAN_FRONTEND
-          in-target --pass-stdout "$@"
+          in-target --pass-stdout /usr/bin/env \
+            HOME=/root USER=root LOGNAME=root \
+            XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
+            XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
+            "$@"
         )
         return
       fi
@@ -191,6 +195,9 @@ target_exec() {
 
   if command -v chroot >/dev/null 2>&1 && [ -d "$target_root" ]; then
     chroot "$target_root" /usr/bin/env -i \
+      HOME=/root USER=root LOGNAME=root \
+      XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
+      XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
       PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
       "$@"
     return

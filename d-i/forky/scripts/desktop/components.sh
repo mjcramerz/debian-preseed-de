@@ -344,6 +344,7 @@ dbus_proxy.py
 electron.py
 environment.py
 events.py
+generic.py
 identity.py
 integrity.py
 mounts.py
@@ -2646,6 +2647,8 @@ desktop_render_labwc_default_config() {
     LABWC_INTEL_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_INTEL_ACCELERATION_AVAILABLE")" \
     LABWC_NVIDIA_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_NVIDIA_ACCELERATION_AVAILABLE")" \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_MANAGED_APP_DEFAULT_EXEC")" \
+    LABWC_ELECTRON_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_ELECTRON_APP_DEFAULT_EXEC")" \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_WAYLAND_APP_DEFAULT_EXEC")" \
     LABWC_WORKSPACE_COUNT "$(desktop_shell_config_value "${LABWC_WORKSPACE_COUNT:-4}")" \
     LABWC_WALLPAPER_PATH "$(desktop_shell_config_value "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}")" \
     LABWC_LOCK_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}")" \
@@ -3673,8 +3676,17 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-ocr /usr/local/bin/labwc-ocr 0755
   desktop_stage_role_asset usr/local/bin/discord /usr/local/bin/discord 0755
   desktop_stage_role_asset usr/local/bin/telbot /usr/local/bin/telbot 0755
+  desktop_render_role_target_template \
+    etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop \
+    /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop \
+    0644 \
+    LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
   desktop_stage_labwc_managed_app_python_modules
   desktop_stage_role_asset usr/local/bin/labwc-managed-app /usr/local/bin/labwc-managed-app 0755
+  desktop_stage_role_asset usr/local/bin/labwc-electron-app /usr/local/bin/labwc-electron-app 0755
+  desktop_stage_role_asset usr/local/bin/labwc-wayland-app /usr/local/bin/labwc-wayland-app 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files 0755
+  desktop_stage_role_asset etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps /etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps 0644
   desktop_stage_role_asset usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755
   desktop_stage_role_asset usr/local/bin/labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wayland-compat-app 0755
   desktop_stage_role_asset usr/local/libexec/labwc-zoom-discord-compat-runtime /usr/local/libexec/labwc-zoom-discord-compat-runtime 0755
@@ -4093,6 +4105,11 @@ if [ -d /etc/skel-desktop/.config/bazel ]; then
   chown -R "$uid:$gid" "$dst"
   copied_dirs=$((copied_dirs + 1))
 fi
+install -d -m 0700 "$account_home/.local/share/applications"
+chown "$uid:$gid" "$account_home/.local/share/applications"
+install -m 0600 /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop \
+  "$account_home/.local/share/applications/tutanota-desktop.desktop"
+chown "$uid:$gid" "$account_home/.local/share/applications/tutanota-desktop.desktop"
 for private_dir in \
   "$account_home/.local/share/task" \
   "$account_home/.local/share/task/hooks" \

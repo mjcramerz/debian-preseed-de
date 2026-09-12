@@ -15,6 +15,28 @@ profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xourn
   owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/ rw,
   owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/** rwklm,
   /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
+  # GLib/glycin CPU quota probes and its separately confined image decoder.
+  owner @{PROC}/[0-9]*/cgroup r,
+  @{sys}/fs/cgroup/**/cpu.max r,
+  signal (send) set=(kill term) peer=managed-desktop-editors//editor-glycin-bwrap,
+  /usr/bin/bwrap rCx -> editor-glycin-bwrap,
+  profile editor-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/managed-bwrap-common>
+    include if exists <abstractions/fonts>
+    signal (receive) set=(kill term) peer=managed-desktop-editors,
+    /usr/bin/true rix,
+    # bwrap sets NNP before executing the loader: inherit, do not transition.
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/lib/** mr,
+    /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+    /usr/share/mime/mime.cache r,
+    /usr/{,local/}share/icons/{,**} r,
+    /usr/share/backgrounds/{,**} r,
+    owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+    owner @{HOME}/.cache/fontconfig/{,**} r,
+    owner @{HOME}/.cache/glycin/{,**} rwkl,
+  }
   include if exists <local/managed-desktop-editors>
 }
 
@@ -74,6 +96,11 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   #include <abstractions/managed-pipewire-audio>
   capability sys_ptrace,
   ptrace (read) peer=unconfined,
+  # btop in the terminal needs read-only process statistics, not ptrace writes.
+  ptrace (read) peer=bitwarden,
+  ptrace (read) peer=filen,
+  ptrace (read) peer=vivaldi-bin,
+  ptrace (read) peer=vivaldi-stable,
   ptrace (read) peer=managed-codex-slirp4netns,
   ptrace (read) peer=managed-codex-wrapper,
   ptrace (read) peer=managed-codex-wrapper//codex-bwrap,

@@ -124,6 +124,7 @@ run_desktop_late_command() {
   }
   desktop_resolve_acceleration_availability
   desktop_resolve_managed_app_default_exec
+  desktop_resolve_generic_app_defaults
   desktop_validate_managed_app_default_exec \
     LABWC_MANAGED_APP_DEFAULT_EXEC \
     "${LABWC_MANAGED_APP_DEFAULT_EXEC:?LABWC_MANAGED_APP_DEFAULT_EXEC must be set by the desktop host profile}"
@@ -165,6 +166,7 @@ run_desktop_late_command() {
   desktop_log "staged Labwc desktop target assets"
   desktop_render_greetd_config
   desktop_render_labwc_default_config
+  run_in_target "wrap installed desktop package launchers" /usr/local/libexec/labwc-wrap-desktop-files
   desktop_write_labwc_plans_config
   desktop_install_user_resource_policy
   desktop_log "rendered Labwc desktop defaults and greetd config"

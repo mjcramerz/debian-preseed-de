@@ -27,3 +27,6 @@ deny /dev/sound/** rwklm,
 owner @{PROC}/@{pid}/fd/[0-9]* rw,
 
 /opt/vivaldi/vivaldi-bin px -> vivaldi-bin,
+
+# Read-only btop monitoring from the managed terminal.
+ptrace (readby) peer=managed-desktop-launcher,

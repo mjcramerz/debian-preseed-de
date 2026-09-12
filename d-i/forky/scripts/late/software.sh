@@ -161,7 +161,7 @@ tuta_appimage="${work_dir}/tutanota-desktop-linux.AppImage"
 tuta_signature="${work_dir}/linux-sig.bin"
 tuta_public_key=/usr/local/share/software/tuta/tutao-pub.pem
 tuta_install_dir=/opt/tuta-mail
-tuta_desktop_file=/usr/share/applications/tuta-mail.desktop
+tuta_desktop_file=/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop
 tuta_icon_file=/usr/share/icons/hicolor/512x512/apps/tuta-mail.png
 ledger_requested_latest_url=https://download.live.ledger.com/latest/linux
 ledger_metadata_url=https://download.live.ledger.com/latest-linux.yml
@@ -2358,7 +2358,7 @@ install -d -m 0755 "${target_root}$(dirname "$tuta_icon_file")"
 install -m 0644 "${target_root}${tuta_icon_source}" "${target_root}${tuta_icon_file}"
 
 software_render_seed_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/share/applications/tuta-mail.desktop)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop)" \
   "$tuta_desktop_file" \
   0644 \
   LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"

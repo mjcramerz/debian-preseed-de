@@ -53,6 +53,10 @@ def run(scope: PackageScope | str) -> int:
 
     try:
         validate_package(selected_scope)
+        if selected_scope in {PackageScope.ELECTRON, PackageScope.WAYLAND}:
+            from .generic import main
+
+            return main(selected_scope.value)
         if selected_scope is PackageScope.NATIVE:
             from .cli import main
 

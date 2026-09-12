@@ -104,6 +104,7 @@ run_step() {
   script_path="${FIRSTBOOT_SCRIPT_DIR}/${script_name}"
 
   if [ ! -x "$script_path" ]; then
+    printf 'firstboot: missing executable stage: %s\n' "$script_path" >&2
     log_line first_boot error firstboot "missing_stage=${script_path}"
     return 127
   fi
@@ -119,6 +120,8 @@ run_step() {
   if [ "$step_status" -eq 0 ]; then
     log_line first_boot info firstboot "completed_stage=${script_name}"
   else
+    printf 'firstboot: stage=%s status=%s; details=%s\n' \
+      "$script_name" "$step_status" "$FIRSTBOOT_LOG_FILE" >&2
     log_line first_boot error firstboot "failed_stage=${script_name} status=${step_status}"
   fi
   return "$step_status"
@@ -150,6 +153,7 @@ fi
 if [ "$overall_status" -eq 0 ]; then
   log_line complete info firstboot "firstboot_status=pass"
 else
+  printf 'firstboot: validation failed; results=%s/validation-results.txt\n' "$FIRSTBOOT_DATA_DIR" >&2
   log_line complete warn firstboot "firstboot_status=diagnostic-failures-recorded"
 fi
 

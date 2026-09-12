@@ -272,6 +272,10 @@ devops_de_apply_environment() {
       ;;
   esac
   case "${HOME:-}" in
+    /|//*)
+      printf '%s\n' 'devops: HOME must not be the filesystem root' >&2
+      return 1
+      ;;
     /*) ;;
     *)
       printf '%s\n' 'devops: HOME must be an absolute path' >&2
@@ -284,6 +288,9 @@ devops_de_apply_environment() {
   export PATH
   unset \
     XDG_CONFIG_HOME \
+    XDG_CACHE_HOME \
+    XDG_DATA_HOME \
+    XDG_STATE_HOME \
     DEVOPS_DE_ACTIVE \
     DEVOPS_DE_ENVIRONMENT_READY \
     DEVOPS_DE_COMPLETIONS_ENABLED \
@@ -385,7 +392,10 @@ devops_de_apply_environment() {
   devops_de_cache_home="${devops_de_pool_root}/cache/${USER}"
   devops_de_db_home="${devops_de_pool_root}/db/${USER}"
   XDG_CONFIG_HOME="${HOME}/.config"
-  export XDG_CONFIG_HOME
+  XDG_CACHE_HOME="${HOME}/.cache"
+  XDG_DATA_HOME="${HOME}/.local/share"
+  XDG_STATE_HOME="${HOME}/.local/state"
+  export XDG_CONFIG_HOME XDG_CACHE_HOME XDG_DATA_HOME XDG_STATE_HOME
   devops_de_xdg_config_home=$XDG_CONFIG_HOME
 
   for devops_de_account_root in \

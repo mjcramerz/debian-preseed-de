@@ -120,9 +120,9 @@ grep -q "WLR_SCENE_DISABLE_DIRECT_SCANOUT=" /usr/local/bin/labwc-session
 grep -q "^export QT_OPENGL=" /usr/local/bin/labwc-session
 grep -q "^export QSG_RHI_BACKEND=" /usr/local/bin/labwc-session
 grep -q "activation_environment_names=.*QT_OPENGL QSG_RHI_BACKEND" /usr/local/bin/labwc-autostart
-grep -q "^labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'$" /usr/local/bin/labwc-session
-grep -q "^labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'$" /usr/local/bin/labwc-greeter-session
-grep -q "^labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'$" /usr/local/bin/labwc-autostart
+grep -q "^labwc_x11_environment_names='"'"'DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'"'"'$" /usr/local/bin/labwc-session
+grep -q "^labwc_x11_environment_names='"'"'DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'"'"'$" /usr/local/bin/labwc-greeter-session
+grep -q "^labwc_x11_environment_names='"'"'DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'"'"'$" /usr/local/bin/labwc-autostart
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-greeter-session
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart

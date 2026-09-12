@@ -11,6 +11,7 @@ import re
 import shlex
 import shutil
 import stat
+import subprocess
 import tempfile
 import time
 
@@ -239,14 +240,14 @@ def validate_chatgpt_work_areas(user_name: str, home_dir: str) -> None:
         fail("managed ChatGPT absolute work-area policy is inconsistent")
 
 
-def load_managed_defaults(path: pathlib.Path) -> dict[str, str]:
+def load_managed_defaults(path: pathlib.Path, *, owner_uid: int = 0) -> dict[str, str]:
     try:
         metadata = path.lstat()
     except OSError as exc:
         fail(f"managed desktop defaults are unavailable: {path}: {exc}")
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         fail(f"managed desktop defaults must be a regular file: {path}")
-    if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+    if metadata.st_uid != owner_uid or metadata.st_mode & 0o022:
         fail(
             "managed desktop defaults must be root-owned and not writable by "
             f"group or others: {path}"
@@ -918,18 +919,69 @@ def ensure_obsidian_registry(home_dir: str) -> None:
     write_user_json_atomic(registry_path, registry, 0o600)
 
 
+def chatgpt_devops_source_environment() -> dict[str, str]:
+    """Build DevOps exports for a desktop launch without modifying the session."""
+    if (os.environ.get("DEVOPS_DE_ACTIVE") == "1"
+            and os.environ.get("DEVOPS_DE_ENVIRONMENT_READY") == "1"):
+        return dict(os.environ)
+    home = current_user_home()
+    profile_directory = os.path.join(home, ".profile.d")
+    profile = os.path.join(profile_directory, "71-devops-de.sh")
+    for path, directory in ((profile_directory, True), (profile, False)):
+        try:
+            metadata = os.lstat(path)
+        except OSError as exc:
+            fail(f"ChatGPT DevOps profile is unavailable: {path}: {exc}")
+        expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+        if (not expected_type(metadata.st_mode) or os.path.realpath(path) != path
+                or metadata.st_uid != os.getuid() or metadata.st_mode & 0o022
+                or (not directory and (metadata.st_nlink != 1
+                    or metadata.st_size > CHATGPT_DEVOPS_ENVIRONMENT_MAXIMUM_BYTES))):
+            fail(f"ChatGPT DevOps profile has unsafe ownership, type or mode: {path}")
+    user = current_user_name()
+    base = {
+        "HOME": home, "USER": user, "LOGNAME": user,
+        "XDG_RUNTIME_DIR": current_user_runtime_dir(), "PATH": MANAGED_PATH,
+    }
+    try:
+        result = subprocess.run(
+            ["/bin/sh", "-eu", "-c",
+             '. "$1" >&2; devops_de_apply_environment >&2; exec /usr/bin/env -0',
+             "chatgpt-devops-environment", profile],
+            env=base, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            check=False, timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        fail(f"ChatGPT could not activate 71-devops-de.sh: {exc}")
+    if result.returncode:
+        fail("ChatGPT could not activate 71-devops-de.sh; see the preceding profile error")
+    if len(result.stdout) > CHATGPT_DEVOPS_ENVIRONMENT_MAXIMUM_BYTES:
+        fail("ChatGPT DevOps environment exceeds the 256 KiB limit")
+    environment = {}
+    for entry in result.stdout.split(b"\0"):
+        if not entry:
+            continue
+        name, separator, value = entry.partition(b"=")
+        if not separator or os.fsdecode(name) in environment:
+            fail("ChatGPT DevOps profile returned malformed environment data")
+        environment[os.fsdecode(name)] = os.fsdecode(value)
+    if (environment.get("DEVOPS_DE_ACTIVE") != "1"
+            or environment.get("DEVOPS_DE_ENVIRONMENT_READY") != "1"):
+        fail("ChatGPT DevOps environment activation did not complete")
+    return environment
+
+
 def validated_chatgpt_devops_environment() -> dict[str, str]:
     user_name = current_user_name()
     home_dir = current_user_home()
-    if os.environ.get("DEVOPS_DE_ACTIVE") != "1":
-        fail("ChatGPT requires the active environment from 71-devops-de.sh")
+    source_environment = chatgpt_devops_source_environment()
     for name in CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT:
-        if os.environ.get(name):
+        if os.environ.get(name) or source_environment.get(name):
             fail(f"ChatGPT launcher forbids ambient environment variable: {name}")
 
     devops_environment: dict[str, str] = {}
     environment_bytes = 0
-    for name, value in sorted(os.environ.items()):
+    for name, value in sorted(source_environment.items()):
         if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED:
             continue
         if name in CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT:

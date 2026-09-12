@@ -1961,10 +1961,29 @@ def sanitize_tree(root: pathlib.Path, final_root: pathlib.Path) -> None:
 
 
 def verify_installation(policy: InstallPolicy) -> None:
+    # Version probes can initialize caches before printing a version. Run them
+    # in disposable installer-owned state, not HOME=/ or the user's tool state.
+    with tempfile.TemporaryDirectory(prefix="devops-verify-") as home:
+        environment = {
+            "HOME": home, "USER": "root", "LOGNAME": "root",
+            "XDG_CONFIG_HOME": f"{home}/.config",
+            "XDG_CACHE_HOME": f"{home}/.cache",
+            "XDG_DATA_HOME": f"{home}/.local/share",
+            "XDG_STATE_HOME": f"{home}/.local/state",
+            "CHECKPOINT_DISABLE": "1",
+            "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "TZ": "UTC",
+        }
+        _verify_installation(policy, environment)
+
+
+def _verify_installation(policy: InstallPolicy, environment: dict[str, str]) -> None:
     deno = run_checked(
         [str(policy.deno.binary_path), "--version"],
         "verifying Deno",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
     if not deno.stdout.startswith(f"deno {policy.deno.version} "):
@@ -1976,7 +1995,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         "verifying yt-dlp",
         timeout=policy.verify_timeout_seconds,
         environment={
-            "HOME": "/tmp",
+            **environment,
             "LANG": "C.UTF-8",
             "LC_ALL": "C",
             "PATH": "/usr/bin:/bin",
@@ -1998,7 +2017,7 @@ def verify_installation(policy: InstallPolicy) -> None:
     # Ansible initializes the process locale before handling ``--version`` and
     # requires UTF-8, so verify it with a closed UTF-8 locale.
     ansible_environment = {
-        "HOME": "/root",
+        **environment,
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
         "PATH": "/usr/bin:/bin",
@@ -2026,6 +2045,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         [str(policy.opentofu.binary_path), "version"],
         "verifying OpenTofu",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
     if f"OpenTofu v{policy.opentofu.version}" not in tofu.stdout:
@@ -2035,6 +2055,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         [str(policy.terraform.binary_path), "version"],
         "verifying Terraform",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
     if f"Terraform v{policy.terraform.version}" not in terraform.stdout:
@@ -2044,6 +2065,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         [str(policy.packer.binary_path), "version"],
         "verifying Packer",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
     if f"Packer v{policy.packer.version}" not in packer.stdout:
@@ -2053,6 +2075,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         [str(policy.aptly.binary_path), "version"],
         "verifying Aptly",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
     if policy.aptly.version not in aptly.stdout:
@@ -2082,7 +2105,7 @@ def verify_installation(policy: InstallPolicy) -> None:
 
     node_bin = policy.wrangler_node_root / "bin"
     wrangler_environment = {
-        "HOME": "/tmp",
+        **environment,
         "LANG": "C.UTF-8",
         "LC_ALL": "C",
         "PATH": f"{node_bin}:/usr/bin:/bin",
@@ -2115,6 +2138,7 @@ def verify_installation(policy: InstallPolicy) -> None:
         [str(BASH), "-n", str(build_script)],
         "verifying obs-build Bash syntax",
         timeout=policy.verify_timeout_seconds,
+        environment=environment,
         capture_output=True,
     )
 

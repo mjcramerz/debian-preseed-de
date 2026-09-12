@@ -36,6 +36,7 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
   include if exists <local/managed-desktop-graphics>
   deny /dev/char/*:* l,
   /dev/{tty,tty[0-9]*,udmabuf} rw,
+  /dev/rfkill r,
   /dev/shm/ r,
   owner /dev/shm/** rwkl,
   /run/seatd.sock rw,

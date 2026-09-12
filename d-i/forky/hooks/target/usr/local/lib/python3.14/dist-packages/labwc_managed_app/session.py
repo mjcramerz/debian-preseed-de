@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import os
+import re
 
 from .integrity import system_owner
+from .environment import (
+    CHATGPT_DEVOPS_ENVIRONMENT_RESERVED, CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT,
+)
 
 from .runtime import (
     current_user_home,
@@ -198,10 +202,8 @@ def redirect_native_from_private_users(
         if private_users:
             fail("managed application user manager still hides host ownership")
         return
-    # Tuta's safeStorage must not race the Secret Service provider even when
-    # started from a terminal that is already outside the compositor namespace.
-    if not private_users and app_name != "tutanota":
-        return
+    # Every native launch gets its own service, including terminal launches.
+    # Tuta additionally waits for the Secret Service provider below.
     systemd_run = require_root_owned_executable("systemd-run", SYSTEMD_RUN_PATH)
     environment = managed_session_unit_environment(
         app_name, require_session_owner=False,
@@ -219,18 +221,47 @@ def redirect_native_from_private_users(
     command = [MANAGED_APP_PATH, mode, app_name, *extra_args]
     if app_name == "chatgpt":
         command = [CHATGPT_SESSION_PATH, mode, *extra_args]
+    environment["WAYLAND_DISPLAY"] = wayland_display
+    if app_name == "chatgpt":
+        if (os.environ.get("DEVOPS_DE_ACTIVE") == "1"
+                and os.environ.get("DEVOPS_DE_ENVIRONMENT_READY") == "1"):
+            for name, value in os.environ.items():
+                if name in CHATGPT_DEVOPS_ENVIRONMENT_RESERVED:
+                    continue
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) is None:
+                    fail("ChatGPT received an invalid environment variable name")
+                # Reject loader/shell injection before execing systemd-run,
+                # not just later in the host-side application validator.
+                if (name in CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT
+                        or name.startswith(("LD_", "BASH_FUNC_"))):
+                    if value:
+                        fail(f"ChatGPT launcher forbids ambient environment variable: {name}")
+                    continue
+                # Account/bus identity is always the validated mapping above.
+                environment[name] = value
+        else:
+            # Do not inherit stale activation markers from the user manager.
+            # The host-side launcher will apply the authoritative fragment.
+            environment["DEVOPS_DE_ACTIVE"] = "0"
+            environment["DEVOPS_DE_ENVIRONMENT_READY"] = "0"
+    startup_dependencies = dependencies
+    if app_name == "chatgpt":
+        startup_dependencies += " codex-app-server.socket codex-app-server-proxy.service"
     argv = [
         systemd_run, "--user", "--quiet", "--collect", "--pipe", "--wait",
         "--service-type=exec", "--expand-environment=no",
         f"--description=Managed {app_name} desktop client",
-        f"--property=After={dependencies}",
-        f"--property=Requires={dependencies}",
-        f"--property=Requisite={dependencies}",
+        f"--property=After={startup_dependencies}",
+        f"--property=Requires={startup_dependencies}",
+        f"--property=Requisite={startup_dependencies}",
         f"--property=PartOf={dependencies}",
-        "--property=KillMode=mixed", "--property=TimeoutStopSec=20s",
+        "--property=ExitType=cgroup",
+        "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
         f"--working-directory={os.getcwd()}",
         f"--setenv={NATIVE_SESSION_UNIT_MARKER}=1",
-        f"--setenv=WAYLAND_DISPLAY={wayland_display}",
+        # Values, including optional credentials, are not exposed in argv.
+        *(f"--setenv={name}" for name in sorted(environment)
+          if name != NATIVE_SESSION_UNIT_MARKER),
         "--", *command,
     ]
     try:

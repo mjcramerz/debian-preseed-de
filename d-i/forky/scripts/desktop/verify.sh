@@ -86,6 +86,8 @@ for cmd in \
   labwc-power-menu \
   wayland-info \
   labwc-managed-app \
+  labwc-electron-app \
+  labwc-wayland-app \
   labwc-qbittorrent \
   labwc-sync-application-launchers \
   labwc-keyboard-layout \
@@ -677,6 +679,9 @@ for path in \
   /usr/local/libexec/labwc-swayidle \
   /usr/local/bin/labwc-health-notify \
   /usr/local/bin/labwc-managed-app \
+  /usr/local/bin/labwc-electron-app \
+  /usr/local/bin/labwc-wayland-app \
+  /usr/local/libexec/labwc-wrap-desktop-files \
   /usr/local/bin/labwc-qbittorrent \
   /usr/local/bin/labwc-sync-application-launchers \
   /usr/local/bin/labwc-run \
@@ -903,6 +908,9 @@ for path in \
   /usr/local/bin/labwc-bluetooth \
   /usr/share/applications/com.github.xournalpp.xournalpp.desktop \
   /usr/local/bin/labwc-managed-app \
+  /usr/local/bin/labwc-electron-app \
+  /usr/local/bin/labwc-wayland-app \
+  /usr/local/libexec/labwc-wrap-desktop-files \
   /usr/local/bin/labwc-qbittorrent \
   /usr/local/bin/labwc-sync-application-launchers \
   /usr/share/applications/org.gnome.Gnote.desktop \
@@ -1416,7 +1424,7 @@ for path in \
   "$account_home/.local/share/applications/obsidian.desktop" \
   "$account_home/.local/share/applications/postman.desktop" \
   "$account_home/.local/share/applications/sleek.desktop" \
-  "$account_home/.local/share/applications/tuta-mail.desktop" \
+  "$account_home/.local/share/applications/tutanota-desktop.desktop" \
   "$account_home/.local/share/applications/Zoom.desktop" \
   "$account_home/.local/share/applications/Filen.desktop" \
   "$account_home/.local/share/applications/discord.desktop" \

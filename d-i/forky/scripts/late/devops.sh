@@ -3949,10 +3949,27 @@ unset binary_name extracted_path
 chown root:root "$extracted_binary_dir"
 codex_chmod_without_special_bits 0755 "$extracted_binary_dir"
 
+# Version commands also initialize Codex state. Keep BOTH release probes in a
+# disposable private home, never in / or in the desktop account state.
+codex_verify_version() (
+  verify_home=$(mktemp -d "$staging_dir/verify-home.XXXXXX") || return 1
+  codex_verify_cleanup() { rm -rf -- "$verify_home"; }
+  trap codex_verify_cleanup EXIT
+  trap "exit 129" HUP
+  trap "exit 130" INT
+  trap "exit 143" TERM
+  /usr/bin/env -i HOME="$verify_home" USER=root LOGNAME=root \
+    CODEX_HOME="$verify_home/.codex" \
+    XDG_CONFIG_HOME="$verify_home/.config" XDG_CACHE_HOME="$verify_home/.cache" \
+    XDG_DATA_HOME="$verify_home/.local/share" XDG_STATE_HOME="$verify_home/.local/state" \
+    PATH=/usr/bin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    /usr/bin/timeout --kill-after=5 30 "$1" --version
+)
+
 candidate_binary_path="$extracted_binary_dir/codex"
 [ -x "$candidate_binary_path" ] && [ ! -L "$candidate_binary_path" ] ||
   codex_fatal "managed Codex archive is missing its required entrypoint"
-version_output=$(timeout --kill-after=5 30 "$candidate_binary_path" --version 2>/dev/null) || codex_fatal "pinned Codex binary failed its version check"
+version_output=$(codex_verify_version "$candidate_binary_path" 2>/dev/null) || codex_fatal "pinned Codex binary failed its version check"
 case "$version_output" in
   *"$codex_version"*) ;;
   *) codex_fatal "Codex version verification failed for staged release" ;;
@@ -4193,7 +4210,8 @@ fi
 
 [ -x "$binary_path" ] && [ ! -L "$binary_path" ] ||
   codex_fatal "published Codex entrypoint is missing or indirect"
-version_output=$(timeout --kill-after=5 30 "$binary_path" --version 2>/dev/null) || codex_fatal "published Codex binary failed its version check"
+version_output=$(codex_verify_version "$binary_path" 2>/dev/null) ||
+  codex_fatal "published Codex binary failed its version check"
 case "$version_output" in
   *"$codex_version"*) ;;
   *) codex_fatal "published Codex version verification failed" ;;
@@ -4255,6 +4273,10 @@ devops_run_as_account() {
         LOGNAME="$ACCOUNT_USERNAME" \
         PATH="${CARGO_INSTALL_ROOT}/bin:${CARGO_HOME}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
         XDG_CONFIG_HOME="${ACCOUNT_HOME}/.config" \
+        XDG_CACHE_HOME="${ACCOUNT_HOME}/.cache" \
+        XDG_DATA_HOME="${ACCOUNT_HOME}/.local/share" \
+        XDG_STATE_HOME="${ACCOUNT_HOME}/.local/state" \
+        CODEX_HOME="$DEVOPS_CODEX_HOME" \
         CARGO_HOME="$CARGO_HOME" \
         CARGO_TARGET_DIR="$CARGO_TARGET_DIR" \
         CARGO_INSTALL_ROOT="$CARGO_INSTALL_ROOT" \

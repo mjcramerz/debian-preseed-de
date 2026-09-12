@@ -50,6 +50,9 @@ owner /run/user/[0-9]*/bus rw,
 deny /etc/vivaldi/policies/ w,
 deny /etc/vivaldi/policies/** wkl,
 deny /etc/opt/chrome/ w,
+# Chromium probes this directory with mkdir. No file writes are granted;
+# root-owned DAC permissions still prohibit users modifying system manifests.
+/etc/opt/chrome/native-messaging-hosts/ rw,
 deny /opt/vivaldi/extensions/ w,
 
 @{sys}/devices/**/interface r,
@@ -114,3 +117,6 @@ profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
   owner @{HOME}/.config/vivaldi/ rw,
   owner @{HOME}/.config/vivaldi/** rwkl,
 }
+
+# Read-only btop monitoring from the managed terminal.
+ptrace (readby) peer=managed-desktop-launcher,

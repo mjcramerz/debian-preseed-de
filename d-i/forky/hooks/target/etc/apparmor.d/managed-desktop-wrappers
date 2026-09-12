@@ -457,6 +457,7 @@ profile managed-labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_dis
   /dev/rfkill r,
   /run/dbus/system_bus_socket rw,
   /sys/devices/**/power_supply/*/status r,
+  /sys/devices/**/power_supply/*/online r,
 
   include if exists <local/usr.local.bin.labwc-bluetooth>
 }
@@ -470,6 +471,7 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /dev/rfkill r,
   @{sys}/devices/**/power_supply/*/{online,status} r,
+  @{sys}/devices/**/power_supply/*/{energy_full,energy_full_design} r,
 
   include if exists <local/usr.local.bin.labwc-brightness-control>
 }
@@ -513,6 +515,7 @@ profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconn
   /usr/local/bin/satty rPx -> managed-satty,
   /dev/rfkill r,
   /sys/devices/**/power_supply/*/status r,
+  /sys/devices/**/power_supply/*/online r,
   owner /run/user/[0-9]*/labwc-capture/ rw,
   owner /run/user/[0-9]*/labwc-capture/** rwkl,
   owner /run/user/[0-9]*/pipewire-[0-9]* rw,
@@ -1565,7 +1568,7 @@ profile managed-labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected,
   /usr/local/bin/labwc-managed-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   # ChatGPT lifecycle events use stderr so the existing capture runner sends
   # them only to its private rsyslog socket; generic syslog remains denied.
@@ -1907,7 +1910,7 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
   /usr/local/bin/labwc-managed-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state}.py r,
   deny /usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat{,_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
@@ -2170,7 +2173,7 @@ profile managed-labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wa
   /usr/local/bin/labwc-managed-wayland-compat-app rix,
   /usr/local/lib/python3.14/dist-packages/ r,
   /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
-  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,browsers,bubblewrap,cli,commands,dbus_proxy,electron,environment,events,generic,identity,integrity,mounts,network_namespace,profiles,runtime,sandbox,session,user_state,wayland_compat,wayland_compat_runtime}.py r,
   /dev/log w,
   /run/systemd/journal/dev-log w,
   /usr/bin/bwrap rCx -> managed-wayland-compat-app-bwrap,
@@ -3592,6 +3595,7 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
   /etc/apt/sources.list.d/chatgpt.{list,sources} rw,
   /usr/share/keyrings/chatgpt-archive-keyring.gpg rw,
   /usr/share/applications/{Filen.desktop,Zoom.desktop,bitwarden.desktop,discord.desktop,ledger-live.desktop,obsidian.desktop,postman.desktop,sleek.desktop,tuta-mail.desktop} r,
+  /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop r,
   /usr/share/applications/chatgpt.desktop{,.tmp.*} rw,
   /usr/share/icons/hicolor/512x512/apps/{ledger-live-desktop.png,tuta-mail.png} rw,
   /usr/share/pixmaps/chatgpt.png{,.tmp.*} rw,
@@ -3704,4 +3708,44 @@ profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconn
   /usr/local/lib/crypto/tpm2-enroll.pending rw,
 
   include if exists <local/usr.local.sbin.tpm2-enroll.sh>
+}
+
+# Generic package desktop launchers. Only validation occurs here; the user
+# manager owns the payload service and the package's own AppArmor attachment.
+profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-wayland>
+  #include <abstractions/managed-wrapper-python>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/bin/labwc-{electron,wayland}-app rix,
+  /usr/local/lib/python3.14/dist-packages/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+  /usr/local/lib/python3.14/dist-packages/labwc_managed_app/*.py r,
+  /usr/bin/systemd-run rpux,
+  /usr/{,local/}bin/{,**} r,
+  /usr/lib/{,**} r,
+  /opt/{,**} r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/bin/{,**} r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
+  include if exists <local/usr.local.bin.labwc-generic-app>
+}
+
+# dpkg post-invoke helper: package metadata and system desktop entries only.
+# It never reads/sources user profiles and never writes in a user's home.
+profile managed-labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  capability chown,
+  capability fowner,
+  /usr/local/libexec/labwc-wrap-desktop-files r,
+  /usr/bin/{dpkg,dpkg-query,update-desktop-database} rix,
+  /etc/default/labwc-desktop r,
+  /etc/dpkg/{,**} r,
+  /root/.dpkg.cfg r,
+  /var/lib/dpkg/{,**} r,
+  /usr/{,local/}share/{,**} r,
+  /usr/lib/{,**} r,
+  /opt/{,**} r,
+  /usr/{,local/}share/applications/{,**} rw,
+  /{,var/}run/lock/labwc-desktop-files.lock rwk,
+  include if exists <local/usr.local.libexec.labwc-wrap-desktop-files>
 }
