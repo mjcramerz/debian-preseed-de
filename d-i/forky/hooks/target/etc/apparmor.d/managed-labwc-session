@@ -15,6 +15,7 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
   network netlink dgram,
   capability sys_nice,
   /usr/bin/labwc mr,
+  ptrace (readby) peer=managed-session-controls,
   /usr/lib/** mr,
   /usr/share/** r,
   /usr/local/share/** r,
@@ -75,6 +76,8 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,
   /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
+  /usr/local/share/satty/ r,
+  /usr/local/share/satty/** r,
   owner @{HOME}/.config/waybar/ r,
   owner @{HOME}/.config/waybar/** r,
   owner @{HOME}/.cache/waybar/ rw,
@@ -93,6 +96,8 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   signal (send) set=(kill) peer=managed-session-glycin-bwrap,
   signal (receive) set=(usr2) peer=managed-labwc-session-check,
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=managed-labwc-panel-run,
+  # glibc RTMIN+7/+8/+9 (41/42/43); AppArmor's RTMIN base is 32.
+  signal (receive) set=(rtmin+9, rtmin+10, rtmin+11) peer=managed-labwc-panel-run,
   signal (send) set=(chld) peer=managed-labwc-panel-run,
   include if exists <local/usr.bin.waybar>
 }
@@ -166,6 +171,9 @@ profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-r
   owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/** rwkl,
   owner @{HOME}/.cache/glycin/ rw,
   owner @{HOME}/.cache/glycin/** rwkl,
+  ptrace (read) peer=managed-labwc-compositor,
+  owner /run/user/[0-9]*/labwc-capture/ r,
+  owner /run/user/[0-9]*/labwc-capture/satty-source.*.png rw,
   owner /run/user/[0-9]*/wayscriber/ rw,
   owner /run/user/[0-9]*/wayscriber/** rwkl,
   /etc/default/labwc-desktop r,
@@ -229,6 +237,9 @@ profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach
   /usr/bin/crystal-dock rPx -> managed-crystal-dock,
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
   signal (receive) set=(usr2) peer=managed-labwc-session-check,
+  # PID 1's user manager -> supervisor -> Waybar, for custom modules 7/8/9.
+  signal (receive) set=(rtmin+9, rtmin+10, rtmin+11) peer=unconfined,
+  signal (send) set=(rtmin+9, rtmin+10, rtmin+11) peer=managed-waybar,
   signal (receive) set=(chld) peer=managed-waybar,
   signal (receive) set=(chld) peer=managed-crystal-dock,
   signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-waybar,

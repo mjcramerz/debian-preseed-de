@@ -134,6 +134,7 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   /usr/lib/{chromium,firefox,firefox-esr}/** rPix,
   /opt/** rPix,
   /usr/ r,
+  /srv/ r,
   /data/bin/ r,
   /data/codex/lib/ r,
   /data/llama/{bin,lib}/ r,

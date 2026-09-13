@@ -180,7 +180,7 @@
     "interval": 30,
     "signal": 7,
     "tooltip": true,
-    "exec-on-event": true,
+    "exec-on-event": false,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
@@ -444,7 +444,7 @@
     "interval": 30,
     "signal": 7,
     "tooltip": true,
-    "exec-on-event": true,
+    "exec-on-event": false,
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {

@@ -1,0 +1,1368 @@
+{
+  "source": "User-supplied apparmor.log (2026-09-13)",
+  "sha256": "1ffcbaef9f857a927a7a6c2deacc9ba86330f323f9415c9d79204f53d8c7fb16",
+  "note": "Source-rule regression coverage only, not kernel enforcement. Complain-mode null-profile cascades map to the corrected managed-firstboot inherited domain.",
+  "events": 329,
+  "records": [
+    {
+      "profile": "managed-firstboot",
+      "operation": "exec",
+      "name": "/usr/bin/printf",
+      "mask": "x",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "file_inherit",
+      "name": "/dev/null",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "file_inherit",
+      "name": "/var/lib/installer-state/logs/firstboot/data/networkctl-status.txt",
+      "mask": "w",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "file_mmap",
+      "name": "/usr/bin/printf",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "open",
+      "name": "/etc/ld.so.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "getattr",
+      "name": "/etc/ld.so.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "open",
+      "name": "/usr/lib/locale/locale-archive",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "getattr",
+      "name": "/usr/lib/locale/locale-archive",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/bin/printf",
+      "operation": "getattr",
+      "name": "/var/lib/installer-state/logs/firstboot/data/networkctl-status.txt",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot",
+      "operation": "exec",
+      "name": "/usr/local/libexec/managed-nvidia-char-links",
+      "mask": "x",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_inherit",
+      "name": "/dev/null",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_inherit",
+      "name": "/var/lib/installer-state/logs/firstboot/data/validation-results.txt",
+      "mask": "a",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/bin/python3.14",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/etc/ld.so.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/etc/ld.so.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.2",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.2",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.2",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libexpat.so.1.12.4",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libexpat.so.1.12.4",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libexpat.so.1.12.4",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/proc/sys/vm/overcommit_memory",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/locale/locale-archive",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/locale/locale-archive",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/gconv/gconv-modules.cache",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/proc/3750/maps",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/proc/3750/maps",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/os.py",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/lib-dynload/",
+      "mask": "r",
+      "peer": "",
+      "count": 17
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/share/zoneinfo/Europe/Stockholm",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/share/zoneinfo/Europe/Stockholm",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/",
+      "mask": "r",
+      "peer": "",
+      "count": 32
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/__init__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/",
+      "mask": "r",
+      "peer": "",
+      "count": 6
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/encodings/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/aliases.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/aliases.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/aliases.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/utf_8.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/utf_8.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/utf_8.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/null",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/var/lib/installer-state/logs/firstboot/data/validation-results.txt",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/local/lib/python3.14/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 16
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/local/lib/python3.14/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 16
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3/dist-packages/distutils-precedence.pth",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3/dist-packages/distutils-precedence.pth",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/utf_8_sig.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/utf_8_sig.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/encodings/__pycache__/utf_8_sig.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/lib-dynload/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3/dist-packages/_distutils_hack/__init__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3/dist-packages/_distutils_hack/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3/dist-packages/_distutils_hack/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 15
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/dist-packages/",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/etc/python3.14/sitecustomize.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/sitecustomize.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/sitecustomize.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/local/libexec/managed-nvidia-char-links",
+      "mask": "r",
+      "peer": "",
+      "count": 5
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/local/libexec/managed-nvidia-char-links",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__future__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/__future__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/__future__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/pathlib/__init__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/pathlib/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/pathlib/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/operator.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/operator.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/operator.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/glob.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/glob.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/glob.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/contextlib.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/contextlib.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/contextlib.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/collections/__init__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/collections/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/collections/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/keyword.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/keyword.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/keyword.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/reprlib.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/reprlib.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/reprlib.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/functools.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/functools.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/functools.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/types.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/types.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/types.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__init__.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__pycache__/__init__.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/enum.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/enum.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/enum.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/",
+      "mask": "r",
+      "peer": "",
+      "count": 7
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/_compiler.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/__pycache__/_compiler.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__pycache__/_compiler.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/_parser.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/__pycache__/_parser.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__pycache__/_parser.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/_constants.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/__pycache__/_constants.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__pycache__/_constants.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/_casefix.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/re/__pycache__/_casefix.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/re/__pycache__/_casefix.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/copyreg.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/copyreg.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/copyreg.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/fnmatch.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/fnmatch.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/fnmatch.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/pathlib/",
+      "mask": "r",
+      "peer": "",
+      "count": 4
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/pathlib/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/pathlib/_os.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/pathlib/__pycache__/_os.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/pathlib/__pycache__/_os.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/uuid.py",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/__pycache__/uuid.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/__pycache__/uuid.cpython-314.pyc",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/python3.14/lib-dynload/_uuid.cpython-314-x86_64-linux-gnu.so",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/python3.14/lib-dynload/_uuid.cpython-314-x86_64-linux-gnu.so",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/python3.14/lib-dynload/_uuid.cpython-314-x86_64-linux-gnu.so",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "file_mmap",
+      "name": "/usr/lib/x86_64-linux-gnu/libuuid.so.1.3.0",
+      "mask": "rm",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/dev/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/nvidia-modeset",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/nvidia-uvm",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/nvidia-uvm-tools",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/nvidia0",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/nvidiactl",
+      "mask": "r",
+      "peer": "",
+      "count": 2
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "open",
+      "name": "/dev/char/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/195:254",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/234:0",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/234:1",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/195:0",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-firstboot//null-/usr/local/libexec/managed-nvidia-char-links",
+      "operation": "getattr",
+      "name": "/dev/char/195:255",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-session-controls",
+      "operation": "ptrace",
+      "name": "",
+      "mask": "read",
+      "peer": "managed-labwc-compositor",
+      "count": 2
+    },
+    {
+      "profile": "managed-desktop-launcher",
+      "operation": "open",
+      "name": "/srv/",
+      "mask": "r",
+      "peer": "",
+      "count": 7
+    },
+    {
+      "profile": "managed-session-controls",
+      "operation": "open",
+      "name": "/run/user/1000/labwc-capture/satty-source.XYdHiG.png",
+      "mask": "wc",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-session-controls",
+      "operation": "truncate",
+      "name": "/run/user/1000/labwc-capture/satty-source.XYdHiG.png",
+      "mask": "w",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-waybar",
+      "operation": "open",
+      "name": "/usr/local/share/satty/",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-labwc-bluetooth",
+      "operation": "file_inherit",
+      "name": "/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:19/PNP0C09:00/PNP0C0A:00/power_supply/BAT0/energy_now",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    },
+    {
+      "profile": "managed-labwc-capture",
+      "operation": "file_inherit",
+      "name": "/sys/devices/LNXSYSTM:00/LNXSYBUS:00/PNP0A08:00/device:19/PNP0C09:00/PNP0C0A:00/power_supply/BAT0/power_now",
+      "mask": "r",
+      "peer": "",
+      "count": 1
+    }
+  ]
+}

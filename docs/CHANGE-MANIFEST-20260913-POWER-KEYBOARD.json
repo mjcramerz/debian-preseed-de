@@ -1,0 +1,209 @@
+{
+  "date": "2026-09-13",
+  "input_archive": "debian-preseed-de.zip",
+  "input_sha256": "1925597b0e29db2a65af1342b611f784e984677fc13c0c72b827743b1e332b0e",
+  "original_files": 1562,
+  "retained_original_files": 1562,
+  "unchanged_original_files": 1546,
+  "modified_installed_sources": 13,
+  "regenerated_publication_files": 3,
+  "removed_files": [],
+  "original_permission_bits_preserved": true,
+  "changes": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-wrapper-desktop",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "17c9829d09645b8b9b96f3337893058debdd53942e2fdc04b9793c40423a566e",
+      "after_sha256": "06dbd4d4e15624f66912d31e86986fccbf247efc5d014fc5aa1d694f2de74bca",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "451bd10946cfb1456a649b0614b1039c267038f8559ed3a3366482a76875359d",
+      "after_sha256": "f0e4df878f3ad9d312519172b032fd73683f0ef27663e07fd3bdf556c9e356e9",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "bbc923a8f86bed23ef5ee684a766dcf7e4ffdac443279bdcf98f6b91b0acd9a0",
+      "after_sha256": "b15c59e6a5385dbe5b56ee84ca93cd122a6f1980f52b1acf611ff4e13d2b35b9",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "02f1d98f93b058f0d584d5725b47b0eb4c94f0e139d6f7f69f15c6b6f627388e",
+      "after_sha256": "fe929c99a19c4fc8215546bbb00016a0dd78e364a6c94749060a2401e70f05a2",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "ac15e33c02253cdf9bd1fcad7d1ebc65d8fa63478ae4b5d6d99459a717f4925d",
+      "after_sha256": "5fc2e4d0368548c46343bc8cb92ef23490923190b2a7e18be049f60086de5d13",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "51a3789df4094b1049e083ea541c9523bcf3f53a3250e6833fe1b28bba940fe2",
+      "after_sha256": "1388696d051228e50267cc1952900523dda522ee669633579557fea03a2d8cd2",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/labwc-admin-action@.service",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "351c063ee17854262f1cbfd4df0b28795c7fcef9a0c55ceea90422082ea789df",
+      "after_sha256": "d7eb746749986fae3c240bd19b4d791528246608433d438099a0e5bc4bef32eb",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-keyboard-layout",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "20ab705d4cc275dbaaaa6987ebac8e89736a5e82537f05ecd99373cd6ba12bad",
+      "after_sha256": "be84619849e73c808af1e00fd7f211738322cd5bb106436c7873c1a763a40615",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-system-action",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "e62b466ca4ce62fed3434d660256a698cb2eb16c3dcde74d9329055aabf6f9cd",
+      "after_sha256": "dab05fc64ee30b468fb89637c89da905c57785b3ff3ff2937824c924420f0d89",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-root",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "b82ef5427a87311ce002cb644f672c8194fdd18d9b2eb42dc583d53dc38d16f8",
+      "after_sha256": "697494ec4007ca355d719a065b8f842fe6975847e44971387877d10a42599256",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "9a3086ab4bd6b587dafd2331c094cc278f57d3e0dac44c624fc790cca96a726f",
+      "after_sha256": "25588c2785a21926ee8f6525a01d18c7c9bfdb6b403fc75684017bd67db964d2",
+      "mode": "0o770"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "0229537389cb5f4a19e3f88ffb6da528417914a25f1f216f8e1402fdc54b2e00",
+      "after_sha256": "3f7703967b2c45f0272827ff326c81c597891323f9b65ab984c69bfacf9434e6",
+      "mode": "0o770"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-session-state",
+      "kind": "scoped installed source/configuration",
+      "before_sha256": "a83d0a888a2a295bc1c5a3f3a311d72915cd389e804a9ec741f1f43af51f3f8b",
+      "after_sha256": "7337a0ea095a0f892f5acbda59f9d154d8a2fdd315c585c2c1d8313fbcba554a",
+      "mode": "0o770"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "kind": "publication product",
+      "before_sha256": "aad6d4f7d1f18f38ea92bc702cfdba5d5bec0328d2851ee23995e376108d2774",
+      "after_sha256": "8fc63ab421c290bd9434dd3dfb446547bc64527f5605395aa532154ed3937711",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "kind": "publication product",
+      "before_sha256": "f2d9869392a5f0ce5ec6eb766e0813bf8e1e6d2576356c68044014261301e0de",
+      "after_sha256": "0be9b8837dcc98d7904b6a91c45694288995de79660aed2d65f24542612170b9",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "kind": "publication product",
+      "before_sha256": "6b06b69d6bc35aa30dbfaa435ac169fd2cf2107eb9428c2391097dc5cba56700",
+      "after_sha256": "71ecd6cabce40c0d26c2e7b6cc2b4fcee58fffa2f28ec5492f78d443d05a18ff",
+      "mode": "0o660"
+    }
+  ],
+  "added_files": [
+    {
+      "path": "d-i/forky/tests/fixtures/installed-apparmor-20260913-power-keyboard.json",
+      "sha256": "ea0f68ab141121f8353525b11c98f7fb1cd239d26a32b1639004514acfccec40",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/tests/test_power_keyboard_20260913.py",
+      "sha256": "594bd5aa57538aa347d0ec7f007b2fe381a18fbeec7864e9b700faf510c8911d",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/WAYBAR-POWER-APPARMOR-20260913.md",
+      "sha256": "2b6d3059234d20fac008523607b92db5f9b29e3c7caee5d6f6f18f7a5b7295e5",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/apparmor-parse.json",
+      "sha256": "bc2b4afe9a091b68a226e40b43a3232ad87efb145f93d84c464f9cb28d3381fb",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/baseline-regressions.json",
+      "sha256": "da49cec030625d674bda54fc4f751a5515c0c99fd8bd42d5cfc7e0e7366b5164",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/baseline-regressions.log",
+      "sha256": "d86511c02907c282c1d36697196d7ebcd41913bf83ebbf241a80d5dc01167362",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/build-check.log",
+      "sha256": "e8f9af9db7c08362a4719d6388eecf0c2c637224f012b13614eb51334a10cd56",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/build.log",
+      "sha256": "991837647a389afb580ec4e67072ac9675d3b76a65504d472370f1621da9dacd",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/final-regressions.json",
+      "sha256": "f9565254a050eae4a70bf02c3bd76bc66001a9507ec56b2f6a8222de2da3a476",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/final-regressions.log",
+      "sha256": "acee18ca1b1166d5b69519d3d49c2711a0e980f798865311e99cd1ddb22dbbf5",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/preseed-checks.log",
+      "sha256": "72de09ed34b64bdd30fce6659db87b1c327a328693d4c7fa93fb42b4cd7c57f2",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/regression-comparison.json",
+      "sha256": "bd2a238be4a8215c6fb54427aff0a665e048be0676cddc84e03eec7736e21812",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/run_selected_regressions.py",
+      "sha256": "7b3f4bf36033e6563e220e715d43317a9a956948e93ccd23876769ec77cb64ec",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/scoped-tests.log",
+      "sha256": "8ac506c953e45f72b23b95259ee26e512eec30ace38cf681459db2227b188721",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/shell-checks.json",
+      "sha256": "d088c14647fa4c2cf229bdb73d8c622d712f987731555b034074e2527b134622",
+      "mode": "0o644"
+    },
+    {
+      "path": "docs/validation/20260913-power-keyboard/systemd-verify.json",
+      "sha256": "1f617846d2af8fbcf79bffd827e39a95bb09c5567f3d9e85b8e29ca328cc1ed1",
+      "mode": "0o644"
+    }
+  ],
+  "self": "This manifest is additionally new; it intentionally does not hash itself."
+}

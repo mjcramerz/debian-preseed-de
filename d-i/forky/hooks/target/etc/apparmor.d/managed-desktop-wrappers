@@ -398,7 +398,10 @@ profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-
   # NoNewPrivileges=yes is intentional: these fixed utilities inherit this
   # profile instead of requiring a privilege-widening PUx transition. The
   # user@.host transport spawns its PAM/stdio bridge through PID 1, not here.
-  /usr/bin/{systemctl,systemd-run,loginctl,pgrep,pkill} rix,
+  /usr/bin/{systemctl,systemd-run,loginctl,sync} rix,
+  # Readiness is emitted by this main process. No user-controlled notifier.
+  network unix dgram,
+  /run/systemd/notify w,
   #include <abstractions/dbus-strict>
   network unix stream,
   /etc/machine-id r,
@@ -407,14 +410,11 @@ profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-
   dbus (send) bus=system peer=(name=org.freedesktop.systemd1),
   dbus (send) bus=system peer=(name=org.freedesktop.login1),
   dbus (receive) bus=system peer=(label=unconfined),
-  @{PROC}/ r,
-  @{PROC}/[0-9]*/ r,
-  @{PROC}/[0-9]*/{stat,status,cmdline,comm} r,
-  ptrace (read),
+  # PID 1/logind signal the selected UID's cgroups. No cross-profile ptrace
+  # grants or unconfined pkill subprocesses are needed by this controller.
   /run/labwc-power/ r,
   /run/labwc-power/action.lock rwk,
-  capability kill,
-  signal (send),
+  signal (send, receive) set=(kill) peer=managed-labwc-admin-action-worker,
   signal (receive) peer=unconfined,
 
   include if exists <local/usr.local.libexec.labwc-admin-action-worker>
@@ -1509,6 +1509,7 @@ profile managed-labwc-keyboard-layout /usr/local/bin/labwc-keyboard-layout flags
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-keyboard-layout rix,
+  /usr/local/bin/labwc-system-action rPx -> managed-labwc-system-action,
   /usr/bin/{flock,install,mv,rm,sleep} rix,
   /usr/bin/labwc pux,
   /dev/rfkill r,
@@ -3036,7 +3037,29 @@ profile managed-labwc-system-action /usr/local/bin/labwc-system-action flags=(at
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-system-action rix,
-  /usr/bin/{notify-send,pkexec,systemctl,wpctl} PUx,
+  /usr/bin/{notify-send,pkexec,wpctl} PUx,
+  # Retain confinement without AT_SECURE dropping the user-bus environment.
+  /usr/bin/systemctl rix,
+  #include <abstractions/dbus-session-strict>
+  #include <abstractions/dbus-strict>
+  network unix stream,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  /run/systemd/system/ r,
+  /etc/machine-id r,
+  # Preserve the existing --no-pager status/timer actions when systemctl now
+  # inherits this profile: journal excerpts and cgroup/process display are
+  # read-only. No new process-control or privilege-escalation capability.
+  /{run,var}/log/journal/ r,
+  /{run,var}/log/journal/** r,
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+  /proc/ r,
+  owner /proc/[0-9]*/{cmdline,comm,stat,status} r,
+  ptrace (read) peer=unconfined,
+  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session peer=(label=unconfined),
+  dbus (send) bus=system peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=system peer=(label=unconfined),
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
   /usr/local/libexec/labwc-system-action-root rix,
 

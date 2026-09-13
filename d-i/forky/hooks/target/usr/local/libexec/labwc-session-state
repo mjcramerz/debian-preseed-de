@@ -1,9 +1,10 @@
 #!/usr/bin/python3 -I
 """User-only graceful close and restart handoff. Never signal GUI applications.
 
-Window close requests let each editor save/recover its own documents. A save
-prompt, hidden/tray process or nested compositor blocks destructive teardown.
-Restart descriptors are not memory snapshots and never run with root rights.
+Window close requests let each editor save/recover its own documents. Remaining
+windows (including save prompts) block teardown; windowless services do not.
+Wayland does not expose a universal dirty-document flag. Restart descriptors
+are not memory snapshots and never run with root rights.
 """
 from __future__ import annotations
 import base64
@@ -186,8 +187,8 @@ def collect(apps: dict[str, dict[str, str]], prior: list[dict]) -> list[dict]:
                 # filename would hide tabs saved later during this close request.
                 item = dict(item, argv=item["argv"][:4])
         except (Error, ValueError, TypeError):
-            # Non-document generic launchers still block closing while alive;
-            # they simply aren't safe to replay automatically at next login.
+            # Generic launchers are not safe to replay at the next login;
+            # any visible windows still participate in graceful preparation.
             continue
         if item not in result:
             result.append(item)
@@ -228,29 +229,29 @@ def prepare(state: Path, runtime: Path, *, timeout: float = 120) -> None:
     try:
         ctl("--quiet", "is-active", TARGET)
         initial = services()
-        if any(props.get("LABWC_SESSION_NESTED") == "1" for props in initial.values()):
-            raise Error("Quit nested Cage applications (Discord/Zoom) first; their outer window cannot safely save the inner client")
         saved = collect(initial, load(state / "pending.json"))
         atomic(state / "pending.json", {"format": 1, "apps": saved})
         visible = windows()
-        notify("Closing applications normally. Save any requested documents. An unresolved dialog or tray application will cancel this request.")
         if visible:
+            notify("Closing applications normally. Save any requested documents. An unresolved window or save dialog will cancel this request.")
             # A single protocol round-trip closes only the currently advertised
             # toplevels. Never simulate shortcuts, click Discard, or send SIGTERM.
             run(["/usr/bin/wlrctl", "toplevel", "close"], timeout=5, accepted=(0, 1))
         deadline = time.monotonic() + timeout
         while True:
-            active = services()
-            live = [name for name, props in active.items() if props.get("LABWC_SESSION_APP") == "1"]
             visible = windows()
-            if not visible and not live:
+            if not visible:
                 break
             if time.monotonic() >= deadline:
-                raise Error("Save/close the remaining application or quit its tray process, then retry. No session teardown was performed")
-            time.sleep(1)
+                raise Error("Save/close the remaining window, then retry. No session teardown was performed")
+            time.sleep(0.2)
         atomic(state / "resume.json", {"format": 1, "apps": saved})
-        clear_clipboard()
-        stop_orphans()
+        # PID 1 owns the destructive phase. A failed clipboard helper must not
+        # leave an otherwise closed desktop stuck behind the launch marker.
+        try:
+            clear_clipboard()
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            print(f"session clipboard cleanup: {exc}", file=sys.stderr)
     except BaseException:
         marker.unlink(missing_ok=True)
         raise

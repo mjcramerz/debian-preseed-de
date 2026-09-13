@@ -17,6 +17,7 @@ MESSAGES = {
     'crystal-dock': {b'LayerShellQt.Window.screenConfiguration is deprecated use screen and wantsToBeOnActiveScreen instead'},
 }
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2)
+WAYBAR_SIGNALS = tuple(signal.SIGRTMIN + offset for offset in (7, 8, 9))
 
 
 class Coalescer:
@@ -49,7 +50,7 @@ class Coalescer:
         self.last = now
 
 
-def supervise(command: list[str], messages: set[bytes]) -> int:
+def supervise(command: list[str], messages: set[bytes], *, signals=SIGNALS) -> int:
     child = None
     pending = []
     def forward(number, _frame):
@@ -58,7 +59,7 @@ def supervise(command: list[str], messages: set[bytes]) -> int:
         else:
             # Popen retains the live child's PID until wait/poll reaps it.
             child.send_signal(number)
-    previous = {number: signal.signal(number, forward) for number in SIGNALS}
+    previous = {number: signal.signal(number, forward) for number in signals}
     coalescer = Coalescer(messages)
     buffers = {}
     try:
@@ -127,7 +128,10 @@ def main(args: list[str]) -> int:
     if panel == 'waybar':
         directory = Path.home() / '.config/waybar'
         command += ['-c', str(directory / 'config'), '-s', str(directory / 'style.css')]
-    return supervise(command, MESSAGES[panel])
+    # systemctl kill --kill-whom=main addresses this supervisor, not Waybar.
+    # Forward custom-module refreshes only for Waybar, never to Crystal Dock.
+    forwarded = SIGNALS + WAYBAR_SIGNALS if panel == 'waybar' else SIGNALS
+    return supervise(command, MESSAGES[panel], signals=forwarded)
 
 
 if __name__ == '__main__':

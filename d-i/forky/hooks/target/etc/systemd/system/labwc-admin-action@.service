@@ -6,9 +6,11 @@ Wants=systemd-logind.service
 ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
 
 [Service]
-Type=oneshot
+Type=notify
+NotifyAccess=main
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
-TimeoutStartSec=360s
+TimeoutStartSec=60s
+RuntimeMaxSec=360s
 RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
@@ -28,11 +30,11 @@ ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
-# UID-scoped final cleanup must see processes outside the user slice.
+# PID 1/logind perform cgroup cleanup; this controller does not scan other PIDs.
 ProtectProc=default
 ProtectSystem=strict
 ProcSubset=pid
-CapabilityBoundingSet=CAP_KILL
+CapabilityBoundingSet=
 AmbientCapabilities=
 LockPersonality=yes
 MemoryDenyWriteExecute=yes

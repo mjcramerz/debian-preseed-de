@@ -1,0 +1,23 @@
+{
+  "failures": {
+    "identical_test_ids": true,
+    "baseline_count": 14,
+    "updated_count": 14,
+    "new_test_ids": []
+  },
+  "errors": {
+    "identical_test_ids": true,
+    "baseline_count": 1,
+    "updated_count": 1,
+    "new_test_ids": []
+  },
+  "skipped": {
+    "identical_test_ids": true,
+    "baseline_count": 1,
+    "updated_count": 1,
+    "new_test_ids": []
+  },
+  "new_tests": 34,
+  "native_compilation": "not performed; compiler tests outside selected modules",
+  "full_suite_attempt": "stopped by 200-second tool timeout in test_bootstrap_portability.TimeoutPortabilityTests.test_downloader_error_record_keeps_status_and_mode; selected suite then completed separately"
+}

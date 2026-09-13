@@ -87,31 +87,53 @@ write_layout_state() {
 
 reconfigure_labwc() {
   [ -n "${WAYLAND_DISPLAY:-}" ] || return 0
-  command -v labwc >/dev/null 2>&1 || return 0
-  labwc --reconfigure 9>&- >/dev/null 2>&1 || true
+  command -v labwc >/dev/null 2>&1 || return 1
+  labwc --reconfigure 9>&- >/dev/null 2>&1
 }
 
-toggle_layout() {
-  layout=$(next_layout "$(current_layout)")
-  write_layout_state "$layout"
-  reconfigure_labwc
-  print_status_json
-}
-
-waybar_toggle() {
+lock_layout() {
   umask 077
   install -d -m 0700 "$state_dir"
   lock_file="${state_dir}/keyboard-layout-waybar.lock"
+  [ ! -L "$lock_file" ] || return 1
   exec 9>"$lock_file"
-  if ! flock -n 9; then
-    return 0
-  fi
+  # Queue close-spaced clicks rather than silently losing the second toggle.
+  # Bound the wait so a stuck helper does not accumulate processes indefinitely.
+  flock -w 5 9 || {
+    printf 'keyboard layout: timed out waiting for the layout lock\n' >&2
+    return 1
+  }
+}
 
-  # Waybar custom-module commands that complete inside the pointer-release
-  # callback can remain associated with later clicks. Let the event unwind,
-  # and collapse rapid repeated clicks into one layout change.
-  sleep 0.15 9>&-
-  toggle_layout
+complete_layout_change() {
+  previous_layout=$(current_layout)
+  write_layout_state "$1"
+  if ! reconfigure_labwc; then
+    # Do not advertise a layout that the compositor could not be asked to load.
+    write_layout_state "$previous_layout"
+    printf 'keyboard layout: compositor reconfiguration failed\n' >&2
+    return 1
+  fi
+  print_status_json
+  # Children must not retain the lock; refresh reads the committed state and
+  # must not hold up the next queued click while contacting the user manager.
+  exec 9>&-
+  if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    /usr/local/bin/labwc-system-action refresh-waybar-custom-module >/dev/null ||
+      printf 'keyboard layout: layout changed, but Waybar refresh failed\n' >&2
+  fi
+}
+
+toggle_layout() {
+  lock_layout
+  complete_layout_change "$(next_layout "$(current_layout)")"
+}
+
+waybar_toggle() {
+  lock_layout
+  # Let the pointer callback unwind, without the old 150 ms dead window.
+  sleep 0.03 9>&-
+  complete_layout_change "$(next_layout "$(current_layout)")"
 }
 
 layout_label() {
@@ -154,9 +176,8 @@ case "${1:-status}" in
       printf 'fatal: unsupported keyboard layout: %s\n' "${2:-unset}" >&2
       exit 1
     }
-    write_layout_state "$layout"
-    reconfigure_labwc
-    print_status_json
+    lock_layout
+    complete_layout_change "$layout"
     ;;
   *)
     printf 'usage: labwc-keyboard-layout [status|current|toggle|waybar-toggle|set <us|se>]\n' >&2

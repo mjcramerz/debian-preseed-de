@@ -209,5 +209,12 @@ action=$1
 shift
 validate_request_shape "$action" "$@"
 
+# Completion callbacks are noninteractive. Do not open a terminal, display a
+# maintenance notification, or return before the refresh signals are sent.
+if [ "$action" = refresh-waybar-custom-module ]; then
+  run_user_action "$action"
+  exit 0
+fi
+
 command -v labwc-terminal >/dev/null 2>&1 || fatal "labwc-terminal is not installed"
 exec labwc-terminal -e "$SELF" --run "$action" "$@"

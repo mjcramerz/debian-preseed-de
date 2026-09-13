@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import pwd
 import re
+import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -20,17 +22,49 @@ class Error(Exception):
 
 
 def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,)) -> str:
-    proc = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
-                          text=True, env=ENV, timeout=timeout, check=False)
+    # Each local transport gets its own process group. On a timeout, reap the
+    # whole transport rather than leaving a stdio bridge holding our pipes open.
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=ENV,
+                            start_new_session=True)
+    try:
+        output, error = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.stdout.close()
+            proc.stderr.close()
+            proc.wait(timeout=2)
+        raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
     if proc.returncode not in accepted:
-        raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {proc.stderr.strip()[:1000]}")
-    return proc.stdout
+        raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
+    return output
+
+
+def ready() -> None:
+    # Type=notify makes the pkexec frontend observe startup/authorization errors
+    # before any application is closed. Only this main process may acknowledge.
+    address = os.environ.get("NOTIFY_SOCKET", "")
+    if not address or address[0] not in "/@":
+        raise Error("power worker requires its systemd notification socket")
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+        notifier.settimeout(2)
+        notifier.connect(address)
+        notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
 
 
 class Worker:
     def __init__(self, uid: int, user: str, action: str):
         self.uid, self.user, self.action = uid, user, action
         self.machine = user + "@.host"
+        self.committed = False
 
     def userctl(self, *args: str, **kwargs) -> str:
         return run(["/usr/bin/systemctl", "--user", "--machine=" + self.machine,
@@ -69,46 +103,94 @@ class Worker:
              "--property=TimeoutStopSec=5s", "--", "/usr/local/bin/labwc-lock"], timeout=25)
         self.helper("locked")
 
+    def best_effort(self, description: str, callback) -> None:
+        try:
+            callback()
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            print(f"power cleanup ({description}): {exc}", file=sys.stderr, flush=True)
+
     def remaining(self) -> bool:
-        return bool(run(["/usr/bin/pgrep", "--uid", str(self.uid)], accepted=(0, 1)).strip())
+        # Query the manager, not /proc of other AppArmor domains. PID 1/logind
+        # already own every managed user unit and login-session cgroup.
+        state = run(["/usr/bin/systemctl", "show", f"user-{self.uid}.slice",
+                     "--property=ActiveState", "--value"], timeout=5).strip()
+        if state not in {"active", "activating", "deactivating", "inactive", "failed"}:
+            raise Error("cannot determine the invoking user's slice state")
+        return state not in {"inactive", "failed"}
+
+    def wait_for_exit(self, seconds: float) -> bool:
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                if not self.remaining():
+                    return True
+            except (Error, OSError, subprocess.SubprocessError) as exc:
+                print(f"power cleanup (slice state): {exc}", file=sys.stderr, flush=True)
+                return False
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.2)
 
     def terminate_user(self) -> None:
-        # This phase is reachable only after all managed GUI cgroups exited and
-        # no toplevel/save dialogs remained. Neither pkexec nor the panel owns it.
-        self.userctl("stop", "labwc-session.target", "labwc-compositor.service", timeout=50)
-        # Logind/PID 1 reap session scopes and lingering user services. These are
-        # explicit stops, not a system shutdown.target transaction.
-        run(["/usr/bin/loginctl", "terminate-user", str(self.uid)], accepted=(0, 1), timeout=30)
-        run(["/usr/bin/systemctl", "stop", f"user@{self.uid}.service", f"user-{self.uid}.slice"], timeout=55)
-        # Also handle processes started for this UID outside its user slice.
-        run(["/usr/bin/pkill", "--signal", "TERM", "--uid", str(self.uid)], accepted=(0, 1))
-        until = time.monotonic() + 3
-        while self.remaining() and time.monotonic() < until:
-            time.sleep(0.2)
-        if self.remaining():
-            run(["/usr/bin/pkill", "--signal", "KILL", "--uid", str(self.uid)], accepted=(0, 1))
-        until = time.monotonic() + 5
-        while self.remaining() and time.monotonic() < until:
-            time.sleep(0.2)
-        if self.remaining():
-            raise Error("invoking-user processes remain; refusing the final forced power action")
+        # Once committed, one failed stop must not strand a half-closed desktop.
+        # Queue stops first (disabling restart), then use PID 1's cgroup-wide
+        # TERM/KILL paths. No process-name matching and no caller-owned worker.
+        self.best_effort("desktop units", lambda: self.userctl(
+            "--no-block", "stop", "labwc-session.target", "labwc-compositor.service", timeout=10))
+        self.best_effort("login sessions", lambda: run(
+            ["/usr/bin/loginctl", "terminate-user", str(self.uid)], timeout=10))
+        self.best_effort("user manager and slice", lambda: run(
+            ["/usr/bin/systemctl", "--no-block", "stop", f"user@{self.uid}.service",
+             f"user-{self.uid}.slice"], timeout=10))
+        if self.wait_for_exit(1):
+            return
+        for sig, grace in (("TERM", 3), ("KILL", 3)):
+            self.best_effort(sig + " user cgroups", lambda: run(
+                ["/usr/bin/systemctl", "kill", "--kill-whom=all", "--signal=" + sig,
+                 f"user-{self.uid}.slice"], timeout=5))
+            if self.wait_for_exit(grace):
+                return
+        # Uninterruptible tasks and stale stop jobs must not veto reboot after
+        # the desktop has already gone. Single-force shutdown lets PID 1 finish
+        # global process cleanup, including tasks outside this user's slice.
+        if self.action == "logout":
+            raise Error("user slice did not stop; inspect the power-worker journal")
+        print("power cleanup: user slice still stopping; proceeding to PID 1 shutdown",
+              file=sys.stderr, flush=True)
+
+    def final_power_action(self) -> None:
+        self.best_effort("sync", lambda: run(["/usr/bin/sync"], timeout=10))
+        for attempt in range(2):
+            try:
+                # Exactly ONE --force per request. Never use a raw reboot
+                # syscall, SysRq, --no-sync, or the unsafe double-force variant.
+                run(["/usr/bin/systemctl", "--no-ask-password", "--force", self.action], timeout=20)
+                return
+            except (Error, OSError, subprocess.SubprocessError) as exc:
+                if attempt:
+                    raise Error(f"session teardown completed but {self.action} failed: {exc}") from exc
+                print(f"power request: retrying {self.action}: {exc}", file=sys.stderr, flush=True)
+                time.sleep(0.25)
 
     def execute(self) -> None:
         self.userctl("--quiet", "is-active", "labwc-session.target")
         self.protect_other_sessions()
         if self.action == "suspend":
             self.lock()
-            # One --force bypasses login1 routing, not systemd-sleep or GPU hooks.
-            # Never write /sys/power/state, unload drivers, or stop user apps.
+            ready()
+            # Retain systemd-sleep and GPU hooks; do not stop user applications.
             run(["/usr/bin/systemctl", "--force", "suspend"], timeout=60)
             return
+        ready()
         self.helper("prepare")
-        self.terminate_user()
-        os.sync()
-        if self.action != "logout":
-            # A SINGLE --force avoids shutdown.target's dependency transaction
-            # while retaining PID 1's process and filesystem shutdown handling.
-            run(["/usr/bin/systemctl", "--force", self.action], timeout=60)
+        # A second account may have logged in while a save dialog was open.
+        self.protect_other_sessions()
+        self.committed = True
+        try:
+            self.terminate_user()
+        finally:
+            if self.action != "logout":
+                self.final_power_action()
 
 
 def main(argv: list[str]) -> int:
@@ -136,11 +218,14 @@ def main(argv: list[str]) -> int:
         try:
             worker.execute()
         except BaseException:
-            for operation in ("cancel", "error"):
-                try:
-                    worker.helper(operation)
-                except (Error, OSError, subprocess.SubprocessError):
-                    pass  # The user manager may already have exited.
+            if not worker.committed:
+                for operation in ("cancel", "error"):
+                    try:
+                        worker.helper(operation)
+                    except (Error, OSError, subprocess.SubprocessError):
+                        pass
+            # Never resurrect a user manager or claim a save-dialog cancellation
+            # after destructive teardown. PID 1's journal retains the real error.
             raise
     finally:
         os.close(fd)

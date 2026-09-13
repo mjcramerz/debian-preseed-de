@@ -135,7 +135,7 @@ ad5c65a2064791142d324e75207bdde2592e073fd7432a7153880f758f6e93b3  hooks/target/e
 9bca166db4ca838a6d4620f23c94267d0543cfd3a69b296897aa32e0497c9e91  hooks/target/etc/apparmor.d/abstractions/managed-user-documents
 13da6ebbb53b7662708fa5ec7f92fe5797e65addb745acffbd4a8e8ea8fe4057  hooks/target/etc/apparmor.d/abstractions/managed-webkit-runtime
 6a3e1a498c8f498b937bc452bd8bee158f11d6105da75d7565a258cb94e459b8  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-base
-17c9829d09645b8b9b96f3337893058debdd53942e2fdc04b9793c40423a566e  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-desktop
+06dbd4d4e15624f66912d31e86986fccbf247efc5d014fc5aa1d694f2de74bca  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-desktop
 18acea5d8b78ac0e0f197574dec03f5e71e93043efa9a7538b69918d0fc594f5  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-gui
 fa5b977ac2bd31377a8e505c9eec1d9ab0af0de212230c6a37557dfba58778e9  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-perl
 c112cd22970d1708e0e35e0db43c7393e10cf7014e61490d1a38182752393628  hooks/target/etc/apparmor.d/abstractions/managed-wrapper-python
@@ -155,11 +155,11 @@ a005f996f2764d85951da636cd92016948c213d2921d146ea944da4ac56a257b  hooks/target/e
 00d49415c476a81de8710d048e839a35709f523802349671bbfe1dcabc67412c  hooks/target/etc/apparmor.d/local/usr.bin.pasta
 d9d610533616e614b022f3f56274f6589f0f2bde24b9665213087c87c2a459fc  hooks/target/etc/apparmor.d/local/vivaldi-bin
 e39fd3ba6c1fbec0b0c718234a60b619086a4847a3fe1f55165c008a8bc419de  hooks/target/etc/apparmor.d/local/vivaldi-stable
-451bd10946cfb1456a649b0614b1039c267038f8559ed3a3366482a76875359d  hooks/target/etc/apparmor.d/managed-desktop-utilities
-bbc923a8f86bed23ef5ee684a766dcf7e4ffdac443279bdcf98f6b91b0acd9a0  hooks/target/etc/apparmor.d/managed-desktop-wrappers
+f0e4df878f3ad9d312519172b032fd73683f0ef27663e07fd3bdf556c9e356e9  hooks/target/etc/apparmor.d/managed-desktop-utilities
+b15c59e6a5385dbe5b56ee84ca93cd122a6f1980f52b1acf611ff4e13d2b35b9  hooks/target/etc/apparmor.d/managed-desktop-wrappers
 b1c3788874bf172166bee2dedd11cf146706177ae9ee5ffea4b8a2599bea1151  hooks/target/etc/apparmor.d/managed-document-applications
-02f1d98f93b058f0d584d5725b47b0eb4c94f0e139d6f7f69f15c6b6f627388e  hooks/target/etc/apparmor.d/managed-labwc-session
-ac15e33c02253cdf9bd1fcad7d1ebc65d8fa63478ae4b5d6d99459a717f4925d  hooks/target/etc/apparmor.d/managed-system-wrappers
+fe929c99a19c4fc8215546bbb00016a0dd78e364a6c94749060a2401e70f05a2  hooks/target/etc/apparmor.d/managed-labwc-session
+5fc2e4d0368548c46343bc8cb92ef23490923190b2a7e18be049f60086de5d13  hooks/target/etc/apparmor.d/managed-system-wrappers
 d9c8c6731100372a9524f12207fc01aaa8981a00c26335503e3dcc8c581e56a7  hooks/target/etc/apparmor.d/obsidian
 552e717a7422270cf3cd910c8f79c1cefbac72f334e47cd53e40d099150d5fae  hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden
 67e66dbb15676d0e2bbb65d3aee75752f54e446884de6a0ec5c25f7da5f79557  hooks/target/etc/apparmor.d/opt.Filen.Filen
@@ -539,7 +539,7 @@ ca6e8751d41de98947e4fc7c7df484e0d6e26dc4c7bc42599a8ee311e300f2e1  hooks/target/e
 bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8  hooks/target/etc/skel-desktop/.config/vdirsyncer/config.tmpl
 10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e  hooks/target/etc/skel-desktop/.config/vim/vimrc
 cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
-51a3789df4094b1049e083ea541c9523bcf3f53a3250e6833fe1b28bba940fe2  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+1388696d051228e50267cc1952900523dda522ee669633579557fea03a2d8cd2  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 f8bfbc59c6b6b7ceac2aada4f2e1ec03ed36031cf5914788371c1b155f44faa6  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
 e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492  hooks/target/etc/skel-desktop/.config/waypaper/config.ini
 84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5  hooks/target/etc/skel-desktop/.config/waypaper/keybindings.ini
@@ -636,7 +636,7 @@ d63fde9b9dee79375350d5b8dfb1bf5ed5cd5702ad6af104e92586d266f88fb2  hooks/target/e
 fdec53589482ef3b1f26b01c36293264ff2a9fdae17a8bff51a96f4935e69d07  hooks/target/etc/systemd/system/grub-btrfs-refresh.service
 d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f  hooks/target/etc/systemd/system/incus-host-managed.service
 74225417a918e7c89e6d511cc9bade62a8605a826fb1371ed5b01b2817d4e8e3  hooks/target/etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf
-351c063ee17854262f1cbfd4df0b28795c7fcef9a0c55ceea90422082ea789df  hooks/target/etc/systemd/system/labwc-admin-action@.service
+d7eb746749986fae3c240bd19b4d791528246608433d438099a0e5bc4bef32eb  hooks/target/etc/systemd/system/labwc-admin-action@.service
 4d21397c85a538d5771c34789e7bc500189bfbda8d06fd34e8d15fb6e60b4474  hooks/target/etc/systemd/system/local-apt-inbox.path
 bbabe1804f0725ef70788a5f34ea43ac091a33d93e7e4962397bb3b6e6e964c2  hooks/target/etc/systemd/system/local-apt-inbox.service
 5ee556f5122fb0f08ebe49a0efa7394b5f62b6791adf62a80143eceae57e38a7  hooks/target/etc/systemd/system/local-apt-refresh.service
@@ -798,7 +798,7 @@ ae97e674e27627010a77ff54174e328572f9ef14e40eed48c8da3b092b8b312b  hooks/target/u
 816271ec3d7093eba9ab6522db811c4d516d61168a07ffecb5d98eb46d73b006  hooks/target/usr/local/bin/labwc-greeter-power
 e67f687c8b591d14ef37e7d1d78ba01340faf161698212981302a446b1767887  hooks/target/usr/local/bin/labwc-greeter-session.tmpl
 41322478fa25f3d1d0daae1a958fdce90b065bab6c4d2e485333d7866c57cc10  hooks/target/usr/local/bin/labwc-health-notify
-20ab705d4cc275dbaaaa6987ebac8e89736a5e82537f05ecd99373cd6ba12bad  hooks/target/usr/local/bin/labwc-keyboard-layout
+be84619849e73c808af1e00fd7f211738322cd5bb106436c7873c1a763a40615  hooks/target/usr/local/bin/labwc-keyboard-layout
 d4fa0660b41d743fd89db2eea7a8760af96f80195108ea16f4be151cd860b1e0  hooks/target/usr/local/bin/labwc-lock
 6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759  hooks/target/usr/local/bin/labwc-logout
 df73b1a01c4337720400a50e63507edb70e5d5effcf15bc53debd5b47d195788  hooks/target/usr/local/bin/labwc-maintenance-menu
@@ -820,7 +820,7 @@ f8195c062d7a0cd948b400be379a4f1a0e40019b9abbfcefe800aaa0709edb58  hooks/target/u
 73213f0147244ef69bfc06b4575ab01004b57875c29dbdd4772b679af2a16c94  hooks/target/usr/local/bin/labwc-session.tmpl
 77d3e522686d78a425ed08345eebfca27c4a8125d1c0a4c9ae429058a3aa2a28  hooks/target/usr/local/bin/labwc-show-desktop
 9e123cc89398d27b537ac7b4340f733128ae65d2b99f1842e74c51f3c565f120  hooks/target/usr/local/bin/labwc-sync-application-launchers
-e62b466ca4ce62fed3434d660256a698cb2eb16c3dcde74d9329055aabf6f9cd  hooks/target/usr/local/bin/labwc-system-action
+dab05fc64ee30b468fb89637c89da905c57785b3ff3ff2937824c924420f0d89  hooks/target/usr/local/bin/labwc-system-action
 89afd029ca9fc865150890d185029cecfc92569fe1bb736900ed2fdbca72690b  hooks/target/usr/local/bin/labwc-terminal
 c123692e2dbddf85df510c81a57f1231cd62230607e156d89d8ae98f02abe539  hooks/target/usr/local/bin/labwc-users-groups-menu
 d14aa88ddf8047aa99ca554360c7675da66efd22440e0e0499a72b4703d6c3a7  hooks/target/usr/local/bin/labwc-wallpaper-save
@@ -1034,8 +1034,8 @@ bfed8af5d56e867566092ab5d982a8015ec7b27463b146f67da6ec8f1cbff8fc  hooks/target/u
 316d078e4a2ac4ada710292c502cd43314458fde0a540a06534c8b2bf9059ebe  hooks/target/usr/local/libexec/grub-btrfs-refresh
 57621c5ab5b847ca2098894128d78e9ab61624fb0c1d9786d7e8b16226e03a99  hooks/target/usr/local/libexec/incus-host-managed
 46266bcaffefc8869a1d26b66f5355ae59c9ec966d2450d1ad9f9c9f53b52dcb  hooks/target/usr/local/libexec/install-browser-imports
-b82ef5427a87311ce002cb644f672c8194fdd18d9b2eb42dc583d53dc38d16f8  hooks/target/usr/local/libexec/labwc-admin-action-root
-9a3086ab4bd6b587dafd2331c094cc278f57d3e0dac44c624fc790cca96a726f  hooks/target/usr/local/libexec/labwc-admin-action-worker
+697494ec4007ca355d719a065b8f842fe6975847e44971387877d10a42599256  hooks/target/usr/local/libexec/labwc-admin-action-root
+25588c2785a21926ee8f6525a01d18c7c9bfdb6b403fc75684017bd67db964d2  hooks/target/usr/local/libexec/labwc-admin-action-worker
 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
 e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
@@ -1050,13 +1050,13 @@ a7a4b43ba657cd9ccfb52381fc0344287033f5229f37a541747c640d29bf4812  hooks/target/u
 15cc6eae593df38d00d0bb30a1d3913bcd4d54207de79de25776147e11abfc77  hooks/target/usr/local/libexec/labwc-network-control-action-root
 111b84f24aa61dbad02c047f9e38fe9fa514f5ba4535060b789e4257cdfde2f7  hooks/target/usr/local/libexec/labwc-network-scan-action-root.tmpl
 feff630cc7df1ede6914061e455008c1a687140bbab1c946b1d59752a2f568cf  hooks/target/usr/local/libexec/labwc-output-watch
-0229537389cb5f4a19e3f88ffb6da528417914a25f1f216f8e1402fdc54b2e00  hooks/target/usr/local/libexec/labwc-panel-run
+3f7703967b2c45f0272827ff326c81c597891323f9b65ab984c69bfacf9434e6  hooks/target/usr/local/libexec/labwc-panel-run
 e69d03b1d42da582e20e1444878292a66b2460cdbfd696a907e6e40b22817257  hooks/target/usr/local/libexec/labwc-plans.pl
 b751d26a13b6897e8ef6a2d1d00116113038c19aa8966cf3edf0687eb01e1fb1  hooks/target/usr/local/libexec/labwc-recovery-action-root
 2a21b96dbdb2ffed9506e79de816cdc4bce2ea64a318f93a86c8b8a6eae1fdc0  hooks/target/usr/local/libexec/labwc-samsung-firmware-extract
 146b60b03255b7a4ed738e82a35e08b4fd7a9b046d7afac967a671733ea9b58f  hooks/target/usr/local/libexec/labwc-security-action-root
 7f375cb0f5f1e9dd555b9026475c254d0536c7db5aacf16357a760766e036d48  hooks/target/usr/local/libexec/labwc-session-check
-a83d0a888a2a295bc1c5a3f3a311d72915cd389e804a9ec741f1f43af51f3f8b  hooks/target/usr/local/libexec/labwc-session-state
+7337a0ea095a0f892f5acbda59f9d154d8a2fdd315c585c2c1d8313fbcba554a  hooks/target/usr/local/libexec/labwc-session-state
 f9b25930709708a8389680506b589177b32a6d4176a018a73610ea669cf01de0  hooks/target/usr/local/libexec/labwc-swaybg
 06d60bcfda60e42705d30edbc2a4fbb70532bd1f074dd9036911411424e5d080  hooks/target/usr/local/libexec/labwc-swayidle
 32677f7b52be8e5fb386cf2b6074a13ce820bfc63bfd147eac5185c3e76cc6ae  hooks/target/usr/local/libexec/labwc-system-action-root

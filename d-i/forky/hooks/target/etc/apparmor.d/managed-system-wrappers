@@ -38,6 +38,13 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
 
   /usr/local/libexec/firstboot.sh rix,
   /usr/local/libexec/dbus-broker-check rix,
+  # firstboot invokes the read-only --check path; do not grant /dev writes.
+  /usr/local/libexec/managed-nvidia-char-links rix,
+  /usr/bin/python3{,.[0-9]*} rix,
+  /usr/bin/printf rix,
+  /dev/char/ r,
+  /dev/char/[0-9]*:[0-9]* r,
+  /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,
   /usr/bin/{busctl,id,stat} rix,
   /usr/bin/{dpkg-query,passwd,perl,ps,readlink} rix,
   /usr/sbin/runuser rix,
