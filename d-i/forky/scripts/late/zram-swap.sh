@@ -301,6 +301,5 @@ enable_target_storage_units() {
   if tmpfs_policy_enabled TMPFS_VAR_LIB_APT_LISTS; then
     enable_target_required_unit "apt-refresh-lists.service"
   fi
-  enable_target_required_unit "bootprofile-apply.service"
   enable_target_required_unit "fstrim.timer"
 }

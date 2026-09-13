@@ -440,6 +440,7 @@ for path in \
   /etc/skel-desktop/.config/btop/btop.conf \
   /etc/skel-desktop/.config/fzf/default-opts \
   /etc/skel-desktop/.config/satty/config.toml \
+  /etc/skel-desktop/.config/wayscriber/config.toml \
   /etc/skel-desktop/.config/satty/overrides.css \
   /etc/skel-desktop/.config/labwc/themerc-override \
   /etc/skel-desktop/.config/Code/User/settings.json \
@@ -1043,6 +1044,7 @@ for path in \
   "$account_home/.config/waypaper/keybindings.ini" \
   "$account_home/.config/waypaper/style.css" \
   "$account_home/.config/btop/btop.conf" \
+  "$account_home/.config/wayscriber/config.toml" \
   "$account_home/.config/fzf/default-opts" \
   "$account_home/.config/Code/User/settings.json" \
   "$account_home/.config/chromium/Default/Preferences" \
@@ -1497,6 +1499,15 @@ grep -Fxq 'ConditionUser=!root' "$wireplumber_dropin" &&
     printf "fatal: WirePlumber is not excluded from the greeter user manager: %s\n" "$greeter_user" >&2
     exit 1
   }
+
+for unit in pipewire.socket pipewire.service pipewire-pulse.socket pipewire-pulse.service; do
+  dropin="/etc/systemd/user/${unit}.d/20-no-greeter.conf"
+  [ -f "$dropin" ] && [ ! -L "$dropin" ] &&
+    grep -Fxq "ConditionUser=!${greeter_user}" "$dropin" || {
+      printf "fatal: PipeWire greeter exclusion is missing or unsafe: %s\n" "$dropin" >&2
+      exit 1
+    }
+done
 
 for group_name in seat render video; do
   if ! getent group "$group_name" >/dev/null 2>&1; then

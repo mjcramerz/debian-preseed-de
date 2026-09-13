@@ -3,7 +3,8 @@
 
 Never create devices, load modules, change permissions, or follow an untrusted
 path. The command accepts no paths. --check is read-only and reports every bad
-link. A path unit covers late device creation without polling or a busy loop.
+link. NVIDIA-specific udev rules cover late device creation; the oneshot service
+provides cold-boot reconciliation without a global /dev watcher or polling.
 """
 from __future__ import annotations
 import os

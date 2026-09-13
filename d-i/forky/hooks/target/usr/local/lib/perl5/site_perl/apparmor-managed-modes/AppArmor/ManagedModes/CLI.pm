@@ -15,20 +15,17 @@ our @EXPORT_OK = qw(fatal info parse_args usage warn);
 sub fatal {
     my ($message) = @_;
     log_msg('error', $message);
-    print STDERR "fatal: $message\n";
     exit 1;
 }
 
 sub info {
     my ($message) = @_;
     log_msg('info', $message);
-    print "apparmor-managed-modes: $message\n";
 }
 
 sub warn {
     my ($message) = @_;
     log_msg('warning', $message);
-    print STDERR "apparmor-managed-modes: warning: $message\n";
 }
 
 sub usage {

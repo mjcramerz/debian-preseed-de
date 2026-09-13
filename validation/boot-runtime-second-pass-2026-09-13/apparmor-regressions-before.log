@@ -1,0 +1,41 @@
+test_native_parser_finds_labels_when_reenabling_disabled_optional_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_native_parser_finds_labels_when_reenabling_disabled_optional_profile) ... FAIL
+test_optional_disabled_profile_is_reenabled_and_verified (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_disabled_profile_is_reenabled_and_verified) ... FAIL
+test_optional_labelless_source_is_allowed (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_labelless_source_is_allowed) ... ok
+test_readonly_check_rejects_disabled_optional_named_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_readonly_check_rejects_disabled_optional_named_profile) ... FAIL
+test_absent_optional_apps_are_named_without_failing (test_boot_runtime_20260913.LauncherObservabilityTests.test_absent_optional_apps_are_named_without_failing) ... ok
+
+======================================================================
+FAIL: test_native_parser_finds_labels_when_reenabling_disabled_optional_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_native_parser_finds_labels_when_reenabling_disabled_optional_profile)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/second-pass/debian-preseed-de/d-i/forky/tests/test_boot_runtime_20260913.py", line 300, in test_native_parser_finds_labels_when_reenabling_disabled_optional_profile
+    self.assertIn('alpha (complain)', self.kernel.read_text())
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'alpha (complain)' not found in ''
+
+======================================================================
+FAIL: test_optional_disabled_profile_is_reenabled_and_verified (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_disabled_profile_is_reenabled_and_verified)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/second-pass/debian-preseed-de/d-i/forky/tests/test_boot_runtime_20260913.py", line 271, in test_optional_disabled_profile_is_reenabled_and_verified
+    self.assertIn('alpha (complain)', self.kernel.read_text())
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'alpha (complain)' not found in ''
+
+======================================================================
+FAIL: test_readonly_check_rejects_disabled_optional_named_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_readonly_check_rejects_disabled_optional_named_profile)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/second-pass/debian-preseed-de/d-i/forky/tests/test_boot_runtime_20260913.py", line 281, in test_readonly_check_rejects_disabled_optional_named_profile
+    self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 == 0 : apparmor-managed-modes: optional AppArmor profile source defines no labels; skipping source-mode verification: alpha
+apparmor-managed-modes: optional AppArmor profile defines no labels; skipping loaded-state verification: alpha
+apparmor-managed-modes: loaded profile modes verified
+apparmor-managed-modes: mode policy verified reconciled=0
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 3.219s
+
+FAILED (failures=3)

@@ -1,0 +1,14 @@
+[
+  {
+    "base": "profiles",
+    "status": 0,
+    "stdout": "",
+    "stderr": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+  },
+  {
+    "base": "isolated",
+    "status": 0,
+    "stdout": "alpha\n",
+    "stderr": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+  }
+]

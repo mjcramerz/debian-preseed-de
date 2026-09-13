@@ -2508,6 +2508,18 @@ desktop_stage_wireplumber_user_conditions() {
   desktop_log "staged_wireplumber_user_conditions unit=${unit} unit_path=${unit_path} greeter=${LABWC_GREETER_USER}"
 }
 
+desktop_stage_pipewire_user_conditions() {
+  : "${LABWC_GREETER_USER:?LABWC_GREETER_USER must be set}"
+  for unit in pipewire.socket pipewire.service pipewire-pulse.socket pipewire-pulse.service; do
+    desktop_render_role_target_template \
+      "etc/systemd/user/${unit}.d/20-no-greeter.conf.tmpl" \
+      "/etc/systemd/user/${unit}.d/20-no-greeter.conf" \
+      0644 \
+      LABWC_GREETER_USER "$LABWC_GREETER_USER"
+    desktop_log "staged_pipewire_user_conditions unit=${unit} greeter=${LABWC_GREETER_USER}"
+  done
+}
+
 desktop_stage_labwc_package_user_unit_dropins() {
   for unit in \
     foot-server.service \
@@ -2587,6 +2599,7 @@ desktop_stage_labwc_user_session_assets() {
 
   desktop_stage_labwc_package_user_unit_dropins
   desktop_stage_wireplumber_user_conditions
+  desktop_stage_pipewire_user_conditions
   desktop_stage_wayscriber_service
   desktop_stage_kwallet_dbus_activation_assets
 
@@ -3765,21 +3778,21 @@ desktop_stage_target_assets() {
   desktop_stage_mullvad_dns_policy
   install -d -m 0700 /target/etc/skel-desktop/.config/autostart
   desktop_stage_mullvad_application_policy
+  # Retire the global /dev watcher on installer reruns as well as fresh installs.
+  rm -f /target/etc/systemd/system/managed-nvidia-char-links.path \
+    /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.path
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
     desktop_stage_role_asset etc/udev/rules.d/71-managed-nvidia-char-links.rules /etc/udev/rules.d/71-managed-nvidia-char-links.rules 0644
     desktop_stage_role_asset usr/local/libexec/managed-nvidia-char-links /usr/local/libexec/managed-nvidia-char-links 0755
     desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.service /etc/systemd/system/managed-nvidia-char-links.service 0644
-    desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.path /etc/systemd/system/managed-nvidia-char-links.path 0644
   else
     rm -f \
       /target/etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf \
       /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules \
       /target/usr/local/libexec/managed-nvidia-char-links \
       /target/etc/systemd/system/managed-nvidia-char-links.service \
-      /target/etc/systemd/system/managed-nvidia-char-links.path \
-      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.service \
-      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.path
+      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.service
   fi
   # KWallet belongs to the single managed Labwc account. Keep the portal unit
   # account-local so the greeter's independent user manager cannot discover or
@@ -3978,6 +3991,7 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset usr/local/share/icons/hicolor/64x64/apps/show-desktop.png /usr/local/share/icons/hicolor/64x64/apps/show-desktop.png 0644
   desktop_stage_role_asset etc/skel-desktop/.config/mako/config /etc/skel-desktop/.config/mako/config 0644
   desktop_stage_role_asset etc/skel-desktop/.config/satty/config.toml /etc/skel-desktop/.config/satty/config.toml 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/wayscriber/config.toml /etc/skel-desktop/.config/wayscriber/config.toml 0644
   desktop_stage_role_asset etc/skel-desktop/.config/satty/overrides.css /etc/skel-desktop/.config/satty/overrides.css 0644
   desktop_stage_role_asset etc/skel-desktop/.config/swaylock/config /etc/skel-desktop/.config/swaylock/config 0644
   desktop_stage_role_asset etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf /etc/skel-desktop/.config/wireplumber/wireplumber.conf.d/10-disable-bluez-midi.conf 0644
@@ -4078,6 +4092,7 @@ gid=$(id -g "$account_user")
     .config/crystal-dock \
     .config/mako \
     .config/satty \
+    .config/wayscriber \
     .config/swaylock \
     .config/wireplumber \
     .config/gtk-3.0 \
@@ -4301,7 +4316,6 @@ desktop_enable_target_services() {
   desktop_mask_unit_if_available fangfrisch.timer system
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_enable_unit_if_available managed-nvidia-char-links.service system
-    desktop_enable_unit_if_available managed-nvidia-char-links.path system
     desktop_mask_unit_if_available nvidia-persistenced.service system
     desktop_mask_unit_if_available nvidia-powerd.service system
   fi

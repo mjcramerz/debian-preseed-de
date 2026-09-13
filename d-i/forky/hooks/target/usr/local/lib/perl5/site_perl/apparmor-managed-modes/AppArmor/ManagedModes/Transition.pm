@@ -12,11 +12,9 @@ use AppArmor::ManagedModes::CLI qw(fatal info warn);
 use AppArmor::ManagedModes::Config qw(limits);
 use AppArmor::ManagedModes::LoadedState qw(
     contains_label_prefix
-    read_snapshot
-);
-use AppArmor::ManagedModes::TrustedPath qw(
-    bounded_capture
-    file_size
+    capture_loaded_state
+    profile_labels
+    loaded_profile_mode_matches
 );
 
 our @EXPORT_OK = qw(
@@ -27,38 +25,7 @@ our @EXPORT_OK = qw(
 
 sub profile_defines_labels {
     my ($entry, $options, $workspace, $tools) = @_;
-    my $limits = limits();
-    my $profile_name = $entry->{name};
-    my $parser_path = "$options->{tool_dir}/apparmor_parser";
-    $tools->require_executable('required AppArmor parser', $parser_path);
-
-    my ($names_fh, $profile_names_path) =
-        $workspace->tempfile(
-            'apparmor-profile-names',
-            'cannot create AppArmor profile-name snapshot',
-        );
-    close $names_fh ||
-        fatal('cannot create AppArmor profile-name snapshot');
-    $tools->run_stdout_to_file_limited_or_exit(
-        $profile_names_path,
-        $limits->{max_profile_names_bytes},
-        'AppArmor profile labels exceed '
-            . "$limits->{max_profile_names_bytes} bytes: $profile_name",
-        $parser_path,
-        '-q',
-        '-N',
-        '-Q',
-        '-K',
-        '-T',
-        '-I',
-        $options->{profile_dir},
-        '--base',
-        $options->{profile_dir},
-        $entry->{path},
-    );
-    my $profile_names_size = file_size($profile_names_path);
-    $workspace->remove_file($profile_names_path);
-    return $profile_names_size > 0 ? 1 : 0;
+    return @{profile_labels($entry, $options, $workspace, $tools)} ? 1 : 0;
 }
 
 sub profile_mode_matches {
@@ -94,7 +61,7 @@ sub profile_mode_matches {
 }
 
 sub apply_profile_mode {
-    my ($entry, $options, $workspace, $tools) = @_;
+    my ($entry, $options, $workspace, $tools, $loaded_state) = @_;
     my $mode = $entry->{mode};
     my $profile_name = $entry->{name};
     my $profile_path = $entry->{path};
@@ -106,6 +73,7 @@ sub apply_profile_mode {
         _entry_is_optional($entry) &&
         !profile_defines_labels($entry, $options, $workspace, $tools)) {
         my $disable_link = "$profile_dir/disable/$profile_name";
+        my $changed = -l $disable_link ? 1 : 0;
         if (-l $disable_link) {
             unlink $disable_link ||
                 fatal("cannot remove AppArmor disable entry: $disable_link");
@@ -114,19 +82,35 @@ sub apply_profile_mode {
             'optional AppArmor profile source defines no labels; '
             . "no independent ${mode} mode exists: $profile_name"
         );
-        return;
+        return $changed;
+    }
+
+    my $source_matches = profile_mode_matches(
+        $mode, $profile_name, $profile_path, $profile_dir,
+    );
+    if ($options->{reload_profiles} && !defined $loaded_state) {
+        $loaded_state = capture_loaded_state($options, $workspace);
+    }
+    if ($source_matches && (!$options->{reload_profiles} ||
+        loaded_profile_mode_matches($entry, $loaded_state, $options, $workspace, $tools))) {
+        info($options->{reload_profiles}
+            ? "profile source and loaded state already agree: $profile_name mode=$mode"
+            : "profile source already uses ${mode} mode: $profile_name");
+        return 0;
     }
 
     if ($mode eq 'enforce' || $mode eq 'complain') {
-        if (profile_mode_matches($mode, $profile_name, $profile_path, $profile_dir)) {
-            if (!$options->{reload_profiles}) {
-                info("profile source already uses ${mode} mode: $profile_name");
-                return;
-            }
-            info(
-                "profile source already uses ${mode} mode; reloading: "
-                . $profile_name
+        if ($source_matches) {
+            # Kernel-only drift must not rewrite an already-correct source or
+            # run either aa-* mode editor. Ignore stale binary read caches.
+            my $parser_path = "$options->{tool_dir}/apparmor_parser";
+            $tools->require_executable('required AppArmor parser', $parser_path);
+            info("profile kernel mode differs; reloading: $profile_name mode=$mode");
+            $tools->run_or_exit(
+                $parser_path, '-r', '-T', '-I', $profile_dir,
+                '--base', $profile_dir, $profile_path,
             );
+            return 1;
         }
 
         my $disable_link = "$profile_dir/disable/$profile_name";
@@ -142,8 +126,9 @@ sub apply_profile_mode {
             $options,
             $workspace,
             $tools,
+            $loaded_state,
         );
-        return;
+        return 1;
     }
     $mode eq 'enforce' || $mode eq 'complain' ||
         fatal("unsupported AppArmor mode: $mode");
@@ -196,10 +181,11 @@ sub apply_profile_mode {
         "cannot publish AppArmor profile mode: $profile_name",
     );
     $workspace->remove_dir($mode_work_dir);
+    return 1;
 }
 
 sub _disable_profile {
-    my ($entry, $options, $workspace, $tools) = @_;
+    my ($entry, $options, $workspace, $tools, $loaded_state) = @_;
     my $profile_name = $entry->{name};
     my $profile_path = $entry->{path};
     my $profile_dir = $options->{profile_dir};
@@ -222,12 +208,10 @@ sub _disable_profile {
         my $limits = limits();
         my $parser_path = "$options->{tool_dir}/apparmor_parser";
         $tools->require_executable('required AppArmor parser', $parser_path);
-        my $loaded = _profile_is_loaded(
-            $entry,
-            $options,
-            $workspace,
-            $tools,
-        );
+        my $labels = profile_labels($entry, $options, $workspace, $tools);
+        my $loaded = @$labels ? scalar(grep {
+            contains_label_prefix($loaded_state, $_)
+        } @$labels) : undef;
         if (!defined $loaded) {
             info(
                 'optional AppArmor profile defines no labels; skipping unload: '
@@ -284,91 +268,6 @@ sub _disable_profile {
 
     profile_mode_matches('disable', $profile_name, $profile_path, $profile_dir) ||
         fatal("AppArmor profile did not enter disable mode: $profile_name");
-}
-
-sub _profile_is_loaded {
-    my ($entry, $options, $workspace, $tools) = @_;
-    my $limits = limits();
-    my $profile_name = $entry->{name};
-    my $profile_path = $entry->{path};
-    my $parser_path = "$options->{tool_dir}/apparmor_parser";
-    my $profile_dir = $options->{profile_dir};
-    $tools->require_executable('required AppArmor parser', $parser_path);
-
-    my ($names_fh, $profile_names_path) =
-        $workspace->tempfile(
-            'apparmor-profile-names',
-            'cannot create AppArmor profile-name snapshot',
-        );
-    close $names_fh ||
-        fatal('cannot create AppArmor profile-name snapshot');
-    $tools->run_stdout_to_file_limited_or_exit(
-        $profile_names_path,
-        $limits->{max_profile_names_bytes},
-        'AppArmor profile labels exceed '
-            . "$limits->{max_profile_names_bytes} bytes: $profile_name",
-        $parser_path,
-        '-q',
-        '-N',
-        '-Q',
-        '-K',
-        '-T',
-        '-I',
-        $profile_dir,
-        '--base',
-        $profile_dir,
-        $profile_path,
-    );
-    my $profile_names_size = file_size($profile_names_path);
-    if ($profile_names_size == 0 && _entry_is_optional($entry)) {
-        $workspace->remove_file($profile_names_path);
-        return;
-    }
-    $profile_names_size > 0 ||
-        fatal("AppArmor profile defines no labels: $profile_name");
-    $profile_names_size <= $limits->{max_profile_names_bytes} ||
-        fatal(
-            'AppArmor profile labels exceed '
-            . "$limits->{max_profile_names_bytes} bytes: $profile_name"
-        );
-
-    my ($loaded_fh, $loaded_snapshot_path) =
-        $workspace->tempfile(
-            'apparmor-loaded-profiles',
-            'cannot create loaded AppArmor profile snapshot',
-        );
-    close $loaded_fh ||
-        fatal('cannot create loaded AppArmor profile snapshot');
-    bounded_capture(
-        'loaded AppArmor profile state',
-        $options->{loaded_profiles_path},
-        $loaded_snapshot_path,
-        $limits->{max_loaded_profiles_bytes},
-    );
-    my $loaded_state = read_snapshot($loaded_snapshot_path);
-    $workspace->remove_file($loaded_snapshot_path);
-
-    my $is_loaded = 0;
-    open my $labels_fh, '<:raw', $profile_names_path ||
-        fatal("cannot derive AppArmor profile labels: $profile_name");
-    while (my $profile_label = <$labels_fh>) {
-        $profile_label =~ s/\n\z//;
-        $profile_label ne '' ||
-            fatal("AppArmor parser returned an empty label: $profile_name");
-        length($profile_label) <= $limits->{max_line_bytes} ||
-            fatal(
-                'AppArmor profile label exceeds '
-                . "$limits->{max_line_bytes} bytes: $profile_name"
-            );
-        if (contains_label_prefix($loaded_state, $profile_label)) {
-            $is_loaded = 1;
-            last;
-        }
-    }
-    close $labels_fh ||
-        fatal("cannot derive AppArmor profile labels: $profile_name");
-    $workspace->remove_file($profile_names_path);
-    return $is_loaded;
 }
 
 sub _entry_is_optional {

@@ -679,6 +679,8 @@ def main() -> int:
     validate = shutil.which("desktop-file-validate")
     processed = 0
     skipped_missing = 0
+    missing_apps: list[str] = []
+    invalid_apps: list[str] = []
     removed_unmanaged_tuta = 0
     synchronized_bitwarden_autostart = 0
 
@@ -686,6 +688,7 @@ def main() -> int:
         resolved_desktop = find_desktop_file(config["desktop_names"])
         if resolved_desktop is None:
             skipped_missing += 1
+            missing_apps.append(config["action_app"])
             continue
         desktop_name, source_path = resolved_desktop
         destination_path = os.path.join(desktop_dir, desktop_name)
@@ -695,7 +698,7 @@ def main() -> int:
         parser.read_string(read_system_desktop_text(source_path))
         if not parser.has_section("Desktop Entry"):
             print(f"warning: skipped {desktop_name}: missing [Desktop Entry]", file=sys.stderr)
-            skipped_missing += 1
+            invalid_apps.append(config["action_app"])
             continue
         entry = parser["Desktop Entry"]
         entry["Exec"] = managed_default_exec(
@@ -738,7 +741,9 @@ def main() -> int:
 
     print(
         f"desktop_launcher_sync user={account_user} home={account_home} processed={processed} "
-        f"skipped_missing={skipped_missing} removed_unmanaged_tuta={removed_unmanaged_tuta} "
+        f"skipped_missing={skipped_missing} missing={','.join(missing_apps) or 'none'} "
+        f"skipped_invalid={len(invalid_apps)} invalid={','.join(invalid_apps) or 'none'} "
+        f"removed_unmanaged_tuta={removed_unmanaged_tuta} "
         f"synchronized_bitwarden_autostart={synchronized_bitwarden_autostart}"
     )
     return 0

@@ -1,0 +1,10 @@
+test_native_parser_finds_labels_when_reenabling_disabled_optional_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_native_parser_finds_labels_when_reenabling_disabled_optional_profile) ... ok
+test_optional_disabled_profile_is_reenabled_and_verified (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_disabled_profile_is_reenabled_and_verified) ... ok
+test_optional_labelless_source_is_allowed (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_labelless_source_is_allowed) ... ok
+test_readonly_check_rejects_disabled_optional_named_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_readonly_check_rejects_disabled_optional_named_profile) ... ok
+test_absent_optional_apps_are_named_without_failing (test_boot_runtime_20260913.LauncherObservabilityTests.test_absent_optional_apps_are_named_without_failing) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 8.829s
+
+OK

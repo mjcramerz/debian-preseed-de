@@ -7,6 +7,7 @@ ConditionPathExists=/proc/cmdline
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 TimeoutStartSec=30s
 TimeoutStopSec=10s
 KillMode=control-group

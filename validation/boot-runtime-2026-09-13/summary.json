@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-13",
+  "scoped_tests": {
+    "run": 28,
+    "passed": 28,
+    "perl_dependency_adapter": true,
+    "real_kernel_policy_loading": false
+  },
+  "shell": {
+    "files": 267,
+    "parser_checks": 545,
+    "passed": true
+  },
+  "preseed": {
+    "files": 59,
+    "passed": true
+  },
+  "udev": {
+    "rules_files": 1,
+    "passed": true
+  },
+  "systemd": {
+    "system_units": 4,
+    "rendered_dropins": 4,
+    "fixture_dependencies": true,
+    "passed": true
+  },
+  "payload_files": 1265,
+  "payload_check": "PASS",
+  "existing_suite": "652 tests completed across 25 modules; 21 modules clean; four modules have reproduced baseline failures; bootstrap/debconf incomplete",
+  "limits": [
+    "No actual Debian boot/hardware/greeter acceptance test.",
+    "No real Moo integration or AppArmor kernel policy loading.",
+    "No Wayscriber package/schema/GUI execution.",
+    "No software/package compilation."
+  ],
+  "products": {
+    "payload.tar.gz": "e9d4fde458cc0aab6b4e18a711516763813081c5c7603fe832ed70abc3c49885",
+    "payload.manifest": "18f1b92614e0aa661da2f92ede136b89cadfa765dee45c1e161d15aa8cdf41f3",
+    "preseed.cfg": "a8e98d10c885ca52151eceafa8b34aa0e010d1f6993107decb68eade295e2ae5"
+  }
+}

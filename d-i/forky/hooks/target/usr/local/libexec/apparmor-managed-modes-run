@@ -28,6 +28,7 @@ BEGIN {
 
 use AppArmor::ManagedModes::CLI qw(fatal info parse_args);
 use AppArmor::ManagedModes::Config qw(load_config);
+use AppArmor::ManagedModes::LoadedState qw(capture_loaded_state);
 use AppArmor::ManagedModes::Tool;
 use AppArmor::ManagedModes::Transition qw(apply_profile_mode);
 use AppArmor::ManagedModes::TrustedPath qw(
@@ -63,24 +64,34 @@ END {
 my $entries = load_config($options);
 my $tools = AppArmor::ManagedModes::Tool->new();
 
-if ($options->{check_only}) {
-    verify_source_profile_modes($entries, $options, $workspace, $tools);
+my $loaded_state;
+my $reconciled = 0;
+if (!$options->{check_only} && $options->{reload_profiles}) {
+    $loaded_state = capture_loaded_state($options, $workspace);
 }
-else {
-    for my $entry (@$entries) {
-        next if $entry->{mode} ne 'disable';
-        apply_profile_mode($entry, $options, $workspace, $tools);
-    }
-    for my $entry (@$entries) {
-        next if $entry->{mode} eq 'disable';
-        apply_profile_mode($entry, $options, $workspace, $tools);
+
+if (!$options->{check_only}) {
+    # Disable overlapping profiles before enabling their managed replacement.
+    for my $disabled (1, 0) {
+        for my $entry (@$entries) {
+            next if (($entry->{mode} eq 'disable') ? 1 : 0) != $disabled;
+            $reconciled += apply_profile_mode(
+                $entry, $options, $workspace, $tools, $loaded_state,
+            );
+        }
+        if ($disabled && $reconciled && $options->{reload_profiles}) {
+            $loaded_state = capture_loaded_state($options, $workspace);
+        }
     }
 }
 
+verify_source_profile_modes($entries, $options, $workspace, $tools);
 if ($options->{check_loaded} ||
     (!$options->{check_only} && $options->{reload_profiles})) {
-    verify_loaded_profile_modes($entries, $options, $workspace, $tools);
+    # Re-read the kernel after mutations; on a no-op boot reuse the snapshot.
+    $loaded_state = undef if $reconciled;
+    verify_loaded_profile_modes($entries, $options, $workspace, $tools, $loaded_state);
 }
 
-info('mode policy verified');
+info("mode policy verified reconciled=$reconciled");
 exit 0;

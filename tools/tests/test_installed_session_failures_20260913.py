@@ -281,12 +281,20 @@ class PanelAndWiringTests(unittest.TestCase):
         panel = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
         self.assertIn('signal (send, receive) peer=managed-labwc-panel-run,', panel)
 
-    def test_nvidia_path_unit_is_event_driven_without_exists_loop(self):
+    def test_nvidia_udev_reconciliation_is_bounded_without_path_watcher(self):
         units = TARGET / 'etc/systemd/system'
-        watcher = (units / 'managed-nvidia-char-links.path').read_text()
+        self.assertFalse((units / 'managed-nvidia-char-links.path').exists())
         service = (units / 'managed-nvidia-char-links.service').read_text()
-        self.assertIn('PathChanged=/dev', watcher)
-        self.assertNotIn('PathExistsGlob=', watcher)
+        rules = (TARGET / 'etc/udev/rules.d/71-managed-nvidia-char-links.rules').read_text()
+        active_rules = [line for line in rules.splitlines() if line and not line.startswith('#')]
+        self.assertEqual(len(active_rules), 2)
+        for rule in active_rules:
+            self.assertIn('ACTION=="add|change"', rule)
+            self.assertIn('KERNEL=="nvidia', rule)
+            self.assertIn('TAG+="systemd"', rule)
+            self.assertIn('ENV{SYSTEMD_WANTS}+="managed-nvidia-char-links.service"', rule)
+        self.assertIn('StartLimitIntervalSec=30s', service)
+        self.assertIn('StartLimitBurst=5', service)
         self.assertNotIn('RemainAfterExit=yes', service)
         self.assertIn('Before=greetd.service firstboot.service', service)
         self.assertIn('CapabilityBoundingSet=\n', service)

@@ -1,0 +1,635 @@
+# Primary desktop account defaults; copied by desktop_install_user_config.
+# Reference schema reviewed 2026-09-13 (the installer uses the upstream APT repo):
+# https://github.com/devmobasa/wayscriber/blob/main/config.example.toml
+# https://github.com/devmobasa/wayscriber/blob/main/docs/CONFIG.md
+# Settings supported by a newer release may be ignored by an older package.
+# This file is user-owned after installation. Optional overrides are documented
+# beside their sections; uncomment them rather than duplicating TOML tables.
+# Daemon lifecycle, global Labwc shortcuts and logging remain in the existing
+# service/compositor configuration, not in invented TOML service options.
+config_revision = 3
+
+# Drawing defaults: dimensions are logical pixels. RGB arrays for drawing use
+# integers 0..255; UI/board RGBA components below use floats 0.0..1.0.
+[drawing]
+default_color = "red"
+default_thickness = 3.0                 # 1..50
+default_eraser_size = 12.0              # 1..50
+default_eraser_mode = "brush"           # brush | stroke
+default_blur_style = "gaussian"        # gaussian | pixelate | secure | black-out
+marker_opacity = 0.32                  # 0.05..0.90
+default_fill_enabled = false
+polygon_sides = 5                      # 3..12
+default_font_size = 32.0               # 8..72
+font_family = "Sans"
+font_weight = "bold"                  # normal, bold, light or a numeric weight
+font_style = "normal"                 # normal | italic | oblique
+text_background_enabled = false
+hit_test_tolerance = 6.0               # 1..20
+hit_test_linear_threshold = 400
+undo_stack_limit = 100                 # 10..1000
+drag_tool = "pen"
+shift_drag_tool = "line"
+ctrl_drag_tool = "rect"
+ctrl_shift_drag_tool = "arrow"
+tab_drag_tool = "ellipse"
+
+# Per-button overrides are optional. Keep right-click menus and the middle
+# radial menu available. Each table also accepts drag_color, shift_drag_color,
+# ctrl_drag_color, ctrl_shift_drag_color and tab_drag_color (name/hex/RGB).
+[drawing.drag_tools.left]
+drag_tool = "pen"
+shift_drag_tool = "line"
+ctrl_drag_tool = "rect"
+ctrl_shift_drag_tool = "arrow"
+tab_drag_tool = "ellipse"
+# drag_color = "red"
+# shift_drag_color = "green"
+# ctrl_drag_color = "blue"
+# ctrl_shift_drag_color = "yellow"
+# tab_drag_color = "orange"
+[drawing.drag_tools.right]
+drag_tool = "default"
+[drawing.drag_tools.middle]
+drag_tool = "default"
+
+# Ordered slots 1..8 are the R/G/B/Y/O/P/W/K color shortcuts. Additional
+# entries expand the palette (at most 24 rendered colors).
+[[drawing.quick_colors]]
+label = "Red"
+color = "#F5333F"
+[[drawing.quick_colors]]
+label = "Green"
+color = "#2EC27E"
+[[drawing.quick_colors]]
+label = "Blue"
+color = "#3584E4"
+[[drawing.quick_colors]]
+label = "Yellow"
+color = "#F6D32D"
+[[drawing.quick_colors]]
+label = "Orange"
+color = "#FF7800"
+[[drawing.quick_colors]]
+label = "Pink"
+color = "#C061CB"
+[[drawing.quick_colors]]
+label = "White"
+color = "#FFFFFF"
+[[drawing.quick_colors]]
+label = "Black"
+color = "#241F31"
+[[drawing.quick_colors]]
+label = "Cyan"
+color = "#00FFFF"
+[[drawing.quick_colors]]
+label = "Purple"
+color = "#9966CC"
+[[drawing.quick_colors]]
+label = "Gray"
+color = "#666666"
+
+[arrow]
+length = 20.0
+angle_degrees = 30.0                  # 15..60
+head_at_end = false
+
+[spotlight]
+dim_opacity = 0.6                     # 0.1..0.95
+feather = 0.35                        # 0..0.9; zero gives a hard edge
+
+[presets]
+slot_count = 5                       # 3..5
+[presets.slot_1]
+name = "Red pen"
+tool = "pen"
+color = "red"
+size = 3.0
+marker_opacity = 0.32
+fill_enabled = false
+font_size = 32.0
+text_background_enabled = false
+arrow_length = 20.0
+arrow_angle = 30.0
+arrow_head_at_end = false
+polygon_sides = 5
+show_status_bar = true
+# Optional full per-tool profile: each of pen, line, rect, ellipse, arrow,
+# blur, marker and step_marker accepts color + size. eraser_size is separate.
+# [presets.slot_1.tool_settings]
+# eraser_size = 12.0
+# [presets.slot_1.tool_settings.pen]
+# color = "red"
+# size = 3.0
+# [presets.slot_1.tool_settings.line]
+# color = "green"
+# size = 3.0
+# [presets.slot_1.tool_settings.rect]
+# color = "blue"
+# size = 3.0
+# [presets.slot_1.tool_settings.ellipse]
+# color = "orange"
+# size = 3.0
+# [presets.slot_1.tool_settings.arrow]
+# color = "yellow"
+# size = 3.0
+# [presets.slot_1.tool_settings.blur]
+# color = "black"
+# size = 12.0
+# [presets.slot_1.tool_settings.marker]
+# color = "yellow"
+# size = 8.0
+# [presets.slot_1.tool_settings.step_marker]
+# color = "white"
+# size = 28.0
+# A slot may also contain drag_tools.left/right/middle overrides with the
+# same tool/color fields as drawing.drag_tools above.
+[presets.slot_2]
+name = "Yellow marker"
+tool = "marker"
+color = "yellow"
+size = 8.0
+marker_opacity = 0.32
+[presets.slot_3]
+name = "Blue arrow"
+tool = "arrow"
+color = "blue"
+size = 3.0
+arrow_length = 20.0
+arrow_angle = 30.0
+arrow_head_at_end = true
+[presets.slot_4]
+name = "Brush eraser"
+tool = "eraser"
+color = "black"
+size = 12.0
+eraser_mode = "brush"
+[presets.slot_5]
+name = "Pointer highlight"
+tool = "highlight"
+color = "yellow"
+size = 12.0
+
+[performance]
+buffer_count = 3                      # 2, 3 or 4
+enable_vsync = false                  # true favors tear-free/lower-power output
+max_fps_no_vsync = 120                # bounded; 0 would remove the cap
+ui_animation_fps = 30                 # 0 would remove the animation cap
+
+[history]
+undo_all_delay_ms = 1000              # 50..5000
+redo_all_delay_ms = 1000
+custom_section_enabled = false
+custom_undo_delay_ms = 1000
+custom_redo_delay_ms = 1000
+custom_undo_steps = 5                 # 1..500
+custom_redo_steps = 5
+
+[tablet]
+enabled = true                       # requires tablet support in the package
+pressure_enabled = true
+min_thickness = 1.0
+max_thickness = 8.0
+auto_eraser_switch = true
+pressure_variation_threshold = 0.1
+pressure_thickness_edit_mode = "disabled"  # disabled | add | scale
+pressure_thickness_entry_mode = "pressure_only" # never | pressure_only | any_pressure
+pressure_thickness_scale_step = 0.1
+[tablet.stylus_button]
+action = "toggle_radial_menu"
+[tablet.stylus_button2]
+# Omit action to leave the second barrel button unbound.
+# action = "undo"
+
+[tray]
+icon_style = "auto"                   # auto | symbolic | colored
+
+# APT owns software updates on this managed desktop. No background version
+# lookup or duplicate notification is needed from the annotation daemon.
+[updates]
+check = false
+notify = false
+interval_hours = 24                  # 1..720 if checks are enabled later
+
+[ui]
+theme = "auto"                       # auto | dark | light
+reduced_motion = "auto"              # auto | on | off
+show_status_bar = true
+status_bar_interactive = true
+active_output_badge = true
+show_status_selection_info = true
+show_status_board_badge = true
+show_status_page_badge = true
+show_status_color = true
+show_status_tool = true
+show_status_size = true
+show_status_context_indicators = true
+show_toolbar_hint = true
+show_status_help = true
+show_status_about = true
+show_floating_badge = true
+show_floating_badge_always = false
+show_frozen_badge = false
+status_bar_position = "bottom-left"  # any top/bottom left/right corner
+help_overlay_context_filter = true
+show_capabilities_warning = true
+command_palette_toast_duration_ms = 1500
+multi_monitor_enabled = true
+radial_menu_mouse_binding = "middle"  # middle | right | disabled
+# Do not bind a machine-specific output name in a multi-host installer.
+# preferred_output = "eDP-1"
+# These fallback settings are for xdg-shell, not Labwc layer-shell:
+# xdg_fullscreen = false
+# xdg_focus_loss_behavior = "exit"    # exit | stay
+
+[ui.toolbar]
+backend = "auto"                     # auto | gtk | builtin; environment may override
+layout_mode = "full"                 # simple | regular | advanced; full aliases regular
+use_icons = true
+scale = 1.0
+show_more_colors = false
+top_pinned = true
+top_minimized = false
+top_display_mode = "full"            # full | micro
+show_actions_section = true
+show_actions_advanced = false
+show_zoom_actions = true
+show_zoom_chip = true
+zoom_chip_display = "always"         # always | while-zoomed
+show_pages_section = true
+show_boards_section = true
+show_presets = true
+show_step_section = false
+show_text_controls = true
+show_settings_section = true
+show_delay_sliders = false
+show_marker_opacity_section = false
+context_aware_ui = true
+show_preset_toasts = true
+show_tool_preview = false
+top_offset = 0.0
+top_offset_y = 0.0
+force_inline = false
+# Hold this chord while clicking a bindable toolbar control to edit its shortcut.
+rebind_modifier = "ctrl_shift"       # ctrl_shift | ctrl_alt | shift_alt | ctrl_shift_alt | disabled
+# Older packages have a separate side palette; newer unified toolbars retire
+# these controls. They are documented here, not forced onto the new layout:
+# side_pinned = true
+# side_minimized = false
+# side_layout = "pill"                # pill | panel (legacy)
+# side_active_pane = "draw"            # draw | canvas | session | settings
+# collapsed_sections = []
+# side_offset = 0.0
+# side_offset_x = 0.0
+
+[ui.toolbar.items]
+hidden = ["top.utility.screenshot"]
+shown = []
+[ui.toolbar.items.order]
+# Empty lists retain the package's order; list item IDs to customize it.
+# Historical side.* IDs also apply to controls in the unified top toolbar.
+top_tools = []
+top_controls = []
+side_sections = []
+
+# Optional section overrides use the same show_* booleans as ui.toolbar.
+# regular is the historical table name for the full layout.
+[ui.toolbar.mode_overrides.simple]
+show_presets = false
+show_actions_section = true
+show_actions_advanced = false
+show_zoom_actions = true
+show_pages_section = true
+show_boards_section = true
+show_step_section = false
+show_text_controls = true
+show_settings_section = false
+[ui.toolbar.mode_overrides.regular]
+show_presets = true
+show_actions_section = true
+show_actions_advanced = false
+show_zoom_actions = true
+show_pages_section = true
+show_boards_section = true
+show_step_section = false
+show_text_controls = true
+show_settings_section = true
+# Older configurations may additionally use mode_overrides.advanced with
+# these same fields; it is unnecessary for the selected full layout.
+
+[ui.status_bar_style]
+font_size = 21.0
+padding = 15.0
+bg_color = [0.0, 0.0, 0.0, 0.85]
+text_color = [1.0, 1.0, 1.0, 1.0]
+dot_radius = 6.0
+[ui.help_overlay_style]
+font_size = 14.0
+font_family = "Noto Sans, DejaVu Sans, Liberation Sans, Sans"
+line_height = 22.0
+padding = 32.0
+bg_color = [0.09, 0.1, 0.13, 0.92]
+border_color = [0.33, 0.39, 0.52, 0.88]
+border_width = 2.0
+text_color = [0.95, 0.96, 0.98, 1.0]
+[ui.click_highlight]
+enabled = false
+show_on_highlight_tool = false
+radius = 24.0                         # 16..160
+outline_thickness = 4.0               # 1..12
+duration_ms = 750                     # 150..1500
+fill_color = [1.0, 0.8, 0.0, 0.35]
+outline_color = [1.0, 0.6, 0.0, 0.9]
+use_pen_color = true
+force_in_light_mode = true
+[ui.input_hud]
+# Never request global input capture just to annotate. Only overlay-delivered
+# input is shown when explicitly enabled; be mindful of visible keystrokes.
+enabled = false
+mode = "overlay"                     # overlay | auto | system
+position = "bottom-center"           # nine screen anchors, including center
+show_mouse = true
+show_bare_modifiers = true
+display_ms = 1600                     # 200..30000
+fade_ms = 350                         # 0..5000
+max_entries = 6                      # 1..16
+combine_repeats = true
+font_size = 18.0
+[ui.context_menu]
+enabled = true
+
+[presenter_mode]
+hide_status_bar = true
+hide_toolbars = true
+hide_tool_preview = true
+toolbar_mode = "hidden"              # hidden | micro when hide_toolbars is enabled
+close_help_overlay = true
+enable_click_highlight = true
+enable_input_hud = false             # presenting must not silently enable keystroke display
+tool_behavior = "force-highlight"    # keep | force-highlight | force-highlight-locked
+show_toast = true
+
+[boards]
+max_count = 9
+auto_create = true
+show_board_badge = true
+pan_enabled = true
+show_pan_badge = true
+persist_customizations = true
+default_board = "transparent"
+[[boards.items]]
+id = "transparent"
+name = "Overlay"
+background = "transparent"
+persist = true
+auto_adjust_pen = false
+[[boards.items]]
+id = "whiteboard"
+name = "Whiteboard"
+background = { rgb = [0.992, 0.992, 0.992] }
+default_pen_color = { rgb = [0.0, 0.0, 0.0] }
+auto_adjust_pen = true
+persist = true
+[[boards.items]]
+id = "blackboard"
+name = "Blackboard"
+background = { rgb = [0.067, 0.067, 0.067] }
+default_pen_color = { rgb = [1.0, 1.0, 1.0] }
+auto_adjust_pen = true
+persist = true
+# Add more [[boards.items]] with unique IDs to define custom boards, using
+# these same background/default_pen_color/auto_adjust_pen/persist controls.
+# The legacy singular [board] table must not compete with [boards].
+
+[render_profiles]
+# Leave active unset to preserve normal on-screen colors.
+# active = "print"
+apply_to_canvas = true
+apply_to_ui = true
+export = "off"                       # off | active | profile
+# export_profile = "print"           # required only for export = "profile"
+[[render_profiles.profiles]]
+id = "print"
+name = "Print contrast"
+mappings = [
+    { from = "#000000", to = "#FFFFFF" },
+    { from = "#FFFFFF", to = "#000000" },
+]
+
+# Saved drawings/history are not encrypted. Disable persistence for sensitive
+# sessions, or use the existing --no-resume-session CLI override.
+[session]
+persist_transparent = true
+persist_whiteboard = true
+persist_blackboard = true
+persist_history = true
+restore_tool_state = true
+autosave_enabled = true
+autosave_idle_ms = 5000
+autosave_interval_ms = 45000
+autosave_failure_backoff_ms = 5000
+storage = "auto"                     # auto (XDG data) | config | custom
+# custom_directory = "~/Documents/Wayscriber"  # for storage = "custom"
+per_output = true
+max_shapes_per_frame = 10000
+max_persisted_undo_depth = 100
+max_file_size_mb = 50
+compress = "auto"                    # auto | on | off
+auto_compress_threshold_kb = 100
+backup_retention = 1
+
+[capture]
+enabled = true
+save_directory = "~/Pictures/Wayscriber"
+filename_template = "screenshot_%Y-%m-%d_%H%M%S"
+format = "png"
+copy_to_clipboard = true
+exit_after_capture = false
+# Supported by newer packages: keep committed annotations in screenshots.
+include_drawings = true
+# Optional OCR language selection; no OCR dependency is installed by this file.
+# ocr_languages = "eng"
+
+[export.pdf]
+filename_template = "board_%Y-%m-%d_%H%M%S"
+all_boards_filename_template = "boards_%Y-%m-%d_%H%M%S"
+page_size = "viewport"               # viewport | a4 | letter | custom
+orientation = "auto"                 # auto | portrait | landscape
+fit = "viewport"                     # viewport | fit-viewport-to-page | fit-content-to-page
+transparent_background = "none"      # none | desktop (explicit desktop capture)
+custom_width = 800.0                  # PDF points; only for custom size
+custom_height = 600.0
+content_source_padding = 24.0
+[export.pdf.labels]
+enabled = false
+position = "bottom-center"           # any corner or bottom-center
+content = "custom-template"          # custom-template | board-and-page | document-page | board-name | page-name
+template = "{board_name} - {page_name} ({document_page}/{document_pages})"
+font_family = "Sans"
+font_size = 10.0
+margin = 12.0
+padding_x = 6.0
+padding_y = 3.0
+text_color = [0.1, 0.1, 0.1, 1.0]
+background_enabled = true
+background_color = [1.0, 1.0, 1.0, 0.85]
+
+# In-overlay shortcuts. Empty lists deliberately leave optional actions
+# unbound. These do NOT replace the compositor's global daemon toggle.
+# F6 enters passthrough; use an existing compositor --light-toggle binding
+# to leave passthrough, since the overlay no longer owns keyboard input.
+[keybindings]
+exit = ["Escape", "Ctrl+Q"]
+enter_text_mode = ["T"]
+enter_sticky_note_mode = ["N"]
+clear_canvas = ["E"]
+undo = ["Ctrl+Z"]
+redo = ["Ctrl+Shift+Z", "Ctrl+Y"]
+undo_all = []
+redo_all = []
+undo_all_delayed = []
+redo_all_delayed = []
+duplicate_selection = ["Ctrl+D"]
+copy_selection = ["Ctrl+Alt+C"]
+paste_selection = ["Ctrl+Alt+V"]
+select_all = ["Ctrl+A"]
+move_selection_to_front = ["]"]
+move_selection_to_back = ["["]
+nudge_selection_up = ["ArrowUp"]
+nudge_selection_down = ["ArrowDown"]
+nudge_selection_left = ["ArrowLeft", "Shift+PageUp"]
+nudge_selection_right = ["ArrowRight", "Shift+PageDown"]
+nudge_selection_up_large = ["PageUp"]
+nudge_selection_down_large = ["PageDown"]
+move_selection_to_start = ["Home"]
+move_selection_to_end = ["End"]
+move_selection_to_top = ["Ctrl+Home"]
+move_selection_to_bottom = ["Ctrl+End"]
+delete_selection = ["Delete"]
+increase_thickness = ["+", "="]
+decrease_thickness = ["-", "_"]
+increase_marker_opacity = ["Ctrl+Alt+ArrowUp"]
+decrease_marker_opacity = ["Ctrl+Alt+ArrowDown"]
+select_selection_tool = ["V"]
+select_pen_tool = ["F"]
+select_marker_tool = ["H"]
+select_step_marker_tool = []
+select_eraser_tool = ["D"]
+toggle_eraser_mode = ["Ctrl+Shift+E"]
+cycle_blur_style = []
+select_spotlight_tool = []
+select_line_tool = []
+select_rect_tool = []
+select_ellipse_tool = []
+select_triangle_tool = []
+select_parallelogram_tool = []
+select_rhombus_tool = []
+select_regular_polygon_tool = []
+select_freeform_polygon_tool = []
+select_arrow_tool = []
+select_blur_tool = []
+select_highlight_tool = []
+toggle_highlight_tool = ["Ctrl+Alt+H"]
+reset_arrow_labels = ["Ctrl+Shift+R"]
+reset_step_markers = []
+increase_font_size = ["Ctrl+Shift++", "Ctrl+Shift+="]
+decrease_font_size = ["Ctrl+Shift+-", "Ctrl+Shift+_"]
+toggle_whiteboard = ["Ctrl+W"]
+toggle_blackboard = ["Ctrl+B"]
+return_to_transparent = ["Ctrl+Shift+T"]
+focus_prev_output = ["Ctrl+Alt+Shift+ArrowLeft"]
+focus_next_output = ["Ctrl+Alt+Shift+ArrowRight"]
+board_prev = ["Ctrl+Shift+ArrowLeft"]
+board_next = ["Ctrl+Shift+ArrowRight"]
+board_new = ["Ctrl+Shift+N"]
+board_duplicate = ["Ctrl+Shift+D"]
+board_delete = ["Ctrl+Shift+Delete"]
+board_picker = ["Ctrl+Shift+B"]
+page_prev = ["Ctrl+Alt+ArrowLeft", "Ctrl+Alt+PageUp"]
+page_next = ["Ctrl+Alt+ArrowRight", "Ctrl+Alt+PageDown"]
+page_new = ["Ctrl+Alt+N"]
+page_duplicate = ["Ctrl+Alt+D"]
+page_delete = ["Ctrl+Alt+Delete"]
+toggle_help = ["F10", "F1"]
+toggle_quick_help = ["Shift+F1"]
+toggle_status_bar = ["F12", "F4"]
+toggle_floating_badge = []
+toggle_zoom_chip = []
+toggle_focus_mode = []
+toggle_toolbar = ["F9"]
+cycle_toolbar_display = ["F2"]
+toggle_presenter_mode = ["Ctrl+Shift+M"]
+toggle_light_mode = ["F6"]
+toggle_light_mode_drawing = []
+render_profile_next = []
+render_profile_previous = []
+render_profile_off = []
+toggle_click_highlight = ["Ctrl+Shift+H"]
+toggle_input_hud = ["Ctrl+Shift+K"]
+toggle_fill = []
+toggle_radial_menu = []
+toggle_selection_properties = ["Ctrl+Alt+P"]
+open_context_menu = ["Shift+F10", "Menu"]
+open_configurator = ["F11"]
+open_about = []
+toggle_command_palette = ["Ctrl+K", "Ctrl+Shift+P"]
+set_color_red = ["R"]
+set_color_green = ["G"]
+set_color_blue = ["B"]
+set_color_yellow = ["Y"]
+set_color_orange = ["O"]
+set_color_pink = ["P"]
+set_color_white = ["W"]
+set_color_black = ["K"]
+pick_screen_color = ["I"]
+capture_full_screen = ["Ctrl+Alt+F"]
+capture_active_window = ["Ctrl+Shift+O"]
+capture_selection = ["Ctrl+Shift+I"]
+capture_clipboard_full = ["Ctrl+C"]
+capture_file_full = ["Ctrl+S"]
+capture_clipboard_selection = ["Ctrl+Shift+C"]
+capture_file_selection = ["Ctrl+Shift+S"]
+capture_clipboard_region = ["Ctrl+6"]
+capture_file_region = ["Ctrl+Alt+6"]
+export_canvas_file = []
+export_canvas_clipboard = []
+export_canvas_clipboard_and_file = []
+export_board_pdf_file = []
+export_all_boards_pdf_file = []
+open_capture_folder = ["Ctrl+Alt+O"]
+toggle_frozen_mode = ["Ctrl+Shift+F"]
+zoom_in = ["Ctrl+Alt++", "Ctrl+Alt+="]
+zoom_out = ["Ctrl+Alt+-", "Ctrl+Alt+_"]
+reset_zoom = ["Ctrl+Alt+0"]
+toggle_zoom_lock = ["Ctrl+Alt+L"]
+refresh_zoom_capture = ["Ctrl+Alt+R"]
+board_1 = ["Ctrl+Shift+1"]
+board_2 = ["Ctrl+Shift+2"]
+board_3 = ["Ctrl+Shift+3"]
+board_4 = ["Ctrl+Shift+4"]
+board_5 = ["Ctrl+Shift+5"]
+board_6 = ["Ctrl+Shift+6"]
+board_7 = ["Ctrl+Shift+7"]
+board_8 = ["Ctrl+Shift+8"]
+board_9 = ["Ctrl+Shift+9"]
+apply_preset_1 = ["1"]
+apply_preset_2 = ["2"]
+apply_preset_3 = ["3"]
+apply_preset_4 = ["4"]
+apply_preset_5 = ["5"]
+save_preset_1 = ["Shift+1"]
+save_preset_2 = ["Shift+2"]
+save_preset_3 = ["Shift+3"]
+save_preset_4 = ["Shift+4"]
+save_preset_5 = ["Shift+5"]
+clear_preset_1 = ["Ctrl+1"]
+clear_preset_2 = ["Ctrl+2"]
+clear_preset_3 = ["Ctrl+3"]
+clear_preset_4 = ["Ctrl+4"]
+clear_preset_5 = ["Ctrl+5"]
+
+# Environment-only controls deliberately stay outside TOML: WAYSCRIBER_NO_TRAY,
+# WAYSCRIBER_TRAY_FORCE_PIXMAP, WAYSCRIBER_FORCE_INLINE_TOOLBARS,
+# WAYSCRIBER_DISABLE_UPDATE_CHECK, debug variables
+# and RUST_LOG. WAYSCRIBER_TOOLBAR_BACKEND overrides ui.toolbar.backend.
+# Change the existing service drop-ins for environment overrides.

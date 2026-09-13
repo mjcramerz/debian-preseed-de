@@ -1,0 +1,12 @@
+{
+  "all_prior_delivery_files_retained": true,
+  "prior_delivery_file_count": 1597,
+  "prior_delivery_file_modes_preserved": true,
+  "original_upload_file_count": 1579,
+  "only_missing_original_file": [
+    "d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.path"
+  ],
+  "new_source_file_removals": [],
+  "unexpected_symlinks_or_python_caches": false,
+  "note": "Complete final tarball is verified separately against this tree after packaging."
+}

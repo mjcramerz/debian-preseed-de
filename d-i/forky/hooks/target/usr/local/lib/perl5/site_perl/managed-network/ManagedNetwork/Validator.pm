@@ -8,7 +8,8 @@ use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
 use Socket qw(AF_INET6 inet_pton);
-use Types::Standard qw(Str);
+use Types::Standard qw(Int Str);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC sleep);
 
 use ManagedNetwork::Config;
 use ManagedNetwork::Logger;
@@ -40,6 +41,12 @@ my @CONFIG_KEYS = qw(
   MANAGED_NETWORK_IPV4_NETWORK_CIDRS
   MANAGED_NETWORK_IPV6_HOST_CIDRS
   MANAGED_NETWORK_IPV6_NETWORK_CIDRS
+);
+
+has wait_seconds => (
+    is      => 'ro',
+    isa     => Int,
+    default => sub { 0 },
 );
 
 has config_path => (
@@ -78,6 +85,7 @@ sub from_environment {
         $config_path = "$prefix/etc/default/managed-network";
     }
     return $class->new(
+        wait_seconds  => $args{wait_seconds} // 0,
         config_path   => $config_path,
         logger        => $args{logger},
         sys_class_net => $ENV{MANAGED_SYS_CLASS_NET} // '/sys/class/net',
@@ -286,6 +294,34 @@ sub _validate_config_values {
     return @types;
 }
 
+sub _wait_for_expected_interfaces {
+    my ($self, $config, @types) = @_;
+    my $timeout = $self->wait_seconds();
+    $timeout >= 0 && $timeout <= 15 or die "interface wait must be between 0 and 15 seconds\n";
+    return if !$timeout;
+    my @ifaces = map { $config->{"MANAGED_NETWORK_" . uc($_) . "_IFACE"} } @types;
+    for my $iface (@ifaces) {
+        $self->_valid_iface_name($iface) or die "invalid expected interface name\n";
+    }
+    # One monotonic deadline shared by all configured adapters. Do not wait for
+    # carrier, DHCP, addresses, or any unrelated device or udev event.
+    my $deadline = clock_gettime(CLOCK_MONOTONIC) + $timeout;
+    my $announced = 0;
+    while (1) {
+        my @missing = grep {
+            my $path = $self->sys_class_net() . "/$_";
+            !-d $path || !-r "$path/address" || !-r "$path/type"
+        } @ifaces;
+        return if !@missing;
+        my $remaining = $deadline - clock_gettime(CLOCK_MONOTONIC);
+        $remaining > 0 or die "timed out after ${timeout}s waiting for managed interface(s): " . join(',', @missing) . "\n";
+        if (!$announced++) {
+            $self->logger()->info('waiting for managed interface(s): ' . join(',', @missing));
+        }
+        sleep($remaining < 0.1 ? $remaining : 0.1);
+    }
+}
+
 sub _validate_expected_interface {
     my ($self, $config, $link_type) = @_;
 
@@ -393,10 +429,11 @@ sub validate {
         path         => $self->config_path(),
     )->load();
     my @types = $self->_validate_config_values($config);
+    $self->_validate_staged_files($config, @types);
+    $self->_wait_for_expected_interfaces($config, @types);
     for my $link_type (@types) {
         $self->_validate_expected_interface($config, $link_type);
     }
-    $self->_validate_staged_files($config, @types);
     $self->logger()->info('validated managed static network staging');
     return 0;
 }

@@ -1,0 +1,17 @@
+{
+  "compared_to": "debian-preseed-de-fixed.tar.gz",
+  "modified": [
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/wayscriber/config.toml",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/LoadedState.pm",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/preseed.cfg",
+    "d-i/forky/tests/test_boot_runtime_20260913.py",
+    "tools/tests/test_installed_session_failures_20260913.py"
+  ],
+  "removed": [],
+  "added": [
+    "d-i/forky/tests/test_boot_runtime_second_pass.py"
+  ],
+  "baseline_file_permissions_preserved": true
+}

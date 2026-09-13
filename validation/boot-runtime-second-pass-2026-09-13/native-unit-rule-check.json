@@ -1,0 +1,29 @@
+[
+  {
+    "scope": "four actual system units with isolated dependency/executable fixtures",
+    "units": [
+      "managed-nvidia-char-links.service",
+      "managed-network.service",
+      "apparmor-managed-modes.service",
+      "bootprofile-apply.service"
+    ],
+    "returncode": 0,
+    "output": ""
+  },
+  {
+    "scope": "four actual rendered greeter drop-ins with fixture vendor bases",
+    "units": [
+      "pipewire.socket",
+      "pipewire.service",
+      "pipewire-pulse.socket",
+      "pipewire-pulse.service"
+    ],
+    "returncode": 0,
+    "output": ""
+  },
+  {
+    "scope": "actual NVIDIA udev rules",
+    "returncode": 0,
+    "output": "\n1 udev rules files have been checked.\n  Success: 1\n  Fail:    0\n"
+  }
+]

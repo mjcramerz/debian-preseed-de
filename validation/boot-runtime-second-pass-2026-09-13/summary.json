@@ -1,0 +1,46 @@
+{
+  "date": "2026-09-13",
+  "basis": "Re-extracted delivered debian-preseed-de-fixed.tar.gz; compared with original upload.",
+  "selected_tests": {
+    "focused_boot_runtime": 37,
+    "installed_session": 23,
+    "desktop": 11,
+    "dbus_enabler": 16,
+    "total": 87,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "new_regressions": 9,
+  "existing_nvidia_regression_updated": true,
+  "runtime_sources_changed_this_pass": [
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/LoadedState.pm",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/wayscriber/config.toml"
+  ],
+  "shell_files_checked": 267,
+  "shell_parser_checks": 545,
+  "preseed_files_checked": 59,
+  "native_system_units_checked_with_fixtures": 4,
+  "native_audio_dropins_checked_with_vendor_fixtures": 4,
+  "udev_rule_files_checked": 1,
+  "payload_files_verified": 1265,
+  "tools": {
+    "apparmor_parser": "4.1.0 (names-only inspection)",
+    "systemd": "257.9-1~deb13u1",
+    "udevadm": "257"
+  },
+  "limitations": [
+    "Moo dependencies unavailable; Perl control-flow tests use the explicit test-only adapter.",
+    "Native AppArmor parser used only for label enumeration, not policy compilation or loading.",
+    "No fresh Debian installation, real GPU hotplug, physical adapter readiness, or greeter session was run.",
+    "Wayscriber TOML parsed and documented settings checked, but the eventual APT binary was not run.",
+    "Native systemd verification used dependency/executable/vendor fixtures; no service manager lifecycle was executed.",
+    "The full historical test collection was not rerun; these are selected scoped and integration regressions."
+  ],
+  "sha256": {
+    "payload.tar.gz": "ac0074c14eb76cbafef0b6ddfe5c0834fdbc159d8e2b274ae54e8c453adb2c9a",
+    "payload.manifest": "642658524d132a07d96baecb140645b3c291e5da11d48c2a78896ac560175ee9",
+    "preseed.cfg": "99a70603f6aea171d65adce8b7d9c8151dc942992506dd37d1ad66a73004bdfe"
+  },
+  "input_archive_sha256": "3c102b4d5256cacb7043c29df481338db7e868e839b4ed55f055ef68cba3b09a"
+}

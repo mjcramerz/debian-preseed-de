@@ -389,9 +389,8 @@ install_target_bootprofile_assets() {
   render_target_template "$TMP_ENV_DIR/bootprofile-apply.tmpl" "/target${FILE_BOOTPROFILE_APPLY}" 0755
   render_target_template "$TMP_ENV_DIR/bootprofile-apply.service.tmpl" "/target${FILE_BOOTPROFILE_SERVICE}" 0644
 
-  install -d -m 0755 "/target${DIR_SYSTEMD_SYSTEM}/sysinit.target.wants"
-  ln -sf "../$(basename "${FILE_BOOTPROFILE_SERVICE}")" \
-    "/target${DIR_SYSTEMD_SYSTEM}/sysinit.target.wants/$(basename "${FILE_BOOTPROFILE_SERVICE}")"
+  # Asset installation owns enablement; storage setup must not enable it again.
+  stage_target_systemd_unit_enabled "$(basename "${FILE_BOOTPROFILE_SERVICE}")" system
 }
 
 
@@ -429,7 +428,7 @@ if [ -f "$file" ]; then
         continue
         ;;
       GRUB_RECORDFAIL_TIMEOUT=*)
-        [ "$recordfail_timeout_updated" -eq 0 ] && printf 'GRUB_RECORDFAIL_TIMEOUT=-1\n'
+        [ "$recordfail_timeout_updated" -eq 0 ] && printf 'GRUB_RECORDFAIL_TIMEOUT=500\n'
         recordfail_timeout_updated=1
         continue
         ;;
@@ -449,7 +448,7 @@ if [ -f "$file" ]; then
   [ "$default_updated" -eq 1 ] || printf 'GRUB_DEFAULT="%s"\n' "$grub_default" >>"$tmp"
   [ "$timeout_style_updated" -eq 1 ] || printf 'GRUB_TIMEOUT_STYLE=menu\n' >>"$tmp"
   [ "$timeout_updated" -eq 1 ] || printf 'GRUB_TIMEOUT=-1\n' >>"$tmp"
-  [ "$recordfail_timeout_updated" -eq 1 ] || printf 'GRUB_RECORDFAIL_TIMEOUT=-1\n' >>"$tmp"
+  [ "$recordfail_timeout_updated" -eq 1 ] || printf 'GRUB_RECORDFAIL_TIMEOUT=500\n' >>"$tmp"
   [ "$disable_recovery_updated" -eq 1 ] || printf 'GRUB_DISABLE_RECOVERY=true\n' >>"$tmp"
   [ "$disable_submenu_updated" -eq 1 ] || printf 'GRUB_DISABLE_SUBMENU=y\n' >>"$tmp"
 else
@@ -457,7 +456,7 @@ else
     printf "GRUB_DEFAULT=\"%s\"\n" "$grub_default"
     printf "GRUB_TIMEOUT_STYLE=menu\n"
     printf "GRUB_TIMEOUT=-1\n"
-    printf "GRUB_RECORDFAIL_TIMEOUT=-1\n"
+    printf "GRUB_RECORDFAIL_TIMEOUT=500\n"
     printf "GRUB_DISABLE_RECOVERY=true\n"
     printf "GRUB_DISABLE_SUBMENU=y\n"
   } >"$tmp"

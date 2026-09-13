@@ -240,6 +240,10 @@ validate_desktop_role() {
     /usr/local/share/dbus-1 \
     /usr/local/share/dbus-1/services \
     /etc/systemd/user/wireplumber.service.d/20-no-root.conf \
+    /etc/systemd/user/pipewire.socket.d/20-no-greeter.conf \
+    /etc/systemd/user/pipewire.service.d/20-no-greeter.conf \
+    /etc/systemd/user/pipewire-pulse.socket.d/20-no-greeter.conf \
+    /etc/systemd/user/pipewire-pulse.service.d/20-no-greeter.conf \
     /etc/pam.d/greetd \
     /etc/pam.d/greetd-greeter \
     /etc/pam.d/swaylock \
@@ -394,6 +398,7 @@ validate_desktop_role() {
     /etc/skel-desktop/.config/Thunar/uca.xml \
     /etc/skel-desktop/.config/user-dirs.dirs \
     /etc/skel-desktop/.config/btop/btop.conf \
+    /etc/skel-desktop/.config/wayscriber/config.toml \
     /etc/skel-desktop/.config/fzf/default-opts \
     /etc/xdg/gtk-3.0/settings.ini \
     /etc/xdg/gtk-4.0/settings.ini
@@ -418,6 +423,16 @@ validate_desktop_role() {
       [ ! -L "$dropin" ]
       grep -Fxq "ConditionUser=!root" "$dropin"
       grep -Fxq "ConditionUser=!${LABWC_GREETER_USER}" "$dropin"
+    ' sh
+  check_command desktop-pipewire-greeter-conditions \
+    /bin/sh -eu -c '
+      . /etc/default/labwc-desktop
+      [ -n "${LABWC_GREETER_USER:-}" ]
+      for unit in pipewire.socket pipewire.service pipewire-pulse.socket pipewire-pulse.service; do
+        dropin="/etc/systemd/user/${unit}.d/20-no-greeter.conf"
+        [ -f "$dropin" ] && [ ! -L "$dropin" ]
+        grep -Fxq "ConditionUser=!${LABWC_GREETER_USER}" "$dropin"
+      done
     ' sh
   check_command desktop-swaylock-authentication-chain \
     /bin/sh -eu -c '
@@ -470,8 +485,8 @@ validate_desktop_role() {
     check_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
     check_path desktop-nvidia-char-link-helper /usr/local/libexec/managed-nvidia-char-links
     check_path desktop-nvidia-char-link-service /etc/systemd/system/managed-nvidia-char-links.service
-    check_path desktop-nvidia-char-link-path /etc/systemd/system/managed-nvidia-char-links.path
-    check_command desktop-nvidia-char-link-watcher systemctl is-active --quiet managed-nvidia-char-links.path
+    # A completed oneshot is inactive; validate boot enablement and actual links.
+    check_command desktop-nvidia-char-link-boot-enabled systemctl is-enabled --quiet managed-nvidia-char-links.service
     check_command desktop-nvidia-char-device-links /usr/local/libexec/managed-nvidia-char-links --check
   else
     check_absent_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
@@ -659,6 +674,7 @@ validate_desktop_role() {
     done
     for desktop_account_config_path in \
       .config/btop/btop.conf \
+      .config/wayscriber/config.toml \
       .config/fzf/default-opts
     do
       check_path \
@@ -1063,7 +1079,6 @@ fi
 if [ -x /usr/local/libexec/apparmor-managed-modes-run ]; then
   # firstboot.service is ordered after the reconciliation unit, so source and
   # loaded modes must already agree rather than being deferred as a boot race.
-  check_command apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes-run --check
   check_command apparmor-managed-modes-loaded /usr/local/libexec/apparmor-managed-modes-run --check-loaded
 fi
 if command -v aa-status >/dev/null 2>&1; then

@@ -4,29 +4,29 @@ use strict;
 use warnings;
 
 use Exporter qw(import);
-use Sys::Syslog qw(:standard :macros);
 
 our @EXPORT_OK = qw(log_msg);
 
-my %PRIORITY = (
-    info    => LOG_INFO,
-    warning => LOG_WARNING,
-    error   => LOG_ERR,
-);
 
 sub log_msg {
     my ($level, $message) = @_;
-    $level = exists $PRIORITY{$level} ? $level : 'error';
+    $level = 'error' if $level !~ /\A(?:info|warning|error)\z/;
     $message = q{} if !defined $message;
     $message =~ s/[\r\n]+/ /g;
     $message =~ s/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/?/g;
     $message = substr($message, 0, 2048);
-    return if !eval {
-        openlog('apparmor-managed-modes', 'pid,nowait', LOG_DAEMON);
-        syslog($PRIORITY{$level}, '%s', $message);
-        closelog();
-        1;
-    };
+    # One stream only. systemd supplies the identifier and journal transport;
+    # direct invocations retain the same useful, sanitized terminal messages.
+    if ($level eq 'info') {
+        print STDOUT "apparmor-managed-modes: $message\n";
+    }
+    elsif ($level eq 'warning') {
+        print STDERR "apparmor-managed-modes: warning: $message\n";
+    }
+    else {
+        print STDERR "fatal: $message\n";
+    }
+
 }
 
 1;

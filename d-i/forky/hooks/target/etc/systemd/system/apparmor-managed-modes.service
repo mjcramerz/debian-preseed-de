@@ -20,6 +20,7 @@ RemainAfterExit=yes
 TimeoutStartSec=2min
 TimeoutStopSec=15s
 
+SyslogIdentifier=apparmor-managed-modes
 StandardOutput=journal
 StandardError=journal
 

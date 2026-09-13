@@ -2,9 +2,9 @@
 Description=Maintain character-device links for existing NVIDIA nodes
 After=systemd-modules-load.service systemd-udev-trigger.service
 Before=greetd.service firstboot.service
-# Device hotplug bursts must not exhaust the generic five-start service limit.
-# The path unit retains its own trigger limit; this helper never polls.
-StartLimitIntervalSec=0
+# Bound real NVIDIA device-event bursts; never watch unrelated /dev activity.
+StartLimitIntervalSec=30s
+StartLimitBurst=5
 
 [Service]
 Type=oneshot
