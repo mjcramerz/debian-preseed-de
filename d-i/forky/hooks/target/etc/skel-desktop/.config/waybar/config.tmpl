@@ -3,6 +3,7 @@
   "name": "internal",
   "output": [__INSTALLER_LABWC_WAYBAR_INTERNAL_OUTPUTS__],
   "layer": "top",
+  "reload_style_on_change": true,
   "position": "top",
   "height": __INSTALLER_LABWC_WAYBAR_INTERNAL_HEIGHT__,
   "spacing": 4,
@@ -20,23 +21,7 @@
     "active-only": false,
     "all-outputs": true
   },
-  "wlr/taskbar": {
-    "format": "{icon}",
-    "all-outputs": false,
-    "sort-by-app-id": false,
-    "expand": true,
-    "icon-size": __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE__,
-    "icon-theme": "Papirus-Dark",
-    "tooltip": true,
-    "tooltip-format": "{title}",
-    "on-click": "minimize-raise",
-    "on-click-middle": "close",
-    "on-click-right": "minimize-raise",
-    "app_ids-mapping": {
-      "footclient": "foot",
-      "org.xfce.Thunar": "thunar"
-    }
-  },
+__INSTALLER_LABWC_WORKSPACE_BROKER_MODULES__
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,
@@ -282,6 +267,7 @@
   "name": "external",
   "output": [__INSTALLER_LABWC_WAYBAR_EXTERNAL_OUTPUTS__],
   "layer": "top",
+  "reload_style_on_change": true,
   "position": "top",
   "height": __INSTALLER_LABWC_WAYBAR_HEIGHT__,
   "spacing": 4,
@@ -299,23 +285,7 @@
     "active-only": false,
     "all-outputs": true
   },
-  "wlr/taskbar": {
-    "format": "{icon}",
-    "all-outputs": false,
-    "sort-by-app-id": false,
-    "expand": true,
-    "icon-size": __INSTALLER_LABWC_WAYBAR_TASKBAR_ICON_SIZE__,
-    "icon-theme": "Papirus-Dark",
-    "tooltip": true,
-    "tooltip-format": "{title}",
-    "on-click": "minimize-raise",
-    "on-click-middle": "close",
-    "on-click-right": "minimize-raise",
-    "app_ids-mapping": {
-      "footclient": "foot",
-      "org.xfce.Thunar": "thunar"
-    }
-  },
+__INSTALLER_LABWC_WORKSPACE_BROKER_MODULES__
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,

@@ -138,9 +138,16 @@ esac
         self.assertFalse(self.log.exists())
 
     def test_both_waybar_definitions_use_completion_driven_refresh(self):
-        template = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
-        # Numeric/output-list slots are substituted by the installer, not JSON yet.
-        configurations = json.loads(re.sub(r'__INSTALLER_[A-Z0-9_]+__', '0', template))
+        # Workspace groups are a whole JSON block, not a scalar placeholder.
+        # Exercise the real renderer so this keyboard regression also survives
+        # the grouped taskbar integration without weakening its assertions.
+        rendered = self.base / 'rendered'
+        rendered.mkdir()
+        fixture = Path(__file__).parent / 'fixtures/workspace-broker/render.sh'
+        result = subprocess.run(['/bin/sh', str(fixture), str(TARGET.parents[3]), str(rendered)],
+                                capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        configurations = json.loads((rendered / 'etc/skel-desktop/.config/waybar/config').read_text())
         self.assertEqual(len(configurations), 2)
         for configuration in configurations:
             keyboard = configuration['custom/keyboard']

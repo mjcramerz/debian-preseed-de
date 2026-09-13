@@ -76,12 +76,22 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     </names>
   </desktops>
 
-  <windowSwitcher preview="yes" outlines="yes" order="focus">
-    <osd show="yes" style="classic" output="all" />
+  <!-- Primary Alt+Tab stays inside labwc: exact workspace state and native
+       modifier/Escape/mouse lifecycle, independent of the taskbar broker. -->
+  <windowSwitcher preview="__INSTALLER_LABWC_WINDOW_SWITCHER_PREVIEW__"
+                  outlines="__INSTALLER_LABWC_WINDOW_SWITCHER_OUTLINES__"
+                  unshade="__INSTALLER_LABWC_WINDOW_SWITCHER_UNSHADE__"
+                  order="__INSTALLER_LABWC_WINDOW_SWITCHER_ORDER__">
+    <osd show="yes" style="__INSTALLER_LABWC_WINDOW_SWITCHER_STYLE__"
+         output="__INSTALLER_LABWC_WINDOW_SWITCHER_OSD_OUTPUT__"
+         thumbnailLabelFormat="%n &#8212; %T  %S  %o" />
+    <!-- Retained for the supported classic/data-dense fallback. -->
     <fields>
-      <field content="icon" width="10%" />
-      <field content="trimmed_identifier" width="32%" />
-      <field content="title" width="58%" />
+      <field content="icon" width="7%" />
+      <field content="desktop_entry_name" width="23%" />
+      <field content="state" width="8%" />
+      <field content="output" width="12%" />
+      <field content="title" width="50%" />
     </fields>
   </windowSwitcher>
 
@@ -108,10 +118,10 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
     <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
     <keybind key="A-Tab">
-      <action name="NextWindow" workspace="all" />
+      <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
     </keybind>
     <keybind key="A-S-Tab">
-      <action name="PreviousWindow" workspace="all" />
+      <action name="PreviousWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
     </keybind>
     <keybind key="W-Return">
       <action name="Execute" command="labwc-terminal" />

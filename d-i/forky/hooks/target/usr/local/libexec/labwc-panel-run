@@ -127,7 +127,21 @@ def main(args: list[str]) -> int:
     command = ['/usr/bin/' + panel]
     if panel == 'waybar':
         directory = Path.home() / '.config/waybar'
-        command += ['-c', str(directory / 'config'), '-s', str(directory / 'style.css')]
+        style = directory / 'style.css'
+        # Prepare the runtime icon stylesheet before Waybar creates its import
+        # monitors. A failed broker must not suppress the remaining panel.
+        try:
+            prepared = subprocess.run(
+                ['/usr/local/bin/labwc-workspace-broker-client', 'prepare-style'],
+                check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                text=True, timeout=5,
+            ).stdout.strip()
+            expected = f'/run/user/{os.getuid()}/labwc-workspace-broker/panel.css'
+            if prepared == expected:
+                style = Path(prepared)
+        except (OSError, subprocess.SubprocessError):
+            print('labwc-panel-run: workspace icon style unavailable; using base style', file=sys.stderr)
+        command += ['-c', str(directory / 'config'), '-s', str(style)]
     # systemctl kill --kill-whom=main addresses this supervisor, not Waybar.
     # Forward custom-module refreshes only for Waybar, never to Crystal Dock.
     forwarded = SIGNALS + WAYBAR_SIGNALS if panel == 'waybar' else SIGNALS

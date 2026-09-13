@@ -1914,8 +1914,40 @@ desktop_target_managed_network_default_value() {
   printf '%s\n' "$value"
 }
 
+# Fixed slots are a presentation bound, not a workspace-count bound. Slot zero
+# is a paginated overflow chooser. All outputs share semantic slot identities.
+desktop_waybar_workspace_modules_json() {
+  broker_slots=${LABWC_WORKSPACE_BROKER_GROUP_SLOTS:-24}
+  desktop_validate_uint_range LABWC_WORKSPACE_BROKER_GROUP_SLOTS "$broker_slots" 4 64
+  printf '"group/workspace-taskbar": {"orientation": "inherit", "modules": ['
+  broker_slot=1
+  while [ "$broker_slot" -le "$broker_slots" ]; do
+    printf '"custom/workspace-app-%02d",' "$broker_slot"
+    broker_slot=$((broker_slot + 1))
+  done
+  printf '"custom/workspace-app-overflow"]},\n'
+  broker_slot=0
+  while [ "$broker_slot" -le "$broker_slots" ]; do
+    if [ "$broker_slot" -eq 0 ]; then
+      broker_module=custom/workspace-app-overflow
+    else
+      broker_module=$(printf 'custom/workspace-app-%02d' "$broker_slot")
+    fi
+    printf '"%s": {\n' "$broker_module"
+    printf '"exec": "/usr/local/bin/labwc-workspace-broker-client watch --slot %s",\n' "$broker_slot"
+    printf '"return-type": "json", "restart-interval": 1, "hide-empty-text": true, "escape": false, "exec-on-event": false, "tooltip": true,\n'
+    printf '"on-click": "/usr/local/bin/labwc-workspace-broker-client primary --slot %s",\n' "$broker_slot"
+    printf '"on-click-middle": "/usr/local/bin/labwc-workspace-broker-client close --slot %s",\n' "$broker_slot"
+    printf '"on-click-right": "/usr/local/bin/labwc-workspace-broker-client primary --slot %s"}' "$broker_slot"
+    [ "$broker_slot" -eq "$broker_slots" ] || printf ',\n'
+    broker_slot=$((broker_slot + 1))
+  done
+  printf '\n'
+  unset broker_slots broker_slot broker_module
+}
+
 desktop_waybar_modules_left_json() {
-  printf '"custom/launcher", "ext/workspaces", "custom/wayscriber", "group/apps", "wlr/taskbar"'
+  printf '"custom/launcher", "ext/workspaces", "custom/wayscriber", "group/apps", "group/workspace-taskbar"'
 }
 
 desktop_waybar_modules_right_json() {
@@ -2567,6 +2599,57 @@ desktop_stage_kwallet_dbus_activation_assets() {
   desktop_log "staged_account_local_kwallet_secret_service_activation path=/etc/skel-desktop/.local/share/dbus-1/services/org.freedesktop.secrets.service"
 }
 
+desktop_stage_workspace_broker_assets() {
+  # Explicit inventory works for both local payload and HTTP-served installs.
+  # The runtime never downloads language modules or generates protocol bindings.
+  for broker_asset in \
+    usr/local/lib/labwc-workspace-broker/PROTOCOL-LICENSES.txt \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Broker.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Client.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Config.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Icons.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Picker.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Policy.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Render.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Runtime.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/State.pm \
+    usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Wire.pm \
+    usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/__init__.py \
+    usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/driver.py \
+    usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/protocol.py \
+    usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/wire.py
+  do
+    desktop_stage_role_asset "$broker_asset" "/$broker_asset" 0644
+  done
+  for broker_entry in \
+    usr/local/libexec/labwc-workspace-broker \
+    usr/local/libexec/labwc-workspace-wayland-adapter \
+    usr/local/bin/labwc-workspace-broker-client
+  do
+    desktop_stage_role_asset "$broker_entry" "/$broker_entry" 0755
+  done
+  for broker_directory in \
+    /usr/local/lib/labwc-workspace-broker \
+    /usr/local/lib/labwc-workspace-broker/perl5 \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker \
+    /usr/local/lib/labwc-workspace-broker/python \
+    /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland
+  do
+    ensure_target_asset_parent "${broker_directory}/.installer-directory"
+    broker_directory_host=$(target_asset_host_path "$broker_directory")
+    [ -d "$broker_directory_host" ] && [ ! -L "$broker_directory_host" ] ||
+      installer_fatal "unsafe workspace broker module directory: ${broker_directory}"
+    chown root:root "$broker_directory_host"
+    chmod 0755 "$broker_directory_host"
+  done
+  desktop_stage_role_asset \
+    etc/skel-desktop/.config/systemd/user/labwc-workspace-broker.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-workspace-broker.service \
+    0644
+  unset broker_asset broker_entry broker_directory broker_directory_host
+}
+
 desktop_stage_labwc_user_session_assets() {
   desktop_stage_role_asset \
     etc/systemd/system/user@.service.d/20-labwc-seatd.conf \
@@ -2597,6 +2680,7 @@ desktop_stage_labwc_user_session_assets() {
     /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
     0644
 
+  desktop_stage_workspace_broker_assets
   desktop_stage_labwc_package_user_unit_dropins
   desktop_stage_wireplumber_user_conditions
   desktop_stage_pipewire_user_conditions
@@ -2664,6 +2748,17 @@ desktop_render_labwc_default_config() {
     LABWC_ELECTRON_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_ELECTRON_APP_DEFAULT_EXEC")" \
     LABWC_WAYLAND_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_WAYLAND_APP_DEFAULT_EXEC")" \
     LABWC_WORKSPACE_COUNT "$(desktop_shell_config_value "${LABWC_WORKSPACE_COUNT:-4}")" \
+    LABWC_WINDOW_SWITCHER_STYLE "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}")" \
+    LABWC_WINDOW_SWITCHER_ORDER "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_ORDER:-focus}")" \
+    LABWC_WINDOW_SWITCHER_PREVIEW "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_PREVIEW:-yes}")" \
+    LABWC_WINDOW_SWITCHER_OUTLINES "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_OUTLINES:-yes}")" \
+    LABWC_WINDOW_SWITCHER_UNSHADE "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_UNSHADE:-yes}")" \
+    LABWC_WINDOW_SWITCHER_OSD_OUTPUT "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_OSD_OUTPUT:-focused}")" \
+    LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT:-all}")" \
+    LABWC_WORKSPACE_BROKER_GROUP_SLOTS "$(desktop_shell_config_value "${LABWC_WORKSPACE_BROKER_GROUP_SLOTS:-24}")" \
+    LABWC_WORKSPACE_BROKER_PICKER_LINES "$(desktop_shell_config_value "${LABWC_WORKSPACE_BROKER_PICKER_LINES:-12}")" \
+    LABWC_WORKSPACE_BROKER_PICKER_WIDTH "$(desktop_shell_config_value "${LABWC_WORKSPACE_BROKER_PICKER_WIDTH:-64}")" \
+    LABWC_WORKSPACE_BROKER_TOOLTIP_WINDOWS "$(desktop_shell_config_value "${LABWC_WORKSPACE_BROKER_TOOLTIP_WINDOWS:-8}")" \
     LABWC_WALLPAPER_PATH "$(desktop_shell_config_value "${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}")" \
     LABWC_LOCK_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_LOCK_BACKGROUND_PATH:-/usr/share/backgrounds/login/lock-1920x1080.png}")" \
     LABWC_GREETER_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_GREETER_BACKGROUND_PATH:-/usr/share/backgrounds/login/welcome-1920x1080.png}")" \
@@ -2891,6 +2986,13 @@ desktop_render_labwc_rc_xml() {
     "$rc_path" \
     0644 \
     LABWC_WORKSPACE_COUNT "$workspace_count" \
+    LABWC_WINDOW_SWITCHER_STYLE "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" \
+    LABWC_WINDOW_SWITCHER_ORDER "${LABWC_WINDOW_SWITCHER_ORDER:-focus}" \
+    LABWC_WINDOW_SWITCHER_PREVIEW "${LABWC_WINDOW_SWITCHER_PREVIEW:-yes}" \
+    LABWC_WINDOW_SWITCHER_OUTLINES "${LABWC_WINDOW_SWITCHER_OUTLINES:-yes}" \
+    LABWC_WINDOW_SWITCHER_UNSHADE "${LABWC_WINDOW_SWITCHER_UNSHADE:-yes}" \
+    LABWC_WINDOW_SWITCHER_OSD_OUTPUT "${LABWC_WINDOW_SWITCHER_OSD_OUTPUT:-focused}" \
+    LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT "${LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT:-all}" \
     LABWC_ICON_THEME "$(desktop_xml_attribute_escape "${LABWC_ICON_THEME:-Papirus-Dark}")" \
     LABWC_FILE_MANAGER_COMMAND "$(desktop_xml_attribute_escape "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
     LABWC_AUDIO_CONTROL_COMMAND "$(desktop_xml_attribute_escape "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \
@@ -2927,10 +3029,8 @@ desktop_render_waybar_config() {
     LABWC_WAYBAR_INTERNAL_OUTPUTS "$(desktop_waybar_internal_outputs_json)" \
     LABWC_WAYBAR_EXTERNAL_OUTPUTS "$(desktop_waybar_external_outputs_json)" \
     LABWC_WAYBAR_INTERNAL_HEIGHT "${LABWC_WAYBAR_INTERNAL_HEIGHT:-${LABWC_WAYBAR_HEIGHT:-46}}" \
-    LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE "${LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE:-${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18}}" \
     LABWC_WAYBAR_INTERNAL_TRAY_ICON_SIZE "${LABWC_WAYBAR_INTERNAL_TRAY_ICON_SIZE:-${LABWC_WAYBAR_TRAY_ICON_SIZE:-18}}" \
     LABWC_WAYBAR_HEIGHT "${LABWC_WAYBAR_HEIGHT:-46}" \
-    LABWC_WAYBAR_TASKBAR_ICON_SIZE "${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18}" \
     LABWC_WAYBAR_TRAY_ICON_SIZE "${LABWC_WAYBAR_TRAY_ICON_SIZE:-18}" \
     LABWC_WAYBAR_MODULES_LEFT "$(desktop_waybar_modules_left_json)" \
     LABWC_WAYBAR_MODULES_RIGHT_INTERNAL "$(desktop_waybar_modules_right_internal_json)" \
@@ -2944,6 +3044,10 @@ desktop_render_waybar_config() {
     LABWC_CAPTURE_COMMAND "$(desktop_double_quote_escape "${LABWC_CAPTURE_COMMAND:-labwc-capture}")" \
     LABWC_POWER_SETTINGS_COMMAND "$(desktop_double_quote_escape "${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}")"
 
+  desktop_replace_block_placeholder_in_target \
+    "$waybar_path" \
+    "__INSTALLER_LABWC_WORKSPACE_BROKER_MODULES__" \
+    "$(desktop_waybar_workspace_modules_json),"
   desktop_assert_role_target_template_resolved "etc/skel-desktop/.config/waybar/config.tmpl" "$waybar_path"
   desktop_log "rendered_waybar_config native_workspaces=true internal_drawer=true"
 }
@@ -2953,6 +3057,10 @@ desktop_render_waybar_style() {
     "etc/skel-desktop/.config/waybar/style.css.tmpl" \
     "/etc/skel-desktop/.config/waybar/style.css" \
     0644 \
+    LABWC_WAYBAR_TASKBAR_ICON_SIZE "${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18}" \
+    LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE "${LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE:-${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18}}" \
+    LABWC_WAYBAR_TASKBAR_ICON_INSET "$(( ${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18} + ${LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X:-4} + 2 ))" \
+    LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_INSET "$(( ${LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE:-${LABWC_WAYBAR_TASKBAR_ICON_SIZE:-18}} + ${LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X:-${LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X:-4}} + 2 ))" \
     LABWC_WAYBAR_FONT_SIZE "${LABWC_WAYBAR_FONT_SIZE:-15}" \
     LABWC_WAYBAR_TOOLTIP_FONT_SIZE "${LABWC_WAYBAR_TOOLTIP_FONT_SIZE:-15}" \
     LABWC_WAYBAR_TOOLTIP_PADDING_Y "${LABWC_WAYBAR_TOOLTIP_PADDING_Y:-7}" \
@@ -4321,6 +4429,7 @@ desktop_enable_target_services() {
   fi
 
   for unit in \
+    labwc-workspace-broker.service \
     labwc-output-watch.service \
     swaybg.service \
     kanshi.service \

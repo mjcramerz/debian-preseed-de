@@ -1,0 +1,11 @@
+#!/usr/bin/python3 -I
+"""Private child entrypoint; launched only by labwc-workspace-broker."""
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, '/usr/local/lib/labwc-workspace-broker/python')
+from labwc_workspace_wayland.driver import main
+try:
+    raise SystemExit(main())
+except Exception as exc:
+    print(f'workspace Wayland driver: {type(exc).__name__}: {exc}', file=sys.stderr)
+    raise SystemExit(1)

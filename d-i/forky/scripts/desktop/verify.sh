@@ -56,6 +56,7 @@ for cmd in \
   labwc-ocr \
   labwc-logout \
   labwc-fuzzel \
+  labwc-workspace-broker-client \
   labwc-computer-management \
   labwc-ai-copilots \
   labwc-ai-copilots-action \
@@ -403,6 +404,7 @@ for path in \
   /etc/systemd/user/xdg-desktop-portal-wlr.service.d/10-labwc-session.conf \
   /etc/systemd/user/xdg-desktop-portal-lxqt.service.d/10-labwc-session.conf \
   /etc/skel-desktop/.gnupg/gpg-agent.conf \
+  /etc/skel-desktop/.config/systemd/user/labwc-workspace-broker.service \
   /etc/skel-desktop/.config/systemd/user/waybar.service \
   /etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
   /etc/skel-desktop/.config/systemd/user/labwc-adb-server.service \
@@ -1095,6 +1097,7 @@ for path in \
   "$account_home/.config/systemd/user/swayidle.service" \
   "$account_home/.config/systemd/user/kanshi.service" \
   "$account_home/.config/systemd/user/crystal-dock.service" \
+  "$account_home/.config/systemd/user/labwc-workspace-broker.service" \
   "$account_home/.config/systemd/user/waybar.service" \
   "$account_home/.config/systemd/user/waybar.service.d/20-tray-compat.conf" \
   "$account_home/.local/share/dbus-1/services/org.freedesktop.secrets.service" \
@@ -1144,6 +1147,7 @@ do
 done
 
 for session_unit in \
+  labwc-workspace-broker.service \
   labwc-output-watch.service \
   swaybg.service \
   kanshi.service \
@@ -1552,9 +1556,106 @@ printf "desktop_user_resource_policy_verification slice=%s files=%s\n" user-1000
     /etc/systemd/user.conf.d/50-resource-defaults.conf
 }
 
+desktop_verify_workspace_broker() {
+  # These checks run in the installed target, with its actual Debian packages.
+  # No Wayland connection, bytecode/scanner generation or native build occurs.
+  # shellcheck disable=SC2016
+  run_in_target "verify workspace broker modules and ownership" /bin/sh -c '
+set -eu
+for path in "$@"; do
+  [ -f "$path" ] && [ ! -L "$path" ] && [ "$(stat -c "%u:%g:%a" "$path")" = "0:0:644" ] || {
+    printf "fatal: unsafe or absent workspace broker module: %s\n" "$path" >&2
+    exit 1
+  }
+done
+for entry in /usr/local/libexec/labwc-workspace-broker /usr/local/libexec/labwc-workspace-wayland-adapter /usr/local/bin/labwc-workspace-broker-client; do
+  [ -f "$entry" ] && [ ! -L "$entry" ] && [ "$(stat -c "%u:%g:%a" "$entry")" = "0:0:755" ] || exit 1
+done
+for directory in \
+  /usr/local/lib/labwc-workspace-broker \
+  /usr/local/lib/labwc-workspace-broker/perl5 \
+  /usr/local/lib/labwc-workspace-broker/perl5/Labwc \
+  /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker \
+  /usr/local/lib/labwc-workspace-broker/python \
+  /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland
+ do
+  [ -d "$directory" ] && [ ! -L "$directory" ] && [ "$(stat -c "%u:%g:%a" "$directory")" = "0:0:755" ] || exit 1
+ done
+printf "desktop_workspace_broker_verification modules=%s runtime=Debian-packages\n" "$#"
+' sh \
+    /usr/local/lib/labwc-workspace-broker/PROTOCOL-LICENSES.txt \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Broker.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Client.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Config.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Icons.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Picker.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Policy.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Render.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Runtime.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/State.pm \
+    /usr/local/lib/labwc-workspace-broker/perl5/Labwc/WorkspaceBroker/Wire.pm \
+    /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/__init__.py \
+    /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/driver.py \
+    /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/protocol.py \
+    /usr/local/lib/labwc-workspace-broker/python/labwc_workspace_wayland/wire.py
+  run_in_target "verify workspace broker Perl imports" \
+    /usr/bin/perl -T -I/usr/local/lib/labwc-workspace-broker/perl5 \
+    -MLabwc::WorkspaceBroker::Broker -MLabwc::WorkspaceBroker::Client -e 1
+  run_in_target "verify workspace broker packaged Wayland bindings" \
+    /usr/bin/python3 -I -B -c \
+    'import sys; sys.path.insert(0, "/usr/local/lib/labwc-workspace-broker/python"); from labwc_workspace_wayland import protocol, driver'
+  run_in_target "verify workspace taskbar and native switcher configuration" \
+    /usr/bin/python3 -I -B -c '
+import json
+from pathlib import Path
+import subprocess
+import xml.etree.ElementTree as ET
+for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0")):
+    version = subprocess.check_output(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package], text=True).strip()
+    subprocess.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", minimum], check=True)
+root = Path("/etc/skel-desktop/.config")
+for name in ("labwc/rc.xml", "waybar/config", "waybar/style.css"):
+    if "__INSTALLER_" in (root / name).read_text():
+        raise SystemExit("unresolved workspace configuration: " + name)
+rc = ET.parse(root / "labwc/rc.xml").getroot()
+switchers = rc.findall("windowSwitcher")
+assert len(switchers) == 1, "expected exactly one native switcher"
+switcher = switchers[0]
+assert switcher.get("order") in ("focus", "age")
+assert all(switcher.get(k) in ("yes", "no") for k in ("preview", "outlines", "unshade"))
+osd = switcher.find("osd")
+assert osd is not None and osd.get("style") in ("thumbnail", "classic")
+assert osd.get("output") in ("all", "focused", "cursor")
+assert osd.get("thumbnailLabelFormat") == "%n \u2014 %T  %S  %o"
+for key, action in (("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
+    bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
+    assert len(bindings) == 1
+    actions = bindings[0].findall("action")
+    assert len(actions) == 1 and actions[0].get("name") == action
+    assert actions[0].get("workspace") == "current"
+    assert actions[0].get("output") in ("all", "focused", "cursor")
+    assert actions[0].get("identifier") == "all"
+bars = json.loads((root / "waybar/config").read_text())
+assert len(bars) == 2
+for bar in bars:
+    assert "ext/workspaces" in bar and "group/apps" in bar and "wlr/taskbar" not in bar
+    modules = bar["group/workspace-taskbar"]["modules"]
+    assert 5 <= len(modules) <= 65 and len(modules) == len(set(modules))
+    for name in modules:
+        module = bar[name]
+        assert module["escape"] is False and module["exec-on-event"] is False
+        assert module["hide-empty-text"] is True and module["return-type"] == "json"
+        assert "interval" not in module
+        assert module["exec"].startswith("/usr/local/bin/labwc-workspace-broker-client watch --slot ")
+print("desktop_workspace_config_verification native=current grouped=true")
+'
+
+}
+
 desktop_verify_target_staging() {
   desktop_verify_required_commands
   desktop_verify_staged_files
+  desktop_verify_workspace_broker
   desktop_verify_optional_staged_files
   desktop_verify_greeter_access
   desktop_verify_primary_user_files

@@ -1,7 +1,8 @@
 [Unit]
+Wants=labwc-workspace-broker.service
 Description=Restore saved desktop application launchers after session readiness
 Requisite=labwc-session.target
-After=labwc-session.target
+After=labwc-session.target labwc-workspace-broker.service
 PartOf=labwc-session.target
 
 [Service]

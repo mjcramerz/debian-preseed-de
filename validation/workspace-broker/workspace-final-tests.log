@@ -1,0 +1,34 @@
+test_fragmentation_limit_and_fairness (test_workspace_broker.FramingTests.test_fragmentation_limit_and_fairness) ... ok
+test_integer_and_depth (test_workspace_broker.FramingTests.test_integer_and_depth) ... ok
+test_strict_json_and_cross_language (test_workspace_broker.FramingTests.test_strict_json_and_cross_language) ... ok
+test_generated_slot_fragments_and_preserved_workspace_selector (test_workspace_broker.IntegrationSourceTests.test_generated_slot_fragments_and_preserved_workspace_selector) ... ok
+test_lifecycle_no_native_alt_tab_helper (test_workspace_broker.IntegrationSourceTests.test_lifecycle_no_native_alt_tab_helper) ... ok
+test_perl_actual_policy_suite (test_workspace_broker.IntegrationSourceTests.test_perl_actual_policy_suite) ... ok
+test_python_sources_ast_without_bytecode (test_workspace_broker.IntegrationSourceTests.test_python_sources_ast_without_bytecode) ... ok
+test_real_pywayland_bindings_when_installed (test_workspace_broker.IntegrationSourceTests.test_real_pywayland_bindings_when_installed) ... skipped 'Debian python3-pywayland not installed in this environment'
+test_static_protocol_signatures_regenerate_exactly (test_workspace_broker.IntegrationSourceTests.test_static_protocol_signatures_regenerate_exactly) ... ok
+test_bad_command_never_dispatches (test_workspace_broker.ProtocolDriverTests.test_bad_command_never_dispatches) ... ok
+test_callback_failure_is_not_silently_swallowed (test_workspace_broker.ProtocolDriverTests.test_callback_failure_is_not_silently_swallowed) ... ok
+test_done_buffers_toplevel_and_fences (test_workspace_broker.ProtocolDriverTests.test_done_buffers_toplevel_and_fences) ... ok
+test_fence_restarts_on_interleaved_protocol_changes (test_workspace_broker.ProtocolDriverTests.test_fence_restarts_on_interleaved_protocol_changes) ... ok
+test_flush_eagain_and_failure (test_workspace_broker.ProtocolDriverTests.test_flush_eagain_and_failure) ... ok
+test_four_fixed_requests_and_actual_state_authority (test_workspace_broker.ProtocolDriverTests.test_four_fixed_requests_and_actual_state_authority) ... ok
+test_hotplug_keeps_retired_proxy_until_fence (test_workspace_broker.ProtocolDriverTests.test_hotplug_keeps_retired_proxy_until_fence) ... ok
+test_initialization_requires_coherent_snapshot_and_keyboard (test_workspace_broker.ProtocolDriverTests.test_initialization_requires_coherent_snapshot_and_keyboard) ... ok
+test_loop_services_ipc_and_eof_without_blocking_wayland (test_workspace_broker.ProtocolDriverTests.test_loop_services_ipc_and_eof_without_blocking_wayland) ... ok
+test_protocol_string_bounds_keep_valid_utf8 (test_workspace_broker.ProtocolDriverTests.test_protocol_string_bounds_keep_valid_utf8) ... ok
+test_required_global_removal_and_name_version (test_workspace_broker.ProtocolDriverTests.test_required_global_removal_and_name_version) ... ok
+test_workspace_uint_state_manager_done (test_workspace_broker.ProtocolDriverTests.test_workspace_uint_state_manager_done) ... ok
+test_child_failure_tears_down_entire_broker (test_workspace_broker_integration.BrokerProcessTests.test_child_failure_tears_down_entire_broker) ... ok
+test_supervised_child_ready_authentication_actions_and_shutdown (test_workspace_broker_integration.BrokerProcessTests.test_supervised_child_ready_authentication_actions_and_shutdown) ... ok
+test_crashed_wrapper_cannot_leave_live_descendant (test_workspace_broker_integration.PickerProcessTests.test_crashed_wrapper_cannot_leave_live_descendant) ... ok
+test_index_cancel_malformed_and_timeout (test_workspace_broker_integration.PickerProcessTests.test_index_cancel_malformed_and_timeout) ... ok
+test_installed_target_configuration_verifier_on_rendered_fixture (test_workspace_broker_integration.RenderIntegrationTests.test_installed_target_configuration_verifier_on_rendered_fixture) ... ok
+test_new_policy_enums_reject_injection (test_workspace_broker_integration.RenderIntegrationTests.test_new_policy_enums_reject_injection) ... ok
+test_private_asset_inventory_is_staged_and_verified (test_workspace_broker_integration.RenderIntegrationTests.test_private_asset_inventory_is_staged_and_verified) ... ok
+test_real_template_renderers_all_workspace_counts (test_workspace_broker_integration.RenderIntegrationTests.test_real_template_renderers_all_workspace_counts) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 6.083s
+
+OK (skipped=1)

@@ -1,0 +1,54 @@
+[Unit]
+Description=Workspace-local grouped taskbar semantic broker
+BindsTo=labwc-compositor.service
+Requisite=labwc-session.target
+# This repository's session target has DefaultDependencies=no. Its clients
+# deliberately start AFTER the target and stop BEFORE it (no ordering cycle).
+After=labwc-compositor.service labwc-session.target
+Before=waybar.service labwc-session-restore.service
+PartOf=labwc-session.target
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionEnvironment=XDG_SESSION_TYPE=wayland
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=notify
+NotifyAccess=main
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+ExecStart=/usr/local/libexec/labwc-workspace-broker
+RuntimeDirectory=labwc-workspace-broker
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=restart
+UMask=0077
+Restart=on-failure
+RestartSec=1s
+TimeoutStartSec=15s
+TimeoutStopSec=5s
+WatchdogSec=30s
+KillMode=control-group
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# User-manager mount sandboxes implicitly create a user namespace and hide
+# host-root ownership. Keep the package-owned configuration/icon checks valid;
+# the attached AppArmor domain confines all filesystem access instead.
+PrivateUsers=no
+RestrictNamespaces=yes
+LimitNOFILE=1024
+LimitCORE=0
+TasksMax=16
+MemoryMax=256M
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=labwc-workspace-broker
+
+[Install]
+WantedBy=labwc-session.target

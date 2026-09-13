@@ -1304,6 +1304,8 @@ profile managed-labwc-freerdp-askpass /usr/local/bin/labwc-freerdp-askpass flags
 }
 
 profile managed-labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
+  signal (receive) set=(int, term, kill) peer=managed-labwc-workspace-broker-client,
+  signal (send) set=(chld) peer=managed-labwc-workspace-broker-client,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-fuzzel rix,
@@ -1322,6 +1324,7 @@ profile managed-labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnec
 }
 
 profile managed-labwc-fuzzel-log /usr/local/bin/labwc-fuzzel-log flags=(attach_disconnected) {
+  signal (receive) set=(int, term, kill) peer=managed-labwc-workspace-broker-client,
   #include <abstractions/managed-wrapper-perl>
 
   /usr/local/bin/labwc-fuzzel-log rix,

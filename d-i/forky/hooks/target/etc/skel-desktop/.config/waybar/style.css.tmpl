@@ -66,7 +66,7 @@ tooltip label {
 #custom-app-tuta,
 #custom-app-notes,
 #custom-app-sleek,
-#taskbar button,
+.workspace-app,
 #workspaces button,
 #clock,
 #pulseaudio,
@@ -93,10 +93,10 @@ tooltip label {
 }
 
 #workspaces button.active,
-#taskbar button.active,
+.workspace-app.active,
 #custom-launcher:hover,
 #workspaces button:hover,
-#taskbar button:hover,
+.workspace-app:hover,
 #custom-wayscriber:hover,
 #custom-apps:hover,
 #custom-app-terminal:hover,
@@ -178,21 +178,45 @@ tooltip label {
   color: @mint;
 }
 
-#taskbar {
+#workspace-taskbar {
   min-width: 0;
 }
 
-#taskbar button {
+.workspace-app,
+.workspace-app.active,
+.workspace-app:hover {
+  -gtk-icon-theme: "Papirus-Dark";
+  background-image: -gtk-icontheme("application-x-executable");
+  background-repeat: no-repeat;
+  background-position: __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X__px center;
+  background-size: __INSTALLER_LABWC_WAYBAR_TASKBAR_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_TASKBAR_ICON_SIZE__px;
   min-width: __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_MIN_WIDTH__px;
-  padding: 0 __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_TASKBAR_ICON_INSET__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X__px;
 }
 
-#taskbar button image {
+/* The generated icon replaces background-image, including the shared hover
+ * gradient. Retain its amber base so dark active/hover badge text stays legible. */
+.workspace-app.active,
+.workspace-app:hover {
+  background-color: @amber;
+}
+
+.workspace-app.overflow {
+  background-image: none;
+  padding: 0 8px;
+}
+
+.workspace-app.empty {
   margin: 0;
+  padding: 0;
+  min-width: 0;
+  border: 0;
 }
 
-#taskbar button.minimized {
+.workspace-app.minimized {
   color: @muted;
+  opacity: 0.55;
 }
 
 #quick-controls,
@@ -332,10 +356,23 @@ window#waybar.internal #workspaces button {
   padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
 }
 
-window#waybar.internal #taskbar button {
+window#waybar.internal .workspace-app {
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+  background-position: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px center;
+  background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_SIZE__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_ICON_INSET__px;
   padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal /* The generated icon replaces background-image, including the shared hover
+ * gradient. Retain its amber base so dark active/hover badge text stays legible. */
+.workspace-app.active,
+.workspace-app:hover {
+  background-color: @amber;
+}
+
+.workspace-app.overflow {
+  padding: 0 8px;
 }
 
 window#waybar.internal #custom-apps,

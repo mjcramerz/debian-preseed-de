@@ -39,7 +39,7 @@ osd.bg.color: #0c1017e6
 osd.border.color: #ecb860
 osd.border.width: 1
 osd.label.text.color: #f5efe3
-osd.window-switcher.style-classic.width: 60%
+osd.window-switcher.style-classic.width: 76%
 osd.window-switcher.style-classic.item.active.border.color: #ecb860
 osd.window-switcher.style-classic.item.active.bg.color: #6dc4ed26
 osd.window-switcher.preview.border.color: #ecb860,#0c1017,#ecb860
@@ -48,3 +48,18 @@ snapping.overlay.region.bg.color: #6dc4ed33
 snapping.overlay.edge.bg.color: #6dc4ed33
 snapping.overlay.region.border.color: #ecb860,#0c1017,#ecb860
 snapping.overlay.edge.border.color: #ecb860,#0c1017,#ecb860
+
+# Native thumbnail switcher geometry. Colors inherit the managed OSD palette.
+osd.window-switcher.style-thumbnail.width.max: 82%
+osd.window-switcher.style-thumbnail.padding: 8
+osd.window-switcher.style-thumbnail.item.width: 300
+osd.window-switcher.style-thumbnail.item.height: 230
+osd.window-switcher.style-thumbnail.item.padding: 6
+osd.window-switcher.style-thumbnail.item.active.border.width: 2
+osd.window-switcher.style-thumbnail.item.icon.size: 48
+osd.window-switcher.preview.border.width: 2
+osd.window-switcher.style-classic.padding: 6
+osd.window-switcher.style-classic.item.padding.x: 10
+osd.window-switcher.style-classic.item.padding.y: 4
+osd.window-switcher.style-classic.item.active.border.width: 2
+osd.window-switcher.style-classic.item.icon.size: 24
