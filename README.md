@@ -1,5 +1,5 @@
 # debian-preseed-de
-.
+
 Local APT policy, source normalization and desktop power changes: see [`local-apt-init` and session handoff](docs/local-apt-session-policy/README.md) for commands, migration, validation and safety limits.
 
 ## R4 CUDA-legacy compatibility repair
