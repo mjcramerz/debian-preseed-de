@@ -54,7 +54,7 @@ class PowerWorkerTests(unittest.TestCase):
             with self.subTest(action=action):
                 self.calls.clear()
                 self.execute(action)
-                prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['/usr/local/libexec/labwc-session-state', 'prepare'])
+                prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
                 stop = next(i for i, c in enumerate(self.calls) if c[-2:] == ['labwc-session.target', 'labwc-compositor.service'])
                 terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '1000'])
                 manager = self.calls.index(['/usr/bin/systemctl', 'stop', 'user@1000.service', 'user-1000.slice'])
@@ -70,19 +70,19 @@ class PowerWorkerTests(unittest.TestCase):
     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
         self.execute('suspend')
         self.assertTrue(any('--service-type=forking' in c and c[-1] == '/usr/local/bin/labwc-lock' for c in self.calls))
-        self.assertTrue(any(c[-2:] == ['/usr/local/libexec/labwc-session-state', 'locked'] for c in self.calls))
+        self.assertTrue(any(c[-2:] == ['start', 'labwc-session-state@locked.service'] for c in self.calls))
         self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', 'suspend'])
-        self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'prepare' for c in self.calls))
+        self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
         self.sync.assert_not_called()
 
     def test_logout_uses_same_preparation_without_a_machine_power_action(self):
         self.execute('logout')
-        self.assertTrue(any(c[-1] == 'prepare' for c in self.calls))
+        self.assertTrue(any(c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
         self.assertTrue(any('terminate-user' in c for c in self.calls))
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_prepare_failure_never_tears_down_session(self):
-        self.failure = lambda command: command[-1] == 'prepare'
+        self.failure = lambda command: command[-1] == 'labwc-session-state@prepare.service'
         with self.assertRaises(power.Error):
             self.execute('poweroff')
         self.assertFalse(any('stop' in c or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
@@ -94,7 +94,7 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('--force' in c or 'terminate-user' in c for c in self.calls))
 
     def test_failed_lock_never_suspends(self):
-        self.failure = lambda command: command[-1] == 'locked'
+        self.failure = lambda command: command[-1] == 'labwc-session-state@locked.service'
         with self.assertRaises(power.Error):
             self.execute('suspend')
         self.assertFalse(any('--force' in c for c in self.calls))
@@ -109,7 +109,7 @@ class PowerWorkerTests(unittest.TestCase):
             return ''
         with mock.patch.object(power, 'run', side_effect=run), self.assertRaisesRegex(power.Error, 'another interactive'):
             self.execute('poweroff')
-        self.assertFalse(any(c[-1] == 'prepare' or '--force' in c for c in self.calls))
+        self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' or '--force' in c for c in self.calls))
 
     def test_invalid_instance_never_executes_a_command(self):
         with mock.patch.object(power.os, 'geteuid', return_value=0):

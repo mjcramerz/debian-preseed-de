@@ -106,7 +106,7 @@ def supervise(command: list[str], messages: set[bytes]) -> int:
                         break
         status = child.wait()
         coalescer.flush(final=True)
-        return status if status >= 0 else 128 - status
+        return status
     finally:
         for number, handler in previous.items():
             signal.signal(number, handler)
@@ -132,7 +132,17 @@ def main(args: list[str]) -> int:
 
 if __name__ == '__main__':
     try:
-        raise SystemExit(main(sys.argv[1:]))
+        status = main(sys.argv[1:])
+        if status < 0:
+            # Let systemd distinguish a normal stop signal from an ordinary
+            # exit(143). Fatal signals still remain failures, not successes.
+            number = -status
+            if number not in (signal.SIGKILL, signal.SIGSTOP):
+                signal.signal(number, signal.SIG_DFL)
+            signal.pthread_sigmask(signal.SIG_UNBLOCK, {number})
+            os.kill(os.getpid(), number)
+            raise SystemExit(128 + number)  # only reachable if delivery failed
+        raise SystemExit(status)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f'labwc-panel-run: {exc}', file=sys.stderr)
         raise SystemExit(1)

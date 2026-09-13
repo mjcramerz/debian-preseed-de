@@ -3632,6 +3632,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-logout-root /usr/local/libexec/labwc-logout-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-session-state /usr/local/libexec/labwc-session-state 0755
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@.service /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service /etc/systemd/system/labwc-admin-action@.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
@@ -3767,10 +3768,18 @@ desktop_stage_target_assets() {
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
     desktop_stage_role_asset etc/udev/rules.d/71-managed-nvidia-char-links.rules /etc/udev/rules.d/71-managed-nvidia-char-links.rules 0644
+    desktop_stage_role_asset usr/local/libexec/managed-nvidia-char-links /usr/local/libexec/managed-nvidia-char-links 0755
+    desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.service /etc/systemd/system/managed-nvidia-char-links.service 0644
+    desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.path /etc/systemd/system/managed-nvidia-char-links.path 0644
   else
     rm -f \
       /target/etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf \
-      /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules
+      /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules \
+      /target/usr/local/libexec/managed-nvidia-char-links \
+      /target/etc/systemd/system/managed-nvidia-char-links.service \
+      /target/etc/systemd/system/managed-nvidia-char-links.path \
+      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.service \
+      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.path
   fi
   # KWallet belongs to the single managed Labwc account. Keep the portal unit
   # account-local so the greeter's independent user manager cannot discover or
@@ -4291,6 +4300,8 @@ desktop_enable_target_services() {
   desktop_mask_unit_if_available clamav-freshclam.service system
   desktop_mask_unit_if_available fangfrisch.timer system
   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
+    desktop_enable_unit_if_available managed-nvidia-char-links.service system
+    desktop_enable_unit_if_available managed-nvidia-char-links.path system
     desktop_mask_unit_if_available nvidia-persistenced.service system
     desktop_mask_unit_if_available nvidia-powerd.service system
   fi

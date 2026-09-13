@@ -1,0 +1,22 @@
+{
+  "debian-preseed-de.zip": {
+    "bytes": 28230187,
+    "sha256": "220fb36cf86bc467dd226af0d49f34bac44be8ad0325065436c05c2aa8261573"
+  },
+  "managed.zip": {
+    "bytes": 10904737,
+    "sha256": "58a3e5e23d737331c8013d5a593835cd30bed2db031c4aff26ac7edd5e223839"
+  },
+  "installer-state.zip": {
+    "bytes": 807347,
+    "sha256": "48a2976f4fefaaa678f368228bb857a7702ff39835897842c8fa480357fa7ed3"
+  },
+  "journalctl": {
+    "bytes": 174694,
+    "sha256": "c1ba4b3db712e8decaed52271778793f4b6572a64174d6d792001e77f9d297ca"
+  },
+  "Fail": {
+    "bytes": 1160,
+    "sha256": "ecb124b974e421c860241d7d4e3371b85a74b888a47d93e1877cfb625f76cdae"
+  }
+}

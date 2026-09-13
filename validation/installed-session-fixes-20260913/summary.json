@@ -1,0 +1,61 @@
+{
+  "scope": "Installer-side changes validated offline; not a live target acceptance test.",
+  "evidence_files_scanned": 82,
+  "evidence_lines_scanned": 55331,
+  "supplied_firstboot_failures": [
+    "desktop-nvidia-char-device-links",
+    "desktop-renderer-policy"
+  ],
+  "session_regressions": {
+    "run": 97,
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0
+  },
+  "desktop_regressions": {
+    "run": 149,
+    "passed": 148,
+    "failed": 0,
+    "skipped": 1,
+    "excluded_missing_historical_inputs": 2
+  },
+  "new_incident_regressions": {
+    "run": 23,
+    "passed": 23,
+    "included_in_session_regressions": true
+  },
+  "shell_checks": {
+    "files": 267,
+    "parser_checks": 545,
+    "failed": 0
+  },
+  "preseed_checks": {
+    "files": 59,
+    "passed": true,
+    "generated_command_readbacks": 4
+  },
+  "payload": {
+    "files": 1261,
+    "manifest_and_preseed_pins_current": true
+  },
+  "systemd_unit_checks": {
+    "units": 4,
+    "passed": 4,
+    "offline_fixture_executable_and_dependency_paths": true
+  },
+  "apparmor": {
+    "profiles_preprocessed": 3,
+    "preprocessing_passed": 3,
+    "kernel_policy_compile_or_load_performed": false
+  },
+  "audit": {
+    "blocked-dependency": 155,
+    "inventory-only": 480,
+    "pass": 429,
+    "structure-pass": 123,
+    "template-needs-render": 2
+  },
+  "no_software_binary_compilation": true,
+  "unpartitioned_tools_suite": "Two attempts exceeded execution time limits. Neither is counted as a completed pass.",
+  "live_target_tests_performed": false
+}

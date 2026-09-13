@@ -709,6 +709,14 @@ do
   executable_count=$((executable_count + 1))
 done
 
+for path in \
+  /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
+  /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
+do
+  require_readable "$path"
+  require_mode "$path" 644
+done
+
 require_absent /usr/share/backgrounds/desktop/wallpapers.tar.gz
 require_absent /usr/bin/Xwayland
 if [ "$(dpkg-query -W -f='${Status}' xwayland 2>/dev/null || true)" = "install ok installed" ]; then

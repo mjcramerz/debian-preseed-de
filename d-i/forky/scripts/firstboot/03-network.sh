@@ -71,6 +71,19 @@ capture_redacted_file() {
   fi
 }
 
+capture_networkctl_status() {
+  # Do not report an absent backend as broken networking. A failed or expected
+  # enabled backend still gets its original diagnostic, including exit status.
+  networkd_state=$(timeout --kill-after=1s 3s systemctl show --property=ActiveState --value systemd-networkd.service 2>/dev/null || true)
+  networkd_enabled=$(timeout --kill-after=1s 3s systemctl is-enabled systemd-networkd.service 2>/dev/null || true)
+  case "${networkd_state}:${networkd_enabled}" in
+    inactive:disabled|inactive:masked)
+      capture networkctl-status.txt /usr/bin/printf '%s\n' 'NOT_APPLICABLE: systemd-networkd is inactive and disabled/masked; see network-targets.txt for the installed network services.'
+      ;;
+    *) capture networkctl-status.txt networkctl status --no-pager ;;
+  esac
+}
+
 if command -v hostnamectl >/dev/null 2>&1; then
   capture hostnamectl.txt hostnamectl
 else
@@ -89,7 +102,7 @@ if command -v resolvectl >/dev/null 2>&1; then
 fi
 if command -v networkctl >/dev/null 2>&1; then
   capture networkctl-list.txt networkctl list --no-pager
-  capture networkctl-status.txt networkctl status --no-pager
+  capture_networkctl_status
 fi
 if command -v ss >/dev/null 2>&1; then
   capture sockets-listening.txt ss -ltnup

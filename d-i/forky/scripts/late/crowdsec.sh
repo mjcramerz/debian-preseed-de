@@ -135,7 +135,8 @@ if ! cscli config show --key Config.Common.LogMedia -o raw >/dev/null; then
   exit 1
 fi
 ' sh
-run_in_target "install CrowdSec bouncer after engine configuration" env DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
+# The d-i locale may not exist inside the target yet; scope C to this package operation.
+run_in_target "install CrowdSec bouncer after engine configuration" env LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
 run_in_target "validate CrowdSec bouncer package configuration" /bin/sh -eu -c '
 crowdsec_bouncer_status=$(dpkg-query -W -f="\${Status}" crowdsec-firewall-bouncer-nftables 2>/dev/null || true)
 [ "$crowdsec_bouncer_status" = "install ok installed" ] || {

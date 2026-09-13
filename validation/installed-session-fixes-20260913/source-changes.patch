@@ -1,0 +1,1325 @@
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities
+index 648b694..bfd4ba2 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities
+@@ -96,6 +96,14 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
+   #include <abstractions/managed-pipewire-audio>
+   capability sys_ptrace,
+   ptrace (read) peer=unconfined,
++  # btop: exact additional peers observed in the installed-session audit.
++  ptrace (read) peer=managed-labwc-chatgpt//chatgpt-bwrap,
++  ptrace (read) peer=managed-labwc-panel-run,
++  ptrace (read) peer=managed-labwc-chatgpt//chatgpt-dbus-proxy,
++  ptrace (read) peer=managed-labwc-chatgpt-log-runner,
++  ptrace (read) peer=managed-labwc-chatgpt,
++  ptrace (read) peer=managed-chatgpt-slirp4netns,
++  ptrace (read) peer=managed-desktop-launcher//application-bwrap,
+   # btop in the terminal needs read-only process statistics, not ptrace writes.
+   ptrace (read) peer=bitwarden,
+   ptrace (read) peer=filen,
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+index fba5e36..4c7cc26 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -431,7 +431,21 @@ profile managed-labwc-session-state /usr/local/libexec/labwc-session-state flags
+   #include <abstractions/managed-wrapper-wayland>
+   #include <abstractions/managed-wrapper-python>
+   /usr/local/libexec/labwc-session-state rix,
+-  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} PUx,
++  # PUx sets AT_SECURE: systemd's secure_getenv then ignores both user-bus
++  # variables even when they are present. Inherit this bounded user profile;
++  # do not substitute an unconfined or environment-preserving ux fallback.
++  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,
++  #include <abstractions/dbus-session-strict>
++  network unix stream,
++  owner /run/user/[0-9]*/{bus,systemd/private} rw,
++  /etc/machine-id r,
++  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
++  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
++  dbus (receive) bus=session peer=(label=unconfined),
++  dbus (receive) bus=session peer=(label=managed-session-controls),
++  owner @{HOME}/.cache/ r,
++  owner @{HOME}/.cache/cliphist/ rw,
++  owner @{HOME}/.cache/cliphist/** rwk,
+   /usr/local/bin/labwc-{managed-app,managed-wayland-compat-app,wayland-app,electron-app} r,
+   owner @{HOME}/ r,
+   owner @{HOME}/.local/ rw,
+@@ -1932,6 +1946,7 @@ profile managed-chatgpt-slirp4netns flags=(attach_disconnected) {
+   network inet dgram,
+   ptrace (read) peer=managed-labwc-chatgpt//chatgpt-bwrap,
+   # Keep status inspection separate from ChatGPT's own process tracing.
++  ptrace (readby) peer=managed-desktop-launcher,
+   ptrace (readby) peer=aa-status-reader,
+   signal (receive) set=(exists kill term) peer=managed-labwc-chatgpt,
+ 
+@@ -3787,6 +3802,8 @@ profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconn
+ # Generic package desktop launchers. Only validation occurs here; the user
+ # manager owns the payload service and the package's own AppArmor attachment.
+ profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(attach_disconnected) {
++  # Standard I/O for explicit launches from a terminal; app services use journal I/O.
++  owner /dev/pts/[0-9]* rw,
+   owner /run/user/[0-9]*/labwc-session-closing r,
+   #include <abstractions/managed-wrapper-wayland>
+   #include <abstractions/managed-wrapper-python>
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session b/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
+index 91801bb..2c0f011 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
+@@ -72,6 +72,8 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
+ 
+ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
+   #include <abstractions/managed-session-client>
++  # Click callbacks dispatch through this user manager, not panel-owned children.
++  owner /run/user/[0-9]*/systemd/private rw,
+   /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
+   owner @{HOME}/.config/waybar/ r,
+   owner @{HOME}/.config/waybar/** r,
+@@ -221,6 +223,8 @@ profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags
+ profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach_disconnected) {
+   #include <abstractions/managed-wrapper-python>
+   /usr/local/libexec/labwc-panel-run r,
++  # Re-raise the child termination signal without granting access to other peers.
++  signal (send, receive) peer=managed-labwc-panel-run,
+   /usr/bin/waybar rPx -> managed-waybar,
+   /usr/bin/crystal-dock rPx -> managed-crystal-dock,
+   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-restore.service b/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
+index 0f16a9c..6a7ac1e 100644
+--- a/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
+@@ -6,6 +6,10 @@ PartOf=labwc-session.target
+ 
+ [Service]
+ Type=oneshot
++Environment=XDG_RUNTIME_DIR=%t
++Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
++KillMode=control-group
++StandardInput=null
+ ExecStart=/usr/local/libexec/labwc-session-state restore
+ TimeoutStartSec=120s
+ TimeoutStopSec=5s
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-state@.service b/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-state@.service
+new file mode 100644
+index 0000000..689b837
+--- /dev/null
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-state@.service
+@@ -0,0 +1,18 @@
++[Unit]
++Description=Desktop session state operation (%i)
++Requisite=labwc-session.target
++After=labwc-session.target
++PartOf=labwc-session.target
++
++[Service]
++Type=oneshot
++Environment=XDG_RUNTIME_DIR=%t
++Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
++ExecStart=/usr/local/libexec/labwc-session-state %i
++TimeoutStartSec=145s
++TimeoutStopSec=5s
++KillMode=control-group
++UMask=0077
++StandardInput=null
++StandardOutput=journal
++StandardError=journal
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+index 8dfee7f..45bb668 100644
+--- a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+@@ -40,7 +40,7 @@
+   "custom/launcher": {
+     "format": "Menu",
+     "tooltip": false,
+-    "on-click": "labwc-run"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-run"
+   },
+   "group/apps": {
+     "orientation": "inherit",
+@@ -62,7 +62,7 @@
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+-    "on-click": "labwc-wayscriber-toggle"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+     "format": "",
+@@ -73,31 +73,31 @@
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Foot",
+-    "on-click": "labwc-terminal"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+   },
+   "custom/app-files": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Thunar",
+-    "on-click": "__INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+   },
+   "custom/app-tuta": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Tuta Mail",
+-    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+   },
+   "custom/app-notes": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "FeatherPad",
+-    "on-click": "labwc-wayland-app auto -- /usr/bin/featherpad"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+   },
+   "custom/app-sleek": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Sleek",
+-    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+   },
+   "clock": {
+     "interval": 30,
+@@ -113,9 +113,9 @@
+         "today": "<span color='#ffb4a2'><b><u>{}</u></b></span>"
+       }
+     },
+-    "on-click": "__INSTALLER_LABWC_CALENDAR_COMMAND__",
+-    "on-click-middle": "labwc-calendar tasks",
+-    "on-click-right": "labwc-calendar menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar menu"
+   },
+   "group/quick-controls": {
+     "orientation": "inherit",
+@@ -162,8 +162,8 @@
+     "format-disabled": "✖",
+     "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+     "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+-    "on-click": "labwc-terminal -e nmtui",
+-    "on-click-right": "labwc-network-control-menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
+   },
+   "custom/bluetooth": {
+     "exec": "labwc-bluetooth status",
+@@ -171,8 +171,8 @@
+     "interval": 10,
+     "signal": 8,
+     "tooltip": true,
+-    "on-click": "labwc-bluetooth open",
+-    "on-click-right": "labwc-bluetooth menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
+   },
+   "custom/keyboard": {
+     "exec": "labwc-keyboard-layout status",
+@@ -181,7 +181,7 @@
+     "signal": 7,
+     "tooltip": true,
+     "exec-on-event": true,
+-    "on-click": "labwc-keyboard-layout waybar-toggle"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+   },
+   "custom/screenshot": {
+     "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+@@ -189,9 +189,9 @@
+     "interval": 5,
+     "signal": 9,
+     "tooltip": true,
+-    "on-click": "__INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+-    "on-click-middle": "__INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+-    "on-click-right": "__INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+   },
+   "pulseaudio": {
+     "format": "🔊 {volume}% {format_source}",
+@@ -201,9 +201,9 @@
+     "tooltip-format": "{desc}",
+     "scroll-step": 5,
+     "max-volume": 120,
+-    "on-click": "__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+-    "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+-    "on-click-right": "__INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
+     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+   },
+@@ -213,7 +213,7 @@
+     "interval": 5,
+     "signal": 8,
+     "tooltip": true,
+-    "on-click": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+     "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+     "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+   },
+@@ -227,7 +227,7 @@
+     "format-warning": "⚠️ {capacity}%",
+     "format-critical": "🪫 {capacity}%",
+     "tooltip-format": "{timeTo}\nHealth {health}%  Cycles {cycles}",
+-    "on-click": "__INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
+     "states": {
+       "warning": 30,
+       "critical": 15
+@@ -238,7 +238,7 @@
+     "interval": 30,
+     "format": "🖴 {percentage_used}%",
+     "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+-    "on-click": "labwc-terminal -e ncdu /",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e ncdu /",
+     "states": {
+       "warning": 80,
+       "critical": 90
+@@ -247,7 +247,7 @@
+   "cpu": {
+     "interval": 5,
+     "format": "⚙ {usage}%",
+-    "on-click": "labwc-terminal -e btop",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+     "states": {
+       "warning": 70,
+       "critical": 90
+@@ -257,7 +257,7 @@
+     "interval": 10,
+     "format": "🧠 {percentage}%",
+     "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+-    "on-click": "labwc-terminal -e btop",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+     "states": {
+       "warning": 75,
+       "critical": 90
+@@ -270,12 +270,12 @@
+   "custom/lock": {
+     "format": "🔒",
+     "tooltip": false,
+-    "on-click": "labwc-lock"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
+   },
+   "custom/power": {
+     "format": "⏻",
+     "tooltip": false,
+-    "on-click": "labwc-power-menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-power-menu"
+   }
+ },
+ {
+@@ -319,7 +319,7 @@
+   "custom/launcher": {
+     "format": "Menu",
+     "tooltip": false,
+-    "on-click": "labwc-run"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-run"
+   },
+   "group/apps": {
+     "orientation": "inherit",
+@@ -341,7 +341,7 @@
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+-    "on-click": "labwc-wayscriber-toggle"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+     "format": "",
+@@ -352,31 +352,31 @@
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Foot",
+-    "on-click": "labwc-terminal"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+   },
+   "custom/app-files": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Thunar",
+-    "on-click": "__INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+   },
+   "custom/app-tuta": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Tuta Mail",
+-    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+   },
+   "custom/app-notes": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "FeatherPad",
+-    "on-click": "labwc-wayland-app auto -- /usr/bin/featherpad"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+   },
+   "custom/app-sleek": {
+     "format": "",
+     "tooltip": true,
+     "tooltip-format": "Sleek",
+-    "on-click": "__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+   },
+   "clock": {
+     "interval": 30,
+@@ -392,9 +392,9 @@
+         "today": "<span color='#ffb4a2'><b><u>{}</u></b></span>"
+       }
+     },
+-    "on-click": "__INSTALLER_LABWC_CALENDAR_COMMAND__",
+-    "on-click-middle": "labwc-calendar tasks",
+-    "on-click-right": "labwc-calendar menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar menu"
+   },
+   "group/quick-controls": {
+     "orientation": "inherit",
+@@ -426,8 +426,8 @@
+     "format-disabled": "✖",
+     "tooltip-format-wifi": "{essid}\n{signalStrength}%  {ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+     "tooltip-format-ethernet": "{ifname}\n{ipaddr}\nUp {bandwidthUpBytes}  Down {bandwidthDownBytes}",
+-    "on-click": "labwc-terminal -e nmtui",
+-    "on-click-right": "labwc-network-control-menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e nmtui",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
+   },
+   "custom/bluetooth": {
+     "exec": "labwc-bluetooth status",
+@@ -435,8 +435,8 @@
+     "interval": 10,
+     "signal": 8,
+     "tooltip": true,
+-    "on-click": "labwc-bluetooth open",
+-    "on-click-right": "labwc-bluetooth menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth open",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
+   },
+   "custom/keyboard": {
+     "exec": "labwc-keyboard-layout status",
+@@ -445,7 +445,7 @@
+     "signal": 7,
+     "tooltip": true,
+     "exec-on-event": true,
+-    "on-click": "labwc-keyboard-layout waybar-toggle"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
+   },
+   "custom/screenshot": {
+     "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+@@ -453,9 +453,9 @@
+     "interval": 5,
+     "signal": 9,
+     "tooltip": true,
+-    "on-click": "__INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
+-    "on-click-middle": "__INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
+-    "on-click-right": "__INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ primary",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ stop",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CAPTURE_COMMAND__ menu"
+   },
+   "pulseaudio": {
+     "format": "🔊 {volume}% {format_source}",
+@@ -465,9 +465,9 @@
+     "tooltip-format": "{desc}",
+     "scroll-step": 5,
+     "max-volume": 120,
+-    "on-click": "__INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+-    "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+-    "on-click-right": "__INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
++    "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
++    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND__",
+     "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+ --limit 1.2",
+     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+   },
+@@ -477,7 +477,7 @@
+     "interval": 5,
+     "signal": 8,
+     "tooltip": true,
+-    "on-click": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ menu",
+     "on-scroll-up": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ up",
+     "on-scroll-down": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ down"
+   },
+@@ -491,7 +491,7 @@
+     "format-warning": "⚠️ {capacity}%",
+     "format-critical": "🪫 {capacity}%",
+     "tooltip-format": "{timeTo}\nHealth {health}%  Cycles {cycles}",
+-    "on-click": "__INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_POWER_SETTINGS_COMMAND__",
+     "states": {
+       "warning": 30,
+       "critical": 15
+@@ -502,7 +502,7 @@
+     "interval": 30,
+     "format": "🖴 {percentage_used}%",
+     "tooltip-format": "{used} used out of {total} on {path} ({percentage_used}%)",
+-    "on-click": "labwc-terminal -e ncdu /",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e ncdu /",
+     "states": {
+       "warning": 80,
+       "critical": 90
+@@ -511,7 +511,7 @@
+   "cpu": {
+     "interval": 5,
+     "format": "⚙ {usage}%",
+-    "on-click": "labwc-terminal -e btop",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+     "states": {
+       "warning": 70,
+       "critical": 90
+@@ -521,7 +521,7 @@
+     "interval": 10,
+     "format": "🧠 {percentage}%",
+     "tooltip-format": "{used:0.1f} GiB / {total:0.1f} GiB\nSwap {swapUsed:0.1f} / {swapTotal:0.1f} GiB",
+-    "on-click": "labwc-terminal -e btop",
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal -e btop",
+     "states": {
+       "warning": 75,
+       "critical": 90
+@@ -534,12 +534,12 @@
+   "custom/lock": {
+     "format": "🔒",
+     "tooltip": false,
+-    "on-click": "labwc-lock"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
+   },
+   "custom/power": {
+     "format": "⏻",
+     "tooltip": false,
+-    "on-click": "labwc-power-menu"
++    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-power-menu"
+   }
+ }
+ ]
+diff --git a/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.path b/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.path
+new file mode 100644
+index 0000000..7e3f862
+--- /dev/null
++++ b/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.path
+@@ -0,0 +1,11 @@
++[Unit]
++Description=Reconcile NVIDIA links when device nodes appear or disappear
++
++[Path]
++# Do not use PathExistsGlob: persistent nodes would continually retrigger an
++# exited oneshot. The helper changes /dev/char, not the watched /dev entries.
++PathChanged=/dev
++Unit=managed-nvidia-char-links.service
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.service b/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.service
+new file mode 100644
+index 0000000..fadd028
+--- /dev/null
++++ b/d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.service
+@@ -0,0 +1,26 @@
++[Unit]
++Description=Maintain character-device links for existing NVIDIA nodes
++After=systemd-modules-load.service systemd-udev-trigger.service
++Before=greetd.service firstboot.service
++# Device hotplug bursts must not exhaust the generic five-start service limit.
++# The path unit retains its own trigger limit; this helper never polls.
++StartLimitIntervalSec=0
++
++[Service]
++Type=oneshot
++ExecStart=/usr/local/libexec/managed-nvidia-char-links
++TimeoutStartSec=10s
++UMask=0022
++NoNewPrivileges=yes
++CapabilityBoundingSet=
++ProtectSystem=strict
++ProtectHome=yes
++PrivateTmp=yes
++ProtectKernelTunables=yes
++ProtectKernelModules=yes
++ProtectControlGroups=yes
++RestrictSUIDSGID=yes
++LockPersonality=yes
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker b/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker
+index 2e191b0..f768676 100755
+--- a/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker
+@@ -37,15 +37,12 @@ class Worker:
+                     "--no-ask-password", *args], **kwargs)
+ 
+     def helper(self, action: str) -> None:
+-        run(["/usr/bin/systemd-run", "--user", "--machine=" + self.machine,
+-             "--quiet", "--wait", "--collect", "--service-type=exec", "--expand-environment=no",
+-             "--unit=labwc-power-" + action + "-" + uuid.uuid4().hex + ".service",
+-             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
+-             "--property=PartOf=labwc-session.target", "--property=RuntimeMaxSec=145s",
+-             "--property=TimeoutStopSec=5s",
+-             "--property=StandardInput=null", "--property=StandardOutput=journal",
+-             "--property=StandardError=journal", "--", "/usr/local/libexec/labwc-session-state", action],
+-            timeout=160 if action == "prepare" else 15)
++        if action not in {"prepare", "cancel", "locked", "error"}:
++            raise Error("invalid desktop state operation")
++        # This is a USER unit, not a PID-1 service with User=. Its manager owns
++        # the desktop environment and executes the helper without root rights.
++        self.userctl("start", "labwc-session-state@" + action + ".service",
++                     timeout=160 if action == "prepare" else 15)
+ 
+     def protect_other_sessions(self) -> None:
+         if self.action == "logout":
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run b/d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run
+index ab83056..5df1090 100755
+--- a/d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run
+@@ -106,7 +106,7 @@ def supervise(command: list[str], messages: set[bytes]) -> int:
+                         break
+         status = child.wait()
+         coalescer.flush(final=True)
+-        return status if status >= 0 else 128 - status
++        return status
+     finally:
+         for number, handler in previous.items():
+             signal.signal(number, handler)
+@@ -132,7 +132,17 @@ def main(args: list[str]) -> int:
+ 
+ if __name__ == '__main__':
+     try:
+-        raise SystemExit(main(sys.argv[1:]))
++        status = main(sys.argv[1:])
++        if status < 0:
++            # Let systemd distinguish a normal stop signal from an ordinary
++            # exit(143). Fatal signals still remain failures, not successes.
++            number = -status
++            if number not in (signal.SIGKILL, signal.SIGSTOP):
++                signal.signal(number, signal.SIG_DFL)
++            signal.pthread_sigmask(signal.SIG_UNBLOCK, {number})
++            os.kill(os.getpid(), number)
++            raise SystemExit(128 + number)  # only reachable if delivery failed
++        raise SystemExit(status)
+     except (OSError, ValueError, subprocess.SubprocessError) as exc:
+         print(f'labwc-panel-run: {exc}', file=sys.stderr)
+         raise SystemExit(1)
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state b/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state
+index 1e1c0a5..c14b68a 100755
+--- a/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state
+@@ -299,8 +299,18 @@ def main(argv: list[str]) -> int:
+     os.umask(0o077)
+     runtime = Path(f"/run/user/{os.getuid()}")
+     st = runtime.lstat()
+-    if os.environ.get("XDG_RUNTIME_DIR") != str(runtime) or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700:
++    if (os.environ.get("XDG_RUNTIME_DIR", str(runtime)) != str(runtime)
++            or not stat.S_ISDIR(st.st_mode) or st.st_uid != os.getuid()
++            or stat.S_IMODE(st.st_mode) != 0o700):
+         raise Error("unsafe desktop runtime directory")
++    bus = runtime / "bus"
++    address = "unix:path=" + str(bus)
++    st = bus.lstat()
++    if (not stat.S_ISSOCK(st.st_mode) or st.st_uid != os.getuid()
++            or os.environ.get("DBUS_SESSION_BUS_ADDRESS", address) != address):
++        raise Error("unsafe desktop user bus")
++    os.environ["XDG_RUNTIME_DIR"] = str(runtime)
++    os.environ["DBUS_SESSION_BUS_ADDRESS"] = address
+     action = argv[0]
+     if action == "cancel":
+         (runtime / "labwc-session-closing").unlink(missing_ok=True)
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/managed-nvidia-char-links b/d-i/forky/hooks/target/usr/local/libexec/managed-nvidia-char-links
+new file mode 100755
+index 0000000..8a24a98
+--- /dev/null
++++ b/d-i/forky/hooks/target/usr/local/libexec/managed-nvidia-char-links
+@@ -0,0 +1,115 @@
++#!/usr/bin/python3 -I
++"""Reconcile only /dev/char links for existing, root-owned NVIDIA devices.
++
++Never create devices, load modules, change permissions, or follow an untrusted
++path. The command accepts no paths. --check is read-only and reports every bad
++link. A path unit covers late device creation without polling or a busy loop.
++"""
++from __future__ import annotations
++import os
++from pathlib import Path
++import re
++import stat
++import sys
++import uuid
++
++DEVICE = re.compile(r"nvidia(?:[0-9]+|ctl|-modeset|-uvm|-uvm-tools)\Z")
++
++
++def directory(path, *, dir_fd=None):
++    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
++                 dir_fd=dir_fd)
++    st = os.fstat(fd)
++    if st.st_uid != 0 or st.st_mode & 0o022:
++        os.close(fd)
++        raise ValueError("device directory is not root-owned and protected")
++    return fd
++
++
++def reconcile(dev: Path = Path("/dev"), *, check: bool = False) -> int:
++    errors = 0
++    dev_fd = directory(dev)
++    char_fd = None
++    try:
++        devices = []
++        for name in sorted(os.listdir(dev_fd)):
++            if not DEVICE.fullmatch(name):
++                continue
++            try:
++                metadata = os.stat(name, dir_fd=dev_fd, follow_symlinks=False)
++            except FileNotFoundError:
++                continue  # a device removed during enumeration
++            if not stat.S_ISCHR(metadata.st_mode) or metadata.st_uid != 0:
++                print(f"unsafe NVIDIA device entry: {name}", file=sys.stderr)
++                errors += 1
++                continue
++            devices.append((name, metadata.st_rdev))
++        if not devices:
++            print("nvidia-char-links: no NVIDIA character devices present")
++            return errors
++        if not check:
++            try:
++                os.mkdir("char", 0o755, dir_fd=dev_fd)
++            except FileExistsError:
++                pass
++        try:
++            char_fd = directory("char", dir_fd=dev_fd)
++        except FileNotFoundError:
++            for name, rdev in devices:
++                print(f"missing /dev/char/{os.major(rdev)}:{os.minor(rdev)} -> {name}", file=sys.stderr)
++            return errors + len(devices)
++        for name, rdev in devices:
++            key = f"{os.major(rdev)}:{os.minor(rdev)}"
++            try:
++                link = os.stat(key, dir_fd=char_fd, follow_symlinks=False)
++            except FileNotFoundError:
++                link = None
++            if link is not None and not stat.S_ISLNK(link.st_mode):
++                print(f"refusing to replace non-symlink /dev/char/{key}", file=sys.stderr)
++                errors += 1
++                continue
++            if link is not None:
++                try:
++                    resolved = os.stat(key, dir_fd=char_fd)
++                except FileNotFoundError:
++                    resolved = None
++                if (resolved is not None and stat.S_ISCHR(resolved.st_mode)
++                        and resolved.st_rdev == rdev):
++                    continue
++            if check:
++                print(f"missing/incorrect /dev/char/{key} -> {name}", file=sys.stderr)
++                errors += 1
++                continue
++            temporary = ".nvidia-" + uuid.uuid4().hex
++            try:
++                os.symlink("../" + name, temporary, dir_fd=char_fd)
++                os.replace(temporary, key, src_dir_fd=char_fd, dst_dir_fd=char_fd)
++                print(f"nvidia-char-links: /dev/char/{key} -> ../{name}")
++            finally:
++                try:
++                    os.unlink(temporary, dir_fd=char_fd)
++                except FileNotFoundError:
++                    pass
++        return errors
++    finally:
++        if char_fd is not None:
++            os.close(char_fd)
++        os.close(dev_fd)
++
++
++def main(args: list[str]) -> int:
++    if args not in ([], ["--check"]):
++        print("usage: managed-nvidia-char-links [--check]", file=sys.stderr)
++        return 2
++    if os.geteuid() != 0:
++        print("managed-nvidia-char-links: root is required", file=sys.stderr)
++        return 1
++    return int(reconcile(check=bool(args)) != 0)
++
++
++if __name__ == "__main__":
++    try:
++        raise SystemExit(main(sys.argv[1:]))
++    except (OSError, ValueError) as exc:
++        print(f"managed-nvidia-char-links: {exc}", file=sys.stderr)
++        raise SystemExit(1)
+diff --git a/d-i/forky/scripts/desktop/components.sh b/d-i/forky/scripts/desktop/components.sh
+index c32f8c6..9bf18a6 100755
+--- a/d-i/forky/scripts/desktop/components.sh
++++ b/d-i/forky/scripts/desktop/components.sh
+@@ -3632,6 +3632,7 @@ desktop_stage_target_assets() {
+   desktop_stage_role_asset usr/local/libexec/labwc-logout-root /usr/local/libexec/labwc-logout-root 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-session-state /usr/local/libexec/labwc-session-state 0755
+   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
++  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@.service /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service 0644
+   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service /etc/systemd/system/labwc-admin-action@.service 0644
+   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
+@@ -3767,10 +3768,18 @@ desktop_stage_target_assets() {
+   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
+     desktop_stage_role_asset etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf /etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf 0644
+     desktop_stage_role_asset etc/udev/rules.d/71-managed-nvidia-char-links.rules /etc/udev/rules.d/71-managed-nvidia-char-links.rules 0644
++    desktop_stage_role_asset usr/local/libexec/managed-nvidia-char-links /usr/local/libexec/managed-nvidia-char-links 0755
++    desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.service /etc/systemd/system/managed-nvidia-char-links.service 0644
++    desktop_stage_role_asset etc/systemd/system/managed-nvidia-char-links.path /etc/systemd/system/managed-nvidia-char-links.path 0644
+   else
+     rm -f \
+       /target/etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf \
+-      /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules
++      /target/etc/udev/rules.d/71-managed-nvidia-char-links.rules \
++      /target/usr/local/libexec/managed-nvidia-char-links \
++      /target/etc/systemd/system/managed-nvidia-char-links.service \
++      /target/etc/systemd/system/managed-nvidia-char-links.path \
++      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.service \
++      /target/etc/systemd/system/multi-user.target.wants/managed-nvidia-char-links.path
+   fi
+   # KWallet belongs to the single managed Labwc account. Keep the portal unit
+   # account-local so the greeter's independent user manager cannot discover or
+@@ -4291,6 +4300,8 @@ desktop_enable_target_services() {
+   desktop_mask_unit_if_available clamav-freshclam.service system
+   desktop_mask_unit_if_available fangfrisch.timer system
+   if [ "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}" = true ]; then
++    desktop_enable_unit_if_available managed-nvidia-char-links.service system
++    desktop_enable_unit_if_available managed-nvidia-char-links.path system
+     desktop_mask_unit_if_available nvidia-persistenced.service system
+     desktop_mask_unit_if_available nvidia-powerd.service system
+   fi
+diff --git a/d-i/forky/scripts/desktop/verify.sh b/d-i/forky/scripts/desktop/verify.sh
+index 2bfe740..dab7c81 100755
+--- a/d-i/forky/scripts/desktop/verify.sh
++++ b/d-i/forky/scripts/desktop/verify.sh
+@@ -709,6 +709,14 @@ do
+   executable_count=$((executable_count + 1))
+ done
+ 
++for path in \
++  /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
++  /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service
++do
++  require_readable "$path"
++  require_mode "$path" 644
++done
++
+ require_absent /usr/share/backgrounds/desktop/wallpapers.tar.gz
+ require_absent /usr/bin/Xwayland
+ if [ "$(dpkg-query -W -f='${Status}' xwayland 2>/dev/null || true)" = "install ok installed" ]; then
+diff --git a/d-i/forky/scripts/firstboot/03-network.sh b/d-i/forky/scripts/firstboot/03-network.sh
+index 20ab636..d555955 100755
+--- a/d-i/forky/scripts/firstboot/03-network.sh
++++ b/d-i/forky/scripts/firstboot/03-network.sh
+@@ -71,6 +71,19 @@ capture_redacted_file() {
+   fi
+ }
+ 
++capture_networkctl_status() {
++  # Do not report an absent backend as broken networking. A failed or expected
++  # enabled backend still gets its original diagnostic, including exit status.
++  networkd_state=$(timeout --kill-after=1s 3s systemctl show --property=ActiveState --value systemd-networkd.service 2>/dev/null || true)
++  networkd_enabled=$(timeout --kill-after=1s 3s systemctl is-enabled systemd-networkd.service 2>/dev/null || true)
++  case "${networkd_state}:${networkd_enabled}" in
++    inactive:disabled|inactive:masked)
++      capture networkctl-status.txt /usr/bin/printf '%s\n' 'NOT_APPLICABLE: systemd-networkd is inactive and disabled/masked; see network-targets.txt for the installed network services.'
++      ;;
++    *) capture networkctl-status.txt networkctl status --no-pager ;;
++  esac
++}
++
+ if command -v hostnamectl >/dev/null 2>&1; then
+   capture hostnamectl.txt hostnamectl
+ else
+@@ -89,7 +102,7 @@ if command -v resolvectl >/dev/null 2>&1; then
+ fi
+ if command -v networkctl >/dev/null 2>&1; then
+   capture networkctl-list.txt networkctl list --no-pager
+-  capture networkctl-status.txt networkctl status --no-pager
++  capture_networkctl_status
+ fi
+ if command -v ss >/dev/null 2>&1; then
+   capture sockets-listening.txt ss -ltnup
+diff --git a/d-i/forky/scripts/firstboot/04-validation.sh b/d-i/forky/scripts/firstboot/04-validation.sh
+index 547e940..59ed443 100755
+--- a/d-i/forky/scripts/firstboot/04-validation.sh
++++ b/d-i/forky/scripts/firstboot/04-validation.sh
+@@ -112,10 +112,10 @@ set -eu
+ [ "${LABWC_GREETER_GDK_DISABLE:-}" = "vulkan" ]
+ [ "${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS:-}" = "1" ]
+ [ ! -e /etc/environment.d/90-labwc-session.conf ]
+-grep -q "^export WLR_RENDERER=" /usr/local/bin/labwc-session
+-grep -q "^export GSK_RENDERER=" /usr/local/bin/labwc-session
++grep -Eq "(^|[|;&][[:space:]]*)export WLR_RENDERER=" /usr/local/bin/labwc-session
++grep -Eq "(^|[|;&][[:space:]]*)export GSK_RENDERER=" /usr/local/bin/labwc-session
+ grep -q "^export GDK_DISABLE=" /usr/local/bin/labwc-session
+-grep -q "^export WLR_NO_HARDWARE_CURSORS=" /usr/local/bin/labwc-session
++grep -Eq "(^|[|;&][[:space:]]*)export WLR_NO_HARDWARE_CURSORS=" /usr/local/bin/labwc-session
+ grep -q "WLR_SCENE_DISABLE_DIRECT_SCANOUT=" /usr/local/bin/labwc-session
+ grep -q "^export QT_OPENGL=" /usr/local/bin/labwc-session
+ grep -q "^export QSG_RHI_BACKEND=" /usr/local/bin/labwc-session
+@@ -126,7 +126,8 @@ grep -q "^labwc_x11_environment_names='"'"'DISPLAY XAUTHORITY WLR_XWAYLAND XWAYL
+ grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
+ grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-greeter-session
+ grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
+-grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
++grep -q "unset-environment \\\$cleanup_environment_names" /usr/local/bin/labwc-session
++grep -q "^cleanup_environment_names=.*{labwc_x11_environment_names}" /usr/local/bin/labwc-session
+ grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
+ ! grep -q "_JAVA_AWT_WM_NONREPARENTING" /etc/skel-desktop/.config/labwc/environment.d/10-wayland.env
+ ! grep -q "_JAVA_AWT_WM_NONREPARENTING" /usr/local/bin/labwc-autostart
+@@ -272,6 +273,8 @@ validate_desktop_role() {
+     /usr/local/libexec/labwc-admin-action-worker \
+     /usr/local/libexec/labwc-logout-root \
+     /usr/local/libexec/labwc-session-state \
++    /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
++    /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service \
+     /etc/systemd/system/labwc-admin-action@.service \
+     /usr/local/bin/labwc-calendar \
+     /usr/local/libexec/labwc-calendar \
+@@ -465,19 +468,11 @@ validate_desktop_role() {
+   )
+   if bool_is_true "$desktop_nvidia_acceleration_available"; then
+     check_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
+-    check_command desktop-nvidia-char-device-links \
+-      /bin/sh -eu -c '
+-        for device in /dev/nvidia[0-9]* /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools; do
+-          [ -c "$device" ] || continue
+-          major_hex=$(stat -c %t "$device")
+-          minor_hex=$(stat -c %T "$device")
+-          major=$((0x${major_hex}))
+-          minor=$((0x${minor_hex}))
+-          link="/dev/char/${major}:${minor}"
+-          [ -L "$link" ]
+-          [ "$link" -ef "$device" ]
+-        done
+-      ' sh
++    check_path desktop-nvidia-char-link-helper /usr/local/libexec/managed-nvidia-char-links
++    check_path desktop-nvidia-char-link-service /etc/systemd/system/managed-nvidia-char-links.service
++    check_path desktop-nvidia-char-link-path /etc/systemd/system/managed-nvidia-char-links.path
++    check_command desktop-nvidia-char-link-watcher systemctl is-active --quiet managed-nvidia-char-links.path
++    check_command desktop-nvidia-char-device-links /usr/local/libexec/managed-nvidia-char-links --check
+   else
+     check_absent_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
+   fi
+diff --git a/d-i/forky/scripts/late/crowdsec.sh b/d-i/forky/scripts/late/crowdsec.sh
+index f3abaab..3f59841 100755
+--- a/d-i/forky/scripts/late/crowdsec.sh
++++ b/d-i/forky/scripts/late/crowdsec.sh
+@@ -135,7 +135,8 @@ if ! cscli config show --key Config.Common.LogMedia -o raw >/dev/null; then
+   exit 1
+ fi
+ ' sh
+-run_in_target "install CrowdSec bouncer after engine configuration" env DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
++# The d-i locale may not exist inside the target yet; scope C to this package operation.
++run_in_target "install CrowdSec bouncer after engine configuration" env LC_ALL=C DEBIAN_FRONTEND=noninteractive apt-get -y --no-install-recommends install crowdsec-firewall-bouncer-nftables
+ run_in_target "validate CrowdSec bouncer package configuration" /bin/sh -eu -c '
+ crowdsec_bouncer_status=$(dpkg-query -W -f="\${Status}" crowdsec-firewall-bouncer-nftables 2>/dev/null || true)
+ [ "$crowdsec_bouncer_status" = "install ok installed" ] || {
+diff --git a/tools/tests/test_installed_session_failures_20260913.py b/tools/tests/test_installed_session_failures_20260913.py
+new file mode 100644
+index 0000000..e31d51a
+--- /dev/null
++++ b/tools/tests/test_installed_session_failures_20260913.py
+@@ -0,0 +1,332 @@
++#!/usr/bin/python3
++"""Installed-log regressions: no live services, devices, compiler or compositor.
++
++NVIDIA cases use real temporary directories/symlinks and synthetic character
++metadata, because these tests must neither create devices nor require hardware.
++"""
++import ast
++import contextlib
++import importlib.machinery
++import importlib.util
++import io
++import json
++import os
++from pathlib import Path
++import re
++import shlex
++import signal
++import stat
++import subprocess
++import sys
++import tempfile
++from types import SimpleNamespace
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[2]
++TARGET = ROOT / 'd-i/forky/hooks/target'
++LIBEXEC = TARGET / 'usr/local/libexec'
++USER_UNITS = TARGET / 'etc/skel-desktop/.config/systemd/user'
++
++
++def load(leaf):
++    loader = importlib.machinery.SourceFileLoader('regression_' + leaf.replace('-', '_'), str(LIBEXEC / leaf))
++    spec = importlib.util.spec_from_loader(loader.name, loader)
++    module = importlib.util.module_from_spec(spec)
++    loader.exec_module(module)
++    return module
++
++
++class NvidiaLinkTests(unittest.TestCase):
++    def setUp(self):
++        self.temporary = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temporary.cleanup)
++        self.dev = Path(self.temporary.name)
++        self.helper = load('managed-nvidia-char-links')
++        self.real_stat = os.stat
++        self.metadata = {}
++        self.stack = contextlib.ExitStack()
++        self.addCleanup(self.stack.close)
++        self.stack.enter_context(mock.patch.object(self.helper.os, 'stat', side_effect=self.device_stat))
++        self.output = io.StringIO()
++        self.stack.enter_context(contextlib.redirect_stdout(self.output))
++        self.stack.enter_context(contextlib.redirect_stderr(self.output))
++        # Test directory trust independently of the test runner's UID.
++        real_fstat = os.fstat
++        def directory_stat(fd):
++            st = real_fstat(fd)
++            return SimpleNamespace(st_uid=0, st_mode=st.st_mode)
++        self.stack.enter_context(mock.patch.object(self.helper.os, 'fstat', side_effect=directory_stat))
++
++    def device_stat(self, *args, **kwargs):
++        st = self.real_stat(*args, **kwargs)
++        return self.metadata.get((st.st_dev, st.st_ino), st)
++
++    def device(self, name='nvidia0', major=195, minor=0, uid=0):
++        path = self.dev / name
++        path.write_bytes(b'fixture, not a real device')
++        st = self.real_stat(path)
++        self.metadata[st.st_dev, st.st_ino] = SimpleNamespace(
++            st_mode=stat.S_IFCHR | 0o660, st_uid=uid, st_rdev=os.makedev(major, minor))
++        return path
++
++    def test_check_is_read_only_and_reports_all_missing_links(self):
++        self.device(); self.device('nvidia-uvm', 511, 0)
++        self.assertEqual(self.helper.reconcile(self.dev, check=True), 2)
++        self.assertFalse((self.dev / 'char').exists())
++        self.assertIn('195:0', self.output.getvalue())
++        self.assertIn('511:0', self.output.getvalue())
++
++    def test_creates_links_then_is_idempotent(self):
++        self.device(); self.device('nvidiactl', 195, 255)
++        self.assertEqual(self.helper.reconcile(self.dev), 0)
++        link = self.dev / 'char/195:0'
++        before = link.lstat().st_ino
++        self.assertEqual(os.readlink(link), '../nvidia0')
++        self.assertEqual(self.helper.reconcile(self.dev, check=True), 0)
++        self.assertEqual(self.helper.reconcile(self.dev), 0)
++        self.assertEqual(link.lstat().st_ino, before)
++        self.assertEqual(sorted(p.name for p in link.parent.iterdir()), ['195:0', '195:255'])
++
++    def test_repairs_wrong_symlink_but_not_a_regular_file(self):
++        self.device(); char = self.dev / 'char'; char.mkdir()
++        link = char / '195:0'; link.symlink_to('../missing')
++        self.assertEqual(self.helper.reconcile(self.dev, check=True), 1)
++        self.assertEqual(os.readlink(link), '../missing')
++        self.assertEqual(self.helper.reconcile(self.dev), 0)
++        link.unlink(); link.write_text('do not overwrite')
++        self.assertEqual(self.helper.reconcile(self.dev), 1)
++        self.assertEqual(link.read_text(), 'do not overwrite')
++
++    def test_reconciles_late_nodes_and_dynamic_major(self):
++        self.device(); self.helper.reconcile(self.dev)
++        self.device('nvidia-uvm-tools', 507, 1)
++        self.assertEqual(self.helper.reconcile(self.dev), 0)
++        self.assertEqual(os.readlink(self.dev / 'char/507:1'), '../nvidia-uvm-tools')
++
++    def test_rejects_symlink_device_without_following_it(self):
++        source = self.device('real-device')
++        (self.dev / 'nvidia0').symlink_to(source.name)
++        self.assertEqual(self.helper.reconcile(self.dev), 1)
++        self.assertFalse((self.dev / 'char').exists())
++
++    def test_rejects_untrusted_devices_and_directories(self):
++        self.device(uid=1000)
++        self.assertEqual(self.helper.reconcile(self.dev), 1)
++        self.device(uid=0)
++        char = self.dev / 'char'; char.symlink_to(self.dev, target_is_directory=True)
++        with self.assertRaises(OSError): self.helper.reconcile(self.dev)
++        char.unlink(); char.mkdir(mode=0o777); char.chmod(0o777)
++        with self.assertRaises(ValueError): self.helper.reconcile(self.dev)
++
++    def test_no_devices_and_unrelated_files_are_untouched(self):
++        (self.dev / 'unrelated').write_text('preserve')
++        self.assertEqual(self.helper.reconcile(self.dev), 0)
++        self.assertEqual((self.dev / 'unrelated').read_text(), 'preserve')
++        self.assertFalse((self.dev / 'char').exists())
++
++    def test_cli_rejects_nonroot_and_caller_supplied_paths(self):
++        with mock.patch.object(self.helper.os, 'geteuid', return_value=1000):
++            self.assertEqual(self.helper.main([]), 1)
++        for arguments in (['/tmp/other'], ['--check', '/tmp/other'], ['--force']):
++            self.assertEqual(self.helper.main(arguments), 2)
++
++
++class UserStateTests(unittest.TestCase):
++    def setUp(self):
++        self.helper = load('labwc-session-state')
++        self.stack = contextlib.ExitStack(); self.addCleanup(self.stack.close)
++        self.stack.enter_context(mock.patch.object(self.helper.os, 'getuid', return_value=1000))
++        self.stack.enter_context(mock.patch.object(self.helper.os, 'geteuid', return_value=1000))
++        self.stack.enter_context(mock.patch.object(self.helper.os, 'umask'))
++        self.stack.enter_context(mock.patch.dict(os.environ, {}, clear=True))
++        self.unlink = self.stack.enter_context(mock.patch.object(Path, 'unlink'))
++        self.runtime_mode = stat.S_IFDIR | 0o700
++        self.bus_mode = stat.S_IFSOCK | 0o600
++        self.uid = 1000
++        self.stack.enter_context(mock.patch.object(Path, 'lstat', autospec=True, side_effect=self.path_stat))
++
++    def path_stat(self, path):
++        mode = self.bus_mode if path.name == 'bus' else self.runtime_mode
++        return SimpleNamespace(st_mode=mode, st_uid=self.uid)
++
++    def test_reconstructs_only_the_invoking_users_canonical_bus(self):
++        self.assertEqual(self.helper.main(['cancel']), 0)
++        self.assertEqual(os.environ['XDG_RUNTIME_DIR'], '/run/user/1000')
++        self.assertEqual(os.environ['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/run/user/1000/bus')
++        self.unlink.assert_called_once_with(missing_ok=True)
++
++    def test_foreign_environment_is_rejected(self):
++        for key, value in [('XDG_RUNTIME_DIR', '/run/user/1001'),
++                           ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/tmp/fake-bus')]:
++            with self.subTest(key=key), mock.patch.dict(os.environ, {key: value}, clear=True):
++                with self.assertRaises(self.helper.Error): self.helper.main(['cancel'])
++        self.unlink.assert_not_called()
++
++    def test_symlink_world_writable_and_wrong_owner_are_rejected(self):
++        for runtime, bus, uid in [(stat.S_IFLNK | 0o700, self.bus_mode, 1000),
++                                 (stat.S_IFDIR | 0o777, self.bus_mode, 1000),
++                                 (self.runtime_mode, stat.S_IFLNK | 0o600, 1000),
++                                 (self.runtime_mode, stat.S_IFREG | 0o600, 1000),
++                                 (self.runtime_mode, self.bus_mode, 1001)]:
++            self.runtime_mode, self.bus_mode, self.uid = runtime, bus, uid
++            with self.assertRaises(self.helper.Error): self.helper.main(['cancel'])
++        self.unlink.assert_not_called()
++
++    def test_root_remains_forbidden(self):
++        with mock.patch.object(self.helper.os, 'getuid', return_value=0):
++            with self.assertRaisesRegex(self.helper.Error, 'never root'): self.helper.main(['cancel'])
++
++    def test_state_and_restore_are_explicitly_user_units(self):
++        for name in ('labwc-session-state@.service', 'labwc-session-restore.service'):
++            content = (USER_UNITS / name).read_text()
++            for required in ('Environment=XDG_RUNTIME_DIR=%t',
++                             'Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus',
++                             'PartOf=labwc-session.target', 'KillMode=control-group'):
++                self.assertIn(required, content)
++            self.assertNotIn('User=', content)
++            self.assertFalse((TARGET / 'etc/systemd/system' / name).exists())
++        source = (LIBEXEC / 'labwc-admin-action-worker').read_text()
++        self.assertIn('"start", "labwc-session-state@" + action + ".service"', source)
++        self.assertIn('"--user", "--machine=" + self.machine', source)
++
++
++class RendererValidationTests(unittest.TestCase):
++    def setUp(self):
++        temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
++        self.root = Path(temporary.name)
++        for path in ('etc/default', 'etc/environment.d', 'usr/local/bin', 'etc/skel-desktop/.config/labwc/environment.d'):
++            (self.root / path).mkdir(parents=True, exist_ok=True)
++        policy = {'LABWC_WLR_RENDERER':'gles2', 'LABWC_GSK_RENDERER':'opengl',
++                  'LABWC_GDK_DISABLE':'vulkan', 'LABWC_WLR_NO_HARDWARE_CURSORS':'1',
++                  'LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT':'1', 'LABWC_GREETER_WLR_RENDERER':'gles2',
++                  'LABWC_GREETER_GSK_RENDERER':'opengl', 'LABWC_GREETER_GDK_DISABLE':'vulkan',
++                  'LABWC_GREETER_WLR_NO_HARDWARE_CURSORS':'1'}
++        self.defaults = self.root / 'etc/default/labwc-desktop'
++        self.defaults.write_text('\n'.join(f'{k}={v}' for k,v in policy.items()) + '\n')
++        for leaf in ('labwc-session', 'labwc-greeter-session', 'labwc-autostart'):
++            source = TARGET / 'usr/local/bin' / leaf
++            if not source.exists(): source = source.with_suffix('.tmpl')
++            (self.root / 'usr/local/bin' / leaf).write_bytes(source.read_bytes())
++        env = Path('etc/skel-desktop/.config/labwc/environment.d/10-wayland.env')
++        (self.root / env).write_bytes((TARGET / (str(env) + ".tmpl")).read_bytes())
++        content = (ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh').read_text()
++        self.function = content.split('desktop_renderer_policy_matches() {',1)[1].split('\n}\n',1)[0]
++        for prefix in ('/usr/local/bin/', '/etc/'):
++            self.function = self.function.replace(prefix, str(self.root) + prefix)
++
++    def check(self):
++        return subprocess.run(['/bin/sh', '-eu', '-c', self.function], capture_output=True, text=True, timeout=5)
++
++    def test_real_guarded_exports_pass(self):
++        result = self.check(); self.assertEqual(result.returncode, 0, result.stderr)
++
++    def test_bad_policy_is_not_hidden(self):
++        self.defaults.write_text(self.defaults.read_text().replace('LABWC_WLR_RENDERER=gles2', 'LABWC_WLR_RENDERER=pixman'))
++        self.assertNotEqual(self.check().returncode, 0)
++
++    def test_missing_cleanup_membership_is_not_hidden(self):
++        session = self.root / 'usr/local/bin/labwc-session'
++        session.write_text(session.read_text().replace('${labwc_x11_environment_names}', ''))
++        self.assertNotEqual(self.check().returncode, 0)
++
++    def test_missing_export_is_not_hidden(self):
++        session = self.root / 'usr/local/bin/labwc-session'
++        session.write_text(session.read_text().replace('export WLR_RENDERER=', 'WLR_RENDERER='))
++        self.assertNotEqual(self.check().returncode, 0)
++
++
++class PanelAndWiringTests(unittest.TestCase):
++    def test_wrapper_preserves_child_signals_and_real_exit_failures(self):
++        source = (LIBEXEC / 'labwc-panel-run').read_text()
++        for exit_code, number in ((7, None), (143, None), (None, signal.SIGTERM), (None, signal.SIGABRT)):
++            child = f'import sys; sys.exit({exit_code})' if number is None else f'import os; os.kill(os.getpid(), {int(number)})'
++            command = "supervise([sys.executable, '-c', " + repr(child) + "], set())"
++            script = source.replace('status = main(sys.argv[1:])', 'status = ' + command)
++            # Disable core files, but do not replace the real supervisor/epilogue.
++            script = 'import resource; resource.setrlimit(resource.RLIMIT_CORE, (0, 0))\n' + script
++            result = subprocess.run([sys.executable, '-B', '-c', script], capture_output=True, timeout=10)
++            expected = exit_code if number is None else -int(number)
++            self.assertEqual(result.returncode, expected, result.stderr)
++
++    def test_all_panel_click_commands_use_session_bound_user_services(self):
++        content = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
++        entries = re.findall(r'"(on-(?:click(?:-middle|-right)?|scroll-up|scroll-down))"\s*:\s*("(?:[^"\\]|\\.)*")', content)
++        count = 0
++        for key, literal in entries:
++            command = json.loads(literal)
++            if command in ('activate', 'minimize-raise', 'close'): continue
++            if key.startswith('on-scroll'):
++                self.assertFalse(command.startswith('/usr/bin/systemd-run'))
++                continue
++            args = shlex.split(command)
++            self.assertEqual(args[:2], ['/usr/bin/systemd-run', '--user'])
++            for option in ('--collect', '--service-type=exec', '--expand-environment=no',
++                           '--property=ExitType=cgroup', '--property=KillMode=control-group',
++                           '--property=PartOf=labwc-session.target', '--property=Requisite=labwc-session.target'):
++                self.assertIn(option, args)
++            self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
++            count += 1
++        self.assertEqual(count, 56)
++
++    def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
++        text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
++        profile = text.split('profile managed-labwc-session-state ',1)[1].split('\n}\n',1)[0]
++        self.assertIn('/usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,', profile)
++        self.assertIn('owner /run/user/[0-9]*/{bus,systemd/private} rw,', profile)
++        self.assertNotIn('/dev/rfkill', profile)
++        for line in profile.splitlines():
++            if not line.lstrip().startswith('#'):
++                self.assertNotRegex(line, r'\b(?:PUx|pux|Ux|ux),')
++        panel = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
++        self.assertIn('signal (send, receive) peer=managed-labwc-panel-run,', panel)
++
++    def test_nvidia_path_unit_is_event_driven_without_exists_loop(self):
++        units = TARGET / 'etc/systemd/system'
++        watcher = (units / 'managed-nvidia-char-links.path').read_text()
++        service = (units / 'managed-nvidia-char-links.service').read_text()
++        self.assertIn('PathChanged=/dev', watcher)
++        self.assertNotIn('PathExistsGlob=', watcher)
++        self.assertNotIn('RemainAfterExit=yes', service)
++        self.assertIn('Before=greetd.service firstboot.service', service)
++        self.assertIn('CapabilityBoundingSet=\n', service)
++        source = (LIBEXEC / 'managed-nvidia-char-links').read_text()
++        ast.parse(source)
++        self.assertNotIn('os.mknod', source)
++        self.assertNotIn('subprocess', source)
++
++
++class SecondaryDiagnosticTests(unittest.TestCase):
++    def test_networkd_disabled_is_distinct_from_failed_or_expected_backend(self):
++        text = (ROOT / 'd-i/forky/scripts/firstboot/03-network.sh').read_text()
++        body = 'capture_networkctl_status() {' + text.split('capture_networkctl_status() {', 1)[1].split('\n}\n', 1)[0] + '\n}\n'
++        for active, enabled, skip in [('inactive','disabled',True), ('inactive','masked',True),
++                                      ('active','enabled',False), ('failed','disabled',False),
++                                      ('inactive','enabled',False), ('','',False)]:
++            prelude = ('timeout() { shift; shift; "$@"; }\n'
++                       'capture() { printf "%s\\n" "$*"; }\n'
++                       'systemctl() { case "$1" in show) printf "%s\\n" ' + shlex.quote(active) +
++                       ' ;; is-enabled) printf "%s\\n" ' + shlex.quote(enabled) + ' ;; esac; }\n')
++            result = subprocess.run(['/bin/sh', '-eu', '-c', prelude + body + 'capture_networkctl_status'],
++                                    text=True, capture_output=True, timeout=5)
++            self.assertEqual(result.returncode, 0, result.stderr)
++            self.assertEqual('NOT_APPLICABLE:' in result.stdout, skip, (active, enabled, result.stdout))
++            self.assertEqual('networkctl status --no-pager' in result.stdout, not skip)
++
++    def test_bouncer_package_operation_overrides_only_child_locale(self):
++        line = next(line for line in (ROOT / 'd-i/forky/scripts/late/crowdsec.sh').read_text().splitlines()
++                    if line.startswith('run_in_target "install CrowdSec bouncer after engine configuration"'))
++        args = shlex.split(line)
++        boundary = args.index('apt-get')
++        self.assertIn('LC_ALL=C', args[args.index('env') + 1:boundary])
++        # Substitute only apt-get, and execute the real env argument prefix.
++        result = subprocess.run(args[args.index('env'):boundary] + ['/usr/bin/locale'],
++                                env=dict(os.environ, LC_ALL='missing_LOCALE'), text=True,
++                                capture_output=True, timeout=5)
++        self.assertEqual(result.returncode, 0, result.stderr)
++        self.assertIn('LC_ALL=C', result.stdout)
++        self.assertNotIn('Cannot set', result.stderr)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tools/tests/test_labwc_power_handoff.py b/tools/tests/test_labwc_power_handoff.py
+index 540eb7c..4094034 100644
+--- a/tools/tests/test_labwc_power_handoff.py
++++ b/tools/tests/test_labwc_power_handoff.py
+@@ -54,7 +54,7 @@ class PowerWorkerTests(unittest.TestCase):
+             with self.subTest(action=action):
+                 self.calls.clear()
+                 self.execute(action)
+-                prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['/usr/local/libexec/labwc-session-state', 'prepare'])
++                prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
+                 stop = next(i for i, c in enumerate(self.calls) if c[-2:] == ['labwc-session.target', 'labwc-compositor.service'])
+                 terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '1000'])
+                 manager = self.calls.index(['/usr/bin/systemctl', 'stop', 'user@1000.service', 'user-1000.slice'])
+@@ -70,19 +70,19 @@ class PowerWorkerTests(unittest.TestCase):
+     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
+         self.execute('suspend')
+         self.assertTrue(any('--service-type=forking' in c and c[-1] == '/usr/local/bin/labwc-lock' for c in self.calls))
+-        self.assertTrue(any(c[-2:] == ['/usr/local/libexec/labwc-session-state', 'locked'] for c in self.calls))
++        self.assertTrue(any(c[-2:] == ['start', 'labwc-session-state@locked.service'] for c in self.calls))
+         self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', 'suspend'])
+-        self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'prepare' for c in self.calls))
++        self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
+         self.sync.assert_not_called()
+ 
+     def test_logout_uses_same_preparation_without_a_machine_power_action(self):
+         self.execute('logout')
+-        self.assertTrue(any(c[-1] == 'prepare' for c in self.calls))
++        self.assertTrue(any(c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
+         self.assertTrue(any('terminate-user' in c for c in self.calls))
+         self.assertFalse(any('--force' in c for c in self.calls))
+ 
+     def test_prepare_failure_never_tears_down_session(self):
+-        self.failure = lambda command: command[-1] == 'prepare'
++        self.failure = lambda command: command[-1] == 'labwc-session-state@prepare.service'
+         with self.assertRaises(power.Error):
+             self.execute('poweroff')
+         self.assertFalse(any('stop' in c or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
+@@ -94,7 +94,7 @@ class PowerWorkerTests(unittest.TestCase):
+         self.assertFalse(any('--force' in c or 'terminate-user' in c for c in self.calls))
+ 
+     def test_failed_lock_never_suspends(self):
+-        self.failure = lambda command: command[-1] == 'locked'
++        self.failure = lambda command: command[-1] == 'labwc-session-state@locked.service'
+         with self.assertRaises(power.Error):
+             self.execute('suspend')
+         self.assertFalse(any('--force' in c for c in self.calls))
+@@ -109,7 +109,7 @@ class PowerWorkerTests(unittest.TestCase):
+             return ''
+         with mock.patch.object(power, 'run', side_effect=run), self.assertRaisesRegex(power.Error, 'another interactive'):
+             self.execute('poweroff')
+-        self.assertFalse(any(c[-1] == 'prepare' or '--force' in c for c in self.calls))
++        self.assertFalse(any(c[-1] == 'labwc-session-state@prepare.service' or '--force' in c for c in self.calls))
+ 
+     def test_invalid_instance_never_executes_a_command(self):
+         with mock.patch.object(power.os, 'geteuid', return_value=0):
+diff --git a/tools/tests/test_scoped_lifecycle_keyrings.py b/tools/tests/test_scoped_lifecycle_keyrings.py
+index f802357..acd499a 100644
+--- a/tools/tests/test_scoped_lifecycle_keyrings.py
++++ b/tools/tests/test_scoped_lifecycle_keyrings.py
+@@ -245,7 +245,7 @@ class DesktopIsolationTests(unittest.TestCase):
+                     capture_output=True, text=True, timeout=5,
+                     env={'PATH': str(root) + ':/usr/bin:/bin', 'LABWC_TERMINAL_PRIMARY': terminal})
+                 self.assertEqual(result.returncode, 0, result.stderr)
+-                self.assertEqual(json.loads(result.stdout), ['launch', '--', *expected, '/bin/echo', 'a b', '$HOME'])
++                self.assertEqual(json.loads(result.stdout), ['auto', '--', *expected, '/bin/echo', 'a b', '$HOME'])
+ 
+ 
+ class SessionHandoffTests(unittest.TestCase):

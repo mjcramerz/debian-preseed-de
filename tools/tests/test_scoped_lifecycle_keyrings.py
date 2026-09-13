@@ -245,7 +245,7 @@ class DesktopIsolationTests(unittest.TestCase):
                     capture_output=True, text=True, timeout=5,
                     env={'PATH': str(root) + ':/usr/bin:/bin', 'LABWC_TERMINAL_PRIMARY': terminal})
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(json.loads(result.stdout), ['launch', '--', *expected, '/bin/echo', 'a b', '$HOME'])
+                self.assertEqual(json.loads(result.stdout), ['auto', '--', *expected, '/bin/echo', 'a b', '$HOME'])
 
 
 class SessionHandoffTests(unittest.TestCase):

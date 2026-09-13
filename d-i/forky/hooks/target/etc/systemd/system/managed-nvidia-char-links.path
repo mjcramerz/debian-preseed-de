@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconcile NVIDIA links when device nodes appear or disappear
+
+[Path]
+# Do not use PathExistsGlob: persistent nodes would continually retrigger an
+# exited oneshot. The helper changes /dev/char, not the watched /dev entries.
+PathChanged=/dev
+Unit=managed-nvidia-char-links.service
+
+[Install]
+WantedBy=multi-user.target

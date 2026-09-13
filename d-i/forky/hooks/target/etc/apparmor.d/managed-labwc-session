@@ -72,6 +72,8 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
 
 profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   #include <abstractions/managed-session-client>
+  # Click callbacks dispatch through this user manager, not panel-owned children.
+  owner /run/user/[0-9]*/systemd/private rw,
   /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,
   owner @{HOME}/.config/waybar/ r,
   owner @{HOME}/.config/waybar/** r,
@@ -221,6 +223,8 @@ profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags
 profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-python>
   /usr/local/libexec/labwc-panel-run r,
+  # Re-raise the child termination signal without granting access to other peers.
+  signal (send, receive) peer=managed-labwc-panel-run,
   /usr/bin/waybar rPx -> managed-waybar,
   /usr/bin/crystal-dock rPx -> managed-crystal-dock,
   signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,

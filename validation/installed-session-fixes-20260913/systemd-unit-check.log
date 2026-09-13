@@ -1,0 +1,2 @@
+{'scope': 'system', 'units': ['managed-nvidia-char-links.service', 'managed-nvidia-char-links.path'], 'returncode': 0, 'stdout': '', 'stderr': ''}
+{'scope': 'user', 'units': ['labwc-session-state@.service', 'labwc-session-restore.service'], 'returncode': 0, 'stdout': '', 'stderr': ''}

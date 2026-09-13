@@ -1,0 +1,146 @@
+[
+  {
+    "key": [
+      "ALLOWED",
+      "managed-desktop-launcher",
+      "ptrace",
+      "",
+      "read",
+      "read",
+      ""
+    ],
+    "count": 15168,
+    "examples": [
+      "apparmor.log:626: type=AVC msg=audit(1789260419.591:1420): apparmor=\"ALLOWED\" operation=\"ptrace\" class=\"ptrace\" profile=\"managed-desktop-launcher\" pid=15016 comm=\"btop\" requested_mask=\"read\" denied_mask=\"read\" peer=\"managed-labwc-panel-run\"",
+      "apparmor.log:627: type=AVC msg=audit(1789260419.591:1421): apparmor=\"ALLOWED\" operation=\"ptrace\" class=\"ptrace\" profile=\"managed-desktop-launcher\" pid=15016 comm=\"btop\" requested_mask=\"read\" denied_mask=\"read\" peer=\"managed-labwc-panel-run\""
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-chatgpt-slirp4netns",
+      "ptrace",
+      "",
+      "readby",
+      "readby",
+      ""
+    ],
+    "count": 630,
+    "examples": [
+      "apparmor.log:638: type=AVC msg=audit(1789260419.595:1431): apparmor=\"ALLOWED\" operation=\"ptrace\" class=\"ptrace\" profile=\"managed-chatgpt-slirp4netns\" pid=15016 comm=\"btop\" requested_mask=\"readby\" denied_mask=\"readby\" peer=\"managed-desktop-launcher\"",
+      "apparmor.log:665: type=AVC msg=audit(1789260419.639:1457): apparmor=\"ALLOWED\" operation=\"ptrace\" class=\"ptrace\" profile=\"managed-chatgpt-slirp4netns\" pid=15016 comm=\"btop\" requested_mask=\"readby\" denied_mask=\"readby\" peer=\"managed-desktop-launcher\""
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-generic-app",
+      "file_inherit",
+      "/dev/pts/0",
+      "wr",
+      "wr",
+      ""
+    ],
+    "count": 4,
+    "examples": [
+      "apparmor.log:610: type=AVC msg=audit(1789260377.715:1404): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-generic-app\" name=\"/dev/pts/0\" pid=12336 comm=\"labwc-wayland-a\" requested_mask=\"wr\" denied_mask=\"wr\" fsuid=1000 ouid=1000",
+      "apparmor.log:612: type=AVC msg=audit(1789260377.715:1404): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-generic-app\" name=\"/dev/pts/0\" pid=12336 comm=\"labwc-wayland-a\" requested_mask=\"wr\" denied_mask=\"wr\" fsuid=1000 ouid=1000"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-run",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:614: type=AVC msg=audit(1789260400.211:1409): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-run\" name=\"/dev/rfkill\" pid=13622 comm=\"labwc-run\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6707: Sep 13 02:46:40 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260400.211:1409): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-run\" name=\"/dev/rfkill\" pid=13622 comm=\"labwc-run\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-fuzzel",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:616: type=AVC msg=audit(1789260400.215:1410): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-fuzzel\" name=\"/dev/rfkill\" pid=13622 comm=\"labwc-fuzzel\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6720: Sep 13 02:46:40 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260400.215:1410): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-fuzzel\" name=\"/dev/rfkill\" pid=13622 comm=\"labwc-fuzzel\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-fuzzel-log",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:618: type=AVC msg=audit(1789260400.223:1411): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-fuzzel-log\" name=\"/dev/rfkill\" pid=13624 comm=\"labwc-fuzzel-lo\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6733: Sep 13 02:46:40 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260400.223:1411): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-fuzzel-log\" name=\"/dev/rfkill\" pid=13624 comm=\"labwc-fuzzel-lo\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-chatgpt",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:620: type=AVC msg=audit(1789260402.723:1412): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-chatgpt\" name=\"/dev/rfkill\" pid=13648 comm=\"chatgpt\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6746: Sep 13 02:46:43 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260402.723:1412): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-chatgpt\" name=\"/dev/rfkill\" pid=13648 comm=\"chatgpt\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-chatgpt-log-runner",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:622: type=AVC msg=audit(1789260402.859:1414): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-chatgpt-log-runner\" name=\"/dev/rfkill\" pid=13648 comm=\"labwc-chatgpt-l\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6770: Sep 13 02:46:43 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260402.859:1414): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-chatgpt-log-runner\" name=\"/dev/rfkill\" pid=13648 comm=\"labwc-chatgpt-l\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  },
+  {
+    "key": [
+      "ALLOWED",
+      "managed-labwc-generic-app",
+      "file_inherit",
+      "/dev/rfkill",
+      "r",
+      "r",
+      ""
+    ],
+    "count": 2,
+    "examples": [
+      "apparmor.log:624: type=AVC msg=audit(1789260419.251:1419): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-generic-app\" name=\"/dev/rfkill\" pid=15014 comm=\"labwc-wayland-a\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0",
+      "kernel-audit.log:6807: Sep 13 02:46:59 LPL-208 auditd-file: node=LPL-208 type=AVC msg=audit(1789260419.251:1419): apparmor=\"ALLOWED\" operation=\"file_inherit\" class=\"file\" profile=\"managed-labwc-generic-app\" name=\"/dev/rfkill\" pid=15014 comm=\"labwc-wayland-a\" requested_mask=\"r\" denied_mask=\"r\" fsuid=1000 ouid=0"
+    ]
+  }
+]

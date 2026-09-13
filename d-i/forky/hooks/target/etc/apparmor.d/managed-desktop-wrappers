@@ -431,7 +431,21 @@ profile managed-labwc-session-state /usr/local/libexec/labwc-session-state flags
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
   /usr/local/libexec/labwc-session-state rix,
-  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} PUx,
+  # PUx sets AT_SECURE: systemd's secure_getenv then ignores both user-bus
+  # variables even when they are present. Inherit this bounded user profile;
+  # do not substitute an unconfined or environment-preserving ux fallback.
+  /usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,
+  #include <abstractions/dbus-session-strict>
+  network unix stream,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  /etc/machine-id r,
+  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=session peer=(name=org.freedesktop.Notifications),
+  dbus (receive) bus=session peer=(label=unconfined),
+  dbus (receive) bus=session peer=(label=managed-session-controls),
+  owner @{HOME}/.cache/ r,
+  owner @{HOME}/.cache/cliphist/ rw,
+  owner @{HOME}/.cache/cliphist/** rwk,
   /usr/local/bin/labwc-{managed-app,managed-wayland-compat-app,wayland-app,electron-app} r,
   owner @{HOME}/ r,
   owner @{HOME}/.local/ rw,
@@ -1932,6 +1946,7 @@ profile managed-chatgpt-slirp4netns flags=(attach_disconnected) {
   network inet dgram,
   ptrace (read) peer=managed-labwc-chatgpt//chatgpt-bwrap,
   # Keep status inspection separate from ChatGPT's own process tracing.
+  ptrace (readby) peer=managed-desktop-launcher,
   ptrace (readby) peer=aa-status-reader,
   signal (receive) set=(exists kill term) peer=managed-labwc-chatgpt,
 
@@ -3787,6 +3802,8 @@ profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconn
 # Generic package desktop launchers. Only validation occurs here; the user
 # manager owns the payload service and the package's own AppArmor attachment.
 profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app flags=(attach_disconnected) {
+  # Standard I/O for explicit launches from a terminal; app services use journal I/O.
+  owner /dev/pts/[0-9]* rw,
   owner /run/user/[0-9]*/labwc-session-closing r,
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>

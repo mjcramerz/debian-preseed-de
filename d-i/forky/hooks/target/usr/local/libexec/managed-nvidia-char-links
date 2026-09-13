@@ -1,0 +1,115 @@
+#!/usr/bin/python3 -I
+"""Reconcile only /dev/char links for existing, root-owned NVIDIA devices.
+
+Never create devices, load modules, change permissions, or follow an untrusted
+path. The command accepts no paths. --check is read-only and reports every bad
+link. A path unit covers late device creation without polling or a busy loop.
+"""
+from __future__ import annotations
+import os
+from pathlib import Path
+import re
+import stat
+import sys
+import uuid
+
+DEVICE = re.compile(r"nvidia(?:[0-9]+|ctl|-modeset|-uvm|-uvm-tools)\Z")
+
+
+def directory(path, *, dir_fd=None):
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                 dir_fd=dir_fd)
+    st = os.fstat(fd)
+    if st.st_uid != 0 or st.st_mode & 0o022:
+        os.close(fd)
+        raise ValueError("device directory is not root-owned and protected")
+    return fd
+
+
+def reconcile(dev: Path = Path("/dev"), *, check: bool = False) -> int:
+    errors = 0
+    dev_fd = directory(dev)
+    char_fd = None
+    try:
+        devices = []
+        for name in sorted(os.listdir(dev_fd)):
+            if not DEVICE.fullmatch(name):
+                continue
+            try:
+                metadata = os.stat(name, dir_fd=dev_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue  # a device removed during enumeration
+            if not stat.S_ISCHR(metadata.st_mode) or metadata.st_uid != 0:
+                print(f"unsafe NVIDIA device entry: {name}", file=sys.stderr)
+                errors += 1
+                continue
+            devices.append((name, metadata.st_rdev))
+        if not devices:
+            print("nvidia-char-links: no NVIDIA character devices present")
+            return errors
+        if not check:
+            try:
+                os.mkdir("char", 0o755, dir_fd=dev_fd)
+            except FileExistsError:
+                pass
+        try:
+            char_fd = directory("char", dir_fd=dev_fd)
+        except FileNotFoundError:
+            for name, rdev in devices:
+                print(f"missing /dev/char/{os.major(rdev)}:{os.minor(rdev)} -> {name}", file=sys.stderr)
+            return errors + len(devices)
+        for name, rdev in devices:
+            key = f"{os.major(rdev)}:{os.minor(rdev)}"
+            try:
+                link = os.stat(key, dir_fd=char_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                link = None
+            if link is not None and not stat.S_ISLNK(link.st_mode):
+                print(f"refusing to replace non-symlink /dev/char/{key}", file=sys.stderr)
+                errors += 1
+                continue
+            if link is not None:
+                try:
+                    resolved = os.stat(key, dir_fd=char_fd)
+                except FileNotFoundError:
+                    resolved = None
+                if (resolved is not None and stat.S_ISCHR(resolved.st_mode)
+                        and resolved.st_rdev == rdev):
+                    continue
+            if check:
+                print(f"missing/incorrect /dev/char/{key} -> {name}", file=sys.stderr)
+                errors += 1
+                continue
+            temporary = ".nvidia-" + uuid.uuid4().hex
+            try:
+                os.symlink("../" + name, temporary, dir_fd=char_fd)
+                os.replace(temporary, key, src_dir_fd=char_fd, dst_dir_fd=char_fd)
+                print(f"nvidia-char-links: /dev/char/{key} -> ../{name}")
+            finally:
+                try:
+                    os.unlink(temporary, dir_fd=char_fd)
+                except FileNotFoundError:
+                    pass
+        return errors
+    finally:
+        if char_fd is not None:
+            os.close(char_fd)
+        os.close(dev_fd)
+
+
+def main(args: list[str]) -> int:
+    if args not in ([], ["--check"]):
+        print("usage: managed-nvidia-char-links [--check]", file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        print("managed-nvidia-char-links: root is required", file=sys.stderr)
+        return 1
+    return int(reconcile(check=bool(args)) != 0)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError) as exc:
+        print(f"managed-nvidia-char-links: {exc}", file=sys.stderr)
+        raise SystemExit(1)

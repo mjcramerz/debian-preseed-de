@@ -1,0 +1,12 @@
+
+== managed-desktop-utilities: preprocessing only ==
+Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
+returncode=0
+
+== managed-desktop-wrappers: preprocessing only ==
+Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
+returncode=0
+
+== managed-labwc-session: preprocessing only ==
+Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
+returncode=0

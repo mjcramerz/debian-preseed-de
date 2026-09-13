@@ -1,5 +1,5 @@
 [Unit]
-Description=Restore saved desktop application launchers after session readiness
+Description=Desktop session state operation (%i)
 Requisite=labwc-session.target
 After=labwc-session.target
 PartOf=labwc-session.target
@@ -8,11 +8,11 @@ PartOf=labwc-session.target
 Type=oneshot
 Environment=XDG_RUNTIME_DIR=%t
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
-KillMode=control-group
-StandardInput=null
-ExecStart=/usr/local/libexec/labwc-session-state restore
-TimeoutStartSec=120s
+ExecStart=/usr/local/libexec/labwc-session-state %i
+TimeoutStartSec=145s
 TimeoutStopSec=5s
+KillMode=control-group
 UMask=0077
+StandardInput=null
 StandardOutput=journal
 StandardError=journal

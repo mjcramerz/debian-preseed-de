@@ -96,6 +96,14 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   #include <abstractions/managed-pipewire-audio>
   capability sys_ptrace,
   ptrace (read) peer=unconfined,
+  # btop: exact additional peers observed in the installed-session audit.
+  ptrace (read) peer=managed-labwc-chatgpt//chatgpt-bwrap,
+  ptrace (read) peer=managed-labwc-panel-run,
+  ptrace (read) peer=managed-labwc-chatgpt//chatgpt-dbus-proxy,
+  ptrace (read) peer=managed-labwc-chatgpt-log-runner,
+  ptrace (read) peer=managed-labwc-chatgpt,
+  ptrace (read) peer=managed-chatgpt-slirp4netns,
+  ptrace (read) peer=managed-desktop-launcher//application-bwrap,
   # btop in the terminal needs read-only process statistics, not ptrace writes.
   ptrace (read) peer=bitwarden,
   ptrace (read) peer=filen,

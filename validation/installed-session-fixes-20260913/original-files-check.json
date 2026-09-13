@@ -1,0 +1,67 @@
+{
+  "original_regular_files": 1534,
+  "missing_original_files": [],
+  "modified_original_files": [
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-restore.service",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-session-state",
+    "d-i/forky/scripts/desktop/components.sh",
+    "d-i/forky/scripts/desktop/verify.sh",
+    "d-i/forky/scripts/firstboot/03-network.sh",
+    "d-i/forky/scripts/firstboot/04-validation.sh",
+    "d-i/forky/scripts/late/crowdsec.sh",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/preseed.cfg",
+    "tools/tests/test_labwc_power_handoff.py",
+    "tools/tests/test_scoped_lifecycle_keyrings.py"
+  ],
+  "protected_xwayland_and_session_assets": [
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-compositor.service",
+      "unchanged": true,
+      "sha256": "627e19c9d6b4f4e14af4418846e39eda86f63bc7a6ea247cf1231e4a729abe08"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-autostart",
+      "unchanged": true,
+      "sha256": "90c10790a5e01dc83f8910d60986840830b329c8c2b8512306af88761192eb42"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-greeter-session.tmpl",
+      "unchanged": true,
+      "sha256": "e67f687c8b591d14ef37e7d1d78ba01340faf161698212981302a446b1767887"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-managed-wayland-compat-app",
+      "unchanged": true,
+      "sha256": "0b87eb9f269e5cb4d880d3fdf80a02a21074326b7188cab28d8d492ef0a128a4"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-session.tmpl",
+      "unchanged": true,
+      "sha256": "73213f0147244ef69bfc06b4575ab01004b57875c29dbdd4772b679af2a16c94"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+      "unchanged": true,
+      "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+      "unchanged": true,
+      "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/xwayland.sh",
+      "unchanged": true,
+      "sha256": "5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672"
+    }
+  ],
+  "original_elf_assets": []
+}

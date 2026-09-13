@@ -1,0 +1,25 @@
+{
+  "scope": "Offline parser/dependency check; target executable paths substituted with /usr/bin/true, labwc-session.target is a dependency fixture; no services started.",
+  "results": [
+    {
+      "scope": "system",
+      "units": [
+        "managed-nvidia-char-links.service",
+        "managed-nvidia-char-links.path"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "scope": "user",
+      "units": [
+        "labwc-session-state@.service",
+        "labwc-session-restore.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ]
+}

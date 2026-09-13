@@ -37,15 +37,12 @@ class Worker:
                     "--no-ask-password", *args], **kwargs)
 
     def helper(self, action: str) -> None:
-        run(["/usr/bin/systemd-run", "--user", "--machine=" + self.machine,
-             "--quiet", "--wait", "--collect", "--service-type=exec", "--expand-environment=no",
-             "--unit=labwc-power-" + action + "-" + uuid.uuid4().hex + ".service",
-             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
-             "--property=PartOf=labwc-session.target", "--property=RuntimeMaxSec=145s",
-             "--property=TimeoutStopSec=5s",
-             "--property=StandardInput=null", "--property=StandardOutput=journal",
-             "--property=StandardError=journal", "--", "/usr/local/libexec/labwc-session-state", action],
-            timeout=160 if action == "prepare" else 15)
+        if action not in {"prepare", "cancel", "locked", "error"}:
+            raise Error("invalid desktop state operation")
+        # This is a USER unit, not a PID-1 service with User=. Its manager owns
+        # the desktop environment and executes the helper without root rights.
+        self.userctl("start", "labwc-session-state@" + action + ".service",
+                     timeout=160 if action == "prepare" else 15)
 
     def protect_other_sessions(self) -> None:
         if self.action == "logout":

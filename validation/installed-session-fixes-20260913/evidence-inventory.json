@@ -1,0 +1,494 @@
+[
+  {
+    "file": "evidence/installer-state/installer.log",
+    "bytes": 624173,
+    "lines": 4269,
+    "sha256": "0dc8ccb1ee7f354d9ba8b2201095ee4e59a52e04eb7058c5289b5c70c1f4b8a0"
+  },
+  {
+    "file": "evidence/installer-state/temporary-unshare-shim",
+    "bytes": 36,
+    "lines": 1,
+    "sha256": "49304a9f49a3d826328744bbbb5a10813b4bfe0c82063111f7a7488de404b754"
+  },
+  {
+    "file": "evidence/installer-state/firstboot/lock",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/status.env",
+    "bytes": 40,
+    "lines": 2,
+    "sha256": "fcec46c03f16ffcb64c0b9ef3ad506d816b284ba3228a2febb2071997f4ea8ed"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/20-firstboot.log",
+    "bytes": 414,
+    "lines": 4,
+    "sha256": "fba0154f936426b46197079702c85d066829b5d166b67d6e93def76cbc63fe05"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/01-init-top.log",
+    "bytes": 2024,
+    "lines": 48,
+    "sha256": "d3b659db91b294188c538d20085e4311939f44bab90e807c59767f3cd8702577"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/06-local-bottom.log",
+    "bytes": 2372,
+    "lines": 33,
+    "sha256": "fddce62a681d0a7a95eeede77df6b55e77e2f7403c8d8b88cced0f4a684b4374"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/02-init-premount.log",
+    "bytes": 4431,
+    "lines": 47,
+    "sha256": "4f4168725db79662b683e70a4b5e96476876ce2ed8e70e7bb807cc9ae8e45713"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/05-local-premount.log",
+    "bytes": 2149,
+    "lines": 25,
+    "sha256": "6a55598fbd1639f1e8c7ebbc1fcced26668839daab90044a2b284786f24c97cb"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/04-local-block.log",
+    "bytes": 126,
+    "lines": 5,
+    "sha256": "0d45c0734601b7dd821984a0f20ed20021f4dede7516670aba971021df942ca3"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/03-local-top.log",
+    "bytes": 3660,
+    "lines": 50,
+    "sha256": "4f96d8f43218b88ae877753706b4ce37a614ef4c947a9fccc869b151dbe5b1c1"
+  },
+  {
+    "file": "evidence/installer-state/logs/initramfs/07-init-bottom.log",
+    "bytes": 5785,
+    "lines": 99,
+    "sha256": "45e80349596925e9c2f432bb9792769b60caf5cb0a910c9c0cdd480475cc35c9"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/block-devices.txt",
+    "bytes": 3033,
+    "lines": 28,
+    "sha256": "ae3948b42af5cfb635e2a96258f286bb1e83354cf98b8fbba0e7b9bdc46aaaee"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/dmesg-warnings.txt",
+    "bytes": 5309,
+    "lines": 46,
+    "sha256": "23f2949eb377b17e52ee564e497391e185ce66aff2bd27e72ee7a34c7ca95cd8"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-boot-state.txt",
+    "bytes": 1923,
+    "lines": 41,
+    "sha256": "23236f65d97e950fb5d3379f3554f7116ee36903b3f8366bf6099fefdb5b436d"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/resolvectl-status.txt",
+    "bytes": 726,
+    "lines": 22,
+    "sha256": "55310601c62a7af56625df81d54cd1b46d0bf8614b57abd2b311131a7c12fa10"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemctl-jobs.txt",
+    "bytes": 172,
+    "lines": 6,
+    "sha256": "1fac9727457fd4f71c5555f5b3abe0f1bc24ce70fc515ef420cb6c01b208803d"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/network-interfaces.txt",
+    "bytes": 167,
+    "lines": 7,
+    "sha256": "324240a503b0eab6b52b9cb2aff4339e8c8a4822da2cf78cc2cd27d97a3451af"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/fstab.txt",
+    "bytes": 4861,
+    "lines": 48,
+    "sha256": "c1bc515f2a89fb63d51d701c3890804da16fe23ab194b456fffd6f6ef13ba109"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/security-baseline-units.txt",
+    "bytes": 8352,
+    "lines": 106,
+    "sha256": "2cd3f034786ced3b74493e36b9213b2c769e60b36004c8e18947f9be9b25bb6a"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/validation-results.txt",
+    "bytes": 41050,
+    "lines": 447,
+    "sha256": "ca233e41f7833bcd4c308696691f98bb887af48e49b9e949ec06ed095be1673b"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/ip-rule.txt",
+    "bytes": 284,
+    "lines": 8,
+    "sha256": "dc15acda8b63bd431082492b0b71c040ecac5f371b7a4eb117221a589b5e087e"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/sockets-listening.txt",
+    "bytes": 2110,
+    "lines": 19,
+    "sha256": "4dca81611632c9cb0bcfacc8c3849b7a7356acd5b4d93b37420705fb12e3faf8"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/networkctl-list.txt",
+    "bytes": 296,
+    "lines": 8,
+    "sha256": "4a9b0b0b43e1f489c7cdab0494a6f4a1fdf1470fa1966d6caa82282ffcc91aba"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/network-managed-network-default.txt",
+    "bytes": 1636,
+    "lines": 25,
+    "sha256": "3f195d080a7892171d2655a61f79f0b3a2774f4c2fb5653a36ddbf9f85aa3896"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/ip-brief-address.txt",
+    "bytes": 325,
+    "lines": 5,
+    "sha256": "c6e281c673754a67a38dcba5aa2427e77655eee86d2df3ff3be103580fa274d3"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/network-targets.txt",
+    "bytes": 11295,
+    "lines": 138,
+    "sha256": "95a113fae27737a41efe4a31a8b733de3c8029785d058aff223400fee1041a3d"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/apparmor-status.json",
+    "bytes": 14985,
+    "lines": 410,
+    "sha256": "4acdc53885c8d53841ee87e307cfd01ba4ebed2ee5a5d15884ae679eb295e8d5"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-analyze-time.txt",
+    "bytes": 206,
+    "lines": 5,
+    "sha256": "5de01b959746527bc83f8c75fdaac4e9f6524bfc9ea53ab5e03f498962b048de"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/ip-route.txt",
+    "bytes": 157,
+    "lines": 3,
+    "sha256": "beec1db9f53a5bc7bb39bbf202cd8593f52bac9b7ded10465dfbb3e30055c8cc"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/ip-address.txt",
+    "bytes": 1487,
+    "lines": 25,
+    "sha256": "085e025c8408a5f429648ca482262c500e71d77f805317bfa8f0242a5a2a35ab"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemctl-failed.txt",
+    "bytes": 106,
+    "lines": 4,
+    "sha256": "ee7382abf46187cee64a319690ca729fd34d8d337de598fcdfb4507422a6d485"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/mounts.txt",
+    "bytes": 7967,
+    "lines": 48,
+    "sha256": "ac5553c76b87743c973e6647b116312fa99c3e39a816fd249613afebd78d8d75"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/boot.env",
+    "bytes": 194,
+    "lines": 7,
+    "sha256": "d0d1caf536d8d4d22f68b53efc2b82e0374d6cbb1a98553c92d39f4898830aaf"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/network-managed-network.txt",
+    "bytes": 1221,
+    "lines": 28,
+    "sha256": "cb8e4a8cd0b22882146bf00f2adb3603dfcc56e76b0a4985992769f4d4851628"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/cmdline.txt",
+    "bytes": 1388,
+    "lines": 1,
+    "sha256": "ebd5d43e191e26e4e57a2c9f21e9c999c4edf8b2494db27dd21938b92d931f3c"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-targets.txt",
+    "bytes": 11473,
+    "lines": 84,
+    "sha256": "d86a4ca70e748b02342b8c599d786f144d6e509d643456759bc2ee8e5538d180"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/journal-warnings.txt",
+    "bytes": 261,
+    "lines": 2,
+    "sha256": "053502b7648ae7745c1934ead871768723b67bb2f361a43fed40fe574cd66cea"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-version.txt",
+    "bytes": 349,
+    "lines": 3,
+    "sha256": "855317bfba63015bb8456d479b9c0956853637fe4664bcf616f917caff8d5bec"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/secureboot-state.txt",
+    "bytes": 49,
+    "lines": 2,
+    "sha256": "6bd53709a4c5f9e2baf886329c8397604128c7b1bfa5d9a09ff201445abecc41"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/mok-enrollment.txt",
+    "bytes": 7171,
+    "lines": 136,
+    "sha256": "680764152232fb870ed6123b6f1aa8c5291311639bbc15bf18b9e0e9a25c5309"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/networkctl-status.txt",
+    "bytes": 151,
+    "lines": 3,
+    "sha256": "b6ee73fbb526471384268800d6e7768d43946bca6f834f0abf76068e730e30f2"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/desktop-units.txt",
+    "bytes": 8785,
+    "lines": 93,
+    "sha256": "fcbb2bcdc39be9e785cfd058b6a11b8b6434ac33ddf88880a3e91116a8148bf8"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/initramfs-log-files.txt",
+    "bytes": 509,
+    "lines": 8,
+    "sha256": "e1e50f14eedafdb8d01c503b917b65fe64710d57837ebff66cefdadad415b5b9"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-failed.txt",
+    "bytes": 106,
+    "lines": 4,
+    "sha256": "ee7382abf46187cee64a319690ca729fd34d8d337de598fcdfb4507422a6d485"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/hostnamectl.txt",
+    "bytes": 694,
+    "lines": 18,
+    "sha256": "dd617490cd7d71806ceb47249c13a2d300fdbe080e3e9e68ed61d2cbfc054179"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/resolv.conf.txt",
+    "bytes": 934,
+    "lines": 23,
+    "sha256": "2827a27f7a20666194f8f00f8ad95071f130d53dea3daa69f04734e2cd5f1e41"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/systemd-analyze-blame.txt",
+    "bytes": 2484,
+    "lines": 80,
+    "sha256": "e73e1333dca990b217928e9705f72556af6196f33b44637b31a802f6f836a9ce"
+  },
+  {
+    "file": "evidence/installer-state/logs/firstboot/data/findmnt-verify.txt",
+    "bytes": 7235,
+    "lines": 177,
+    "sha256": "ec097729e4fedefe54fb9dfa88d4e336424460f1dfa39d7c5d29f10cf25e7c4a"
+  },
+  {
+    "file": "evidence/managed/nftables/firewall.log",
+    "bytes": 16886,
+    "lines": 82,
+    "sha256": "492ddd277659a009551821996ac6fcd022af0abda132b38d27aaddcfd9aaa67a"
+  },
+  {
+    "file": "evidence/managed/chkrootkit/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/apparmor/managed-modes.log",
+    "bytes": 12577,
+    "lines": 102,
+    "sha256": "36fc82b5ab7465a14ab1ed02f3490364bf7a5dc1c1febbb9de80125853904bb7"
+  },
+  {
+    "file": "evidence/managed/apparmor/apparmor.log",
+    "bytes": 1964560,
+    "lines": 8524,
+    "sha256": "80a4bd6c68362c28ed255f6735c388e477048f2ff19e02446c910ba58529715f"
+  },
+  {
+    "file": "evidence/managed/debsums/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/timeshift/timeshift.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/fwupd/security-scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/desktop/applications.log",
+    "bytes": 1214,
+    "lines": 8,
+    "sha256": "2167f3754b26c2dbbec9459e2ac1970a6e42094938fce79ee3f6d86de622e993"
+  },
+  {
+    "file": "evidence/managed/storage/storage.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/rkhunter/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/rkhunter/rkhunter.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/zram/zram.log",
+    "bytes": 221,
+    "lines": 2,
+    "sha256": "f1687c57a37add223d64f13ecac2f2b3bafbd60bc5c5ac67873d615f23738121"
+  },
+  {
+    "file": "evidence/managed/fail2ban/fail2ban.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/lynis/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/lynis/lynis-report.dat",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/lynis/lynis.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/auth/auth.log",
+    "bytes": 9818,
+    "lines": 93,
+    "sha256": "3a4d1d0423bc411c4bbf6d66ad2b50d57b359d63555bccef85d8dccceae06c36"
+  },
+  {
+    "file": "evidence/managed/adb/adb.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/whisper/whisper.log",
+    "bytes": 5618,
+    "lines": 50,
+    "sha256": "f26a79e84617d492ea50644c7af82d92bdd0868871c4f51d5e93f44596a4fb25"
+  },
+  {
+    "file": "evidence/managed/fuzzel/menu.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/fuzzel/actions.log",
+    "bytes": 418,
+    "lines": 4,
+    "sha256": "2ea1dddb754c43ea262c98cd7db26d4fe59095b6f580d10eb0af549e13f20b0a"
+  },
+  {
+    "file": "evidence/managed/clamav/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/hardware/usb.log",
+    "bytes": 12498,
+    "lines": 108,
+    "sha256": "96ee1998d3ac33d77e5f5228ddb0074425dfd21d93aa33f07ea8b2ef866d797a"
+  },
+  {
+    "file": "evidence/managed/spectre-meltdown-checker/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/debsecan/scan.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/audit/kernel-audit.log",
+    "bytes": 8671750,
+    "lines": 37735,
+    "sha256": "3ea76526f50ff3aee0d4880d1f02b04d2829bcb39e75ea49cff78d5f562e15ff"
+  },
+  {
+    "file": "evidence/managed/openai/chatgpt/chatgpt.log",
+    "bytes": 199179,
+    "lines": 447,
+    "sha256": "9b1573559ea8c353e19fcd72d75061ae0c32ac86b8d8fa86350ebeb4f9891c8b"
+  },
+  {
+    "file": "evidence/managed/openai/codex/codex-login.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/openai/codex/codex-tui.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/openai/chatgpt/runtime/codex-login.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "evidence/managed/openai/chatgpt/runtime/codex-tui.log",
+    "bytes": 0,
+    "lines": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "file": "journalctl",
+    "bytes": 174694,
+    "lines": 1468,
+    "sha256": "c1ba4b3db712e8decaed52271778793f4b6572a64174d6d792001e77f9d297ca"
+  },
+  {
+    "file": "Fail",
+    "bytes": 1160,
+    "lines": 7,
+    "sha256": "ecb124b974e421c860241d7d4e3371b85a74b888a47d93e1877cfb625f76cdae"
+  }
+]

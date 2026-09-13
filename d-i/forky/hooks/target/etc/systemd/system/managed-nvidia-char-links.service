@@ -1,0 +1,26 @@
+[Unit]
+Description=Maintain character-device links for existing NVIDIA nodes
+After=systemd-modules-load.service systemd-udev-trigger.service
+Before=greetd.service firstboot.service
+# Device hotplug bursts must not exhaust the generic five-start service limit.
+# The path unit retains its own trigger limit; this helper never polls.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/managed-nvidia-char-links
+TimeoutStartSec=10s
+UMask=0022
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -112,10 +112,10 @@ set -eu
 [ "${LABWC_GREETER_GDK_DISABLE:-}" = "vulkan" ]
 [ "${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS:-}" = "1" ]
 [ ! -e /etc/environment.d/90-labwc-session.conf ]
-grep -q "^export WLR_RENDERER=" /usr/local/bin/labwc-session
-grep -q "^export GSK_RENDERER=" /usr/local/bin/labwc-session
+grep -Eq "(^|[|;&][[:space:]]*)export WLR_RENDERER=" /usr/local/bin/labwc-session
+grep -Eq "(^|[|;&][[:space:]]*)export GSK_RENDERER=" /usr/local/bin/labwc-session
 grep -q "^export GDK_DISABLE=" /usr/local/bin/labwc-session
-grep -q "^export WLR_NO_HARDWARE_CURSORS=" /usr/local/bin/labwc-session
+grep -Eq "(^|[|;&][[:space:]]*)export WLR_NO_HARDWARE_CURSORS=" /usr/local/bin/labwc-session
 grep -q "WLR_SCENE_DISABLE_DIRECT_SCANOUT=" /usr/local/bin/labwc-session
 grep -q "^export QT_OPENGL=" /usr/local/bin/labwc-session
 grep -q "^export QSG_RHI_BACKEND=" /usr/local/bin/labwc-session
@@ -126,7 +126,8 @@ grep -q "^labwc_x11_environment_names='"'"'DISPLAY XAUTHORITY WLR_XWAYLAND XWAYL
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-greeter-session
 grep -q "unset \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
-grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-session
+grep -q "unset-environment \\\$cleanup_environment_names" /usr/local/bin/labwc-session
+grep -q "^cleanup_environment_names=.*{labwc_x11_environment_names}" /usr/local/bin/labwc-session
 grep -q "unset-environment \\\$labwc_x11_environment_names" /usr/local/bin/labwc-autostart
 ! grep -q "_JAVA_AWT_WM_NONREPARENTING" /etc/skel-desktop/.config/labwc/environment.d/10-wayland.env
 ! grep -q "_JAVA_AWT_WM_NONREPARENTING" /usr/local/bin/labwc-autostart
@@ -272,6 +273,8 @@ validate_desktop_role() {
     /usr/local/libexec/labwc-admin-action-worker \
     /usr/local/libexec/labwc-logout-root \
     /usr/local/libexec/labwc-session-state \
+    /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
+    /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service \
     /etc/systemd/system/labwc-admin-action@.service \
     /usr/local/bin/labwc-calendar \
     /usr/local/libexec/labwc-calendar \
@@ -465,19 +468,11 @@ validate_desktop_role() {
   )
   if bool_is_true "$desktop_nvidia_acceleration_available"; then
     check_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
-    check_command desktop-nvidia-char-device-links \
-      /bin/sh -eu -c '
-        for device in /dev/nvidia[0-9]* /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia-uvm-tools; do
-          [ -c "$device" ] || continue
-          major_hex=$(stat -c %t "$device")
-          minor_hex=$(stat -c %T "$device")
-          major=$((0x${major_hex}))
-          minor=$((0x${minor_hex}))
-          link="/dev/char/${major}:${minor}"
-          [ -L "$link" ]
-          [ "$link" -ef "$device" ]
-        done
-      ' sh
+    check_path desktop-nvidia-char-link-helper /usr/local/libexec/managed-nvidia-char-links
+    check_path desktop-nvidia-char-link-service /etc/systemd/system/managed-nvidia-char-links.service
+    check_path desktop-nvidia-char-link-path /etc/systemd/system/managed-nvidia-char-links.path
+    check_command desktop-nvidia-char-link-watcher systemctl is-active --quiet managed-nvidia-char-links.path
+    check_command desktop-nvidia-char-device-links /usr/local/libexec/managed-nvidia-char-links --check
   else
     check_absent_path desktop-nvidia-char-link-udev-rule /etc/udev/rules.d/71-managed-nvidia-char-links.rules
   fi
