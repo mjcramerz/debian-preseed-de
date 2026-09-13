@@ -119,9 +119,11 @@ family_d_i_early_main() {
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_PRE_PKGSEL_D 91cuda-legacy-apt.sh)" "/usr/lib/pre-pkgsel.d/91cuda-legacy-apt"
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_PRE_PKGSEL_D 92nvidia-legacy-dkms.sh)" "/usr/lib/pre-pkgsel.d/92nvidia-legacy-dkms"
   chmod 0755 /usr/lib/pre-pkgsel.d/49nvidia-opt-in-firmware
-  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 95-normalize-apt)" "/usr/lib/finish-install.d/94zz-10-normalize-apt"
-  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 99-normalize-finish)" "/usr/lib/finish-install.d/94zz-20-normalize-finish"
-  chmod 0755 /usr/lib/finish-install.d/94zz-10-normalize-apt /usr/lib/finish-install.d/94zz-20-normalize-finish
+  # Finalize volatile backing directories before any target-side APT command,
+  # then repair/modernize sources; both still precede validation and 95umount.
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 99-normalize-finish)" "/usr/lib/finish-install.d/94zz-10-normalize-finish"
+  fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 95-normalize-apt)" "/usr/lib/finish-install.d/94zz-20-normalize-apt"
+  chmod 0755 /usr/lib/finish-install.d/94zz-10-normalize-finish /usr/lib/finish-install.d/94zz-20-normalize-apt
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 00-installer-guard)" /usr/lib/finish-install.d/00-installer-guard
   fetch_hook_file "$(installer_repo_join_var DIR_HOOKS_INSTALLER_FINISH_INSTALL_D 94zz-99-validate-target)" /usr/lib/finish-install.d/94zz-99-validate-target
   # Interpose on the first base-installer APT update, not on the later

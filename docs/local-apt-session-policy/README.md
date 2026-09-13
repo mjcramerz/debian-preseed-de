@@ -142,9 +142,12 @@ live-host migration/deployment tool.
 
 ## 3. Vendor-normalized APT sources
 
-`finish-install.d/95-normalize-apt` invokes the staged
-`/usr/local/libexec/local-apt-normalize-sources` after the existing APT
-modernization step. It examines `/etc/apt/sources.list`, all active `.list` and
+`finish-install.d/99-normalize-finish` is staged ahead of
+`finish-install.d/95-normalize-apt`. The APT hook invokes the staged
+`/usr/local/libexec/local-apt-normalize-sources` before APT reads source files,
+so recoverable malformed or duplicate deb822 fields cannot block
+`apt modernize-sources`, and invokes it again afterward to normalize any output
+APT generated. It examines `/etc/apt/sources.list`, all active `.list` and
 `.sources` files in `/etc/apt/sources.list.d`, and the known misplaced Debian
 source files. The real directory is `/etc/apt`, not `/etc/aot`.
 

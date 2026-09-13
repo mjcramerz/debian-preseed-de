@@ -731,10 +731,20 @@ printf '%s\n' 1
 
     def test_normalization_and_validation_precede_unmount(self):
         text = (ROOT/'hooks/installer/d-i/early.sh').read_text()
-        self.assertIn('94zz-10-normalize-apt', text)
-        self.assertIn('94zz-20-normalize-finish', text)
+        finish_hook = '99-normalize-finish)" "/usr/lib/finish-install.d/94zz-10-normalize-finish"'
+        apt_hook = '95-normalize-apt)" "/usr/lib/finish-install.d/94zz-20-normalize-apt"'
+        self.assertIn(finish_hook, text)
+        self.assertIn(apt_hook, text)
+        self.assertLess(text.index(finish_hook), text.index(apt_hook))
         self.assertIn('94zz-99-validate-target', text)
         self.assertTrue('94zz-99-validate-target' < '95umount')
+
+        apt_normalizer = (ROOT/'hooks/installer/finish-install.d/95-normalize-apt').read_text()
+        normalizer_call = 'run_in_target /usr/local/libexec/local-apt-normalize-sources'
+        modernize_call = 'run_in_target env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt -y modernize-sources'
+        self.assertEqual(apt_normalizer.count(normalizer_call), 2)
+        self.assertLess(apt_normalizer.index(normalizer_call), apt_normalizer.index(modernize_call))
+        self.assertLess(apt_normalizer.index(modernize_call), apt_normalizer.rindex(normalizer_call))
 
 
 class FinalBootValidationTests(unittest.TestCase):

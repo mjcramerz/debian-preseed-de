@@ -1,6 +1,7 @@
 #!/bin/sh
-# Final finish-install hook: normalize volatile mount backing directories after
-# preseed/late_command and any later installer finish hooks.
+# Finish-install prerequisite hook: normalize volatile mount backing directories
+# before APT source repair. early.sh stages this historical 99-* source as
+# 94zz-10, ahead of 95-normalize-apt and final target validation.
 set -eu
 
 RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}

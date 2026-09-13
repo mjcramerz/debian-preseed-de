@@ -14,6 +14,61 @@ normalizer = importlib.util.module_from_spec(spec)
 loader.exec_module(normalizer)
 
 
+class Deb822RepairTests(unittest.TestCase):
+    def parse(self, text):
+        repairs = []
+        return normalizer.deb822(text, repairs.append), repairs
+
+    def test_duplicate_fields_are_collapsed_without_losing_multivalue_options(self):
+        records, repairs = self.parse(
+            'Types: deb\n'
+            'URIs: https://repo.test\n'
+            'Suites: stable\n'
+            'Components: main\n'
+            'Components: contrib main\n'
+            'Signed-By: /etc/apt/keyrings/one.gpg\n'
+            'Signed-By: /etc/apt/keyrings/two.gpg\n'
+            'Enabled: yes\n'
+            'Enabled: no\n'
+        )
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['components'], 'main contrib')
+        self.assertEqual(
+            records[0]['signed-by'],
+            '/etc/apt/keyrings/two.gpg',
+        )
+        self.assertEqual(records[0]['enabled'], 'no')
+        self.assertEqual(sum('collapsed duplicate field' in item for item in repairs), 3)
+
+    def test_common_malformed_field_syntax_is_repaired_and_garbage_is_discarded(self):
+        records, repairs = self.parse(
+            ' Types: deb\n'
+            'URIs = https://repo.test\n'
+            'Suites stable\n'
+            ' Components: main\n'
+            'not-a-field\n'
+        )
+        self.assertEqual(records, [{
+            'types': 'deb',
+            'uris': 'https://repo.test',
+            'suites': 'stable',
+            'components': 'main',
+        }])
+        self.assertTrue(any('repaired field separator for Types' in item for item in repairs))
+        self.assertTrue(any('repaired field separator for URIs' in item for item in repairs))
+        self.assertTrue(any('repaired field separator for Suites' in item for item in repairs))
+        self.assertTrue(any('removed indentation from field Components' in item for item in repairs))
+        self.assertTrue(any('discarded irrecoverable non-field content' in item for item in repairs))
+
+    def test_repeated_types_repairs_a_missing_stanza_separator(self):
+        records, repairs = self.parse(
+            'Types: deb\nURIs: https://one.test\nSuites: stable\n'
+            'Types: deb\nURIs: https://two.test\nSuites: testing\n'
+        )
+        self.assertEqual([record['uris'] for record in records], ['https://one.test', 'https://two.test'])
+        self.assertTrue(any('inserted missing stanza separator' in item for item in repairs))
+
+
 class VendorSourcesTests(unittest.TestCase):
     def setUp(self):
         base = Path('/var/lib/local-apt-tests')
@@ -122,6 +177,23 @@ class VendorSourcesTests(unittest.TestCase):
         normalizer.normalize(self.root)
         stanza = normalizer.deb822(next(self.parts.glob('*.sources')).read_text())[0]
         self.assertIn('\n .\n', stanza['signed-by'])
+
+    def test_malformed_and_duplicate_deb822_is_rewritten_instead_of_aborting(self):
+        self.write(
+            'broken.sources',
+            ' Types: deb\n'
+            'URIs = https://repo.test\n'
+            'Suites stable\n'
+            'Components: main\n'
+            'Components: contrib\n'
+            'not-a-field\n\n'
+            'Types: deb\nBroken: incomplete\n',
+        )
+        self.assertEqual(normalizer.normalize(self.root), ['test.sources'])
+        records = normalizer.deb822((self.parts / 'test.sources').read_text())
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['components'], 'contrib main')
+        self.assertEqual(records[0]['uris'], 'https://repo.test')
 
 
 if __name__ == '__main__':

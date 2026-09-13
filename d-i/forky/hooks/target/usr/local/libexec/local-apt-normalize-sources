@@ -11,6 +11,7 @@ import re
 import shlex
 import stat
 import subprocess
+import sys
 import tempfile
 import urllib.parse
 
@@ -111,25 +112,122 @@ def atomic(path: Path, data: bytes) -> None:
             os.unlink(temporary)
 
 
-def deb822(text: str) -> list[dict[str, str]]:
+DEB822_FIELDS = frozenset({
+    "allow-downgrade-to-insecure", "allow-insecure", "allow-weak",
+    "architectures", "architectures-add", "architectures-remove", "by-hash",
+    "check-date", "check-valid-until", "components", "date-max-future",
+    "description", "enabled", "identifier", "inrelease-path", "languages",
+    "languages-add", "languages-remove", "pdiffs", "signed-by", "snapshot",
+    "suites", "targets", "targets-add", "targets-remove", "trusted", "types",
+    "uris", "valid-until-max", "valid-until-min",
+})
+DEB822_MULTIVALUE_FIELDS = frozenset({
+    "architectures", "architectures-add", "architectures-remove", "components",
+    "languages", "languages-add", "languages-remove", "suites",
+    "targets", "targets-add", "targets-remove", "types", "uris",
+})
+DEB822_FAIL_CLOSED_FALSE_FIELDS = frozenset({
+    "allow-downgrade-to-insecure", "allow-insecure", "allow-weak", "enabled",
+    "trusted",
+})
+DEB822_FAIL_CLOSED_TRUE_FIELDS = frozenset({"check-date", "check-valid-until"})
+DEB822_TRUE = frozenset({"1", "on", "true", "yes"})
+DEB822_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def merge_deb822_field(key: str, current: str, duplicate: str) -> str:
+    """Collapse a repeated deb822 field into one deterministic field value."""
+    if current.strip() == duplicate.strip():
+        return current
+    if key == "signed-by":
+        # Never broaden trust by unioning conflicting duplicate key policies.
+        # The final explicit declaration wins and the original bytes are archived.
+        return duplicate
+    if key in DEB822_MULTIVALUE_FIELDS:
+        return " ".join(dict.fromkeys((current + " " + duplicate).split()))
+
+    values = {current.strip().lower(), duplicate.strip().lower()}
+    if key in DEB822_FAIL_CLOSED_FALSE_FIELDS:
+        if values <= DEB822_TRUE:
+            return "yes"
+        return "no"
+    if key in DEB822_FAIL_CLOSED_TRUE_FIELDS:
+        if values <= DEB822_FALSE:
+            return "no"
+        return "yes"
+    if key == "by-hash":
+        if "force" in values:
+            return "force"
+        if values & DEB822_TRUE:
+            return "yes"
+        if values <= DEB822_FALSE:
+            return "no"
+
+    # Unknown and scalar options follow the last declaration. This mirrors the
+    # operator's final stated value while producing one syntactically valid field.
+    return duplicate
+
+
+def deb822(text: str, report=None) -> list[dict[str, str]]:
+    """Parse deb822 source stanzas and repair recoverable field syntax.
+
+    Original bytes are archived by normalize(). This parser therefore favors a
+    valid, deterministic source file over aborting the unattended installation.
+    Irrecoverable non-field lines are discarded and reported to the caller.
+    """
     result, fields = [], {}
     key = ""
-    for line in text.splitlines() + [""]:
+    required = {"types", "uris", "suites"}
+    field_pattern = r"([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)"
+    for line_number, line in enumerate(text.splitlines() + [""], 1):
         if not line.strip():
             if fields:
                 result.append(fields)
                 fields = {}
             key = ""
+            continue
         elif line.lstrip().startswith("#"):
             continue
         elif line.startswith((" ", "\t")) and key:
-            fields[key] += "\n" + line
+            indented = re.fullmatch(field_pattern, line.lstrip())
+            if not indented or indented[1].lower() not in DEB822_FIELDS or key == "description":
+                fields[key] += "\n" + line
+                continue
+            match = indented
+            if report is not None:
+                report(f"line {line_number}: removed indentation from field {match[1]}")
         else:
-            match = re.fullmatch(r"([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)", line)
-            if not match or match[1].lower() in fields:
-                raise Error("malformed/duplicate deb822 source field")
-            key = match[1].lower()
-            fields[key] = match[2]
+            candidate = line.lstrip() if not key else line
+            match = re.fullmatch(field_pattern, candidate)
+            repaired_separator = False
+            if not match:
+                match = re.fullmatch(r"[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*=[ \t]*(.*)", line)
+                repaired_separator = match is not None
+            if not match:
+                match = re.fullmatch(r"[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]+(.+)", line)
+                repaired_separator = match is not None
+            if not match:
+                if report is not None:
+                    report(f"line {line_number}: discarded irrecoverable non-field content")
+                continue
+            if candidate != line or repaired_separator:
+                if report is not None:
+                    report(f"line {line_number}: repaired field separator for {match[1]}")
+
+        field = match[1].lower()
+        value = match[2]
+        if field == "types" and field in fields and required <= set(fields):
+            result.append(fields)
+            fields = {}
+            if report is not None:
+                report(f"line {line_number}: inserted missing stanza separator before repeated Types")
+        if field in fields:
+            fields[field] = merge_deb822_field(field, fields[field], value)
+            if report is not None:
+                report(f"line {line_number}: collapsed duplicate field {match[1]}")
+        else:
+            fields[field] = value
+        key = field
     return result
 
 
@@ -232,10 +330,25 @@ def normalize(root: Path = Path("/")) -> list[str]:
     # Expand the deb822 cross-product, then deduplicate complete targets and
     # options. Different suites/architectures/trust policies are not discarded.
     for path, data in originals.items():
-        stanzas = deb822(data.decode()) if path.suffix == ".sources" else oneline(data.decode())
-        for stanza in stanzas:
-            if not all(stanza.get(key) for key in ("types", "uris", "suites")):
-                raise Error(f"source stanza lacks Types/URIs/Suites: {path}")
+        if path.suffix == ".sources":
+            stanzas = deb822(
+                data.decode(),
+                lambda message, source=path: print(
+                    f"local-apt-normalize-sources: repaired {source}: {message}",
+                    file=sys.stderr,
+                ),
+            )
+        else:
+            stanzas = oneline(data.decode())
+        for stanza_number, stanza in enumerate(stanzas, 1):
+            missing = [key for key in ("types", "uris", "suites") if not stanza.get(key)]
+            if missing:
+                print(
+                    f"local-apt-normalize-sources: skipped malformed stanza {stanza_number} "
+                    f"in {path}; missing {','.join(missing)}",
+                    file=sys.stderr,
+                )
+                continue
             for kind, uri, suite in itertools.product(stanza["types"].split(), stanza["uris"].split(), stanza["suites"].split()):
                 if kind not in {"deb", "deb-src"}:
                     raise Error("invalid source type")

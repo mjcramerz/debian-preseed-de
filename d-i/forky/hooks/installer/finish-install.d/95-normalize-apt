@@ -1,6 +1,6 @@
 #!/bin/sh
-# Finish-install hook: modernize target apt sources and normalize generated
-# .sources filenames and Debian archive stanzas.
+# Finish-install hook: repair target APT sources before apt reads them, then
+# modernize and normalize generated .sources files and Debian archive stanzas.
 set -eu
 
 RUNTIME_DIR=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}
@@ -233,12 +233,16 @@ install_default_release_policy() {
 target_is_mounted || exit 0
 [ -d "$SOURCES_DIR" ] || install -d -m 0755 "$SOURCES_DIR"
 
+log "repairing and normalizing apt sources before apt modernize-sources"
+run_in_target /usr/local/libexec/local-apt-normalize-sources
+
 rewrite_apt_http_to_https
 remove_cdrom_repo_state
 remove_cuda_legacy_repo_state
 log "running apt modernize-sources in target"
 run_in_target env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt -y modernize-sources
 
+log "normalizing apt sources after apt modernize-sources"
 run_in_target /usr/local/libexec/local-apt-normalize-sources
 rewrite_apt_http_to_https
 install_default_release_policy
