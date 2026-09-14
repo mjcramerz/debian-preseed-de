@@ -1,0 +1,144 @@
+{
+  "tests_run": 949,
+  "failures": 5,
+  "errors": 2,
+  "skipped": 26,
+  "successful": false,
+  "seconds": 281.365,
+  "failing_identifiers": [
+    [
+      "FAIL",
+      "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped"
+    ],
+    [
+      "FAIL",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall"
+    ],
+    [
+      "FAIL",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia"
+    ],
+    [
+      "FAIL",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb"
+    ],
+    [
+      "FAIL",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound"
+    ],
+    [
+      "ERROR",
+      "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events"
+    ],
+    [
+      "ERROR",
+      "test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only"
+    ]
+  ],
+  "skipped_tests": [
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_check_loaded_is_readonly_and_checks_both_source_and_kernel",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_child_modes_remain_confined_without_forcing_parent_mode",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_config_symlink_and_writable_source_remain_rejected",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_disabled_source_already_absent_is_noop",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_disabled_source_still_loaded_is_unloaded",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_kernel_only_drift_reloads_only_mismatching_profile_without_editing",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_logging_has_one_sanitized_copy_and_no_syslog_dependency",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_matching_sources_and_kernel_do_not_reload_or_rewrite",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_native_parser_finds_labels_when_reenabling_disabled_optional_profile",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_no_reload_does_not_require_kernel_state",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_disabled_profile_is_reenabled_and_verified",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_labelless_source_is_allowed",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_readonly_check_rejects_disabled_optional_named_profile",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_reload_failure_remains_failure",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_required_labelless_source_is_rejected",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.AppArmorReconciliationTests.test_source_drift_changes_only_mismatching_profile_and_is_idempotent",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_both_adapters_share_one_deadline",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_cli_rejects_unbounded_or_malformed_wait",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_delayed_expected_adapter_succeeds",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_manual_validation_does_not_wait_by_default",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_present_adapter_does_not_wait_for_other_devices",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_unrelated_adapter_does_not_satisfy_wait",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_boot_runtime_20260913.NetworkReadinessTests.test_wait_cannot_hide_mac_type_or_wireless_mismatch",
+      "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+    ],
+    [
+      "test_btrfs_locale_boundary.BtrfsFeatureTests.test_real_mkfs_uses_only_temporary_regular_images",
+      "real btrfs-progs executables unavailable; no mock claimed as format validation"
+    ],
+    [
+      "test_desktop_sandbox.InstalledFailureRegressionTests.test_auth_rainerscript_parses",
+      "rsyslogd is unavailable"
+    ],
+    [
+      "test_managed_git_debugsys.SSHTests.test_real_agent_correct_wrong_and_mismatched_passphrase",
+      "OpenSSH client binaries are not installed in this validation container"
+    ]
+  ]
+}

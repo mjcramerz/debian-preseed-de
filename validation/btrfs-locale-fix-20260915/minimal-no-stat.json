@@ -1,0 +1,15 @@
+{
+  "after": {
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "",
+    "published": true,
+    "remaining_stages": [],
+    "shared_root": [
+      0,
+      65534,
+      "0o3770"
+    ],
+    "installer_stat_present": false
+  }
+}

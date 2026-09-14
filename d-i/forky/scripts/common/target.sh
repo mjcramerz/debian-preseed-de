@@ -163,36 +163,52 @@ target_exec_available() {
   command -v chroot >/dev/null 2>&1 && [ -d "$target_root" ]
 }
 
-target_exec() {
+target_exec() (
+  # Scope normalization to this call: do not alter the live installer's locale.
+  # Clear individual categories as well as LC_ALL so a target tool that unsets
+  # LC_ALL cannot reactivate stale installer settings. Use shell builtins here;
+  # /usr/bin/env below is the TARGET's tool, not an installer dependency.
+  # Set LC_ALL first: Bash recomputes its locale as categories are unset.
+  LC_ALL=C
+  LANG=C
+  export LANG LC_ALL
+  unset LANGUAGE \
+    LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES \
+    LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION \
+    LOCPATH NLSPATH GCONV_PATH IT_LANG_OVERRIDE
+
   target_root=$(target_root_dir)
 
   case "$target_root" in
     /target|/target/)
       if command -v in-target >/dev/null 2>&1; then
-        (
-          unset \
-            DEBCONF_DB_REPLACE \
-            DEBCONF_REDIR \
-            DEBCONF_FRONTEND \
-            DEBCONF_NONINTERACTIVE_SEEN \
-            DEBCONF_SYSTEMRC \
-            DEBCONF_PIPE \
-            DEBCONF_USE_CDEBCONF \
-            DEBCONF_DEBUG \
-            DEBCONF_NOWARNINGS \
-            DEBCONF_TERSE \
-            DEBIAN_FRONTEND
-          # The installer locale archive may not match the upgraded target
-          # libc. Do not carry it across this boundary or depend on locale-gen.
-          unset LOCPATH LANGUAGE
-          LC_ALL=C
-          export LC_ALL
-          in-target --pass-stdout /usr/bin/env \
-            HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
-            XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
-            XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
-            "$@"
-        )
+        unset \
+          DEBCONF_DB_REPLACE \
+          DEBCONF_REDIR \
+          DEBCONF_FRONTEND \
+          DEBCONF_NONINTERACTIVE_SEEN \
+          DEBCONF_SYSTEMRC \
+          DEBCONF_PIPE \
+          DEBCONF_USE_CDEBCONF \
+          DEBCONF_DEBUG \
+          DEBCONF_NOWARNINGS \
+          DEBCONF_TERSE \
+          DEBIAN_FRONTEND
+        # chroot-setup.sh otherwise resets LANG from installer debconf. Its
+        # setup/cleanup commands must use C too, not an unavailable locale.
+        IT_LANG_OVERRIDE=C
+        export IT_LANG_OVERRIDE
+        # Retain in-target's Debconf passthrough/proxy environment (no env -i).
+        # Defend the target boundary again in case the bridge adds locale state.
+        in-target --pass-stdout /usr/bin/env \
+          -u LANGUAGE -u LC_CTYPE -u LC_NUMERIC -u LC_TIME -u LC_COLLATE \
+          -u LC_MONETARY -u LC_MESSAGES -u LC_PAPER -u LC_NAME -u LC_ADDRESS \
+          -u LC_TELEPHONE -u LC_MEASUREMENT -u LC_IDENTIFICATION \
+          -u LOCPATH -u NLSPATH -u GCONV_PATH -u IT_LANG_OVERRIDE \
+          HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+          XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
+          XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
+          "$@"
         return
       fi
       ;;
@@ -213,7 +229,7 @@ target_exec() {
   fi
 
   installer_fatal "neither chroot nor in-target is available for target command execution"
-}
+)
 
 target_command_failure_state_path() {
   printf '%s/state/last-target-command.failure\n' "$(installer_runtime_dir)"

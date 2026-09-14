@@ -1,0 +1,88 @@
+{
+  "tests_run": 19,
+  "failures": 18,
+  "errors": 0,
+  "skipped": 1,
+  "successful": false,
+  "seconds": 2.342,
+  "failing_identifiers": [
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.BtrfsFeatureTests.test_btrfs_and_vm_host_compositions_receive_the_new_policy"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.BtrfsFeatureTests.test_no_deprecated_mkfs_options_remain_in_active_configuration"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.BtrfsFeatureTests.test_three_tiers_keep_exact_filesystem_policy_with_merged_features"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_child_can_unset_lc_all_without_reactivating_bad_categories (shell=['/bin/dash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_child_can_unset_lc_all_without_reactivating_bad_categories (shell=['/bin/bash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_child_can_unset_lc_all_without_reactivating_bad_categories (shell=['/usr/bin/busybox', 'ash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_chroot_bridge_is_normalized_before_clean_target_env (shell=['/bin/dash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_chroot_bridge_is_normalized_before_clean_target_env (shell=['/bin/bash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_chroot_bridge_is_normalized_before_clean_target_env (shell=['/usr/bin/busybox', 'ash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_explicit_command_locale_overrides_still_work (kind='in-target', shell=['/bin/dash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_explicit_command_locale_overrides_still_work (kind='in-target', shell=['/bin/bash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_explicit_command_locale_overrides_still_work (kind='in-target', shell=['/usr/bin/busybox', 'ash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_in_target_bridge_has_c_and_no_installer_locale_categories (shell=['/bin/dash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_in_target_bridge_has_c_and_no_installer_locale_categories (shell=['/bin/bash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_in_target_bridge_has_c_and_no_installer_locale_categories (shell=['/usr/bin/busybox', 'ash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_target_rejects_bridge_reintroduced_categories_and_paths (shell=['/bin/dash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_target_rejects_bridge_reintroduced_categories_and_paths (shell=['/bin/bash'])"
+    ],
+    [
+      "FAIL",
+      "test_btrfs_locale_boundary.LocaleBoundaryTests.test_target_rejects_bridge_reintroduced_categories_and_paths (shell=['/usr/bin/busybox', 'ash'])"
+    ]
+  ],
+  "skipped_tests": [
+    [
+      "test_btrfs_locale_boundary.BtrfsFeatureTests.test_real_mkfs_uses_only_temporary_regular_images",
+      "real btrfs-progs executables unavailable; no mock claimed as format validation"
+    ]
+  ]
+}
