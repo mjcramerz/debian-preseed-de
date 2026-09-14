@@ -5,7 +5,6 @@ repo=$1
 destination=$2
 LABWC_WORKSPACE_COUNT=${3:-4}
 LABWC_WINDOW_SWITCHER_STYLE=${4:-thumbnail}
-LABWC_WORKSPACE_BROKER_GROUP_SLOTS=${5:-24}
 . "$repo/d-i/forky/scripts/common/lib.sh"
 . "$repo/d-i/forky/scripts/common/target.sh"
 . "$repo/d-i/forky/scripts/late/target-assets.sh"
@@ -18,6 +17,7 @@ installer_repo_join_var() { printf '%s/d-i/forky/hooks/target/%s\n' "$repo" "$2"
 fetch_hook() { cp "$1" "$2"; }
 desktop_log() { :; }
 installer_log() { :; }
+installer_warn() { printf "%s\n" "$*" >&2; }
 installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
 LABWC_MANAGED_APP_DEFAULT_EXEC=foot
 # A feature selector is transport context, not part of rendering itself.

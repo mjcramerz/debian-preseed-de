@@ -80,12 +80,6 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
   /usr/local/share/satty/** r,
   owner @{HOME}/.config/waybar/ r,
   owner @{HOME}/.config/waybar/** r,
-  # Generated rootless icon CSS; all other broker-private files remain hidden.
-  owner /run/user/[0-9]*/labwc-workspace-broker/ r,
-  owner /run/user/[0-9]*/labwc-workspace-broker/{panel,icons}.css r,
-  /usr/local/bin/labwc-workspace-broker-client rPx -> managed-labwc-workspace-broker-client,
-  signal (send) set=(int, term, kill) peer=managed-labwc-workspace-broker-client,
-  signal (receive) set=(chld) peer=managed-labwc-workspace-broker-client,
   owner @{HOME}/.cache/waybar/ rw,
   owner @{HOME}/.cache/waybar/** rwkl,
   # Waybar's network module reads counters through its own procfs view.
@@ -237,9 +231,6 @@ profile managed-labwc-session-check /usr/local/libexec/labwc-session-check flags
 profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-python>
   /usr/local/libexec/labwc-panel-run r,
-  /usr/local/bin/labwc-workspace-broker-client rPx -> managed-labwc-workspace-broker-client,
-  signal (send) set=(term, kill) peer=managed-labwc-workspace-broker-client,
-  signal (receive) set=(chld) peer=managed-labwc-workspace-broker-client,
   # Re-raise the child termination signal without granting access to other peers.
   signal (send, receive) peer=managed-labwc-panel-run,
   /usr/bin/waybar rPx -> managed-waybar,
@@ -253,82 +244,4 @@ profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach
   signal (receive) set=(chld) peer=managed-crystal-dock,
   signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-waybar,
   signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-crystal-dock,
-}
-
-# One logical service: Perl semantic authority and its Python protocol child
-# inherit this same narrow domain. No Px child transition under NNP is needed.
-profile managed-labwc-workspace-broker /usr/local/libexec/labwc-workspace-broker flags=(attach_disconnected) {
-  #include <abstractions/base>
-  #include <abstractions/perl>
-  /usr/local/libexec/labwc-workspace-broker r,
-  /usr/local/libexec/labwc-workspace-wayland-adapter rix,
-  /usr/bin/python3{,.[0-9]*} rix,
-  /usr/local/lib/labwc-workspace-broker/ r,
-  /usr/local/lib/labwc-workspace-broker/** r,
-  /usr/lib/python3*/ r,
-  /usr/lib/python3*/** r,
-  /usr/lib/python3*/**.so{,.*} mr,
-  /usr/lib/@{multiarch}/lib{python3*,wayland-client*,ffi*}.so{,.*} mr,
-  /usr/lib/@{multiarch}/lib-dynload/** mr,
-  /etc/default/labwc-desktop r,
-  /etc/python3*/sitecustomize.py r,
-  /usr/{,local/}share/applications/ r,
-  /usr/{,local/}share/applications/*.desktop r,
-  owner /run/user/[0-9]*/ r,
-  owner /run/user/[0-9]*/labwc-workspace-broker/ rw,
-  owner /run/user/[0-9]*/labwc-workspace-broker/{adapter.sock,control.sock} rw,
-  owner /run/user/[0-9]*/labwc-workspace-broker/{instance.lock,icons.lock} rwk,
-  owner /run/user/[0-9]*/labwc-workspace-broker/icons.css rw,
-  owner /run/user/[0-9]*/wayland-* rw,
-  owner /run/user/[0-9]*/systemd/notify w,
-  unix (create, bind, listen, accept, getopt, setopt) type=stream,
-  unix (connect, send, receive) type=stream peer=(label=managed-labwc-workspace-broker),
-  unix (send, receive) type=stream peer=(label=managed-labwc-workspace-broker-client),
-  unix (connect, send, receive) type=stream peer=(label=managed-labwc-compositor),
-  # Diagnostic use by the desktop owner; still checked with SO_PEERCRED in code.
-  unix (send, receive) type=stream peer=(label=unconfined),
-  unix (create, connect, send) type=dgram,
-  signal (send, receive) peer=managed-labwc-workspace-broker,
-  signal (receive) set=(int, term, kill) peer=unconfined,
-  signal (send) set=(chld) peer=unconfined,
-  deny network inet,
-  deny network inet6,
-  deny capability,
-  include if exists <local/managed-labwc-workspace-broker>
-}
-
-# UI helpers see only the public control socket and their own tiny view/style
-# files. No Wayland, adapter socket, process discovery or Internet access.
-profile managed-labwc-workspace-broker-client /usr/local/bin/labwc-workspace-broker-client flags=(attach_disconnected) {
-  #include <abstractions/base>
-  #include <abstractions/perl>
-  /usr/local/bin/labwc-workspace-broker-client r,
-  /usr/local/lib/labwc-workspace-broker/ r,
-  /usr/local/lib/labwc-workspace-broker/perl5/ r,
-  /usr/local/lib/labwc-workspace-broker/perl5/** r,
-  /etc/{passwd,nsswitch.conf} r,
-  owner @{HOME}/ r,
-  owner @{HOME}/.config/waybar/style.css r,
-  owner /run/user/[0-9]*/ r,
-  owner /run/user/[0-9]*/labwc-workspace-broker/ rw,
-  owner /run/user/[0-9]*/labwc-workspace-broker/control.sock rw,
-  owner /run/user/[0-9]*/labwc-workspace-broker/{icons.css,panel.css,panel.css.*,view.[0-9]*.json,view.[0-9]*.json.*} rw,
-  unix (create, getopt, setopt) type=stream,
-  unix (connect, send, receive) type=stream peer=(label=managed-labwc-workspace-broker),
-  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
-  signal (send, receive) peer=managed-labwc-workspace-broker-client,
-  signal (send) set=(int, term, kill) peer=managed-labwc-fuzzel,
-  signal (send) set=(int, term, kill) peer=managed-labwc-fuzzel-log,
-  signal (send) set=(int, term, kill) peer=managed-desktop-launcher,
-  signal (receive) set=(chld) peer=managed-labwc-fuzzel,
-  signal (receive) set=(int, term, kill) peer=managed-waybar,
-  signal (receive) set=(int, term, kill) peer=managed-labwc-panel-run,
-  signal (receive) set=(int, term, kill) peer=unconfined,
-  signal (send) set=(chld) peer=managed-waybar,
-  signal (send) set=(chld) peer=managed-labwc-panel-run,
-  signal (send) set=(chld) peer=unconfined,
-  deny network inet,
-  deny network inet6,
-  deny capability,
-  include if exists <local/managed-labwc-workspace-broker-client>
 }

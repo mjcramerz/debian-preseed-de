@@ -564,10 +564,6 @@ desktop_validate_policy_env() {
     all|focused|cursor) ;;
     *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT" ;;
   esac
-  desktop_validate_uint_range LABWC_WORKSPACE_BROKER_GROUP_SLOTS "${LABWC_WORKSPACE_BROKER_GROUP_SLOTS:-24}" 4 64
-  desktop_validate_uint_range LABWC_WORKSPACE_BROKER_PICKER_LINES "${LABWC_WORKSPACE_BROKER_PICKER_LINES:-12}" 2 32
-  desktop_validate_uint_range LABWC_WORKSPACE_BROKER_PICKER_WIDTH "${LABWC_WORKSPACE_BROKER_PICKER_WIDTH:-64}" 24 120
-  desktop_validate_uint_range LABWC_WORKSPACE_BROKER_TOOLTIP_WINDOWS "${LABWC_WORKSPACE_BROKER_TOOLTIP_WINDOWS:-8}" 1 32
   desktop_validate_uint_range LABWC_QBITTORRENT_PORT "${LABWC_QBITTORRENT_PORT:-50309}" 1 65535
   idle_lock_seconds=${LABWC_IDLE_LOCK_SECONDS:-1800}
   idle_dpms_seconds=${LABWC_IDLE_DPMS_SECONDS:-3600}

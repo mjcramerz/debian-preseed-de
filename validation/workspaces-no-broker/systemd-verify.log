@@ -1,0 +1,4 @@
+Dependency fixture: labwc-compositor.service, labwc-session.target, labwc-output-watch.service, waybar.service, labwc-session-restore.service
+Only Exec* paths relocated to /usr/bin/true; no unit was started.
+systemd-analyze --user --man=no verify: exit 0
+

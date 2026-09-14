@@ -138,12 +138,11 @@ esac
         self.assertFalse(self.log.exists())
 
     def test_both_waybar_definitions_use_completion_driven_refresh(self):
-        # Workspace groups are a whole JSON block, not a scalar placeholder.
-        # Exercise the real renderer so this keyboard regression also survives
-        # the grouped taskbar integration without weakening its assertions.
+        # Exercise the real renderer, including workspace-dependent module
+        # selection, without weakening the keyboard-refresh assertions.
         rendered = self.base / 'rendered'
         rendered.mkdir()
-        fixture = Path(__file__).parent / 'fixtures/workspace-broker/render.sh'
+        fixture = Path(__file__).parent / 'fixtures/workspaces/render.sh'
         result = subprocess.run(['/bin/sh', str(fixture), str(TARGET.parents[3]), str(rendered)],
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -1,3 +1,0 @@
-
-(python3:49428): dbind-WARNING **: 22:59:27.195: AT-SPI: Error retrieving accessibility bus address: org.freedesktop.DBus.Error.ServiceUnknown: The name org.a11y.Bus was not provided by any .service files
-GTK3 CSS and raised badges rendered: 278x46; image delta=5778 bytes

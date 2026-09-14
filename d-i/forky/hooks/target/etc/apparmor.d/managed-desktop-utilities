@@ -90,8 +90,6 @@ profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} 
 # parsers. An existing narrower profile wins; otherwise children stay in this
 # developer domain. There is no general unconfined execution fallback.
 profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected) {
-  # Fuzzel can be a bounded, directly supervised workspace picker child.
-  signal (receive) set=(int, term, kill) peer=managed-labwc-workspace-broker-client,
   #include <abstractions/managed-devops-toolchain-data>
   #include <abstractions/managed-desktop-runtime>
   #include <abstractions/managed-user-documents>

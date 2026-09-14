@@ -1,5 +1,17 @@
 # debian-preseed-de
 
+
+## Broker-free labwc workspaces
+
+The workspace taskbar broker has been retired; the native current-workspace
+window switcher is retained. Stock labwc/Waybar does **not** provide separate
+per-workspace taskbars without the removed observer. Consequently, the native
+task strip is enabled only for a single workspace and is omitted for 2--12
+workspaces rather than showing a global list. See the current
+[broker-retirement and workspace behavior report](WORKSPACES-NO-BROKER.md) for
+removal details, validation results, deployment limits and the outstanding
+per-workspace-taskbar requirement.
+
 Local APT policy, source normalization and desktop power changes: see [`local-apt-init` and session handoff](docs/local-apt-session-policy/README.md) for commands, migration, validation and safety limits.
 
 ## R4 CUDA-legacy compatibility repair

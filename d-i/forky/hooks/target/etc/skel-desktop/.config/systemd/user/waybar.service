@@ -1,9 +1,8 @@
 [Unit]
-Wants=labwc-workspace-broker.service
 StartLimitBurst=5
 StartLimitIntervalSec=60s
 BindsTo=labwc-compositor.service
-After=labwc-compositor.service labwc-session.target labwc-output-watch.service labwc-workspace-broker.service
+After=labwc-compositor.service labwc-session.target labwc-output-watch.service
 Description=Highly customizable Wayland bar for Sway and Wlroots based compositors
 Documentation=https://github.com/Alexays/Waybar/wiki/
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
