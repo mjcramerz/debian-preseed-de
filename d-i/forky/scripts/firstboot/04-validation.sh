@@ -623,6 +623,80 @@ validate_desktop_role() {
       "/etc/skel-desktop/.config/systemd/user/${account_local_package_dropin}.d/10-labwc-session.conf"
   done
 
+  # Read metadata only: never unlock GPG from root firstboot.
+  check_command managed-git-root-assets /bin/sh -eu -c '
+    [ -f /usr/local/bin/gitops ] && [ ! -L /usr/local/bin/gitops ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/bin/gitops)" = "0:0:755" ]
+    [ -f /usr/local/share/doc/managed-git/README.md ] && [ ! -L /usr/local/share/doc/managed-git/README.md ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/share/doc/managed-git/README.md)" = "0:0:644" ]
+    [ -f /usr/local/bin/git-ssh ] && [ ! -L /usr/local/bin/git-ssh ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/bin/git-ssh)" = "0:0:755" ]
+    [ -f /usr/local/bin/debugsys ] && [ ! -L /usr/local/bin/debugsys ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/bin/debugsys)" = "0:0:755" ]
+    [ -f /usr/local/libexec/debugsys.py ] && [ ! -L /usr/local/libexec/debugsys.py ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/debugsys.py)" = "0:0:755" ]
+    [ -f /usr/local/libexec/debugsys-initramfs ] && [ ! -L /usr/local/libexec/debugsys-initramfs ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/debugsys-initramfs)" = "0:0:755" ]
+    [ -f /usr/local/share/debugsys/initramfs/hook ] && [ ! -L /usr/local/share/debugsys/initramfs/hook ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/share/debugsys/initramfs/hook)" = "0:0:755" ]
+    [ -f /usr/local/libexec/labwc-ssh-key-load ] && [ ! -L /usr/local/libexec/labwc-ssh-key-load ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/labwc-ssh-key-load)" = "0:0:755" ]
+    [ -f /usr/local/libexec/labwc-ssh-gpg-askpass ] && [ ! -L /usr/local/libexec/labwc-ssh-gpg-askpass ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/labwc-ssh-gpg-askpass)" = "0:0:755" ]
+    [ -f /etc/gitops/aliases.gitconfig ] && [ ! -L /etc/gitops/aliases.gitconfig ]
+    [ "$(stat -c "%u:%g:%a" /etc/gitops/aliases.gitconfig)" = "0:0:644" ]
+    [ -f /etc/ssh/managed_git_known_hosts ] && [ ! -L /etc/ssh/managed_git_known_hosts ]
+    [ "$(stat -c "%u:%g:%a" /etc/ssh/managed_git_known_hosts)" = "0:0:644" ]
+    [ -f /usr/local/libexec/managed-ssh-checks ] && [ ! -L /usr/local/libexec/managed-ssh-checks ]
+    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/managed-ssh-checks)" = "0:0:644" ]
+    [ -f /etc/systemd/system/debugsys-boot-report.service ] && [ ! -L /etc/systemd/system/debugsys-boot-report.service ]
+    [ "$(stat -c "%u:%g:%a" /etc/systemd/system/debugsys-boot-report.service)" = "0:0:644" ]
+    [ -f /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ]
+    [ "$(stat -c "%u:%g:%a" /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf)" = "0:0:644" ]
+    [ -f /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ]
+    [ "$(stat -c "%u:%g:%a" /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf)" = "0:0:644" ]
+  '
+  if [ -n "$desktop_account_home" ]; then
+    check_command managed-git-account-metadata /bin/sh -eu -c '
+      home=$1
+      uid=$(id -u "$2")
+      path="$home/.local/share/managed-ssh/private/id_git_ed25519"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.local/share/managed-ssh/git-key-passphrase.gpg"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.ssh/id_git_ed25519.pub"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.config/gitops/gitops.env"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.config/git/config"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.config/systemd/user/labwc-ssh-key-load.service"
+      [ -f "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      path="$home/.local/share/managed-ssh"
+      [ -d "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      path="$home/.local/share/managed-ssh/private"
+      [ -d "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      path="$home/.ssh"
+      [ -d "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      path="$home/.config/gitops"
+      [ -d "$path" ] && [ ! -L "$path" ]
+      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      [ -L "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
+      [ -e "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
+      [ -L "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+      [ -e "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+    ' sh "$desktop_account_home" "$desktop_account_user"
+  fi
+
   if [ -n "$desktop_account_home" ]; then
     for desktop_user_unit_path in \
       .gnupg/gpg-agent.conf \

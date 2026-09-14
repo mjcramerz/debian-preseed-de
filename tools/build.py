@@ -38,6 +38,30 @@ def resolve_python_interpreter() -> str:
 def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
+def refuse_private_inputs() -> None:
+    """Catch private initrd material accidentally placed in the served tree.
+
+    This is a fail-closed publishing guard, not a general secret scanner. Private
+    media, backups and renamed/containerized secrets still belong outside ROOT.
+    """
+    forbidden = {'preseed.env', 'git_ed25519', 'git_ed25519.pub', 'id_git_ed25519'}
+    private_header = re.compile(rb'-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----')
+    for directory, names, files in os.walk(ROOT, followlinks=False):
+        names[:] = [name for name in names if name not in {'.git', '__pycache__', '.pytest_cache'}]
+        for name in files:
+            path = Path(directory) / name
+            relative = path.relative_to(ROOT)
+            if name in forbidden:
+                raise ValueError(f'private initrd input must not be published: {relative}')
+            # Never follow a link merely to scan it. payload_files separately
+            # rejects links in the distributable installer subtree.
+            if path.is_symlink() or not path.is_file():
+                continue
+            with path.open('rb') as stream:
+                beginning = stream.read(128).lstrip()
+            if private_header.match(beginning):
+                raise ValueError(f'private key must not be published: {relative}')
+
 def payload_files() -> list[Path]:
     paths = []
     for p in sorted(SEED.rglob('*')):
@@ -299,6 +323,7 @@ def main() -> int:
     parser.add_argument('--check', action='store_true', help='fail if generated files are stale')
     args = parser.parse_args()
     try:
+        refuse_private_inputs()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)

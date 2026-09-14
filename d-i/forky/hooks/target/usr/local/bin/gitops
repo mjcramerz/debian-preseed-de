@@ -1,0 +1,474 @@
+#!/usr/bin/python3 -I
+"""Managed Git workflows; run as the desktop user, never through sudo.
+
+Sync is an explicit upstream tree synchronization, not a merge strategy trick:
+unprotected files become the source tree; protected paths keep their local
+content AND absence. A two-parent commit records ancestry. Preview is default.
+"""
+from __future__ import annotations
+import argparse
+import contextlib
+import datetime
+import fcntl
+import fnmatch
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shlex
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import uuid
+
+sys.dont_write_bytecode = True
+KEYS = ('GITOPS_FORKS_MERGE_PROTECTED', 'GITOPS_SALSA_MERGE_PROTECTED')
+BRANCHES = ('mcr/main', 'mcr/staging', 'mcr/release')
+MAX_ENTRIES = 200000
+
+class GitOpsError(ValueError):
+    pass
+
+def git(*args: str, cwd: Path | None = None, data: bytes | None = None,
+        extra: dict[str, str] | None = None, check: bool = True) -> bytes:
+    env = os.environ.copy()
+    # Do not let a shell-provided index/worktree/config override select another
+    # repository or mutate the caller's index during isolated tree construction.
+    for key in list(env):
+        if key.startswith('GIT_') and key not in ('GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL',
+                'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'):
+            env.pop(key)
+    env.update({'LC_ALL': 'C.UTF-8', 'GIT_TERMINAL_PROMPT': '0', 'GIT_LITERAL_PATHSPECS': '1'})
+    env.update(extra or {})
+    proc = subprocess.Popen(['/usr/bin/git', '-c', 'core.hooksPath=/dev/null',
+                             '-c', 'submodule.recurse=false', *args], cwd=cwd, env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        out, err = proc.communicate(data, timeout=300)
+        if check and proc.returncode:
+            # Git stderr can include remote URLs: only show bounded text, not env.
+            raise GitOpsError(err.decode(errors='replace')[:4000].strip() or 'Git command failed')
+        return out if proc.returncode == 0 else b''
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+def load_patterns(path: Path, workflow: str) -> list[str]:
+    """Parse data, never source/eval a dotenv or import repository-local policy."""
+    if path.is_symlink() or path.resolve() != path.absolute():
+        raise GitOpsError('gitops.env must have a direct, nonsymlinked path')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_nlink != 1 or info.st_mode & 0o022 or info.st_size > 65536):
+            raise GitOpsError('gitops.env must be owned by you, a single regular file, and not group/world writable')
+        raw = os.read(fd, 65537).decode('utf-8')
+    finally:
+        os.close(fd)
+    values: dict[str, str] = {}
+    for number, line in enumerate(raw.splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith('#'):
+            continue
+        key, sep, value = line.partition('=')
+        key = key.strip()
+        if not sep or key not in KEYS or key in values:
+            raise GitOpsError(f'unknown/duplicate assignment at gitops.env line {number}')
+        words = shlex.split(value, comments=True, posix=True)
+        if len(words) != 1:
+            raise GitOpsError(f'use one quoted pattern list at gitops.env line {number}')
+        values[key] = words[0]
+    if set(values) != set(KEYS):
+        raise GitOpsError('gitops.env must define both protected-path lists')
+    patterns = shlex.split(values[KEYS[workflow == 'salsa']], posix=True)
+    for pattern in patterns:
+        if (not pattern or pattern.startswith(('/', '-', ':')) or '\\' in pattern
+                or any(ord(c) < 32 or ord(c) == 127 for c in pattern)
+                or '..' in PurePosixPath(pattern).parts or '.git' in PurePosixPath(pattern).parts
+                or '$' in pattern or '`' in pattern):
+            raise GitOpsError('unsafe protected path pattern')
+        if any(part in ('', '.') for part in pattern.removesuffix('/').split('/')):
+            raise GitOpsError('protected paths must be canonical: no ./, // or dot components')
+    return patterns
+
+def protected(name: str, patterns: list[str]) -> bool:
+    """Bare names match any component; slash patterns are repository-rooted.
+
+A rooted directory pattern with a trailing slash covers each matching subtree. * in a
+rooted glob spans slashes (e.g. debian/* includes debian/source/format).
+"""
+    for pattern in patterns:
+        if '/' not in pattern:
+            if any(fnmatch.fnmatchcase(part, pattern) for part in name.split('/')):
+                return True
+        elif pattern.endswith('/'):
+            # A directory glob protects each matching subtree, including a
+            # source blob replacing that directory. Rooted semantics remain.
+            prefixes = [name, *(str(p) for p in PurePosixPath(name).parents if str(p) != '.')]
+            if any(fnmatch.fnmatchcase(prefix, pattern[:-1]) for prefix in prefixes):
+                return True
+        elif not any(c in pattern for c in "*?[") and (name == pattern or name.startswith(pattern+"/")):
+            return True
+        elif fnmatch.fnmatchcase(name, pattern):
+            return True
+        # Preserve directory replacement too: foo/* protects a blob at foo.
+        if pattern.endswith('/*') and name == pattern[:-2]:
+            return True
+    return False
+
+def tree(ref: str, root: Path) -> dict[str, tuple[str, str]]:
+    result = {}
+    for entry in git('ls-tree', '-r', '-z', ref, cwd=root).split(b'\0'):
+        if not entry:
+            continue
+        meta, name = entry.split(b'\t', 1)
+        mode, kind, oid = meta.decode('ascii').split()
+        if mode not in ('100644', '100755', '120000', '160000'):
+            raise GitOpsError('unsupported Git tree entry')
+        key = os.fsdecode(name)
+        if len(result) >= MAX_ENTRIES:
+            raise GitOpsError('repository exceeds the protected-sync entry limit')
+        result[key] = (mode, oid)
+    return result
+
+def desired_tree(local: dict, upstream: dict, patterns: list[str]) -> dict:
+    keep = {name: value for name, value in local.items() if protected(name, patterns)}
+    ancestors = {str(parent) for name in keep for parent in PurePosixPath(name).parents}
+    result = {}
+    for name, value in upstream.items():
+        if protected(name, patterns) or name in ancestors:
+            continue
+        if any(str(parent) in keep for parent in PurePosixPath(name).parents):
+            continue
+        result[name] = value
+    result.update(keep)
+    return result
+
+def resolve(ref: str, root: Path) -> str:
+    if not ref or ref.startswith('-') or any(ord(c) < 32 for c in ref):
+        raise GitOpsError('unsafe revision')
+    return git('rev-parse', '--verify', '--end-of-options', ref+'^{commit}', cwd=root).decode().strip()
+
+def current_branch(root: Path) -> str:
+    name = git('symbolic-ref', '--quiet', '--short', 'HEAD', cwd=root).decode().strip()
+    if not name:
+        raise GitOpsError('detached HEAD is not a writable workflow branch')
+    return name
+
+def require_clean(root: Path) -> None:
+    if git('status', '--porcelain=v1', '-z', '--untracked-files=all', cwd=root):
+        raise GitOpsError('commit/stash tracked changes and move untracked files before syncing')
+    for name in ('MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'index.lock'):
+        path = Path(git('rev-parse', '--git-path', name, cwd=root).decode().rstrip('\n'))
+        if not path.is_absolute():
+            path = root/path
+        if path.exists():
+            raise GitOpsError('another Git operation or index lock is active')
+    for record in git('ls-files', '-v', '-z', cwd=root).split(b'\0'):
+        if record and (record[:1] == b'S' or record[:1].islower()):
+            raise GitOpsError('sparse/skip-worktree/assume-unchanged entries are not supported by protected sync')
+
+@contextlib.contextmanager
+def repository_lock(root: Path):
+    common = Path(git('rev-parse', '--git-common-dir', cwd=root).decode().rstrip('\n'))
+    if not common.is_absolute():
+        common = root/common
+    fd = os.open(common/'gitops.lock', os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        st = os.fstat(fd)
+        if st.st_uid != os.getuid() or st.st_nlink != 1 or not stat.S_ISREG(st.st_mode):
+            raise GitOpsError('unsafe GitOps lock')
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise GitOpsError('another GitOps operation is running') from exc
+        yield common
+    finally:
+        os.close(fd)
+
+def source_ref(root: Path, specified: str | None) -> str:
+    if specified:
+        resolve(specified, root)
+        return specified
+    mirrors = [prefix+namespace+'/'+branch for namespace in ('gitlab','github')
+               for branch in ('mcr/main','main','master') for prefix in ('origin/','')]
+    for name in (*mirrors, 'upstream/main', 'upstream/master'):
+        if git('rev-parse', '--verify', '--end-of-options', name+'^{commit}', cwd=root, check=False):
+            return name
+    raise GitOpsError('no mirror main found; supply the upstream revision explicitly')
+
+def sync(root: Path, workflow: str, source: str | None, apply: bool,
+         fetch: bool, config: Path, *, locked_common: Path | None = None) -> None:
+    patterns = load_patterns(config, workflow)
+    with (repository_lock(root) if locked_common is None else contextlib.nullcontext(locked_common)) as common:
+        branch = current_branch(root)
+        if not branch.startswith('mcr/'):
+            raise GitOpsError('sync only writes mcr/* branches; mirror branches are read-only')
+        require_clean(root)
+        if fetch:
+            git('fetch', '--prune', 'origin', cwd=root)
+        source = source_ref(root, source)
+        old, other = resolve('HEAD', root), resolve(source, root)
+        local, upstream = tree(old, root), tree(other, root)
+        desired = desired_tree(local, upstream, patterns)
+        # Submodule worktrees have separate lifecycles. Refuse instead of leaving
+        # their checked-out contents inconsistent with the recorded gitlink.
+        if any(value[0] == '160000' for value in (*local.values(), *desired.values())):
+            raise GitOpsError('protected sync of submodules requires manual review')
+        changes = sorted(name for name in local.keys() | desired.keys() if local.get(name) != desired.get(name))
+        ignored = [os.fsdecode(x) for x in git('ls-files', '--others', '--ignored', '--exclude-standard', '-z', cwd=root).split(b'\0') if x]
+        for name in ignored:
+            if any(name == changed or name.startswith(changed+'/') or changed.startswith(name+'/') for changed in changes):
+                raise GitOpsError('an ignored local path would be overwritten; move it before syncing')
+        kept = sum(1 for name in local.keys() | upstream.keys()
+                   if protected(name, patterns) and local.get(name) != upstream.get(name))
+        print(f'{workflow}: {source} -> {branch}; {len(changes)} changed paths; {kept} protected differences')
+        for name in changes[:100]:
+            action = 'A' if name not in local else 'D' if name not in desired else 'M'
+            print(f'  {action} {name!r}')
+        if len(changes) > 100:
+            print(f'  ... {len(changes)-100} further paths')
+        if not apply:
+            print('Preview only. Repeat with --apply to create the protected-sync commit. No push is performed.')
+            return
+        if old == other:
+            print('Already at source revision.'); return
+        ancestry = git('merge-base', other, old, cwd=root, check=False).decode().strip()
+        if not changes and ancestry == other:
+            print('Already synchronized, including ancestry.'); return
+        with tempfile.TemporaryDirectory(prefix='gitops-index-', dir=common) as temporary:
+            extra = {'GIT_INDEX_FILE': str(Path(temporary)/'index')}
+            git('read-tree', '--empty', cwd=root, extra=extra)
+            records = b''.join(f'{mode} {oid}\t'.encode()+os.fsencode(name)+b'\0'
+                               for name, (mode, oid) in sorted(desired.items()))
+            git('update-index', '-z', '--index-info', cwd=root, extra=extra, data=records)
+            new_tree = git('write-tree', cwd=root, extra=extra).decode().strip()
+            parents = ['-p', old] + ([] if ancestry == other else ['-p', other])
+            commit = git('commit-tree', new_tree, *parents, cwd=root,
+                         data=f'Protected {workflow} sync from {source}\n\nPolicy: {config}\n'.encode()).decode().strip()
+        # Recheck after potentially slow construction. Never reset --hard or
+        # force-push. Git's ff-only merge handles worktree/index/ref locking.
+        require_clean(root)
+        if current_branch(root) != branch or resolve('HEAD', root) != old:
+            raise GitOpsError('branch changed during sync; no branch update was applied')
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        backup = 'refs/gitops/backups/'+stamp+'-'+uuid.uuid4().hex[:12]
+        git('update-ref', backup, old, '0'*len(old), cwd=root)
+        print(f'Recovery ref: {backup}')
+        git('-c', 'merge.autoStash=false', 'merge', '--ff-only', '--no-edit', '--no-stat', commit, cwd=root)
+        if tree('HEAD', root) != desired:
+            raise GitOpsError('post-sync tree verification failed; recovery ref was retained')
+        print('Protected sync committed. Review with git show; pushing is a separate action.')
+
+def validate_branch(name: str, root: Path) -> None:
+    if not name.startswith('mcr/') or name.startswith('-'):
+        raise GitOpsError('writable branch names must start with mcr/')
+    git('check-ref-format', '--branch', name, cwd=root)
+
+def patch_check(root: Path, *, locked_common: Path | None = None) -> None:
+    directory = root/'debian/patches'
+    if not (directory/'series').exists():
+        directory = root/'patches/release'
+    series = directory/'series'
+    if not series.is_file() or series.is_symlink():
+        raise GitOpsError('debian/patches/series (or patches/release/series) is required; no build is performed')
+    with (repository_lock(root) if locked_common is None else contextlib.nullcontext(locked_common)) as common, tempfile.TemporaryDirectory(dir=common, prefix='gitops-patches-') as tmp:
+        extra = {'GIT_INDEX_FILE': str(Path(tmp)/'index')}
+        git('read-tree', 'HEAD', cwd=root, extra=extra)
+        count = 0
+        for line in series.read_text().splitlines():
+            fields = shlex.split(line, comments=True)
+            if not fields:
+                continue
+            name, *options = fields
+            if any(not re.fullmatch(r'-p[0-9]',option) for option in options) or len(options)>1:
+                raise GitOpsError('patch series accepts only an optional -pN strip level')
+            if Path(name).is_absolute() or '..' in Path(name).parts or name.startswith('-'):
+                raise GitOpsError('unsafe patch series path')
+            path = directory/name
+            if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(directory.resolve()):
+                raise GitOpsError('patch must be a direct file below the patch directory')
+            git('apply', '--cached', *options, '--', str(path), cwd=root, extra=extra)
+            count += 1
+        print(f'{count} patches apply sequentially to HEAD in an isolated index; worktree unchanged.')
+
+def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
+               fetch: bool, config: Path, *, push: bool = False, patches: bool = False):
+    """Preview/perform mirror -> main -> staging -> release, preserving each target.
+
+    Local commits are deliberately not reset on a later failure: recovery refs
+    retain every old tip. Only the final explicit multi-ref push is atomic.
+    """
+    patterns=load_patterns(config,workflow)
+    with repository_lock(root) as common:
+        original=current_branch(root)
+        if not original.startswith('mcr/'):
+            raise GitOpsError('enter an mcr/* working branch before promotion')
+        require_clean(root)
+        tips={branch:resolve('refs/heads/'+branch,root) for branch in BRANCHES}
+        for record in git('worktree','list','--porcelain',cwd=root).decode().split('\n\n'):
+            fields=record.splitlines()
+            branches=[line.removeprefix('branch refs/heads/') for line in fields if line.startswith('branch refs/heads/')]
+            locations=[line.removeprefix('worktree ') for line in fields if line.startswith('worktree ')]
+            if branches and branches[0] in BRANCHES and locations and Path(locations[0]).resolve()!=root.resolve():
+                raise GitOpsError('a promotion branch is checked out in another worktree')
+        if fetch:
+            git('fetch','--prune','origin',cwd=root)
+        source=source_ref(root,source)
+        planned=tree(resolve(source,root),root)
+        previous=source
+        for branch in BRANCHES:
+            before=tree(tips[branch],root)
+            after=desired_tree(before,planned,patterns)
+            if any(v[0]=='160000' for v in (*before.values(),*after.values())):
+                raise GitOpsError('submodule promotion requires manual review')
+            changes=sum(before.get(name)!=after.get(name) for name in before.keys()|after.keys())
+            print(f'{workflow}: {previous} -> {branch}; {changes} planned changed paths')
+            planned=after;previous=branch
+        if not apply:
+            print('Preview only. --apply creates local recovery-backed commits; push is explicit.')
+            return
+        try:
+            previous=source
+            for branch in BRANCHES:
+                if resolve('refs/heads/'+branch,root)!=tips[branch]:
+                    raise GitOpsError('a promotion branch changed after preflight')
+                git('switch','--no-overwrite-ignore',branch,cwd=root)
+                sync(root,workflow,previous,True,False,config,locked_common=common)
+                if patches and branch=='mcr/main':
+                    queues=[root/'debian/patches/series',root/'patches/release/series']
+                    if any(path.exists() for path in queues):
+                        patch_check(root,locked_common=common)
+                    else:
+                        print('No patch series; no patch applicability check performed.')
+                previous=branch
+            if push:
+                git('push','--atomic','origin',*[f'refs/heads/{b}:refs/heads/{b}' for b in BRANCHES],cwd=root)
+        finally:
+            if current_branch(root)!=original:
+                git('switch','--no-overwrite-ignore',original,cwd=root)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', nargs='?', default='status')
+    parser.add_argument('arguments', nargs='*')
+    parser.add_argument('--apply', action='store_true', help='apply the previewed protected tree synchronization')
+    parser.add_argument('--no-fetch', action='store_true', help='use already-fetched refs (offline)')
+    args = parser.parse_intermixed_args(argv)
+    try:
+        if os.geteuid() == 0:
+            raise GitOpsError('run GitOps as the desktop account, not root/sudo')
+        config = Path.home()/'.config/gitops/gitops.env'
+        command = args.command
+        if command == 'config':
+            for workflow in ('forks', 'salsa'):
+                print(workflow+': '+repr(load_patterns(config, workflow)))
+            print(f'Edit {config}; changes apply on the next invocation.'); return 0
+        if command in ('clone', 'mcr-repo-clone'):
+            if not 1 <= len(args.arguments) <= 2 or not re.fullmatch(r'git@(github|gitlab)\.com:[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.git', args.arguments[0]):
+                raise GitOpsError('clone requires a GitHub/GitLab SSH URL and optional destination')
+            print(git('clone', '--', *args.arguments).decode()); return 0
+        root = Path(os.fsdecode(git('rev-parse', '--show-toplevel')).rstrip('\n'))
+        aliases = {
+            'mcr-branch-show':'status', 'mcr-repo-status':'status', 'mcr-tag-show':'tags',
+            'mcr-branch-init':'branch-init', 'mcr-fork-init':'branch-init', 'mcr-salsa-init':'branch-init',
+            'mcr-branch-create':'branch-create', 'mcr-branch-delete':'branch-delete',
+            'mcr-branch-push':'promote', 'mcr-tag-create':'tag', 'mcr-tag-push':'tag-push',
+            'mcr-tag-delete':'tag-delete', 'mcr-repo-sync':'push',
+        }
+        match = re.fullmatch(r'mcr-(fork|salsa)-(sync|cicd|update|verify-protected-sync|push|check|test)', command)
+        if command == 'sync' or match:
+            workflow = 'salsa' if match and match[1] == 'salsa' else 'forks'
+            if match and match[2] in ('check', 'test'):
+                patch_check(root); return 0
+            if len(args.arguments) > 1:
+                raise GitOpsError('sync accepts one optional source revision')
+            if match and match[2] in ('cicd','update','push'):
+                if match[2]=='push' and not args.apply:
+                    raise GitOpsError('sync-and-push requires --apply; preview with the cicd alias first')
+                sync_chain(root,workflow,args.arguments[0] if args.arguments else None,args.apply,
+                           not args.no_fetch,config,push=match[2]=='push',patches=match[2] in ('update','push'))
+                return 0
+            apply = args.apply and not (match and match[2] == 'verify-protected-sync')
+            sync(root, workflow, args.arguments[0] if args.arguments else None, apply, not args.no_fetch, config)
+            return 0
+        command = aliases.get(command, command)
+        if command == 'status':
+            print(git('status', '--short', '--branch', cwd=root).decode(), end='')
+            print(git('branch', '-vv', cwd=root).decode(), end='')
+            print(git('remote', '-v', cwd=root).decode(), end=''); return 0
+        if command == 'tags':
+            print(git('tag', '--list', cwd=root).decode(), end=''); return 0
+        with repository_lock(root):
+            require_clean(root)
+            if command == 'branch-init' and len(args.arguments) <= 1:
+                source = resolve(args.arguments[0] if args.arguments else 'HEAD', root)
+                for branch in (*BRANCHES, 'mcr/feature/initial'):
+                    if not git('show-ref', '--verify', f'refs/heads/{branch}', cwd=root, check=False):
+                        git('branch', '--', branch, source, cwd=root)
+                print('Existing branches were preserved; missing mcr/* branches created. No push performed.')
+            elif command == 'branch-create' and len(args.arguments) == 1:
+                validate_branch(args.arguments[0], root)
+                git('switch', '-c', args.arguments[0], cwd=root)
+            elif command == 'branch-delete' and len(args.arguments) == 1:
+                name = args.arguments[0]; validate_branch(name, root)
+                if name in BRANCHES:
+                    raise GitOpsError('main/staging/release branches cannot be deleted')
+                git('branch', '-d', '--', name, cwd=root)
+            elif command == 'promote' and not args.arguments:
+                original = current_branch(root)
+                if not original.startswith('mcr/'):
+                    raise GitOpsError('promotion source must be an mcr/* branch')
+                source = original
+                try:
+                    for branch in BRANCHES:
+                        git('switch', '--no-overwrite-ignore', branch, cwd=root)
+                        git('merge', '--ff-only', '--no-edit', source, cwd=root)
+                        source = branch
+                    git('push', '--atomic', 'origin', *[f'refs/heads/{x}:refs/heads/{x}' for x in BRANCHES], cwd=root)
+                finally:
+                    git('switch', '--no-overwrite-ignore', original, cwd=root)
+            elif command == 'push' and not args.arguments:
+                branch = current_branch(root)
+                validate_branch(branch, root)
+                git('push', '--atomic', 'origin', f'refs/heads/{branch}:refs/heads/{branch}', cwd=root)
+            elif command in ('tag', 'tag-push', 'tag-delete') and len(args.arguments) == 1:
+                tag = args.arguments[0]
+                if tag.startswith('-'):
+                    raise GitOpsError('invalid tag')
+                git('check-ref-format', 'refs/tags/'+tag, cwd=root)
+                if command == 'tag':
+                    git('tag', '-a', tag, '-m', 'Release '+tag, cwd=root)
+                elif command == 'tag-push':
+                    git('push', '--atomic', 'origin', f'refs/tags/{tag}:refs/tags/{tag}', cwd=root)
+                else:
+                    git('tag', '-d', '--', tag, cwd=root)
+            else:
+                raise GitOpsError('unsupported command/arguments; see /usr/local/share/doc/managed-git/README.md')
+        return 0
+    except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
+        print('gitops: '+str(exc), file=sys.stderr)
+        return 1
+
+def install_signal_handlers() -> None:
+    # Git/SSH run in separate process groups; default TERM/HUP would orphan
+    # them. Unwind git()'s finally blocks before releasing the repository lock.
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda number, frame: sys.exit(128 + number))
+
+if __name__ == '__main__':
+    install_signal_handlers()
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print('gitops: interrupted; inspect status and any printed recovery ref', file=sys.stderr)
+        raise SystemExit(130)

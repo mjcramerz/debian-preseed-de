@@ -158,7 +158,7 @@ def read_metadata(root: Path, name: str, limit: int) -> str:
 
 
 def validate_git(root: Path, entries: dict[str, Entry], uid: int, gid: int,
-                 commit: str, url: str) -> None:
+                 branch: str, url: str) -> None:
     if '.git' not in entries:
         raise StateError('missing Git metadata')
     for name, entry in entries.items():
@@ -167,8 +167,8 @@ def validate_git(root: Path, entries: dict[str, Entry], uid: int, gid: int,
         expected_mode = 0o750 if entry.kind == 'dir' else 0o640
         if entry.kind not in {'dir', 'file'} or (entry.uid, entry.gid, entry.mode) != (uid, gid, expected_mode):
             raise StateError('unsafe Git metadata ownership, mode or type')
-    if read_metadata(root, 'HEAD', 128).strip() != commit:
-        raise StateError('existing repository is not detached at the pinned commit')
+    if branch != 'mcr/main' or read_metadata(root, 'HEAD', 128).strip() != 'ref: refs/heads/mcr/main':
+        raise StateError('existing repository must retain symbolic HEAD on mcr/main')
     config = configparser.ConfigParser(interpolation=None, strict=True)
     try:
         config.read_string(read_metadata(root, 'config', 65536))
@@ -191,6 +191,10 @@ def validate_git(root: Path, entries: dict[str, Entry], uid: int, gid: int,
             raise StateError('unexpected Git config option')
     if config.get('remote "origin"', 'url', fallback='') != url:
         raise StateError('existing repository origin differs from policy')
+    section = 'branch "mcr/main"'
+    if (config.get(section, 'remote', fallback='') != 'origin' or
+            config.get(section, 'merge', fallback='') != 'refs/heads/mcr/main'):
+        raise StateError('mcr/main must track origin/mcr/main')
     if config.get('core', 'bare', fallback='false').lower() != 'false':
         raise StateError('bare repository is not an installed worktree')
 
@@ -221,11 +225,11 @@ def validate_link(name: str, target: str, codex_root: str) -> None:
             parts.append(part)
 
 
-def compare_trees(expected: Path, actual: Path, uid: int, gid: int, commit: str,
+def compare_trees(expected: Path, actual: Path, uid: int, gid: int, branch: str,
                   url: str, codex_root: str = '/data/codex') -> None:
     wanted = snapshot(expected)
     found = snapshot(actual)
-    validate_git(actual, found, uid, gid, commit, url)
+    validate_git(actual, found, uid, gid, branch, url)
     if any(name in wanted for name in OPTIONAL_PRIVATE_FILES):
         raise StateError('optional authentication state must not be staged by the installer')
     for name, entry in wanted.items():
@@ -263,7 +267,7 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, commit: str,
             if entry.kind != 'file' or (entry.uid, entry.gid, entry.mode) != (w.uid, w.gid, w.mode):
                 raise StateError('private or shared runtime file has unsafe metadata')
         elif entry != wanted[name]:
-            raise StateError('immutable repository content or metadata differs from its pin')
+            raise StateError('immutable repository content or metadata differs from its verified checkout')
     for name in wanted:
         if name == '.git' or name.startswith('.git/'):
             continue
@@ -277,12 +281,12 @@ def main() -> int:
     parser.add_argument('--actual', required=True, type=Path)
     parser.add_argument('--uid', required=True, type=int)
     parser.add_argument('--gid', required=True, type=int)
-    parser.add_argument('--commit', required=True)
+    parser.add_argument('--branch', required=True, choices=['mcr/main'])
     parser.add_argument('--url', required=True)
     parser.add_argument('--codex-root', default='/data/codex')
     args = parser.parse_args()
     try:
-        compare_trees(args.expected, args.actual, args.uid, args.gid, args.commit, args.url, args.codex_root)
+        compare_trees(args.expected, args.actual, args.uid, args.gid, args.branch, args.url, args.codex_root)
     except (OSError, UnicodeError, StateError) as exc:
         # OSError may contain a filename, but never credential bytes or commands.
         print(f'codex-state: {exc}', file=sys.stderr)

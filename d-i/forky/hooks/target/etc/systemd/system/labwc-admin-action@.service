@@ -6,6 +6,9 @@ Wants=systemd-logind.service
 ConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker
 
 [Service]
+# Host logind/PID-1 IPC and user-manager handoff must retain host credentials.
+PrivatePIDs=no
+PrivateUsers=no
 Type=notify
 NotifyAccess=main
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
@@ -15,6 +18,7 @@ RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 TimeoutStopSec=5s
+KillMode=control-group
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=labwc-admin-action

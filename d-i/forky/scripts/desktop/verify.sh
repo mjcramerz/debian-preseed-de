@@ -271,6 +271,46 @@ require_absent() {
     fatal "retired desktop path is still present: $path"
 }
 
+
+# Managed Git and diagnostics assets: no credential decryption during verification.
+require_executable /usr/local/bin/gitops
+require_mode /usr/local/bin/gitops 755
+require_readable /usr/local/share/doc/managed-git/README.md
+require_mode /usr/local/share/doc/managed-git/README.md 644
+require_executable /usr/local/bin/git-ssh
+require_mode /usr/local/bin/git-ssh 755
+require_executable /usr/local/bin/debugsys
+require_mode /usr/local/bin/debugsys 755
+require_executable /usr/local/libexec/debugsys.py
+require_mode /usr/local/libexec/debugsys.py 755
+require_executable /usr/local/libexec/debugsys-initramfs
+require_mode /usr/local/libexec/debugsys-initramfs 755
+require_executable /usr/local/share/debugsys/initramfs/hook
+require_mode /usr/local/share/debugsys/initramfs/hook 755
+require_executable /usr/local/libexec/labwc-ssh-key-load
+require_mode /usr/local/libexec/labwc-ssh-key-load 755
+require_executable /usr/local/libexec/labwc-ssh-gpg-askpass
+require_mode /usr/local/libexec/labwc-ssh-gpg-askpass 755
+require_readable /etc/gitops/aliases.gitconfig
+require_mode /etc/gitops/aliases.gitconfig 644
+require_readable /etc/ssh/managed_git_known_hosts
+require_mode /etc/ssh/managed_git_known_hosts 644
+require_readable /usr/local/libexec/managed-ssh-checks
+require_mode /usr/local/libexec/managed-ssh-checks 644
+require_readable /etc/systemd/system/debugsys-boot-report.service
+require_mode /etc/systemd/system/debugsys-boot-report.service 644
+require_readable /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf
+require_mode /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf 644
+require_readable /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf
+require_mode /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf 644
+require_executable /usr/local/libexec/managed-ssh-install.py
+require_mode /usr/local/libexec/managed-ssh-install.py 700
+require_executable /usr/local/libexec/managed-ssh-install-askpass
+require_mode /usr/local/libexec/managed-ssh-install-askpass 700
+require_readable /etc/skel-desktop/.config/gitops/gitops.env
+require_readable /etc/skel-desktop/.config/git/config
+require_readable /etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service
+
 desktop_skeleton=/etc/skel-desktop
 [ -d "$desktop_skeleton" ] && [ ! -L "$desktop_skeleton" ] ||
   fatal "desktop skeleton root is missing or unsafe: $desktop_skeleton"
@@ -1032,6 +1072,43 @@ verify_account_session_link() {
     fatal "primary account user session enablement link owner mismatch for ${unit}: ${owner}"
   required_checked=$((required_checked + 1))
 }
+
+
+# The encrypted identity and sealed passphrase are both private account files.
+check_required_owned "$account_home/.local/share/managed-ssh/private/id_git_ed25519"
+[ ! -L "$account_home/.local/share/managed-ssh/private/id_git_ed25519" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.local/share/managed-ssh/private/id_git_ed25519")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg"
+[ ! -L "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned "$account_home/.ssh/id_git_ed25519.pub"
+[ ! -L "$account_home/.ssh/id_git_ed25519.pub" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.ssh/id_git_ed25519.pub")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned "$account_home/.config/gitops/gitops.env"
+[ ! -L "$account_home/.config/gitops/gitops.env" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.config/gitops/gitops.env")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned "$account_home/.config/git/config"
+[ ! -L "$account_home/.config/git/config" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.config/git/config")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned "$account_home/.config/systemd/user/labwc-ssh-key-load.service"
+[ ! -L "$account_home/.config/systemd/user/labwc-ssh-key-load.service" ] || fatal "symlinked managed Git file"
+[ "$(stat -c "%a:%h" "$account_home/.config/systemd/user/labwc-ssh-key-load.service")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+check_required_owned_dir "$account_home/.local/share/managed-ssh"
+[ ! -L "$account_home/.local/share/managed-ssh" ] || fatal "symlinked managed Git directory"
+[ "$(stat -c "%a" "$account_home/.local/share/managed-ssh")" = 700 ] || fatal "unsafe managed Git directory"
+check_required_owned_dir "$account_home/.local/share/managed-ssh/private"
+[ ! -L "$account_home/.local/share/managed-ssh/private" ] || fatal "symlinked managed Git directory"
+[ "$(stat -c "%a" "$account_home/.local/share/managed-ssh/private")" = 700 ] || fatal "unsafe managed Git directory"
+check_required_owned_dir "$account_home/.ssh"
+[ ! -L "$account_home/.ssh" ] || fatal "symlinked managed Git directory"
+[ "$(stat -c "%a" "$account_home/.ssh")" = 700 ] || fatal "unsafe managed Git directory"
+check_required_owned_dir "$account_home/.config/gitops"
+[ ! -L "$account_home/.config/gitops" ] || fatal "symlinked managed Git directory"
+[ "$(stat -c "%a" "$account_home/.config/gitops")" = 700 ] || fatal "unsafe managed Git directory"
+verify_skeleton_session_link ssh-agent.socket
+verify_account_session_link ssh-agent.socket
+verify_skeleton_session_link labwc-ssh-key-load.service
+verify_account_session_link labwc-ssh-key-load.service
 
 for path in \
   "$account_home/.config/labwc/rc.xml" \

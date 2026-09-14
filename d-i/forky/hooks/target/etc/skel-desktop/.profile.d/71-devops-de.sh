@@ -257,6 +257,17 @@ devops_de_environment_is_active() {
 # Managed environment construction.
 # This public shell helper deliberately rejects all arguments.
 # shellcheck disable=SC2120
+# The ordinary desktop and opt-in host shell use the same systemd-owned agent.
+devops_de_apply_ssh_agent_environment() {
+  [ "$#" -eq 0 ] || return 64
+  SSH_AUTH_SOCK="${XDG_RUNTIME_DIR}/openssh_agent"
+  export SSH_AUTH_SOCK
+  unset SSH_AGENT_PID
+  /usr/local/bin/git-ssh unlock || return 1
+  [ -S "$SSH_AUTH_SOCK" ] && [ ! -L "$SSH_AUTH_SOCK" ] || return 1
+  [ "$(/usr/bin/stat -c '%u:%a' -- "$SSH_AUTH_SOCK")" = "$(/usr/bin/id -u):600" ]
+}
+
 devops_de_apply_environment() {
   case "$#" in
     0) ;;
@@ -283,6 +294,7 @@ devops_de_apply_environment() {
       ;;
   esac
   devops_de_validate_runtime_directory || return 1
+  devops_de_apply_ssh_agent_environment || return 1
 
   PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
   export PATH
@@ -722,6 +734,7 @@ devops_de_activate() (
   # Revalidate immediately before entering the nested shell so a malformed or
   # replaced runtime directory cannot be used after environment construction.
   devops_de_validate_runtime_directory || return 1
+  devops_de_apply_ssh_agent_environment || return 1
 
   # Foot, Kitty, and xterm-compatible fallbacks implement the xterm title
   # stack. Restore the caller's exact title when the nested shell ends instead

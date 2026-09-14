@@ -1418,6 +1418,7 @@ preseed_env_variable_name() {
     primary_user) printf '%s\n' PRESEED_PRIMARY_USERNAME ;;
     primary_password) printf '%s\n' PRESEED_PRIMARY_PASSWORD ;;
     primary_gpg_passphrase) printf '%s\n' PRESEED_PRIMARY_GPG_PASSPHRASE ;;
+    git_ssh_passphrase) printf '%s\n' PRESEED_GIT_SSH_PASSPHRASE ;;
     root_password) printf '%s\n' PRESEED_ROOT_PASSWORD ;;
     crowdsec_token|crowdsec_enroll_token|crowdsec_attachment_key) printf '%s\n' PRESEED_CROWDSEC_TOKEN ;;
     tailscale_authkey|tailscale_auth_key) printf '%s\n' PRESEED_TAILSCALE_TOKEN ;;
@@ -1554,7 +1555,7 @@ preseed_env_read_value() (
   fi
   unset PRESEED_WIFI_PASSPHRASE PRESEED_FRUUX_USERNAME PRESEED_FRUUX_PASSWORD \
     PRESEED_PRIMARY_USERNAME PRESEED_PRIMARY_PASSWORD PRESEED_PRIMARY_GPG_PASSPHRASE \
-    PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
+    PRESEED_GIT_SSH_PASSPHRASE PRESEED_ROOT_PASSWORD PRESEED_CROWDSEC_TOKEN PRESEED_TAILSCALE_TOKEN \
     PRESEED_TELEGRAM_CHAT_ID PRESEED_TELEGRAM_API_KEY PRESEED_CF_APTLY_ACCESS_KEY \
     PRESEED_CF_APTLY_SECRET_KEY PRESEED_OBS_USERNAME PRESEED_OBS_PASSWORD
   # shellcheck disable=SC1090

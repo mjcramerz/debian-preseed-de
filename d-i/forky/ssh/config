@@ -1,7 +1,26 @@
 # Managed by installer automation for desktop/server roles.
 # Installed as __INSTALLER_ACCOUNT_USERNAME__'s ~/.ssh/config.
 
-Include /data/pki/ssh/config.d/*.conf
+Host gitlab.com github.com
+  User git
+  Port 22
+  IdentityAgent SSH_AUTH_SOCK
+  IdentityFile __INSTALLER_ACCOUNT_HOME__/.ssh/id_git_ed25519.pub
+  IdentitiesOnly yes
+  BatchMode yes
+  StrictHostKeyChecking yes
+  UserKnownHostsFile /etc/ssh/managed_git_known_hosts
+  GlobalKnownHostsFile /dev/null
+  UpdateHostKeys no
+  ForwardAgent no
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  PreferredAuthentications publickey
+  ConnectTimeout 15
+
+# Keep unrelated PKI configuration available without adding identities to Git hosts.
+Host * !gitlab.com !github.com
+  Include /data/pki/ssh/config.d/*.conf
 
 Host *
   AddKeysToAgent no

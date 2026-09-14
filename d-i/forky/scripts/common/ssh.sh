@@ -303,3 +303,82 @@ fi
     installer_warn "systemd staging helpers are unavailable; skipping ssh.service staged enablement"
   fi
 }
+
+# Subshell: tracing is disabled before reading any secret; neither the caller's
+# environment nor generated account.env ever receives the passphrase. The
+# normal run_in_target wrapper redirects stdin to /dev/null, so use a direct
+# chroot here with a clean environment and a private pipe instead.
+managed_git_ssh_target_action() (
+  set +x
+  set +v
+  set -eu
+  umask 077
+  action=$1
+  shift
+  case "$action" in provision|seal|clone-codex) ;; *) exit 64 ;; esac
+  target=${INSTALLER_TARGET_DIR:-/target}
+  validate_target_ssh_user
+  # Fixed source contract: do not permit a seed URL or target-side substitute.
+  [ "${GIT_SSH_PRIVATE_KEY_INITRD:-/git_ed25519}" = /git_ed25519 ] &&
+    [ "${GIT_SSH_PUBLIC_KEY_INITRD:-/git_ed25519.pub}" = /git_ed25519.pub ] ||
+    installer_fatal "Git SSH inputs must use the fixed private initrd paths"
+  preseed_env_check_file /git_ed25519 || installer_fatal "missing/unsafe private initrd Git SSH key"
+  preseed_env_check_file /git_ed25519.pub || installer_fatal "missing/unsafe private initrd Git SSH public key"
+  [ "$(wc -c </git_ed25519)" -le 16384 ] || installer_fatal "Git SSH private key exceeds size limit"
+  [ "$(wc -c </git_ed25519.pub)" -le 4096 ] || installer_fatal "Git SSH public key exceeds size limit"
+  validate_ssh_public_key_file /git_ed25519.pub
+  secret=$(preseed_env_read_value git_ssh_passphrase) || installer_fatal "PRESEED_GIT_SSH_PASSPHRASE is required in the private initrd"
+  case "$secret" in ''|*[![:print:]]*) installer_fatal "Git SSH passphrase must be nonempty printable single-line text" ;; esac
+  [ "${#secret}" -le 4096 ] || installer_fatal "Git SSH passphrase exceeds size limit"
+  stage=$(mktemp -d "${target}/tmp/managed-git-ssh.XXXXXX") || exit 1
+  own_proc=0
+  own_dev=0
+  managed_ssh_cleanup() {
+    saved_status=$?
+    trap - 0
+    rm -rf -- "$stage"
+    unset secret
+    if [ "$own_proc" -eq 1 ]; then
+      umount "${target}/proc" || { [ "$saved_status" -ne 0 ] || saved_status=1; }
+    fi
+    if [ "$own_dev" -eq 1 ]; then
+      umount "${target}/dev" || { [ "$saved_status" -ne 0 ] || saved_status=1; }
+    fi
+    exit "$saved_status"
+  }
+  trap managed_ssh_cleanup 0
+  trap 'exit 129' 1
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  # in-target normally manages these mounts, but its debconf/logging bridge is
+  # deliberately bypassed for the private stdin pipe. Mount only missing paths
+  # and remove only mounts owned by this action; preserve installer mounts.
+  for mount_dir in proc dev; do
+    [ ! -L "${target}/${mount_dir}" ] || installer_fatal "unsafe target runtime mountpoint"
+    install -d -m 0755 "${target}/${mount_dir}"
+  done
+  if ! installer_mounts_has_mountpoint "${target}/proc" /proc/mounts; then
+    mount -t proc proc "${target}/proc" || installer_fatal "cannot mount target proc for private askpass"
+    own_proc=1
+  fi
+  if ! installer_mounts_has_mountpoint "${target}/dev" /proc/mounts; then
+    mount --bind /dev "${target}/dev" || installer_fatal "cannot bind target devices for SSH/GPG"
+    own_dev=1
+  fi
+  install -m 0600 /git_ed25519 "$stage/private"
+  install -m 0600 /git_ed25519.pub "$stage/public"
+  # These files are encrypted key material only. The passphrase goes through
+  # stdin, then a sealed Linux memfd used by SSH_ASKPASS, never a disk file.
+  printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \
+    HOME=/root USER=root LOGNAME=root PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 \
+    /usr/bin/python3 -I -B /usr/local/libexec/managed-ssh-install.py \
+    "$action" "$ACCOUNT_USERNAME" "${stage#"$target"}" "$@"
+)
+
+provision_target_git_ssh_identity() {
+  xssh_helpers_role_selected || return 0
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-ssh-install.py)" /usr/local/libexec/managed-ssh-install.py 0700
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-ssh-install-askpass)" /usr/local/libexec/managed-ssh-install-askpass 0700
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/ssh/managed_git_known_hosts)" /etc/ssh/managed_git_known_hosts 0644
+  managed_git_ssh_target_action provision || installer_fatal "managed Git SSH identity provisioning failed"
+}

@@ -32,6 +32,7 @@ MAPPING = {
     'primary_user': 'PRESEED_PRIMARY_USERNAME',
     'primary_password': 'PRESEED_PRIMARY_PASSWORD',
     'primary_gpg_passphrase': 'PRESEED_PRIMARY_GPG_PASSPHRASE',
+    'git_ssh_passphrase': 'PRESEED_GIT_SSH_PASSPHRASE',
     'root_password': 'PRESEED_ROOT_PASSWORD',
     'crowdsec_token': 'PRESEED_CROWDSEC_TOKEN',
     'crowdsec_enroll_token': 'PRESEED_CROWDSEC_TOKEN',

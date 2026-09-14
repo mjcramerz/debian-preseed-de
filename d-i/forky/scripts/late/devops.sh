@@ -975,7 +975,6 @@ devops_validate_codex_policy() {
   : "${DEVOPS_CODEX_RUNTIME_ROOT:?DEVOPS_CODEX_RUNTIME_ROOT must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_REPOSITORY_URL:?DEVOPS_CODEX_REPOSITORY_URL must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_REPOSITORY_BRANCH:?DEVOPS_CODEX_REPOSITORY_BRANCH must be set before DevOps provisioning}"
-  : "${DEVOPS_CODEX_REPOSITORY_COMMIT:?DEVOPS_CODEX_REPOSITORY_COMMIT must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_AGENTS:?DEVOPS_CODEX_AGENTS must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_HOME:?DEVOPS_CODEX_HOME must be set before DevOps provisioning}"
   : "${DEVOPS_CODEX_SKILLS:?DEVOPS_CODEX_SKILLS must be set before DevOps provisioning}"
@@ -1080,17 +1079,11 @@ devops_validate_codex_policy() {
   [ "$DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES" -eq 1024 ] ||
     devops_fatal "DEVOPS_CODEX_BWRAP_MAX_USER_NAMESPACES must remain 1024"
 
-  [ "$DEVOPS_CODEX_REPOSITORY_URL" = https://github.com/mjcramerz/codex-home ] ||
-    devops_fatal "DEVOPS_CODEX_REPOSITORY_URL must remain the approved HTTPS repository"
+  [ "$DEVOPS_CODEX_REPOSITORY_URL" = git@gitlab.com:computes/misc/codex-home.git ] ||
+    devops_fatal "DEVOPS_CODEX_REPOSITORY_URL must remain the approved GitLab SSH repository"
   [ "$DEVOPS_CODEX_REPOSITORY_BRANCH" = mcr/main ] ||
     devops_fatal "DEVOPS_CODEX_REPOSITORY_BRANCH must remain mcr/main"
-  [ "${#DEVOPS_CODEX_REPOSITORY_COMMIT}" -eq 40 ] ||
-    devops_fatal "DEVOPS_CODEX_REPOSITORY_COMMIT must contain exactly 40 lowercase hexadecimal characters (got ${#DEVOPS_CODEX_REPOSITORY_COMMIT})"
-  case "$DEVOPS_CODEX_REPOSITORY_COMMIT" in
-    *[!0123456789abcdef]*)
-      devops_fatal "DEVOPS_CODEX_REPOSITORY_COMMIT must contain exactly 40 lowercase hexadecimal characters"
-      ;;
-  esac
+
 }
 
 devops_target_passwd_ids() {
@@ -3555,9 +3548,23 @@ devops_stage_codex_app_server() {
   rm -f -- "$environment_tmp" "$service_tmp" "$proxy_tmp" "$socket_tmp"
 }
 
-devops_install_pinned_codex() {
+devops_install_pinned_codex() (
+  # A separate, short-lived SSH agent authenticates this clone, before the
+  # release publisher runs. No agent capability is passed to Codex itself.
+  clone_parent=$(mktemp -d "${target_root}/data/codex/.home-clone.XXXXXXXX") || exit 1
+  trap 'rm -rf -- "$clone_parent"' 0
+  trap 'exit 129' 1
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||
+    devops_fatal "failed to clone codex-home over the private installer SSH identity"
+  devops_install_codex_from_clone "${clone_parent#"$target_root"}/repository"
+)
+
+devops_install_codex_from_clone() {
+  devops_codex_clone_source=$1
   # Build and validate every release component in private staging first. Final
-  # paths are published only after the archive and repository pin both pass.
+  # paths are published only after the pinned archive and branch checkout both pass.
   # shellcheck disable=SC2016
   run_in_target "download and install pinned managed Codex" /bin/sh -eu -c '
 umask 022
@@ -3631,7 +3638,7 @@ codex_tree_matches() {
     # Runtime state is explicitly typed, scoped and permission checked. Never
     # run Git against account-writable configuration from a privileged shell.
     python3 "$state_helper_path" --expected "$expected_tree" --actual "$actual_tree" \
-      --uid "$account_uid" --gid "$devops_gid" --commit "$repository_commit" \
+      --uid "$account_uid" --gid "$devops_gid" --branch "$repository_branch" \
       --url "$repository_url" --codex-root "$codex_root"
     return $?
   else
@@ -3699,7 +3706,7 @@ repository_url=$1
 shift
 repository_branch=$1
 shift
-repository_commit=$1
+repository_clone_source=$1
 shift
 agents_path=$1
 shift
@@ -3765,15 +3772,10 @@ esac
   codex_fatal "Codex SQLite path is not approved: $sqlite_home"
 [ "$runtime_root" = "$codex_root/runtime" ] ||
   codex_fatal "Codex runtime path is not approved: $runtime_root"
-[ "$repository_url" = https://github.com/mjcramerz/codex-home ] ||
+[ "$repository_url" = git@gitlab.com:computes/misc/codex-home.git ] ||
   codex_fatal "Codex repository URL is not approved"
 [ "$repository_branch" = mcr/main ] ||
   codex_fatal "Codex repository branch is not approved"
-case "$repository_commit" in
-  *[!0123456789abcdef]*|"") codex_fatal "Codex repository commit is malformed" ;;
-esac
-[ "${#repository_commit}" -eq 40 ] ||
-  codex_fatal "Codex repository commit must have 40 hexadecimal characters"
 [ "$agents_path" = "$user_root/agents" ] ||
   codex_fatal "Codex agents path is not approved: $agents_path"
 [ "$home_path" = "$user_root/home" ] ||
@@ -3983,35 +3985,22 @@ codex_chmod_without_special_bits 0644 "$extracted_schema_path"
 unset first_extracted_binary hidden_extracted_binary unsafe_extracted_binary
 
 repository_staging="${staging_dir}/repository"
+case "$repository_clone_source" in
+  /data/codex/.home-clone.*/repository) ;;
+  *) codex_fatal "unapproved private Codex clone source" ;;
+esac
+[ -d "$repository_clone_source" ] && [ ! -L "$repository_clone_source" ] ||
+  codex_fatal "private Codex branch checkout is missing"
+mv -- "$repository_clone_source" "$repository_staging"
 export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-timeout --signal=TERM --kill-after=10 180 git clone \
-  --no-checkout \
-  --depth 1 \
-  --no-hardlinks \
-  --single-branch \
-  --branch "$repository_branch" \
-  --no-tags \
-  -- "$repository_url" \
-  "$repository_staging" ||
-  codex_fatal "failed to clone the pinned Codex home repository"
 actual_repository_url=$(git -C "$repository_staging" remote get-url origin)
 [ "$actual_repository_url" = "$repository_url" ] ||
   codex_fatal "cloned Codex home repository remote does not match policy"
-timeout --signal=TERM --kill-after=10 180 git -C "$repository_staging" fetch \
-  --quiet \
-  --no-tags \
-  --depth 1 \
-  origin \
-  "$repository_commit" ||
-  codex_fatal "failed to fetch the pinned Codex home repository commit"
-actual_repository_commit=$(git -C "$repository_staging" rev-parse FETCH_HEAD)
-[ "$actual_repository_commit" = "$repository_commit" ] ||
-  codex_fatal "fetched Codex home commit does not match policy"
-git -C "$repository_staging" checkout --detach "$repository_commit" >/dev/null 2>&1 ||
-  codex_fatal "failed to detach the Codex home repository at the pinned commit"
-actual_repository_commit=$(git -C "$repository_staging" rev-parse HEAD)
-[ "$actual_repository_commit" = "$repository_commit" ] ||
-  codex_fatal "checked out Codex home commit does not match policy"
+actual_repository_branch=$(git -C "$repository_staging" symbolic-ref --short HEAD)
+[ "$actual_repository_branch" = "$repository_branch" ] ||
+  codex_fatal "Codex home is not a named mcr/main branch checkout"
+[ "$(git -C "$repository_staging" rev-parse --abbrev-ref "@{upstream}")" = "origin/$repository_branch" ] ||
+  codex_fatal "Codex home does not track origin/mcr/main"
 
 for required_repository_dir in agents etc home skills; do
   [ -d "$repository_staging/$required_repository_dir" ] &&
@@ -4097,7 +4086,7 @@ chown -h "$account_user:devops" "$candidate_home_path/packages" \
 # Validate the private candidate too, so no unsafe repository symlink or Git
 # configuration is ever published. The same check defines safe resume.
 python3 "$state_helper_path" --expected "$repository_staging" --actual "$repository_staging" \
-  --uid "$account_uid" --gid "$devops_gid" --commit "$repository_commit" \
+  --uid "$account_uid" --gid "$devops_gid" --branch "$repository_branch" \
   --url "$repository_url" --codex-root "$codex_root" ||
   codex_fatal "staged Codex repository violates publication policy"
 
@@ -4122,7 +4111,6 @@ candidate_release_marker="${staging_dir}/managed-codex-release"
   printf "schema=%s\n" "$schema_path"
   printf "repository=%s\n" "$repository_url"
   printf "repository_branch=%s\n" "$repository_branch"
-  printf "repository_commit=%s\n" "$repository_commit"
   printf "binary=%s\n" "$binary_path"
   printf "wrapper=%s\n" "$wrapper_path"
 } >"$candidate_release_marker"
@@ -4250,7 +4238,7 @@ printf "installed managed Codex %s at %s with wrapper %s\n" \
     "$DEVOPS_CODEX_RUNTIME_ROOT" \
     "$DEVOPS_CODEX_REPOSITORY_URL" \
     "$DEVOPS_CODEX_REPOSITORY_BRANCH" \
-    "$DEVOPS_CODEX_REPOSITORY_COMMIT" \
+    "$devops_codex_clone_source" \
     "$DEVOPS_CODEX_AGENTS" \
     "$DEVOPS_CODEX_HOME" \
     "$DEVOPS_CODEX_SKILLS" \
@@ -4312,7 +4300,7 @@ tmp_env_dir=${INSTALLER_LATE_TMP_ENV_DIR:-/tmp/install-env-late/devops}
 bootstrap_source_common_lib "" ||
   devops_fatal "failed to source installer common library"
 seed_base=$(installer_current_seed_base 2>/dev/null || installer_seed_base "")
-bootstrap_source_common_support_libs "$seed_base" "$tmp_env_dir" target ||
+bootstrap_source_common_support_libs "$seed_base" "$tmp_env_dir" target fetch ssh ||
   devops_fatal "failed to source installer target support library"
 installer_ensure_context_loaded "$seed_base"
 

@@ -4064,6 +4064,23 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/mise/conf.d/10-managed-tools.toml /etc/skel-desktop/.config/mise/conf.d/10-managed-tools.toml 0644
   desktop_stage_role_asset etc/skel-desktop/.zshenv /etc/skel-desktop/.zshenv 0644
   desktop_stage_role_asset etc/skel-desktop/.zprofile /etc/skel-desktop/.zprofile 0644
+  desktop_stage_role_asset usr/local/bin/debugsys /usr/local/bin/debugsys 0755
+  desktop_stage_role_asset usr/local/libexec/debugsys.py /usr/local/libexec/debugsys.py 0755
+  desktop_stage_role_asset usr/local/libexec/debugsys-initramfs /usr/local/libexec/debugsys-initramfs 0755
+  desktop_stage_role_asset usr/local/share/debugsys/initramfs/hook /usr/local/share/debugsys/initramfs/hook 0755
+  desktop_stage_role_asset etc/systemd/system/debugsys-boot-report.service /etc/systemd/system/debugsys-boot-report.service 0644
+  desktop_stage_role_asset usr/local/bin/gitops /usr/local/bin/gitops 0755
+  desktop_stage_role_asset usr/local/share/doc/managed-git/README.md /usr/local/share/doc/managed-git/README.md 0644
+  desktop_stage_role_asset etc/gitops/aliases.gitconfig /etc/gitops/aliases.gitconfig 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/gitops/gitops.env /etc/skel-desktop/.config/gitops/gitops.env 0600
+  desktop_stage_role_asset etc/skel-desktop/.config/git/config /etc/skel-desktop/.config/git/config 0644
+  desktop_stage_role_asset usr/local/libexec/managed-ssh-checks /usr/local/libexec/managed-ssh-checks 0644
+  desktop_stage_role_asset usr/local/libexec/labwc-ssh-key-load /usr/local/libexec/labwc-ssh-key-load 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-ssh-gpg-askpass /usr/local/libexec/labwc-ssh-gpg-askpass 0755
+  desktop_stage_role_asset usr/local/bin/git-ssh /usr/local/bin/git-ssh 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service /etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service 0644
+  desktop_stage_role_asset etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf 0644
+  desktop_stage_role_asset etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.zshrc /etc/skel-desktop/.zshrc 0644
   desktop_stage_role_asset etc/skel-desktop/.zlogout /etc/skel-desktop/.zlogout 0644
   desktop_stage_role_asset etc/skel-desktop/.zsh_aliases /etc/skel-desktop/.zsh_aliases 0644
@@ -4308,6 +4325,7 @@ printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s sh
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME"
   desktop_install_primary_account_calendar_stack
   desktop_bootstrap_primary_account_gpg_key
+  managed_git_ssh_target_action seal || installer_fatal "failed to GPG-seal the Git SSH passphrase"
   run_in_target "publish private browser imports in primary account Downloads" \
     /usr/local/libexec/install-browser-imports --user "$ACCOUNT_USERNAME"
   desktop_log "installed primary account desktop config user=${ACCOUNT_USERNAME}"
@@ -4422,6 +4440,15 @@ desktop_enable_target_services() {
     desktop_mask_unit_if_available nvidia-powerd.service system
   fi
 
+  run_in_target "verify packaged SSH agent contract and desktop-only activation" /bin/sh -eu -c '
+    test -r /usr/lib/systemd/user/ssh-agent.socket
+    test -r /usr/lib/systemd/user/ssh-agent.service
+    grep -Eq "^ListenStream=%t/openssh_agent$" /usr/lib/systemd/user/ssh-agent.socket
+    grep -Eq "^SocketMode=0?600$" /usr/lib/systemd/user/ssh-agent.socket
+    grep -Eq "^ExecStart=.*ssh-agent .*-[dD]" /usr/lib/systemd/user/ssh-agent.service
+    systemctl --global disable ssh-agent.socket
+  '
+
   for unit in \
     labwc-output-watch.service \
     swaybg.service \
@@ -4430,6 +4457,8 @@ desktop_enable_target_services() {
     crystal-dock.service \
     labwc-mute-default-microphone.service \
     labwc-kwallet-portal.service \
+    ssh-agent.socket \
+    labwc-ssh-key-load.service \
     labwc-plans.service \
     foot-server.socket \
     mako.service \

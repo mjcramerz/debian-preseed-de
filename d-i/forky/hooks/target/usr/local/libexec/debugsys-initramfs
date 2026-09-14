@@ -1,0 +1,40 @@
+#!/bin/sh
+# Managed by debugsys; do not edit.
+# Best-effort and bounded. Never stop the boot, enable xtrace, or read secrets.
+umask 077
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C
+phase=${1:-}
+case "$phase" in init-top|init-premount|local-top|local-premount|local-bottom|init-bottom) ;; *) exit 0 ;; esac
+base=/run/initramfs/debugsys
+[ -d /run ] && [ ! -L /run ] || exit 0
+[ ! -L /run/initramfs ] && [ ! -L "$base" ] || exit 0
+mkdir -p "$base" 2>/dev/null || exit 0
+chmod 0700 "$base" 2>/dev/null || exit 0
+[ "$(stat -c '%u:%a' "$base" 2>/dev/null)" = 0:700 ] || exit 0
+out="$base/$phase.log"
+[ ! -e "$out" ] && [ ! -L "$out" ] || exit 0
+# Redact common credential assignments before anything is persisted. No shell
+# trace is enabled: /preseed.env, encryption keys and process environ are excluded.
+(
+    printf 'phase=%s\n' "$phase"
+    date -u 2>/dev/null
+    uname -a 2>/dev/null
+    for source in /proc/uptime /proc/cmdline /proc/mounts /proc/modules /proc/meminfo /proc/partitions /proc/pressure/cpu /proc/pressure/memory /proc/pressure/io; do
+        [ -r "$source" ] || continue
+        printf '\n--- %s ---\n' "$source"
+        head -c 65536 "$source" 2>/dev/null
+    done
+    printf '\n--- kernel ring buffer (bounded tail unavailable on minimal initrd) ---\n'
+    timeout 5 dmesg 2>/dev/null
+    printf '\n--- interfaces and routes ---\n'
+    timeout 5 ip -brief address 2>/dev/null
+    timeout 5 ip route show table all 2>/dev/null
+    count=0
+    for source in /sys/class/block/*/dev /sys/class/block/*/size /sys/class/block/*/queue/rotational /sys/class/drm/card*/device/uevent; do
+        [ -r "$source" ] || continue
+        count=$((count+1)); [ "$count" -le 64 ] || break
+        printf '\n--- %s ---\n' "$source"
+        head -c 4096 "$source" 2>/dev/null
+    done
+) 2>/dev/null | sed -E 's/^.*([[:alnum:]_.-]*([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Pp][Hh][Rr][Aa][Ss][Ee]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Aa][Pp][Ii]_[Kk][Ee][Yy])[[:alnum:]_.-]*=).*$/[REDACTED: credential-bearing line]/' | head -c 1048576 >"$out" 2>/dev/null
+exit 0

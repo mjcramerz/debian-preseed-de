@@ -393,9 +393,9 @@ class CodexStateTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.expected = self.root / 'expected'; self.expected.mkdir(mode=0o750)
         self.uid, self.gid = os.getuid(), os.getgid()
-        self.commit, self.url = 'a' * 40, 'https://example.invalid/pinned'
-        for path, content, mode in [('.git/HEAD', self.commit+'\n', 0o640),
-                ('.git/config', '[core]\n bare = false\n[remote "origin"]\n url = '+self.url+'\n', 0o640),
+        self.branch, self.url = 'mcr/main', 'git@gitlab.com:computes/misc/codex-home.git'
+        for path, content, mode in [('.git/HEAD', 'ref: refs/heads/mcr/main\n', 0o640),
+                ('.git/config', '[core]\n bare = false\n[remote "origin"]\n url = '+self.url+'\n[branch "mcr/main"]\n remote = origin\n merge = refs/heads/mcr/main\n', 0o640),
                 ('home/config.toml', 'policy = "pinned"\n', 0o640),
                 ('home/history.jsonl', '', 0o660), ('home/memories/.git', '', 0o660)]:
             p = self.expected / path; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(content); p.chmod(mode)
@@ -407,9 +407,9 @@ class CodexStateTests(unittest.TestCase):
         self.actual = self.root / 'actual'; shutil.copytree(self.expected, self.actual, symlinks=True)
 
     def compare(self):
-        self.mod.compare_trees(self.expected, self.actual, self.uid, self.gid, self.commit, self.url)
+        self.mod.compare_trees(self.expected, self.actual, self.uid, self.gid, self.branch, self.url)
 
-    def test_correct_pinned_state_succeeds_repeatedly(self):
+    def test_correct_tracking_branch_succeeds_repeatedly(self):
         self.compare(); self.compare()
 
     def test_legitimate_account_runtime_changes_converge(self):
@@ -450,7 +450,7 @@ class CodexStateTests(unittest.TestCase):
         p.write_text(p.read_text()+'[include]\n path = /etc/shadow\n')
         with self.assertRaises(self.mod.StateError): self.compare()
 
-    def test_wrong_pin_remains_fatal(self):
+    def test_detached_head_remains_fatal(self):
         (self.actual / '.git/HEAD').write_text('b'*40+'\n')
         with self.assertRaises(self.mod.StateError): self.compare()
 

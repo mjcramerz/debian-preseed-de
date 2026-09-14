@@ -7,6 +7,12 @@ StartLimitIntervalSec=30s
 StartLimitBurst=5
 
 [Service]
+# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
+# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+PrivatePIDs=yes
+PrivateUsers=no
+KillMode=control-group
+TimeoutStopSec=20s
 Type=oneshot
 ExecStart=/usr/local/libexec/managed-nvidia-char-links
 TimeoutStartSec=10s

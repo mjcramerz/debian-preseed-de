@@ -14,6 +14,14 @@ StartLimitIntervalSec=30min
 StartLimitBurst=2
 
 [Service]
+# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
+# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+PrivatePIDs=yes
+PrivateUsers=no
+# Aggregate memory/PSI files are required even inside the PID namespace.
+ProcSubset=all
+KillMode=control-group
+TimeoutStopSec=20s
 Type=oneshot
 EnvironmentFile=__INSTALLER_FILE_ZRAM_DEFAULT__
 RuntimeDirectory=zram

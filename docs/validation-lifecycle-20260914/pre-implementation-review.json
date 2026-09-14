@@ -1,0 +1,839 @@
+{
+  "reviewed_at_utc": "2026-09-14T16:25:25.021898+00:00",
+  "baseline": "debian-preseed-de-updated.tar.gz",
+  "implementation_started": false,
+  "inventory": [
+    {
+      "path": "data/config/podman/templates/devops/podman-devops-restart.service.tmpl",
+      "decision": "exclude",
+      "reason": "Container lifecycle, host reconciliation or subordinate-ID/cgroup operations; do not wrap in an extra PID/user namespace.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start",
+        "ExecStart=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock start --all --filter should-start-on-boot=true",
+        "ExecStop=/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock stop --all --ignore --time 20"
+      ]
+    },
+    {
+      "path": "data/config/podman/templates/devops/podman-devops.service.tmpl",
+      "decision": "exclude",
+      "reason": "Container lifecycle, host reconciliation or subordinate-ID/cgroup operations; do not wrap in an extra PID/user namespace.",
+      "execution": [
+        "Type=exec",
+        "ExecStartPre=+/usr/local/libexec/podman-devops-host verify-start",
+        "ExecStartPre=/usr/bin/install -d -m 0700 /run/podman-devops/containers /run/podman-devops/libpod/tmp /run/podman-devops/config /run/podman-devops/config/containers",
+        "ExecStartPre=/usr/bin/install -m 0600 /etc/podman-devops/server/containers/registries.conf /run/podman-devops/config/containers/registries.conf",
+        "ExecStart=/usr/bin/podman --remote=false --log-level=info system service --time=0"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/codex-app-server-proxy.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=notify",
+        "ExecStart=/usr/lib/systemd/systemd-socket-proxyd --exit-idle-time=10min /data/codex/sockets/app-server-backend.sock"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/codex-app-server.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecStartPre=/usr/bin/rm -f -- /data/codex/sockets/app-server-backend.sock",
+        "ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/crystal-dock.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecCondition=/usr/local/libexec/labwc-output-watch --wait-for-current-output",
+        "ExecStart=/usr/local/libexec/labwc-panel-run crystal-dock"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/kanshi.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-kanshi"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-adb-server.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecStart=/usr/local/bin/labwc-adb-action --service run"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/labwc-calendar sync --quiet"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-compositor.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecStartPre=/usr/local/libexec/labwc-session-check compositor-config",
+        "ExecStart=/usr/bin/labwc --config %h/.config/labwc/rc.xml --startup /usr/local/bin/labwc-autostart"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-health-notify.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/bin/labwc-health-notify --coalesce-seconds 10"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=dbus",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/bin/ksecretd"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-mute-default-microphone"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-output-watch.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-output-watch"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-plans.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecStart=/usr/local/libexec/labwc-plans.pl"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-session-restore.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/labwc-session-state restore"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-session-state@.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/labwc-session-state %i"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-ssh-key-load"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/bin/labwc-sync-application-launchers %u %h --coalesce-seconds 2"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/llama-server.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecStart=/usr/local/libexec/labwc-ai-llama-server"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=oneshot",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/managed-external-software-notify"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/swaybg.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-swaybg"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/swayidle.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-swayidle"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/waybar.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/labwc-panel-run waybar"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/whisper-record.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/whisper-record-timed"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/whisper-server.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecCondition=/usr/local/libexec/whisper-record-toggle server-enabled",
+        "ExecStart=/usr/local/libexec/whisper-record-toggle server"
+      ]
+    },
+    {
+      "path": "etc/skel-desktop/.config/systemd/user/whisper-transcribe.service",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "Type=exec",
+        "ExecCondition=/usr/local/libexec/labwc-session-check session-ready",
+        "ExecStart=/usr/local/libexec/whisper-record-toggle transcribe"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/NetworkManager-dispatcher.service.d/20-managed-persistent.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStart=",
+        "ExecStart=/usr/libexec/nm-dispatcher --persist"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/NetworkManager.service.d/20-managed-dispatcher.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/apparmor-managed-modes.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/apparmor-managed-modes-run"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/apparmor.service.d/20-managed-cache.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /var/cache/apparmor"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=-/usr/local/libexec/unattended-upgrades-notify started"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/apt-refresh-lists.service.tmpl",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/bin/flock -w 5 /run/apt-refresh-lists.lock /usr/local/libexec/apt-refresh-lists"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/audit-rules.service.d/override.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "ExecStart=",
+        "ExecStart=/usr/local/libexec/augenrules-quiet --load"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/bluetooth-controller-init.service",
+      "decision": "enable",
+      "reason": "Bounded foreground btmgmt helper; no external PID lookup. Retain host network capabilities with PrivateUsers=no.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/bluetooth-controller-init"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/bluetooth.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/bootprofile-apply.service.tmpl",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=__INSTALLER_FILE_BOOTPROFILE_APPLY__"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/crowdsec-firewall-bouncer.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/crowdsec-firstboot.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/crowdsec-firstboot"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/debugsys-boot-report.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/debugsys.py boot-finalize"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/fail2ban.service.d/managed.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/bin/fail2ban-client -t"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/firstboot.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=exec",
+        "ExecStart=/usr/local/libexec/firstboot.sh"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/fstrim.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/fwupd.service.d/20-managed-upower-ordering.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/greetd.service.d/20-labwc-vt.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/grub-btrfs-refresh.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/grub-btrfs-refresh --wait"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/incus-host-managed.service",
+      "decision": "exclude",
+      "reason": "Container lifecycle, host reconciliation or subordinate-ID/cgroup operations; do not wrap in an extra PID/user namespace.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/incus-host-managed"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf",
+      "decision": "exclude",
+      "reason": "Container lifecycle, host reconciliation or subordinate-ID/cgroup operations; do not wrap in an extra PID/user namespace.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/labwc-admin-action@.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=notify",
+        "ExecStart=/usr/local/libexec/labwc-admin-action-worker %i"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/local-apt-inbox.service",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/local-apt-repository process-inbox"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/local-apt-refresh.service",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/bin/local-apt-init --refresh"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/managed-clamav-signature-update.service",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/managed-clamav-signature-update"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/managed-network.service",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/managed-network-run validate --wait-seconds 15"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/managed-nvidia-char-links.service",
+      "decision": "enable",
+      "reason": "Direct root-owned device-link reconciliation; no subprocess, daemon, PID lookup or mount propagation.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/managed-nvidia-char-links"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/managed-syncthing.service.tmpl",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=exec",
+        "ExecStartPre=/usr/local/libexec/managed-syncthing-configure --prepare",
+        "ExecStart=/usr/bin/syncthing serve --no-browser --home=__INSTALLER_DIR_HOME_SYNCTHING_STATE__"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/mullvad-apparmor.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/sbin/apparmor_parser --replace --skip-read-cache --write-cache /etc/apparmor.d/mullvad"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/mullvad-daemon.service.d/20-managed-dns.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/local/libexec/mullvad-tailscale-coordinator mullvad-start"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/networking.service.d/20-resolved-shutdown-order.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/nftables.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=",
+        "ExecStartPre=/usr/sbin/nft -c -f /etc/nftables.conf"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/nvidia-hibernate.service.d/20-managed-vram.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/local/libexec/nvidia-vram-check"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/nvidia-powerd.service.d/10-device-guard.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/nvidia-resume.service.d/20-managed-vram.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/nvidia-suspend-then-hibernate.service.d/20-managed-vram.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/local/libexec/nvidia-vram-check"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/nvidia-suspend.service.d/20-managed-vram.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/local/libexec/nvidia-vram-check"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/podman-devops-bootstrap.service",
+      "decision": "exclude",
+      "reason": "Container lifecycle, host reconciliation or subordinate-ID/cgroup operations; do not wrap in an extra PID/user namespace.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/podman-devops-host start"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/rsyslog.service.d/30-managed-security-scanner-socket.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/bin/install -d -o root -g securitylogger -m 0750 /run/rsyslog/managed-security-scanners"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/rsyslog.service.d/35-managed-openai-chatgpt-socket.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStartPre=/usr/bin/install -d -o root -g openailogger -m 0750 /run/rsyslog/managed-openai"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/secondboot.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/secondboot-cleanup"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/swap-fallback.service.tmpl",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=__INSTALLER_FILE_SWAP_FALLBACK_HELPER__ start",
+        "ExecStop=__INSTALLER_FILE_SWAP_FALLBACK_HELPER__ stop"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/systemd-hibernate.service.d/20-nvidia-preserve.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/systemd-hybrid-sleep.service.d/20-nvidia-preserve.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/systemd-suspend-then-hibernate.service.d/20-nvidia-preserve.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/systemd-suspend.service.d/20-nvidia-preserve.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/tailscale-managed-bootstrap.service",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/tailscale-managed-up --if-auth-key-present"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/tailscaled.service.d/30-mullvad-exclusion.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecCondition=/usr/local/libexec/mullvad-tailscale-coordinator tailscale-start"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/timeshift-daily.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/timeshift-managed-snapshot daily"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/timeshift-monthly.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/timeshift-managed-snapshot monthly"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/timeshift-weekly.service",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=/usr/local/libexec/timeshift-managed-snapshot weekly"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/tmpfs-pre-clean.service.tmpl",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=__INSTALLER_FILE_TMPFS_PRE_CLEAN__"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/unattended-upgrades.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/user@.service.d/20-labwc-seatd.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/user@.service.d/50-oom-score.conf",
+      "decision": "exclude",
+      "reason": "Host diagnostics, mount/process inspection, policy control or privileged lifecycle; requires host view/capabilities.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/system/wpa_supplicant.service.d/override.conf",
+      "decision": "retain",
+      "reason": "Vendor service drop-in: full runtime/daemon/PID contract is package-owned; no speculative PID/user namespace override.",
+      "execution": [
+        "ExecStart=",
+        "ExecStart=/usr/sbin/wpa_supplicant -u -s -c /etc/wpa_supplicant/wpa_supplicant.conf -O \"DIR=/run/wpa_supplicant GROUP=netdev\""
+      ]
+    },
+    {
+      "path": "etc/systemd/system/zram-setup.service.tmpl",
+      "decision": "retain",
+      "reason": "Boot/network/storage/package daemon or maintenance workflow; retain existing namespace contract. Not selected without verifying all vendor/hooks/host-state dependencies.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=__INSTALLER_FILE_ZRAM_SETUP_HELPER__ start",
+        "ExecStop=__INSTALLER_FILE_ZRAM_SETUP_HELPER__ stop"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/zram-writeback.service.tmpl",
+      "decision": "enable",
+      "reason": "Foreground maintenance; flock serializes shared state. Reads aggregate meminfo/PSI, not host process IDs. Keep ProcSubset=all and host capabilities.",
+      "execution": [
+        "Type=oneshot",
+        "ExecStart=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__ --config ${ZRAM_POLICY_CONFIG} run"
+      ]
+    },
+    {
+      "path": "etc/systemd/system/zram-writebackd.service.tmpl",
+      "decision": "enable",
+      "reason": "Foreground PSI loop with TERM/INT handlers and flock; no PID-file protocol. Keep aggregate /proc and host sysfs access.",
+      "execution": [
+        "Type=exec",
+        "ExecStartPre=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__ --config ${ZRAM_POLICY_CONFIG} validate-runtime",
+        "ExecStart=__INSTALLER_FILE_ZRAM_WRITEBACK_HELPER__ --config ${ZRAM_POLICY_CONFIG} daemon"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/filter-chain.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/foot-server.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecStartPre=/usr/local/libexec/labwc-output-watch --wait-for-output"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/gvfs-daemon.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/gvfs-udisks2-volume-monitor.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/hyprpolkitagent.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecCondition=/bin/sh -eu -c '[ -n \"${WAYLAND_DISPLAY:-}\" ] && [ -n \"${XDG_RUNTIME_DIR:-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}\" ] && /usr/bin/systemctl --user --quiet is-active labwc-session.target'"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/mako.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/wayscriber.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": []
+    },
+    {
+      "path": "etc/systemd/user/xdg-desktop-portal-gtk.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecCondition=/bin/sh -eu -c '[ -n \"${WAYLAND_DISPLAY:-}\" ] && [ -n \"${XDG_RUNTIME_DIR:-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}\" ] && /usr/bin/systemctl --user --quiet is-active labwc-session.target'"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/xdg-desktop-portal-lxqt.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecCondition=/bin/sh -eu -c '[ -n \"${WAYLAND_DISPLAY:-}\" ] && [ -n \"${XDG_RUNTIME_DIR:-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}\" ] && /usr/bin/systemctl --user --quiet is-active labwc-session.target'"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/xdg-desktop-portal-wlr.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecCondition=/bin/sh -eu -c '[ -n \"${WAYLAND_DISPLAY:-}\" ] && [ -n \"${XDG_RUNTIME_DIR:-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}\" ] && /usr/bin/systemctl --user --quiet is-active labwc-session.target'"
+      ]
+    },
+    {
+      "path": "etc/systemd/user/xdg-desktop-portal.service.d/10-labwc-session.conf",
+      "decision": "retain",
+      "reason": "User-manager IPC, credential/desktop ownership checks, cross-service PIDs, privilege handoff or nested application sandbox. No additional PID/user namespace without a live user-manager compatibility test.",
+      "execution": [
+        "ExecCondition=/bin/sh -eu -c '[ -n \"${WAYLAND_DISPLAY:-}\" ] && [ -n \"${XDG_RUNTIME_DIR:-}\" ] && [ -S \"${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}\" ] && /usr/bin/systemctl --user --quiet is-active labwc-session.target'"
+      ]
+    }
+  ],
+  "selected": {
+    "etc/systemd/system/bluetooth-controller-init.service": "Bounded foreground btmgmt helper; no external PID lookup. Retain host network capabilities with PrivateUsers=no.",
+    "etc/systemd/system/managed-nvidia-char-links.service": "Direct root-owned device-link reconciliation; no subprocess, daemon, PID lookup or mount propagation.",
+    "etc/systemd/system/zram-writeback.service.tmpl": "Foreground maintenance; flock serializes shared state. Reads aggregate meminfo/PSI, not host process IDs. Keep ProcSubset=all and host capabilities.",
+    "etc/systemd/system/zram-writebackd.service.tmpl": "Foreground PSI loop with TERM/INT handlers and flock; no PID-file protocol. Keep aggregate /proc and host sysfs access."
+  }
+}

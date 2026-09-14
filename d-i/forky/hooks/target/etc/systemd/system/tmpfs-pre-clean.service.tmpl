@@ -8,6 +8,9 @@ __INSTALLER_TMPFS_PRE_CLEAN_REQUIRES_MOUNTS_FOR__
 __INSTALLER_TMPFS_PRE_CLEAN_CONDITION_LINES__
 
 [Service]
+# /proc/1/mountinfo must refer to host PID 1, never this helper.
+PrivatePIDs=no
+PrivateUsers=no
 Type=oneshot
 TimeoutStartSec=2min
 TimeoutStopSec=15s

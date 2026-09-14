@@ -1,0 +1,40 @@
+#!/bin/sh
+managed_ssh_context() {
+  LC_ALL=C
+  export LC_ALL
+  uid=$(/usr/bin/id -u)
+  case "$uid" in ''|0|*[!0-9]*) return 1 ;; esac
+  account_home=$(/usr/bin/getent passwd "$uid" | /usr/bin/cut -d: -f6)
+  [ "${HOME:-}" = "$account_home" ] || return 1
+  case "$HOME" in /home/*) ;; *) return 1 ;; esac
+  for directory in "$HOME" "$HOME/.local" "$HOME/.local/share" "$HOME/.local/share/managed-ssh" "$HOME/.local/share/managed-ssh/private" "$HOME/.ssh" "$HOME/.gnupg"; do
+    [ -d "$directory" ] && [ ! -L "$directory" ] || return 1
+    [ "$(/usr/bin/stat -c '%u' -- "$directory")" = "$uid" ] || return 1
+    mode=$(/usr/bin/stat -c '%a' -- "$directory")
+    case "$mode" in 700|750|755) ;; *) return 1 ;; esac
+    case "$directory" in
+      "$HOME/.local/share/managed-ssh"|"$HOME/.local/share/managed-ssh/private"|"$HOME/.ssh"|"$HOME/.gnupg")
+        [ "$mode" = 700 ] || return 1 ;;
+    esac
+  done
+  GNUPGHOME="$HOME/.gnupg"
+  export GNUPGHOME
+  private="$HOME/.local/share/managed-ssh/private/id_git_ed25519"
+  public="$HOME/.ssh/id_git_ed25519.pub"
+  blob="$HOME/.local/share/managed-ssh/git-key-passphrase.gpg"
+  for file in "$private" "$blob" "$public"; do
+    [ -f "$file" ] && [ ! -L "$file" ] || return 1
+    meta=$(/usr/bin/stat -c '%u:%h:%a' -- "$file")
+    case "$meta" in "$uid:1:600") ;; "$uid:1:644") [ "$file" = "$public" ] || return 1 ;; *) return 1 ;; esac
+  done
+}
+managed_ssh_socket() {
+  [ "${XDG_RUNTIME_DIR:-}" = "/run/user/$uid" ] || return 1
+  [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] || return 1
+  [ "$(/usr/bin/stat -c '%u:%a' -- "$XDG_RUNTIME_DIR")" = "$uid:700" ] || return 1
+  SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/openssh_agent"
+  export SSH_AUTH_SOCK
+  unset SSH_AGENT_PID
+  [ -S "$SSH_AUTH_SOCK" ] && [ ! -L "$SSH_AUTH_SOCK" ] || return 1
+  [ "$(/usr/bin/stat -c '%u:%a' -- "$SSH_AUTH_SOCK")" = "$uid:600" ]
+}

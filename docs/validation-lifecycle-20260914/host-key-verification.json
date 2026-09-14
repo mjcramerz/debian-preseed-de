@@ -1,0 +1,8 @@
+{
+  "fingerprints": {
+    "gitlab.com": "SHA256:eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8",
+    "github.com": "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU"
+  },
+  "matches_official_documentation": true,
+  "authentication_attempted": false
+}

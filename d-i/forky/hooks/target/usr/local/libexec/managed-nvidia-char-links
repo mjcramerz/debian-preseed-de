@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import sys
 import uuid
@@ -109,6 +110,10 @@ def main(args: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    # Also handle TERM as PID 1 in the service's private PID namespace. Raising
+    # SystemExit preserves reconcile()'s descriptor/temporary-link finally blocks.
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda number, frame: sys.exit(128 + number))
     try:
         raise SystemExit(main(sys.argv[1:]))
     except (OSError, ValueError) as exc:

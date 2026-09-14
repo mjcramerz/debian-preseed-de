@@ -1,0 +1,30 @@
+# Managed aliases use the root-owned executable, not shell functions.
+[alias]
+	mcr-branch-init = !/usr/local/bin/gitops mcr-branch-init
+	mcr-branch-create = !/usr/local/bin/gitops mcr-branch-create
+	mcr-branch-push = !/usr/local/bin/gitops mcr-branch-push
+	mcr-branch-delete = !/usr/local/bin/gitops mcr-branch-delete
+	mcr-branch-show = !/usr/local/bin/gitops mcr-branch-show
+	mcr-repo-clone = !/usr/local/bin/gitops mcr-repo-clone
+	mcr-repo-sync = !/usr/local/bin/gitops mcr-repo-sync
+	mcr-repo-status = !/usr/local/bin/gitops mcr-repo-status
+	mcr-tag-create = !/usr/local/bin/gitops mcr-tag-create
+	mcr-tag-push = !/usr/local/bin/gitops mcr-tag-push
+	mcr-tag-delete = !/usr/local/bin/gitops mcr-tag-delete
+	mcr-tag-show = !/usr/local/bin/gitops mcr-tag-show
+	mcr-fork-init = !/usr/local/bin/gitops mcr-fork-init
+	mcr-fork-sync = !/usr/local/bin/gitops mcr-fork-sync
+	mcr-fork-cicd = !/usr/local/bin/gitops mcr-fork-cicd
+	mcr-fork-check = !/usr/local/bin/gitops mcr-fork-check
+	mcr-fork-update = !/usr/local/bin/gitops mcr-fork-update
+	mcr-fork-verify-protected-sync = !/usr/local/bin/gitops mcr-fork-verify-protected-sync
+	mcr-fork-test = !/usr/local/bin/gitops mcr-fork-test
+	mcr-fork-push = !/usr/local/bin/gitops mcr-fork-push
+	mcr-salsa-init = !/usr/local/bin/gitops mcr-salsa-init
+	mcr-salsa-sync = !/usr/local/bin/gitops mcr-salsa-sync
+	mcr-salsa-cicd = !/usr/local/bin/gitops mcr-salsa-cicd
+	mcr-salsa-check = !/usr/local/bin/gitops mcr-salsa-check
+	mcr-salsa-update = !/usr/local/bin/gitops mcr-salsa-update
+	mcr-salsa-verify-protected-sync = !/usr/local/bin/gitops mcr-salsa-verify-protected-sync
+	mcr-salsa-test = !/usr/local/bin/gitops mcr-salsa-test
+	mcr-salsa-push = !/usr/local/bin/gitops mcr-salsa-push

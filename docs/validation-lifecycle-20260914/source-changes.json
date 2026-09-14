@@ -1,0 +1,341 @@
+{
+  "basis": "debian-preseed-de-updated.tar.gz",
+  "baseline_regular_files": 1685,
+  "changed_existing_files": 28,
+  "new_source_test_documentation_files": 3,
+  "missing_original_files": [],
+  "new_validation_records_excluded_from_source_inventory": true,
+  "changes": [
+    {
+      "path": "README.md",
+      "before": {
+        "sha256": "d105f9339eaece30f1d5f878c964b725df207b4b521965062c03ef854bba1729",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "9a7b6980e42b1be23e05be5dc6c5149e5d01f29587b3f372a7b5c60517bb0243",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "before": {
+        "sha256": "ddf0300b8f8b4f8219bf9a91ad402d8a4def1cd183cf2fc22a148b74aa2684a3",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "4df2118556e65a81bb1f8e4af660cce44251b01ccdcf9e9e6187395b4af25e94",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/gitops/gitops.env",
+      "before": {
+        "sha256": "f56f26fb3db7d5c3172cace49b8dde09cd4c0e97f4883da575ef3ebc1dfefd3f",
+        "mode": "0o600"
+      },
+      "after": {
+        "sha256": "76886743a4e11696b6fb13c6c0b788533a2362986b736ed26b87f701f3cf0ba3",
+        "mode": "0o600"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service",
+      "before": {
+        "sha256": "028873b388a6a3101409d8aebbd71712e24c25d2bde9b0c4d69272ed31484ec6",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "c2329b294cfc3efab274749949c826f9f9472ebfafa2fd46b629452efc54bad0",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/ssh/managed_git_known_hosts",
+      "before": {
+        "sha256": "1248ddaeb1c6831efa757e138568616985660d8940f674d7f8b7565edaf2e890",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "4124fd2c6f6c80eb101a68db956883d1f893a9f18afd6de4a97e72bbd49150ad",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/bluetooth-controller-init.service",
+      "before": {
+        "sha256": "8492ce0a5cd32c6765a9436a3145c56040c31b769e4b5a0d9bd887f9e03efb44",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "af2a413b97844d6652b6e87708a776d15ba6285c43f2107ccc87dd433f5667ec",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/debugsys-boot-report.service",
+      "before": {
+        "sha256": "b4a85a5cb8513255743f2adc675ac6be5434405c17c1c8ddc74911905392fbd4",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "4c8be7c24b5f7b47c3a9319031247c3fc8ace5c5fb32ae942db97cea47cb0ff6",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/labwc-admin-action@.service",
+      "before": {
+        "sha256": "d7eb746749986fae3c240bd19b4d791528246608433d438099a0e5bc4bef32eb",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "df7acbd23aa14d2a6edc7e4dea51a9d615fc129ecc83e3983f8653204e4ab851",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/managed-nvidia-char-links.service",
+      "before": {
+        "sha256": "9d61d7b29f1ac9db1be2c8bea8bd5873bf34b3a9989a6431133aecfebbeaa2a0",
+        "mode": "0o660"
+      },
+      "after": {
+        "sha256": "9d249d9c7af393d285e4b7a8a5c6646d3f6dc5e4563480caa77765b1f5bd9f00",
+        "mode": "0o660"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/tmpfs-pre-clean.service.tmpl",
+      "before": {
+        "sha256": "fe7f1d9007c7c2ed7bda4c27054ff53cdb7f962e38e685794fe8744ba3bcdeb9",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "092f940a8cea33966ac769e08c944c56f913a71c2b63f03c36ca8fc0b1ad3a74",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/zram-writeback.service.tmpl",
+      "before": {
+        "sha256": "ae21f8f90d4a51d6a82473ce3d96b87e46b5045fa9cbc2e8a40138d1457d1f9d",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "d83d3324e667d822cdb1e169c2d63544c34af252e91b3944ce62ae7dbff763bc",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/zram-writebackd.service.tmpl",
+      "before": {
+        "sha256": "9843f13c3df11c30d9f07d418e3e2b8a257ccc585bfdc3df5bb88c8684704d33",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "0cb14c5a2e2a0ac4b50066714c482462bb28a4647e3cb1ee99c671b1897bb663",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf",
+      "before": {
+        "sha256": "1a2a6d5212451503d71d797c0e833344edfd5cb363e1e0389751dbbcf2be2353",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "f5399bfa0cb9d94badb4fdf23a1e284fe1687c73b8bdcbe82eb6b055e727533d",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf",
+      "before": {
+        "sha256": "1a2a6d5212451503d71d797c0e833344edfd5cb363e1e0389751dbbcf2be2353",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "6e0001d91655e05048bae66f331fb6ba3a9096c25cdda824fd3e05986d79346e",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/git-ssh",
+      "before": {
+        "sha256": "798df9f230ac6e15adafac52703e32c17bd98c05379d5c33599e62a0ceec72f8",
+        "mode": "0o755"
+      },
+      "after": {
+        "sha256": "02b4bec5beb6464114f978badbc65fba44c6ba3d9073a546e5e1379623f24197",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/gitops",
+      "before": {
+        "sha256": "8048dc12ff7b2730b8cab556d4fdf9158c0224d85649397b84d7638f6708af8a",
+        "mode": "0o755"
+      },
+      "after": {
+        "sha256": "579be533db71018fbeb6a8efa9bfd2a6195938fdc666d7cce7876f46d44d1554",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/bluetooth-controller-init",
+      "before": {
+        "sha256": "626200c0053bf6149c0679aef583130aaf61ce05a5f8a2f6cb8df183ecce9137",
+        "mode": "0o640"
+      },
+      "after": {
+        "sha256": "2150b0896dd94f4eb02deafe84703ead7402f1ab18ca9af66f4b08f55ec5b693",
+        "mode": "0o640"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/debugsys.py",
+      "before": {
+        "sha256": "0d9a7384b888d2fe3e6f1936289b59e31bb8cc85b9dab35e283c2e551e5d76be",
+        "mode": "0o755"
+      },
+      "after": {
+        "sha256": "551bc686d5dd6393f24391309848d5247f8580cdf176603f8c5098f67cda2f86",
+        "mode": "0o755"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker",
+      "before": {
+        "sha256": "25588c2785a21926ee8f6525a01d18c7c9bfdb6b403fc75684017bd67db964d2",
+        "mode": "0o770"
+      },
+      "after": {
+        "sha256": "0cb232053b9a0bf9f5bfeeaed5c70b15efb94331aba813e7c5bab87d13407520",
+        "mode": "0o770"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/managed-nvidia-char-links",
+      "before": {
+        "sha256": "b79d24438d538f2ed0aaf93171be78a0274ec8b35118426284b3a4e584767de8",
+        "mode": "0o770"
+      },
+      "after": {
+        "sha256": "b44c9bc04e750af5d6ed4f703883e238a3dfc5612b8ec7fe3f1e9423b5e35953",
+        "mode": "0o770"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/managed-ssh-checks",
+      "before": {
+        "sha256": "ffb547d802c57b0ae6ce9a9b84ae00ff21e4cdead2703c0e469b7ce01eceb5d0",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "29c66a9e7ed1478eeecbfc1739a27f489609c8d77163a891040837d5c702061d",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py",
+      "before": {
+        "sha256": "e330090f628ff399fc90bfb700f2a338fa01905b90fdad280cf722960f8956fd",
+        "mode": "0o700"
+      },
+      "after": {
+        "sha256": "2cfbe0bc6433e3f437a44e5be0c90f6569b4d77f741aa61a785c1ba44785e1bc",
+        "mode": "0o700"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/zram-writeback.tmpl",
+      "before": {
+        "sha256": "7a6e1d30253522959fb6f51e117d47d95e476c5682d34e4e25b11056a2c5a5a4",
+        "mode": "0o750"
+      },
+      "after": {
+        "sha256": "2ff2c747d7da5754cb2cbb09bc2624b92176f36ee157ef71d5520dcdc92f187b",
+        "mode": "0o750"
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md",
+      "before": {
+        "sha256": "ca792370838fcec69ef5affe4d796b687046992935de476737240205d31ef5f2",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "c717ebe7b7c3334eb86e847c6cd9cf3845e21a03a220d1b0e49b932c334e29d2",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before": {
+        "sha256": "0560ea8f2f4cad7588a5dac32dd1cf66aa7c809a193bda594d3329e82a7f95be",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "44201113e9b446d39c4d56611e1177ccfc81d9430ff7bf7b2fe4b2ad9bcf120c",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before": {
+        "sha256": "e5140aa7d59ddc03ec2e3a0dbe14fbac06d3aa9bd9280771e687943eced07b3f",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "0f92a08ea7121eeb875e36b74aaa31eca9e75bfa1ba8be647ee27889d15e4b1c",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before": {
+        "sha256": "bceb62ac08462f8e27d215cdfd8c4b8ea4b8558385d9a7b5a209c261e19f758e",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "141d74aabda14f7b366bd21da6913ed413b63a62dc11e6e55958935c48483f2b",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "docs/MANAGED-GIT-DEBUGSYS-20260914.md",
+      "before": {
+        "sha256": "ca792370838fcec69ef5affe4d796b687046992935de476737240205d31ef5f2",
+        "mode": "0o644"
+      },
+      "after": {
+        "sha256": "c717ebe7b7c3334eb86e847c6cd9cf3845e21a03a220d1b0e49b932c334e29d2",
+        "mode": "0o644"
+      }
+    }
+  ],
+  "new": [
+    {
+      "path": "d-i/forky/tests/test_lifecycle_review_20260914.py",
+      "after": {
+        "sha256": "c0a2a471a858c633190464d172edf1c75580b756fc094c80a9d5ea1da16f3cae",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md",
+      "after": {
+        "sha256": "0195e3c4ee4f3f59bf5cb6352555da877af0e6381a4677840cc3633ee741ba7b",
+        "mode": "0o644"
+      }
+    },
+    {
+      "path": "docs/LIFECYCLE-VALIDATION-20260914.md",
+      "after": {
+        "sha256": "5dc7aa28cfd908d53c8ba8b5f87bce97c760e69b59b521af678ec4517d7a161d",
+        "mode": "0o644"
+      }
+    }
+  ]
+}

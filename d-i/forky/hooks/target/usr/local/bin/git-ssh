@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+umask 077
+[ "$#" -le 1 ] || { printf 'usage: git-ssh [unlock|status|lock]\n' >&2; exit 64; }
+uid=$(/usr/bin/id -u)
+case "$uid" in ''|0|*[!0-9]*) printf '%s\n' 'git-ssh: run as the desktop user, not root' >&2; exit 1 ;; esac
+
+# shellcheck disable=SC1091
+. /usr/local/libexec/managed-ssh-checks
+verify_identity() {
+  managed_ssh_context && managed_ssh_socket &&
+    /usr/bin/ssh-add -T "$public" >/dev/null 2>&1
+}
+case "${1:-unlock}" in
+  unlock)
+    /usr/bin/systemctl --user is-active --quiet labwc-session.target || {
+      printf '%s\n' 'git-ssh: unlock requires an active Labwc desktop session' >&2; exit 1;
+    }
+    /usr/bin/systemctl --user start ssh-agent.socket
+    /usr/bin/systemctl --user reset-failed labwc-ssh-key-load.service >/dev/null 2>&1 || :
+    /usr/bin/systemctl --user start labwc-ssh-key-load.service
+    # systemctl also succeeds when ExecCondition skipped the loader. Prove a
+    # usable identity, not merely a successful start transaction.
+    verify_identity || {
+      printf '%s\n' 'git-ssh: identity unavailable; check the desktop session, unlock GPG and retry' >&2; exit 1;
+    } ;;
+  status)
+    managed_ssh_context && managed_ssh_socket || {
+      printf '%s\n' 'git-ssh: managed identity or agent endpoint is unavailable or unsafe' >&2; exit 1;
+    }
+    exec /usr/bin/ssh-add -l -E sha256 ;;
+  lock)
+    # Deliberately do not require intact key files: lock must still work after
+    # deletion/corruption. Stop both ends and any in-progress key loader.
+    exec /usr/bin/systemctl --user stop labwc-ssh-key-load.service ssh-agent.service ssh-agent.socket ;;
+  *) printf '%s\n' 'usage: git-ssh [unlock|status|lock]' >&2; exit 64 ;;
+esac

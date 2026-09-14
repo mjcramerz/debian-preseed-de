@@ -1,0 +1,22 @@
+[Unit]
+Description=Unlock the managed Git SSH identity using the desktop GPG key
+ConditionEnvironment=LABWC_SESSION_OWNER=desktop
+ConditionEnvironment=WAYLAND_DISPLAY
+Requires=ssh-agent.socket
+After=labwc-session.target ssh-agent.socket labwc-kwallet-portal.service
+BindsTo=labwc-compositor.service
+Requisite=labwc-session.target
+PartOf=labwc-session.target
+
+[Service]
+# Shared GPG agent, pinentry and desktop identity checks need host semantics.
+PrivatePIDs=no
+PrivateUsers=no
+Type=oneshot
+TimeoutStartSec=120
+KillMode=control-group
+UMask=0077
+LimitCORE=0
+ExecCondition=/usr/local/libexec/labwc-session-check session-ready
+Environment=SSH_AUTH_SOCK=%t/openssh_agent
+ExecStart=/usr/local/libexec/labwc-ssh-key-load

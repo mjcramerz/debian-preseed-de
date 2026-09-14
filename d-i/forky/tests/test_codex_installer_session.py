@@ -423,7 +423,7 @@ devops_prepare_codex_layout() {{
 class CodexDeploymentContractTests(unittest.TestCase):
     def test_managed_codex_release_is_preflighted_before_publication(self):
         devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
-        function = devops.split('devops_install_pinned_codex() {', 1)[1].split(
+        function = devops.split('devops_install_codex_from_clone() {', 1)[1].split(
             '\n}\n\ndevops_run_as_account() {', 1
         )[0]
 
@@ -433,8 +433,8 @@ class CodexDeploymentContractTests(unittest.TestCase):
         for required_preflight in (
             'python3 "$archive_helper_path"',
             'version_output=$(codex_verify_version "$candidate_binary_path"',
-            'git clone',
-            'actual_repository_commit=$(git -C "$repository_staging" rev-parse HEAD)',
+            'mv -- "$repository_clone_source" "$repository_staging"',
+            'actual_repository_branch=$(git -C "$repository_staging" symbolic-ref --short HEAD)',
             'cp -a -- "$repository_staging/etc/." "$config_staging/"',
             'codex_tree_matches "$extracted_binary_dir" "$codex_root/share/bin" 0',
             'codex_tree_matches "$repository_staging" "$user_root" 1',
@@ -451,7 +451,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
 
     def test_managed_codex_publication_rolls_back_only_new_paths(self):
         devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
-        function = devops.split('devops_install_pinned_codex() {', 1)[1].split(
+        function = devops.split('devops_install_codex_from_clone() {', 1)[1].split(
             '\n}\n\ndevops_run_as_account() {', 1
         )[0]
 

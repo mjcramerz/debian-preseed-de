@@ -91,7 +91,7 @@ class TargetToolTests(unittest.TestCase):
     def test_codex_app_server_metadata_uses_target_stat_without_host_applet(self):
         text=(SEED/'scripts/late/devops.sh').read_text()
         stage=text.split('devops_stage_codex_app_server() {',1)[1].split(
-            '\n}\n\ndevops_install_pinned_codex() {',1)[0]
+            '\n}\n\ndevops_install_pinned_codex() (',1)[0]
         self.assertEqual(stage.count('devops_assert_target_metadata'),5)
         self.assertNotRegex(stage,r'(?<![/\w])stat\s+-c')
 

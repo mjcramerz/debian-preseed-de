@@ -1,5 +1,10 @@
 # debian-preseed-de
 
+Current SSH/GitOps/debugsys lifecycle review and selective PID namespace changes:
+[14 September 2026 review](docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md).
+Its validation records are in `docs/validation-lifecycle-20260914/`; earlier reports
+remain historical, not acceptance results for this revision.
+
 
 ## Broker-free labwc workspaces
 
@@ -190,14 +195,33 @@ read bits (such as 0644) are made private before loading; unsafe ownership, link
 write/execute permissions or parent directories are rejected. The reader uses d-i
 applets without requiring `stat`. Recognized names include `PRESEED_ROOT_PASSWORD`,
 `PRESEED_PRIMARY_PASSWORD`, `PRESEED_PRIMARY_GPG_PASSPHRASE`,
+`PRESEED_GIT_SSH_PASSPHRASE`,
 `PRESEED_FRUUX_USERNAME`, `PRESEED_FRUUX_PASSWORD`, `PRESEED_TELEGRAM_API_KEY`
 and `PRESEED_TELEGRAM_CHAT_ID`. Optional integrations have additional fields;
 consult `d-i/forky/scripts/common/credentials.sh` for the complete mapping. Use single-quoted shell assignments with proper escaping; this is a
 trusted shell file, not an untrusted data import. An exact command-line parameter
-always overrides its corresponding env value; absent parameters use `/preseed.env`.
+overrides its corresponding env value for the legacy credential inputs; absent
+parameters use `/preseed.env`. The managed Git SSH passphrase is deliberately
+read ONLY from `/preseed.env`, never from the command line or inherited environment.
 An explicitly empty root_password is an error, not permission to ignore the override.
 Local root login is enabled; SSH root login remains prohibited. Keep secrets out of source
 control, public URLs, command lines and the distributable payload.
+
+For the desktop Git identity, also inject root-owned `/git_ed25519` and
+`/git_ed25519.pub` (0600) into that **private** initrd. The private key must be
+passphrase-encrypted Ed25519, and `PRESEED_GIT_SSH_PASSPHRASE` must unlock it.
+Keep all three inputs and private boot media OUTSIDE the served checkout.
+They are never fetched over the seed URL or included in the generated payload.
+The build refuses known private input filenames and private-key headers.
+
+The installed desktop uses a GPG-sealed SSH passphrase and a Labwc-owned agent;
+`git-ssh unlock`, `git-ssh status` and `git-ssh lock` provide the daily controls.
+GitOps protection is editable in `~/.config/gitops/gitops.env`. Codex home clones
+over SSH on tracking branch `mcr/main` without a home commit pin. `debugsys`
+provides root-only, multi-select diagnostics and explicitly opt-in reversible
+initramfs capture. See [the integration and operations guide](docs/MANAGED-GIT-DEBUGSYS-20260914.md),
+also installed at `/usr/local/share/doc/managed-git/README.md`, for exact alias
+semantics, recovery, security boundaries and live-target acceptance checks.
 
 After installation, the three extension exports, `bookmark-coverage.json` and
 `BROWSER-IMPORTS.md` are staged as user-owned, mode-0600 files in the configured

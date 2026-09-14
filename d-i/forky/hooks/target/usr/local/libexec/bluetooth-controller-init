@@ -1,5 +1,10 @@
 #!/bin/sh
 set -eu
+# PrivatePIDs makes this shell namespace init. Catch cancellation explicitly;
+# systemd also terminates all btmgmt/timeout children in the service cgroup.
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 LC_ALL=C.UTF-8

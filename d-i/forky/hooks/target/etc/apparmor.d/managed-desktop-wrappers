@@ -4011,3 +4011,46 @@ profile managed-local-apt-vendor /usr/local/libexec/local-apt-vendor flags=(atta
   /usr/local/share/applications/{,**} rw,
   include if exists <local/usr.local.libexec.local-apt-vendor>
 }
+
+# Local key loader only: no AF_INET/AF_INET6 networking or forwarding.
+profile managed-labwc-ssh-key-load /usr/local/libexec/labwc-ssh-key-load flags=(attach_disconnected) {
+  #include <abstractions/base>
+  #include <abstractions/gnupg>
+  /{,usr/}bin/{sh,dash} rix,
+  /usr/local/libexec/{managed-ssh-checks,labwc-ssh-key-load,labwc-ssh-gpg-askpass} rix,
+  /usr/bin/{cat,cut,getent,id,stat,ssh-add,ssh-keygen,gpg,gpgconf,gpg-agent} rix,
+  /usr/bin/pinentry-qt rPx -> managed-labwc-ssh-pinentry,
+  /etc/{passwd,group,nsswitch.conf,host.conf,hosts} r,
+  /etc/gnupg/** r,
+  /usr/share/gnupg/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/share/ r,
+  owner @{HOME}/.local/share/managed-ssh/ r,
+  owner @{HOME}/.local/share/managed-ssh/private/ r,
+  owner @{HOME}/.local/share/managed-ssh/private/id_git_ed25519 r,
+  owner @{HOME}/.local/share/managed-ssh/git-key-passphrase.gpg r,
+  owner @{HOME}/.ssh/ r,
+  owner @{HOME}/.ssh/id_git_ed25519.pub r,
+  owner @{HOME}/.gnupg/ rw,
+  owner @{HOME}/.gnupg/** rwk,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/openssh_agent rw,
+  owner /run/user/[0-9]*/gnupg/ rw,
+  owner /run/user/[0-9]*/gnupg/** rwk,
+  unix (connect, send, receive) type=stream,
+  signal (receive) peer=unconfined,
+  signal (send) set=(term, kill, int, hup) peer=managed-labwc-ssh-pinentry,
+  signal (receive) set=(chld) peer=managed-labwc-ssh-pinentry,
+  include if exists <local/managed-labwc-ssh-key-load>
+}
+
+profile managed-labwc-ssh-pinentry flags=(attach_disconnected) {
+  #include <abstractions/managed-desktop-runtime>
+  /usr/bin/pinentry-qt rix,
+  owner @{HOME}/.gnupg/ r,
+  owner @{HOME}/.gnupg/gpg-agent.conf r,
+  signal (receive) set=(term, kill, int, hup) peer=managed-labwc-ssh-key-load,
+  signal (send) set=(chld) peer=managed-labwc-ssh-key-load,
+  include if exists <local/managed-labwc-ssh-pinentry>
+}

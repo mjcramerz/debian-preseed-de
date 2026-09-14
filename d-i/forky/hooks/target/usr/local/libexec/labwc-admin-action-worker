@@ -28,22 +28,27 @@ def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,))
                             stderr=subprocess.PIPE, text=True, env=ENV,
                             start_new_session=True)
     try:
-        output, error = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+        try:
+            output, error = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
+        if proc.returncode not in accepted:
+            raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
+        return output
+    finally:
+        # Includes cancellation and unexpected read/decoding errors. Bridges
+        # must not survive their owner while retaining the worker's pipes.
         try:
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         try:
-            proc.communicate(timeout=2)
-        except subprocess.TimeoutExpired:
+            # Keep the original bounded reap even for an uninterruptible child;
+            # systemd retains the final cgroup stop/RuntimeMaxSec boundary.
+            proc.wait(timeout=2)
+        finally:
             proc.stdout.close()
             proc.stderr.close()
-            proc.wait(timeout=2)
-        raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
-    if proc.returncode not in accepted:
-        raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
-    return output
 
 
 def ready() -> None:
@@ -100,7 +105,9 @@ class Worker:
              "--unit=labwc-power-lock-" + uuid.uuid4().hex + ".service",
              "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
              "--property=PartOf=labwc-session.target", "--property=TimeoutStartSec=20s",
-             "--property=TimeoutStopSec=5s", "--", "/usr/local/bin/labwc-lock"], timeout=25)
+             "--property=TimeoutStopSec=5s", "--property=KillMode=control-group",
+             "--property=PrivatePIDs=no", "--property=PrivateUsers=no",
+             "--", "/usr/local/bin/labwc-lock"], timeout=25)
         self.helper("locked")
 
     def best_effort(self, description: str, callback) -> None:

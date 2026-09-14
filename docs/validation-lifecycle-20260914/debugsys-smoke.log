@@ -1,0 +1,21 @@
+{
+  "source_sha256": "551bc686d5dd6393f24391309848d5247f8580cdf176603f8c5098f67cda2f86",
+  "categories": [
+    "security",
+    "credentials"
+  ],
+  "budget_seconds": 25,
+  "evidence_records": 26,
+  "status_counts": {
+    "ok": 13,
+    "nonzero": 6,
+    "not-installed": 4,
+    "no-match": 2,
+    "no-session": 1
+  },
+  "file_count": 30,
+  "permissions_verified": true,
+  "all_manifest_evidence_hashes_verified": true,
+  "raw_report_not_packaged": true,
+  "notes": "Read-only module smoke in root-private test output. No sudo login session, unit activation, hook change, initramfs rebuild or power action was performed."
+}

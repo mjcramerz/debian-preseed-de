@@ -8,6 +8,12 @@ ConditionFileIsExecutable=/usr/bin/timeout
 ConditionFileIsExecutable=/usr/local/libexec/bluetooth-controller-init
 
 [Service]
+# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
+# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+PrivatePIDs=yes
+PrivateUsers=no
+KillMode=control-group
+TimeoutStopSec=20s
 Type=oneshot
 ExecStart=/usr/local/libexec/bluetooth-controller-init
 TimeoutStartSec=35s
