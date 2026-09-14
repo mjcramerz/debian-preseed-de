@@ -1,0 +1,171 @@
+{
+  "original_archive": "debian-preseed-de.zip",
+  "original_regular_files": 1637,
+  "original_files_retained": 1637,
+  "deleted": [],
+  "changes": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-wrapper-terminal",
+      "status": "added",
+      "sha256": "a988446b5ac9d5215fdcb5ac7f6aaeaae2c5827573932395a3df4aeeee946805",
+      "original_sha256": null
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "status": "modified",
+      "sha256": "593dcd9cdd843fd1df0dca3f86dae6352e46d8a755600cb545199f3b54c6e02e",
+      "original_sha256": "f0e4df878f3ad9d312519172b032fd73683f0ef27663e07fd3bdf556c9e356e9"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "status": "modified",
+      "sha256": "b6afa84ec765d73eb4292d20dfaa103222d6aaf322af1bf3495f609dd0d9f04e",
+      "original_sha256": "b15c59e6a5385dbe5b56ee84ca93cd122a6f1980f52b1acf611ff4e13d2b35b9"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "status": "modified",
+      "sha256": "b38ba2ead511145c6babc6be0812e84f711234da878976fb2f44e55e6799385d",
+      "original_sha256": "5fc2e4d0368548c46343bc8cb92ef23490923190b2a7e18be049f60086de5d13"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.tuta-mail.AppRun",
+      "status": "modified",
+      "sha256": "f3a13ce149bd1fe5a2e3ab27b118129af66da63acad79cd991e8829caffe60c5",
+      "original_sha256": "9819339a46a2df816d9c047cc36516cd0560d93e982c5d4a7002da198bf59584"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/mako/config",
+      "status": "modified",
+      "sha256": "16fa3553c5dcc2a1f6bd8d9c24a1751b6afde24cc31c37669356f486dd76c132",
+      "original_sha256": "41545803ec9eebe0ea1f6ba793f88e6d93fc9782df6ea45d9337c6c3f8916482"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/mimeapps.list",
+      "status": "modified",
+      "sha256": "976270b893db97a25a190a37f0017d0e93985d6e420237b6ab3db6ecd6b6f359",
+      "original_sha256": "08abcdfd4204fdf9888306e1d6e3e3be62ace705283f177f28331871ce3e7ec1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop",
+      "status": "modified",
+      "sha256": "d41859798b260fdae53e806b230daa18e63708321ee5d486d9c263d3e66c7053",
+      "original_sha256": "be4f3ab114e8867cb576233c9436fc8f055b0effd5f8aea0a56687e23b927540"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/xdg/mimeapps.list",
+      "status": "modified",
+      "sha256": "1573b20b9d0564bdf42104a442f9ec20c2d7273afc6a197d8e2d800cf009d59d",
+      "original_sha256": "a4c1702d87b1ad9b562efd2b3af3c048d42c64188e63e697f74d3892b068705d"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-computer-management",
+      "status": "modified",
+      "sha256": "0359817e71e20d470b27fd60359f0d74d1f92e9ba89aedd929fa21fee6a80909",
+      "original_sha256": "b93a154430edde1b7c09eb43b326e732db99e2f8e384fdf26aca3b0d295c0ad9"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu",
+      "status": "modified",
+      "sha256": "cd944549dc216a55678ca7882d1d6dee8ba120470d1b79519895e3e981071e44",
+      "original_sha256": "df73b1a01c4337720400a50e63507edb70e5d5effcf15bc53debd5b47d195788"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu",
+      "status": "modified",
+      "sha256": "8740e90d6a6d08786487e95bbef9d75eb776dad6a3781aabfc63c3b65b8a9714",
+      "original_sha256": "751b0d97bfb664c2d09dc5cb547eab3b59f5acfe8a2dc1d47cad7e5c95ac1c8e"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop",
+      "status": "modified",
+      "sha256": "5929c20c66035889dc626c54bd3442d115de208c660edcaa5ddadad0cdc69f48",
+      "original_sha256": "f8195c062d7a0cd948b400be379a4f1a0e40019b9abbfcefe800aaa0709edb58"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers",
+      "status": "modified",
+      "sha256": "2a86f5a4452c738d1541aa7e50e3081c2900aaffde042679baba1a6d26086020",
+      "original_sha256": "ba9dd6a07e22ce635a5338742b8b39c517d4c5b7a23a4608f159570f58ee860a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Client.pm",
+      "status": "modified",
+      "sha256": "6296c3a2c0c8704390062859c44be1330cf3bfb09a947a9e2efdf4f51c3ef78b",
+      "original_sha256": "3a4d78c49ff52c7ee08086f56a57aea1ca8d00f0a5a70c840997d0704dd08cdd"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py",
+      "status": "modified",
+      "sha256": "2a2c18d1c598eb92a26d62f3e4696d4c996e9e58aea8b3b862aed6e82175fbb4",
+      "original_sha256": "fd8227f0b2ef95baf3903ab95e28e7d79b62a1c970ba2cf1a6d724e63e53732a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "status": "modified",
+      "sha256": "9edc4075e496a431617b98142e71d42e7c51e5797f47c6dcc4a6adb647def665",
+      "original_sha256": "cbafcd0100dfd89f0d35b8191308a9e3369d4ad432da883481d3631efc87f154"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+      "status": "modified",
+      "sha256": "812f7ca0362dfa8595579d74e19d0f65e78cb6e03fd5bde81fa5abe9785850fe",
+      "original_sha256": "eee56211113a2254f5a1288756221daeccdf226fb739439958c209b37ba33b94"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py",
+      "status": "modified",
+      "sha256": "4dd64551fade16090ec699e210da9f953aebc2b41748dcb0ba0a872f1d5f4dfe",
+      "original_sha256": "93a685d1a2ebf984ba1dccbecf6af05727797bb168bf245e8fd440c80eb6e969"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "status": "modified",
+      "sha256": "026659dff9efe996f625b78d2ead8ad70ff472fa5dd365df8e7d710cd8d2ffda",
+      "original_sha256": "f7cf78ce818bd133e69ad9a94b96e0764381591363271eed43db5e4db237fa9e"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "status": "modified",
+      "sha256": "1908ba8cf82c095f186826bdbfef3e165c706ba84cb0a9cdd64c8be76722f0a9",
+      "original_sha256": "f0fcb1e852be3bffee95f2da61da32ce62d48051e4059ed92ca50d01e17acf6c"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "status": "modified",
+      "sha256": "9a245bda7d802c877a82da519288ee094af9c3e7ee77d8b0a621d94231b36429",
+      "original_sha256": "8120e5aec3d3f891207b29e8a89688105db5d785e9ba245164da13bea056e4af"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "status": "modified",
+      "sha256": "6779ff72c24fa732d9bc3c295c2dcdf033e1a5661d2934053007b4050e8d8629",
+      "original_sha256": "000b0b38968149dbf3191fe68bae77b60907e1cd98a4098531c030bdcf92a35c"
+    },
+    {
+      "path": "d-i/forky/scripts/late/security.sh",
+      "status": "modified",
+      "sha256": "0947674e7262fb3c3cb5576a7b770db223e0a5932b86a273803f77eb29e19ca1",
+      "original_sha256": "e1305e00cd9fdde99cc2ce3228590cc82e15a5474f7346d6d5129bc6789488ff"
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_integration_20260914.py",
+      "status": "added",
+      "sha256": "2f09c210848025043cbd91468c5d383b6d9895383a6f8bf354adfb5b9fccacd6",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/DESKTOP-INTEGRATION-20260914.md",
+      "status": "added",
+      "sha256": "d0c7b8c08322459f02ba470df77c229247b2cd72cf81cfed054780e5ca3bf7f7",
+      "original_sha256": null
+    },
+    {
+      "path": "docs/validation/desktop-integration-20260914/summary.json",
+      "status": "added",
+      "sha256": "a8e8f19d99ed00609cb3ae45748a3b239e806924f587bf5d673101d975e3da37",
+      "original_sha256": null
+    }
+  ],
+  "note": "This manifest excludes its own digest. Generated payload/manifest/preseed changes are required for publication integrity."
+}

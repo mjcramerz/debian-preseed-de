@@ -10,6 +10,7 @@ import uuid
 from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
 from .environment import (
+    desktop_activation_environment,
     CHATGPT_DEVOPS_ENVIRONMENT_RESERVED, CHATGPT_FORBIDDEN_AMBIENT_ENVIRONMENT,
 )
 
@@ -38,6 +39,15 @@ WAYLAND_COMPAT_SESSION_UNIT_METADATA = {
     "discord": ("Discord", "labwc-discord-cage"),
     "zoom": ("Zoom", "labwc-zoom-cage"),
 }
+
+
+def menu_action_wait_arguments() -> list[str]:
+    """A timing request, never an authorization or sandbox-bypass flag.
+
+    Consume this only in the launcher; do not export it into payload services
+    or saved session restore commands. Ordinary desktop launches stay detached.
+    """
+    return ["--wait"] if os.environ.get("LABWC_MENU_ACTION_WAIT") == "1" else []
 
 
 def _session_unit(prefix: str) -> str:
@@ -84,6 +94,7 @@ def bitwarden_session_unit_argv(
         "--user",
         "--quiet",
         "--collect",
+        *menu_action_wait_arguments(),
         "--service-type=exec",
         "--expand-environment=no",
         "--property=StandardInput=null",
@@ -97,6 +108,7 @@ def bitwarden_session_unit_argv(
         "--property=PartOf=labwc-session.target labwc-kwallet-portal.service",
         "--slice=app.slice",
         "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
@@ -128,6 +140,7 @@ def managed_session_unit_environment(
         os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
     )
     environment = managed_subprocess_environment()
+    environment.update(desktop_activation_environment())
     environment.update(
         {
             "HOME": home_dir,
@@ -169,6 +182,7 @@ def wayland_compat_session_unit_argv(
         "--user",
         "--quiet",
         "--collect",
+        *menu_action_wait_arguments(),
         "--service-type=exec",
         "--expand-environment=no",
         "--property=StandardInput=null",
@@ -182,6 +196,7 @@ def wayland_compat_session_unit_argv(
         "--property=PartOf=labwc-session.target",
         "--slice=app.slice",
         "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
         "--property=KillMode=control-group",
         "--setenv=LABWC_SESSION_APP=1",
         "--property=TimeoutStopSec=20s",
@@ -321,6 +336,7 @@ def redirect_native_from_private_users(
     argv = [
         systemd_run, "--user", "--quiet", "--collect",
         *(["--pipe", "--wait"] if app_name == "chatgpt" else [
+            *menu_action_wait_arguments(),
             "--property=StandardInput=null",
             "--property=StandardOutput=journal",
             "--property=StandardError=journal",
@@ -335,6 +351,7 @@ def redirect_native_from_private_users(
         f"--property=Requisite={startup_dependencies}",
         f"--property=PartOf={dependencies}",
         "--property=ExitType=cgroup",
+        "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         f"--working-directory={os.getcwd()}",

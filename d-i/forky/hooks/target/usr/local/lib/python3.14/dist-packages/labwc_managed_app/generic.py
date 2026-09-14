@@ -20,6 +20,7 @@ from .environment import (
 )
 from .recovery import assert_launch_allowed, restart_token
 from .integrity import system_owner
+from .session import menu_action_wait_arguments
 from .profiles import INTEL_ACCELERATION_ENV, NVIDIA_ACCELERATION_ENV
 from .runtime import (
     ANGLE_GL_ARGS, MANAGED_DEFAULTS_PATH, MANAGED_PATH,
@@ -36,6 +37,7 @@ WRAPPERS = {
 # Never let the user manager reintroduce X11, a different GPU or loader hooks.
 UNSET_ENVIRONMENT = (
     "DISPLAY", "XAUTHORITY", "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH",
+    "LABWC_MENU_ACTION_WAIT",
     "PYTHONPATH", "PYTHONHOME", "BASH_ENV", "ENV", "ELECTRON_RUN_AS_NODE",
     "ELECTRON_NO_SANDBOX", "NODE_OPTIONS", "GBM_BACKEND", "DRI_PRIME",
     "LIBVA_DRIVER_NAME", "NVD_BACKEND", "__GLX_VENDOR_LIBRARY_NAME",
@@ -163,6 +165,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     }
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
+        *menu_action_wait_arguments(),
         "--service-type=exec", "--expand-environment=no", "--slice=app.slice",
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",

@@ -18,6 +18,8 @@ NVIDIA_ACCELERATION_ENV = {
 }
 TUTA_DBUS_NAMES = (
     "org.freedesktop.secrets",
+    # Electron tray registration and callbacks, without owning the watcher.
+    "org.kde.StatusNotifierWatcher",
 )
 DISCORD_SESSION_DBUS_NAMES = (
     "com.canonical.AppMenu.Registrar",
@@ -458,6 +460,11 @@ TUTA_PERSISTENT_PATHS = (
     ".local/share/tutanota-desktop",
     ".local/state/tutanota-desktop",
 )
+TUTA_INTEGRATION_DIRECTORY_BINDS = (
+    (".local/state/tutanota-desktop/desktop-integration/config", ".config"),
+    (".local/state/tutanota-desktop/desktop-integration/applications", ".local/share/applications"),
+    (".local/state/tutanota-desktop/desktop-integration/icons", ".local/share/icons"),
+)
 TUTA_ATTACHMENT_READ_ONLY_PATHS = (
     "Desktop",
     "Documents",
@@ -659,11 +666,11 @@ PERSISTENT_SANDBOX_CONFIG = {
         "ro_bind_paths": ("/opt/tuta-mail",),
         "ro_bind_home_directories": TUTA_ATTACHMENT_READ_ONLY_PATHS,
         "rw_bind_home_directories": TUTA_ATTACHMENT_READ_WRITE_PATHS,
-        "ro_bind_home_paths": (
-            ".config/mimeapps.list",
-            ".config/user-dirs.dirs",
-            ".local/share/applications/tutanota-desktop.desktop",
-        ),
+        # Parent mounts precede .config/tutanota-desktop, preserving the real
+        # account/key-vault data while keeping integration writes off the host.
+        "integration_directory_binds": TUTA_INTEGRATION_DIRECTORY_BINDS,
+        "shared_temp_directory": "labwc-tutanota-tmp",
+        "ro_bind_home_paths": (".config/user-dirs.dirs",),
         "runtime_directories": ("doc",),
         "runtime_sockets": ("pipewire-0", "pulse/native"),
         "share_net": True,

@@ -230,6 +230,7 @@ profile waypaper-glycin-loader flags=(attach_disconnected, mediate_deleted) {
 }
 
 profile managed-android-platform-tools /{bin/{adb,fastboot},usr/bin/{adb,fastboot},usr/local/bin/{adb,fastboot},usr/local/lib/android-sdk/platform-tools/{adb,etc1tool,fastboot,hprof-conv,make_f2fs,make_f2fs_casefold,mke2fs,sqlite3}} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   include if exists <abstractions/nameservice-strict>
   include if exists <abstractions/ssl_certs>
@@ -274,6 +275,7 @@ profile managed-android-platform-tools /{bin/{adb,fastboot},usr/bin/{adb,fastboo
 }
 
 profile managed-samloader /{bin/samloader,usr/bin/samloader,usr/local/bin/samloader,usr/local/lib/samloader/samloader} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   include if exists <abstractions/nameservice-strict>
   include if exists <abstractions/ssl_certs>
@@ -309,6 +311,7 @@ profile managed-samloader /{bin/samloader,usr/bin/samloader,usr/local/bin/samloa
 }
 
 profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
@@ -368,6 +371,7 @@ profile managed-labwc-adb-menu /usr/local/bin/labwc-adb-menu flags=(attach_disco
 }
 
 profile managed-labwc-admin-action /usr/local/bin/labwc-admin-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-admin-action rix,
@@ -382,6 +386,7 @@ profile managed-labwc-admin-action /usr/local/bin/labwc-admin-action flags=(atta
 }
 
 profile managed-labwc-admin-action-root /usr/local/libexec/labwc-admin-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/libexec/labwc-admin-action-root rix,
@@ -392,6 +397,7 @@ profile managed-labwc-admin-action-root /usr/local/libexec/labwc-admin-action-ro
 }
 
 profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-worker flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-python>
 
   /usr/local/libexec/labwc-admin-action-worker rix,
@@ -598,7 +604,7 @@ profile managed-labwc-computer-management /usr/local/bin/labwc-computer-manageme
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-computer-management rix,
-  /usr/bin/id rix,
+  /usr/bin/{cat,id} rix,
   /usr/bin/pavucontrol pux,
   /usr/bin/systemctl pux,
   /usr/local/bin/labwc-fuzzel-log rPx -> managed-labwc-fuzzel-log,
@@ -629,6 +635,7 @@ profile managed-labwc-computer-management /usr/local/bin/labwc-computer-manageme
 }
 
 profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-ai-copilots rix,
@@ -647,6 +654,7 @@ profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach
 }
 
 profile managed-labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
   include if exists <abstractions/dbus-session-strict>
@@ -705,6 +713,7 @@ profile managed-labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action
 }
 
 profile managed-labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-perl>
 
   capability chown,
@@ -734,6 +743,7 @@ profile managed-labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-in
 }
 
 profile managed-ai-copilots-model-download flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   include if exists <abstractions/nameservice-strict>
   include if exists <abstractions/ssl_certs>
@@ -749,6 +759,7 @@ profile managed-ai-copilots-model-download flags=(attach_disconnected) {
 }
 
 profile managed-labwc-ai-model-info /usr/local/libexec/labwc-ai-model-info flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-python>
 
   /usr/local/libexec/labwc-ai-model-info rix,
@@ -831,6 +842,7 @@ profile managed-labwc-digital-assets /usr/local/bin/labwc-digital-assets {
 }
 
 profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-action {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-python>
   #include <abstractions/managed-wrapper-perl>
@@ -868,6 +880,7 @@ profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-
 }
 
 profile managed-digital-assets-release-tools /{usr/local/bin/{pdfcpu,typst},usr/local/lib/{pdfcpu/pdfcpu,typst/typst}} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   include if exists <abstractions/fonts>
   include if exists <abstractions/nameservice-strict>
@@ -901,6 +914,7 @@ profile managed-digital-assets-release-tools /{usr/local/bin/{pdfcpu,typst},usr/
 }
 
 profile managed-digital-assets-python-runtime /usr/local/lib/digital-assets/{bin/**,pipx/venvs/*/bin/**} flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-python>
   include if exists <abstractions/fonts>
@@ -1246,6 +1260,7 @@ profile managed-labwc-external-drives /usr/local/bin/labwc-external-drives flags
 }
 
 profile managed-labwc-firewall-action /usr/local/bin/labwc-firewall-action {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-python>
 
@@ -2009,6 +2024,7 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
   /run/systemd/resolve/stub-resolv.conf r,
   /run/dbus/system_bus_socket rw,
   owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/labwc-tutanota-tmp/{,**} rwkl,
   owner /run/user/[0-9]*/doc/ r,
   owner /run/user/[0-9]*/doc/** r,
   owner /run/user/[0-9]*/pulse/ r,
@@ -2131,6 +2147,7 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
     /etc/resolv.conf r,
     /run/dbus/system_bus_socket rw,
     owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/labwc-tutanota-tmp/{,**} rwkl,
     owner /run/user/[0-9]*/doc/ r,
     owner /run/user/[0-9]*/doc/** r,
     owner /run/user/[0-9]*/pulse/ r,
@@ -2599,6 +2616,7 @@ profile managed-labwc-zoom-command /usr/local/bin/zoom flags=(attach_disconnecte
 }
 
 profile managed-labwc-network-control-action /usr/local/bin/labwc-network-control-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
@@ -2652,6 +2670,7 @@ profile managed-labwc-network-control-menu /usr/local/bin/labwc-network-control-
 }
 
 profile managed-labwc-network-scan-action /usr/local/bin/labwc-network-scan-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
@@ -2745,6 +2764,7 @@ profile managed-labwc-output-watch /usr/local/libexec/labwc-output-watch flags=(
 }
 
 profile managed-labwc-podman-menu /usr/local/bin/labwc-podman-menu flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/python>
   #include <abstractions/nameservice>
@@ -2867,6 +2887,7 @@ profile managed-labwc-qbittorrent /usr/local/bin/labwc-qbittorrent flags=(attach
 }
 
 profile managed-labwc-recovery-action /usr/local/bin/labwc-recovery-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-recovery-action rix,
@@ -2880,6 +2901,7 @@ profile managed-labwc-recovery-action /usr/local/bin/labwc-recovery-action flags
 }
 
 profile managed-labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
 
@@ -2915,6 +2937,7 @@ profile managed-labwc-run /usr/local/bin/labwc-run flags=(attach_disconnected) {
 }
 
 profile managed-labwc-security-action /usr/local/bin/labwc-security-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3019,6 +3042,10 @@ profile managed-labwc-sync-application-launchers /usr/local/bin/labwc-sync-appli
 
   /usr/local/bin/labwc-sync-application-launchers rix,
   /usr/bin/desktop-file-validate pux,
+  /etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop r,
+  owner @{HOME}/.config/ rw,
+  owner @{HOME}/.config/mimeapps.list rw,
+  owner @{HOME}/.config/.mimeapps.list.* rw,
   /usr/share/applications/ r,
   /usr/share/applications/** r,
   /usr/share/*/*.desktop r,
@@ -3034,6 +3061,7 @@ profile managed-labwc-sync-application-launchers /usr/local/bin/labwc-sync-appli
 }
 
 profile managed-labwc-system-action /usr/local/bin/labwc-system-action flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-system-action rix,
@@ -3067,6 +3095,7 @@ profile managed-labwc-system-action /usr/local/bin/labwc-system-action flags=(at
 }
 
 profile managed-labwc-terminal /usr/local/bin/labwc-terminal flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-terminal rix,
@@ -3351,6 +3380,7 @@ profile managed-satty-runtime /usr/local/libexec/satty/satty flags=(attach_disco
 }
 
 profile managed-labwc-firewall-action-root /usr/local/libexec/labwc-firewall-action-root {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-python>
 
@@ -3376,6 +3406,7 @@ profile managed-labwc-firewall-action-root /usr/local/libexec/labwc-firewall-act
 }
 
 profile managed-labwc-network-control-action-root /usr/local/libexec/labwc-network-control-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3403,6 +3434,7 @@ profile managed-labwc-network-control-action-root /usr/local/libexec/labwc-netwo
 }
 
 profile managed-labwc-network-scan-action-root /usr/local/libexec/labwc-network-scan-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3423,6 +3455,7 @@ profile managed-labwc-network-scan-action-root /usr/local/libexec/labwc-network-
 }
 
 profile managed-labwc-recovery-action-root /usr/local/libexec/labwc-recovery-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/libexec/labwc-recovery-action-root rix,
@@ -3439,6 +3472,7 @@ profile managed-labwc-recovery-action-root /usr/local/libexec/labwc-recovery-act
 }
 
 profile managed-labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-firmware-extract {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-python>
 
@@ -3452,6 +3486,7 @@ profile managed-labwc-samsung-firmware-extract /usr/local/libexec/labwc-samsung-
 }
 
 profile managed-apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes-run flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3478,6 +3513,7 @@ profile managed-apparmor-managed-modes /usr/local/libexec/apparmor-managed-modes
 }
 
 profile managed-apparmor-rule-generator /usr/local/libexec/apparmor-generate-rules flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3507,6 +3543,7 @@ profile managed-apparmor-rule-generator /usr/local/libexec/apparmor-generate-rul
 }
 
 profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
   #include <abstractions/managed-wrapper-perl>
 
@@ -3558,6 +3595,7 @@ profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-act
 }
 
 profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/libexec/labwc-system-action-root rix,
@@ -3784,6 +3822,7 @@ profile managed-incus-host-managed /usr/local/libexec/incus-host-managed flags=(
 }
 
 profile managed-tpm2-enroll-launch /usr/local/bin/tpm2-enroll-launch flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/bin/tpm2-enroll-launch rix,
@@ -3797,6 +3836,7 @@ profile managed-tpm2-enroll-launch /usr/local/bin/tpm2-enroll-launch flags=(atta
 }
 
 profile managed-tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-terminal>
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/sbin/tpm2-enroll.sh rix,

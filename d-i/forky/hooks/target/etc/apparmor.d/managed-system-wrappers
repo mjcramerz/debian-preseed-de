@@ -31,6 +31,7 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
 
   ptrace (read) peer=unconfined,
   ptrace (read) peer=managed-firstboot,
+  ptrace (read) peer=managed-crowdsec-firstboot,
   ptrace (read) peer=managed-labwc-compositor,
   ptrace (read) peer=managed-labwc-greeter-session,
   ptrace (read) peer=managed-zram-writeback,
@@ -270,6 +271,7 @@ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(
   unix,
   dbus,
   ptrace (read) peer=unconfined,
+  ptrace (readby) peer=managed-firstboot,
 
   /usr/local/libexec/crowdsec-firstboot rix,
   /usr/local/libexec/crowdsec-bouncer-verify rix,

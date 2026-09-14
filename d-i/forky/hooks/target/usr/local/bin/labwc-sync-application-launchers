@@ -6,6 +6,7 @@ import time
 import os
 import pathlib
 import pwd
+import re
 import shlex
 import shutil
 import stat
@@ -15,6 +16,9 @@ import tempfile
 
 
 SYSTEM_APPLICATION_DIR = "/usr/share/applications"
+TUTA_DESKTOP_ID = "tutanota-desktop.desktop"
+TUTA_MANAGED_DESKTOP_SOURCE = "/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop"
+TUTA_SCHEMES = ("x-scheme-handler/mailto", "x-scheme-handler/tuta")
 DEFAULTS_PATH = "/etc/default/labwc-desktop"
 MANAGED_DIRECTORY_MODE = 0o700
 MANAGED_FILE_MODE = 0o600
@@ -108,6 +112,7 @@ APP_CONFIG = (
     },
     {
         "desktop_names": (
+            "tutanota-desktop.desktop",
             "tuta-mail.desktop",
             "appimagekit-tutanota-desktop.desktop",
             "com.tutanota.Tutanota.desktop",
@@ -637,7 +642,89 @@ def find_desktop_file(desktop_names: tuple[str, ...]) -> tuple[str, str] | None:
         source_path = os.path.join(SYSTEM_APPLICATION_DIR, desktop_name)
         if os.path.exists(source_path):
             return desktop_name, source_path
+    if TUTA_DESKTOP_ID in desktop_names and os.path.exists(TUTA_MANAGED_DESKTOP_SOURCE):
+        return TUTA_DESKTOP_ID, TUTA_MANAGED_DESKTOP_SOURCE
     return None
+
+
+def synchronize_tuta_mime_defaults(account_home: str, uid: int, gid: int) -> bool:
+    """Repair managed mail defaults without rewriting other associations/comments."""
+    directory = os.path.join(account_home, ".config")
+    ensure_user_directory(directory, uid, gid)
+    path = os.path.join(directory, "mimeapps.list")
+    try:
+        original = read_regular_text(path, {0, uid})
+    except FileNotFoundError:
+        original = ""
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    parser.read_string(original)  # Fail closed on a malformed file; do not truncate it.
+    lines = original.splitlines(keepends=True)
+    output: list[str] = []
+    section = ""
+    handled: set[str] = set()
+    seen: set[str] = set()
+    targets = {"Default Applications", "Added Associations"}
+    legacy_ids = {TUTA_DESKTOP_ID, "tuta-mail.desktop",
+                  "appimagekit-tutanota-desktop.desktop", "com.tutanota.Tutanota.desktop"}
+    def finish_section() -> None:
+        if section in targets and section not in handled:
+            if output and not output[-1].endswith("\n"):
+                output[-1] += "\n"
+            for scheme in TUTA_SCHEMES:
+                if scheme not in seen:
+                    output.append(f"{scheme}={TUTA_DESKTOP_ID};\n")
+            handled.add(section)
+    for line in lines:
+        match = re.fullmatch(r"\s*\[([^]\r\n]+)\]\s*", line.rstrip("\r\n"))
+        if match:
+            finish_section()
+            section = match.group(1)
+            seen.clear()
+        key, separator, value = line.strip().partition("=")
+        if section in targets and separator and key in TUTA_SCHEMES:
+            if section not in handled and key not in seen:
+                output.append(f"{key}={TUTA_DESKTOP_ID};\n")
+                seen.add(key)
+            continue
+        # Older seeds advertised .eml as an OS-open action. Tuta's managed
+        # launcher advertises URI handling, not command-line RFC822 importing.
+        if (section in targets and key == "message/rfc822" and separator
+                and set(filter(None, value.split(";"))) <= legacy_ids):
+            continue
+        if section == "Removed Associations" and key in TUTA_SCHEMES and separator:
+            remaining = [item for item in value.split(";") if item and item not in legacy_ids]
+            if remaining:
+                output.append(f"{key}={';'.join(remaining)};\n")
+            continue
+        output.append(line)
+    finish_section()
+    for missing in sorted(targets - handled):
+        if output and not output[-1].endswith("\n"):
+            output[-1] += "\n"
+        output.append(f"\n[{missing}]\n")
+        output.extend(f"{scheme}={TUTA_DESKTOP_ID};\n" for scheme in TUTA_SCHEMES)
+    content = "".join(output)
+    if content == original:
+        return False
+    fd, temporary = tempfile.mkstemp(prefix=".mimeapps.list.", dir=directory, text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            os.fchmod(handle.fileno(), MANAGED_FILE_MODE)
+            if os.geteuid() == 0:
+                os.fchown(handle.fileno(), uid, gid)
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    finally:
+        if os.path.lexists(temporary):
+            os.unlink(temporary)
+    return True
 
 
 def main() -> int:
@@ -691,6 +778,8 @@ def main() -> int:
             missing_apps.append(config["action_app"])
             continue
         desktop_name, source_path = resolved_desktop
+        if config["action_app"] == "tutanota":
+            desktop_name = TUTA_DESKTOP_ID
         destination_path = os.path.join(desktop_dir, desktop_name)
 
         parser = configparser.ConfigParser(interpolation=None, strict=False)
@@ -707,6 +796,9 @@ def main() -> int:
             config.get("default_mode"),
         )
         normalize_managed_launch_metadata(entry)
+        if config["action_app"] == "tutanota":
+            entry["MimeType"] = ";".join(TUTA_SCHEMES) + ";"
+            entry["X-GNOME-UsesNotifications"] = "true"
         add_actions(
             parser,
             config["action_app"],
@@ -718,6 +810,8 @@ def main() -> int:
         )
         try:
             processed += int(write_desktop_file(destination_path, parser, uid, gid, validate))
+            if config["action_app"] == "tutanota":
+                synchronize_tuta_mime_defaults(account_home, uid, gid)
         except (OSError, RuntimeError) as exc:
             print(f"fatal: failed to publish {desktop_name}: {exc}", file=sys.stderr)
             return 1

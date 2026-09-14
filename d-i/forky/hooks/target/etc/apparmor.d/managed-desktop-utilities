@@ -90,6 +90,10 @@ profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} 
 # parsers. An existing narrower profile wins; otherwise children stay in this
 # developer domain. There is no general unconfined execution fallback.
 profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected) {
+  # General-purpose file managers and ncdu must enumerate the filesystem.
+  # Trailing slash restricts this to directories; file data, writes and exec
+  # retain their existing policy, and ordinary DAC permissions still apply.
+  /**/ r,
   #include <abstractions/managed-devops-toolchain-data>
   #include <abstractions/managed-desktop-runtime>
   #include <abstractions/managed-user-documents>

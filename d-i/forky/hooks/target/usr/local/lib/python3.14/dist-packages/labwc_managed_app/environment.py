@@ -1028,9 +1028,18 @@ def chatgpt_sandbox_path(devops_path: str) -> str:
     return ":".join(entries)
 
 
+def desktop_activation_environment() -> dict[str, str]:
+    token = os.environ.get("XDG_ACTIVATION_TOKEN", "")
+    if not token:
+        return {}
+    if len(token) > 4096 or any(ord(char) < 32 or ord(char) == 127 for char in token):
+        fail("invalid desktop activation token")
+    return {"XDG_ACTIVATION_TOKEN": token}
+
+
 def build_environment(app_name: str, mode: str) -> dict[str, str]:
     app = APPS[app_name]
-    env: dict[str, str] = {}
+    env: dict[str, str] = desktop_activation_environment()
     home_dir = current_user_home()
     user_name = current_user_name()
     runtime_dir = current_user_runtime_dir()

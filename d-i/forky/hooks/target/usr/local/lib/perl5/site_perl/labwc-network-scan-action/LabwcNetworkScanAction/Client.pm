@@ -250,17 +250,19 @@ sub _run_tshark_action {
 sub _run_wireshark_action {
     my ($self, $action, @args) = @_;
 
+    # Keep the invoking action alive; a detached setsid parent is not the GUI.
+    local $ENV{LABWC_MENU_ACTION_WAIT} = '1';
     my $setsid = $self->command()->require_executable('setsid');
     my $wireshark = $self->command()->require_executable('wireshark');
     $self->_require_capture_group();
     if ($action eq 'wireshark-launch') {
         @args == 0 or die "$action does not accept arguments\n";
-        return $self->command()->run($setsid, '-f', $wireshark);
+        return $self->command()->run($setsid, '-f', '--wait', $wireshark);
     }
     if ($action eq 'wireshark-open-capture') {
         @args == 1 or die "$action requires one capture file\n";
         my $capture_file = $self->validator()->capture_file($self->_home(), $args[0]);
-        return $self->command()->run($setsid, '-f', $wireshark, '-r', $capture_file);
+        return $self->command()->run($setsid, '-f', '--wait', $wireshark, '-r', $capture_file);
     }
     die "unsupported Wireshark action: $action\n";
 }

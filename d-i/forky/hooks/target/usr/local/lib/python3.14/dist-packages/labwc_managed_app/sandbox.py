@@ -26,6 +26,7 @@ from .environment import build_environment, resolve_home_relative_path
 from .profiles import (
     APPS,
     PERSISTENT_SANDBOX_CONFIG,
+    TUTA_INTEGRATION_DIRECTORY_BINDS,
     WAYLAND_COMPAT_APPS,
     WAYLAND_COMPAT_RUNTIME_ROOT,
 )
@@ -239,6 +240,62 @@ def add_persistent_directory_binds(
         )
         add_dir_chain(command, destination_path)
         command.extend(["--bind", source_path, destination_path])
+
+
+def prepare_tuta_integration(home_dir: str) -> None:
+    """Seed once without changing account data or exposing host launchers.
+
+    The directory mounts permit GLib's atomic rename and persist Tuta's own
+    no-integration blacklist. Never edit desktopConfig.json or guess its schema.
+    """
+    for source_relative, _destination in TUTA_INTEGRATION_DIRECTORY_BINDS:
+        directory = persistent_app_directory(home_dir, source_relative)
+        if os.path.realpath(directory) != directory:
+            fail(f"Tuta integration path must not traverse symlinks: {directory}")
+    for source_relative, destination_relative in (
+        (".config/mimeapps.list", "config/mimeapps.list"),
+        (".local/share/applications/tutanota-desktop.desktop", "applications/tutanota-desktop.desktop"),
+    ):
+        destination = resolve_home_relative_path(
+            home_dir, ".local/state/tutanota-desktop/desktop-integration/" + destination_relative,
+        )
+        # Publish a complete seed with link(2), never replace an existing file:
+        # simultaneous launches cannot overwrite Tuta's remembered selection.
+        if not os.path.lexists(destination):
+            source = os.path.join(home_dir, source_relative)
+            if not os.path.lexists(source):
+                continue  # Tuta can create it; do not fabricate an empty .desktop.
+            source = resolve_home_relative_file(home_dir, source_relative)
+            fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+            with os.fdopen(fd, "rb") as handle:
+                metadata = os.fstat(handle.fileno())
+                if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                        or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+                    fail(f"unsafe Tuta integration seed: {source}")
+                content = handle.read(65537)
+                if len(content) > 65536:
+                    fail(f"Tuta integration seed is too large: {source}")
+            fd, temporary = tempfile.mkstemp(prefix=".tuta-seed-", dir=os.path.dirname(destination))
+            try:
+                with os.fdopen(fd, "wb") as handle:
+                    os.fchmod(handle.fileno(), 0o600)
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                try:
+                    os.link(temporary, destination, follow_symlinks=False)
+                except FileExistsError:
+                    pass
+            finally:
+                os.unlink(temporary)
+        fd = os.open(destination, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as handle:
+            metadata = os.fstat(handle.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+                fail(f"unsafe Tuta integration state: {destination}")
+            # Do not chmod a pre-existing inode: even a user-created hardlink
+            # must not let this initialization modify an unrelated host file.
+
 
 
 def filtered_resolv_conf() -> str:
@@ -1104,6 +1161,8 @@ def _run_persistent_sandbox(
         )
         for relative_path in sandbox["persistent_paths"]
     ]
+    if app_name == "tutanota":
+        prepare_tuta_integration(home_dir)
     shared_temp_directory = None
     shared_temp_entry = sandbox.get("shared_temp_directory")
     if shared_temp_entry is not None:
@@ -1303,6 +1362,11 @@ def _run_persistent_sandbox(
         )
 
     command.extend(["--tmpfs", home_dir, "--chmod", "0700", home_dir])
+    # Mount private integration parents first, then the application's genuine
+    # persistent account directory. Reversing this order would hide its data.
+    add_persistent_directory_binds(
+        command, home_dir, sandbox.get("integration_directory_binds", ()),
+    )
     for directory in persistent_directories:
         add_dir_chain(command, directory)
         command.extend(["--bind", directory, directory])

@@ -842,15 +842,13 @@ def launch_connection(profile: dict[str, object]) -> None:
     validate_askpass_helper()
     connection = validate_profile(profile, require_share=True)
     script_path = current_script_path()
-    subprocess.Popen(
-        [str(script_path), "_connect", encode_profile(connection)],
-        start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
     notify(
         "Remote Desktop connection started",
         "Credentials are requested in a protected GTK dialog and are never saved.",
+    )
+    subprocess.run(
+        [str(script_path), "_connect", encode_profile(connection)],
+        check=False,
     )
 
 
@@ -922,11 +920,13 @@ def open_profile_directory() -> None:
     thunar = shutil.which("thunar")
     if thunar is None:
         fail("Thunar is not installed")
-    subprocess.Popen(
+    # Wait for a newly launched file manager instead of detaching it. A
+    # pre-existing single-instance Thunar may accept the request over D-Bus;
+    # that handoff has no per-window completion acknowledgement.
+    subprocess.run(
         [thunar, str(path.parent)],
-        start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
+        check=False,
     )
 
 
@@ -947,15 +947,14 @@ def show_help() -> None:
     if terminal is None:
         fail("labwc-terminal is not installed")
     script_path = current_script_path()
-    subprocess.Popen(
+    subprocess.run(
         [terminal, "-e", str(script_path), "_help"],
-        start_new_session=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
+        check=False,
     )
 
 
-def main_menu() -> None:
+def main_menu() -> bool:
     action = run_fuzzel(
         "Remote Desktop Management",
         [
@@ -970,6 +969,8 @@ def main_menu() -> None:
             "Show FreeRDP Help",
         ],
     )
+    if action is None or action == "":
+        return False
     if action == "Connect to Target (Direct)":
         connect_temporary(False)
     elif action == "Connect to Target (Shared)":
@@ -988,6 +989,7 @@ def main_menu() -> None:
         open_profile_directory()
     elif action == "Show FreeRDP Help":
         show_help()
+    return True
 
 
 def run_encoded_connection(value: str) -> None:
@@ -1016,7 +1018,8 @@ def run_help_terminal() -> None:
 def main() -> None:
     require_desktop_user()
     if len(sys.argv) == 1:
-        main_menu()
+        while main_menu():
+            pass
         return
     if len(sys.argv) == 3 and sys.argv[1] == "_connect":
         run_encoded_connection(sys.argv[2])

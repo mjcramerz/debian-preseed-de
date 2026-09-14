@@ -30,6 +30,8 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
   /opt/tuta-mail/ r,
   /opt/tuta-mail/** mrix,
 
+  owner /run/user/[0-9]*/labwc-tutanota-tmp/{,**} rwkl,
+  owner @{HOME}/.config/mimeapps.list{,.*} rwkl,
   owner @{HOME}/.cache/glycin/ rw,
   owner @{HOME}/.cache/glycin/** rwkl,
   owner @{HOME}/.cache/tutanota-desktop/ rw,
@@ -88,6 +90,8 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
     /opt/tuta-mail/** mr,
     /opt/tuta-mail/** rPx -> tuta-mail,
 
+    owner /run/user/[0-9]*/labwc-tutanota-tmp/{,**} rwkl,
+    owner @{HOME}/.config/mimeapps.list{,.*} rwkl,
     owner @{HOME}/.cache/glycin/ rw,
     owner @{HOME}/.cache/glycin/** rwkl,
     owner @{HOME}/.cache/tutanota-desktop/ rw,

@@ -87,8 +87,9 @@ def confirm(action: str) -> bool:
 def terminal(tool: str, *arguments: str) -> None:
     # Terminal arguments are passed verbatim through labwc-terminal. There is
     # deliberately no sh -c, eval, sudo, SSH login, or user-controlled executable.
-    subprocess.Popen([TERMINAL, '-e', SELF, '--terminal', tool, *arguments],
-                     start_new_session=True)
+    subprocess.run([TERMINAL, '-e', SELF, '--terminal', tool, *arguments],
+                   env={**os.environ, 'LABWC_MENU_ACTION_WAIT': '1'},
+                   check=False)
 
 
 def records(*arguments: str) -> list[dict]:

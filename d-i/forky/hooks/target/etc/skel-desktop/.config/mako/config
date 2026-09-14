@@ -29,7 +29,7 @@ progress-color=over #ecb860ff
 on-button-left=invoke-default-action
 on-button-middle=dismiss --no-history
 on-button-right=dismiss
-on-touch=dismiss
+on-touch=invoke-default-action
 
 [grouped]
 format=<b>%s</b>\n%b\n<small>%g notifications</small>
@@ -162,3 +162,14 @@ progress-color=over #ef4444ff
 
 [mode=do-not-disturb]
 invisible=1
+
+# Keep each mail action distinct; grouping identical summaries can conceal the
+# message whose callback the user intends to invoke. Tuta remains the handler.
+[desktop-entry=tutanota-desktop]
+group-by=none
+
+[app-name="Tuta Mail"]
+group-by=none
+
+[app-name=tutanota-desktop]
+group-by=none

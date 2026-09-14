@@ -987,6 +987,10 @@ EOF
 
 stage_target_system_apparmor_profiles() {
   stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-terminal)" \
+    "/etc/apparmor.d/abstractions/managed-wrapper-terminal" \
+    0644
+  stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-base)" \
     "/etc/apparmor.d/abstractions/managed-wrapper-base" \
     0644

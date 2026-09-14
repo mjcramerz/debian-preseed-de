@@ -18,8 +18,8 @@ x-scheme-handler/about=vivaldi-stable.desktop;chromium.desktop;microsoft-edge.de
 x-scheme-handler/unknown=vivaldi-stable.desktop;chromium.desktop;microsoft-edge.desktop;
 
 # Mail
-x-scheme-handler/mailto=tuta-mail.desktop;
-message/rfc822=tuta-mail.desktop;
+x-scheme-handler/mailto=tutanota-desktop.desktop;
+x-scheme-handler/tuta=tutanota-desktop.desktop;
 
 # PDF and handwritten notes
 application/pdf=org.pwmt.zathura.desktop;com.github.xournalpp.xournalpp.desktop;
@@ -322,8 +322,8 @@ x-scheme-handler/about=vivaldi-stable.desktop;chromium.desktop;microsoft-edge.de
 x-scheme-handler/unknown=vivaldi-stable.desktop;chromium.desktop;microsoft-edge.desktop;
 
 # Mail
-x-scheme-handler/mailto=tuta-mail.desktop;
-message/rfc822=tuta-mail.desktop;
+x-scheme-handler/mailto=tutanota-desktop.desktop;
+x-scheme-handler/tuta=tutanota-desktop.desktop;
 
 # PDF and handwritten notes
 application/pdf=org.pwmt.zathura.desktop;com.github.xournalpp.xournalpp.desktop;

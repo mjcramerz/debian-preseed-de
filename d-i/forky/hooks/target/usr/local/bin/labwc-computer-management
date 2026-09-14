@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# Keep the menu hidden until its action window and cgroup have finished.
+export LABWC_MENU_ACTION_WAIT=1
+
 fatal() {
   printf 'fatal: %s\n' "$*" >&2
   exit 1
@@ -66,6 +69,7 @@ ai_copilots_font_size=${LABWC_FUZZEL_AI_COPILOTS_FONT_SIZE:-${LABWC_FUZZEL_FONT_
 choose_menu_input() (
   prompt=$1
   root_menu=${2:-0}
+  menu_input=$(cat)
 
   case "$root_menu" in
     0) ;;
@@ -76,7 +80,7 @@ choose_menu_input() (
     *) fatal "invalid Computer Management root-menu state: $root_menu" ;;
   esac
 
-  if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
+  if menu_selection=$(printf '%s\n' "$menu_input" | labwc-fuzzel menu --dmenu --prompt "$prompt"); then
     printf '%s\n' "$menu_selection"
     exit 0
   else
@@ -93,7 +97,7 @@ choose_menu_input() (
       LABWC_FUZZEL_MENU_WIDTH_OVERRIDE \
       LABWC_FUZZEL_MENU_LINES_OVERRIDE \
       LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE
-    if menu_selection=$(labwc-fuzzel menu --dmenu --prompt "$prompt"); then
+    if menu_selection=$(printf '%s\n' "$menu_input" | labwc-fuzzel menu --dmenu --prompt "$prompt"); then
       printf '%s\n' "$menu_selection"
       exit 0
     else
