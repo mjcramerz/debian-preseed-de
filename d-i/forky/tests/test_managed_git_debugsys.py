@@ -213,7 +213,9 @@ class SSHTests(Fixture):
         self.assertEqual(proc.returncode,0,proc.stderr)
         self.addCleanup(lambda:subprocess.run(['gpgconf','--kill','gpg-agent'],env=env,capture_output=True))
         secret=b'Fixture secret % with spaces!'
-        ssh.seal(pwd.getpwuid(0),home,secret)
+        listing=subprocess.run(['gpg','--batch','--with-colons','--list-keys'],env=env,capture_output=True,check=True).stdout.decode()
+        fingerprint=next(row.split(':')[9] for row in listing.splitlines() if row.startswith('fpr:'))
+        ssh.seal(pwd.getpwuid(0),home,secret,fingerprint)
         blob=home/'.local/share/managed-ssh/git-key-passphrase.gpg'
         self.assertEqual(stat.S_IMODE(blob.stat().st_mode),0o600)
         result=subprocess.run(['gpg','--batch','--decrypt',str(blob)],env=env,capture_output=True,timeout=20)

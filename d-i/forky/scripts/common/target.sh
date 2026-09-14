@@ -182,8 +182,13 @@ target_exec() {
             DEBCONF_NOWARNINGS \
             DEBCONF_TERSE \
             DEBIAN_FRONTEND
+          # The installer locale archive may not match the upgraded target
+          # libc. Do not carry it across this boundary or depend on locale-gen.
+          unset LOCPATH LANGUAGE
+          LC_ALL=C
+          export LC_ALL
           in-target --pass-stdout /usr/bin/env \
-            HOME=/root USER=root LOGNAME=root \
+            HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
             XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
             XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
             "$@"
@@ -195,7 +200,7 @@ target_exec() {
 
   if command -v chroot >/dev/null 2>&1 && [ -d "$target_root" ]; then
     chroot "$target_root" /usr/bin/env -i \
-      HOME=/root USER=root LOGNAME=root \
+      HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
       XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
       XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
       PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \

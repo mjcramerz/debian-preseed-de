@@ -480,3 +480,23 @@ SSH agent and key loader are explicitly excluded. This requires systemd 257+ and
 kernel/manager namespace support, and still needs live target acceptance.
 See the repository's `docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md` and
 `docs/validation-lifecycle-20260914/` for selection reasons and actual test results.
+
+## Installer recipient selection (2026-09-15 correction)
+
+The primary account's GnuPG home is intentionally shared with the imported
+Aptly signing identity. It must not be treated as a one-key keyring. Desktop
+bootstrap validates its own primary fingerprint and passes that exact full
+fingerprint to the installer-only `seal --gpg-fingerprint` action through a
+root-private temporary staging record. The record and bootstrap passphrase
+are removed on completion or failure; no runtime recipient file is needed.
+
+Sealing scopes public and secret listings to this primary, checks ultimate
+owner trust and usable encryption capability, and selects a locally available
+encryption subkey belonging to it. Signing-only or unrelated encryption keys
+can coexist; they are not modified, deleted, or selected as fallback recipients.
+A revoked, expired, disabled, missing or unusable managed identity still fails
+closed. The temporary account GPG agent is stopped after installer operations.
+The desktop loader decrypts the resulting OpenPGP ciphertext normally: its
+runtime command, GPG prompt, SSH-agent lifetime and AppArmor boundaries are
+unchanged. Never delete the Aptly key to work around an installer validation
+error, and never remove protection from either private key.

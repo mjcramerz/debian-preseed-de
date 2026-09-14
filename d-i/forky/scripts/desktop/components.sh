@@ -2191,23 +2191,46 @@ desktop_bootstrap_primary_account_gpg_key() {
 
   desktop_require_absolute_account_home
 
+  (
+  set +x
+  set +v
+  umask 077
   gpg_user_id=$(desktop_primary_account_gpg_user_id)
   gpg_bootstrap_passphrase=$(desktop_primary_account_gpg_passphrase)
   [ -n "$gpg_bootstrap_passphrase" ] || installer_fatal "desktop GPG bootstrap requires a non-empty passphrase source"
-  gpg_passphrase_file="${TMP_ENV_DIR}/desktop-gpg-passphrase"
-  gpg_passphrase_target=/tmp/desktop-gpg-passphrase.$$
-  umask 077
-  printf '%s\n' "$gpg_bootstrap_passphrase" >"$gpg_passphrase_file"
-  install -d -m 1777 /target/tmp
-  install -m 0600 "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
+  [ ! -L /target/tmp ] || installer_fatal "unsafe target temporary directory for GPG bootstrap"
+  install -d -m 1777 /target/tmp || installer_fatal "cannot prepare target temporary directory"
+  gpg_stage=$(mktemp -d /target/tmp/desktop-gpg.XXXXXX) ||
+    installer_fatal "cannot allocate private GPG bootstrap staging"
+  gpg_bootstrap_cleanup() {
+    gpg_status=$?
+    trap - 0
+    rm -rf -- "$gpg_stage" || {
+      [ "$gpg_status" -ne 0 ] || gpg_status=1
+    }
+    unset gpg_bootstrap_passphrase
+    exit "$gpg_status"
+  }
+  trap gpg_bootstrap_cleanup 0
+  trap 'exit 129' 1
+  trap 'exit 130' 2
+  trap 'exit 143' 15
+  chmod 0700 "$gpg_stage" && chmod u-s,g-s "$gpg_stage" ||
+    installer_fatal "cannot secure private GPG bootstrap staging"
+  gpg_passphrase_target="${gpg_stage#/target}/passphrase"
+  gpg_fingerprint_target="${gpg_stage#/target}/fingerprint"
+  printf '%s\n' "$gpg_bootstrap_passphrase" >"$gpg_stage/passphrase" ||
+    installer_fatal "cannot stage GPG bootstrap passphrase"
 
   # shellcheck disable=SC2016
   if ! attempt_in_target "bootstrap primary account GPG key for KWallet" /bin/sh -c '
 set -eu
+umask 077
 account_user=$1
 account_home=$2
 gpg_user_id=$3
 passphrase_file=$4
+fingerprint_file=$5
 gnupg_dir="${account_home}/.gnupg"
 gpg_agent_conf="${gnupg_dir}/gpg-agent.conf"
 gpg_agent_template=/etc/skel-desktop/.gnupg/gpg-agent.conf
@@ -2319,7 +2342,22 @@ require_cmd runuser
 
 [ -r "$passphrase_file" ] || fatal "GPG bootstrap passphrase file is missing: $passphrase_file"
 [ -r "$gpg_agent_template" ] || fatal "GPG agent configuration template is missing: $gpg_agent_template"
-trap '\''rm -f "$passphrase_file"'\'' EXIT HUP INT TERM
+gpg_target_cleanup() {
+  gpg_cleanup_status=$?
+  trap - 0
+  account_gpgconf --kill gpg-agent >/dev/null 2>&1 || {
+    [ "$gpg_cleanup_status" -ne 0 ] || gpg_cleanup_status=1
+  }
+  rm -f "$passphrase_file" || {
+    [ "$gpg_cleanup_status" -ne 0 ] || gpg_cleanup_status=1
+  }
+  unset account_password
+  exit "$gpg_cleanup_status"
+}
+trap gpg_target_cleanup 0
+trap '\''exit 129'\'' 1
+trap '\''exit 130'\'' 2
+trap '\''exit 143'\'' 15
 
 uid=$(id -u "$account_user")
 gid=$(id -g "$account_user")
@@ -2372,16 +2410,29 @@ gpg_key_is_kwallet_suitable "$gpg_fingerprint" ||
   fatal "desktop GPG key is not encryption-capable with ultimate owner trust"
 
 chown -R "$uid:$gid" "$gnupg_dir"
-account_gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+printf "%s\n" "$gpg_fingerprint" >"$fingerprint_file" ||
+  fatal "failed to return the managed desktop GPG fingerprint"
 printf "desktop_gpg_bootstrap user=%s status=ready gnupg=%s fingerprint=%s\n" \
   "$account_user" "$gnupg_dir" "$gpg_fingerprint"
-' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$gpg_user_id" "$gpg_passphrase_target"; then
-    rm -f "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
+' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$gpg_user_id" "$gpg_passphrase_target" "$gpg_fingerprint_target"; then
     installer_fatal "failed to bootstrap primary account GPG key for KWallet"
   fi
 
-  rm -f "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
-  unset gpg_bootstrap_passphrase ACCOUNT_GPG_PASSPHRASE
+  gpg_fingerprint=$(cat "$gpg_stage/fingerprint") ||
+    installer_fatal "managed desktop GPG fingerprint was not returned"
+  case "${#gpg_fingerprint}" in
+    40|64) ;;
+    *) installer_fatal "managed desktop GPG fingerprint has an unsupported length" ;;
+  esac
+  case "$gpg_fingerprint" in
+    *[!0123456789ABCDEF]*) installer_fatal "managed desktop GPG fingerprint is malformed" ;;
+  esac
+  rm -f "$gpg_stage/passphrase"
+  unset gpg_bootstrap_passphrase
+  managed_git_ssh_target_action seal --gpg-fingerprint "$gpg_fingerprint" ||
+    installer_fatal "failed to GPG-seal the Git SSH passphrase to the managed desktop identity"
+  ) || installer_fatal "desktop GPG bootstrap and Git SSH sealing failed"
+  unset ACCOUNT_GPG_PASSPHRASE
   ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=false
   desktop_log "bootstrapped_primary_account_gpg_key user=${ACCOUNT_USERNAME}"
 }
@@ -4325,7 +4376,6 @@ printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s sh
 ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME"
   desktop_install_primary_account_calendar_stack
   desktop_bootstrap_primary_account_gpg_key
-  managed_git_ssh_target_action seal || installer_fatal "failed to GPG-seal the Git SSH passphrase"
   run_in_target "publish private browser imports in primary account Downloads" \
     /usr/local/libexec/install-browser-imports --user "$ACCOUNT_USERNAME"
   desktop_log "installed primary account desktop config user=${ACCOUNT_USERNAME}"

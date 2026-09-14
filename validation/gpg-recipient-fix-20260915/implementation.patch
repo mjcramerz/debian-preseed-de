@@ -1,0 +1,763 @@
+--- a/d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py
++++ b/d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py
+@@ -192,32 +192,93 @@
+                 publish(path,saved[path][0],uid,gid,saved[path][1])
+         raise
+ 
+-def seal(account: pwd.struct_passwd, home: Path, secret: bytes) -> None:
++def gpg_key_records(listing: bytes, primary_kind: str) -> list[tuple[list[str], str]]:
++    """Parse only key/fingerprint records from GnuPG's stable colon format.
++
++    Do not confuse a subkey fingerprint with its primary, or accept a truncated
++    record. UIDs and keygrips are not used as recipient selectors.
++    """
++    kinds = (primary_kind, 'sub' if primary_kind == 'pub' else 'ssb')
++    records: list[tuple[list[str], str]] = []
++    pending: list[str] | None = None
++    for line in listing.decode('utf-8', 'strict').splitlines():
++        fields = line.split(':')
++        if fields[0] in ('pub', 'sub', 'sec', 'ssb'):
++            if pending is not None or fields[0] not in kinds or len(fields) < 12:
++                raise InstallError('malformed managed GPG key listing')
++            pending = fields
++        elif fields[0] == 'fpr':
++            if pending is None or len(fields) < 10 or not re.fullmatch(
++                    r'(?:[0-9A-F]{40}|[0-9A-F]{64})', fields[9]):
++                raise InstallError('malformed managed GPG fingerprint record')
++            records.append((pending, fields[9]))
++            pending = None
++    if (pending is not None or not records or records[0][0][0] != primary_kind
++            or sum(fields[0] == primary_kind for fields, _ in records) != 1
++            or len({fingerprint for _, fingerprint in records}) != len(records)):
++        raise InstallError('exactly one selected managed GPG primary is required')
++    return records
++
++
++def gpg_key_usable(fields: list[str]) -> bool:
++    # D is in the capability field, not necessarily the validity field. Preserve
++    # case: lowercase e means this key; uppercase E is the usable whole key.
++    return fields[1][:1] not in ('r', 'e', 'd', 'i', 'n', 'w') and 'D' not in fields[11]
++
++
++def seal(account: pwd.struct_passwd, home: Path, secret: bytes,
++         fingerprint: str) -> None:
++    # This fingerprint comes from the successful desktop bootstrap. The same
++    # keyring can also contain Aptly signing keys and unrelated user identities.
++    # Never guess from keyring order, count all keys, or select by a short ID.
++    if not re.fullmatch(r'(?:[0-9A-F]{40}|[0-9A-F]{64})', fingerprint):
++        raise InstallError('a full managed desktop GPG fingerprint is required')
+     gnupg = home/'.gnupg'
+     st = gnupg.lstat()
+     if not stat.S_ISDIR(st.st_mode) or st.st_uid != account.pw_uid or stat.S_IMODE(st.st_mode) != 0o700:
+         raise InstallError('managed GPG home is not ready')
+-    prefix = ['/usr/sbin/runuser', '-u', account.pw_name, '--', '/usr/bin/env', '-i',
+-              f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
+-              f'LOGNAME={account.pw_name}', 'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8',
+-              '/usr/bin/gpg', '--no-options', '--batch']
+-    listing = checked(prefix + ['--with-colons', '--list-secret-keys']).decode()
+-    fingerprints = []
+-    primary = False
+-    for line in listing.splitlines():
+-        fields = line.split(':')
+-        if fields[0] == 'sec':
+-            if fields[1] in ('r', 'e', 'd') or 'e' not in fields[11].lower():
+-                raise InstallError('managed GPG key cannot encrypt')
+-            primary = True
+-        elif fields[0] == 'fpr' and primary:
+-            fingerprints.append(fields[9]); primary = False
+-    if len(fingerprints) != 1 or not re.fullmatch(r'[0-9A-F]{40,64}', fingerprints[0]):
+-        raise InstallError('exactly one managed encryption-capable GPG identity is required')
+-    ciphertext = checked(prefix + ['--trust-model', 'always', '--recipient', fingerprints[0],
+-                                   '--output', '-', '--encrypt'], data=secret)
+-    if not ciphertext or ciphertext == secret:
+-        raise InstallError('GPG did not produce ciphertext')
++    user_prefix = ['/usr/sbin/runuser', '-u', account.pw_name, '--', '/usr/bin/env', '-i',
++                   f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
++                   f'LOGNAME={account.pw_name}', 'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8']
++    prefix = user_prefix + ['/usr/bin/gpg', '--no-options', '--batch', '--no-tty']
++    try:
++        public = gpg_key_records(checked(prefix + [
++            '--fixed-list-mode', '--with-colons', '--with-fingerprint', '--with-fingerprint',
++            '--list-keys', '--', fingerprint]), 'pub')
++        primary = public[0][0]
++        if public[0][1] != fingerprint:
++            raise InstallError('GPG returned a different managed primary identity')
++        if not gpg_key_usable(primary) or 'E' not in primary[11]:
++            raise InstallError('selected managed desktop GPG key cannot encrypt')
++        if primary[8] != 'u':
++            raise InstallError('selected managed desktop GPG key lacks ultimate owner trust')
++        private = gpg_key_records(checked(prefix + [
++            '--fixed-list-mode', '--with-colons', '--with-fingerprint', '--with-fingerprint',
++            '--with-secret', '--list-secret-keys', '--', fingerprint]), 'sec')
++        if private[0][1] != fingerprint or not gpg_key_usable(private[0][0]):
++            raise InstallError('selected managed GPG secret identity is unavailable')
++        # A public encryption subkey is insufficient: the local managed agent
++        # must later be able to decrypt. '+' in field 15 denotes local material;
++        # '#' / card stubs are not suitable for this managed software-key flow.
++        local = {fp for fields, fp in private if gpg_key_usable(fields)
++                 and len(fields) > 14 and fields[14] == '+' and 'e' in fields[11]}
++        candidates = [(fields[5], fp) for fields, fp in public
++                      if gpg_key_usable(fields) and 'e' in fields[11] and fp in local]
++        if not candidates or any(not created.isdecimal() for created, _ in candidates):
++            raise InstallError('selected managed GPG identity has no usable local encryption key')
++        # Pick the newest usable local encryption (sub)key of THIS primary.
++        # Exact subkey selection avoids GPG choosing an offline/card-only subkey
++        # when a keyring contains more than one encryption subkey.
++        recipient = max(candidates, key=lambda item: (int(item[0]), item[1]))[1]
++        ciphertext = checked(prefix + ['--trust-model', 'always', '--recipient', recipient + '!',
++                                       '--output', '-', '--encrypt'], data=secret)
++        if not ciphertext or ciphertext == secret:
++            raise InstallError('GPG did not produce ciphertext')
++    finally:
++        # Secret-key listing can autostart an agent after bootstrap stopped it.
++        # The installer owns this temporary account agent; leave no daemon/cache
++        # behind. Runtime desktop agents are not involved in this action.
++        checked(user_prefix + ['/usr/bin/gpgconf', '--kill', 'gpg-agent'], timeout=15)
+     publish(home/'.local/share/managed-ssh/git-key-passphrase.gpg', ciphertext,
+             account.pw_uid, account.pw_gid)
+ 
+@@ -281,12 +342,17 @@
+     parser.add_argument('account')
+     parser.add_argument('stage', type=Path)
+     parser.add_argument('destination', nargs='?', type=Path)
++    parser.add_argument('--gpg-fingerprint', help='full desktop primary fingerprint; required for seal')
+     args = parser.parse_args()
+     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+     os.umask(0o077)
+     for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+         signal.signal(signum, lambda number, _frame: sys.exit(128 + number))
+     try:
++        if (args.action == 'seal') != (args.gpg_fingerprint is not None):
++            raise InstallError('--gpg-fingerprint is required only for the seal action')
++        if args.action != 'clone-codex' and args.destination is not None:
++            raise InstallError('a destination is accepted only for clone-codex')
+         if os.geteuid() != 0:
+             raise InstallError('installer action requires root')
+         if not re.fullmatch(r'/tmp/managed-git-ssh\.[A-Za-z0-9]+', str(args.stage)):
+@@ -315,7 +381,7 @@
+                     raise InstallError('installed SSH identity differs from the initrd identity')
+                 if read_direct(home/'.ssh/id_git_ed25519.pub', 4096, account.pw_uid, public=True) != public:
+                     raise InstallError('installed SSH public key differs from initrd')
+-                seal(account, home, secret)
++                seal(account, home, secret, args.gpg_fingerprint)
+             else:
+                 if args.destination is None:
+                     raise InstallError('Codex clone destination is required')
+--- a/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md
++++ b/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md
+@@ -480,3 +480,23 @@
+ kernel/manager namespace support, and still needs live target acceptance.
+ See the repository's `docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md` and
+ `docs/validation-lifecycle-20260914/` for selection reasons and actual test results.
++
++## Installer recipient selection (2026-09-15 correction)
++
++The primary account's GnuPG home is intentionally shared with the imported
++Aptly signing identity. It must not be treated as a one-key keyring. Desktop
++bootstrap validates its own primary fingerprint and passes that exact full
++fingerprint to the installer-only `seal --gpg-fingerprint` action through a
++root-private temporary staging record. The record and bootstrap passphrase
++are removed on completion or failure; no runtime recipient file is needed.
++
++Sealing scopes public and secret listings to this primary, checks ultimate
++owner trust and usable encryption capability, and selects a locally available
++encryption subkey belonging to it. Signing-only or unrelated encryption keys
++can coexist; they are not modified, deleted, or selected as fallback recipients.
++A revoked, expired, disabled, missing or unusable managed identity still fails
++closed. The temporary account GPG agent is stopped after installer operations.
++The desktop loader decrypts the resulting OpenPGP ciphertext normally: its
++runtime command, GPG prompt, SSH-agent lifetime and AppArmor boundaries are
++unchanged. Never delete the Aptly key to work around an installer validation
++error, and never remove protection from either private key.
+--- a/d-i/forky/scripts/common/target.sh
++++ b/d-i/forky/scripts/common/target.sh
+@@ -182,8 +182,13 @@
+             DEBCONF_NOWARNINGS \
+             DEBCONF_TERSE \
+             DEBIAN_FRONTEND
++          # The installer locale archive may not match the upgraded target
++          # libc. Do not carry it across this boundary or depend on locale-gen.
++          unset LOCPATH LANGUAGE
++          LC_ALL=C
++          export LC_ALL
+           in-target --pass-stdout /usr/bin/env \
+-            HOME=/root USER=root LOGNAME=root \
++            HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+             XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
+             XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
+             "$@"
+@@ -195,7 +200,7 @@
+ 
+   if command -v chroot >/dev/null 2>&1 && [ -d "$target_root" ]; then
+     chroot "$target_root" /usr/bin/env -i \
+-      HOME=/root USER=root LOGNAME=root \
++      HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+       XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
+       XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \
+       PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+--- a/d-i/forky/scripts/desktop/components.sh
++++ b/d-i/forky/scripts/desktop/components.sh
+@@ -2191,23 +2191,46 @@
+ 
+   desktop_require_absolute_account_home
+ 
++  (
++  set +x
++  set +v
++  umask 077
+   gpg_user_id=$(desktop_primary_account_gpg_user_id)
+   gpg_bootstrap_passphrase=$(desktop_primary_account_gpg_passphrase)
+   [ -n "$gpg_bootstrap_passphrase" ] || installer_fatal "desktop GPG bootstrap requires a non-empty passphrase source"
+-  gpg_passphrase_file="${TMP_ENV_DIR}/desktop-gpg-passphrase"
+-  gpg_passphrase_target=/tmp/desktop-gpg-passphrase.$$
+-  umask 077
+-  printf '%s\n' "$gpg_bootstrap_passphrase" >"$gpg_passphrase_file"
+-  install -d -m 1777 /target/tmp
+-  install -m 0600 "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
++  [ ! -L /target/tmp ] || installer_fatal "unsafe target temporary directory for GPG bootstrap"
++  install -d -m 1777 /target/tmp || installer_fatal "cannot prepare target temporary directory"
++  gpg_stage=$(mktemp -d /target/tmp/desktop-gpg.XXXXXX) ||
++    installer_fatal "cannot allocate private GPG bootstrap staging"
++  gpg_bootstrap_cleanup() {
++    gpg_status=$?
++    trap - 0
++    rm -rf -- "$gpg_stage" || {
++      [ "$gpg_status" -ne 0 ] || gpg_status=1
++    }
++    unset gpg_bootstrap_passphrase
++    exit "$gpg_status"
++  }
++  trap gpg_bootstrap_cleanup 0
++  trap 'exit 129' 1
++  trap 'exit 130' 2
++  trap 'exit 143' 15
++  chmod 0700 "$gpg_stage" && chmod u-s,g-s "$gpg_stage" ||
++    installer_fatal "cannot secure private GPG bootstrap staging"
++  gpg_passphrase_target="${gpg_stage#/target}/passphrase"
++  gpg_fingerprint_target="${gpg_stage#/target}/fingerprint"
++  printf '%s\n' "$gpg_bootstrap_passphrase" >"$gpg_stage/passphrase" ||
++    installer_fatal "cannot stage GPG bootstrap passphrase"
+ 
+   # shellcheck disable=SC2016
+   if ! attempt_in_target "bootstrap primary account GPG key for KWallet" /bin/sh -c '
+ set -eu
++umask 077
+ account_user=$1
+ account_home=$2
+ gpg_user_id=$3
+ passphrase_file=$4
++fingerprint_file=$5
+ gnupg_dir="${account_home}/.gnupg"
+ gpg_agent_conf="${gnupg_dir}/gpg-agent.conf"
+ gpg_agent_template=/etc/skel-desktop/.gnupg/gpg-agent.conf
+@@ -2319,7 +2342,22 @@
+ 
+ [ -r "$passphrase_file" ] || fatal "GPG bootstrap passphrase file is missing: $passphrase_file"
+ [ -r "$gpg_agent_template" ] || fatal "GPG agent configuration template is missing: $gpg_agent_template"
+-trap '\''rm -f "$passphrase_file"'\'' EXIT HUP INT TERM
++gpg_target_cleanup() {
++  gpg_cleanup_status=$?
++  trap - 0
++  account_gpgconf --kill gpg-agent >/dev/null 2>&1 || {
++    [ "$gpg_cleanup_status" -ne 0 ] || gpg_cleanup_status=1
++  }
++  rm -f "$passphrase_file" || {
++    [ "$gpg_cleanup_status" -ne 0 ] || gpg_cleanup_status=1
++  }
++  unset account_password
++  exit "$gpg_cleanup_status"
++}
++trap gpg_target_cleanup 0
++trap '\''exit 129'\'' 1
++trap '\''exit 130'\'' 2
++trap '\''exit 143'\'' 15
+ 
+ uid=$(id -u "$account_user")
+ gid=$(id -g "$account_user")
+@@ -2372,16 +2410,29 @@
+   fatal "desktop GPG key is not encryption-capable with ultimate owner trust"
+ 
+ chown -R "$uid:$gid" "$gnupg_dir"
+-account_gpgconf --kill gpg-agent >/dev/null 2>&1 || true
++printf "%s\n" "$gpg_fingerprint" >"$fingerprint_file" ||
++  fatal "failed to return the managed desktop GPG fingerprint"
+ printf "desktop_gpg_bootstrap user=%s status=ready gnupg=%s fingerprint=%s\n" \
+   "$account_user" "$gnupg_dir" "$gpg_fingerprint"
+-' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$gpg_user_id" "$gpg_passphrase_target"; then
+-    rm -f "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
++' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$gpg_user_id" "$gpg_passphrase_target" "$gpg_fingerprint_target"; then
+     installer_fatal "failed to bootstrap primary account GPG key for KWallet"
+   fi
+ 
+-  rm -f "$gpg_passphrase_file" "/target${gpg_passphrase_target}"
+-  unset gpg_bootstrap_passphrase ACCOUNT_GPG_PASSPHRASE
++  gpg_fingerprint=$(cat "$gpg_stage/fingerprint") ||
++    installer_fatal "managed desktop GPG fingerprint was not returned"
++  case "${#gpg_fingerprint}" in
++    40|64) ;;
++    *) installer_fatal "managed desktop GPG fingerprint has an unsupported length" ;;
++  esac
++  case "$gpg_fingerprint" in
++    *[!0123456789ABCDEF]*) installer_fatal "managed desktop GPG fingerprint is malformed" ;;
++  esac
++  rm -f "$gpg_stage/passphrase"
++  unset gpg_bootstrap_passphrase
++  managed_git_ssh_target_action seal --gpg-fingerprint "$gpg_fingerprint" ||
++    installer_fatal "failed to GPG-seal the Git SSH passphrase to the managed desktop identity"
++  ) || installer_fatal "desktop GPG bootstrap and Git SSH sealing failed"
++  unset ACCOUNT_GPG_PASSPHRASE
+   ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=false
+   desktop_log "bootstrapped_primary_account_gpg_key user=${ACCOUNT_USERNAME}"
+ }
+@@ -4325,7 +4376,6 @@
+ ' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME"
+   desktop_install_primary_account_calendar_stack
+   desktop_bootstrap_primary_account_gpg_key
+-  managed_git_ssh_target_action seal || installer_fatal "failed to GPG-seal the Git SSH passphrase"
+   run_in_target "publish private browser imports in primary account Downloads" \
+     /usr/local/libexec/install-browser-imports --user "$ACCOUNT_USERNAME"
+   desktop_log "installed primary account desktop config user=${ACCOUNT_USERNAME}"
+--- a/d-i/forky/scripts/late/software.sh
++++ b/d-i/forky/scripts/late/software.sh
+@@ -2093,9 +2093,9 @@
+   esac
+   chroot "$target_root" /usr/bin/env -i \
+     DEBIAN_FRONTEND=noninteractive \
+-    NEEDRESTART_SUSPEND=1 HOME=/root \
++    NEEDRESTART_SUSPEND=1 HOME=/root LC_ALL=C.UTF-8 \
+     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+-    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 --no-install-recommends \
++    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 -o DPkg::Use-Pty=0 --no-install-recommends \
+     install "$software_binary_package" || software_fatal "adopted binary package installation failed"
+ done
+ chroot "$target_root" /usr/local/libexec/local-apt-repository seed-defaults ||
+--- a/d-i/forky/tests/test_managed_git_debugsys.py
++++ b/d-i/forky/tests/test_managed_git_debugsys.py
+@@ -213,7 +213,9 @@
+         self.assertEqual(proc.returncode,0,proc.stderr)
+         self.addCleanup(lambda:subprocess.run(['gpgconf','--kill','gpg-agent'],env=env,capture_output=True))
+         secret=b'Fixture secret % with spaces!'
+-        ssh.seal(pwd.getpwuid(0),home,secret)
++        listing=subprocess.run(['gpg','--batch','--with-colons','--list-keys'],env=env,capture_output=True,check=True).stdout.decode()
++        fingerprint=next(row.split(':')[9] for row in listing.splitlines() if row.startswith('fpr:'))
++        ssh.seal(pwd.getpwuid(0),home,secret,fingerprint)
+         blob=home/'.local/share/managed-ssh/git-key-passphrase.gpg'
+         self.assertEqual(stat.S_IMODE(blob.stat().st_mode),0o600)
+         result=subprocess.run(['gpg','--batch','--decrypt',str(blob)],env=env,capture_output=True,timeout=20)
+--- /dev/null
++++ b/d-i/forky/tests/test_gpg_recipient_integration.py
+@@ -0,0 +1,414 @@
++"""Regression coverage for the logged Aptly/desktop GPG keyring collision.
++
++Cryptographic integration uses disposable GnuPG keys as an unprivileged user.
++No deployment identity, private initrd, network, installed service or mount is
++used. Shell transport tests replace only the target boundary, not crypto.
++"""
++from __future__ import annotations
++import contextlib
++import importlib.util
++import io
++import os
++from pathlib import Path
++import pwd
++import shlex
++import shutil
++import stat
++import subprocess
++import sys
++import tempfile
++import unittest
++from unittest import mock
++
++SEED = Path(__file__).resolve().parents[1]
++SOURCE = SEED / 'hooks/target/usr/local/libexec/managed-ssh-install.py'
++COMPONENTS = SEED / 'scripts/desktop/components.sh'
++spec = importlib.util.spec_from_file_location('gpg_recipient_integration', SOURCE)
++ssh = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(ssh)
++FP = 'A' * 40
++SUB = 'B' * 40
++OTHER = 'C' * 40
++
++
++def record(kind, fingerprint, capability, *, validity='u', trust='u', local='+', created='100'):
++    fields = [kind, validity, '255', '22', fingerprint[-16:], created, '', '', trust,
++              '', '', capability, '', '', local, '', '', '', '', '', '']
++    return ':'.join(fields) + '\nfpr:::::::::' + fingerprint + ':\n'
++
++
++def public_listing():
++    return (record('pub', FP, 'scESC', local='') + record('sub', SUB, 'e', local='')).encode()
++
++
++def secret_listing():
++    return (record('sec', FP, 'scESC') + record('ssb', SUB, 'e')).encode()
++
++
++class ListingTests(unittest.TestCase):
++    def test_subkey_fingerprint_is_not_primary(self):
++        self.assertEqual([fp for _, fp in ssh.gpg_key_records(public_listing(), 'pub')], [FP, SUB])
++
++    def test_v6_full_fingerprint_supported(self):
++        listing = record('pub', 'D' * 64, 'eE', local='').encode()
++        self.assertEqual(ssh.gpg_key_records(listing, 'pub')[0][1], 'D' * 64)
++
++    def test_malformed_fingerprint_lengths_rejected(self):
++        for count in (0, 16, 39, 41, 63, 65):
++            with self.subTest(count=count), self.assertRaises(ssh.InstallError):
++                ssh.gpg_key_records(record('pub', 'A' * count, 'eE').encode(), 'pub')
++
++    def test_truncated_and_orphan_records_rejected(self):
++        for listing in (b'pub:u:', b'pub:u:\nfpr:::::::::' + FP.encode() + b':',
++                        b'fpr:::::::::' + FP.encode() + b':', public_listing().split(b'fpr:')[0],
++                        b'sub:u:255:22:1:100::::::e:\nfpr:::::::::' + FP.encode() + b':'):
++            with self.subTest(listing=listing), self.assertRaises(ssh.InstallError):
++                ssh.gpg_key_records(listing, 'pub')
++
++    def test_multiple_primary_and_duplicate_fingerprints_rejected(self):
++        for extra in (record('pub', OTHER, 'eE'), record('sub', SUB, 'e')):
++            with self.subTest(extra=extra), self.assertRaises(ssh.InstallError):
++                ssh.gpg_key_records(public_listing() + extra.encode(), 'pub')
++
++    def test_wrong_record_family_rejected(self):
++        with self.assertRaises(ssh.InstallError):
++            ssh.gpg_key_records(secret_listing(), 'pub')
++
++
++@unittest.skipUnless(os.geteuid() == 0, 'root ownership/runuser contract')
++class SealValidationTests(unittest.TestCase):
++    def setUp(self):
++        temp = tempfile.TemporaryDirectory(prefix='gpg-selection-', dir='/root')
++        self.addCleanup(temp.cleanup)
++        self.home = Path(temp.name)
++        (self.home / '.gnupg').mkdir(mode=0o700)
++        self.calls = []
++        self.public, self.private = public_listing(), secret_listing()
++        self.ciphertext = b'fixture encrypted bytes'
++        self.blob = self.home / '.local/share/managed-ssh/git-key-passphrase.gpg'
++        self.patch = mock.patch.object(ssh, 'checked', side_effect=self.checked)
++        self.patch.start()
++        self.addCleanup(self.patch.stop)
++
++    def checked(self, argv, **kwargs):
++        self.calls.append((argv, kwargs))
++        if '--list-keys' in argv:
++            return self.public
++        if '--list-secret-keys' in argv:
++            return self.private
++        if '--encrypt' in argv:
++            return self.ciphertext
++        self.assertEqual(argv[-3:], ['/usr/bin/gpgconf', '--kill', 'gpg-agent'])
++        return b''
++
++    def seal(self, fingerprint=FP):
++        ssh.seal(pwd.getpwuid(0), self.home, b'not-a-deployment-passphrase', fingerprint)
++
++    def refused(self):
++        with self.assertRaises(ssh.InstallError):
++            self.seal()
++        self.assertFalse(self.blob.exists())
++        self.assertFalse(any('--encrypt' in argv for argv, _ in self.calls))
++        self.assertIn('--kill', self.calls[-1][0])
++
++    def test_lists_are_scoped_to_exact_desktop_fingerprint(self):
++        self.seal()
++        listing = [argv for argv, _ in self.calls if '--with-colons' in argv]
++        self.assertEqual(len(listing), 2)
++        for argv in listing:
++            self.assertEqual(argv[-2:], ['--', FP])
++        encrypt = next(argv for argv, _ in self.calls if '--encrypt' in argv)
++        self.assertEqual(encrypt[encrypt.index('--recipient') + 1], SUB + '!')
++        self.assertEqual(self.blob.read_bytes(), self.ciphertext)
++        self.assertEqual(stat.S_IMODE(self.blob.stat().st_mode), 0o600)
++
++    def test_invalid_fingerprint_refused_before_launch(self):
++        for value in ('', 'A'*16, 'A'*41, FP.lower(), FP+'!', '--all'):
++            with self.subTest(value=value), self.assertRaises(ssh.InstallError):
++                self.seal(value)
++        self.assertEqual(self.calls, [])
++
++    def test_different_returned_primary_is_not_accepted(self):
++        self.public = self.public.replace(FP.encode(), OTHER.encode())
++        self.refused()
++
++    def test_selected_signing_only_key_is_refused(self):
++        self.public = record('pub', FP, 'scSC').encode()
++        self.refused()
++
++    def test_disabled_capability_is_refused(self):
++        self.public = self.public.replace(b'scESC', b'scESCD')
++        self.refused()
++
++    def test_revoked_expired_invalid_primary_is_refused(self):
++        for validity in ('r', 'e', 'i', 'd'):
++            with self.subTest(validity=validity):
++                self.public = public_listing().replace(b'pub:u:', ('pub:' + validity + ':').encode())
++                self.refused()
++
++    def test_lowercase_e_is_not_whole_key_usability(self):
++        self.public = record('pub', FP, 'esc').encode()
++        self.refused()
++
++    def test_ultimate_ownertrust_is_required(self):
++        self.public = record('pub', FP, 'scESC', trust='-').encode() + record('sub', SUB, 'e').encode()
++        self.refused()
++
++    def test_secret_primary_mismatch_is_refused(self):
++        self.private = self.private.replace(FP.encode(), OTHER.encode())
++        self.refused()
++
++    def test_offline_or_card_only_encryption_material_is_refused(self):
++        for marker in ('#', '>', '', '0123456789ABCDEF'):
++            with self.subTest(marker=marker):
++                self.private = (record('sec', FP, 'scESC') + record('ssb', SUB, 'e', local=marker)).encode()
++                self.refused()
++
++    def test_expired_encryption_subkey_is_refused(self):
++        self.public = self.public.replace(b'sub:u:', b'sub:e:')
++        self.refused()
++
++    def test_selects_newest_usable_local_subkey_of_selected_primary(self):
++        self.public += record('sub', OTHER, 'e', created='200').encode()
++        self.private += record('ssb', OTHER, 'e', created='200').encode()
++        self.seal()
++        encrypt = next(argv for argv, _ in self.calls if '--encrypt' in argv)
++        self.assertEqual(encrypt[encrypt.index('--recipient') + 1], OTHER + '!')
++
++    def test_ignores_newer_offline_subkey(self):
++        self.public += record('sub', OTHER, 'e', created='200').encode()
++        self.private += record('ssb', OTHER, 'e', created='200', local='#').encode()
++        self.seal()
++        encrypt = next(argv for argv, _ in self.calls if '--encrypt' in argv)
++        self.assertEqual(encrypt[encrypt.index('--recipient') + 1], SUB + '!')
++
++    def test_failed_encryption_preserves_existing_ciphertext_and_stops_agent(self):
++        ssh.publish(self.blob, b'previous ciphertext', 0, 0)
++        self.ciphertext = b''
++        with self.assertRaises(ssh.InstallError):
++            self.seal()
++        self.assertEqual(self.blob.read_bytes(), b'previous ciphertext')
++        self.assertIn('--kill', self.calls[-1][0])
++
++    def test_gpg_failure_preserves_existing_ciphertext_and_stops_agent(self):
++        ssh.publish(self.blob, b'previous ciphertext', 0, 0)
++        original = self.checked
++        def failed(argv, **kwargs):
++            if '--encrypt' in argv:
++                raise ssh.InstallError('injected encryption command failure')
++            return original(argv, **kwargs)
++        with mock.patch.object(ssh, 'checked', side_effect=failed), self.assertRaises(ssh.InstallError):
++            self.seal()
++        self.assertEqual(self.blob.read_bytes(), b'previous ciphertext')
++        self.assertIn('--kill', self.calls[-1][0])
++
++
++class CliTests(unittest.TestCase):
++    def test_seal_requires_explicit_fingerprint_no_keyring_fallback(self):
++        p = subprocess.run([sys.executable, '-I', '-B', str(SOURCE), 'seal', 'nobody',
++                            '/tmp/managed-git-ssh.FIXTURE'], input=b'', capture_output=True)
++        self.assertEqual(p.returncode, 1)
++        self.assertIn(b'--gpg-fingerprint is required only for the seal action', p.stderr)
++
++    def test_fingerprint_argument_not_accepted_for_provision(self):
++        p = subprocess.run([sys.executable, '-I', '-B', str(SOURCE), 'provision', 'nobody',
++                            '/tmp/managed-git-ssh.FIXTURE', '--gpg-fingerprint', FP], input=b'', capture_output=True)
++        self.assertEqual(p.returncode, 1)
++        self.assertIn(b'--gpg-fingerprint is required only', p.stderr)
++
++
++def bootstrap_body():
++    source = COMPONENTS.read_text()
++    start = source.index('  if ! attempt_in_target "bootstrap primary account GPG key for KWallet"')
++    start = source.index("/bin/sh -c '\n", start) + len("/bin/sh -c '\n")
++    end = source.index("\n' sh \"$ACCOUNT_USERNAME\"", start)
++    return source[start:end].replace("'\\''", "'")
++
++
++@unittest.skipUnless(os.geteuid() == 0 and all(shutil.which(n) for n in ('gpg', 'gpgconf', 'runuser')),
++                     'real GnuPG and root required for unprivileged account fixture')
++class RealBootstrapIntegrationTests(unittest.TestCase):
++    def test_real_bootstrap_mixed_keyring_seal_cold_decrypt_and_idempotent_retry(self):
++        account = pwd.getpwnam('nobody')
++        with tempfile.TemporaryDirectory(prefix='managed-gpg-integration-', dir='/home') as name, \
++                tempfile.TemporaryDirectory(prefix='gpg-root-stage-') as rootname:
++            home, stage = Path(name), Path(rootname)
++            os.chown(home, account.pw_uid, account.pw_gid)
++            gnupg = home / '.gnupg'
++            gnupg.mkdir(mode=0o700)
++            os.chown(gnupg, account.pw_uid, account.pw_gid)
++            prefix = ['/usr/sbin/runuser', '-u', account.pw_name, '--', '/usr/bin/env', '-i',
++                      f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
++                      'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8']
++            def gpg(*args, data=None):
++                p = subprocess.run(prefix + ['/usr/bin/gpg', '--no-options', '--batch'] + list(args),
++                                   input=data, capture_output=True, timeout=60)
++                self.assertEqual(p.returncode, 0, p.stderr.decode(errors='replace'))
++                return p.stdout
++            def stop():
++                subprocess.run(prefix + ['/usr/bin/gpgconf', '--kill', 'gpg-agent'],
++                               capture_output=True, timeout=15)
++            passphrase = b'Disposable GPG fixture only - not deployment input!'
++            ssh_secret = b'Disposable SSH fixture - spaces and % supported!'
++            try:
++                # Reproduce the real ordering: Aptly signing key is imported/
++                # present before desktop creates its own encryption identity.
++                for uid, algo, usage in [('Aptly signing fixture', 'ed25519', 'sign'),
++                                         ('Unrelated encryption fixture', 'future-default', 'default')]:
++                    gpg('--pinentry-mode', 'loopback', '--passphrase-fd', '0', '--quick-generate-key',
++                        uid, algo, usage, 'never', data=passphrase+b'\n')
++                before = ssh.gpg_key_records(gpg('--with-colons', '--list-secret-keys', '--',
++                                                '=Aptly signing fixture'), 'sec')
++                aptly_fp = before[0][1]
++                aptly_public = gpg('--export', aptly_fp)
++                stop()
++                template = stage / 'gpg-agent.conf'
++                template.write_bytes((SEED/'hooks/target/etc/skel-desktop/.gnupg/gpg-agent.conf').read_bytes())
++                stub = stage / 'pinentry-qt'
++                stub.write_text('#!/bin/sh\nexit 99\n')
++                stub.chmod(0o700)
++                body = bootstrap_body().replace('gpg_agent_template=/etc/skel-desktop/.gnupg/gpg-agent.conf',
++                                                'gpg_agent_template='+shlex.quote(str(template)))
++                output_fingerprint = None
++                for attempt in range(2):
++                    passfile, fingerprint_file = stage/'passphrase', stage/'fingerprint'
++                    passfile.write_bytes(passphrase+b'\n'); passfile.chmod(0o600)
++                    p = subprocess.run(['/bin/sh', '-c', body, 'sh', account.pw_name, str(home),
++                                        'Managed desktop fixture', str(passfile), str(fingerprint_file)],
++                                       env=dict(os.environ, PATH=str(stage)+':/usr/sbin:/usr/bin:/sbin:/bin',
++                                                LC_ALL='C.UTF-8'), capture_output=True, timeout=90)
++                    self.assertEqual(p.returncode, 0, p.stderr.decode(errors='replace'))
++                    self.assertNotIn(passphrase, p.stdout+p.stderr)
++                    self.assertFalse(passfile.exists())
++                    self.assertEqual(fingerprint_file.stat().st_uid, 0)
++                    self.assertEqual(stat.S_IMODE(fingerprint_file.stat().st_mode), 0o600)
++                    fingerprint = fingerprint_file.read_text().strip()
++                    if output_fingerprint is not None:
++                        self.assertEqual(fingerprint, output_fingerprint)
++                    output_fingerprint = fingerprint
++                    self.assertNotEqual(fingerprint, aptly_fp)
++                    ssh.seal(account, home, ssh_secret, fingerprint)
++                    blob = home/'.local/share/managed-ssh/git-key-passphrase.gpg'
++                    self.assertEqual(blob.stat().st_uid, account.pw_uid)
++                    self.assertEqual(stat.S_IMODE(blob.stat().st_mode), 0o600)
++                    # The seal action explicitly stopped its listing agent. A
++                    # fresh loopback decrypt supplies ONLY the GPG passphrase.
++                    self.assertFalse((gnupg/'S.gpg-agent').exists())
++                    plaintext = gpg('--pinentry-mode', 'loopback', '--passphrase-fd', '0',
++                                    '--decrypt', str(blob), data=passphrase+b'\n')
++                    self.assertEqual(plaintext, ssh_secret)
++                    self.assertEqual(gpg('--export', aptly_fp), aptly_public)
++                    self.assertIn(aptly_fp.encode(), gpg('--with-colons', '--list-secret-keys', '--', aptly_fp))
++                    for path in home.rglob('*'):
++                        if path.is_file() and not path.is_symlink():
++                            self.assertNotIn(ssh_secret, path.read_bytes(), str(path))
++                    stop()
++            finally:
++                stop()
++
++
++class ShellHandoffTests(unittest.TestCase):
++    def run_fixture(self, kind):
++        with tempfile.TemporaryDirectory(prefix='gpg-handoff-') as tmp:
++            target = Path(tmp)/'target'; target.mkdir()
++            source = COMPONENTS.read_text()
++            start = source.index('desktop_bootstrap_primary_account_gpg_key() {')
++            end = source.index('\ndesktop_user_unit_template_dir()', start)
++            function = source[start:end].replace('/target', str(target))
++            script = '''set -eu
++installer_fatal() { printf '%s\\n' "$*" >&2; exit 1; }
++desktop_require_absolute_account_home() { :; }
++desktop_primary_account_gpg_user_id() { printf '%s\\n' 'Managed desktop fixture'; }
++desktop_primary_account_gpg_passphrase() { printf '%s\\n' 'not-a-real-secret'; }
++desktop_log() { :; }
++rm() {
++  # Delete the disposable fixture but report failure, so the test can prove
++  # cleanup failures never turn a transaction into a reported success.
++  command rm "$@" || return 1
++  [ "$KIND" != cleanup-failure ]
++}
++attempt_in_target() {
++  [ "$KIND" != bootstrap-failure ] || return 1
++  for last; do :; done
++  case "$KIND" in
++    absent) return 0 ;;
++    malformed) printf '%s\\n' 'not-a-fingerprint' >"$TARGET$last" ;;
++    *) printf '%s\\n' "$FINGERPRINT" >"$TARGET$last" ;;
++  esac
++}
++managed_git_ssh_target_action() {
++  [ "$#" -eq 3 ] && [ "$1" = seal ] && [ "$2" = --gpg-fingerprint ] && [ "$3" = "$FINGERPRINT" ] || exit 99
++  [ "$KIND" != seal-failure ] || return 1
++  printf '%s\\n' 'selected-fingerprint-handed-off'
++}
++'''+function+'''
++ACCOUNT_USERNAME=fixture
++ACCOUNT_HOME=/home/fixture
++ACCOUNT_FULLNAME='Fixture Desktop'
++ACCOUNT_GPG_PASSPHRASE='not-a-real-secret'
++ACCOUNT_GPG_PASSPHRASE_IS_PLAIN=true
++desktop_bootstrap_primary_account_gpg_key
++[ "${ACCOUNT_GPG_PASSPHRASE_IS_PLAIN}" = false ]
++[ -z "${ACCOUNT_GPG_PASSPHRASE+x}" ]
++printf '%s\\n' completed
++'''
++            results = []
++            shells = [['/bin/dash'], ['/bin/bash']]
++            if shutil.which('busybox'): shells.append([shutil.which('busybox'), 'ash'])
++            for shell in shells:
++                p = subprocess.run(shell+['-c', script], env=dict(os.environ, KIND=kind, TARGET=str(target),
++                                                               FINGERPRINT=FP), capture_output=True, timeout=15)
++                self.assertEqual(list((target/'tmp').glob('desktop-gpg.*')), [])
++                self.assertNotIn(b'not-a-real-secret', p.stdout+p.stderr)
++                results.append(p)
++            return results
++
++    def test_success_handoff_and_staging_cleanup_three_shells(self):
++        for p in self.run_fixture('success'):
++            self.assertEqual(p.returncode, 0, p.stderr)
++            self.assertIn(b'selected-fingerprint-handed-off', p.stdout)
++            self.assertIn(b'completed', p.stdout)
++
++    def test_failure_cleanup_no_continue_three_shells(self):
++        for kind in ('bootstrap-failure', 'absent', 'malformed', 'seal-failure', 'cleanup-failure'):
++            with self.subTest(kind=kind):
++                for p in self.run_fixture(kind):
++                    self.assertNotEqual(p.returncode, 0)
++                    self.assertNotIn(b'completed', p.stdout)
++
++    def test_no_unscoped_seal_call_left_in_desktop_flow(self):
++        source = COMPONENTS.read_text()
++        self.assertNotIn('managed_git_ssh_target_action seal ||', source)
++        self.assertEqual(source.count('managed_git_ssh_target_action seal --gpg-fingerprint'), 1)
++
++
++class LoggedTransportTests(unittest.TestCase):
++    def test_adopted_package_transactions_disable_pty_like_other_installs(self):
++        source = (SEED/'scripts/late/software.sh').read_text()
++        start = source.index('for software_binary_package in $software_binary_packages; do')
++        end = source.index('\ndone', start)
++        block = source[start:end]
++        self.assertIn('-o DPkg::Use-Pty=0', block)
++        self.assertIn('LC_ALL=C.UTF-8', block)
++        self.assertIn('|| software_fatal', block)
++
++    def test_in_target_bridge_drops_stale_locale_and_child_has_utf8(self):
++        with tempfile.TemporaryDirectory(prefix='locale-boundary-') as name:
++            root = Path(name)
++            stub = root/'in-target'
++            stub.write_text('#!/bin/sh\n[ "$LC_ALL" = C ] || exit 91\n'
++                            '[ -z "${LOCPATH+x}" ] || exit 92\nshift\nexec "$@"\n')
++            stub.chmod(0o700)
++            script = '. '+shlex.quote(str(SEED/'scripts/common/target.sh'))+'\n'+'''
++target_exec /bin/sh -c 'printf "%s:%s\\n" "$LANG" "$LC_ALL"'
++target_exec /usr/bin/env LC_ALL=C /bin/sh -c 'printf "%s\\n" "$LC_ALL"'
++'''
++            p = subprocess.run(['/bin/sh', '-c', script], env=dict(os.environ, PATH=str(root)+':/usr/bin:/bin',
++                              LANG='not_an_installed_locale', LC_ALL='not_an_installed_locale',
++                              LOCPATH='/does/not/exist'), capture_output=True, timeout=10)
++            self.assertEqual(p.returncode, 0, p.stderr)
++            self.assertEqual(p.stdout, b'C.UTF-8:C.UTF-8\nC\n')
++
++
++if __name__ == '__main__':
++    unittest.main()

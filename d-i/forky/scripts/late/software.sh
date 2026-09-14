@@ -2093,9 +2093,9 @@ for software_binary_package in $software_binary_packages; do
   esac
   chroot "$target_root" /usr/bin/env -i \
     DEBIAN_FRONTEND=noninteractive \
-    NEEDRESTART_SUSPEND=1 HOME=/root \
+    NEEDRESTART_SUSPEND=1 HOME=/root LC_ALL=C.UTF-8 \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 --no-install-recommends \
+    /usr/bin/apt-get -y -o DPkg::Lock::Timeout=60 -o DPkg::Use-Pty=0 --no-install-recommends \
     install "$software_binary_package" || software_fatal "adopted binary package installation failed"
 done
 chroot "$target_root" /usr/local/libexec/local-apt-repository seed-defaults ||

@@ -1,0 +1,20 @@
+d-i/forky/scripts/desktop/components.sh:2273:    --list-secret-keys \
+d-i/forky/scripts/desktop/components.sh:2288:    *) fatal "generated GPG fingerprint has an unsupported length" ;;
+d-i/forky/scripts/desktop/components.sh:2291:    *[!0123456789ABCDEF]*) fatal "generated GPG fingerprint is malformed" ;;
+d-i/forky/scripts/desktop/components.sh:2310:gpg_key_is_kwallet_suitable() {
+d-i/forky/scripts/desktop/components.sh:2398:[ "$#" -eq 1 ] || fatal "desktop GPG bootstrap requires exactly one managed secret key"
+d-i/forky/scripts/desktop/components.sh:2409:gpg_key_is_kwallet_suitable "$gpg_fingerprint" ||
+d-i/forky/scripts/desktop/components.sh:2414:  fatal "failed to return the managed desktop GPG fingerprint"
+d-i/forky/scripts/desktop/components.sh:2422:    installer_fatal "managed desktop GPG fingerprint was not returned"
+d-i/forky/scripts/desktop/components.sh:2425:    *) installer_fatal "managed desktop GPG fingerprint has an unsupported length" ;;
+d-i/forky/scripts/desktop/components.sh:2428:    *[!0123456789ABCDEF]*) installer_fatal "managed desktop GPG fingerprint is malformed" ;;
+d-i/forky/scripts/late/devops.sh:1571:    --list-secret-keys "$expected_fingerprint"
+d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py:213:                raise InstallError('malformed managed GPG fingerprint record')
+d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py:219:        raise InstallError('exactly one selected managed GPG primary is required')
+d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py:235:        raise InstallError('a full managed desktop GPG fingerprint is required')
+d-i/forky/hooks/target/usr/local/libexec/managed-ssh-install.py:257:            '--with-secret', '--list-secret-keys', '--', fingerprint]), 'sec')
+d-i/forky/hooks/target/usr/local/libexec/aptly-publishing:274:        fail("Aptly config must define exactly one managed R2 endpoint")
+d-i/forky/hooks/target/usr/local/libexec/aptly-publishing:358:                "--list-secret-keys",
+d-i/forky/hooks/target/usr/local/libexec/local-apt-repository:1428:        listing = run(base + ["--with-colons", "--list-secret-keys"]).decode()
+d-i/forky/hooks/target/usr/local/libexec/local-apt-repository:1432:            listing = run(base + ["--with-colons", "--list-secret-keys"]).decode()
+d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md:416:Check a cold/warm/cancelled GPG unlock, fingerprint consistency, retry via

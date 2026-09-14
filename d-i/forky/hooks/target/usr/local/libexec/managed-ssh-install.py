@@ -192,32 +192,93 @@ def publish_pair(home: Path, private: bytes, public: bytes, uid: int, gid: int) 
                 publish(path,saved[path][0],uid,gid,saved[path][1])
         raise
 
-def seal(account: pwd.struct_passwd, home: Path, secret: bytes) -> None:
+def gpg_key_records(listing: bytes, primary_kind: str) -> list[tuple[list[str], str]]:
+    """Parse only key/fingerprint records from GnuPG's stable colon format.
+
+    Do not confuse a subkey fingerprint with its primary, or accept a truncated
+    record. UIDs and keygrips are not used as recipient selectors.
+    """
+    kinds = (primary_kind, 'sub' if primary_kind == 'pub' else 'ssb')
+    records: list[tuple[list[str], str]] = []
+    pending: list[str] | None = None
+    for line in listing.decode('utf-8', 'strict').splitlines():
+        fields = line.split(':')
+        if fields[0] in ('pub', 'sub', 'sec', 'ssb'):
+            if pending is not None or fields[0] not in kinds or len(fields) < 12:
+                raise InstallError('malformed managed GPG key listing')
+            pending = fields
+        elif fields[0] == 'fpr':
+            if pending is None or len(fields) < 10 or not re.fullmatch(
+                    r'(?:[0-9A-F]{40}|[0-9A-F]{64})', fields[9]):
+                raise InstallError('malformed managed GPG fingerprint record')
+            records.append((pending, fields[9]))
+            pending = None
+    if (pending is not None or not records or records[0][0][0] != primary_kind
+            or sum(fields[0] == primary_kind for fields, _ in records) != 1
+            or len({fingerprint for _, fingerprint in records}) != len(records)):
+        raise InstallError('exactly one selected managed GPG primary is required')
+    return records
+
+
+def gpg_key_usable(fields: list[str]) -> bool:
+    # D is in the capability field, not necessarily the validity field. Preserve
+    # case: lowercase e means this key; uppercase E is the usable whole key.
+    return fields[1][:1] not in ('r', 'e', 'd', 'i', 'n', 'w') and 'D' not in fields[11]
+
+
+def seal(account: pwd.struct_passwd, home: Path, secret: bytes,
+         fingerprint: str) -> None:
+    # This fingerprint comes from the successful desktop bootstrap. The same
+    # keyring can also contain Aptly signing keys and unrelated user identities.
+    # Never guess from keyring order, count all keys, or select by a short ID.
+    if not re.fullmatch(r'(?:[0-9A-F]{40}|[0-9A-F]{64})', fingerprint):
+        raise InstallError('a full managed desktop GPG fingerprint is required')
     gnupg = home/'.gnupg'
     st = gnupg.lstat()
     if not stat.S_ISDIR(st.st_mode) or st.st_uid != account.pw_uid or stat.S_IMODE(st.st_mode) != 0o700:
         raise InstallError('managed GPG home is not ready')
-    prefix = ['/usr/sbin/runuser', '-u', account.pw_name, '--', '/usr/bin/env', '-i',
-              f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
-              f'LOGNAME={account.pw_name}', 'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8',
-              '/usr/bin/gpg', '--no-options', '--batch']
-    listing = checked(prefix + ['--with-colons', '--list-secret-keys']).decode()
-    fingerprints = []
-    primary = False
-    for line in listing.splitlines():
-        fields = line.split(':')
-        if fields[0] == 'sec':
-            if fields[1] in ('r', 'e', 'd') or 'e' not in fields[11].lower():
-                raise InstallError('managed GPG key cannot encrypt')
-            primary = True
-        elif fields[0] == 'fpr' and primary:
-            fingerprints.append(fields[9]); primary = False
-    if len(fingerprints) != 1 or not re.fullmatch(r'[0-9A-F]{40,64}', fingerprints[0]):
-        raise InstallError('exactly one managed encryption-capable GPG identity is required')
-    ciphertext = checked(prefix + ['--trust-model', 'always', '--recipient', fingerprints[0],
-                                   '--output', '-', '--encrypt'], data=secret)
-    if not ciphertext or ciphertext == secret:
-        raise InstallError('GPG did not produce ciphertext')
+    user_prefix = ['/usr/sbin/runuser', '-u', account.pw_name, '--', '/usr/bin/env', '-i',
+                   f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
+                   f'LOGNAME={account.pw_name}', 'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8']
+    prefix = user_prefix + ['/usr/bin/gpg', '--no-options', '--batch', '--no-tty']
+    try:
+        public = gpg_key_records(checked(prefix + [
+            '--fixed-list-mode', '--with-colons', '--with-fingerprint', '--with-fingerprint',
+            '--list-keys', '--', fingerprint]), 'pub')
+        primary = public[0][0]
+        if public[0][1] != fingerprint:
+            raise InstallError('GPG returned a different managed primary identity')
+        if not gpg_key_usable(primary) or 'E' not in primary[11]:
+            raise InstallError('selected managed desktop GPG key cannot encrypt')
+        if primary[8] != 'u':
+            raise InstallError('selected managed desktop GPG key lacks ultimate owner trust')
+        private = gpg_key_records(checked(prefix + [
+            '--fixed-list-mode', '--with-colons', '--with-fingerprint', '--with-fingerprint',
+            '--with-secret', '--list-secret-keys', '--', fingerprint]), 'sec')
+        if private[0][1] != fingerprint or not gpg_key_usable(private[0][0]):
+            raise InstallError('selected managed GPG secret identity is unavailable')
+        # A public encryption subkey is insufficient: the local managed agent
+        # must later be able to decrypt. '+' in field 15 denotes local material;
+        # '#' / card stubs are not suitable for this managed software-key flow.
+        local = {fp for fields, fp in private if gpg_key_usable(fields)
+                 and len(fields) > 14 and fields[14] == '+' and 'e' in fields[11]}
+        candidates = [(fields[5], fp) for fields, fp in public
+                      if gpg_key_usable(fields) and 'e' in fields[11] and fp in local]
+        if not candidates or any(not created.isdecimal() for created, _ in candidates):
+            raise InstallError('selected managed GPG identity has no usable local encryption key')
+        # Pick the newest usable local encryption (sub)key of THIS primary.
+        # Exact subkey selection avoids GPG choosing an offline/card-only subkey
+        # when a keyring contains more than one encryption subkey.
+        recipient = max(candidates, key=lambda item: (int(item[0]), item[1]))[1]
+        ciphertext = checked(prefix + ['--trust-model', 'always', '--recipient', recipient + '!',
+                                       '--output', '-', '--encrypt'], data=secret)
+        if not ciphertext or ciphertext == secret:
+            raise InstallError('GPG did not produce ciphertext')
+    finally:
+        # Secret-key listing can autostart an agent after bootstrap stopped it.
+        # The installer owns this temporary account agent; leave no daemon/cache
+        # behind. Runtime desktop agents are not involved in this action.
+        checked(user_prefix + ['/usr/bin/gpgconf', '--kill', 'gpg-agent'], timeout=15)
     publish(home/'.local/share/managed-ssh/git-key-passphrase.gpg', ciphertext,
             account.pw_uid, account.pw_gid)
 
@@ -281,12 +342,17 @@ def main() -> int:
     parser.add_argument('account')
     parser.add_argument('stage', type=Path)
     parser.add_argument('destination', nargs='?', type=Path)
+    parser.add_argument('--gpg-fingerprint', help='full desktop primary fingerprint; required for seal')
     args = parser.parse_args()
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     os.umask(0o077)
     for signum in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(signum, lambda number, _frame: sys.exit(128 + number))
     try:
+        if (args.action == 'seal') != (args.gpg_fingerprint is not None):
+            raise InstallError('--gpg-fingerprint is required only for the seal action')
+        if args.action != 'clone-codex' and args.destination is not None:
+            raise InstallError('a destination is accepted only for clone-codex')
         if os.geteuid() != 0:
             raise InstallError('installer action requires root')
         if not re.fullmatch(r'/tmp/managed-git-ssh\.[A-Za-z0-9]+', str(args.stage)):
@@ -315,7 +381,7 @@ def main() -> int:
                     raise InstallError('installed SSH identity differs from the initrd identity')
                 if read_direct(home/'.ssh/id_git_ed25519.pub', 4096, account.pw_uid, public=True) != public:
                     raise InstallError('installed SSH public key differs from initrd')
-                seal(account, home, secret)
+                seal(account, home, secret, args.gpg_fingerprint)
             else:
                 if args.destination is None:
                     raise InstallError('Codex clone destination is required')
