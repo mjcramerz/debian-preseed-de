@@ -1,0 +1,45 @@
+{
+  "python": "/opt/pyvenv/bin/python3",
+  "python_version": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "effective_uid": 0,
+  "os_release": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.3\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "tools": {
+    "busybox": {
+      "path": "/usr/bin/busybox",
+      "sha256": "eb7c19bbe1311b43608fc0ae032abc87bd3122fe895a5dec54261d0d1feff19f"
+    },
+    "git": {
+      "path": "/usr/bin/git",
+      "sha256": "356db14e102d68a1a37d8a1ac577dfd678d45d46e92f468bef8b7154e7bfdc60"
+    },
+    "ssh": {
+      "path": null
+    },
+    "ssh-agent": {
+      "path": null
+    },
+    "ssh-add": {
+      "path": null
+    },
+    "chroot": {
+      "path": "/usr/sbin/chroot",
+      "sha256": "019aa72e5412a6b0efdd6d94135acbc15ffbd37f7a5fb5ac47a9ef1c515c6c3e"
+    },
+    "apparmor_parser": {
+      "path": "/usr/sbin/apparmor_parser",
+      "sha256": "4a7dda265275dd26cd8d771b54d78c2958c842933fc698286581d4230811386d"
+    },
+    "perl": {
+      "path": "/usr/bin/perl",
+      "sha256": "2e341d06b8e72eae72cd72da47b38ba1174bedc83904ab177fe8fd9f89f220cd"
+    }
+  },
+  "no_application_compilation": true,
+  "fixture_scope": [
+    "Installed BusyBox with restricted PATH and a minimal disposable chroot; not a booted d-i or a downloaded busybox-udeb binary.",
+    "Real local Git clone inside disposable chroot; no real SSH provider authentication.",
+    "No host service activation, partitioning, boot, mount or power action.",
+    "AppArmor names-only source parsing; no policy activation."
+  ]
+}

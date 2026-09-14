@@ -1,0 +1,71 @@
+{
+  "repository": "debian-preseed-de",
+  "utc": "2026-09-14T20:41:44.277157+00:00",
+  "stages": [
+    {
+      "stage": "browser-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.768,
+      "log": "browser-check.log"
+    },
+    {
+      "stage": "build-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 2.431,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.769,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.373,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "tests",
+      "returncode": 1,
+      "timed_out": false,
+      "seconds": 283.392,
+      "log": "tests.log",
+      "tests_run": 901,
+      "skipped": 25
+    },
+    {
+      "stage": "audit",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.685,
+      "log": "audit.log"
+    }
+  ],
+  "success": false,
+  "audit_check_counts": {
+    "blocked-dependency": 155,
+    "blocked-tool": 11,
+    "inventory-only": 485,
+    "pass": 431,
+    "structure-pass": 130,
+    "template-needs-render": 2
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "d67c9b3fb1d70d5fba0ad41adbb470da7a0e6209e34c802a539715fa3fc739ad",
+    "payload.manifest": "2ffe86ec8809837f2084b0094c386553d88835a096e07469c0c47bd4f07f7e45",
+    "payload.tar.gz": "082faa3756de3ba8d52e744f2d29a38e358beb28adb8a8603628f4d9f9b15504"
+  },
+  "limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance."
+  ]
+}

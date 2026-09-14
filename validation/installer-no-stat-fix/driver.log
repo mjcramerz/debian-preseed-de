@@ -1,0 +1,13 @@
+[browser-check] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/preseed-check.log
+[preseed-check] PASS (0)
+[shell-check] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/shell-check.log
+[shell-check] PASS (0)
+[tests] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/tests.log
+[tests] FAIL (1)
+[audit] running; log: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/stat-fix-work/debian-preseed-de/validation/installer-no-stat-fix/summary.json

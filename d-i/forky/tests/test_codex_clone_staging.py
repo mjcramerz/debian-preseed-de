@@ -26,6 +26,7 @@ import unittest
 SEED = Path(__file__).resolve().parents[1]
 HELPER = SEED / 'hooks/target/usr/local/libexec/managed-ssh-install.py'
 DEVOPS = SEED / 'scripts/late/devops.sh'
+COMMON = SEED / 'scripts/common/lib.sh'
 URL = 'git@gitlab.com:computes/misc/codex-home.git'
 BRIDGE = r'''
 import importlib.util, json, os, shutil, subprocess, sys
@@ -100,6 +101,15 @@ exec /usr/bin/git-upload-pack /fixtures/remote.git
 '''
 
 
+def metadata_source() -> str:
+    # Read the same generated common library loaded by the real late helper.
+    # Do not reimplement metadata checks in the fixture.
+    text = COMMON.read_text()
+    start = text.index('installer_metadata_value() (')
+    end = text.index('\ninstaller_lifecycle_paths()', start)
+    return text[start:end]
+
+
 def allocator_source() -> str:
     text = DEVOPS.read_text()
     start = text.index('devops_install_pinned_codex() (')
@@ -145,7 +155,11 @@ managed_git_ssh_target_action() {
   # Only stub actions assert locally; real actions must reach the production
   # Python validator, including when run against the broken prior delivery.
   case "$TEST_ACTION" in
-    stub|clone-fail|wait) [ "$(stat -c '%u:%a' -- "$path")" = 0:700 ] || return 66 ;;
+    stub|clone-fail|wait)
+      case "$(installer_metadata_value "$path" uid_gid_mode)" in
+        0:*:700) ;;
+        *) return 66 ;;
+      esac ;;
   esac
   [ ! -e "${target_root}$2" ] && [ ! -L "${target_root}$2" ] || return 67
   case "$TEST_ACTION" in
@@ -161,7 +175,7 @@ devops_install_codex_from_clone() {
   [ "$TEST_ACTION" != publisher-fail ] || return 37
   mv "${target_root}$1" "${target_root}/published"
 }
-''' + allocator_source() + '\n'
+''' + metadata_source() + '\n' + allocator_source() + '\n'
 
     def command(self, name: str, body: str) -> None:
         path = self.bin/name
@@ -274,10 +288,115 @@ devops_install_codex_from_clone() {
 
     @unittest.skipUnless(shutil.which('busybox'), 'BusyBox installer tool fixture')
     def test_busybox_ash_and_applets(self):
-        for name in ('mktemp', 'chmod', 'stat', 'rm', 'mkdir', 'mv'):
+        for name in ('mktemp', 'chmod', 'ls', 'awk', 'rm', 'mkdir', 'mv'):
             (self.bin/name).symlink_to(shutil.which('busybox'))
         result = self.run_allocator(shell=(shutil.which('busybox'), 'sh'))
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assert_clean()
+
+    def restrict_installer_path(self):
+        """No GNU tools, target tools, or stat applet on the installer PATH."""
+        busybox = shutil.which('busybox')
+        if not busybox:
+            self.skipTest('BusyBox required for restricted installer PATH')
+        for name in ('mktemp', 'chmod', 'ls', 'awk', 'rm', 'mkdir', 'mv', 'sleep'):
+            path = self.bin/name
+            if not path.exists():
+                path.symlink_to(busybox)
+        self.env['PATH'] = str(self.bin)
+        probe = subprocess.run([busybox, 'sh', '-c', 'command -v stat'],
+                               env=self.env, capture_output=True, text=True, timeout=5)
+        self.assertNotEqual(probe.returncode, 0, 'fixture accidentally exposes stat')
+        return busybox
+
+    def test_installer_path_without_stat_succeeds_in_dash_ash_and_bash(self):
+        busybox = self.restrict_installer_path()
+        for shell in (('/bin/sh',), (busybox, 'sh'), ('/bin/bash',)):
+            with self.subTest(shell=shell):
+                result = self.run_allocator(shell=shell)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(len(self.record.read_text().splitlines()), 2)
+                self.assertNotIn('not root-owned', result.stderr)
+                self.assertNotIn('not found', result.stderr)
+                self.assert_clean()
+                shutil.rmtree(self.target/'published')
+                self.record.unlink()
+
+    def test_forbidden_installer_stat_is_never_called(self):
+        self.command('stat', 'printf FORBIDDEN_INSTALLER_STAT >&2; exit 127')
+        result = self.run_allocator()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn('FORBIDDEN_INSTALLER_STAT', result.stderr)
+        self.assert_clean()
+
+    def test_real_git_clone_with_no_stat_on_installer_path(self):
+        self.prepare_git_chroot()
+        busybox = self.restrict_installer_path()
+        result = self.run_allocator('real', shell=(busybox, 'sh'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        receipt = json.loads((self.target/'clone-receipt.json').read_text())
+        self.assertEqual(receipt['branch'], 'mcr/main')
+        self.assertEqual(receipt['upstream'], 'origin/mcr/main')
+        self.assertEqual(receipt['mode'], '0o700')
+        self.assertTrue((self.target/'published/.git/HEAD').is_file())
+        self.assert_clean()
+
+    def test_owner_metadata_read_failure_is_not_wrong_ownership(self):
+        self.command('ls', 'exit 73')
+        self.restrict_installer_path()
+        result = self.run_allocator()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unable to inspect private Codex clone staging directory ownership', result.stderr)
+        self.assertNotIn('not root-owned', result.stderr)
+        self.assert_not_called()
+
+    def test_final_metadata_read_failure_is_not_wrong_mode(self):
+        self.command('awk', 'exit 74')
+        self.restrict_installer_path()
+        result = self.run_allocator()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('unable to inspect private Codex clone staging directory mode', result.stderr)
+        self.assertNotIn('must be root-owned mode 0700', result.stderr)
+        self.assert_not_called()
+
+    def test_empty_or_malformed_metadata_fails_closed_without_wrong_owner(self):
+        for body in ('exit 0', 'printf "not-metadata\\n"'):
+            with self.subTest(body=body):
+                path = self.bin/'ls'
+                path.unlink(missing_ok=True)
+                self.command('ls', body)
+                result = self.run_allocator()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('unable to inspect private Codex clone staging directory ownership', result.stderr)
+                self.assertNotIn('not root-owned', result.stderr)
+                self.assert_not_called()
+
+    def test_nonroot_stage_is_rejected_without_stat(self):
+        self.command('mktemp', 'p=$(/usr/bin/mktemp "$@")\n/usr/bin/chown 65534 "$p"\nprintf "%s\\n" "$p"')
+        self.restrict_installer_path()
+        result = self.run_allocator()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not root-owned', result.stderr)
+        self.assertNotIn('not found', result.stderr)
+        self.assert_not_called()
+
+    def test_symlink_stage_is_rejected_without_changing_referent(self):
+        outside = self.root/'outside'
+        outside.mkdir(mode=0o750)
+        self.command('mktemp', 'p=$(/usr/bin/mktemp "$@")\n/usr/bin/rmdir "$p"\n/usr/bin/ln -s "$TEST_OUTSIDE" "$p"\nprintf "%s\\n" "$p"')
+        self.restrict_installer_path()
+        result = self.run_allocator(TEST_OUTSIDE=str(outside))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('not a direct directory', result.stderr)
+        self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o750)
+        self.assert_not_called()
+
+    def test_clone_failure_cleans_with_no_stat_on_installer_path(self):
+        busybox = self.restrict_installer_path()
+        result = self.run_allocator('clone-fail', shell=(busybox, 'sh'))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('failed to clone codex-home', result.stderr)
+        self.assertNotIn('publish:', self.record.read_text())
         self.assert_clean()
 
     def test_bash_caller(self):

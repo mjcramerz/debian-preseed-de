@@ -1,0 +1,28 @@
+{
+  "before": {
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "/test.sh: line 34: stat: not found\nfatal: private Codex clone staging directory is not root-owned\n",
+    "published": false,
+    "remaining_stages": [],
+    "shared_root": [
+      0,
+      65534,
+      "0o3770"
+    ],
+    "installer_stat_present": false
+  },
+  "after": {
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "",
+    "published": true,
+    "remaining_stages": [],
+    "shared_root": [
+      0,
+      65534,
+      "0o3770"
+    ],
+    "installer_stat_present": false
+  }
+}

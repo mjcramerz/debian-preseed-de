@@ -3563,12 +3563,23 @@ devops_install_pinned_codex() (
   # ONLY this new private stage, never the shared root or the reader's policy.
   [ -d "$clone_parent" ] && [ ! -L "$clone_parent" ] ||
     devops_fatal "private Codex clone staging path is not a direct directory"
-  [ "$(stat -c %u -- "$clone_parent")" = 0 ] ||
+  # This function runs in d-i, not inside the target. busybox-udeb has no
+  # stat applet: use the canonical reader loaded by bootstrap_source_common_lib.
+  # Distinguish an inspection failure from observed unsafe ownership/mode.
+  clone_owner=$(installer_metadata_value "$clone_parent" uid) ||
+    devops_fatal "unable to inspect private Codex clone staging directory ownership"
+  [ "$clone_owner" = 0 ] ||
     devops_fatal "private Codex clone staging directory is not root-owned"
   chmod 0700 -- "$clone_parent" && chmod a-s -- "$clone_parent" ||
     devops_fatal "unable to secure private Codex clone staging directory"
-  [ "$(stat -c '%u:%a' -- "$clone_parent")" = 0:700 ] ||
-    devops_fatal "private Codex clone staging directory must be root-owned mode 0700"
+  clone_metadata=$(installer_metadata_value "$clone_parent" uid_gid_mode) ||
+    devops_fatal "unable to inspect private Codex clone staging directory mode"
+  # The inherited devops GID is intentional; only the UID and exact mode are
+  # fixed here. The reader validates all numeric metadata fields before use.
+  case "$clone_metadata" in
+    0:*:700) ;;
+    *) devops_fatal "private Codex clone staging directory must be root-owned mode 0700" ;;
+  esac
   managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||
     devops_fatal "failed to clone codex-home over the private installer SSH identity"
   devops_install_codex_from_clone "${clone_parent#"$target_root"}/repository"

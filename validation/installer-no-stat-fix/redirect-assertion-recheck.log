@@ -1,0 +1,54 @@
+
+TREE=debian-preseed-de BASELINE=True REPETITION=1
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.046s
+
+OK
+EXIT=0
+
+TREE=debian-preseed-de BASELINE=True REPETITION=2
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.046s
+
+OK
+EXIT=0
+
+TREE=debian-preseed-de BASELINE=True REPETITION=3
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.044s
+
+OK
+EXIT=0
+
+TREE=debian-preseed-de BASELINE=False REPETITION=1
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.044s
+
+OK
+EXIT=0
+
+TREE=debian-preseed-de BASELINE=False REPETITION=2
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.042s
+
+OK
+EXIT=0
+
+TREE=debian-preseed-de BASELINE=False REPETITION=3
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.043s
+
+OK
+EXIT=0
