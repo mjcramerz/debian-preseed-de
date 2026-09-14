@@ -1,0 +1,18 @@
+{
+  "AppArmor policies": {
+    "regular_files": 72,
+    "byte_identical_to_previous": true
+  },
+  "system manager services/drop-ins": {
+    "regular_files": 106,
+    "byte_identical_to_previous": true
+  },
+  "desktop user services": {
+    "regular_files": 32,
+    "byte_identical_to_previous": true
+  },
+  "host profiles": {
+    "regular_files": 13,
+    "byte_identical_to_previous": true
+  }
+}

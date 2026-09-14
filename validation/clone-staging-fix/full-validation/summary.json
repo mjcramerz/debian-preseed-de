@@ -1,0 +1,71 @@
+{
+  "repository": "debian-preseed-de",
+  "utc": "2026-09-14T19:20:57.614810+00:00",
+  "stages": [
+    {
+      "stage": "browser-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.672,
+      "log": "browser-check.log"
+    },
+    {
+      "stage": "build-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 2.526,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.827,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.674,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "tests",
+      "returncode": 124,
+      "timed_out": true,
+      "seconds": 300.017,
+      "log": "tests.log",
+      "tests_run": null,
+      "skipped": 0
+    },
+    {
+      "stage": "audit",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 2.193,
+      "log": "audit.log"
+    }
+  ],
+  "success": false,
+  "audit_check_counts": {
+    "blocked-dependency": 155,
+    "blocked-tool": 11,
+    "inventory-only": 485,
+    "pass": 431,
+    "structure-pass": 130,
+    "template-needs-render": 2
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "8d9cb62f90b05ab868e07f135ac772efeeaf0bb448922b871c31002906ce7a28",
+    "payload.manifest": "f89f179ba197f07f3ce818780e2dc89d43d14b55299b236a592765fb76ce00f7",
+    "payload.tar.gz": "b7963810bd6882dd539c8e61b49dd8b75b6427cc0efa849af10d4572df30ddc2"
+  },
+  "limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance."
+  ]
+}

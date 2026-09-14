@@ -1,0 +1,29 @@
+test_gnu_allocator_normalizes_stage_and_preserves_shared_root (old_clone_boundary_fixture.CloneStagingTests.test_gnu_allocator_normalizes_stage_and_preserves_shared_root) ... FAIL
+test_real_git_clone_through_production_allocator_and_validator (old_clone_boundary_fixture.CloneStagingTests.test_real_git_clone_through_production_allocator_and_validator) ... FAIL
+
+======================================================================
+FAIL: test_gnu_allocator_normalizes_stage_and_preserves_shared_root (old_clone_boundary_fixture.CloneStagingTests.test_gnu_allocator_normalizes_stage_and_preserves_shared_root)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/clone-fix-work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 261, in test_gnu_allocator_normalizes_stage_and_preserves_shared_root
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : fatal: failed to clone codex-home over the private installer SSH identity
+
+
+======================================================================
+FAIL: test_real_git_clone_through_production_allocator_and_validator (old_clone_boundary_fixture.CloneStagingTests.test_real_git_clone_through_production_allocator_and_validator)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/clone-fix-work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 351, in test_real_git_clone_through_production_allocator_and_validator
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : managed-ssh-install: InstallError: unsafe Codex clone staging parent
+fatal: failed to clone codex-home over the private installer SSH identity
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.582s
+
+FAILED (failures=2)
+EXPECTED OLD-DELIVERY REGRESSION FAILURES: 2

@@ -1,0 +1,28 @@
+test_published_root_owned_config_remains_readable_by_desktop_user (test_codex_clone_staging.CloneStagingTests.test_published_root_owned_config_remains_readable_by_desktop_user) ... FAIL
+
+======================================================================
+FAIL: test_published_root_owned_config_remains_readable_by_desktop_user (test_codex_clone_staging.CloneStagingTests.test_published_root_owned_config_remains_readable_by_desktop_user)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/clone-fix-work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 406, in test_published_root_owned_config_remains_readable_by_desktop_user
+    self.assertEqual((path.stat().st_uid, path.stat().st_gid,
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      stat.S_IMODE(path.stat().st_mode)), (0, 0, mode), name)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Tuples differ: (0, 0, 384) != (0, 0, 420)
+
+First differing element 2:
+384
+420
+
+- (0, 0, 384)
+?        --
+
++ (0, 0, 420)
+?         ++
+ : README
+
+----------------------------------------------------------------------
+Ran 1 test in 1.677s
+
+FAILED (failures=1)

@@ -1,0 +1,36 @@
+{
+  "original_archive": "debian-preseed-de-lifecycle-reviewed.tar.gz",
+  "all_final_failures_reproduced_against_previous_delivery": true,
+  "final_log": "final-full-tests.log",
+  "baseline_log": "baseline-failures.log",
+  "tests": [
+    {
+      "id": "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+      "outcome": "FAIL"
+    },
+    {
+      "id": "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events",
+      "outcome": "ERROR"
+    },
+    {
+      "id": "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall",
+      "outcome": "FAIL"
+    },
+    {
+      "id": "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia",
+      "outcome": "FAIL"
+    },
+    {
+      "id": "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb",
+      "outcome": "FAIL"
+    },
+    {
+      "id": "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound",
+      "outcome": "FAIL"
+    },
+    {
+      "id": "test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only",
+      "outcome": "ERROR"
+    }
+  ]
+}

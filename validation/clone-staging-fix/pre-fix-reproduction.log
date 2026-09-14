@@ -1,0 +1,8 @@
+{
+  "codex_root_mode": "0o3770",
+  "mktemp_mode": "0o2700",
+  "after_plain_chmod_0700": "0o2700",
+  "owner": 0,
+  "previous_helper_result": "unsafe Codex clone staging parent",
+  "after_explicit_clear_setid": "0o700"
+}

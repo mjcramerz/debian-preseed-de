@@ -1,0 +1,63 @@
+{
+  "date": "2026-09-14",
+  "generated_utc": "2026-09-14T19:35:47.334438+00:00",
+  "focused": {
+    "tests": 24,
+    "passed": 24,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 22.978,
+    "log": "regressions.log"
+  },
+  "related_integrations": {
+    "tests": 192,
+    "passed": 191,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "seconds": 16.434,
+    "log": "final-related-integrations.log"
+  },
+  "full_repository_suite": {
+    "tests": 892,
+    "passed": 860,
+    "failures": 5,
+    "errors": 2,
+    "skipped": 25,
+    "seconds": 397.459,
+    "log": "final-full-tests.log"
+  },
+  "full_suite_is_green": false,
+  "all_remaining_failures_match_previous_delivery": true,
+  "shell_checks": {
+    "success": true,
+    "shell_files": 277,
+    "parser_checks": 565,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "apparmor": "Source parse passed; not loaded/enforce-tested",
+  "build": "Build/check passed, both changed source entries compared with runtime payload",
+  "preseed": "59 files checked; four generated command values survived actual private debconf read-back",
+  "audit_check_counts": {
+    "blocked-dependency": 155,
+    "inventory-only": 485,
+    "pass": 442,
+    "structure-pass": 130,
+    "template-needs-render": 2
+  },
+  "runtime_product_sha256": {
+    "payload.manifest": "aae7464a626e41b3324adf9a44492ac5993534be809b88a99f6c6c30c96a707e",
+    "payload.tar.gz": "a4be80a76bff1a1e3de2e29f48864388827f5d3b76128aede7dc7466cb419fb9",
+    "preseed.cfg": "10741415e56a0665ddf111e561afb59c35fedaca32405cf06f77f9484e99b53b"
+  },
+  "limits": [
+    "No actual Debian installer boot or installation performed.",
+    "Real Git chroot uses a local SSH transport fixture, not provider authentication.",
+    "No OpenSSH executables available; package host DNS lookup failed.",
+    "AppArmor policy parsed only, not loaded or exercised in enforce mode.",
+    "No target service, hardware, initramfs, reboot or power action activated.",
+    "Only preinstalled test executables/libraries were copied; no software component built from source."
+  ]
+}

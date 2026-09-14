@@ -1,0 +1,20 @@
+{
+  "python": "3.13.5",
+  "euid": 0,
+  "git": "git version 2.47.3",
+  "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary.",
+  "openssh_executables": {
+    "ssh": null,
+    "ssh-agent": null,
+    "ssh-add": null,
+    "ssh-keygen": null
+  },
+  "limits": [
+    "No actual Debian installer boot or installation performed.",
+    "Real Git chroot uses a local SSH transport fixture, not provider authentication.",
+    "No OpenSSH executables available; package host DNS lookup failed.",
+    "AppArmor policy parsed only, not loaded or exercised in enforce mode.",
+    "No target service, hardware, initramfs, reboot or power action activated.",
+    "Only preinstalled test executables/libraries were copied; no software component built from source."
+  ]
+}

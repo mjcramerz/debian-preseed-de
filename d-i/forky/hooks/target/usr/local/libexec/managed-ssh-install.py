@@ -34,11 +34,12 @@ class InstallError(ValueError):
     pass
 
 def checked(argv: list[str], *, env: dict[str, str] | None = None,
-            data: bytes | None = None, timeout: int = 120) -> bytes:
+            data: bytes | None = None, timeout: int = 120,
+            umask: int = -1) -> bytes:
     """Kill the entire child process group on timeout/cancellation; hide output."""
     proc = subprocess.Popen(argv, env=env or BASE_ENV, stdin=subprocess.PIPE,
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                            start_new_session=True)
+                            start_new_session=True, umask=umask)
     try:
         output, _ = proc.communicate(data, timeout=timeout)
         if proc.returncode:
@@ -229,7 +230,13 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str]) -> None:
         raise InstallError('Codex clone destination already exists')
     parent = destination.parent.lstat()
     if not stat.S_ISDIR(parent.st_mode) or parent.st_uid != 0 or stat.S_IMODE(parent.st_mode) != 0o700:
-        raise InstallError('unsafe Codex clone staging parent')
+        # The allocator must clear inherited setgid; do not accept 2700 here.
+        # Metadata only: never disclose keys, passphrases or child output.
+        raise InstallError(
+            'unsafe Codex clone staging parent: expected root-owned direct directory '
+            f'mode 0700; found uid={parent.st_uid}, '
+            f'mode={stat.S_IMODE(parent.st_mode):04o}, '
+            f'directory={stat.S_ISDIR(parent.st_mode)}')
     ssh_config = stage/'ssh_config'
     ssh_config.write_text(f'''Host gitlab.com
   User git
@@ -254,9 +261,13 @@ def clone(destination: Path, stage: Path, agent_env: dict[str, str]) -> None:
     env = dict(agent_env, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
                GIT_TERMINAL_PROMPT='0', GIT_SSH_VARIANT='ssh',
                GIT_SSH_COMMAND=f'/usr/bin/ssh -F {ssh_config}')
+    # Only Git's checkout child uses ordinary repository modes. Its enclosing
+    # stage is still root-only 0700; the parent and credential commands retain
+    # umask 077. Otherwise published root-owned /etc/codex files stay unreadable.
     checked(['/usr/bin/git', '-c', 'core.hooksPath=/dev/null', 'clone', '--template=',
              '--no-hardlinks', '--single-branch', '--branch', CODEX_BRANCH,
-             '--no-tags', '--', CODEX_URL, str(destination)], env=env, timeout=300)
+             '--no-tags', '--', CODEX_URL, str(destination)], env=env, timeout=300,
+            umask=0o022)
     actual = checked(['/usr/bin/git', '-C', str(destination), 'symbolic-ref', '--short', 'HEAD'], env=env)
     upstream = checked(['/usr/bin/git', '-C', str(destination), 'rev-parse', '--abbrev-ref', '@{upstream}'], env=env)
     if actual.strip() != b'mcr/main' or upstream.strip() != b'origin/mcr/main':

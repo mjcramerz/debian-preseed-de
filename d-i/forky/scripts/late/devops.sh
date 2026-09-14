@@ -3551,11 +3551,24 @@ devops_stage_codex_app_server() {
 devops_install_pinned_codex() (
   # A separate, short-lived SSH agent authenticates this clone, before the
   # release publisher runs. No agent capability is passed to Codex itself.
-  clone_parent=$(mktemp -d "${target_root}/data/codex/.home-clone.XXXXXXXX") || exit 1
+  umask 077
+  clone_parent=$(mktemp -d "${target_root}/data/codex/.home-clone.XXXXXXXX") ||
+    devops_fatal "unable to allocate private Codex clone staging directory"
   trap 'rm -rf -- "$clone_parent"' 0
   trap 'exit 129' 1
   trap 'exit 130' 2
   trap 'exit 143' 15
+  # /data/codex intentionally remains root:devops 3770. mktemp inherits
+  # its setgid bit (2700); GNU chmod 0700 alone preserves that bit. Normalize
+  # ONLY this new private stage, never the shared root or the reader's policy.
+  [ -d "$clone_parent" ] && [ ! -L "$clone_parent" ] ||
+    devops_fatal "private Codex clone staging path is not a direct directory"
+  [ "$(stat -c %u -- "$clone_parent")" = 0 ] ||
+    devops_fatal "private Codex clone staging directory is not root-owned"
+  chmod 0700 -- "$clone_parent" && chmod a-s -- "$clone_parent" ||
+    devops_fatal "unable to secure private Codex clone staging directory"
+  [ "$(stat -c '%u:%a' -- "$clone_parent")" = 0:700 ] ||
+    devops_fatal "private Codex clone staging directory must be root-owned mode 0700"
   managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||
     devops_fatal "failed to clone codex-home over the private installer SSH identity"
   devops_install_codex_from_clone "${clone_parent#"$target_root"}/repository"
