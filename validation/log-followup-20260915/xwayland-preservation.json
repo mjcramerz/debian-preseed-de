@@ -1,0 +1,58 @@
+{
+  "files": [
+    {
+      "path": "d-i/forky/scripts/desktop/xwayland.sh",
+      "sha256": "5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+      "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+      "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+      "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+      "sha256": "95888395653f3709e7a4d38a5135934427074959d059173c8c36d945aff78783",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+      "sha256": "7dd18b7d64d84b0f0c9b47debbda690a4cbbb9058eb9bdd849412c9c87a0fff3",
+      "unchanged_from_first_delivery": true,
+      "unchanged_from_original": true
+    }
+  ],
+  "guards": [
+    {
+      "profile": "labwc-xwayland-direct-exec-deny",
+      "unchanged_from_original": true
+    },
+    {
+      "profile": "labwc-cage-direct-exec-deny",
+      "unchanged_from_original": true
+    },
+    {
+      "profile": "labwc-xkbcomp-direct-exec-deny",
+      "unchanged_from_original": true
+    }
+  ],
+  "private_compatibility_allowlist": [
+    "discord",
+    "zoom"
+  ]
+}

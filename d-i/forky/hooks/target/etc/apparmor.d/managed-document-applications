@@ -23,6 +23,9 @@ profile managed-zathura /usr/bin/zathura flags=(attach_disconnected, mediate_del
 profile managed-focuswriter /usr/bin/focuswriter flags=(attach_disconnected, mediate_deleted) {
   #include <abstractions/managed-document-runtime>
   /usr/bin/focuswriter mr,
+  # Qt single-instance checks and the selected qt6ct colour scheme.
+  owner @{PROC}/[0-9]*/{cmdline,stat} r,
+  /usr/share/qt6ct/colors/{,*.conf} r,
   /usr/share/focuswriter/ r,
   /usr/share/focuswriter/** r,
   owner @{HOME}/.{config,cache}/GottCode/ rw,

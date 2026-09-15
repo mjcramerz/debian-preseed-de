@@ -1,0 +1,32 @@
+{
+  "scope_counts": {
+    "hooks/target": 1086,
+    "hooks/installer": 28
+  },
+  "requested_unique_files": 1114,
+  "total_with_installers_and_hosts": 1218,
+  "check_counts": {
+    "blocked-dependency": 155,
+    "inventory-only": 489,
+    "pass": 442,
+    "structure-pass": 130,
+    "template-needs-render": 2
+  },
+  "kind_counts": {
+    "config-or-data": 489,
+    "javascript": 11,
+    "json": 42,
+    "perl": 177,
+    "python": 85,
+    "shell": 266,
+    "systemd-structure": 130,
+    "toml": 10,
+    "xml": 8
+  },
+  "limits": [
+    "Syntax and inventory are not semantic or runtime proof.",
+    "Systemd structure checks do not resolve vendor units or template values.",
+    "Blocked dependency/template checks are not passes.",
+    "No kernel policies, network changes, services or installers are applied."
+  ]
+}

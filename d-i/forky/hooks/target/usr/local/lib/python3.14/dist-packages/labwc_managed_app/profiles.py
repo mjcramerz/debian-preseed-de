@@ -21,6 +21,10 @@ TUTA_DBUS_NAMES = (
     # Electron tray registration and callbacks, without owning the watcher.
     "org.kde.StatusNotifierWatcher",
 )
+# The private PID namespace keeps AppRun/Electron at PID 2 (bwrap is PID 1).
+# xdg-dbus-proxy only supports dot-prefix wildcards, not Item-*-* globs.
+# Own only the logged single tray item; never the watcher or freedesktop.*.
+TUTA_DBUS_OWN_NAMES = ("org.freedesktop.StatusNotifierItem-2-1",)
 DISCORD_SESSION_DBUS_NAMES = (
     "com.canonical.AppMenu.Registrar",
     "com.canonical.Unity",
@@ -659,6 +663,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "chdir": ".",
         "config_args": (),
         "dbus_names": TUTA_DBUS_NAMES,
+        "dbus_own_names": TUTA_DBUS_OWN_NAMES,
         "inner_sandbox_args": ("--no-sandbox",),
         "persistent_paths": TUTA_PERSISTENT_PATHS,
         "require_session_bus": True,

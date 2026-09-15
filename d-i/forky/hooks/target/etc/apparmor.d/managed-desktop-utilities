@@ -151,6 +151,12 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   /var/lib/systemd/catalog/database r,
   /data/codex/lib/codex rPx -> managed-codex-wrapper,
   /usr/lib/thunar/** rix,
+  # Thunar's archive helper is a sibling directory, not thunar/**. Without
+  # this exec rule, complain mode creates null learning profiles for the
+  # helper, xarchiver and every subsequent compression/glycin subprocess.
+  /usr/lib/thunar-archive-plugin/xarchiver.tap rix,
+  # A terminal's mail check may read its user's traditional mail spool.
+  owner /var/mail/* r,
   /usr/share/** r,
   # Authentication boundary: Polkit/sudo retain their own authorization checks;
   # privileged repository helpers attach to their existing dedicated profiles.

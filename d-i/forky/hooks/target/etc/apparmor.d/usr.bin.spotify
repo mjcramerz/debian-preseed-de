@@ -14,6 +14,8 @@ profile spotify /usr/bin/spotify flags=(attach_disconnected) {
   network inet dgram,
   network inet6 dgram,
 
+  signal (receive) set=(hup int term kill) peer=managed-labwc-managed-app,
+  signal (send) set=(chld) peer=managed-labwc-managed-app,
   /usr/bin/spotify rix,
   /proc/self/exe rix,
   /usr/share/spotify/ r,

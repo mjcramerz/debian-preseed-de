@@ -1,0 +1,438 @@
+{
+  "records": [
+    {
+      "stage": "package-refresh",
+      "status": 0,
+      "seconds": 2.482,
+      "timeout": false,
+      "log": "package-refresh.log"
+    },
+    {
+      "stage": "build-check",
+      "status": 0,
+      "seconds": 2.43,
+      "timeout": false,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "status": 0,
+      "seconds": 0.922,
+      "timeout": false,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "status": 0,
+      "seconds": 1.374,
+      "timeout": false,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "source-inventory",
+      "status": 0,
+      "seconds": 1.739,
+      "timeout": false,
+      "log": "source-inventory.log"
+    },
+    {
+      "stage": "forky-test_boot_runtime_20260913",
+      "status": 0,
+      "seconds": 0.622,
+      "timeout": false,
+      "log": "forky-test_boot_runtime_20260913.log",
+      "tests_run": 31,
+      "skipped": 23
+    },
+    {
+      "stage": "forky-test_boot_runtime_second_pass",
+      "status": 0,
+      "seconds": 1.324,
+      "timeout": false,
+      "log": "forky-test_boot_runtime_second_pass.log",
+      "tests_run": 6
+    },
+    {
+      "stage": "forky-test_bootstrap_portability",
+      "status": 0,
+      "seconds": 45.295,
+      "timeout": false,
+      "log": "forky-test_bootstrap_portability.log",
+      "tests_run": 18
+    },
+    {
+      "stage": "forky-test_btrfs_locale_boundary",
+      "status": 0,
+      "seconds": 3.152,
+      "timeout": false,
+      "log": "forky-test_btrfs_locale_boundary.log",
+      "tests_run": 19,
+      "skipped": 1
+    },
+    {
+      "stage": "forky-test_codex_clone_staging",
+      "status": 0,
+      "seconds": 23.62,
+      "timeout": false,
+      "log": "forky-test_codex_clone_staging.log",
+      "tests_run": 33
+    },
+    {
+      "stage": "forky-test_codex_installer_session",
+      "status": 0,
+      "seconds": 3.586,
+      "timeout": false,
+      "log": "forky-test_codex_installer_session.log",
+      "tests_run": 22
+    },
+    {
+      "stage": "forky-test_codex_standalone_chroot",
+      "status": 0,
+      "seconds": 0.822,
+      "timeout": false,
+      "log": "forky-test_codex_standalone_chroot.log",
+      "tests_run": 3
+    },
+    {
+      "stage": "forky-test_config_safety",
+      "status": 0,
+      "seconds": 1.829,
+      "timeout": false,
+      "log": "forky-test_config_safety.log",
+      "tests_run": 19
+    },
+    {
+      "stage": "forky-test_cuda_legacy_apt",
+      "status": 0,
+      "seconds": 4.687,
+      "timeout": false,
+      "log": "forky-test_cuda_legacy_apt.log",
+      "tests_run": 40
+    },
+    {
+      "stage": "forky-test_dbus_broker",
+      "status": 0,
+      "seconds": 0.734,
+      "timeout": false,
+      "log": "forky-test_dbus_broker.log",
+      "tests_run": 16
+    },
+    {
+      "stage": "forky-test_debconf_protocol",
+      "status": 0,
+      "seconds": 93.199,
+      "timeout": false,
+      "log": "forky-test_debconf_protocol.log",
+      "tests_run": 22
+    },
+    {
+      "stage": "forky-test_desktop_integration_20260914",
+      "status": 0,
+      "seconds": 1.023,
+      "timeout": false,
+      "log": "forky-test_desktop_integration_20260914.log",
+      "tests_run": 28
+    },
+    {
+      "stage": "forky-test_desktop_sandbox",
+      "status": 1,
+      "seconds": 1.123,
+      "timeout": false,
+      "log": "forky-test_desktop_sandbox.log",
+      "tests_run": 70,
+      "skipped": 1,
+      "failures": 1
+    },
+    {
+      "stage": "forky-test_environment",
+      "status": 5,
+      "seconds": 0.622,
+      "timeout": false,
+      "log": "forky-test_environment.log",
+      "tests_run": 0
+    },
+    {
+      "stage": "forky-test_gpg_recipient_integration",
+      "status": 0,
+      "seconds": 8.125,
+      "timeout": false,
+      "log": "forky-test_gpg_recipient_integration.log",
+      "tests_run": 29
+    },
+    {
+      "stage": "forky-test_hardware_restore",
+      "status": 0,
+      "seconds": 1.975,
+      "timeout": false,
+      "log": "forky-test_hardware_restore.log",
+      "tests_run": 25
+    },
+    {
+      "stage": "forky-test_initrd_credentials",
+      "status": 0,
+      "seconds": 3.488,
+      "timeout": false,
+      "log": "forky-test_initrd_credentials.log",
+      "tests_run": 24
+    },
+    {
+      "stage": "forky-test_initrd_target_tools",
+      "status": 0,
+      "seconds": 1.626,
+      "timeout": false,
+      "log": "forky-test_initrd_target_tools.log",
+      "tests_run": 11
+    },
+    {
+      "stage": "forky-test_installation_fixes_20260912",
+      "status": 0,
+      "seconds": 2.089,
+      "timeout": false,
+      "log": "forky-test_installation_fixes_20260912.log",
+      "tests_run": 34
+    },
+    {
+      "stage": "forky-test_installed_failures_20260911",
+      "status": 1,
+      "seconds": 0.774,
+      "timeout": false,
+      "log": "forky-test_installed_failures_20260911.log",
+      "tests_run": 21,
+      "errors": 1
+    },
+    {
+      "stage": "forky-test_installer_hardening",
+      "status": 0,
+      "seconds": 4.285,
+      "timeout": false,
+      "log": "forky-test_installer_hardening.log",
+      "tests_run": 56
+    },
+    {
+      "stage": "forky-test_lifecycle",
+      "status": 0,
+      "seconds": 2.025,
+      "timeout": false,
+      "log": "forky-test_lifecycle.log",
+      "tests_run": 22
+    },
+    {
+      "stage": "forky-test_lifecycle_review_20260914",
+      "status": 0,
+      "seconds": 2.047,
+      "timeout": false,
+      "log": "forky-test_lifecycle_review_20260914.log",
+      "tests_run": 30
+    },
+    {
+      "stage": "forky-test_log_followup_20260915",
+      "status": 0,
+      "seconds": 11.912,
+      "timeout": false,
+      "log": "forky-test_log_followup_20260915.log",
+      "tests_run": 9,
+      "skipped": 1
+    },
+    {
+      "stage": "forky-test_log_regressions_20260915",
+      "status": 0,
+      "seconds": 8.25,
+      "timeout": false,
+      "log": "forky-test_log_regressions_20260915.log",
+      "tests_run": 23
+    },
+    {
+      "stage": "forky-test_managed_external_software",
+      "status": 1,
+      "seconds": 1.127,
+      "timeout": false,
+      "log": "forky-test_managed_external_software.log",
+      "tests_run": 6,
+      "failures": 4
+    },
+    {
+      "stage": "forky-test_managed_git_debugsys",
+      "status": 0,
+      "seconds": 2.532,
+      "timeout": false,
+      "log": "forky-test_managed_git_debugsys.log",
+      "tests_run": 56,
+      "skipped": 1
+    },
+    {
+      "stage": "forky-test_nvidia_580_recovery",
+      "status": 0,
+      "seconds": 0.872,
+      "timeout": false,
+      "log": "forky-test_nvidia_580_recovery.log",
+      "tests_run": 10
+    },
+    {
+      "stage": "forky-test_nvidia_72_interfaces",
+      "status": 0,
+      "seconds": 1.228,
+      "timeout": false,
+      "log": "forky-test_nvidia_72_interfaces.log",
+      "tests_run": 17
+    },
+    {
+      "stage": "forky-test_nvidia_legacy_dkms",
+      "status": 0,
+      "seconds": 1.124,
+      "timeout": false,
+      "log": "forky-test_nvidia_legacy_dkms.log",
+      "tests_run": 14
+    },
+    {
+      "stage": "forky-test_nvidia_power",
+      "status": 0,
+      "seconds": 0.823,
+      "timeout": false,
+      "log": "forky-test_nvidia_power.log",
+      "tests_run": 13
+    },
+    {
+      "stage": "forky-test_podman_incus_redesign",
+      "status": 1,
+      "seconds": 1.778,
+      "timeout": false,
+      "log": "forky-test_podman_incus_redesign.log",
+      "tests_run": 88,
+      "errors": 1
+    },
+    {
+      "stage": "forky-test_power_keyboard_20260913",
+      "status": 0,
+      "seconds": 3.438,
+      "timeout": false,
+      "log": "forky-test_power_keyboard_20260913.log",
+      "tests_run": 34
+    },
+    {
+      "stage": "forky-test_process_capture",
+      "status": 0,
+      "seconds": 2.176,
+      "timeout": false,
+      "log": "forky-test_process_capture.log",
+      "tests_run": 10
+    },
+    {
+      "stage": "forky-test_repository_integrity",
+      "status": 0,
+      "seconds": 6.654,
+      "timeout": false,
+      "log": "forky-test_repository_integrity.log",
+      "tests_run": 10
+    },
+    {
+      "stage": "forky-test_repository_transport",
+      "status": 0,
+      "seconds": 31.845,
+      "timeout": false,
+      "log": "forky-test_repository_transport.log",
+      "tests_run": 27
+    },
+    {
+      "stage": "forky-test_root_login",
+      "status": 0,
+      "seconds": 27.522,
+      "timeout": false,
+      "log": "forky-test_root_login.log",
+      "tests_run": 32
+    },
+    {
+      "stage": "forky-test_security_refactor",
+      "status": 0,
+      "seconds": 5.145,
+      "timeout": false,
+      "log": "forky-test_security_refactor.log",
+      "tests_run": 28
+    },
+    {
+      "stage": "forky-test_workspace_no_broker",
+      "status": 0,
+      "seconds": 25.513,
+      "timeout": false,
+      "log": "forky-test_workspace_no_broker.log",
+      "tests_run": 25
+    },
+    {
+      "stage": "tools-test_apt_vendor_normalization",
+      "status": 0,
+      "seconds": 0.774,
+      "timeout": false,
+      "log": "tools-test_apt_vendor_normalization.log",
+      "tests_run": 13
+    },
+    {
+      "stage": "tools-test_installed_session_failures_20260913",
+      "status": 0,
+      "seconds": 5.318,
+      "timeout": false,
+      "log": "tools-test_installed_session_failures_20260913.log",
+      "tests_run": 23
+    },
+    {
+      "stage": "tools-test_labwc_power_handoff",
+      "status": 1,
+      "seconds": 0.721,
+      "timeout": false,
+      "log": "tools-test_labwc_power_handoff.log",
+      "tests_run": 24,
+      "failures": 3,
+      "errors": 5
+    },
+    {
+      "stage": "tools-test_local_apt_integration",
+      "status": 0,
+      "seconds": 1.127,
+      "timeout": false,
+      "log": "tools-test_local_apt_integration.log",
+      "tests_run": 1
+    },
+    {
+      "stage": "tools-test_local_apt_refresh",
+      "status": 0,
+      "seconds": 6.946,
+      "timeout": false,
+      "log": "tools-test_local_apt_refresh.log",
+      "tests_run": 37
+    },
+    {
+      "stage": "tools-test_local_apt_repository",
+      "status": 0,
+      "seconds": 1.976,
+      "timeout": false,
+      "log": "tools-test_local_apt_repository.log",
+      "tests_run": 15
+    },
+    {
+      "stage": "tools-test_persisted_package_policy",
+      "status": 0,
+      "seconds": 2.728,
+      "timeout": false,
+      "log": "tools-test_persisted_package_policy.log",
+      "tests_run": 12
+    },
+    {
+      "stage": "tools-test_scoped_desktop_fixes",
+      "status": 0,
+      "seconds": 20.582,
+      "timeout": false,
+      "log": "tools-test_scoped_desktop_fixes.log",
+      "tests_run": 11
+    },
+    {
+      "stage": "tools-test_scoped_lifecycle_keyrings",
+      "status": 0,
+      "seconds": 2.229,
+      "timeout": false,
+      "log": "tools-test_scoped_lifecycle_keyrings.log",
+      "tests_run": 43
+    }
+  ],
+  "compiler_tests_not_run": [
+    "test_compiled_bounded_copy_and_registry_contracts",
+    "test_drm_probe_and_callback_compilation_old_new_and_missing_types"
+  ]
+}

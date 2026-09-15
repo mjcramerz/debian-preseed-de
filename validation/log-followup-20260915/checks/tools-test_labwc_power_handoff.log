@@ -1,0 +1,169 @@
+test_failed_lock_never_suspends (test_labwc_power_handoff.PowerWorkerTests.test_failed_lock_never_suspends) ... ok
+test_failed_target_stop_never_reaches_forced_power (test_labwc_power_handoff.PowerWorkerTests.test_failed_target_stop_never_reaches_forced_power) ... ok
+test_invalid_instance_never_executes_a_command (test_labwc_power_handoff.PowerWorkerTests.test_invalid_instance_never_executes_a_command) ... ok
+test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action) ... ERROR
+test_other_interactive_account_blocks_machine_action (test_labwc_power_handoff.PowerWorkerTests.test_other_interactive_account_blocks_machine_action) ... ok
+test_prepare_failure_never_tears_down_session (test_labwc_power_handoff.PowerWorkerTests.test_prepare_failure_never_tears_down_session) ... ok
+test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) ... 
+  test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot') ... ERROR
+  test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff') ... ERROR
+test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps) ... ERROR
+test_failed_restore_keeps_retryable_state (test_labwc_power_handoff.SessionStateTests.test_failed_restore_keeps_retryable_state) ... ok
+test_missing_wayland_protocol_fails_closed (test_labwc_power_handoff.SessionStateTests.test_missing_wayland_protocol_fails_closed) ... ok
+test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests) ... ERROR
+test_null_app_id_window_is_not_mistaken_for_empty_desktop (test_labwc_power_handoff.SessionStateTests.test_null_app_id_window_is_not_mistaken_for_empty_desktop) ... ok
+test_restart_descriptors_reject_shells_and_traversal (test_labwc_power_handoff.SessionStateTests.test_restart_descriptors_reject_shells_and_traversal) ... ok
+test_restore_handoff_uses_transient_service_and_exact_cwd (test_labwc_power_handoff.SessionStateTests.test_restore_handoff_uses_transient_service_and_exact_cwd) ... ok
+test_save_dialog_blocks_teardown_and_removes_launch_barrier (test_labwc_power_handoff.SessionStateTests.test_save_dialog_blocks_teardown_and_removes_launch_barrier) ... ok
+test_state_helper_refuses_root (test_labwc_power_handoff.SessionStateTests.test_state_helper_refuses_root) ... ok
+test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans) ... FAIL
+test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows) ... FAIL
+test_all_modified_launchers_have_cgroup_exit_and_session_ownership (test_labwc_power_handoff.WiringTests.test_all_modified_launchers_have_cgroup_exit_and_session_ownership) ... ok
+test_force_is_single_and_only_in_authorized_worker (test_labwc_power_handoff.WiringTests.test_force_is_single_and_only_in_authorized_worker) ... ok
+test_launch_barrier_blocks_existing_file_or_dangling_symlink (test_labwc_power_handoff.WiringTests.test_launch_barrier_blocks_existing_file_or_dangling_symlink) ... fatal: the desktop is closing; finish or cancel the power request before launching applications
+fatal: the desktop is closing; finish or cancel the power request before launching applications
+ok
+test_polkit_uses_exact_helpers_and_non_cached_admin_auth (test_labwc_power_handoff.WiringTests.test_polkit_uses_exact_helpers_and_non_cached_admin_auth) ... ok
+test_restore_service_is_explicitly_staged_and_started_after_session (test_labwc_power_handoff.WiringTests.test_restore_service_is_explicitly_staged_and_started_after_session) ... ok
+test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement) ... FAIL
+
+======================================================================
+ERROR: test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 79, in test_logout_uses_same_preparation_without_a_machine_power_action
+    self.execute('logout')
+    ~~~~~~~~~~~~^^^^^^^^^^
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 49, in execute
+    worker.execute()
+    ~~~~~~~~~~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 191, in execute
+    ready()
+    ~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 59, in ready
+    raise Error("power worker requires its systemd notification socket")
+power_worker_test.Error: power worker requires its systemd notification socket
+
+======================================================================
+ERROR: test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 56, in test_reboot_and_poweroff_order_and_exact_uid_cleanup
+    self.execute(action)
+    ~~~~~~~~~~~~^^^^^^^^
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 49, in execute
+    worker.execute()
+    ~~~~~~~~~~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 191, in execute
+    ready()
+    ~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 59, in ready
+    raise Error("power worker requires its systemd notification socket")
+power_worker_test.Error: power worker requires its systemd notification socket
+
+======================================================================
+ERROR: test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 56, in test_reboot_and_poweroff_order_and_exact_uid_cleanup
+    self.execute(action)
+    ~~~~~~~~~~~~^^^^^^^^
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 49, in execute
+    worker.execute()
+    ~~~~~~~~~~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 191, in execute
+    ready()
+    ~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 59, in ready
+    raise Error("power worker requires its systemd notification socket")
+power_worker_test.Error: power worker requires its systemd notification socket
+
+======================================================================
+ERROR: test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 71, in test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps
+    self.execute('suspend')
+    ~~~~~~~~~~~~^^^^^^^^^^^
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 49, in execute
+    worker.execute()
+    ~~~~~~~~~~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 187, in execute
+    ready()
+    ~~~~~^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-admin-action-worker", line 59, in ready
+    raise Error("power worker requires its systemd notification socket")
+power_worker_test.Error: power worker requires its systemd notification socket
+
+======================================================================
+ERROR: test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 171, in test_nested_compositor_blocks_before_close_requests
+    state.prepare(self.state, self.runtime, timeout=0)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state", line 234, in prepare
+    visible = windows()
+  File "/mnt/data/review2/work/debian-preseed-de/d-i/forky/hooks/target/usr/local/libexec/labwc-session-state", line 165, in windows
+    probe = subprocess.run(["/usr/bin/wlrctl", "toplevel", "find"],
+                           capture_output=True, text=True, timeout=5, check=False)
+  File "/usr/lib/python3.13/subprocess.py", line 554, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1857, in _execute_child
+    self._posix_spawn(args, executable, env, restore_signals, close_fds,
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                      p2cread, p2cwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      c2pread, c2pwrite,
+                      ^^^^^^^^^^^^^^^^^^
+                      errread, errwrite)
+                      ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1801, in _posix_spawn
+    self.pid = os.posix_spawn(executable, args, env, **kwargs)
+               ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/usr/bin/wlrctl'
+
+======================================================================
+FAIL: test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 160, in test_success_records_state_before_clearing_clipboard_and_orphans
+    self.orphans.assert_called_once()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/unittest/mock.py", line 958, in assert_called_once
+    raise AssertionError(msg)
+AssertionError: Expected 'stop_orphans' to have been called once. Called 0 times.
+
+======================================================================
+FAIL: test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 164, in test_tray_process_blocks_even_without_windows
+    with self.assertRaisesRegex(state.Error, 'remaining application'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Error not raised
+
+======================================================================
+FAIL: test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review2/work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 246, in test_root_worker_keeps_nnp_with_inherited_command_confinement
+    self.assertIn('CapabilityBoundingSet=CAP_KILL', unit)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'CapabilityBoundingSet=CAP_KILL' not found in '[Unit]\nDescription=Execute authorized Labwc desktop power action (%i)\nDocumentation=man:systemd.service(5) man:systemctl(1)\nAfter=systemd-logind.service\nWants=systemd-logind.service\nConditionFileIsExecutable=/usr/local/libexec/labwc-admin-action-worker\n\n[Service]\n# Host logind/PID-1 IPC and user-manager handoff must retain host credentials.\nPrivatePIDs=no\nPrivateUsers=no\nType=notify\nNotifyAccess=main\nExecStart=/usr/local/libexec/labwc-admin-action-worker %i\nTimeoutStartSec=60s\nRuntimeMaxSec=360s\nRuntimeDirectory=labwc-power\nRuntimeDirectoryMode=0700\nRuntimeDirectoryPreserve=yes\nTimeoutStopSec=5s\nKillMode=control-group\nStandardOutput=journal\nStandardError=journal\nSyslogIdentifier=labwc-admin-action\nUMask=0077\nAppArmorProfile=managed-labwc-admin-action-worker\nNoNewPrivileges=yes\nPrivateDevices=yes\nPrivateTmp=yes\nProtectClock=yes\nProtectControlGroups=yes\nProtectHome=yes\nProtectHostname=yes\nProtectKernelLogs=yes\nProtectKernelModules=yes\nProtectKernelTunables=yes\n# PID 1/logind perform cgroup cleanup; this controller does not scan other PIDs.\nProtectProc=default\nProtectSystem=strict\nProcSubset=pid\nCapabilityBoundingSet=\nAmbientCapabilities=\nLockPersonality=yes\nMemoryDenyWriteExecute=yes\nRestrictAddressFamilies=AF_UNIX\nRestrictNamespaces=yes\nRestrictRealtime=yes\nRestrictSUIDSGID=yes\nSystemCallArchitectures=native\nSystemCallFilter=@system-service\n'
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.024s
+
+FAILED (failures=3, errors=5)

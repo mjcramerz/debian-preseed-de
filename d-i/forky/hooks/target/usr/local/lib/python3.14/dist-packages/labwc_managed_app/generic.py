@@ -157,11 +157,14 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
-    # A terminal is an interactive host administration boundary: implicit
-    # PrivateUsers from filesystem/IPC isolation would break sudo/pkexec.
-    # Keep its previous host access, but give each window its own cgroup.
-    terminal = kind == "wayland" and arguments[0] in {
+    # Terminals and the packaged Timeshift Polkit launcher are host
+    # administration boundaries. Filesystem/IPC isolation in a user service
+    # implicitly enables PrivateUsers and prevents pkexec becoming host root.
+    # Only these canonical executables bypass those namespace properties;
+    # Polkit authentication and the per-window service lifetime remain intact.
+    host_administration = kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
+        "/usr/bin/timeshift-launcher",
     }
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
@@ -177,7 +180,11 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=StandardInput=null", "--property=StandardOutput=journal",
         "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
-        *([] if terminal else [
+        # Foot reports the default shell's SIGHUP as status 1 on window close.
+        # Do not apply to foot -e/explicit commands or internal error code 230.
+        *(["--property=SuccessExitStatus=1"]
+          if kind == "wayland" and arguments == ["/usr/bin/foot"] else []),
+        *([] if host_administration else [
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",
         ]),

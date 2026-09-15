@@ -2731,6 +2731,15 @@ desktop_stage_labwc_user_session_assets() {
     /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
     0644
 
+  # Application-created Chromium/Electron scopes must stop with the session,
+  # just like the managed services which launched them.
+  for scope_prefix in app-com.vivaldi.Vivaldi- app-code- app-org.chromium.Chromium- app-bitwarden-; do
+    desktop_stage_role_asset \
+      "etc/skel-desktop/.config/systemd/user/${scope_prefix}.scope.d/50-labwc-session.conf" \
+      "/etc/skel-desktop/.config/systemd/user/${scope_prefix}.scope.d/50-labwc-session.conf" \
+      0644
+  done
+
   desktop_stage_labwc_package_user_unit_dropins
   desktop_stage_wireplumber_user_conditions
   desktop_stage_pipewire_user_conditions
@@ -4232,6 +4241,8 @@ gid=$(id -g "$account_user")
     .config/mise \
     .config/featherpad \
     .config/foot \
+    .config/git \
+    .config/gitops \
     .config/gnote \
     .config/GottCode \
     .config/zathura \

@@ -1,0 +1,11 @@
+test_actual_account_copy_loop_installs_wayscriber_with_account_ownership (test_boot_runtime_second_pass.InstallerIntegrationTests.test_actual_account_copy_loop_installs_wayscriber_with_account_ownership) ... ok
+test_actual_pipewire_renderer_preserves_custom_greeter_in_all_four_units (test_boot_runtime_second_pass.InstallerIntegrationTests.test_actual_pipewire_renderer_preserves_custom_greeter_in_all_four_units) ... ok
+test_grub_owner_uses_real_enabler_and_is_idempotent (test_boot_runtime_second_pass.InstallerIntegrationTests.test_grub_owner_uses_real_enabler_and_is_idempotent) ... ok
+test_absent_devices_do_not_create_links_or_directories (test_boot_runtime_second_pass.NvidiaReconciliationTests.test_absent_devices_do_not_create_links_or_directories) ... ok
+test_symlink_device_is_rejected_without_following_it (test_boot_runtime_second_pass.NvidiaReconciliationTests.test_symlink_device_is_rejected_without_following_it) ... ok
+test_unrelated_device_changes_never_request_reconciliation (test_boot_runtime_second_pass.NvidiaReconciliationTests.test_unrelated_device_changes_never_request_reconciliation) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.677s
+
+OK

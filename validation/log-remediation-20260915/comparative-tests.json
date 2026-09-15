@@ -1,0 +1,212 @@
+{
+  "remaining_comparative_failures": [
+    {
+      "module": "d-i/forky/tests/test_desktop_sandbox.py",
+      "original_status": 1,
+      "patched_status": 1,
+      "same_failed_case_names": true,
+      "failed_cases": [
+        "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_installed_failures_20260911.py",
+      "original_status": 1,
+      "patched_status": 1,
+      "same_failed_case_names": true,
+      "failed_cases": [
+        "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_managed_external_software.py",
+      "original_status": 1,
+      "patched_status": 1,
+      "same_failed_case_names": true,
+      "failed_cases": [
+        "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+        "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+        "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+        "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_podman_incus_redesign.py",
+      "original_status": 1,
+      "patched_status": 1,
+      "same_failed_case_names": true,
+      "failed_cases": [
+        "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+      ]
+    },
+    {
+      "module": "tools/tests/test_labwc_power_handoff.py",
+      "original_status": 1,
+      "patched_status": 1,
+      "same_failed_case_names": true,
+      "failed_cases": [
+        "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)",
+        "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')",
+        "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')",
+        "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)",
+        "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)",
+        "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)",
+        "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)",
+        "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+      ]
+    }
+  ],
+  "initial_baseline_runs": [
+    {
+      "module": "d-i/forky/tests/test_codex_clone_staging.py",
+      "status": 1,
+      "seconds": 50.1,
+      "tests": 33,
+      "skipped": 0,
+      "log": "test_codex_clone_staging.log",
+      "failed_cases": [
+        "test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGHUP: 1>)",
+        "test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGINT: 2>)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_debconf_protocol.py",
+      "status": 0,
+      "seconds": 221.68,
+      "tests": 22,
+      "skipped": 0,
+      "log": "test_debconf_protocol.log",
+      "failed_cases": []
+    },
+    {
+      "module": "d-i/forky/tests/test_desktop_sandbox.py",
+      "status": 1,
+      "seconds": 2.98,
+      "tests": 70,
+      "skipped": 1,
+      "log": "test_desktop_sandbox.log",
+      "failed_cases": [
+        "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_installed_failures_20260911.py",
+      "status": 1,
+      "seconds": 2.06,
+      "tests": 21,
+      "skipped": 0,
+      "log": "test_installed_failures_20260911.log",
+      "failed_cases": [
+        "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_managed_external_software.py",
+      "status": 1,
+      "seconds": 1.89,
+      "tests": 6,
+      "skipped": 0,
+      "log": "test_managed_external_software.log",
+      "failed_cases": [
+        "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+        "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+        "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+        "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_podman_incus_redesign.py",
+      "status": 1,
+      "seconds": 2.69,
+      "tests": 88,
+      "skipped": 0,
+      "log": "test_podman_incus_redesign.log",
+      "failed_cases": [
+        "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+      ]
+    },
+    {
+      "module": "d-i/forky/tests/test_repository_transport.py",
+      "status": 1,
+      "seconds": 57.21,
+      "tests": 27,
+      "skipped": 0,
+      "log": "test_repository_transport.log",
+      "failed_cases": [
+        "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)",
+        "test_persisted_effective_url_wins_without_re_download (test_repository_transport.TransportTests.test_persisted_effective_url_wins_without_re_download)"
+      ]
+    },
+    {
+      "module": "tools/tests/test_labwc_power_handoff.py",
+      "status": 1,
+      "seconds": 1.07,
+      "tests": 24,
+      "skipped": 0,
+      "log": "tools-test_labwc_power_handoff.log",
+      "failed_cases": [
+        "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)",
+        "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')",
+        "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')",
+        "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)",
+        "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)",
+        "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)",
+        "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)",
+        "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+      ]
+    }
+  ],
+  "default_signal_serial_retests": [
+    {
+      "variant": "original",
+      "module": "test_codex_clone_staging.py",
+      "status": 0,
+      "tests": 33,
+      "seconds": 32.8,
+      "failed_cases": [],
+      "log": "original-test_codex_clone_staging.log"
+    },
+    {
+      "variant": "original",
+      "module": "test_repository_transport.py",
+      "status": 1,
+      "tests": 27,
+      "seconds": 49.98,
+      "failed_cases": [
+        "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+      ],
+      "log": "original-test_repository_transport.log"
+    },
+    {
+      "variant": "patched",
+      "module": "test_codex_clone_staging.py",
+      "status": 0,
+      "tests": 33,
+      "seconds": 33.47,
+      "failed_cases": [],
+      "log": "patched-test_codex_clone_staging.log"
+    },
+    {
+      "variant": "patched",
+      "module": "test_repository_transport.py",
+      "status": 0,
+      "tests": 27,
+      "seconds": 49.47,
+      "failed_cases": [],
+      "log": "patched-test_repository_transport.log"
+    }
+  ],
+  "protocol_isolated_retest": {
+    "test": "test_full_debian_preseed_f2fs_arm64_apply",
+    "tests": 1,
+    "status": 0,
+    "seconds": 48.029
+  },
+  "interpretation": [
+    "The initial background/nohup harness inherited ignored signals. The Codex shell-trap tests pass on original and patched repositories after restoring default HUP/INT/QUIT dispositions in the harness. No product code was changed for that artifact.",
+    "Initial transport timing/cache assertion failures varied by run. Serial patched transport rerun passes all 27 tests; original serial rerun retains one fatal-record assertion. Transport/bootstrap implementation files are unchanged, so no transport repair is claimed.",
+    "The patched ARM64 debconf case that exceeded the parallel-run budget passes in isolation; the original full 22-test module passes. This is not a claim that the initial full patched suite was green.",
+    "Two historical raw incident fixtures are absent from the supplied repository. They were not invented or replaced by current incident logs.",
+    "Moo and some target-runtime dependencies are absent from this test container, not proven absent from the installed system. Existing tests were not weakened to hide this."
+  ]
+}

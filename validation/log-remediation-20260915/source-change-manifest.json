@@ -1,0 +1,115 @@
+{
+  "original_files_and_symlinks": 1867,
+  "original_items_retained": 1867,
+  "deleted_original_items": 0,
+  "unchanged_original_items": 1854,
+  "modified_original_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "input_sha256": "593dcd9cdd843fd1df0dca3f86dae6352e46d8a755600cb545199f3b54c6e02e",
+      "output_sha256": "8e60a58f17b16e7050a8f88f15ed985c62dc8ece6bd4d34a8f96c6acd3a13ef9",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "input_sha256": "4df2118556e65a81bb1f8e4af660cce44251b01ccdcf9e9e6187395b4af25e94",
+      "output_sha256": "8e2ab327541b0fdc3e11aba9c291d312f315ca56cc178d70bcf839da8cf2ba22",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications",
+      "input_sha256": "b1c3788874bf172166bee2dedd11cf146706177ae9ee5ffea4b8a2599bea1151",
+      "output_sha256": "eb03d0f4a0bc2fc1f0d5b471dfdb8bb46ad3e82d73dc8138f9842728d5c30881",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.spotify",
+      "input_sha256": "edca22ea43b735f88de6611b71994f627cbfd3a4a8f92e753e176d454477c921",
+      "output_sha256": "d69bc9b9321b218fff56b7fd43dab3bc09d73df8de2117c1a3ee27916aec7fe9",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/managed-word.theme",
+      "input_sha256": "0bcb1079081b902762cb0b668880a5db7ba10f866b3a9cb7096376fe276e4337",
+      "output_sha256": "7982d20f24a19104bcfa70c0533abe5032c30e54bbf19d14530db4d55ab8dfb5",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-sync-application-launchers",
+      "input_sha256": "2a86f5a4452c738d1541aa7e50e3081c2900aaffde042679baba1a6d26086020",
+      "output_sha256": "0d7519abe582814b3fb9cee52fd2606815b1202011e83fbbee06793d23bb935d",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py",
+      "input_sha256": "daaa51ea78910ff93afac4f86de8334181f002503b5b0577273a0b71d49f06f7",
+      "output_sha256": "5d246a50efebf69d658e8239017c550e53fa31e93284005393aef33fd98fa90e",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "input_sha256": "9edc4075e496a431617b98142e71d42e7c51e5797f47c6dcc4a6adb647def665",
+      "output_sha256": "c6bf9931e281e74b041a8dc939f87cbef5fc6a665613b7934040095c80242d1d",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+      "input_sha256": "812f7ca0362dfa8595579d74e19d0f65e78cb6e03fd5bde81fa5abe9785850fe",
+      "output_sha256": "e3194af7db568b07ca33ef101f48c8de16c71e478e6fb8a608d817e92d56f848",
+      "mode": "0o660"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "input_sha256": "bcbbf8fa11fe32019583484248f7b34ebca0a424d397912b40f318d11d64b1f8",
+      "output_sha256": "d052bd87e46cbee18ce9186a7423172f36e03cc9aa7e85a429d7d659f849d530",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "input_sha256": "6070168664c836c75b9a07a0fde206b2448f7e48935d3617c55b05783d01e26f",
+      "output_sha256": "1777b35b9df6f5146c8ba117616d29b1fe2f83d6a36eed8be730b809b3306483",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "input_sha256": "23697f8f92913e3b9a0ddae03535f9c5bedfa17821ab86466a06e3c9e12ee731",
+      "output_sha256": "7adbf84931d6d8ab01cac8f82d325f86696292093541c73f0e16a11deeb147df",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "input_sha256": "057431608ef2ecd3cdc40903eeeebec5cbd71ec8a9f91b4727349e55ebf94a6b",
+      "output_sha256": "5e2a6566c88be904464f539400e869bec3e238f8c5d4802c1d5888f3d62c8cf4",
+      "mode": "0o770"
+    }
+  ],
+  "note": "All original file types, file modes and symlink targets retained. New files comprise four scope drop-ins, the scoped regression test and this review/validation documentation. The source tree contains no copied incident logs.",
+  "new_implementation_and_test_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-bitwarden-.scope.d/50-labwc-session.conf",
+      "sha256": "936c9b4c9cd0dd900dc1731ce11bf716bc304b9fb2c7da5fbb1a7636aacb3b34",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-code-.scope.d/50-labwc-session.conf",
+      "sha256": "936c9b4c9cd0dd900dc1731ce11bf716bc304b9fb2c7da5fbb1a7636aacb3b34",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-com.vivaldi.Vivaldi-.scope.d/50-labwc-session.conf",
+      "sha256": "936c9b4c9cd0dd900dc1731ce11bf716bc304b9fb2c7da5fbb1a7636aacb3b34",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-org.chromium.Chromium-.scope.d/50-labwc-session.conf",
+      "sha256": "936c9b4c9cd0dd900dc1731ce11bf716bc304b9fb2c7da5fbb1a7636aacb3b34",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/tests/test_log_regressions_20260915.py",
+      "sha256": "1dbac6d1449b28b33b6ec2fc968c94a8ecf8db9126d3896eba75daad911a192a",
+      "mode": "0o644"
+    }
+  ],
+  "generated_preseed_only_hash_pins_changed": true
+}

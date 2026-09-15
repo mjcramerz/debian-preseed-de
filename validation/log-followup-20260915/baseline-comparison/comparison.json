@@ -1,0 +1,77 @@
+[
+  {
+    "module": "d-i/forky/tests/test_desktop_sandbox.py",
+    "baseline_returncode": 1,
+    "baseline_failure_tests": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+    ],
+    "current_failure_tests": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+    ],
+    "same_failure_tests": true
+  },
+  {
+    "module": "d-i/forky/tests/test_installed_failures_20260911.py",
+    "baseline_returncode": 1,
+    "baseline_failure_tests": [
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+    ],
+    "current_failure_tests": [
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+    ],
+    "same_failure_tests": true
+  },
+  {
+    "module": "d-i/forky/tests/test_managed_external_software.py",
+    "baseline_returncode": 1,
+    "baseline_failure_tests": [
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+    ],
+    "current_failure_tests": [
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+    ],
+    "same_failure_tests": true
+  },
+  {
+    "module": "d-i/forky/tests/test_podman_incus_redesign.py",
+    "baseline_returncode": 1,
+    "baseline_failure_tests": [
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ],
+    "current_failure_tests": [
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ],
+    "same_failure_tests": true
+  },
+  {
+    "module": "tools/tests/test_labwc_power_handoff.py",
+    "baseline_returncode": 1,
+    "baseline_failure_tests": [
+      "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')",
+      "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)",
+      "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)",
+      "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)",
+      "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)",
+      "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+    ],
+    "current_failure_tests": [
+      "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')",
+      "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)",
+      "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)",
+      "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)",
+      "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)",
+      "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+    ],
+    "same_failure_tests": true
+  }
+]

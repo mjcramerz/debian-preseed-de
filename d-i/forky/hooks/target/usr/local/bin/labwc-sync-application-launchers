@@ -176,7 +176,7 @@ APP_CONFIG = (
         "field_code": "%U",
     },
     {
-        "desktop_names": ("retroarch.desktop",),
+        "desktop_names": ("com.libretro.RetroArch.desktop", "retroarch.desktop"),
         "action_app": "retroarch",
         "field_code": "%U",
     },
