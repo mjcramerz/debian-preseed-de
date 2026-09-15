@@ -212,37 +212,37 @@ class DesktopAssetTests(unittest.TestCase):
             current.write_bytes(legacy.read_bytes())
             self.assertEqual(sync.find_desktop_file(config['desktop_names'])[0], current.name)
 
-    def test_scope_dropins_cover_only_logged_native_prefixes_and_are_staged(self):
-        prefixes = ('app-com.vivaldi.Vivaldi-', 'app-code-', 'app-org.chromium.Chromium-', 'app-bitwarden-')
+    def test_scope_dropin_covers_all_app_prefixes_and_is_staged(self):
         units = TARGET / 'etc/skel-desktop/.config/systemd/user'
-        found = {p.parent.name for p in units.glob('*.scope.d/50-labwc-session.conf')}
-        self.assertEqual(found, {prefix + '.scope.d' for prefix in prefixes})
-        for prefix in prefixes:
-            text = (units / (prefix + '.scope.d') / '50-labwc-session.conf').read_text()
-            for setting in ('Requisite=labwc-session.target', 'After=labwc-session.target',
-                            'PartOf=labwc-session.target', 'KillMode=control-group', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
-                self.assertIn(setting, text)
+        found = list(units.glob('app-*.scope.d/*.conf'))
+        path = units / 'app-.scope.d/50-session-labwc.conf'
+        self.assertEqual(found, [path])
+        text = path.read_text()
+        for setting in ('Requisite=labwc-session.target', 'After=labwc-session.target',
+                        'PartOf=labwc-session.target', 'KillMode=control-group',
+                        'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
+            self.assertIn(setting, text)
         source = (FORKY / 'scripts/desktop/components.sh').read_text()
-        self.assertIn('for scope_prefix in ' + ' '.join(prefixes) + '; do', source)
-        self.assertIn('"etc/skel-desktop/.config/systemd/user/${scope_prefix}.scope.d/50-labwc-session.conf"', source)
-        self.assertFalse((units / 'app-.scope.d').exists())
+        self.assertIn('"etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf"', source)
+        self.assertNotIn('for scope_prefix in ', source)
+        self.assertFalse((units / 'scope.d/50-session-labwc.conf').exists())
 
-    def test_scope_stage_loop_copies_actual_assets(self):
+    def test_scope_stage_copies_actual_asset(self):
         source = (FORKY / 'scripts/desktop/components.sh').read_text()
-        loop = re.search(r'^  for scope_prefix in .*?^  done\n', source, re.M | re.S).group(0)
+        stage = re.search(r'^  desktop_stage_role_asset \\\n    "etc/skel-desktop/\.config/systemd/user/app-\.scope\.d/50-session-labwc\.conf" \\\n.*?\n    0644\n', source, re.M | re.S).group(0)
         with tempfile.TemporaryDirectory() as temporary:
-            script = '''set -eu
+            script = """set -eu
 desktop_stage_role_asset() {
   mkdir -p "$DEST$(dirname "$2")"
   install -m "$3" "$SOURCE/$1" "$DEST$2"
 }
-''' + loop
+""" + stage
             result = subprocess.run(['/bin/sh', '-c', script],
                                     env=dict(os.environ, SOURCE=str(TARGET), DEST=temporary),
                                     text=True, capture_output=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             found = list(Path(temporary).glob('etc/skel-desktop/.config/systemd/user/*.scope.d/*.conf'))
-            self.assertEqual(len(found), 4)
+            self.assertEqual(len(found), 1)
             for path in found:
                 original = TARGET / path.relative_to(temporary)
                 self.assertEqual(path.read_bytes(), original.read_bytes())

@@ -1134,6 +1134,14 @@ stage_target_desktop_apparmor_profiles() {
 	    "/etc/apparmor.d/local/${apparmor_local_include}" \
 	    0644
 	done
+  # Chromium receives wlroots' anonymous/deleted shared-memory descriptors.
+  # A local include cannot add attachment flags to the package outer profile.
+  if [ -e /target/etc/apparmor.d/chromium ] || [ -L /target/etc/apparmor.d/chromium ]; then
+    apparmor_require_disconnected_profile_flags \
+      "/target/etc/apparmor.d/chromium" \
+      chromium \
+      strip-unconfined
+  fi
 	# Edge's package-owned outer profile ships unconfined. Strip only that known
 	# vendor flag, then attach nameless renderer paths and keep deleted objects
 	# mediated by policy.

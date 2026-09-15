@@ -59,8 +59,38 @@ validate_wayland_session() {
     fatal "the managed Wayland socket must have one filesystem link"
 }
 
+in_managed_host_unit() {
+  # Unified cgroup membership comes from procfs, not a caller-supplied marker.
+  [ -r /proc/self/cgroup ] || fatal "cannot verify the Mullvad launcher cgroup"
+  while IFS=: read -r hierarchy controllers cgroup; do
+    [ "$hierarchy:$controllers" = "0:" ] || continue
+    unit=${cgroup##*/}
+    case "$unit" in
+      labwc-wayland-mullvad-vpn-*.service)
+        token=${unit#labwc-wayland-mullvad-vpn-}
+        token=${token%.service}
+        case "$token" in ''|*[!0123456789abcdef]*) continue ;; esac
+        [ "${#token}" -eq 32 ] && return 0
+        ;;
+    esac
+  done </proc/self/cgroup
+  return 1
+}
+
+has_host_root_mapping() {
+  # Fail explicitly on a locally overridden unit that reintroduces PrivateUsers.
+  while read -r inside outside count; do
+    [ "$inside" = 0 ] && [ "$outside" = 0 ] && [ "$count" -gt 0 ] && return 0
+  done </proc/self/uid_map
+  return 1
+}
+
 [ "$#" -eq 0 ] || fatal "usage: mullvad-vpn"
 validate_wayland_session
+if ! in_managed_host_unit; then
+  exec /usr/local/bin/labwc-wayland-app auto -- /usr/local/bin/mullvad-vpn
+fi
+has_host_root_mapping || fatal "Mullvad launcher requires the host root UID mapping"
 
 daemon_unit=mullvad-daemon.service
 root_helper=/usr/local/libexec/mullvad-daemon-start

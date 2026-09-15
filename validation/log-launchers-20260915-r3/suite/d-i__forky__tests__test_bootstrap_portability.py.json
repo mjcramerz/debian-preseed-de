@@ -1,0 +1,7 @@
+{
+  "path": "d-i/forky/tests/test_bootstrap_portability.py",
+  "status": null,
+  "tests": null,
+  "timeout": true,
+  "note": "Outer validation command timed out during first legacy HTTP/BusyBox bootstrap test. No completed result; isolated fixture process group explicitly stopped."
+}

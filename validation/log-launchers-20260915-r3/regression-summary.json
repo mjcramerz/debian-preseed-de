@@ -1,0 +1,155 @@
+{
+  "completed_modules": 14,
+  "tests": 406,
+  "skipped": 25,
+  "failures_in_completed_modules": 0,
+  "incomplete_attempts": [
+    {
+      "path": "d-i/forky/tests/test_bootstrap_portability.py",
+      "status": null,
+      "tests": null,
+      "timeout": true,
+      "note": "Outer validation command timed out during first legacy HTTP/BusyBox bootstrap test. No completed result; isolated fixture process group explicitly stopped."
+    }
+  ],
+  "not_a_full_suite_pass": true,
+  "native_compiler_modules_excluded": [
+    "d-i/forky/tests/test_nvidia_72_interfaces.py",
+    "d-i/forky/tests/test_nvidia_legacy_dkms.py"
+  ],
+  "runtime_limits": [
+    "No fresh installation or live Labwc session in this container.",
+    "No kernel AppArmor enforcement or compositor/GUI replay.",
+    "The live filtered D-Bus test is skipped because xdg-dbus-proxy is absent.",
+    "Earlier r2 failures in unrelated legacy modules are not asserted fixed by this selected run."
+  ],
+  "modules": [
+    {
+      "path": "d-i/forky/tests/test_boot_runtime_20260913.py",
+      "status": 0,
+      "seconds": 1.577,
+      "timeout": false,
+      "tests": 31,
+      "skips": 23,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_boot_runtime_second_pass.py",
+      "status": 0,
+      "seconds": 8.387,
+      "timeout": false,
+      "tests": 6,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_integration_20260914.py",
+      "status": 0,
+      "seconds": 2.427,
+      "timeout": false,
+      "tests": 28,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_installation_fixes_20260912.py",
+      "status": 0,
+      "seconds": 4.389,
+      "timeout": false,
+      "tests": 34,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_installer_hardening.py",
+      "status": 0,
+      "seconds": 13.333,
+      "timeout": false,
+      "tests": 56,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_lifecycle.py",
+      "status": 0,
+      "seconds": 5.964,
+      "timeout": false,
+      "tests": 22,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_lifecycle_review_20260914.py",
+      "status": 0,
+      "seconds": 4.69,
+      "timeout": false,
+      "tests": 30,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_managed_git_debugsys.py",
+      "status": 0,
+      "seconds": 11.888,
+      "timeout": false,
+      "tests": 56,
+      "skips": 1,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_security_refactor.py",
+      "status": 0,
+      "seconds": 9.966,
+      "timeout": false,
+      "tests": 28,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "tools/tests/test_scoped_desktop_fixes.py",
+      "status": 0,
+      "seconds": 27.589,
+      "timeout": false,
+      "tests": 11,
+      "skips": 0,
+      "failures": []
+    },
+    {
+      "path": "d-i/forky/tests/test_log_regressions_20260915.py",
+      "result": "OK",
+      "tests": 23,
+      "seconds": 18.057,
+      "skips": 0,
+      "failures": [],
+      "log": "r1-regressions.log"
+    },
+    {
+      "path": "d-i/forky/tests/test_log_followup_20260915.py",
+      "result": "OK",
+      "tests": 9,
+      "seconds": 25.415,
+      "skips": 1,
+      "failures": [],
+      "log": "r2-regressions.log"
+    },
+    {
+      "path": "d-i/forky/tests/test_log_launchers_20260915_r3.py",
+      "result": "OK",
+      "tests": 29,
+      "seconds": 0.878,
+      "skips": 0,
+      "failures": [],
+      "log": "regressions.log"
+    },
+    {
+      "path": "tools/tests/test_scoped_lifecycle_keyrings.py",
+      "result": "OK",
+      "tests": 43,
+      "seconds": 2.224,
+      "skips": 0,
+      "failures": [],
+      "log": "scoped-lifecycle.log"
+    }
+  ],
+  "passed": 381
+}

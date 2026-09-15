@@ -2731,14 +2731,12 @@ desktop_stage_labwc_user_session_assets() {
     /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
     0644
 
-  # Application-created Chromium/Electron scopes must stop with the session,
-  # just like the managed services which launched them.
-  for scope_prefix in app-com.vivaldi.Vivaldi- app-code- app-org.chromium.Chromium- app-bitwarden-; do
-    desktop_stage_role_asset \
-      "etc/skel-desktop/.config/systemd/user/${scope_prefix}.scope.d/50-labwc-session.conf" \
-      "/etc/skel-desktop/.config/systemd/user/${scope_prefix}.scope.d/50-labwc-session.conf" \
-      0644
-  done
+  # All app- scopes share the Labwc session lifetime, including new vendors.
+  # This prefix drop-in does not apply to unrelated scopes or services.
+  desktop_stage_role_asset \
+    "etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf" \
+    "/etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf" \
+    0644
 
   desktop_stage_labwc_package_user_unit_dropins
   desktop_stage_wireplumber_user_conditions

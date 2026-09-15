@@ -1,0 +1,77 @@
+{
+  "baseline": "debian-preseed-de-fixed-20260915-r2.tar.gz",
+  "baseline_sha256": "b954a7a67b902bfc54ca94c33f1f5c4e404f2d6f9a51cecfa6a3c3a4e28bae64",
+  "baseline_regular_files": 1963,
+  "original_regular_files_retained": 1867,
+  "baseline_files_retained": 1959,
+  "removed_only_at_user_request": [
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-bitwarden-.scope.d/50-labwc-session.conf",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-code-.scope.d/50-labwc-session.conf",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-com.vivaldi.Vivaldi-.scope.d/50-labwc-session.conf",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-org.chromium.Chromium-.scope.d/50-labwc-session.conf"
+  ],
+  "changed_existing_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/chromium",
+      "before_sha256": "49a4f1497959ce34f022abf74feb7473d20286e2941206b72b8232e3248a01bf",
+      "after_sha256": "cdb415584087888b41e5a5007db9cb726b361195161d9e138d16113b25d8bf7f"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "before_sha256": "8e60a58f17b16e7050a8f88f15ed985c62dc8ece6bd4d34a8f96c6acd3a13ef9",
+      "after_sha256": "b239c12a06d0544bfecbeba1e83cf3abe3ce31d1a1402267e0d802b724214abd"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "before_sha256": "8e2ab327541b0fdc3e11aba9c291d312f315ca56cc178d70bcf839da8cf2ba22",
+      "after_sha256": "7579cb89d3d40da0b20d357bf7d77b103b2de780c3a2b67c93d923f83736c201"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/mullvad-vpn",
+      "before_sha256": "66c02001b05030a9ed4ec16d16b886205ef30438729e4ec46f92c955f657b94a",
+      "after_sha256": "415d0442dad5986df6441b6a575ead3aafa4df4090244bcc5389228b5a15fb16"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "before_sha256": "c6bf9931e281e74b041a8dc939f87cbef5fc6a665613b7934040095c80242d1d",
+      "after_sha256": "a74cacb2ee6e81ffe1668a98d3ac6a196fb90fca4fe42b5109ce31430efd34e4"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-panel-run",
+      "before_sha256": "3f7703967b2c45f0272827ff326c81c597891323f9b65ab984c69bfacf9434e6",
+      "after_sha256": "7ca2d03ff346156408231db4d05d5d7f8077d38efda1a1b04a67b9f52d6eea21"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before_sha256": "732afa594aaec43c510f7211f126093f2dcd9e8d30cc1623a069fb7e0dbccfeb",
+      "after_sha256": "32eb90adccfea482f2a02921e73ad9597975eaac80fdcbf2fd6942680119e963"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before_sha256": "76d0f61573bfa0e8c37595bc916a6ea49938bf28b93b3db0c986b254943a5204",
+      "after_sha256": "aa8700b3d0c357e0bb035bd2eab04c9fef8a509f7828b23469aad788a8e5ce6d"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before_sha256": "f7f7d94dec39f2a9dff09bcba2518bdd742cc3255bcd7cbbc80256930a0ee4f6",
+      "after_sha256": "025fddf4ed2fc01833607915cfb3e210c46cc408b986806f6359e648b2e65b08"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "before_sha256": "5e2a6566c88be904464f539400e869bec3e238f8c5d4802c1d5888f3d62c8cf4",
+      "after_sha256": "3f0983fa0455526345290b9d0c693e18bbdc963a10abce1752f6e60185e07a6c"
+    },
+    {
+      "path": "d-i/forky/scripts/late/security.sh",
+      "before_sha256": "0947674e7262fb3c3cb5576a7b770db223e0a5932b86a273803f77eb29e19ca1",
+      "after_sha256": "ed3ed0e60cbdcfaef0860443279c45c02b1297f93fa126705ed7b96960deea59"
+    },
+    {
+      "path": "d-i/forky/tests/test_log_regressions_20260915.py",
+      "before_sha256": "1dbac6d1449b28b33b6ec2fc968c94a8ecf8db9126d3896eba75daad911a192a",
+      "after_sha256": "c0d0c8927870a3068439ad0dc12cb7acf02f45d6f69ff4e30013ab4bf2d19bdc"
+    }
+  ],
+  "existing_file_mode_changes": [],
+  "scope": "Eight existing production source/policy files, one existing regression module, three generated artifacts; one consolidated config and one new regression module. Reports and validation evidence are separate additions."
+}

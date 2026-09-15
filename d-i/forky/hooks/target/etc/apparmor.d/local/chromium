@@ -48,3 +48,7 @@ owner @{HOME}/.local/state/ r,
 owner @{HOME}/.local/state/browser-devtools/ r,
 owner @{HOME}/.local/state/browser-devtools/chromium/ rw,
 owner @{HOME}/.local/state/browser-devtools/chromium/** rwkl,
+
+# Crashpad reads same-user process memory when collecting a Chromium crash.
+# Peer ptrace mediation remains governed by managed-electron-application.
+owner @{PROC}/[0-9]*/mem r,

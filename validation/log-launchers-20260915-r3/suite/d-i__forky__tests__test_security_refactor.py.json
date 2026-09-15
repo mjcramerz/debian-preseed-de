@@ -1,0 +1,9 @@
+{
+  "path": "d-i/forky/tests/test_security_refactor.py",
+  "status": 0,
+  "seconds": 9.966,
+  "timeout": false,
+  "tests": 28,
+  "skips": 0,
+  "failures": []
+}

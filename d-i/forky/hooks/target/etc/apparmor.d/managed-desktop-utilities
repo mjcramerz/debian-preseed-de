@@ -155,6 +155,19 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   # this exec rule, complain mode creates null learning profiles for the
   # helper, xarchiver and every subsequent compression/glycin subprocess.
   /usr/lib/thunar-archive-plugin/xarchiver.tap rix,
+  # Terminal package queries are read-only; no apt/dpkg database writes.
+  /var/lib/dpkg/{status,triggers/File,triggers/Unincorp} r,
+  /var/lib/apt/extended_states r,
+  /var/lib/apt/lists/** r,
+  /var/cache/apt/{pkgcache,srcpkgcache}.bin r,
+  /usr/lib/git-core/git rix,
+  # The managed configuration repository is intentionally browsable from the
+  # user's terminal. Only Git metadata and the recorded account-edit files
+  # gain writes; the Codex .system subtree receives no write/execute grant.
+  /data/codex/usr/** r,
+  owner /data/codex/usr/.git/** rwkl,
+  owner /data/codex/usr/home/{auth.json,config.toml,.config.toml.swp} rw,
+
   # A terminal's mail check may read its user's traditional mail spool.
   owner /var/mail/* r,
   /usr/share/** r,

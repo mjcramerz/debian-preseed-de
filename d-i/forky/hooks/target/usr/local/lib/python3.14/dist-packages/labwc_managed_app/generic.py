@@ -157,15 +157,16 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     environment["LABWC_SESSION_RESTORE"] = restart_token([WRAPPERS[kind], mode, "--", *arguments])
     label = re.sub(r"[^A-Za-z0-9_-]", "-", Path(arguments[0]).name)[:48] or "app"
     unit = f"labwc-{kind}-{label}-{uuid.uuid4().hex}.service"
-    # Terminals and the packaged Timeshift Polkit launcher are host
-    # administration boundaries. Filesystem/IPC isolation in a user service
-    # implicitly enables PrivateUsers and prevents pkexec becoming host root.
-    # Only these canonical executables bypass those namespace properties;
-    # Polkit authentication and the per-window service lifetime remain intact.
-    host_administration = kind == "wayland" and arguments[0] in {
+    # These canonical administration launchers need host UID semantics.
+    # User-manager filesystem/IPC namespaces implicitly enable PrivateUsers:
+    # pkexec cannot become host root and Mullvad sees its root-owned daemon
+    # socket as owned by nobody. The vendor GUI must also keep the host UID
+    # view to verify that socket. Polkit, AppArmor, Electron's own sandbox and
+    # all session lifetime properties remain in place.
+    host_administration = (kind == "wayland" and arguments[0] in {
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
-        "/usr/bin/timeshift-launcher",
-    }
+        "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
+    }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),

@@ -1,10 +1,11 @@
 #!/usr/bin/python3 -I
-"""Run one fixed panel, coalescing two exact known upstream diagnostic floods.
+"""Run one fixed panel, coalescing exact known upstream diagnostic floods.
 
 The first occurrence, all other output and the real exit status remain visible.
 This is a journal-volume workaround, not a patch of either panel's binary.
 """
 import os
+import re
 from pathlib import Path
 import selectors
 import signal
@@ -12,8 +13,17 @@ import subprocess
 import sys
 import time
 
+WAYBAR_GTK_ASSERTIONS = {
+    b"gtk_widget_set_accel_path: assertion 'GTK_IS_ACCEL_GROUP (accel_group)' failed",
+    b"gtk_widget_add_accelerator: assertion 'GTK_IS_ACCEL_GROUP (accel_group)' failed",
+}
+# Match only the real Waybar/GTK prefix; ignore variable PID and timestamp when
+# counting these two specific library diagnostics. All other bytes pass through.
+WAYBAR_GTK_PREFIX = re.compile(
+    rb"^\(waybar:[0-9]+\): Gtk-CRITICAL \*\*: [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+: "
+)
 MESSAGES = {
-    'waybar': {b'Plugged'},
+    'waybar': {b'Plugged', *WAYBAR_GTK_ASSERTIONS},
     'crystal-dock': {b'LayerShellQt.Window.screenConfiguration is deprecated use screen and wantsToBeOnActiveScreen instead'},
 }
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGUSR1, signal.SIGUSR2)
@@ -30,8 +40,12 @@ class Coalescer:
 
     def line(self, stream, data: bytes) -> None:
         text = data.rstrip(b'\r\n')
-        key = (stream, text)
-        if text in self.messages:
+        canonical = text
+        match = WAYBAR_GTK_PREFIX.match(text)
+        if match and text[match.end():] in WAYBAR_GTK_ASSERTIONS:
+            canonical = text[match.end():]
+        key = (stream, canonical)
+        if canonical in self.messages:
             if key in self.seen:
                 self.repeats[key] = self.repeats.get(key, 0) + 1
                 return

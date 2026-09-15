@@ -1,0 +1,13 @@
+{
+  "success": true,
+  "files": 1287,
+  "unique_members": true,
+  "bytes_hashes_modes_match_source": true,
+  "manifest_paths_match_archive": true,
+  "pins_present_in_preseed": {
+    "payload.tar.gz": "aa8700b3d0c357e0bb035bd2eab04c9fef8a509f7828b23469aad788a8e5ce6d",
+    "payload.manifest": "32eb90adccfea482f2a02921e73ad9597975eaac80fdcbf2fd6942680119e963",
+    "scripts/common/source.sh": "ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21"
+  },
+  "mode_contract": "Executable source -> 0755; other source -> 0644, per existing build.py. Full distribution preserves original repository file modes."
+}

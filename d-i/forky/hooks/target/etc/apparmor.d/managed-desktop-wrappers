@@ -469,6 +469,9 @@ profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnecte
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/mullvad-vpn rix,
+  owner /dev/pts/[0-9]* rw,
+  @{PROC}/[0-9]*/uid_map r,
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
   /usr/bin/{id,stat} rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
   /usr/bin/timeout rix,
@@ -483,6 +486,8 @@ profile managed-mullvad-daemon-start /usr/local/libexec/mullvad-daemon-start fla
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/libexec/mullvad-daemon-start rix,
+  # pkexec inherits the authenticating user's terminal; this helper is root.
+  /dev/pts/[0-9]* rw,
   /usr/bin/{getent,id} rix,
   /usr/bin/systemctl PUx,
 
@@ -978,6 +983,8 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   deny /var/log/managed/openai/chatgpt/chatgpt.log rwkl,
   /usr/bin/bwrap rCx -> codex-bwrap,
   /usr/bin/slirp4netns rPx -> managed-codex-slirp4netns,
+  /usr/local/bin/git-ssh rpx -> managed-git-ssh,
+  signal (send) set=(hup int quit kill term) peer=managed-git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
   /usr/bin/{mise,pwsh,sccache} rix,
   /usr/lib/llvm-24/bin/ r,
@@ -1657,6 +1664,8 @@ profile managed-labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected,
   /usr/bin/bwrap rCx -> chatgpt-bwrap,
   /usr/bin/slirp4netns rPx -> managed-chatgpt-slirp4netns,
   /usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,
+  /usr/local/bin/git-ssh rpx -> managed-git-ssh,
+  signal (send) set=(hup int quit kill term) peer=managed-git-ssh,
   /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
   /usr/bin/{mise,pwsh,sccache} rix,
   # Re-enter the user manager; --pipe preserves the private log sink.
@@ -4065,4 +4074,38 @@ profile managed-labwc-ssh-pinentry flags=(attach_disconnected) {
   signal (receive) set=(term, kill, int, hup) peer=managed-labwc-ssh-key-load,
   signal (send) set=(chld) peer=managed-labwc-ssh-key-load,
   include if exists <local/managed-labwc-ssh-pinentry>
+}
+
+# Check/load the existing managed identity via the user manager and ssh-agent.
+# No private-key modification, network access, GPG decryption or root helper.
+# Named transitions above apply only to the two affected callers; do not change
+# the attachment behavior of unrelated terminal invocations of this helper.
+profile managed-git-ssh flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send, receive) bus=session peer=(name=org.freedesktop.systemd1),
+  / r,
+  owner @{HOME}/**/ r,
+  /usr/local/bin/git-ssh rix,
+  /usr/local/libexec/managed-ssh-checks r,
+  /usr/bin/{cut,getent,id,stat,ssh-add,systemctl} rix,
+  /usr/share/openssh/** r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/share/ r,
+  owner @{HOME}/.local/share/managed-ssh/ r,
+  owner @{HOME}/.local/share/managed-ssh/private/ r,
+  owner @{HOME}/.local/share/managed-ssh/private/id_git_ed25519 r,
+  owner @{HOME}/.local/share/managed-ssh/git-key-passphrase.gpg r,
+  owner @{HOME}/.ssh/ r,
+  owner @{HOME}/.ssh/id_git_ed25519.pub r,
+  owner @{HOME}/.gnupg/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/{bus,systemd/private,openssh_agent} rw,
+  owner /dev/pts/[0-9]* rw,
+  unix (connect, send, receive) type=stream,
+  signal (receive) peer=unconfined,
+  signal (receive) set=(hup int quit kill term) peer=managed-codex-wrapper,
+  signal (receive) set=(hup int quit kill term) peer=managed-labwc-chatgpt,
+  include if exists <local/managed-git-ssh>
 }
