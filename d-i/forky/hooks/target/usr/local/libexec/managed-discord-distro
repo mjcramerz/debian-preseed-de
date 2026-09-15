@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import pathlib
@@ -384,6 +385,69 @@ def canonical_member_path(member: tarfile.TarInfo) -> str:
     return canonical
 
 
+def materialize_module_bin_symlink(
+    member: tarfile.TarInfo,
+    canonical: str,
+    members_by_path: dict[str, tarfile.TarInfo],
+) -> tarfile.TarInfo:
+    parts = canonical.split("/")
+    raw_target = member.linkname
+    try:
+        target_bytes = raw_target.encode("utf-8", errors="strict")
+    except UnicodeError as exc:
+        raise ValueError(
+            "Discord module tar contains an unsafe npm bin symlink"
+        ) from exc
+    if (
+        len(parts) != 4
+        or parts[:3] != ["files", "node_modules", ".bin"]
+        or not raw_target
+        or len(target_bytes) > MAX_PATH_BYTES
+        or raw_target.startswith("/")
+        or raw_target.endswith("/")
+        or "\\" in raw_target
+        or member.size != 0
+        or any(
+            character.isspace() or ord(character) < 32
+            for character in raw_target
+        )
+    ):
+        raise ValueError("Discord module tar contains an unsafe npm bin symlink")
+
+    target_parts = parts[:-1]
+    for part in raw_target.split("/"):
+        if not part:
+            raise ValueError("Discord module tar contains an unsafe npm bin symlink")
+        if part == ".":
+            continue
+        if part == "..":
+            if len(target_parts) <= 2:
+                raise ValueError("Discord module tar contains an unsafe npm bin symlink")
+            target_parts.pop()
+            continue
+        if PATH_COMPONENT_RE.fullmatch(part) is None:
+            raise ValueError("Discord module tar contains an unsafe npm bin symlink")
+        target_parts.append(part)
+
+    target_path = "/".join(target_parts)
+    target = members_by_path.get(target_path)
+    if (
+        target is None
+        or not target_path.startswith("files/node_modules/")
+        or not target.isreg()
+        or target.issparse()
+        or not target.mode & 0o111
+        or target.mode & 0o7000
+    ):
+        raise ValueError(
+            "Discord module tar npm bin symlink must target an in-module executable file"
+        )
+
+    materialized = copy.copy(target)
+    materialized.name = canonical
+    return materialized
+
+
 def archive_limits(kind: str) -> tuple[int, int, int]:
     if kind == "host":
         return MAX_HOST_MEMBERS, MAX_HOST_BYTES, MAX_HOST_MEMBER_BYTES
@@ -425,26 +489,46 @@ def inspect_archive(
     if not members or len(members) > member_limit:
         archive.close()
         fail("Discord tar member count is outside approved bounds")
+    canonical_members: list[tuple[tarfile.TarInfo, str]] = []
+    members_by_path: dict[str, tarfile.TarInfo] = {}
+    for member in members:
+        canonical = canonical_member_path(member)
+        if canonical in members_by_path:
+            archive.close()
+            fail("Discord tar contains a duplicate canonical member path")
+        members_by_path[canonical] = member
+        canonical_members.append((member, canonical))
+
     safe_members: list[tuple[tarfile.TarInfo, str]] = []
-    seen: set[str] = set()
+    seen = set(members_by_path)
     filesystem_paths: set[str] = set()
     regular_files: set[str] = set()
     total_bytes = 0
-    for member in members:
-        canonical = canonical_member_path(member)
-        if canonical in seen:
-            archive.close()
-            fail("Discord tar contains a duplicate canonical member path")
-        seen.add(canonical)
-        if canonical == "files" and not member.isdir():
-            archive.close()
-            fail("Discord tar files root must be a directory")
-        if not (member.isdir() or member.isreg()) or member.issparse():
-            archive.close()
-            fail("Discord tar contains an unsupported filesystem object")
+    for member, canonical in canonical_members:
         if member.mode & 0o7000:
             archive.close()
             fail("Discord tar contains unsafe set-ID or sticky mode bits")
+        if canonical == "files" and not member.isdir():
+            archive.close()
+            fail("Discord tar files root must be a directory")
+
+        safe_member = member
+        if member.issym():
+            if kind != "module":
+                archive.close()
+                fail("Discord host tar contains an unsupported symbolic link")
+            try:
+                safe_member = materialize_module_bin_symlink(
+                    member,
+                    canonical,
+                    members_by_path,
+                )
+            except ValueError as exc:
+                archive.close()
+                fail(str(exc))
+        elif not (member.isdir() or member.isreg()) or member.issparse():
+            archive.close()
+            fail("Discord tar contains an unsupported filesystem object")
         if canonical == ARCHIVE_METADATA_FILE:
             if (
                 not member.isreg()
@@ -464,16 +548,16 @@ def inspect_archive(
                 "Discord tar effective filesystem entry count exceeds "
                 "approved bounds"
             )
-        if member.isreg():
-            if member.size < 0 or member.size > member_byte_limit:
+        if safe_member.isreg():
+            if safe_member.size < 0 or safe_member.size > member_byte_limit:
                 archive.close()
                 fail("Discord tar member size is outside approved bounds")
-            total_bytes += member.size
+            total_bytes += safe_member.size
             if total_bytes > byte_limit:
                 archive.close()
                 fail("Discord tar expanded size exceeds approved bounds")
             regular_files.add(canonical.removeprefix("files/"))
-        safe_members.append((member, canonical))
+        safe_members.append((safe_member, canonical))
 
     filesystem_entries = len(filesystem_paths.difference({"files"}))
     if not regular_files or total_bytes < 1:

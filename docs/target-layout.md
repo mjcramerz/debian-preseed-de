@@ -402,9 +402,12 @@ scheduled updates, and offline repair. Scheduled apply runs also rebuild a
 damaged `/opt/discord` from those retained artifacts when no newer release is
 pending. Publication discards any module subtree bundled in the host archive
 and rebuilds it exclusively from the manifest-declared, digest-verified module
-archives. A failed staging operation preserves the stable updater reason while
-reporting the exact host, module, metadata, normalization, or runtime-validation
-stage in installer stderr and the managed updater log. Every module advertised
+archives. Relative executable npm-bin links inside a module are materialized as
+regular files during extraction, so the published runtime remains symlink-free;
+all other archive links remain rejected. A failed staging operation preserves
+the stable updater reason while reporting the exact host, module, metadata,
+normalization, or runtime-validation stage in installer stderr and the managed
+updater log. Every module advertised
 by the validated manifest is published and checked against `installed.json`,
 including `discord_krisp` when it is part of that release; the launcher does not
 suppress Krisp initialization failures or invent a replacement module.

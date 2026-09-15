@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import json
 import os
 from pathlib import Path
+import runpy
 import subprocess
+import tarfile
 import tempfile
 import unittest
 
@@ -14,6 +18,7 @@ PERL_LIB = FORKY / (
     'hooks/target/usr/local/lib/perl5/site_perl/external-managed-software'
 )
 SERVICING = PERL_LIB / 'ExternalSoftware/Servicing'
+DISCORD_ARCHIVE_HELPER = FORKY / 'hooks/target/usr/local/libexec/managed-discord-distro'
 SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
@@ -27,6 +32,128 @@ class ManagedExternalSoftwareTests(unittest.TestCase):
             capture_output=True,
             timeout=30,
         )
+
+    def run_discord_archive_helper(
+        self,
+        *arguments: object,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ['/usr/bin/python3', '-I', str(DISCORD_ARCHIVE_HELPER),
+             *(str(argument) for argument in arguments)],
+            env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+
+    def write_discord_module_archive(
+        self,
+        path: Path,
+        *,
+        link_name: str = 'files/node_modules/.bin/proto-loader-gen-types',
+        link_target: str = '../@grpc/proto-loader/build/bin/proto-loader-gen-types.js',
+        target_mode: int = 0o755,
+    ) -> bytes:
+        payload = b'#!/usr/bin/env node\n'
+        target_name = (
+            'files/node_modules/@grpc/proto-loader/build/bin/'
+            'proto-loader-gen-types.js'
+        )
+        with tarfile.open(path, 'w', format=tarfile.USTAR_FORMAT) as archive:
+            target = tarfile.TarInfo(target_name)
+            target.mode = target_mode
+            target.size = len(payload)
+            archive.addfile(target, io.BytesIO(payload))
+
+            link = tarfile.TarInfo(link_name)
+            link.type = tarfile.SYMTYPE
+            link.linkname = link_target
+            archive.addfile(link)
+        return payload
+
+    def test_discord_module_npm_bin_symlink_is_materialized_as_a_regular_file(self):
+        with tempfile.TemporaryDirectory(prefix='discord-module-symlink-') as temporary:
+            archive_path = Path(temporary) / 'discord_voice.tar'
+            payload = self.write_discord_module_archive(archive_path)
+            arguments = (
+                'inspect', '--path', archive_path, '--kind', 'module',
+                '--version', '1.0.158', '--module-name', 'discord_voice',
+                '--module-version', 1,
+            )
+            result = self.run_discord_archive_helper(*arguments)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            metadata = json.loads(result.stdout)
+            self.assertEqual(metadata['members'], 2)
+            self.assertEqual(metadata['regular_files'], 2)
+            self.assertEqual(metadata['unpacked_bytes'], len(payload) * 2)
+
+            helper = runpy.run_path(
+                str(DISCORD_ARCHIVE_HELPER),
+                run_name='managed_discord_distro_test',
+            )
+            archive, members, _ = helper['inspect_archive'](
+                str(archive_path),
+                kind='module',
+                version='1.0.158',
+                module_name='discord_voice',
+                module_version=1,
+            )
+            try:
+                materialized = dict((canonical, member) for member, canonical in members)[
+                    'files/node_modules/.bin/proto-loader-gen-types'
+                ]
+                self.assertTrue(materialized.isreg())
+                self.assertFalse(materialized.issym())
+                self.assertEqual(materialized.mode & 0o777, 0o755)
+                with archive.extractfile(materialized) as stream:
+                    self.assertEqual(stream.read(), payload)
+            finally:
+                archive.close()
+
+    def test_discord_module_rejects_unsafe_or_dangling_symlinks(self):
+        cases = (
+            (
+                'escaping target',
+                'files/node_modules/.bin/proto-loader-gen-types',
+                '../../../outside',
+                0o755,
+            ),
+            (
+                'outside npm bin',
+                'files/node_modules/proto-loader-gen-types',
+                '@grpc/proto-loader/build/bin/proto-loader-gen-types.js',
+                0o755,
+            ),
+            (
+                'dangling target',
+                'files/node_modules/.bin/proto-loader-gen-types',
+                '../missing.js',
+                0o755,
+            ),
+            (
+                'non-executable target',
+                'files/node_modules/.bin/proto-loader-gen-types',
+                '../@grpc/proto-loader/build/bin/proto-loader-gen-types.js',
+                0o644,
+            ),
+        )
+        with tempfile.TemporaryDirectory(prefix='discord-module-unsafe-link-') as temporary:
+            for index, (label, link_name, link_target, target_mode) in enumerate(cases):
+                with self.subTest(label=label):
+                    archive_path = Path(temporary) / f'fixture-{index}.tar'
+                    self.write_discord_module_archive(
+                        archive_path,
+                        link_name=link_name,
+                        link_target=link_target,
+                        target_mode=target_mode,
+                    )
+                    result = self.run_discord_archive_helper(
+                        'inspect', '--path', archive_path, '--kind', 'module',
+                        '--version', '1.0.158', '--module-name', 'discord_voice',
+                        '--module-version', 1,
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn('fatal: Discord module tar ', result.stderr)
 
     def test_repository_package_digest_uses_the_512_mib_streaming_bound(self):
         repository = (SERVICING / 'Repository.pm').read_text()
