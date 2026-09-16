@@ -1,0 +1,12 @@
+#!/usr/bin/python3 -I
+"""Unprivileged hardware-tuning controls; no setuid, sudo or shell evaluation."""
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/usr/local/lib/hardware_tuning")
+from client import main
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except Exception as exc:
+        print("hardware tuning: " + str(exc), file=sys.stderr)
+        raise SystemExit(1)

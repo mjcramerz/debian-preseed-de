@@ -1,0 +1,12 @@
+#!/usr/bin/python3 -I
+"""Root socket broker entrypoint."""
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/usr/local/lib/hardware_tuning")
+from broker import main
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print("hardware-tuningd: " + str(exc), file=sys.stderr)
+        raise SystemExit(1)

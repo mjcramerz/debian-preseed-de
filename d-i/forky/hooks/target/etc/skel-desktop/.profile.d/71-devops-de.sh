@@ -756,6 +756,12 @@ devops_de_activate() (
   devops_de_set_terminal_title || return 1
   printf '%s\n' 'Entering DevOps environment; run devops or exit to return'
 
+  # Foreground call: the helper watches this activation SUBSHELL's real PID.
+  # Each terminal gets its own pidfd-backed lease; the nested shell is unchanged.
+  if [ -x /usr/local/bin/labwc-hardware-tuning ]; then
+    /usr/local/bin/labwc-hardware-tuning devops-start ||
+      printf '%s\n' 'DevOps tuning sidecar unavailable; continuing without hardware tuning' >&2
+  fi
   "$devops_de_shell" -i
   devops_de_shell_status=$?
   devops_de_restore_terminal_title_once || {

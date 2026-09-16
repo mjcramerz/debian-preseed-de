@@ -1,0 +1,97 @@
+{
+  "profiles": [
+    {
+      "profile": "btrfs-de-dual-flex.env",
+      "intel_enable": "true",
+      "nvidia_enable": "true",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-de-dual-main.env",
+      "intel_enable": "true",
+      "nvidia_enable": "true",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-de-dual.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-de-flex.env",
+      "intel_enable": "true",
+      "nvidia_enable": "true",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-de-main.env",
+      "intel_enable": "true",
+      "nvidia_enable": "true",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-de.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "btrfs-desktop.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "f2fs-de-cbook.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "f2fs-de-dual-cbook.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "f2fs-de-dual.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "f2fs-de.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "f2fs-desktop.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    },
+    {
+      "profile": "vm-desktop.env",
+      "intel_enable": "false",
+      "nvidia_enable": "false",
+      "autostart": "false",
+      "configuration_fields": 143
+    }
+  ],
+  "same_non_enable_configuration": true,
+  "duplicate_keys": false
+}

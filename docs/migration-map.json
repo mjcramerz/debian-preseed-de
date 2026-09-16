@@ -826,7 +826,9 @@
       "destination": "d-i/forky/scripts/late/desktop.sh",
       "source_sha256": "05032fd1b74a399ad9efe6274512cbd6202abafc86591e7c7804024bcbc243a4",
       "destination_sha256": "05032fd1b74a399ad9efe6274512cbd6202abafc86591e7c7804024bcbc243a4",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "a3c7d094f13b48f1d66c573c917646919f32383735c1f07a28ac061ffcc57025",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/data/llama/lib/llama",
@@ -2016,7 +2018,9 @@
       "destination": "d-i/forky/hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh",
       "source_sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
       "destination_sha256": "63ade0359126375a435f917d9aa95148fce6c3f1e03f6e871d690c5833ccc339",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "cbaa5d188f7048e7f955e1df378b60811c17c03d7ffb5c2feec29d44410fc2d0",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hooks/role/desktop/target/etc/skel/.profile.d/72-incus.sh.tmpl",
@@ -5187,14 +5191,18 @@
       "destination": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
       "source_sha256": "e4b6b33eb76306eba4ed8eae893d3d5664a136062db5c74ac912823dabba19d8",
       "destination_sha256": "e4b6b33eb76306eba4ed8eae893d3d5664a136062db5c74ac912823dabba19d8",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "adb3ac70ff523366adf0dc06098c4d8b9c285ebffa15e4df679291589e2f3026",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/apparmor.d/managed-desktop-wrappers",
       "destination": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
       "source_sha256": "42da47784549b6b96408de6d6cec08c0387bbb7d1e56815bd053f7b55cb7f116",
       "destination_sha256": "42da47784549b6b96408de6d6cec08c0387bbb7d1e56815bd053f7b55cb7f116",
-      "content_status": "unchanged"
+      "content_status": "unchanged",
+      "current_sha256": "c871e77b23169c9a83487d2abe5e9640a3d04eb695d166d2799b05d937594c10",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hooks/shared/target/etc/apparmor.d/managed-document-applications",
@@ -7820,8 +7828,8 @@
       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "content_status": "unchanged",
-      "current_sha256": "6dcdf791223f440734c36a78d51e6efe1d28bff92b7e56187f0223b542f7cbc1",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "5426f1023cab556b71a9a339398b482b0b414f41af5ef718e39b92956bb13485",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
@@ -7829,8 +7837,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "abeb5fa4f89e19a8841b168f9dac7e90d1b5416a8729f57e1e01a1578a7680b2",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "a03244b5a494aa417b840d4a893a6441739fdac5f77e04c4a3d17ec5935eaf37",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
@@ -7838,8 +7846,8 @@
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "content_status": "unchanged",
-      "current_sha256": "046ad6cd0318f0e58ee5f6d84d3d009db55475d4370ef81ed6e5b17285c92726",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "439ab71cce59defbd5aea51d8b0b0aefefc3a83de3129838a1ce27c8a63a80f6",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
@@ -7847,8 +7855,8 @@
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "content_status": "unchanged",
-      "current_sha256": "934edbd65210910c7000d71544ec25540a7c7a6d2631e8890dfaf73713cd906a",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "9cdfbce455af7b38fbfa3f1a93008bd705587e0599fc9fbb48865cb51a992eb5",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
@@ -7856,8 +7864,8 @@
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "content_status": "unchanged",
-      "current_sha256": "511e61075cf9bc9e3ad8863f21ef88be514df64a66cb87f1143618abd4fc3e7a",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "dc26208becc074bcdda641398ea83ff061d133d01ea76cc9a5582f828b5e8e6f",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
@@ -7865,8 +7873,8 @@
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "content_status": "unchanged",
-      "current_sha256": "fac05fd08ebe04f76c886710e42594b1981e82bd55c6fe8e45582c0ccf679576",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "a9e5842b072b7406f6e6c40ef4c029335adc5ec853efa7ef194de0626c91318c",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
@@ -7874,8 +7882,8 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "da173c8b7d986725da02ff165b6872d0bc1e552194c255a1cefe2857053a3122",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)",
+      "current_sha256": "bf6bb110e688283e34336dfa31a177351bbbeb1a4476117f85c21e774c10775b",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)",
       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
     },
     {
@@ -7884,8 +7892,8 @@
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "content_status": "unchanged",
-      "current_sha256": "8ad4b10f906fc4fa074b82675318a08c973cc7f716a4689d2af6cdc17572772f",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "7df14985ea9b7325fc1ef98f5bcc7dbe7dfbaaaaab774af8e01c7f4a268bf56a",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
@@ -7893,8 +7901,8 @@
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "content_status": "unchanged",
-      "current_sha256": "dc75cb6389b20190e7bfcbc283c55dd41f8ab8ddcb63507bb243ddd00863a247",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "ac96e31a78c8e47eb496997c57bf1bd4f9178db6133c4e7ef73ef3dd50e9494b",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
@@ -7902,8 +7910,8 @@
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "content_status": "unchanged",
-      "current_sha256": "bed7be3995458a07cb3f15df0825b79bb4cb589bc6fd4963644e05bbb16ec7ce",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "571665f830ad4321a26f416d45e080bb0d4d86fa9318125a7c63aa0d34c34ce9",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
@@ -7911,8 +7919,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "abeb5fa4f89e19a8841b168f9dac7e90d1b5416a8729f57e1e01a1578a7680b2",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "a03244b5a494aa417b840d4a893a6441739fdac5f77e04c4a3d17ec5935eaf37",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
@@ -7920,8 +7928,8 @@
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "content_status": "unchanged",
-      "current_sha256": "f9270f250402ddbd5dd6d0bedfb3756cd0d9a16801936364a6cd3e6d9d3d6d2f",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "9f9fe60d2888a335b8cfe9bf607b9d5ae6279b2419d036f6375ef85a6b1f8f3c",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
@@ -7929,8 +7937,8 @@
       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "content_status": "unchanged",
-      "current_sha256": "ac5f059f76611d638d4ab821fa8dbffeff1b62767b0454cbf895a2241cf19127",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl)"
+      "current_sha256": "d61985acd1dc17d3a35366fa81343a9433eb7be64eea85a892ba572c215cde91",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/hosts/shared/account.env",
@@ -7986,7 +7994,9 @@
       "destination": "d-i/forky/preseed.cfg",
       "source_sha256": "0953867d5e2547382123a5a3ac48c9a04293abd6caf4af0e53f713f2434f9ef0",
       "destination_sha256": "497dde68084d5fd44896f4adaae5315ed99c013545f5d9dd2a801eacd3213053",
-      "content_status": "refactored"
+      "content_status": "refactored",
+      "current_sha256": "0ea6107ba396ff934a233521a2307a073991956b87ca46aee7212a5bb0642e6d",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/repo.env",
@@ -8070,7 +8080,9 @@
       "destination": "d-i/forky/scripts/desktop/labwc.sh",
       "source_sha256": "09f60ffe660734f76ca58bc0959d6cb0401feb0c08932369c6f071e7e0f8b25d",
       "destination_sha256": "7ae506295aaa7c4067ea113d9c181f2fa46e5ac379620b9b2fa7affd0b6e1aa5",
-      "content_status": "refactored"
+      "content_status": "refactored",
+      "current_sha256": "01514dfe00ba9ac12448ad29d2203d816c47a25ac972dc873628ef23edb000d2",
+      "current_change": "gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16)"
     },
     {
       "source": "d-i/forky/scripts/desktop/samloader.sh",

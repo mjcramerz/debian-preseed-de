@@ -1350,6 +1350,7 @@ profile managed-labwc-freerdp-askpass /usr/local/bin/labwc-freerdp-askpass flags
 }
 
 profile managed-labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnected) {
+  include if exists <abstractions/managed-hardware-tuning-fuzzel-parent>
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-fuzzel rix,

@@ -1,0 +1,18 @@
+{
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-v",
+    "-s",
+    "d-i/forky/tests",
+    "-p",
+    "test_*.py"
+  ],
+  "returncode": 1,
+  "timed_out": false,
+  "seconds": 376.645,
+  "log": "final-tests.log"
+}

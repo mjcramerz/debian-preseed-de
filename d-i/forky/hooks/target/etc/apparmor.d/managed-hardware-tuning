@@ -1,0 +1,104 @@
+# Managed by unattended-installer; installed only when a hardware gate succeeds.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile managed-hardware-tuning-broker /usr/local/libexec/hardware-tuningd flags=(attach_disconnected, mediate_deleted) {
+  # Deliberately NOT managed-wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  /usr/local/libexec/hardware-tuningd r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,broker}.py r,
+  /usr/local/libexec/hardware-tuning-worker rPx -> managed-hardware-tuning-worker,
+  unix,
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=managed-hardware-tuning-worker,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /run/systemd/{seats,sessions,users}/ r,
+  /run/systemd/{seats,sessions,users}/** r,
+  /sys/class/power_supply/ r,
+  /sys/class/power_supply/** r,
+  /sys/devices/**/{online,type} r,
+  /etc/hardware-tuning/ r,
+  /etc/hardware-tuning/broker.json r,
+  /run/hardware-tuning/ rw,
+  /run/hardware-tuning/control.sock rw,
+  /run/hardware-tuning/controls.json rw,
+  /run/hardware-tuning/.controls.json.tuning-* rw,
+  /etc/systemd/system/multi-user.target.wants/ rw,
+  /etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service rw,
+  /etc/systemd/system/hardware-tuning-autostart.service r,
+  # No sysfs writes, device nodes, capabilities, arbitrary exec, or network.
+}
+
+profile managed-hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker flags=(attach_disconnected, mediate_deleted) {
+  # Deliberately NOT managed-wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  /usr/local/libexec/hardware-tuning-worker r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,engine}.py r,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=managed-hardware-tuning-broker,
+  /etc/hardware-tuning/ r,
+  /run/hardware-tuning/ rw,
+  # Exact vendor permissions are absent if that vendor was not installed.
+  include if exists <abstractions/managed-hardware-tuning-intel>
+  include if exists <abstractions/managed-hardware-tuning-nvidia>
+  deny /dev/cpu/*/msr rw,
+  deny /dev/mem rw,
+  deny /dev/kmem rw,
+  # No shell/command execution, control-socket access, internet, or user-home access.
+}
+
+profile managed-hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flags=(attach_disconnected, mediate_deleted) {
+  # Deliberately NOT managed-wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member={Notify,GetCapabilities,GetServerInformation}
+    peer=(name=org.freedesktop.Notifications),
+  signal (send) set=(chld) peer=managed-desktop-launcher,
+  ptrace (read) peer=managed-desktop-launcher,
+  /usr/local/bin/labwc-hardware-tuning r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,client}.py r,
+  unix,
+  /run/hardware-tuning/ r,
+  /run/hardware-tuning/control.sock rw,
+  /usr/bin/{systemd-run,notify-send} rix,
+  /usr/share/locale/** r,
+  /run/systemd/{sessions,users}/** r,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  owner /proc/[0-9]*/ r,
+  owner /proc/[0-9]*/{stat,status} r,
+  owner /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /proc/sys/kernel/pid_max r,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=managed-hardware-tuning-client,
+  signal (send, receive) peer=managed-labwc-fuzzel,
+  /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/hardware-tuning/ rw,
+  owner @{HOME}/.local/state/hardware-tuning/*.{txt,json} rw,
+  # No hardware files, configuration/state writes, sudo, or privileged exec.
+}

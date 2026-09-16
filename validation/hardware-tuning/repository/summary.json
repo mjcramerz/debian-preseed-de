@@ -1,0 +1,178 @@
+{
+  "repository": "debian-preseed-de",
+  "utc": "2026-09-16T22:32:46.763540+00:00",
+  "success": false,
+  "reason": "The final full suite retains eight failures/errors also reproduced on the untouched supplied archive; these are not suppressed or relabeled as passes.",
+  "tuning_tests": {
+    "run": 74,
+    "seconds": 0.506,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 74
+  },
+  "full_repository_tests": {
+    "run": 1254,
+    "seconds": 375.575,
+    "failures": 6,
+    "errors": 2,
+    "skipped": 27,
+    "passed": 1219
+  },
+  "baseline_failure_comparison": {
+    "identical_failing_tests": [
+      "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+      "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events",
+      "test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb",
+      "test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound",
+      "test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only"
+    ],
+    "original_archive": "debian-preseed-de(2).zip",
+    "original_focused_run": {
+      "run": 8,
+      "seconds": 0.197,
+      "failures": 6,
+      "errors": 2,
+      "skipped": 0,
+      "passed": 0
+    },
+    "new_failures_observed": []
+  },
+  "checks": {
+    "browser-artifacts": 0,
+    "build-products": 0,
+    "preseeds": 0,
+    "shell-parsers": 0,
+    "codebase-audit": 0,
+    "generated-units-and-apparmor": 0,
+    "full-tests": 1
+  },
+  "shell": {
+    "success": true,
+    "shell_files": 279,
+    "parser_checks": 569,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "audit_check_counts": {
+    "blocked-dependency": 156,
+    "inventory-only": 495,
+    "pass": 456,
+    "structure-pass": 173,
+    "template-needs-render": 2
+  },
+  "generated_integration": {
+    "systemd_version": "systemd 257 (257.9-1~deb13u1)",
+    "checks": [
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "intel"
+        ],
+        "scope": "system",
+        "returncode": 0,
+        "log": "units-intel-system.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "intel"
+        ],
+        "scope": "user",
+        "returncode": 0,
+        "log": "units-intel-user.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "apparmor-parse",
+        "vendors": [
+          "intel"
+        ],
+        "returncode": 0,
+        "log": "apparmor-intel.log",
+        "kernel_load": false
+      },
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "nvidia"
+        ],
+        "scope": "system",
+        "returncode": 0,
+        "log": "units-nvidia-system.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "nvidia"
+        ],
+        "scope": "user",
+        "returncode": 0,
+        "log": "units-nvidia-user.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "apparmor-parse",
+        "vendors": [
+          "nvidia"
+        ],
+        "returncode": 0,
+        "log": "apparmor-nvidia.log",
+        "kernel_load": false
+      },
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "intel",
+          "nvidia"
+        ],
+        "scope": "system",
+        "returncode": 0,
+        "log": "units-intel-nvidia-system.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "systemd-verify",
+        "vendors": [
+          "intel",
+          "nvidia"
+        ],
+        "scope": "user",
+        "returncode": 0,
+        "log": "units-intel-nvidia-user.log",
+        "fixture_executables": true
+      },
+      {
+        "check": "apparmor-parse",
+        "vendors": [
+          "intel",
+          "nvidia"
+        ],
+        "returncode": 0,
+        "log": "apparmor-intel-nvidia.log",
+        "kernel_load": false
+      }
+    ],
+    "success": true,
+    "limits": [
+      "Offline parser/dependency checks with fixture executables and session/AppArmor dependencies; no target units started.",
+      "AppArmor policies compiled without kernel loading; on-target enforcement remains required."
+    ]
+  },
+  "runtime_product_sha256": {
+    "payload.tar.gz": "2ab693c712e3af796edc719f463c8a89e182f3cd54e21c193dbc68a79bc2b60e",
+    "payload.manifest": "ef26060119b9d20a4ee3ca321922583b1ce289780c9261eaa916ca3241aff274",
+    "preseed.cfg": "0ea6107ba396ff934a233521a2307a073991956b87ca46aee7212a5bb0642e6d"
+  },
+  "limits": [
+    "No real installation, hardware writes, performance/stability benchmarks or GUI session tests were performed.",
+    "Target systemd 261.2 was supplied by the user; the offline checker was systemd 257.9.",
+    "AppArmor profiles were compiled, not kernel-loaded or enforcement-tested.",
+    "Skipped, dependency-blocked, inventory-only and lexical structure results are not runtime passes."
+  ]
+}

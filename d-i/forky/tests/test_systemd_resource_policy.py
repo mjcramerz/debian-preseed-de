@@ -179,10 +179,12 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             with self.subTest(path=relative):
                 original = (ROOT / relative).read_bytes()
                 if relative == 'd-i/forky/scripts/desktop/labwc.sh':
-                    # Exclude only the two new installer calls. All original
-                    # workload policy bytes must still match the old fixture.
+                    # Exclude only the three explicitly added installer calls.
+                    # Hardware tuning is separate; original workload policy
+                    # bytes must still match the unchanged historical fixture.
                     for added in (b'  desktop_resctl_bench_preflight_target_architecture\n',
-                                  b'  desktop_install_resctl_bench\n'):
+                                  b'  desktop_install_resctl_bench\n',
+                                  b'  desktop_install_hardware_tuning\n'):
                         self.assertEqual(original.count(added), 1)
                         original = original.replace(added, b'', 1)
                 self.assertEqual(hashlib.sha256(original).hexdigest(), expected)

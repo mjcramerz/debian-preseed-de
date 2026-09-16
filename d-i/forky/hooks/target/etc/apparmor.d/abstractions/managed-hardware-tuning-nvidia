@@ -1,0 +1,18 @@
+# Included ONLY when NVIDIA tuning passes flag, selected-class, and PCI gates.
+/usr/local/lib/hardware_tuning/nvidia.py r,
+/etc/hardware-tuning/nvidia.json r,
+/run/hardware-tuning/nvidia.{json,lock} rwk,
+/run/hardware-tuning/.nvidia.json.tuning-* rw,
+# NVML power/clock setters require host administrator capability; the socket
+# broker deliberately does NOT have this AppArmor capability permission.
+capability sys_admin,
+/dev/nvidiactl rw,
+/dev/nvidia[0-9]* rw,
+/dev/nvidia-caps/ r,
+/dev/nvidia-caps/nvidia-cap[0-9]* rw,
+/proc/driver/nvidia/ r,
+/proc/driver/nvidia/** r,
+/proc/{devices,modules,meminfo} r,
+/sys/ r,
+/sys/** r,
+# No X11, Coolbits, raw MSRs, GPU reset, or firmware/sysfs writes.
