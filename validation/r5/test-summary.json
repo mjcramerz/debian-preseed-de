@@ -1,0 +1,117 @@
+{
+  "selections": [
+    {
+      "selection": "test_dbus_broker",
+      "tests": 16,
+      "skipped": 0,
+      "passed": 16,
+      "seconds": 0.057,
+      "status": "PASS",
+      "log": "validation/r5/test_dbus_broker.log"
+    },
+    {
+      "selection": "test_gitops_mirrors",
+      "tests": 16,
+      "skipped": 0,
+      "passed": 16,
+      "seconds": 2.74,
+      "status": "PASS",
+      "log": "validation/r5/test_gitops_mirrors.log"
+    },
+    {
+      "selection": "test_lifecycle",
+      "tests": 22,
+      "skipped": 0,
+      "passed": 22,
+      "seconds": 1.859,
+      "status": "PASS",
+      "log": "validation/r5/test_lifecycle.log"
+    },
+    {
+      "selection": "test_lifecycle_review_20260914",
+      "tests": 30,
+      "skipped": 0,
+      "passed": 30,
+      "seconds": 1.709,
+      "status": "PASS",
+      "log": "validation/r5/test_lifecycle_review_20260914.log"
+    },
+    {
+      "selection": "test_managed_git_debugsys",
+      "tests": 56,
+      "skipped": 1,
+      "passed": 55,
+      "seconds": 2.6,
+      "status": "PASS",
+      "log": "validation/r5/test_managed_git_debugsys.log"
+    },
+    {
+      "selection": "test_policy_review_20260916.AppArmorReviewTests",
+      "tests": 9,
+      "skipped": 0,
+      "passed": 9,
+      "seconds": 0.004,
+      "status": "PASS",
+      "log": "validation/r5/test_policy_review_20260916.AppArmorReviewTests.log"
+    },
+    {
+      "selection": "test_policy_review_20260916.SystemdReviewTests",
+      "tests": 4,
+      "skipped": 0,
+      "passed": 4,
+      "seconds": 0.151,
+      "status": "PASS",
+      "log": "validation/r5/test_policy_review_20260916.SystemdReviewTests.log"
+    },
+    {
+      "selection": "test_power_keyboard_20260913",
+      "tests": 36,
+      "skipped": 0,
+      "passed": 36,
+      "seconds": 3.436,
+      "status": "PASS",
+      "log": "validation/r5/test_power_keyboard_20260913.log"
+    },
+    {
+      "selection": "test_repository_integrity",
+      "tests": 10,
+      "skipped": 0,
+      "passed": 10,
+      "seconds": 11.067,
+      "status": "PASS",
+      "log": "validation/r5/test_repository_integrity.log"
+    },
+    {
+      "selection": "test_shutdown_policy_r5",
+      "tests": 8,
+      "skipped": 0,
+      "passed": 8,
+      "seconds": 7.292,
+      "status": "PASS",
+      "log": "validation/r5/test_shutdown_policy_r5.log"
+    },
+    {
+      "selection": "test_systemd_resource_policy",
+      "tests": 16,
+      "skipped": 0,
+      "passed": 16,
+      "seconds": 8.377,
+      "status": "PASS",
+      "log": "validation/r5/test_systemd_resource_policy.log"
+    },
+    {
+      "selection": "test_systemd_resource_refinements",
+      "tests": 9,
+      "skipped": 0,
+      "passed": 9,
+      "seconds": 2.971,
+      "status": "PASS",
+      "log": "validation/r5/test_systemd_resource_refinements.log"
+    }
+  ],
+  "total_tests": 232,
+  "passed": 231,
+  "skipped": 1,
+  "full_aggregate_suite_run": false,
+  "initial_combined_attempt": "Stopped by 200-second tool limit during all-profile AppArmor compilation. Not counted as a completed test run."
+}

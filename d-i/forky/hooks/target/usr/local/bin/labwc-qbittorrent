@@ -744,6 +744,7 @@ def redirect_to_user_service() -> None:
             "--unit=labwc-qbittorrent-" + uuid.uuid4().hex + ".service",
             "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
             "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+            f"--property=ConditionPathExists=!/run/user/{uid}/labwc-session-closing",
             "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
             "--property=StandardInput=null", "--property=StandardOutput=journal",
             "--property=StandardError=journal", "--setenv=LABWC_SESSION_APP=1",

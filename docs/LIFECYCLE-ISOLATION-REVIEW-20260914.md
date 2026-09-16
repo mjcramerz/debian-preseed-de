@@ -1,5 +1,9 @@
 # Lifecycle and isolation review - 14 September 2026
 
+> Historical review: the machine reboot/poweroff path described here is superseded
+> by [R5 ordered shutdown](../SHUTDOWN-AND-RESOURCE-CLASSES-R5.md). Other historical
+> validation results are not new acceptance results for R5.
+
 This pass starts from `debian-preseed-de-updated.tar.gz`, not the original ZIP.
 The pre-implementation hash baseline has 1,685 regular files. The review record
 was written before source edits and inventories 99 service definitions,

@@ -47,9 +47,9 @@ class MullvadNamespaceTests(unittest.TestCase):
                            ('electron', '/opt/Mullvad VPN/mullvad-vpn')):
             with self.subTest(kind=kind):
                 cmd = self.command(kind, path)
-                for prop in ('PrivateTmp=', 'PrivateIPC=', 'ProtectSystem=', 'PrivateUsers='):
+                for prop in ('PrivateTmp=', 'PrivateIPC=', 'ProtectSystem='):
                     self.assertFalse(any(v.startswith('--property=' + prop) for v in cmd))
-                for prop in ('NoNewPrivileges=no', 'Requisite=labwc-session.target',
+                for prop in ('PrivateUsers=no', 'PrivatePIDs=no', 'NoNewPrivileges=no', 'Requisite=labwc-session.target',
                              'PartOf=labwc-session.target', 'KillMode=control-group',
                              'ExitType=cgroup', 'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
                     self.assertIn('--property=' + prop, cmd)

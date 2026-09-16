@@ -141,6 +141,7 @@ run_desktop_late_command() {
   desktop_samloader_preflight_target_architecture
   desktop_log "validated samloader-rs target architecture=${SAMLOADER_TARGET_ARCHITECTURE}"
   desktop_digital_assets_preflight_target_architecture
+  desktop_resctl_bench_preflight_target_architecture
   desktop_log "validated Digital Assets tool target architecture=${DIGITAL_ASSETS_TARGET_ARCHITECTURE}"
   desktop_detect_connected_drm_outputs
   desktop_log "detected_outputs=${LABWC_DETECTED_OUTPUTS:-none} primary=${LABWC_DETECTED_PRIMARY_OUTPUT:-none}"
@@ -162,6 +163,7 @@ run_desktop_late_command() {
   desktop_log "installed pinned samloader-rs Samsung firmware tool"
   desktop_install_digital_assets
   desktop_log "installed pinned Digital Assets PDF, document, and image tools"
+  desktop_install_resctl_bench
   desktop_stage_target_assets
   desktop_log "staged Labwc desktop target assets"
   desktop_render_greetd_config

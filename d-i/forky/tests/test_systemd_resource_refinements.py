@@ -1,4 +1,4 @@
-"""R3 policy boundaries, conditional staging and offline systemd load checks.
+"""Resource policy boundaries, conditional staging and offline systemd load checks.
 
 No managers are started: --test prints the loaded graph and never runs units.
 Synthetic fragments isolate drop-in semantics from unavailable desktop packages.
@@ -26,7 +26,7 @@ VENDOR_UNITS = ('hyprpolkitagent', 'mako', 'ssh-agent', 'wireplumber',
 POLICIES = sorted(p for directory in (USER, VENDOR, SYSTEM)
                   for p in (base.TARGET / directory).glob('*/*.conf')
                   if p.name in ('60-resource-class.conf', '60-resources.conf',
-                                '70-no-core.conf', '60-concurrency.conf',
+                                '70-no-core.conf', '60-poll-limit.conf',
                                 '60-resource-delegation.conf'))
 SUFFIX = '0123456789abcdef0123456789abcdef'
 
@@ -53,7 +53,7 @@ class ResourceRefinementTests(unittest.TestCase):
         commands = 'TMP_ENV_DIR=' + shlex.quote(str(directory)) + '\n'
         commands += '\n'.join('apply_systemd_resource_placeholders ' + shlex.quote(str(p))
                               for p in rendered)
-        self.runner.shell(commands, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}')
+        self.runner.shell(commands, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
         return rendered
 
     def fixtures(self, directory, enabled='true'):
@@ -74,16 +74,19 @@ class ResourceRefinementTests(unittest.TestCase):
             if not name.endswith('.scope'):
                 names.add(name)
         names.update(('system.slice', 'app.slice', 'session.slice', 'background.slice',
-                      'labwc-unrelated.service', 'systemd-coredump@.service'))
+                      'labwc-unrelated.service', 'systemd-coredump@.service',
+                      'waybar.service', 'crystal-dock.service', 'wireplumber.service'))
         for name in sorted(names):
             suffix = name.rsplit('.', 1)[1]
             body = '[Unit]\nDescription=Offline resource-policy fixture\nDefaultDependencies=no\n'
             if suffix == 'service':
                 body += '[Service]\nExecStart=/usr/bin/true\n'
+                if name in ('pipewire.service', 'pipewire-pulse.service', 'filter-chain.service', 'wireplumber.service'):
+                    body += 'Slice=session.slice\n'
                 if name == 'labwc-unrelated.service':
                     body += 'LimitCORE=4096\n'
             elif suffix == 'socket':
-                body += '[Socket]\nListenStream=%t/resource-policy-test.socket\nAccept=yes\n'
+                body += '[Socket]\nListenStream=%t/resource-policy-test.socket\nAccept=yes\nMaxConnections=16\nMaxConnectionsPerSource=8\n'
             else:
                 body += '[' + suffix.capitalize() + ']\n'
             (directory / name).write_text(body)
@@ -101,7 +104,7 @@ class ResourceRefinementTests(unittest.TestCase):
                 (units / f'{name}.service').write_text('[Service]\nExecStart=/usr/bin/true\n')
             for enabled in ('true', 'false'):
                 self.runner.shell(self.runner.staging(tmp) + 'desktop_install_vendor_resource_policy',
-                                  override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}')
+                                  override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                 installed = list((target / VENDOR).rglob('*.conf'))
                 self.assertEqual(len(installed), 10)
                 for path in installed:
@@ -110,7 +113,7 @@ class ResourceRefinementTests(unittest.TestCase):
                     self.assertEqual(path.stat().st_mode & 0o777, 0o644)
                 for name in ('pipewire', 'pipewire-pulse', 'filter-chain'):
                     self.assertEqual(active_lines(target / VENDOR / f'{name}.service.d/60-resources.conf'),
-                                     ['[Service]', 'Slice=session.slice', 'CPUWeight=200'])
+                                     ['[Service]', 'CPUWeight=200'])
                 self.assertEqual(active_lines(target / VENDOR / 'hyprpolkitagent.service.d/70-no-core.conf'),
                                  ['[Service]', 'LimitCORE=0'])
 
@@ -200,7 +203,14 @@ class ResourceRefinementTests(unittest.TestCase):
                                      weight if enabled == 'true' else unset)
                 self.assertIn('labwc-bitwarden-.service.d/70-no-core.conf',
                               blocks['labwc-bitwarden-' + SUFFIX + '.service'])
-                self.assertEqual(property_of('systemd-coredump.socket', 'MaxConnections'), '2')
+                self.assertEqual(property_of('systemd-coredump.socket', 'MaxConnections'), '16')
+                self.assertEqual(property_of('systemd-coredump.socket', 'MaxConnectionsPerSource'), '8')
+                self.assertEqual(property_of('systemd-coredump.socket', 'PollLimitIntervalSec'), '2s')
+                self.assertEqual(property_of('systemd-coredump.socket', 'PollLimitBurst'), '64')
+                self.assertEqual(property_of('mako.service', 'Slice'), 'app.slice')
+                for name in ('waybar.service', 'crystal-dock.service'):
+                    self.assertEqual(property_of(name, 'Slice'), 'app.slice')
+                self.assertEqual(property_of('wireplumber.service', 'Slice'), 'session.slice')
 
     def test_scopes_and_helpers_do_not_get_execution_or_weight_policy(self):
         self.assertEqual(active_lines(base.TARGET / USER / 'app-.scope.d/60-resource-class.conf'),
@@ -235,17 +245,15 @@ class ResourceRefinementTests(unittest.TestCase):
 
     def test_storage_and_socket_controls_are_independent(self):
         with tempfile.TemporaryDirectory() as tmp:
-            source = base.TARGET / SYSTEM / 'systemd-coredump.socket.d/60-concurrency.conf'
+            source = base.TARGET / SYSTEM / 'systemd-coredump.socket.d/60-poll-limit.conf'
             dest = Path(tmp) / 'socket.conf'; dest.write_bytes(source.read_bytes())
             self.runner.shell('TMP_ENV_DIR=' + shlex.quote(tmp) + '\napply_systemd_resource_placeholders ' +
                               shlex.quote(str(dest)), override='''
 SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE=false
-SYSTEMD_COREDUMP_MAX_CONNECTIONS=4
 SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC=5
 SYSTEMD_COREDUMP_POLL_LIMIT_BURST=32
 ''')
-            self.assertEqual(active_lines(dest), ['[Socket]', 'MaxConnections=4',
-                                                  'PollLimitIntervalSec=5s', 'PollLimitBurst=32'])
+            self.assertEqual(active_lines(dest), ['[Socket]', 'PollLimitIntervalSec=5s', 'PollLimitBurst=32'])
             self.assertNotIn('TriggerLimitBurst=', source.read_text())
             self.assertNotIn('MaxConnectionsPerSource=', source.read_text())
 

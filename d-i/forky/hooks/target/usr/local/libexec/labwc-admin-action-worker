@@ -14,7 +14,15 @@ import sys
 import time
 import uuid
 
-ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8"}
+# Never inherit bus redirection, automatic kexec/soft-reboot, or a caller PATH.
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C.UTF-8",
+       "SYSTEMCTL_FORCE_BUS": "0", "SYSTEMCTL_SKIP_AUTO_KEXEC": "1",
+       "SYSTEMCTL_SKIP_AUTO_SOFT_REBOOT": "1"}
+DESKTOP_TARGET = "labwc-session.target"
+COMPOSITOR = "labwc-compositor.service"
+# Only repository-managed guest shutdown hooks. Leave their engines and both
+# D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
+GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
 
 
 class Error(Exception):
@@ -27,21 +35,26 @@ def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,))
     proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, env=ENV,
                             start_new_session=True)
+    communicated = False
     try:
         try:
             output, error = proc.communicate(timeout=timeout)
+            communicated = True
         except subprocess.TimeoutExpired:
             raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
         if proc.returncode not in accepted:
             raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
         return output
     finally:
-        # Includes cancellation and unexpected read/decoding errors. Bridges
-        # must not survive their owner while retaining the worker's pipes.
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        # Do not kill a successfully drained local transport: its PAM/logind
+        # release may still be finishing. Killing that peer unconditionally can
+        # race credential acquisition. Cancellation/timeout still reaps the
+        # whole process group, including pipe-holding bridge descendants.
+        if not communicated:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
         try:
             # Keep the original bounded reap even for an uninterruptible child;
             # systemd retains the final cgroup stop/RuntimeMaxSec boundary.
@@ -70,6 +83,8 @@ class Worker:
         self.uid, self.user, self.action = uid, user, action
         self.machine = user + "@.host"
         self.committed = False
+        self.quiesced = False
+        self.handoff_attempted = False
 
     def userctl(self, *args: str, **kwargs) -> str:
         return run(["/usr/bin/systemctl", "--user", "--machine=" + self.machine,
@@ -139,6 +154,10 @@ class Worker:
             time.sleep(0.2)
 
     def terminate_user(self) -> None:
+        # Logout is account-local. Machine power instead waits for desktop
+        # stop jobs and contacts PID 1 directly, without a shutdown transaction.
+        if self.action != "logout":
+            raise Error("account teardown is only valid for logout")
         # Once committed, one failed stop must not strand a half-closed desktop.
         # Queue stops first (disabling restart), then use PID 1's cgroup-wide
         # TERM/KILL paths. No process-name matching and no caller-owned worker.
@@ -157,27 +176,90 @@ class Worker:
                  f"user-{self.uid}.slice"], timeout=5))
             if self.wait_for_exit(grace):
                 return
-        # Uninterruptible tasks and stale stop jobs must not veto reboot after
-        # the desktop has already gone. Single-force shutdown lets PID 1 finish
-        # global process cleanup, including tasks outside this user's slice.
-        if self.action == "logout":
-            raise Error("user slice did not stop; inspect the power-worker journal")
-        print("power cleanup: user slice still stopping; proceeding to PID 1 shutdown",
-              file=sys.stderr, flush=True)
+        raise Error("user slice did not stop; inspect the power-worker journal")
+
+    def desktop_members(self) -> set[str]:
+        text = self.userctl("show", DESKTOP_TARGET, "--property=ConsistsOf", "--value", timeout=10)
+        names = text.split()
+        if len(names) > 1024 or any(not re.fullmatch(
+                r"[A-Za-z0-9_][A-Za-z0-9_.@:\\-]{0,240}\.(service|scope|socket|timer|path|target)",
+                name) for name in names):
+            raise Error("invalid desktop membership from user manager")
+        return {DESKTOP_TARGET, COMPOSITOR, *names}
+
+    def quiesce_desktop(self) -> None:
+        members = self.desktop_members()
+        # Commit BEFORE enqueueing stop jobs. A lost reply must not clear the
+        # launch gate or restart a half-torn-down desktop. Stop is synchronous:
+        # never --no-block and never kill the user's slice under running clients.
+        self.committed = True
+        self.userctl("stop", DESKTOP_TARGET, COMPOSITOR,
+                     *sorted(members - {DESKTOP_TARGET, COMPOSITOR}), timeout=120)
+        # Include units loaded during preparation, and wait for/verify every
+        # member, not merely the target (which may finish before its compositor).
+        members |= self.desktop_members()
+        text = self.userctl("show", "--property=Id,ActiveState,Job,MainPID,ControlPID",
+                            "--", *sorted(members), timeout=15, accepted=(0, 1))
+        observed = set()
+        for block in text.strip().split("\n\n"):
+            props = dict(line.split("=", 1) for line in block.splitlines() if "=" in line)
+            name = props.get("Id", "")
+            if name not in members or name in observed:
+                raise Error("cannot verify desktop stop results")
+            observed.add(name)
+            if (props.get("ActiveState") not in {"inactive", "failed"}
+                    or props.get("Job", "") not in {"", "0"}
+                    or props.get("MainPID", "0") != "0"
+                    or props.get("ControlPID", "0") != "0"):
+                raise Error(f"desktop unit has not quiesced: {name}")
+        if observed != members:
+            raise Error("incomplete desktop stop results; forced power cancelled")
+        self.quiesced = True
+        print("power cleanup: desktop clients and compositor stopped", file=sys.stderr, flush=True)
+
+    def stop_optional_guests(self) -> None:
+        # These fixed names are optional when the corresponding addon is not
+        # installed. An installed, running hook must complete successfully.
+        # Stopping a oneshot with RemainAfterExit runs its vendor ExecStop. It
+        # does not start the hook, its daemon, or any shutdown barrier.
+        selected = []
+        for name in GUEST_STOP_UNITS:
+            text = run(["/usr/bin/systemctl", "show", name,
+                        "--property=LoadState,ActiveState"], timeout=10)
+            props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+            if props.get("LoadState") == "not-found":
+                continue
+            if props.get("ActiveState") == "inactive":
+                continue
+            if props.get("LoadState") != "loaded" or props.get("ActiveState") not in {
+                    "active", "activating", "reloading", "deactivating"}:
+                raise Error(f"cannot safely stop guest hook: {name}")
+            selected.append(name)
+        if selected:
+            run(["/usr/bin/systemctl", "--no-ask-password", "stop", *selected], timeout=180)
+            for name in selected:
+                text = run(["/usr/bin/systemctl", "show", name,
+                            "--property=ActiveState,Result"], timeout=10)
+                props = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+                if props.get("ActiveState") != "inactive" or props.get("Result") != "success":
+                    raise Error(f"guest shutdown did not complete cleanly: {name}")
 
     def final_power_action(self) -> None:
-        self.best_effort("sync", lambda: run(["/usr/bin/sync"], timeout=10))
-        for attempt in range(2):
-            try:
-                # Exactly ONE --force per request. Never use a raw reboot
-                # syscall, SysRq, --no-sync, or the unsafe double-force variant.
-                run(["/usr/bin/systemctl", "--no-ask-password", "--force", self.action], timeout=20)
-                return
-            except (Error, OSError, subprocess.SubprocessError) as exc:
-                if attempt:
-                    raise Error(f"session teardown completed but {self.action} failed: {exc}") from exc
-                print(f"power request: retrying {self.action}: {exc}", file=sys.stderr, flush=True)
-                time.sleep(0.25)
+        if self.action not in {"reboot", "poweroff"}:
+            raise Error("invalid machine shutdown action")
+        if not self.quiesced or self.handoff_attempted:
+            raise Error("forced handoff requires a quiesced desktop and may run only once")
+        self.committed = True
+        self.handoff_attempted = True
+        print(f"power handoff: systemctl --force {self.action}; desktop stop verified",
+              file=sys.stderr, flush=True)
+        # Exactly ONE --force contacts PID 1; two would bypass its final
+        # process/filesystem teardown. No target is started as an intermediate
+        # barrier. Keep logind, the user manager and both brokers alive here.
+        try:
+            run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            raise Error(f"{self.action} handoff status uncertain; do not retry automatically: {exc}") from exc
 
     def execute(self) -> None:
         self.userctl("--quiet", "is-active", "labwc-session.target")
@@ -192,12 +274,13 @@ class Worker:
         self.helper("prepare")
         # A second account may have logged in while a save dialog was open.
         self.protect_other_sessions()
-        self.committed = True
-        try:
+        if self.action == "logout":
+            self.committed = True
             self.terminate_user()
-        finally:
-            if self.action != "logout":
-                self.final_power_action()
+        else:
+            self.quiesce_desktop()
+            self.stop_optional_guests()
+            self.final_power_action()
 
 
 def main(argv: list[str]) -> int:

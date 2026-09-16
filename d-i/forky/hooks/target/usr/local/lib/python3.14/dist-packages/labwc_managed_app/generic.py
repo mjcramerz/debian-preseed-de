@@ -174,6 +174,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         f"--unit={unit}", f"--description=Labwc {kind} application: {label}",
         "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
         "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         # Do not force NNP/seccomp before package AppArmor -> bwrap
@@ -185,7 +186,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # Do not apply to foot -e/explicit commands or internal error code 230.
         *(["--property=SuccessExitStatus=1"]
           if kind == "wayland" and arguments == ["/usr/bin/foot"] else []),
-        *([] if host_administration else [
+        *(["--property=PrivatePIDs=no", "--property=PrivateUsers=no"] if host_administration else [
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",
         ]),

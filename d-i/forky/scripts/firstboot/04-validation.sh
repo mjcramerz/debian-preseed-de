@@ -272,6 +272,11 @@ validate_desktop_role() {
     /usr/local/bin/labwc-session \
     /usr/local/bin/labwc-autostart \
     /usr/local/bin/labwc-wallpaper-save \
+    /usr/local/bin/resctl-bench \
+    /usr/local/bin/rd-agent \
+    /usr/local/bin/rd-hashd \
+    /data/docs/resctl-bench/INSTALLATION.json \
+    /data/docs/resctl-bench/release/SHA256SUMS \
     /usr/local/bin/labwc-admin-action \
     /usr/local/libexec/labwc-admin-action-root \
     /usr/local/libexec/labwc-admin-action-worker \

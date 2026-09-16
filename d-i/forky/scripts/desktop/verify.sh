@@ -272,6 +272,15 @@ require_absent() {
 }
 
 
+# No benchmarks during validation; the installer already performed --version
+# with dropped privileges after validating both archive and member checksums.
+for resctl_binary in resctl-bench rd-agent rd-hashd; do
+  require_executable "/usr/local/bin/$resctl_binary"
+  require_mode "/usr/local/bin/$resctl_binary" 755
+done
+require_readable /data/docs/resctl-bench/INSTALLATION.json
+require_readable /data/docs/resctl-bench/release/SHA256SUMS
+
 # Managed Git and diagnostics assets: no credential decryption during verification.
 require_executable /usr/local/bin/gitops
 require_mode /usr/local/bin/gitops 755
@@ -399,6 +408,7 @@ for path in \
   /etc/systemd/system/managed-clamav-signature-update.service \
   /etc/systemd/system/managed-clamav-signature-update.timer \
   /etc/systemd/system/labwc-admin-action@.service \
+  /etc/systemd/user/wireplumber.service.d/60-resource-class.conf \
   /usr/local/share/nmap/scripts/managed-admin-surface-policy.nse \
   /usr/local/share/nmap/scripts/managed-approved-services.nse \
   /usr/local/share/nmap/scripts/managed-database-exposure-policy.nse \
@@ -432,6 +442,8 @@ for path in \
   /etc/vivaldi/policies/recommended/defaults.json \
   /opt/glibc/2.44-1/satty/.managed-release \
   /etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf \
+  /etc/systemd/system/dbus-broker.service.d/60-stop-timeout.conf \
+  /etc/systemd/user/dbus-broker.service.d/60-stop-timeout.conf \
   /etc/systemd/user/foot-server.service.d/10-labwc-session.conf \
   /etc/systemd/user/foot-server.socket.d/10-labwc-session.conf \
   /etc/systemd/user/mako.service.d/10-labwc-session.conf \
@@ -445,6 +457,9 @@ for path in \
   /etc/skel-desktop/.gnupg/gpg-agent.conf \
   /etc/skel-desktop/.config/systemd/user/waybar.service \
   /etc/skel-desktop/.config/systemd/user/waybar.service.d/20-tray-compat.conf \
+  /etc/skel-desktop/.config/systemd/user/waybar.service.d/60-resource-class.conf \
+  /etc/skel-desktop/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf \
+  /etc/skel-desktop/.config/systemd/user/app-.scope.d/60-resource-class.conf \
   /etc/skel-desktop/.config/systemd/user/labwc-adb-server.service \
   /etc/skel-desktop/.config/systemd/user/llama-server.service \
   /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service \
@@ -501,6 +516,16 @@ do
 done
 
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
+for power_action in reboot poweroff; do
+  for power_kind in service target; do
+    legacy_power_unit="/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
+    [ ! -e "$legacy_power_unit" ] && [ ! -L "$legacy_power_unit" ] ||
+      fatal "obsolete shutdown transaction remains installed: $legacy_power_unit"
+  done
+done
+require_mode /etc/systemd/user/wireplumber.service.d/60-resource-class.conf 644
+grep -Fxq 'Slice=session.slice' /etc/systemd/user/wireplumber.service.d/60-resource-class.conf ||
+  fatal "WirePlumber session class is missing"
 for background_directory in \
   /usr/share/backgrounds \
   /usr/share/backgrounds/desktop \
@@ -1174,6 +1199,9 @@ for path in \
   "$account_home/.config/systemd/user/crystal-dock.service" \
   "$account_home/.config/systemd/user/waybar.service" \
   "$account_home/.config/systemd/user/waybar.service.d/20-tray-compat.conf" \
+  "$account_home/.config/systemd/user/waybar.service.d/60-resource-class.conf" \
+  "$account_home/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf" \
+  "$account_home/.config/systemd/user/app-.scope.d/60-resource-class.conf" \
   "$account_home/.local/share/dbus-1/services/org.freedesktop.secrets.service" \
   "$account_home/.local/share/applications/org.keepassxc.KeePassXC.desktop" \
   "$account_home/.local/share/applications/waypaper.desktop"

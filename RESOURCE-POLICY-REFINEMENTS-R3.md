@@ -1,5 +1,7 @@
 # Resource policy refinements - revision 3
 
+> Historical R3 report. Superseded by RESOURCE-POLICY-APPARMOR-R4.md and VALIDATION-R4.md.
+
 Date: 2026-09-16. Base: the accepted revision 2 archive, not the rejected first delivery.
 This report describes the current policy. Earlier reports and validation files
 are historical records; their inventories are not the R3 inventory.

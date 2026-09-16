@@ -232,16 +232,44 @@ getent group devops >/dev/null 2>&1 || groupadd --system devops
 }
 
 # Global manager/delegation policy is installed even without the desktop role.
+# Manager defaults are not tied to a filesystem or to user-slice publication.
+# Reapply at the final desktop boundary so the selected profile is authoritative.
+stage_target_systemd_manager_accounting() (
+  set -eu
+  systemd_resource_placeholder_map >/dev/null || exit 1
+  case "$SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE" in
+    true) expected_io=yes ;;
+    false) expected_io=no ;;
+  esac
+  for resource_asset in \
+    etc/systemd/system.conf.d/60-resource-accounting.conf \
+    etc/systemd/user.conf.d/60-resource-accounting.conf
+  do
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || exit 1
+    resource_path=$(target_asset_host_path "/$resource_asset") || exit 1
+    # Verify the actual installed bytes, not just the placeholder map.
+    for expected_line in "DefaultIOAccounting=$expected_io" \
+      DefaultMemoryAccounting=yes DefaultTasksAccounting=yes
+    do
+      grep -Fxq "$expected_line" "$resource_path" || {
+        installer_fatal "manager accounting mismatch in $resource_path: $expected_line"; exit 1;
+      }
+    done
+    [ "$(grep -c '^DefaultIOAccounting=' "$resource_path")" = 1 ] || exit 1
+  done
+)
+
 stage_target_systemd_resource_policy_assets() (
   set -eu
   # Validate the complete resource profile before publishing any new policy.
   systemd_resource_placeholder_map >/dev/null || exit 1
+  stage_target_systemd_manager_accounting || exit 1
   for resource_asset in \
-    etc/systemd/system.conf.d/60-resource-accounting.conf \
-    etc/systemd/user.conf.d/60-resource-accounting.conf \
     etc/systemd/system/user@.service.d/60-resource-delegation.conf \
     etc/systemd/coredump.conf.d/60-managed-limits.conf \
-    etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf \
+    etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf \
     etc/systemd/system/system-maintenance.slice \
     etc/systemd/system/system-maintenance.slice.d/60-resources.conf \
     etc/systemd/system/system-background.slice \

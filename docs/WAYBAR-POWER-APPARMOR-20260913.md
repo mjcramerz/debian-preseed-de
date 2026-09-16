@@ -1,5 +1,9 @@
 # Waybar keyboard, power lifecycle, and AppArmor fixes
 
+> Historical review: the machine reboot/poweroff path described here is superseded
+> by [R5 ordered shutdown](../SHUTDOWN-AND-RESOURCE-CLASSES-R5.md). Other historical
+> validation results are not new acceptance results for R5.
+
 Date: 2026-09-13
 
 ## Delivery and scope

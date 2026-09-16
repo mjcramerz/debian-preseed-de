@@ -195,10 +195,11 @@ UID is taken from pkexec and revalidated, not trusted from arbitrary menu input.
 
 The root helper starts `labwc-admin-action@UID-ACTION.service`. This system service
 survives termination of the caller's compositor, panel and user manager. Its
-worker retains NNP, a CAP_KILL-only bounding set and the existing system-service
+worker retains NNP, empty capability sets and the existing system-service
 sandbox. Fixed system utilities inherit the worker's AppArmor profile rather
-than attempting PUx transitions forbidden under NNP. Explicit local system-bus,
-process-inspection and signaling permissions support the worker's fixed actions.
+than attempting PUx transitions forbidden under NNP. Explicit local system-bus
+permissions let PID 1/logind own account cleanup; same-profile signaling reaps
+the worker's own timed-out transport processes.
 Home documents and recovery descriptors are handled only by the unprivileged
 session helper, not parsed or evaluated by root.
 
@@ -214,18 +215,22 @@ to disappear. A save dialog, an unclosed tray application, an unsupported nested
 Cage session or a failed protocol query aborts teardown instead of guessing that
 it is safe to kill the program.
 
-Only after successful preparation does it clear clipboard/primary selection and
-managed history, stop selected orphan session services, stop
-`labwc-session.target` and the compositor, terminate the invoking UID's logind
-sessions/user manager/slice, and clean up remaining processes of that exact UID.
-It refuses the final power action if processes still remain. Filesystems are
-synced before the single-force machine action. Logout uses the same preparation
-and UID cleanup without powering off or rebooting.
+After successful preparation and a second check for other interactive accounts,
+reboot/poweroff queue PID 1's normal shutdown transaction using
+`systemctl --no-ask-password --no-block reboot` or `poweroff`. The worker does
+not preemptively terminate the user manager, kill its slice, or bypass service
+stop ordering with `--force`. Systemd retains responsibility for service stop
+hooks, process cleanup and filesystem shutdown. No automatic forced fallback is
+used if submission fails; the still-running session helper can remove the
+closing barrier and report the failure. Preparation may already have closed
+applications gracefully; cancellation does not resurrect those processes.
 
-A single `systemctl --force reboot` or `systemctl --force poweroff` bypasses the
-normal shutdown transaction, **not PID 1 itself**. Double force is never used.
-The desktop preparation does not promise application-level draining of every
-system daemon whose normal ExecStop may be skipped by forced shutdown.
+Logout retains account-local preparation and bounded UID cleanup without any
+machine power action. Suspend remains separate, as described below. The scoped
+broker stop grace is configured by `DBUS_BROKER_TIMEOUT_STOP_SEC` (default 30
+seconds) in every host profile; it does not shorten the global or user-manager
+stop budgets. See [the R5 shutdown review](../../SHUTDOWN-AND-RESOURCE-CLASSES-R5.md)
+for the exact changes, validation boundary and post-installation checks.
 
 ### Suspend
 

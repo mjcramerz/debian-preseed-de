@@ -530,6 +530,8 @@ profile managed-labwc-bluetooth /usr/local/bin/labwc-bluetooth flags=(attach_dis
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
   /dev/rfkill r,
+  # Read-only Waybar descriptor inherited by the clicked action.
+  @{sys}/devices/system/cpu/present r,
   /run/dbus/system_bus_socket rw,
   /sys/devices/**/power_supply/*/status r,
   /sys/devices/**/power_supply/*/online r,
@@ -545,6 +547,9 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
   /usr/bin/{brightnessctl,systemctl} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /dev/rfkill r,
+  # Read-only status descriptors inherited from Waybar; no device writes.
+  @{sys}/devices/**/power_supply/*/cycle_count r,
+  owner @{PROC}/[0-9]*/net/dev r,
   @{sys}/devices/**/power_supply/*/{online,status} r,
   @{sys}/devices/**/power_supply/*/{energy_full,energy_full_design} r,
 
@@ -589,6 +594,8 @@ profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconn
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/satty rPx -> managed-satty,
   /dev/rfkill r,
+  # Waybar can pass its battery-status descriptor to this action.
+  @{sys}/devices/**/power_supply/*/cycle_count r,
   /sys/devices/**/power_supply/*/status r,
   /sys/devices/**/power_supply/*/online r,
   owner /run/user/[0-9]*/labwc-capture/ rw,
@@ -2143,6 +2150,15 @@ profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach
   profile managed-app-bwrap flags=(attach_disconnected, mediate_deleted) {
     #include <abstractions/managed-bwrap-common>
     #include <abstractions/managed-bwrap-desktop-runtime>
+    # The installed xdg-open handler dispatches through labwc-wayland-app.
+    # Do not add Px/Ux transitions after Bubblewrap has set no_new_privs.
+    #include <abstractions/managed-wrapper-python>
+    /usr/bin/{xdg-open,systemd-run} rix,
+    /usr/local/bin/labwc-wayland-app rix,
+    /usr/local/lib/python3.14/dist-packages/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/ r,
+    /usr/local/lib/python3.14/dist-packages/labwc_managed_app/{__init__,bootstrap,integrity,generic,environment,commands,profiles,browsers,runtime,events,electron,user_state,recovery,session}.py r,
+    owner /run/user/[0-9]*/labwc-session-closing r,
     include if exists <abstractions/user-tmp>
 
     unix,

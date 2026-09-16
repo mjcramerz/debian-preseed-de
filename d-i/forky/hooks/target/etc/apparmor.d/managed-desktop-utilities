@@ -17,6 +17,11 @@ profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xourn
   /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
   # GLib/glycin CPU quota probes and its separately confined image decoder.
   owner @{PROC}/[0-9]*/cgroup r,
+  # Toolkit process checks need same-owner statistics and command lines only.
+  owner @{PROC}/[0-9]*/{stat,cmdline} r,
+  # Editors may save extensionless non-hidden documents directly in HOME.
+  # One filename component only: no dotfiles, subtrees or executable mapping.
+  owner @{HOME}/[^.]* rwk,
   @{sys}/fs/cgroup/**/cpu.max r,
   signal (send) set=(kill term) peer=managed-desktop-editors//editor-glycin-bwrap,
   /usr/bin/bwrap rCx -> editor-glycin-bwrap,
@@ -132,6 +137,16 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   ptrace (read) peer=managed-session-glycin-bwrap,
   ptrace (read) peer=managed-waybar,
   ptrace (read) peer=managed-whisper-record-toggle,
+  # Additional read-only status peers observed in the September 16 audit.
+  # read/ readby mediate proc metadata; do not grant trace or wildcard peers.
+  ptrace (read) peer=code,
+  ptrace (read) peer=microsoft-edge-stable,
+  ptrace (read) peer=labwc-microsoft-edge-launcher,
+  ptrace (read) peer=mullvad-browser,
+  ptrace (read) peer=labwc-mullvad-browser-launcher,
+  ptrace (read) peer=mullvad,
+  ptrace (read) peer=obsidian,
+  ptrace (read) peer=managed-desktop-editors,
   /usr/bin/** rPix,
   /usr/local/{bin,sbin,libexec}/** rPix,
   /usr/libexec/** rPix,
@@ -160,7 +175,15 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   /var/lib/apt/extended_states r,
   /var/lib/apt/lists/** r,
   /var/cache/apt/{pkgcache,srcpkgcache}.bin r,
+  # Git invokes package-owned helpers below its exec-path, not only git itself.
+  # Inherit the terminal domain; never create complain-mode null descendants.
   /usr/lib/git-core/git rix,
+  /usr/lib/git-core/git-* rix,
+  # GLib's desktop-entry trampoline retains this domain until the selected
+  # executable attaches to its existing profile through the rules above.
+  /usr/lib/@{multiarch}/glib-2.0/gio-launch-desktop rix,
+  # udevadm queries device metadata, not block/USB device contents.
+  /run/udev/data/{b[0-9]*:[0-9]*,c189:[0-9]*,+usb:*} r,
   # The managed configuration repository is intentionally browsable from the
   # user's terminal. Only Git metadata and the recorded account-edit files
   # gain writes; the Codex .system subtree receives no write/execute grant.

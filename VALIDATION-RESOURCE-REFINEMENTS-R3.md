@@ -1,5 +1,7 @@
 # Validation - resource policy revision 3
 
+> Historical R3 report. Superseded by RESOURCE-POLICY-APPARMOR-R4.md and VALIDATION-R4.md.
+
 Date: 2026-09-16. Base: accepted revision 2; all protected workload files are
 checked against the original user archive as well.
 

@@ -278,18 +278,23 @@ class PowerWorkerTests(unittest.TestCase):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         events = []
-        for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action', 'lock'):
+        for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action', 'lock', 'stop_optional_guests'):
             stack.enter_context(mock.patch.object(self.worker, name,
                 side_effect=lambda *args, _name=name, **kwargs: events.append((_name, args))))
+        def quiesce():
+            events.append(('quiesce_desktop', ()))
+            self.worker.committed = True
+            self.worker.quiesced = True
+        stack.enter_context(mock.patch.object(self.worker, 'quiesce_desktop', side_effect=quiesce))
         stack.enter_context(mock.patch.object(self.power, 'ready', side_effect=lambda: events.append(('ready', ()))))
         stack.enter_context(mock.patch.object(self.power, 'run', side_effect=lambda *args, **kwargs: events.append(('run', args))))
         return events
 
-    def test_readiness_and_prepare_precede_committed_cleanup(self):
+    def test_readiness_and_prepare_precede_orderly_power_transaction(self):
         events = self.execution()
         self.worker.execute()
         self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready',
-                         'helper', 'protect_other_sessions', 'terminate_user', 'final_power_action'])
+                         'helper', 'protect_other_sessions', 'quiesce_desktop', 'stop_optional_guests', 'final_power_action'])
         self.assertEqual(events[3][1], ('prepare',))
         self.assertTrue(self.worker.committed)
 
@@ -318,11 +323,13 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertNotIn('ready', [e[0] for e in events])
         self.worker.helper.assert_not_called()
 
-    def test_unexpected_cleanup_failure_still_requests_final_reboot(self):
+    def test_power_submission_failure_keeps_teardown_committed(self):
         self.execution()
-        self.worker.terminate_user.side_effect = self.power.Error('stale stop job')
+        self.worker.final_power_action.side_effect = self.power.Error('bus unavailable')
         with self.assertRaises(self.power.Error):
             self.worker.execute()
+        self.assertTrue(self.worker.committed)
+        self.worker.terminate_user.assert_not_called()
         self.worker.final_power_action.assert_called_once()
 
     def test_logout_never_calls_machine_power(self):
@@ -343,6 +350,7 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertIn(['/usr/bin/systemctl', '--force', 'suspend'], events[-1][1])
 
     def test_cleanup_failure_does_not_skip_term_and_kill(self):
+        self.worker.action = 'logout'
         calls = []
         def run(argv, **kwargs):
             calls.append(argv)
@@ -362,32 +370,52 @@ class PowerWorkerTests(unittest.TestCase):
             self.assertNotIn('/usr/bin/pgrep', argv)
 
     def test_already_empty_user_slice_needs_no_kill_wait(self):
+        self.worker.action = 'logout'
         with mock.patch.object(self.worker, 'userctl'), mock.patch.object(self.power, 'run', return_value='') as run, \
              mock.patch.object(self.worker, 'wait_for_exit', return_value=True) as wait:
             self.worker.terminate_user()
         self.assertFalse(any('kill' in c.args[0] for c in run.call_args_list))
         wait.assert_called_once_with(1)
 
-    def test_final_force_is_single_and_retried_once(self):
-        calls = []
-        def run(argv, **kwargs):
-            calls.append(argv)
-            if '--force' in argv and sum('--force' in a for a in calls) == 1:
-                raise self.power.Error('temporary bus failure')
-            return ''
-        with mock.patch.object(self.power, 'run', side_effect=run), \
-             mock.patch.object(self.power.time, 'sleep'), contextlib.redirect_stderr(io.StringIO()):
-            self.worker.final_power_action()
-        requests = [a for a in calls if '--force' in a]
-        self.assertEqual(len(requests), 2)
-        self.assertTrue(all(a.count('--force') == 1 and a[-1] == 'reboot' for a in requests))
-        self.assertEqual(calls[0], ['/usr/bin/sync'])
+    def test_forced_handoff_submits_once_without_any_target_barrier(self):
+        for action in ('reboot', 'poweroff'):
+            with self.subTest(action=action):
+                self.worker = self.power.Worker(1000, 'testuser', action)
+                self.worker.quiesced = True
+                with mock.patch.object(self.power, 'run', return_value='') as run, \
+                     contextlib.redirect_stderr(io.StringIO()) as output:
+                    self.worker.final_power_action()
+                run.assert_called_once_with(
+                    ['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)
+                self.assertIn('systemctl --force ' + action, output.getvalue())
+                self.assertTrue(self.worker.committed)
 
-    def test_exhausted_final_request_reports_actual_failure(self):
-        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')), \
-             mock.patch.object(self.power.time, 'sleep'), contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaisesRegex(self.power.Error, 'session teardown completed'):
+    def test_uncertain_final_submission_is_not_retried_or_cancelled(self):
+        self.worker.quiesced = True
+        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')) as run, \
+             contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaisesRegex(self.power.Error, 'handoff status uncertain'):
                 self.worker.final_power_action()
+        self.assertEqual(run.call_count, 1)
+        self.assertTrue(self.worker.committed)
+        self.assertTrue(self.worker.handoff_attempted)
+
+    def test_account_teardown_rejects_machine_power_actions(self):
+        with mock.patch.object(self.power, 'run') as run, mock.patch.object(self.worker, 'userctl') as userctl:
+            for action in ('reboot', 'poweroff', 'suspend'):
+                self.worker.action = action
+                with self.subTest(action=action), self.assertRaisesRegex(self.power.Error, 'only valid for logout'):
+                    self.worker.terminate_user()
+            run.assert_not_called()
+            userctl.assert_not_called()
+
+    def test_machine_power_rejects_other_actions_before_any_command(self):
+        with mock.patch.object(self.power, 'run') as run:
+            for action in ('logout', 'suspend', 'invalid'):
+                self.worker.action = action
+                with self.subTest(action=action), self.assertRaisesRegex(self.power.Error, 'invalid machine shutdown action'):
+                    self.worker.final_power_action()
+            run.assert_not_called()
 
     def test_transport_timeout_reaps_descendants_holding_pipes(self):
         # Only disposable processes: never systemctl/loginctl/reboot on this host.
@@ -415,7 +443,7 @@ class PowerWorkerTests(unittest.TestCase):
     def test_template_acknowledges_before_frontend_returns(self):
         unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
         self.assertIn('Type=notify\nNotifyAccess=main', unit)
-        self.assertIn('RuntimeMaxSec=360s', unit)
+        self.assertIn('RuntimeMaxSec=600s', unit)
         self.assertIn('NoNewPrivileges=yes', unit)
         root = (TARGET / 'usr/local/libexec/labwc-admin-action-root').read_text()
         self.assertIn('exec /usr/bin/systemctl start "$worker_unit"', root)

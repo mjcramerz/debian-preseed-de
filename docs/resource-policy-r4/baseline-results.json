@@ -1,0 +1,22 @@
+[
+  {
+    "test": "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+    "exit": 1,
+    "log": "baseline-0.log"
+  },
+  {
+    "test": "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events",
+    "exit": 1,
+    "log": "baseline-1.log"
+  },
+  {
+    "test": "test_managed_external_software",
+    "exit": 1,
+    "log": "baseline-2.log"
+  },
+  {
+    "test": "test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only",
+    "exit": 1,
+    "log": "baseline-3.log"
+  }
+]

@@ -1,0 +1,79 @@
+{
+  "success": false,
+  "modules": 6,
+  "tests": 241,
+  "skipped": 1,
+  "timed_out": [],
+  "results": [
+    {
+      "module": "test_codex_clone_staging",
+      "returncode": 1,
+      "seconds": 54.15,
+      "tests": 33,
+      "skipped": 0,
+      "failures": [
+        "test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGHUP: 1>)",
+        "test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGINT: 2>)"
+      ],
+      "log": "test_codex_clone_staging.log"
+    },
+    {
+      "module": "test_desktop_sandbox",
+      "returncode": 1,
+      "seconds": 2.6,
+      "tests": 70,
+      "skipped": 1,
+      "failures": [
+        "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+      ],
+      "log": "test_desktop_sandbox.log"
+    },
+    {
+      "module": "test_installed_failures_20260911",
+      "returncode": 1,
+      "seconds": 1.45,
+      "tests": 21,
+      "skipped": 0,
+      "failures": [
+        "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+      ],
+      "log": "test_installed_failures_20260911.log"
+    },
+    {
+      "module": "test_log_regressions_20260915",
+      "returncode": 1,
+      "seconds": 14.91,
+      "tests": 23,
+      "skipped": 0,
+      "failures": [
+        "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)"
+      ],
+      "log": "test_log_regressions_20260915.log"
+    },
+    {
+      "module": "test_managed_external_software",
+      "returncode": 1,
+      "seconds": 1.94,
+      "tests": 6,
+      "skipped": 0,
+      "failures": [
+        "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+        "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+        "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+        "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+      ],
+      "log": "test_managed_external_software.log"
+    },
+    {
+      "module": "test_podman_incus_redesign",
+      "returncode": 1,
+      "seconds": 2.15,
+      "tests": 88,
+      "skipped": 0,
+      "failures": [
+        "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+      ],
+      "log": "test_podman_incus_redesign.log"
+    }
+  ]
+}

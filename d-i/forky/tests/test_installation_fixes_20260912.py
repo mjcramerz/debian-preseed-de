@@ -279,7 +279,7 @@ class ChatGPTEnvironmentTests(unittest.TestCase):
             self.assertEqual(env['HOME'], '/home/alice')
             self.assertEqual(env['CUSTOM_TOKEN'], 'private-token')
             self.assertIn('--setenv=CUSTOM_TOKEN', argv); self.assertNotIn('private-token', ' '.join(argv))
-            self.assertIn('--property=Requires=labwc-session.target codex-app-server.socket codex-app-server-proxy.service', argv)
+            self.assertIn('--property=Requires=codex-app-server.socket codex-app-server-proxy.service', argv)
             self.assertIn('--property=PartOf=labwc-session.target', argv)
 
     def test_active_handoff_rejects_loader_injection_before_exec(self):

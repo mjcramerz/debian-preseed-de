@@ -1,0 +1,631 @@
+{
+  "base": "R3",
+  "current": "R4",
+  "self_digest_excluded": "docs/resource-policy-r4/scope-manifest.json",
+  "all_original_file_paths_retained": 2003,
+  "original_file_modes_preserved": true,
+  "changed": [
+    {
+      "path": "RESOURCE-POLICY-REFINEMENTS-R3.md",
+      "before": {
+        "sha256": "4aae806f8a7fa5547879dd9b706e5a93cb2f0d71698b13e6b239f7b65469c5a1",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "c005254a292b4eede416e27da12374950740459341bdb23e8ff1b587110248d7",
+        "mode": 420
+      }
+    },
+    {
+      "path": "VALIDATION-RESOURCE-REFINEMENTS-R3.md",
+      "before": {
+        "sha256": "e03cfa9331519e760e9c51dd383645e198f20d707b1615a0ab17978e182b6925",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "46f31f716f6058ebfed781865b1ce418aaac6678dc7fa223a9660dc553d72f78",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/local/microsoft-edge-stable",
+      "before": {
+        "sha256": "13796c4d83f0b4ec1ab99107957ab4bca8b5743ec31687ae1932691912bffcf0",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "5bc2748e1dc68fe99cdcf0c54d4869d78e51d7bf24cac1c51f5ccd7b526518f8",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "before": {
+        "sha256": "b239c12a06d0544bfecbeba1e83cf3abe3ce31d1a1402267e0d802b724214abd",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "cff2e23f147b292ab970f1de294fc6dd21f8e5c3ef7446c9ac9a20dbeb4171c0",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "before": {
+        "sha256": "7579cb89d3d40da0b20d357bf7d77b103b2de780c3a2b67c93d923f83736c201",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "1b1613173582aad885d1d7776776df7fa4fdd0a5db4dc7a155e0bb5ce5ca1e2b",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/filter-chain.service.d/60-resources.conf",
+      "before": {
+        "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "9b5818f9ddfc09c92d277b499488af20dc1da4b35c29e669adbd7a15c641b759",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/mako.service.d/60-resource-class.conf",
+      "before": {
+        "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "b24b7195f15eb61fb35c12ee75476bee97a7ca18b0fea9c12baf419559954e27",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/pipewire-pulse.service.d/60-resources.conf",
+      "before": {
+        "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "9b5818f9ddfc09c92d277b499488af20dc1da4b35c29e669adbd7a15c641b759",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/pipewire.service.d/60-resources.conf",
+      "before": {
+        "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "9b5818f9ddfc09c92d277b499488af20dc1da4b35c29e669adbd7a15c641b759",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "before": {
+        "sha256": "449630c51d0b47329ac64a3199aa4fca7584f349fb5335518467d55d08290b60",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "c3737d402d447847e3f9ec53b07f8b3b18da593b618b5039f76b8305475fd6ce",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "before": {
+        "sha256": "e6439b41e9ccc712aef0f7378634401ae777b591813171196dc62d18a0a653b2",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "d56eebe91a0a08ff65aeb821d2d3caca0d10071a861a71551150869c3ead5646",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "before": {
+        "sha256": "0434779fb7b42a889438903971431ab1e93938a88f97a89a7943f91e31fa8b1a",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "fdbb64af7801c42e419756e81a419e937f17dd35f76ae0b5b78deccf84dbd89c",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "before": {
+        "sha256": "0288297e0f8640ea16fb0b179efac9c72dd8a7370849ac5ba933dc9bdd47c204",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "073530df68ddc78edcd61eb7949e3590bfbf19d057a67aa178bbdb3e24ff71b2",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "before": {
+        "sha256": "e0e1fcf023d0c42a11db6fd559742a226a09aba0dd165fc59607b82dd167f681",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "b24413227b5a77bfbc0a1a9b0080ff08e4ea69fd66c6bc7f463e23859a794ddf",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "before": {
+        "sha256": "82041642414fa29d2293e913acb896db551853188f1055695ee02f56290ae2e5",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "9ad4fab130635a9162a4241297ad2984c310ed3156671d596576c2ec506600ce",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "before": {
+        "sha256": "449382abd2870d4f328609379cf4bb50ccb9c9ebb1d0994856515488379b141b",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "f17b77b3c40489dd89eb84945f2265bd5f3c2e6cc9c3d35ef3926d559e95359c",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "before": {
+        "sha256": "67c7791df75b70cc1df77d71ecb5f0d73a91e925c09f0029d87ffd478ed1f06a",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "f882c4e948acfaf7bb6ff2d44d40624b5c6c8a4e814a431528bde97761a624e4",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "before": {
+        "sha256": "f04b7176153b713e3373ef14db78a186947e0fbf4518b375776e9dbb48773e8c",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "b3b88fa1693edc2f3f6b66ba349c437d1d1964316e4e7d5fa82cf5aadd5a60d3",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "before": {
+        "sha256": "fb42053a07fe3a8e3b3f5956e20638eb33670aac6797c34f4f1ddd531e5d8d44",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "bb8c30636c8b558b699c1ab00aa36d904380a67376d2883c03e822e1eea21e12",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "before": {
+        "sha256": "2f30d712c246b8b7be1c250f82dba7f5ae2bb21302cb4e8c493ca4a86491ad21",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "0726d96b08cfd0bca1909d86a9be5dfbb17eec59ad48e212492f596c4009515e",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "before": {
+        "sha256": "fb42053a07fe3a8e3b3f5956e20638eb33670aac6797c34f4f1ddd531e5d8d44",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "bb8c30636c8b558b699c1ab00aa36d904380a67376d2883c03e822e1eea21e12",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "before": {
+        "sha256": "bd4b010ac1f14b5f71066eeb921e1d46b23691f37cbd89ae89ccb90841fc1710",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "7d70f475eeb61ce77cb8a9d50ef46f8bbf166bbf097eb7d1b1f1828053865fe0",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before": {
+        "sha256": "6350a6c1b995ddd66409c4dc8cff3d874f0d62bb6a1ec49ce71bc4e6eca54cc1",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "5b50657b4b5388871fc794f4c87179edad4017f6f0cff52ab39c7b4f75c4a11d",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before": {
+        "sha256": "5e02dfb4f0613b4f99ccfb7d5a7fae9b760bfca3547b921a143195d2cf42b3b6",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "eaab969ccb4be7c657161aefb3f8828f02337ca8898d0356c83a89071bf61334",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before": {
+        "sha256": "f5f71feb565d1d585643d5b65e358ae3ae9ca452011598c82022d1512bd6c691",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "1ee87a0678a412237e0abc528b0cf2091e06a3c982db09abaf028b2a51e3584b",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "before": {
+        "sha256": "12ea0ee513f4ecf89facba7ae3aeeb49c83b4bbdf3010ece174f1b05b0407689",
+        "mode": 448
+      },
+      "after": {
+        "sha256": "5467132241dc3e43fb282aa5874140bf9c921c4844434d6d66bda76060a061d6",
+        "mode": 448
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/storage-maintenance.sh",
+      "before": {
+        "sha256": "4dbdae2010e8a58dbbd5954870752612b85ca482bbca0a4758379f303d1cbda0",
+        "mode": 448
+      },
+      "after": {
+        "sha256": "816c9f4e7b2ad712d43fd8b48d721786b8de84238c1988324456a69d837b3862",
+        "mode": 448
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/templates.sh",
+      "before": {
+        "sha256": "ab49b314978e7b0cbff3533c1f6606e04eb56c9c1361774ac9c8a87ee0568ae2",
+        "mode": 448
+      },
+      "after": {
+        "sha256": "57974b56e68cca0d3383599b08cd41e734baa695856f6c8a45fd7e5de411a05e",
+        "mode": 448
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_log_regressions_20260915.py",
+      "before": {
+        "sha256": "8df2db5ba0e21f9b39e219ff6689cc6195524c6659011695c6e9dd6d410a4801",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "489794ceeb802e9d0cb5923166692539af3135413644663d5155db8a522ab0c2",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_systemd_resource_policy.py",
+      "before": {
+        "sha256": "6e481927bffa03e653a8e5b1e46cb68d35e3b88212a1255429adedcb5df323de",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "c1b07140d9026f7f527081a67f62849a50a95cd7c28f698fc0505df9e5c49577",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_systemd_resource_refinements.py",
+      "before": {
+        "sha256": "49880d356699c39b0c1bb8d13ae24a229fb5070f17237b2989c2582be7a873aa",
+        "mode": 420
+      },
+      "after": {
+        "sha256": "76b249c896853920be93bebd393feedffa2bf9f2a6ffb3b0f2125bc1bc049323",
+        "mode": 420
+      }
+    },
+    {
+      "path": "docs/migration-map.json",
+      "before": {
+        "sha256": "0c85dc2c2f44a7f68ec3f08883170ea96c30965370c88e3d1602924d0bbcafad",
+        "mode": 384
+      },
+      "after": {
+        "sha256": "47674da5dff484e4de42011b0739c09a94c079d86a4c0f1e88e0794f7a3b5561",
+        "mode": 384
+      }
+    }
+  ],
+  "removed": [
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/60-resource-class.conf",
+      "sha256": "8561e3731f946a5680ec5f6405d3a7dec26b62eb42fc4eea4b4a140f0fdfba78",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf",
+      "sha256": "91bb2c43acb1cc308841814d44739a4da153b301d9fd10564c7f14bd56559f29",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/waybar.service.d/60-resource-class.conf",
+      "sha256": "07611672858eb345a65432de95725507cf46431a8c297b5438d8af7a41b2e006",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf",
+      "sha256": "a5f8322ed16525c00c50c237c2c875e4eca2ccac9ac4aaad266fc4c64cccfce5",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/user/wireplumber.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "mode": 420
+    }
+  ],
+  "added": [
+    {
+      "path": "RESOURCE-POLICY-APPARMOR-R4.md",
+      "sha256": "36720ec07b6365780fabd11218e9c9f6c8756c02a3709759c3b237e95ef95924",
+      "mode": 420
+    },
+    {
+      "path": "VALIDATION-R4.md",
+      "sha256": "45beea77c190ff3e7ff577d3b760798cebab9043719af2c1fddc39b8e84bcd0a",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf",
+      "sha256": "a1da6ce4bdfe16a9ab753cb7625ae39b1e6cc785f710b1b33819832b7b142a92",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/tests/test_policy_review_20260916.py",
+      "sha256": "7a236f17b271d108863db3b5e27fca4d27103ef9e35e443cbceed597cc9a2a9f",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/apparmor-compile.json",
+      "sha256": "528760b4d29c2baebdaac0db98175c0267adaef19054a615a135d48137876436",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/apparmor-compile.log",
+      "sha256": "f6e34acb6abe323467a7ffa06d21034fe5279e62ddea5de7faa72b9f2bd76bf7",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/apparmor-log-triage.json",
+      "sha256": "a0d52780534238dc7b34ef653df82c8a695df3e8075b8ec2cf02ba2476ece2c9",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/baseline-results.json",
+      "sha256": "408b8f1dea47390cf50be8a4404e72e8790422e797fbc269e494bca7b723726f",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/build-check.log",
+      "sha256": "e8f9af9db7c08362a4719d6388eecf0c2c637224f012b13614eb51334a10cd56",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/build-final-a.log",
+      "sha256": "3a88e2fda652e7823fcdb5cb787d9dad5cb2ec225bddeacaa8295f52d834af1f",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/build-final-b.log",
+      "sha256": "3a88e2fda652e7823fcdb5cb787d9dad5cb2ec225bddeacaa8295f52d834af1f",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/build-hashes-a.txt",
+      "sha256": "748d763323d8ba15d3db93ea40664159bd6479dd8df18bb5ed39a653e430f7fe",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/build-hashes-b.txt",
+      "sha256": "748d763323d8ba15d3db93ea40664159bd6479dd8df18bb5ed39a653e430f7fe",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/offline-fragments.json",
+      "sha256": "63fd42cf06e384d0caf778dea6afb418066097b633317668c9bd546438493d8d",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/policy-inventory.json",
+      "sha256": "a372baec5c18d125e93d3679908a7879df78623550c8eb06dd70ccb92478860b",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/preseed-check.log",
+      "sha256": "72de09ed34b64bdd30fce6659db87b1c327a328693d4c7fa93fb42b4cd7c57f2",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/preservation-and-build.json",
+      "sha256": "ca3eb9b7d1cbe4e371d9e997e69fd2b6d0be9e63a36690dc0b76f830f3aa5597",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/baseline-0.log",
+      "sha256": "9346e6c4971bd254bcba21670b9aa0f39fc29186b731720f36c8b730965af6f5",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/baseline-1.log",
+      "sha256": "aa61a8681527454f2ab43e3ff6682ba2311553a13c465750a4a16d4b11b3818d",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/baseline-2.log",
+      "sha256": "ce14cd790c257db8448101de0ae4645da1d64b791f5844a8d2c30d173f9ec9d5",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/baseline-3.log",
+      "sha256": "c6688551310498772536f3078a59f6ba87fa6bf969eaaaf30f61e86bdeffc4af",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_config_safety.log",
+      "sha256": "bc312f42af68c13e0294db63290f06e2c2c011b2153eae08ee7f7fea324ee2b1",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_dbus_broker.log",
+      "sha256": "613d95cbefb69efdcb5340f1d813bcc63c5872e91398300a848f1b5d6f6f67fe",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_desktop_integration_20260914.log",
+      "sha256": "5e2b47372a081124f05671ba7fae5de4dd7e305de78a8a9191c27c5f1b01c006",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_desktop_sandbox.log",
+      "sha256": "5e7b9ad7d984d25a4d7217650ffdbf9ccaad6134fc3795783a5e7b8f3005325f",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_gitops_mirrors.log",
+      "sha256": "d4d037b7fbf50897b39b4dadb4ff92b94febafb94c7c65e30bff39f2be9f8730",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_installation_fixes_20260912.log",
+      "sha256": "e809f14cec2a9791b342bde3b716f656572a7fefdae16ae85539025f43c0ec3c",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_installed_failures_20260911.log",
+      "sha256": "b3d9da5dfd752fb08323ac5280e00162b9b0cc5e515b37ba32d00e7cddfd8c54",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_lifecycle.log",
+      "sha256": "5f9db3b4aae96cfcca8a5a6651b159d86e7b8349f5f84af9510f1a7274717483",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_lifecycle_review_20260914.log",
+      "sha256": "27bc3179e97fceb048bd78be3d8420e10b16a4cd6bf945b15ae7f7f876566f73",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_log_followup_20260915.log",
+      "sha256": "8e4a0e5e623168bf4bcf7e70225245011fa0e30bcc7866c589b1c73e83f67232",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_log_launchers_20260915_r3.log",
+      "sha256": "77112ec1dca4ce1966050b4e46912653f1bd20dc51521739dae97ed2827a4186",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_log_regressions_20260915.log",
+      "sha256": "66fe13a915a48bff88f85d9e9c409c38a171aae17166c2db296555a17023d2f2",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_managed_external_software.log",
+      "sha256": "c194e0571c8c5037d549e103a5694cb9114e8997cad139afd8051bbbf09140a6",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_managed_git_debugsys.log",
+      "sha256": "a870d81b29d5d3c533fea9bd4a2bc13aa5536259cd32f7740f8036700a552728",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_podman_incus_redesign.log",
+      "sha256": "dc00c102bba22adfd5d5d1aee2ae382cd862ea0c1ce440fb6b374be7572c1987",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_policy_review_20260916.log",
+      "sha256": "79b97d0752427a194454aca97069d9cce446f235c591134c10142d1ed5e73b15",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_power_keyboard_20260913.log",
+      "sha256": "15ea583662086460792d29d8b30fc393a26abe4288af8a3cb55b9063d033f758",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_process_capture.log",
+      "sha256": "31f003d80875e70207651cd29f9b0a91e940659834180331662975963ac5c235",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_repository_integrity.log",
+      "sha256": "2826fa3ab210c314e136f8a4a5c72d95f2f0b45a94a02d1f9d6a1d0d23ffbd32",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_security_refactor.log",
+      "sha256": "adb605bc44d9c8bdbcb581a5d65008dd01a8d94dc5de2c19d0b9854c009e1da5",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_systemd_resource_policy.log",
+      "sha256": "7fdfd470be50920ab9d19a5b3a1f48cbf2a92ecc1572a1121289588cfc099b7e",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_systemd_resource_refinements.log",
+      "sha256": "715cbc9ce401b5d7ae91f25d905befa6ff4868f2ece6a78d8b6dcd09b6396d73",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/regressions/test_workspace_no_broker.log",
+      "sha256": "795ee1ac151728dbc81513f3c6f04ab5b00c242a6316ddfd211d9aea0c5f02d9",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/selected-regressions-final.json",
+      "sha256": "7d2f33eea59207e1eb47f13eea331abae491689eeb3285974e1f5fb405d1051a",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/shell-check.log",
+      "sha256": "a9fcc053b5239f46ba48bc59f1f20fffdb09518d93ee831073a0b79971dcf8f2",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/socket-effective-properties.json",
+      "sha256": "6ceed7a2816c781513843837d6aa47dad71af72ee26603ebfb7b51f748909f2b",
+      "mode": 420
+    },
+    {
+      "path": "docs/resource-policy-r4/systemd-final.log",
+      "sha256": "81c965d547668d681b99b4a8650e7988861dcc68de2944dce706117ed74c6479",
+      "mode": 420
+    }
+  ],
+  "file_count_including_this_manifest": 2147
+}

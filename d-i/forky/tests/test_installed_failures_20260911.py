@@ -162,7 +162,7 @@ class SessionOwnershipTests(unittest.TestCase):
     def test_tuta_waits_for_secret_service_even_on_host(self):
         argv = self.launch(app='tutanota', owner=0).call_args.args[1]
         self.assertIn('--property=After=labwc-session.target labwc-kwallet-portal.service', argv)
-        self.assertIn('--property=Requires=labwc-session.target labwc-kwallet-portal.service', argv)
+        self.assertIn('--property=Requisite=labwc-session.target labwc-kwallet-portal.service', argv)
 
     def test_executable_owner_uses_anchor_without_loosening_modes(self):
         metadata = types.SimpleNamespace(st_uid=65534, st_mode=stat.S_IFREG | 0o755)

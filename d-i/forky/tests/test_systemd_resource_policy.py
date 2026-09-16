@@ -31,14 +31,15 @@ TEMPLATES = [TARGET / f'{USER_BASE}/{name}.slice.d/60-resources.conf' for name i
     TARGET / 'etc/systemd/user/pipewire.service.d/60-resources.conf',
     TARGET / 'etc/systemd/user/pipewire-pulse.service.d/60-resources.conf',
     TARGET / 'etc/systemd/user/filter-chain.service.d/60-resources.conf',
-    TARGET / 'etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf',
+    TARGET / 'etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf',
     TARGET / 'etc/systemd/system.conf.d/60-resource-accounting.conf',
     TARGET / 'etc/systemd/user.conf.d/60-resource-accounting.conf',
     TARGET / 'etc/systemd/coredump.conf.d/60-managed-limits.conf',
     TARGET / 'etc/systemd/journald.conf.d/10-storage.conf',
 ]
 SERVICE_CLASSES = {
-    'labwc-compositor': 'session', 'waybar': 'session', 'crystal-dock': 'session',
+    'labwc-compositor': 'session',
+    'waybar': 'app', 'crystal-dock': 'app',
     'kanshi': 'session', 'labwc-output-watch': 'session', 'swayidle': 'session',
     'labwc-calendar-sync': 'background',
     'labwc-kwallet-portal': 'session', 'labwc-ssh-key-load': 'session',
@@ -79,7 +80,7 @@ desktop_user_unit_source_path() {{
         self.assertEqual(len(PROFILES), 13)
         for profile in PROFILES:
             with self.subTest(profile=profile.name):
-                keys = re.findall(r'^(SYSTEMD_IOWEIGHT_[A-Z0-9_]+)=', profile.read_text(), re.M)
+                keys = re.findall(r'^(SYSTEMD_IOWEIGHT_(?!ENABLE=)[A-Z0-9_]+)=', profile.read_text(), re.M)
                 self.assertEqual(set(keys), WEIGHT_KEYS)
                 self.assertEqual(len(keys), len(WEIGHT_KEYS))
                 self.assertRegex(profile.read_text(), r'(?m)^PODMAN_SERVICE_SLICE_IO_WEIGHT=100$')
@@ -96,7 +97,7 @@ desktop_user_unit_source_path() {{
                     file.write_text('\n'.join(path.read_text() for path in TEMPLATES))
                     self.shell(f'TMP_ENV_DIR={shlex.quote(tmp)}\n'
                                'apply_systemd_resource_placeholders "$TMP_ENV_DIR/resources"',
-                               profile=profile, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}')
+                               profile=profile, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                     text = file.read_text()
                     self.assertFalse(TOKEN.search(text))
                     weights = re.findall(r'^IOWeight=(\d+)$', text, re.M)
@@ -108,14 +109,14 @@ desktop_user_unit_source_path() {{
     def test_invalid_inputs_and_missing_weights_fail_before_publication(self):
         cases = {
             'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE': ['', 'yes', 'TRUE', 'true\nfalse'],
+            'SYSTEMD_IOWEIGHT_ENABLE': ['', 'yes', 'TRUE', 'true\nfalse'],
             'SYSTEMD_IOWEIGHT_HOME_USER_APP_SLICE_D':
                 ['IOWeight=0', 'IOWeight=10001', 'IOWeight=01', 'CPUWeight=100',
                  'IOWeight=1\nMemoryMax=1', 'IOWeight=100\r', '$(id)'],
             'SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D': ['0', '10001', '0300', '300\nSlice=app.slice'],
             'SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D': ['', '200s', '$(id)'],
-            'SYSTEMD_COREDUMP_MAX_CONNECTIONS': ['', '0', '65', '02', '2\nAccept=no'],
             'SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC': ['0', '1', '61', '2s'],
-            'SYSTEMD_COREDUMP_POLL_LIMIT_BURST': ['0', '65', '-1'],
+            'SYSTEMD_COREDUMP_POLL_LIMIT_BURST': ['0', '1000001', '-1', '064', '64\nAccept=no'],
             'SYSTEMD_COREDUMP_STORAGE': ['journal', 'external\nCompress=no'],
             'SYSTEMD_COREDUMP_MAX_USE': ['0', '0M', '-1M', 'infinity', '1G\n2G', '9999999999G'],
             'SYSTEMD_JOURNAL_SYSTEM_MAX_FILES': ['0', '1000001', '02', '16\n17'],
@@ -147,7 +148,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
         if not shutil.which('busybox'):
             self.skipTest('BusyBox is unavailable')
         for enabled in ('true', 'false'):
-            override = f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}'
+            override = f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}'
             self.assertEqual(self.shell('systemd_resource_placeholder_map', override=override).stdout,
                              self.shell('systemd_resource_placeholder_map', override=override,
                                         shell='busybox').stdout)
@@ -176,9 +177,25 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
         manifest = json.loads((SEED / 'tests/fixtures/resource-policy-original.json').read_text())
         for relative, expected in manifest['sha256'].items():
             with self.subTest(path=relative):
-                self.assertEqual(hashlib.sha256((ROOT / relative).read_bytes()).hexdigest(), expected)
+                original = (ROOT / relative).read_bytes()
+                if relative == 'd-i/forky/scripts/desktop/labwc.sh':
+                    # Exclude only the two new installer calls. All original
+                    # workload policy bytes must still match the old fixture.
+                    for added in (b'  desktop_resctl_bench_preflight_target_architecture\n',
+                                  b'  desktop_install_resctl_bench\n'):
+                        self.assertEqual(original.count(added), 1)
+                        original = original.replace(added, b'', 1)
+                self.assertEqual(hashlib.sha256(original).hexdigest(), expected)
         for profile in PROFILES:
-            prefix = profile.read_text().split('\n# Systemd accounting and user resource classes.', 1)[0]
+            # The separate resctl-bench suite verifies every exact pin/value.
+            # Remove just its added block, not any original profile policy.
+            original, count = re.subn(
+                r'# Native x86-64 resource-control benchmark release \(installation only\)\.\n'
+                r'# Native CPU compatibility is checked with unprivileged --version on the target\.\n'
+                r'(?:RESCTL_BENCH_[A-Z0-9_]+="[^"\n]*"\n){8}\n',
+                '', profile.read_text(), count=1)
+            self.assertEqual(count, 1)
+            prefix = original.split('\n# Systemd accounting and user resource classes.', 1)[0]
             self.assertEqual(hashlib.sha256((prefix.rstrip()+'\n').encode()).hexdigest(),
                              manifest['profile_prefix_sha256'][profile.name])
         templates = (SEED / 'scripts/late/templates.sh').read_text().split(
@@ -196,7 +213,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                 self.shell(self.staging(tmp)+'''
 stage_target_systemd_resource_policy_assets
 desktop_install_user_resource_policy
-''', override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}')
+''', override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                 for cls in CLASSES:
                     path = target / f'{USER_BASE}/{cls}.slice.d/60-resources.conf'
                     self.assertEqual('IOWeight=' in path.read_text(), enabled == 'true')
@@ -211,10 +228,10 @@ desktop_install_user_resource_policy
                 for name in ('maintenance', 'background'):
                     text = (target / f'etc/systemd/system/system-{name}.slice.d/60-resources.conf').read_text()
                     self.assertEqual('IOWeight=' in text, enabled == 'true')
-                socket = (target / 'etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf').read_text()
-                self.assertIn('MaxConnections=2', socket)
+                socket = (target / 'etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf').read_text()
+                self.assertNotRegex(socket, r'(?m)^MaxConnections(?:PerSource)?=')
                 self.assertIn('PollLimitIntervalSec=2s', socket)
-                self.assertIn('PollLimitBurst=16', socket)
+                self.assertIn('PollLimitBurst=64', socket)
                 for manager in ('system', 'user'):
                     text = (target / f'etc/systemd/{manager}.conf.d/60-resource-accounting.conf').read_text()
                     self.assertIn('DefaultMemoryAccounting=yes', text)
@@ -233,7 +250,7 @@ desktop_install_user_resource_policy
             self.shell(self.staging(tmp)+'desktop_install_user_resource_policy')
             # Prefix policy for transient units is intentional; no base file exists.
             self.assertEqual({p.parent.name for p in target.rglob('60-resource-class.conf')},
-                             {'app-.scope.d', 'labwc-power-lock-.service.d'})
+                             {'labwc-power-lock-.service.d', 'app-.scope.d'})
             self.assertEqual(len(list(target.rglob('60-resources.conf'))), 3)
             self.assertFalse((target / 'etc/systemd/user').exists())
 
@@ -316,7 +333,7 @@ validate_target_journal_storage_policy
                     dropin.parent.mkdir()
                     shutil.copy2(TARGET / f'{USER_BASE}/{name}.slice.d/60-resources.conf', dropin)
                     self.shell(f'TMP_ENV_DIR={shlex.quote(tmp)}\napply_systemd_resource_placeholders '+
-                               shlex.quote(str(dropin)), override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}')
+                               shlex.quote(str(dropin)), override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                 for name in SERVICE_CLASSES:
                     unit = units / f'{name}.service'
                     unit.write_text('[Unit]\nDescription=Resource fixture\nDefaultDependencies=no\n'

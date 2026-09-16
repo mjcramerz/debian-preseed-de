@@ -103,9 +103,9 @@ def bitwarden_session_unit_argv(
         "--description=Managed Bitwarden desktop client",
         "--unit=" + _session_unit("labwc-bitwarden"),
         "--property=After=labwc-session.target labwc-kwallet-portal.service",
-        "--property=Requires=labwc-session.target labwc-kwallet-portal.service",
         "--property=Requisite=labwc-session.target labwc-kwallet-portal.service",
         "--property=PartOf=labwc-session.target labwc-kwallet-portal.service",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--slice=app.slice",
         "--property=ExitType=cgroup",
         "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
@@ -191,9 +191,9 @@ def wayland_compat_session_unit_argv(
         f"--description=Managed {display_name} Cage compatibility session",
         "--unit=" + _session_unit(f"labwc-compat-{app_name}"),
         "--property=After=labwc-session.target",
-        "--property=Requires=labwc-session.target",
         "--property=Requisite=labwc-session.target",
         "--property=PartOf=labwc-session.target",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--slice=app.slice",
         "--property=ExitType=cgroup",
         "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
@@ -347,9 +347,15 @@ def redirect_native_from_private_users(
         f"--description=Managed {app_name} desktop client",
         "--unit=" + _session_unit(f"labwc-native-{app_name}"),
         f"--property=After={startup_dependencies}",
-        f"--property=Requires={startup_dependencies}",
+        # Never pull the desktop/compositor back up during teardown. The
+        # Secret Service provider is already session-owned; Requisite verifies
+        # readiness without starting it. Only the independent Codex backend
+        # needs activation here.
+        *(["--property=Requires=codex-app-server.socket codex-app-server-proxy.service"]
+          if app_name == "chatgpt" else []),
         f"--property=Requisite={startup_dependencies}",
         f"--property=PartOf={dependencies}",
+        f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=ExitType=cgroup",
         "--property=UnsetEnvironment=LABWC_MENU_ACTION_WAIT",
         "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",

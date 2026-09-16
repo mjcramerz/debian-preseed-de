@@ -355,6 +355,12 @@ start_recording() {
     --collect \
     --unit="$RECORDING_UNIT" \
     --property=Type=exec \
+    --property=PartOf=labwc-session.target \
+    --property=Requisite=labwc-session.target \
+    --property=After=labwc-session.target \
+    --property="ConditionPathExists=!${XDG_RUNTIME_DIR}/labwc-session-closing" \
+    --property=ExitType=cgroup \
+    --property=KillMode=control-group \
     --property=KillSignal=SIGINT \
     --property=TimeoutStopSec=20s \
     --property=UMask=0077 \

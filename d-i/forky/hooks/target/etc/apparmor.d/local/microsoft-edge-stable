@@ -52,3 +52,45 @@ owner @{HOME}/.local/state/ r,
 owner @{HOME}/.local/state/browser-devtools/ r,
 owner @{HOME}/.local/state/browser-devtools/edge/ rw,
 owner @{HOME}/.local/state/browser-devtools/edge/** rwkl,
+
+# GTK file-chooser previews use Glycin's independent decoder sandbox. Only
+# namespace construction lives in this child; no new capabilities are added
+# to the parent domain, and no unconfined execution fallback is introduced.
+/usr/share/glycin-loaders/2+/conf.d/{,*.conf} r,
+/usr/bin/bwrap rCx -> edge-glycin-bwrap,
+signal (send) set=(kill term) peer=microsoft-edge-stable//edge-glycin-bwrap,
+
+# Workspace uploads remain outside this browser's data policy, including when
+# another abstraction is expanded later. Use Downloads for deliberate uploads.
+deny @{HOME}/Workspace/ rw,
+deny @{HOME}/Workspace/** rwklmx,
+
+profile edge-glycin-bwrap flags=(mediate_deleted) {
+  # Do not attach disconnected paths to an artificial root: no such need is
+  # established by the supplied audit, and aliasing would widen the policy.
+  #include <abstractions/base>
+  #include <abstractions/managed-bwrap-common>
+  include if exists <abstractions/fonts>
+  signal (receive) set=(kill term) peer=microsoft-edge-stable,
+  /usr/bin/true rix,
+  # NNP is already set when the loader runs: keep it in this child domain.
+  /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+  /usr/lib/** mr,
+  /usr/share/glycin-loaders/2+/conf.d/{,*.conf} r,
+  /usr/share/mime/mime.cache r,
+  /usr/{,local/}share/icons/{,**} r,
+  /usr/share/backgrounds/{,**} r,
+  owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+  owner @{HOME}/.cache/fontconfig/{,**} r,
+  owner @{HOME}/.cache/glycin/{,**} rwkl,
+  # Browser databases, GPU descriptors and network access are not decoder
+  # requirements. Do not copy incidental inherited-fd complaints into grants.
+  deny @{HOME}/Workspace/ rw,
+  deny @{HOME}/Workspace/** rwklmx,
+  deny /oldroot@{HOME}/Workspace/ rw,
+  deny /oldroot@{HOME}/Workspace/** rwklmx,
+  deny /newroot@{HOME}/Workspace/ rw,
+  deny /newroot@{HOME}/Workspace/** rwklmx,
+  deny /tmp/{oldroot,newroot}@{HOME}/Workspace/ rw,
+  deny /tmp/{oldroot,newroot}@{HOME}/Workspace/** rwklmx,
+}

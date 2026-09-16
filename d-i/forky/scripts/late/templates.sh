@@ -395,6 +395,10 @@ systemd_resource_placeholder_map() (
     false) io_accounting=no ;;
     *) installer_fatal "SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE must be true or false"; exit 1 ;;
   esac
+  case "${SYSTEMD_IOWEIGHT_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "SYSTEMD_IOWEIGHT_ENABLE must be true or false"; exit 1 ;;
+  esac
   printf 'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE=%s\n' "$io_accounting"
   for name in \
     SYSTEMD_IOWEIGHT_HOME_USER_SESSION_SLICE_D \
@@ -420,7 +424,7 @@ systemd_resource_placeholder_map() (
         ;;
       *) installer_fatal "$name must be empty or IOWeight=1..10000"; exit 1 ;;
     esac
-    [ "$io_accounting" = yes ] || value=
+    [ "$SYSTEMD_IOWEIGHT_ENABLE" = true ] || value=
     printf '%s=%s\n' "$name" "$value"
   done
   # CPU preferences are independent of I/O accounting and always rendered.
@@ -440,7 +444,6 @@ systemd_resource_placeholder_map() (
     printf '%s=%s\n' "$name" "$value"
   done
   for name in \
-    SYSTEMD_COREDUMP_MAX_CONNECTIONS \
     SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC \
     SYSTEMD_COREDUMP_POLL_LIMIT_BURST
   do
@@ -448,12 +451,12 @@ systemd_resource_placeholder_map() (
     # Bound integer input before numeric comparisons (also on 32-bit shells).
     case "$name" in
       SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC) minimum=2; maximum=60 ;;
-      *) minimum=1; maximum=64 ;;
+      SYSTEMD_COREDUMP_POLL_LIMIT_BURST) minimum=1; maximum=1000000 ;;
     esac
     case "$value" in ''|*[!0-9]*|0*)
       installer_fatal "$name must be an integer from $minimum to $maximum"; exit 1 ;;
     esac
-    [ "${#value}" -le 2 ] && [ "$value" -ge "$minimum" ] && [ "$value" -le "$maximum" ] || {
+    [ "${#value}" -le 7 ] && [ "$value" -ge "$minimum" ] && [ "$value" -le "$maximum" ] || {
       installer_fatal "$name must be an integer from $minimum to $maximum"; exit 1;
     }
     printf '%s=%s\n' "$name" "$value"
@@ -504,21 +507,45 @@ systemd_resource_placeholder_map() (
 apply_systemd_resource_placeholders() (
   set -eu
   resource_file=$1
-  # Static class/delegation drop-ins need no rendering. This helper is called
-  # only by render_target_resource_asset, never by the generic unit renderer.
-  grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file" || exit 0
+  # Even literal resource assets obey the weight switch. This helper remains
+  # opt-in: original zram/Podman assets never pass through this renderer.
+  case "${SYSTEMD_IOWEIGHT_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "SYSTEMD_IOWEIGHT_ENABLE must be true or false"; exit 1 ;;
+  esac
+  case "${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE must be true or false"; exit 1 ;;
+  esac
+  resource_has_tokens=false
+  if grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file"; then
+    resource_has_tokens=true
+  elif [ "$SYSTEMD_IOWEIGHT_ENABLE" = true ] ||
+       ! grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
+    # Class-only/security files need no map or rewrite after switch validation.
+    exit 0
+  fi
   resource_map=$(mktemp "${TMP_ENV_DIR}/systemd-resource-map.XXXXXX") || exit 1
-  trap 'rm -f -- "$resource_map"' EXIT
+  trap 'rm -f -- "$resource_map" "${resource_map}.filtered"' EXIT
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
-  systemd_resource_placeholder_map >"$resource_map" || exit 1
-  render_target_scalar_placeholders "$resource_file" "$resource_map" || exit 1
+  if [ "$resource_has_tokens" = true ]; then
+    systemd_resource_placeholder_map >"$resource_map" || exit 1
+    render_target_scalar_placeholders "$resource_file" "$resource_map" || exit 1
+  fi
   if grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file"; then
     installer_fatal "unresolved systemd resource placeholder in $resource_file"; exit 1
   fi
-  if [ "$SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE" = false ] &&
-      grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
-    installer_fatal "disabled class I/O policy left a weight in $resource_file"; exit 1
+  if [ "$SYSTEMD_IOWEIGHT_ENABLE" = false ]; then
+    # Strip whole directives, never emit IOWeight=0 or an empty assignment.
+    # Work inside the publisher's private directory before its atomic rename.
+    LC_ALL=C awk '!/^[[:space:]]*(Startup)?IOWeight[[:space:]]*=/' \
+      "$resource_file" >"${resource_map}.filtered" || exit 1
+    cat "${resource_map}.filtered" >"$resource_file" || exit 1
+    rm -f -- "${resource_map}.filtered"
+    if grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
+      installer_fatal "disabled I/O weight policy left a weight in $resource_file"; exit 1
+    fi
   fi
 )

@@ -13,7 +13,9 @@ Type=notify
 NotifyAccess=main
 ExecStart=/usr/local/libexec/labwc-admin-action-worker %i
 TimeoutStartSec=60s
-RuntimeMaxSec=360s
+# Save dialogs (160s), desktop jobs (120s), optional guest hooks (180s),
+# manager queries and final handoff all remain bounded by this outer limit.
+RuntimeMaxSec=600s
 RuntimeDirectory=labwc-power
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes

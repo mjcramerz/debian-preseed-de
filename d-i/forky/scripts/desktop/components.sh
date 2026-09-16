@@ -3522,7 +3522,22 @@ fi
   desktop_log "compiled_glib_schemas scope=desktop"
 }
 
+# Remove only the obsolete project-owned shutdown graph on republication.
+# Never start/stop/enable those units while staging an unattended installation.
+desktop_remove_legacy_power_transactions() (
+  set -eu
+  for power_action in reboot poweroff; do
+    for power_kind in service target; do
+      ensure_target_asset_parent "/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
+      power_path=$(target_asset_host_path "/etc/systemd/system/labwc-power-${power_action}.${power_kind}")
+      [ ! -d "$power_path" ] || installer_fatal "obsolete power unit is a directory: $power_path"
+      rm -f -- "$power_path"
+    done
+  done
+)
+
 desktop_install_user_resource_policy() {
+  stage_target_systemd_manager_accounting || return 1
   user_slice_dropin=/etc/systemd/system/user-1000.slice.d/50-resource-accounting.conf
   user_manager_dropin=/etc/systemd/system/user@.service.d/50-oom-score.conf
   user_manager_config=/etc/systemd/user.conf.d/50-resource-defaults.conf
@@ -3553,8 +3568,8 @@ desktop_install_user_resource_policy() {
       "/$resource_asset" 0644 || return 1
   done
   for resource_unit in \
-    labwc-compositor waybar crystal-dock kanshi labwc-output-watch swayidle labwc-calendar-sync \
-    labwc-kwallet-portal labwc-ssh-key-load
+    labwc-compositor kanshi labwc-output-watch swayidle labwc-calendar-sync \
+    labwc-kwallet-portal labwc-ssh-key-load waybar crystal-dock
   do
     # Optional services (notably kanshi) may be deliberately omitted by a
     # profile. Never create orphaned drop-ins or enable a disabled service.
@@ -3580,7 +3595,8 @@ desktop_install_user_resource_policy() {
       "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
       "/$resource_asset" 0644 || return 1
   done
-  # Runtime-created scopes/services intentionally have no base file to probe.
+  # Runtime-created services and app-* scopes have no base files to probe.
+  # The scope class is explicit; its original lifecycle drop-in is unchanged.
   for resource_leaf in \
     app-.scope.d/60-resource-class.conf \
     labwc-bitwarden-.service.d/70-no-core.conf \
@@ -3897,6 +3913,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@.service /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service /etc/systemd/system/labwc-admin-action@.service 0644
+  desktop_remove_legacy_power_transactions || return 1
   desktop_stage_role_asset usr/local/bin/labwc-calendar /usr/local/bin/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-calendar /usr/local/libexec/labwc-calendar 0755
   desktop_stage_role_asset usr/local/libexec/labwc-plans.pl /usr/local/libexec/labwc-plans.pl 0755

@@ -1,5 +1,14 @@
 # debian-preseed-de
 
+Current desktop power lifecycle and resctl-bench integration:
+[implementation and deployment checks](POWER-RESCTL-2026-09-16.md),
+[current validation](POWER-RESCTL-VALIDATION.md). Reboot/poweroff synchronously
+quiesce the desktop, keep D-Bus available, and perform one direct single-force
+handoff without intermediate shutdown targets. All 13 profiles install the
+pinned resctl-bench release. This supersedes R6 power dispatch only; the
+[R6 independent I/O policy](POWER-AND-IO-POLICY-R6.md) remains unchanged.
+Earlier dated reports, manifests and validation logs are historical.
+
 Current SSH/GitOps/debugsys lifecycle review and selective PID namespace changes:
 [14 September 2026 review](docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md).
 Its validation records are in `docs/validation-lifecycle-20260914/`; earlier reports

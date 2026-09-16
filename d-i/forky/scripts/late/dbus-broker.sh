@@ -31,7 +31,20 @@ require_uint_range() {
   [ "$value" -le "$max" ] || installer_fatal "${label} must be <= ${max}, got ${value}"
 }
 
+# Canonical finite seconds, validated before any template is published. Avoid
+# overflow-prone shell arithmetic and reject newlines/unit-file injection.
+validate_dbus_broker_stop_timeout() {
+  case "${DBUS_BROKER_TIMEOUT_STOP_SEC:-}" in
+    [5-9]|[1-9][0-9]|1[01][0-9]|120) ;;
+    *)
+      installer_fatal "DBUS_BROKER_TIMEOUT_STOP_SEC must be canonical seconds in 5..120"
+      return 1
+      ;;
+  esac
+}
+
 validate_dbus_broker_policy_env() {
+  validate_dbus_broker_stop_timeout || return 1
   for dir_var in DIR_DBUS_SESSION_SERVICES DIR_DBUS_LOCAL_SESSION_SERVICES; do
     eval "dir_value=\${$dir_var-}"
     [ -n "$dir_value" ] || installer_fatal "${dir_var} must be set"
@@ -86,6 +99,7 @@ validate_dbus_broker_policy_env() {
 }
 
 dbus_broker_placeholder_map() {
+  validate_dbus_broker_stop_timeout || return 1
   for var_name in \
     DBUS_LIMIT_MAX_INCOMING_BYTES \
     DBUS_LIMIT_MAX_OUTGOING_BYTES \
@@ -105,7 +119,8 @@ dbus_broker_placeholder_map() {
     DBUS_LIMIT_SERVICE_START_TIMEOUT_MS \
     DBUS_LIMIT_REPLY_TIMEOUT_MS \
     DBUS_BROKER_TASKS_MAX \
-    DBUS_BROKER_LIMIT_NOFILE
+    DBUS_BROKER_LIMIT_NOFILE \
+    DBUS_BROKER_TIMEOUT_STOP_SEC
   do
     eval "var_value=\${$var_name-}"
     [ -n "$var_value" ] || installer_fatal "${var_name} must be set before D-Bus template rendering"
@@ -478,6 +493,16 @@ enable_target_dbus_broker_units() {
 
 
 
+stage_target_dbus_broker_stop_policy() {
+  validate_dbus_broker_stop_timeout || return 1
+  # Follow the configured broker override directories without altering aliases
+  # or enabling/restarting a message bus during target staging.
+  render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dbus-broker.service.d/60-stop-timeout.conf.tmpl)" \
+    "${FILE_DBUS_SYSTEM_BROKER_SERVICE_OVERRIDE%/*}/60-stop-timeout.conf" 0644 || return 1
+  render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/user/dbus-broker.service.d/60-stop-timeout.conf.tmpl)" \
+    "${FILE_DBUS_USER_BROKER_SERVICE_OVERRIDE%/*}/60-stop-timeout.conf" 0644 || return 1
+}
+
 configure_target_dbus_broker() {
   [ "${DIR_DBUS_SESSION_SERVICES:-/usr/share/dbus-1/services}" = /usr/share/dbus-1/services ] || \
     installer_fatal "broker maintenance requires the Debian vendor activation directory"
@@ -496,6 +521,8 @@ configure_target_dbus_broker() {
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dbus-1/system-local.conf.tmpl)" "${FILE_DBUS_SYSTEM_LOCAL_CONF}" 0644
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dbus-broker.service.d/10-broker-hardening.conf.tmpl)" "${FILE_DBUS_SYSTEM_BROKER_SERVICE_OVERRIDE}" 0644
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf.tmpl)" "${FILE_DBUS_USER_BROKER_SERVICE_OVERRIDE}" 0644
+
+  stage_target_dbus_broker_stop_policy || return 1
 
   enable_target_dbus_broker_units
 }
