@@ -202,6 +202,12 @@ sub _validate_request_shape {
             or die "apparmor-activate-draft requires confirmation\n";
         return;
     }
+    if ($action eq 'set-apparmor-boot-state') {
+        @args == 2 && $args[0] =~ /\A(?:enable|disable)\z/
+            && $args[1] eq 'confirmed-apparmor-boot-state-change'
+            or die "set-apparmor-boot-state requires a mode and explicit confirmation\n";
+        return;
+    }
     if ($action eq 'set-apparmor-desktop-state') {
         @args == 2 && $args[0] =~ /\A(?:enforce|complain|disable)\z/
             && $args[1] eq 'confirmed-apparmor-desktop-state-change'
@@ -215,7 +221,7 @@ sub _validate_request_shape {
         return;
     }
     if ($action eq 'set-apparmor-application-mode') {
-        @args == 3 && $self->_valid_application($args[0]) && $args[1] =~ /\A(?:enforce|complain|disable)\z/
+        @args == 3 && $self->_valid_application($args[0]) && $args[1] =~ /\A(?:enforce|complain)\z/
             && $args[2] eq 'confirmed-apparmor-mode-change'
             or die "set-apparmor-application-mode requires an application, mode, and confirmation\n";
         return;

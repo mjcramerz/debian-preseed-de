@@ -1,0 +1,44 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib '/usr/local/lib/perl5/site_perl/labwc-security-action';
+use LabwcSecurityAction::AppArmor;
+
+$< == 0 && $> == 0 or die "AppArmor policy worker requires root\n";
+@ARGV == 1 or die "AppArmor policy worker requires exactly one request\n";
+my ($request) = @ARGV;
+my $apparmor = LabwcSecurityAction::AppArmor->new();
+my ($profiles, $mode, $label, $boot, $audit);
+if ($request =~ /\Aglobal-(enforce|complain)\z/) {
+    $mode = $1;
+    $profiles = [$apparmor->_desktop_profiles()];
+    $label = 'all declared managed profiles';
+}
+elsif ($request =~ /\Aapplication-([a-z0-9-]+)-(enforce|complain)\z/) {
+    ($label, $mode) = ($1, $2);
+    $profiles = [$apparmor->_application_profiles($label)];
+}
+elsif ($request =~ /\Aboot-(enable|disable)\z/) {
+    $boot = $1;
+}
+elsif ($request =~ /\Aaudit-([a-z0-9-]+)-(enable|disable)\z/) {
+    ($label, $mode, $audit) = ($1, $2, 1);
+    $apparmor->_application_profiles($label);
+}
+elsif ($request eq 'reload-modes') {
+    # No caller-supplied mode, profile filename or executable.
+}
+else {
+    die "unsupported AppArmor policy worker request\n";
+}
+
+umask 0077;
+my $lock = $apparmor->_policy_lock();
+if (defined $boot) {
+    # Keep this process and its lock alive until the child has completed.
+    my $status = $apparmor->command()->run('/usr/local/libexec/labwc-apparmor-boot-state', $boot);
+    exit $status;
+}
+exit $apparmor->_update_application_audit($label, $mode) if $audit;
+exit $apparmor->_reconcile_modes() if $request eq 'reload-modes';
+exit $apparmor->_update_modes($profiles, $mode, $label);

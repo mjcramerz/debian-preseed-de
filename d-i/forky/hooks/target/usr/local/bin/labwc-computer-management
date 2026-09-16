@@ -292,7 +292,7 @@ system_configuration_menu() {
         run_command labwc-keyboard-layout
         ;;
       "Audio Control")
-        run_command pavucontrol
+        run_command labwc-wayland-app auto -- /usr/bin/pavucontrol
         ;;
       "Restart Dock")
         run_command systemctl --user --no-block restart crystal-dock.service

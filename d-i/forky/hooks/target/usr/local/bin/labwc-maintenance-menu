@@ -507,19 +507,17 @@ set_apparmor_application_mode() {
       "AppArmor profile mode" \
       'Enforce' \
       'Complain' \
-      'Disable' \
       '← Back'
   )
   case "$mode_label" in
     Enforce) mode=enforce ;;
     Complain) mode=complain ;;
-    Disable) mode=disable ;;
     *) return 0 ;;
   esac
 
   confirmation=$(
     choose_lines \
-      "Set ${application_key} and wrapper AppArmor profiles to ${mode}" \
+      "Set ${application_key} application profiles to ${mode}; required launch profiles remain loaded" \
       'Cancel' \
       'Continue with AppArmor mode change'
   )
@@ -535,7 +533,7 @@ set_apparmor_application_mode() {
 set_all_apparmor_desktop_profiles_mode() {
   requested_mode=$1
   case "$requested_mode" in
-    enforce|complain|disable) ;;
+    enforce|complain) ;;
     *) fatal "unsupported AppArmor desktop profile mode: $requested_mode" ;;
   esac
 
@@ -552,6 +550,22 @@ set_all_apparmor_desktop_profiles_mode() {
     set-apparmor-desktop-state \
     "$requested_mode" \
     confirmed-apparmor-desktop-state-change
+}
+
+set_apparmor_boot_state() {
+  boot_mode=$1
+  case "$boot_mode" in
+    enable) boot_warning='Enable AppArmor on the next normal reboot; live policy is unchanged' ;;
+    disable) boot_warning='Disable ALL AppArmor protection after reboot; live profiles stay loaded; no automatic reboot' ;;
+    *) fatal "unsupported AppArmor boot state: $boot_mode" ;;
+  esac
+  confirmation=$(
+    choose_lines "$boot_warning" \
+      'Cancel' \
+      'Stage AppArmor boot change'
+  )
+  [ "$confirmation" = 'Stage AppArmor boot change' ] || return 0
+  run_security_action set-apparmor-boot-state "$boot_mode" confirmed-apparmor-boot-state-change
 }
 
 set_apparmor_application_audit() {
@@ -739,7 +753,8 @@ apparmor_managed_modes_menu() {
         'Generate New Rules' \
         'Enforce All' \
         'Complain All' \
-        'Disable All' \
+        'Disable AppArmor After Reboot' \
+        'Enable AppArmor After Reboot' \
         'Set App Mode' \
         'Set App Audit Logging' \
         'Reload Modes & Clear Audit' \
@@ -759,8 +774,11 @@ apparmor_managed_modes_menu() {
       'Complain All')
         set_all_apparmor_desktop_profiles_mode complain
         ;;
-      'Disable All')
-        set_all_apparmor_desktop_profiles_mode disable
+      'Disable AppArmor After Reboot')
+        set_apparmor_boot_state disable
+        ;;
+      'Enable AppArmor After Reboot')
+        set_apparmor_boot_state enable
         ;;
       'Set App Mode')
         set_apparmor_application_mode

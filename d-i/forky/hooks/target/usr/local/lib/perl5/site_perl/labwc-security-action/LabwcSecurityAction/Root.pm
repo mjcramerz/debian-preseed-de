@@ -365,6 +365,10 @@ sub _dispatch {
         @args == 3 or die "$action requires an application, mode, and confirmation\n";
         return $self->apparmor()->set_application_mode(@args);
     }
+    if ($action eq 'set-apparmor-boot-state') {
+        @args == 2 or die "set-apparmor-boot-state requires a mode and confirmation\n";
+        return $self->apparmor()->set_boot_state(@args);
+    }
     if ($action eq 'set-apparmor-desktop-state') {
         @args == 2 or die "$action requires a mode and confirmation\n";
         return $self->apparmor()->set_desktop_state(@args);

@@ -762,6 +762,8 @@ for path in \
   /usr/bin/wayscriber \
   /usr/local/libexec/apparmor-generate-rules \
   /usr/local/libexec/labwc-security-action-root \
+  /usr/local/libexec/labwc-apparmor-policy-worker \
+  /usr/local/libexec/labwc-apparmor-boot-state \
   /usr/local/libexec/labwc-system-action-root \
   /usr/local/libexec/labwc-recovery-action-root \
   /usr/local/libexec/labwc-network-control-action-root \

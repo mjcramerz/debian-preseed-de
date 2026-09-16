@@ -98,6 +98,23 @@ sub command_path {
     my ($self, $name) = @_;
     $name =~ /\A[A-Za-z0-9][A-Za-z0-9+_.-]*\z/
         or _fatal('invalid command name');
+    # The installer publishes these two pinned release binaries through
+    # /usr/local/bin symlinks. Resolve only their fixed, managed destinations;
+    # never follow an arbitrary PATH entry into a user-writable executable.
+    if ($name eq 'typst' || $name eq 'pdfcpu') {
+        my $candidate = "/usr/local/bin/$name";
+        my $expected = "/usr/local/lib/$name/$name";
+        my $resolved = abs_path($candidate);
+        defined($resolved) && $resolved eq $expected && -f $resolved && -x $resolved
+            or _fatal("managed release executable is unavailable: $name");
+        for my $path ('/', '/usr', '/usr/local', '/usr/local/bin',
+                      '/usr/local/lib', "/usr/local/lib/$name", $resolved) {
+            my @metadata = lstat $path;
+            @metadata && !-l _ && $metadata[4] == 0 && ($metadata[2] & 0022) == 0
+                or _fatal("managed executable path is not root-controlled: $path");
+        }
+        return $resolved;
+    }
     for my $directory (qw(/usr/local/bin /usr/local/sbin /usr/bin /usr/sbin /bin /sbin)) {
         my $candidate = "$directory/$name";
         return $candidate if -f $candidate && !-l $candidate && -x $candidate;

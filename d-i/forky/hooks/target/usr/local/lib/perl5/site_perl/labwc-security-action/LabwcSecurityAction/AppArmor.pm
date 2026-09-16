@@ -7,6 +7,8 @@ use File::Basename qw(basename dirname);
 use File::Copy qw(copy);
 use File::Path qw(make_path remove_tree);
 use File::Temp qw(tempdir tempfile);
+use Fcntl qw(:flock O_CREAT O_RDWR O_RDONLY O_DIRECTORY O_NOFOLLOW);
+use IO::Handle;
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
@@ -113,6 +115,65 @@ has rule_generator => (
     isa     => Str,
     default => sub { '/usr/local/libexec/apparmor-generate-rules' },
 );
+
+has kernel_enabled_path => (
+    is => 'ro', isa => Str,
+    default => sub { '/sys/module/apparmor/parameters/enabled' },
+);
+
+sub _policy_service {
+    my ($self, $request) = @_;
+    $request =~ /\A(?:global-(?:enforce|complain)|boot-(?:enable|disable)|application-[a-z0-9-]+-(?:enforce|complain)|audit-[a-z0-9-]+-(?:enable|disable)|reload-modes)\z/
+        or die "invalid AppArmor policy service request\n";
+    my $unit = "labwc-apparmor-policy\@$request.service";
+    print "Starting independent system policy worker: $unit\n";
+    print "Closing this terminal does not cancel the system worker.\n";
+    my $status = $self->command()->run($self->_program('systemctl'), 'start', '--', $unit);
+    print "Worker journal: journalctl --no-pager -u $unit\n";
+    $status == 0 or die "AppArmor policy worker failed (status $status); inspect its journal before retrying\n";
+    if ($request =~ /\Aboot-/) {
+        print "The boot setting was staged; reboot normally to apply it. Live profiles were not unloaded.\n";
+    }
+    else {
+        print "Managed AppArmor policy operation completed. A boot-disabled kernel still requires explicit boot enablement and a reboot.\n";
+    }
+    return 0;
+}
+
+sub _policy_lock {
+    my ($self) = @_;
+    my $directory = '/var/lib/labwc-apparmor-policy';
+    $self->_ensure_root_directory($directory, 0700, 'AppArmor policy state directory');
+    sysopen my $lock, "$directory/policy.lock", O_RDWR | O_CREAT | O_NOFOLLOW, 0600
+        or die "cannot open AppArmor policy lock: $!\n";
+    my @metadata = stat $lock;
+    @metadata && -f _ && $metadata[4] == 0 && $metadata[3] == 1 && ($metadata[2] & 0077) == 0
+        or die "unsafe AppArmor policy lock\n";
+    flock $lock, LOCK_EX | LOCK_NB or die "another AppArmor policy operation is in progress\n";
+    return $lock;
+}
+
+sub _sync_mode_directory {
+    my ($self) = @_;
+    sysopen my $directory, dirname($self->mode_config()), O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+        or die "cannot open AppArmor mode configuration directory: $!\n";
+    $directory->sync() or die "cannot sync AppArmor mode configuration directory: $!\n";
+    close $directory or die "cannot close AppArmor mode configuration directory: $!\n";
+}
+
+sub _reconcile_modes {
+    my ($self) = @_;
+    my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
+    $enabled =~ s/\s+\z//;
+    $enabled =~ /\A[YN]\z/ or die "unrecognized AppArmor kernel enablement state\n";
+    my @options = $enabled eq 'N' ? ('--no-reload') : ();
+    my ($status, $output, $errors) = $self->command()->capture(
+        argv => [$self->mode_helper(), @options], timeout => 240,
+    );
+    print $output if defined($output) && length($output);
+    print STDERR $errors if defined($errors) && length($errors);
+    return $status;
+}
 
 sub _program {
     my ($self, $name) = @_;
@@ -460,6 +521,7 @@ sub _work_dir {
 
 sub run_easyprof {
     my ($self, $executable, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     my $path = $self->_validate_executable($executable);
     $self->_require_profile_tool_confirmation($confirmation);
@@ -478,7 +540,7 @@ sub run_easyprof {
             if $canonical ne $name;
         $self->_merge_draft($files[0], $self->easyprof_draft_dir() . "/$canonical", 'easyprof');
         print "Review the draft before copying it into /etc/apparmor.d and loading it.\n";
-        return 0;
+        0; # Leave the eval block, not this subroutine; cleanup must run.
     };
     my $error = $@;
     remove_tree($work_dir);
@@ -488,6 +550,7 @@ sub run_easyprof {
 
 sub run_autodep {
     my ($self, $executable, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     my $path = $self->_validate_executable($executable);
     $self->_require_profile_tool_confirmation($confirmation);
@@ -498,7 +561,7 @@ sub run_autodep {
         $self->command()->run($tool, '--no-reload', '--dir', $work_dir, $path) == 0
             or die "aa-autodep failed for executable: $path\n";
         $self->_publish_generated_drafts($work_dir, 'aa-autodep');
-        return 0;
+        0; # Leave the eval block, not this subroutine; cleanup must run.
     };
     my $error = $@;
     remove_tree($work_dir);
@@ -534,6 +597,7 @@ sub _prepare_logprof_input {
 
 sub run_logprof {
     my ($self, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     $self->_require_profile_tool_confirmation($confirmation);
     my $work_dir = $self->_work_dir('.logprof');
@@ -543,7 +607,7 @@ sub run_logprof {
         $self->command()->run($tool, '--dir', $self->profile_dir(), '--file', $input, '--output-dir', $work_dir) == 0
             or die "aa-logprof failed while generating profile drafts\n";
         $self->_publish_generated_drafts($work_dir, 'aa-logprof');
-        return 0;
+        0; # Leave the eval block, not this subroutine; cleanup must run.
     };
     my $error = $@;
     remove_tree($work_dir);
@@ -553,6 +617,7 @@ sub run_logprof {
 
 sub run_genprof {
     my ($self, $executable, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     my $path = $self->_validate_executable($executable);
     $self->_require_profile_tool_confirmation($confirmation);
@@ -568,7 +633,7 @@ sub run_genprof {
             $path,
         ) == 0 or die "aa-genprof failed for executable: $path\n";
         $self->_publish_generated_drafts($work_dir, 'aa-genprof');
-        return 0;
+        0; # Leave the eval block, not this subroutine; cleanup must run.
     };
     my $error = $@;
     remove_tree($work_dir);
@@ -578,6 +643,7 @@ sub run_genprof {
 
 sub generate_rules {
     my ($self, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     $confirmation eq 'confirmed-apparmor-rule-generation'
         or die "AppArmor rule generation requires explicit confirmation\n";
@@ -802,6 +868,7 @@ sub _copy_atomic {
 
 sub activate_draft {
     my ($self, $origin, $name, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     $confirmation eq 'confirmed-apparmor-draft-activation'
         or die "AppArmor draft activation requires explicit confirmation\n";
@@ -858,36 +925,49 @@ sub activate_draft {
         print $managed
             ? "The repository-managed AppArmor mode policy was reapplied.\n"
             : "The profile was loaded using the mode declared by the draft.\n";
-        return 0;
+        0; # Leave the eval block, not this subroutine; cleanup must run.
     };
     my $error = $@;
     if ($error) {
+        my @recovery_errors;
         if ($published) {
             if ($target_existed && defined $backup && -f $backup) {
-                eval { $self->_copy_atomic($backup, $target, 0644); };
-                eval { $self->_activate_installed_profile($target, $managed); };
+                my $restored = eval {
+                    $self->_copy_atomic($backup, $target, 0644);
+                    my $code = $self->_activate_installed_profile($target, $managed);
+                    $code == 0 or die "restored profile reload failed with status $code\n";
+                    1;
+                };
+                push @recovery_errors, $@ || "profile restoration failed\n" if !$restored;
             }
             elsif (defined $target) {
-                unlink $target;
-                my $parser = $self->command()->executable('apparmor_parser');
-                eval {
-                    $self->command()->run(
+                my $removed = eval {
+                    unlink $target or die "cannot remove unsuccessful new profile: $!\n";
+                    my $parser = $self->_program('apparmor_parser');
+                    my $code = $self->command()->run(
                         $parser,
                         '--config-file', '/etc/apparmor/parser.conf',
                         '-q', '-R',
                         '-I', $self->profile_dir(),
                         '--base', $self->profile_dir(),
                         $candidate,
-                    ) if $parser;
+                    );
+                    $code == 0 or die "new profile unload failed with status $code\n";
+                    1;
                 };
+                push @recovery_errors, $@ || "new profile cleanup failed\n" if !$removed;
             }
         }
         if ($renamed && defined $draft_original && defined $draft_canonical && -e $draft_canonical) {
-            rename $draft_canonical, $draft_original;
+            rename $draft_canonical, $draft_original
+                or push @recovery_errors, "cannot restore the draft filename: $!\n";
         }
+        # Preserve the candidate and last good source even when rollback itself
+        # fails. Do not turn a reload error into loss of the recovery evidence.
+        die $error . "Recovery files retained at $batch\n"
+            . (@recovery_errors ? "Recovery ALSO FAILED:\n" . join(q{}, @recovery_errors) : q{});
     }
-    remove_tree($batch) if !$target_existed || $error;
-    die $error if $error;
+    remove_tree($batch) if !$target_existed;
     return $status;
 }
 
@@ -936,6 +1016,8 @@ sub show_events {
 sub _update_modes {
     my ($self, $profiles, $requested_mode, $label) = @_;
 
+    $requested_mode =~ /\A(?:enforce|complain)\z/
+        or die "live profile unloading is not supported; use reboot-staged AppArmor disablement\n";
     $self->_validate_mode_config();
     -x $self->mode_helper()
         or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
@@ -962,26 +1044,59 @@ sub _update_modes {
             or die "managed AppArmor application profile is missing, duplicated, or malformed\n";
     }
     my ($fh, $new_path) = tempfile('.managed-modes.new.XXXXXX', DIR => dirname($self->mode_config()), UNLINK => 0);
-    print {$fh} join("\n", @rendered)
-        or die "cannot write managed AppArmor mode update: $!\n";
-    close $fh or die "cannot close managed AppArmor mode update: $!\n";
+    my $rendered = join("\n", @rendered);
+    print {$fh} $rendered or die "cannot write managed AppArmor mode update: $!\n";
     chmod 0644, $new_path or die "cannot protect managed AppArmor mode update: $!\n";
+    $fh->flush() && $fh->sync() or die "cannot sync managed AppArmor mode update: $!\n";
+    close $fh or die "cannot close managed AppArmor mode update: $!\n";
     my ($backup_fh, $backup_path) = tempfile('.managed-modes.backup.XXXXXX', DIR => dirname($self->mode_config()), UNLINK => 0);
-    close $backup_fh;
-    copy($self->mode_config(), $backup_path)
-        or die "cannot back up managed AppArmor mode configuration: $!\n";
-    rename $new_path, $self->mode_config()
-        or die "cannot publish managed AppArmor mode update: $!\n";
-    my $status = $self->command()->run($self->mode_helper());
-    if ($status == 0) {
-        unlink $backup_path;
+    print {$backup_fh} $content or die "cannot back up managed AppArmor mode configuration: $!\n";
+    chmod 0644, $backup_path or die "cannot protect AppArmor mode backup: $!\n";
+    $backup_fh->flush() && $backup_fh->sync() or die "cannot sync AppArmor mode backup: $!\n";
+    close $backup_fh or die "cannot close AppArmor mode backup: $!\n";
+    my $published = 0;
+    my $ok = eval {
+        local $SIG{HUP} = local $SIG{INT} = local $SIG{TERM} = sub { die "AppArmor policy change interrupted\n" };
+        rename $new_path, $self->mode_config()
+            or die "cannot publish managed AppArmor mode update: $!\n";
+        $published = 1;
+        $self->_sync_mode_directory();
+        my $status = $self->_reconcile_modes();
+        $status == 0 or die "AppArmor reconciliation failed with status $status\n";
+        1;
+    };
+    my $error = $@;
+    unlink $new_path if -e $new_path;
+    if ($ok) {
+        unlink $backup_path or die "policy updated but cannot remove its backup: $backup_path\n";
+        $self->_sync_mode_directory();
         print "Updated $label AppArmor profile mode to $requested_mode.\n";
         return 0;
     }
-    rename $backup_path, $self->mode_config()
-        or die "AppArmor reconciliation failed and the mode configuration could not be restored\n";
-    $self->command()->run($self->mode_helper());
-    die "AppArmor reconciliation failed with status $status; the previous mode policy was restored\n";
+    if (!$published) {
+        unlink $backup_path;
+        die $error;
+    }
+    # Do not hide failed rollback, destroy the last backup, or overwrite a
+    # configuration changed by another root administrator outside this worker.
+    $self->_read_small_file($self->mode_config(), $self->maximum_config_bytes(), 'current AppArmor mode configuration') eq $rendered
+        or die "$error" . "mode configuration changed concurrently; recovery copy retained at $backup_path\n";
+    copy($backup_path, $new_path) && chmod(0644, $new_path)
+        or die "$error" . "mode configuration could not be restored; backup retained at $backup_path\n";
+    open my $restore_fh, '+<', $new_path
+        or die "cannot open mode rollback for synchronization: $!\n";
+    $restore_fh->sync() && close($restore_fh)
+        or die "cannot synchronize mode rollback; backup retained at $backup_path\n";
+    rename($new_path, $self->mode_config())
+        or die "cannot publish mode rollback; backup retained at $backup_path\n";
+    $self->_sync_mode_directory();
+    my $rollback = eval { $self->_reconcile_modes() };
+    my $rollback_error = $@;
+    if ($rollback_error || !defined($rollback) || $rollback != 0) {
+        die "$error" . "previous configuration restored but kernel/source reconciliation ALSO FAILED; backup: $backup_path\n$rollback_error";
+    }
+    unlink $backup_path;
+    die "$error" . "previous mode policy was restored and reconciled\n";
 }
 
 sub set_application_mode {
@@ -989,14 +1104,10 @@ sub set_application_mode {
 
     $confirmation eq 'confirmed-apparmor-mode-change'
         or die "AppArmor application mode changes require explicit confirmation\n";
-    $mode =~ /\A(?:enforce|complain|disable)\z/
-        or die "unsupported AppArmor mode: $mode\n";
-    my @profiles = $self->_application_profiles($application);
-    return $self->_update_modes(
-        \@profiles,
-        $mode,
-        $application,
-    );
+    $self->_application_profiles($application);
+    $mode =~ /\A(?:enforce|complain)\z/
+        or die "per-application unloading would invalidate required launch profiles; use Complain for diagnosis, or disable AppArmor after reboot\n";
+    return $self->_policy_service("application-$application-$mode");
 }
 
 sub set_desktop_state {
@@ -1006,52 +1117,103 @@ sub set_desktop_state {
         or die "AppArmor desktop profile mode changes require explicit confirmation\n";
     $mode =~ /\A(?:enforce|complain|disable)\z/
         or die "unsupported AppArmor desktop profile mode: $mode\n";
-    return $self->_update_modes(
-        [$self->_desktop_profiles()],
-        $mode,
-        'all declared managed profiles',
-    );
+    # Backward-compatible action token, but never replay the old live-unload
+    # operation. Full disablement is explicitly a next-boot kernel setting.
+    return $self->_policy_service($mode eq 'disable' ? 'boot-disable' : "global-$mode");
+}
+
+sub set_boot_state {
+    my ($self, $mode, $confirmation) = @_;
+    $confirmation eq 'confirmed-apparmor-boot-state-change'
+        or die "AppArmor boot changes require explicit confirmation\n";
+    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor boot state\n";
+    return $self->_policy_service("boot-$mode");
 }
 
 sub set_application_audit {
     my ($self, $application, $mode, $confirmation) = @_;
-
     $confirmation eq 'confirmed-apparmor-audit-change'
         or die "AppArmor application audit changes require explicit confirmation\n";
-    $mode =~ /\A(?:enable|disable)\z/
-        or die "unsupported AppArmor audit mode: $mode\n";
+    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor audit mode: $mode\n";
+    $self->_application_profiles($application);
+    return $self->_policy_service("audit-$application-$mode");
+}
+
+sub _update_application_audit {
+    my ($self, $application, $mode) = @_;
+    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor audit mode\n";
+    my @profiles = map { $self->profile_dir() . "/$_" } $self->_application_profiles($application);
+    # Preflight the complete source set before changing any flags. In
+    # particular, never reverse an already-enabled flag as a guessed rollback.
+    $self->_validate_root_owned_file('AppArmor audit profile', $_) for @profiles;
+    my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
+    $enabled =~ s/\s+\z//;
+    $enabled =~ /\A[YN]\z/ or die "unrecognized AppArmor kernel enablement state\n";
     my $audit = $self->_program('aa-audit');
-    my @changed;
-    for my $profile ($self->_application_profiles($application)) {
-        my @argv = $mode eq 'enable' ? ($audit, $profile) : ($audit, '--remove', $profile);
-        my $status = $self->command()->run(@argv);
-        if ($status != 0) {
-            for my $changed (@changed) {
-                my @rollback = $mode eq 'enable'
-                    ? ($audit, '--remove', $changed)
-                    : ($audit, $changed);
-                $self->command()->run(@rollback);
-            }
-            die "AppArmor audit mode update failed with status $status; completed changes were rolled back\n";
+    $self->_prepare_backup_dir();
+    my $batch = tempdir('audit.XXXXXX', DIR => $self->profile_backup_dir(), CLEANUP => 0);
+    my @snapshots;
+    my $started = 0;
+    my $ok = eval {
+        local $SIG{HUP} = local $SIG{INT} = local $SIG{TERM} = sub { die "AppArmor audit change interrupted\n" };
+        for my $profile (@profiles) {
+            my $backup = "$batch/" . basename($profile);
+            my @metadata = stat $profile;
+            copy($profile, $backup) && chmod(0600, $backup)
+                or die "cannot snapshot audit profile: $profile\n";
+            push @snapshots, [$profile, $backup, $metadata[2] & 0777];
         }
-        push @changed, $profile;
+        $started = 1;
+        for my $profile (@profiles) {
+            my @remove = $mode eq 'disable' ? ('--remove') : ();
+            my $status = $self->command()->run($audit, '--dir', $self->profile_dir(), '--no-reload', @remove, $profile);
+            $status == 0 or die "AppArmor audit flag update failed with status $status\n";
+            $self->_parser_validate($profile) == 0 or die "audit update produced invalid policy: $profile\n";
+        }
+        if ($enabled eq 'Y') {
+            for my $profile (@profiles) {
+                my $status = $self->_activate_installed_profile($profile, 0);
+                $status == 0 or die "AppArmor audit reload failed with status $status\n";
+            }
+        }
+        1;
+    };
+    my $error = $@;
+    if (!$ok) {
+        my @recovery_errors;
+        if ($started) {
+            for my $snapshot (@snapshots) {
+                my ($profile, $backup, $permissions) = @{$snapshot};
+                my $restored = eval {
+                    $self->_copy_atomic($backup, $profile, $permissions);
+                    if ($enabled eq 'Y') {
+                        my $status = $self->_activate_installed_profile($profile, 0);
+                        $status == 0 or die "audit source restored but reload failed: $profile (status $status)\n";
+                    }
+                    1;
+                };
+                push @recovery_errors, $@ || "audit rollback failed: $profile\n" if !$restored;
+            }
+        }
+        die $error . "Audit source backups retained at $batch\n"
+            . (@recovery_errors ? "Recovery ALSO FAILED:\n" . join(q{}, @recovery_errors) : q{});
     }
+    remove_tree($batch);
     print "Updated $application AppArmor audit mode to $mode.\n";
+    print "AppArmor is boot-disabled; source flags were updated without a live reload.\n" if $enabled eq 'N';
     return 0;
 }
 
 sub reload_managed_modes {
     my ($self, $confirmation) = @_;
-
     $confirmation eq 'confirmed-apparmor-reload'
         or die "managed AppArmor mode reload requires explicit confirmation\n";
-    -x $self->mode_helper()
-        or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
-    return $self->command()->run($self->mode_helper());
+    return $self->_policy_service('reload-modes');
 }
 
 sub reload_service {
     my ($self, $confirmation) = @_;
+    my $policy_lock = $self->_policy_lock();
 
     $confirmation eq 'confirmed-apparmor-service-reload'
         or die "AppArmor service reload requires explicit confirmation\n";

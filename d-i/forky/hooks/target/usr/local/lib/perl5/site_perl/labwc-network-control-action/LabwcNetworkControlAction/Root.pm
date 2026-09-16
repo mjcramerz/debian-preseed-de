@@ -384,20 +384,31 @@ sub _randomize_direct_interface {
         $self->command()->run_or_die('bringing interface down before MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'down');
     }
 
-    my $mac = $self->_generate_random_mac();
-    $mac =~ /\A(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\z/
-        or die "generated MAC address is invalid\n";
-    my $ip = $self->command()->require_executable('ip');
-    $self->command()->run_or_die('setting randomized MAC address', $ip, 'link', 'set', 'dev', $interface, 'address', $mac);
-
-    return if !$was_up;
-    if ($managed_by_ifupdown) {
-        my $ifup = $self->command()->require_executable('ifup');
-        $self->command()->run_or_die('restoring interface after MAC randomization', $ifup, $interface);
-    }
-    else {
-        $self->command()->run_or_die('restoring interface after MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'up');
-    }
+    # A rejected MAC update must not leave a previously active link down.
+    my $changed = eval {
+        my $mac = $self->_generate_random_mac();
+        $mac =~ /\A(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\z/
+            or die "generated MAC address is invalid\n";
+        my $ip = $self->command()->require_executable('ip');
+        $self->command()->run_or_die('setting randomized MAC address', $ip, 'link', 'set', 'dev', $interface, 'address', $mac);
+        1;
+    };
+    my $change_error = $@;
+    my $restored = eval {
+        if ($was_up) {
+            if ($managed_by_ifupdown) {
+                my $ifup = $self->command()->require_executable('ifup');
+                $self->command()->run_or_die('restoring interface after MAC randomization', $ifup, $interface);
+            }
+            else {
+                my $ip = $self->command()->require_executable('ip');
+                $self->command()->run_or_die('restoring interface after MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'up');
+            }
+        }
+        1;
+    };
+    my $restore_error = $@;
+    die $change_error . $restore_error if !$changed || !$restored;
     return;
 }
 

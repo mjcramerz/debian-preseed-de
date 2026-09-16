@@ -1545,6 +1545,8 @@ configure_target_apparmor_auditd() {
         0644
     done
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor-managed-modes.service)" "/etc/systemd/system/apparmor-managed-modes.service" 0644
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-policy@.service)" "/etc/systemd/system/labwc-apparmor-policy@.service" 0644
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-boot-recover.service)" "/etc/systemd/system/labwc-apparmor-boot-recover.service" 0644
     stage_target_desktop_apparmor_profiles
     run_in_target \
       "apply managed AppArmor profile modes without touching the installer kernel" \

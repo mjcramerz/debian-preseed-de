@@ -16,6 +16,8 @@ use MooX::TypeTiny;
 use POSIX qw(strftime WIFEXITED WEXITSTATUS WIFSIGNALED WTERMSIG);
 use Types::Standard qw(Object Str);
 
+use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use Managed::Process qw(capture_command);
 use AICopilots::ModelStore;
 use AICopilots::Session;
 use AICopilots::State;
@@ -171,63 +173,24 @@ sub _run {
     return 1;
 }
 
-sub _capture {
+sub _capture_result {
     my ($self, $maximum, @command) = @_;
     $maximum >= 1 && $maximum <= 4_194_304
         or _fatal('capture size is outside the supported bounds');
-    @command && defined($command[0])
-        or _fatal('empty capture command');
-    open my $fh, '-|',
-        '/usr/bin/timeout',
-        '--signal=TERM',
-        '--kill-after=2s',
-        '30s',
-        @command
-        or _fatal("cannot start diagnostic command: $!");
-    binmode $fh, ':raw';
-    my $output = q{};
-    while (1) {
-        my $buffer = q{};
-        my $read = read($fh, $buffer, 65_536);
-        defined($read)
-            or _fatal("cannot read diagnostic output: $!");
-        last if $read == 0;
-        length($output) + $read <= $maximum
-            or _fatal('diagnostic output exceeds the safety limit');
-        $output .= $buffer;
-    }
-    close $fh
-        or _fatal('diagnostic command failed');
-    return $output;
+    return capture_command(argv => \@command, timeout => 30, limit => $maximum);
+}
+
+sub _capture {
+    my ($self, $maximum, @command) = @_;
+    my $result = $self->_capture_result($maximum, @command);
+    $result->{status} == 0
+        or _fatal('diagnostic command failed: ' . _status_detail($result->{status}));
+    return $result->{stdout};
 }
 
 sub _capture_allow_failure {
     my ($self, $maximum, @command) = @_;
-    $maximum >= 1 && $maximum <= 4_194_304
-        or _fatal('capture size is outside the supported bounds');
-    @command && defined($command[0])
-        or _fatal('empty capture command');
-    open my $fh, '-|',
-        '/usr/bin/timeout',
-        '--signal=TERM',
-        '--kill-after=2s',
-        '30s',
-        @command
-        or _fatal("cannot start diagnostic command: $!");
-    binmode $fh, ':raw';
-    my $output = q{};
-    while (1) {
-        my $buffer = q{};
-        my $read = read($fh, $buffer, 65_536);
-        defined($read)
-            or _fatal("cannot read diagnostic output: $!");
-        last if $read == 0;
-        length($output) + $read <= $maximum
-            or _fatal('diagnostic output exceeds the safety limit');
-        $output .= $buffer;
-    }
-    close $fh;
-    return $output;
+    return $self->_capture_result($maximum, @command)->{stdout};
 }
 
 sub _read_file {
@@ -365,7 +328,7 @@ sub _codex_action {
     }
     if ($action eq 'codex-task') {
         my $prompt = _assert_text('Codex prompt', $arguments[0], 16_384);
-        return $self->_exec_codex($prompt);
+        return $self->_exec_codex('--', $prompt);
     }
     if ($action eq 'codex-set-project') {
         my $project = $self->_project_path($arguments[0]);
@@ -1389,7 +1352,7 @@ sub _whisper_action {
             return $self->_run('/usr/bin/xdg-open', $self->_whisper_directory('transcribed'));
         }
         if ($target eq 'audio-control') {
-            return $self->_run('/usr/bin/pavucontrol');
+            return $self->_run('/usr/local/bin/labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol');
         }
         _fatal('unsupported Whisper open target');
     }

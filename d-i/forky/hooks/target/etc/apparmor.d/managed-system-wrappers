@@ -928,3 +928,56 @@ profile managed-secure-boot-kernel-hooks /etc/kernel/{postinst.d/zz-sign-kernel,
 
   include if exists <local/managed-secure-boot-kernel-hooks>
 }
+
+# PID-1-owned policy workers: no user-data, key-store or network grants.
+profile managed-labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-worker flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-perl>
+  /usr/local/libexec/labwc-apparmor-policy-worker rix,
+  /usr/local/lib/perl5/site_perl/labwc-security-action/{,**} r,
+  /usr/local/lib/perl5/site_perl/managed-runtime/{,**} r,
+  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
+  /usr/local/libexec/labwc-apparmor-boot-state rPx -> managed-labwc-apparmor-boot-state,
+  /usr/bin/{readlink,systemctl} rix,
+  /usr/sbin/{aa-audit,apparmor_parser} rPUx,
+  /etc/apparmor/{logprof.conf,parser.conf} r,
+  /etc/apparmor.d/ r,
+  /etc/apparmor.d/* rw,
+  /etc/apparmor.d/{abi,abstractions,local,tunables}/ r,
+  /var/lib/apparmor/ rw,
+  /var/lib/apparmor/backup/{,**} rwkl,
+  signal (send) set=(hup, int, term, kill, cont),
+  /etc/apparmor/ rw,
+  /etc/apparmor/managed-modes.conf rw,
+  /etc/apparmor/.managed-modes.* rwkl,
+  /sys/module/apparmor/parameters/enabled r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
+  include if exists <local/usr.local.libexec.labwc-apparmor-policy-worker>
+}
+
+profile managed-labwc-apparmor-boot-state /usr/local/libexec/labwc-apparmor-boot-state flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-apparmor-boot-state r,
+  # Exact package-owned entrypoints; GRUB must probe host devices. The owning
+  # system service still restricts network, writable mounts and process lifetime.
+  /usr/sbin/grub-mkconfig rPUx,
+  /usr/bin/grub-script-check rPUx,
+  signal (send) set=(hup, int, term, kill, cont),
+  / r,
+  /etc/ r,
+  /etc/default/ r,
+  /etc/default/grub.d/ rw,
+  /etc/default/grub.d/35-security-core.cfg rw,
+  /etc/default/grub.d/.labwc-apparmor.* rw,
+  /boot/ r,
+  /boot/grub/ rw,
+  /boot/grub/grub.cfg rw,
+  /boot/grub/.labwc-apparmor.* rw,
+  /usr/ r,
+  /usr/{bin,sbin}/ r,
+  /var/ r,
+  /var/lib/ r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/{boot.lock,boot-transaction.json,.labwc-apparmor.*} rwk,
+  include if exists <local/usr.local.libexec.labwc-apparmor-boot-state>
+}

@@ -1,0 +1,49 @@
+[Unit]
+Description=Authorized AppArmor policy change (%i)
+Documentation=man:apparmor(7) man:systemd.service(5)
+After=apparmor.service apparmor-managed-modes.service labwc-apparmor-boot-recover.service
+RequiresMountsFor=/etc/apparmor /etc/apparmor.d /etc/default/grub.d /boot/grub
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/labwc-apparmor-policy-worker %i
+AppArmorProfile=managed-labwc-apparmor-policy-worker
+# Create the protected backup leaf before applying the read-only mount view.
+StateDirectory=labwc-apparmor-policy apparmor/backup
+StateDirectoryMode=0700
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=labwc-apparmor-policy
+TimeoutStartSec=10min
+TimeoutStopSec=5min
+KillMode=control-group
+SendSIGKILL=yes
+Restart=no
+# Package-owned parser/GRUB tools need their declared AppArmor transitions.
+NoNewPrivileges=false
+# GRUB probes the host's real block devices and mount layout. Do not hide them.
+PrivateDevices=no
+PrivateUsers=no
+PrivatePIDs=no
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/apparmor /etc/apparmor.d /var/cache/apparmor /etc/default/grub.d /boot/grub
+ReadWritePaths=-/sys/kernel/security/apparmor
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+LimitCORE=0
+LimitFSIZE=32M
+TasksMax=256

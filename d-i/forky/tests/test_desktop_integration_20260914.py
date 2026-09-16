@@ -276,7 +276,9 @@ class ServiceAndNotificationTests(unittest.TestCase):
              mock.patch.object(remote.shutil, 'which', return_value='/usr/bin/thunar'), \
              mock.patch.object(remote.subprocess, 'run') as run:
             remote.open_profile_directory()
-        self.assertEqual(run.call_args.args[0], ['/usr/bin/thunar', '/fixture/profiles'])
+        self.assertEqual(run.call_args.args[0], [
+            '/usr/local/bin/labwc-wayland-app', 'auto', '--',
+            '/usr/bin/thunar', '/fixture/profiles'])
         self.assertEqual(run.call_args.kwargs['env']['LABWC_MENU_ACTION_WAIT'], '1')
 
     def test_wireshark_waits_for_setsids_child(self):

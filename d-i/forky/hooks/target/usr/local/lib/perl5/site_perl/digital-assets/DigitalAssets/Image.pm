@@ -84,7 +84,7 @@ sub optimize_png {
     my ($self, $input_path) = @_;
     my $context = $self->context();
     my $output = $context->prepare_output_file('image-optimized', 'png', $input_path);
-    $context->run_timed($context->command_path('optipng'), '-o2', '-strip', 'all', '-out', $output, $input_path);
+    $context->run_timed($context->command_path('optipng'), '-clobber', '-o2', '-strip', 'all', '-out', $output, $input_path);
     $context->report_file_output($output, 'optimized PNG');
 }
 

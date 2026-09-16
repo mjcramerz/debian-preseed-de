@@ -1,0 +1,43 @@
+{
+  "baseline": {
+    "run": 1136,
+    "passed": 1101,
+    "failed": 6,
+    "errors": 2,
+    "skipped": 27
+  },
+  "revised": {
+    "run": 1180,
+    "passed": 1145,
+    "failed": 6,
+    "errors": 2,
+    "skipped": 27
+  },
+  "additional_failures_vs_baseline": [],
+  "nonpassing_tests": [
+    "ERROR: test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+    "ERROR: test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)",
+    "FAIL: test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+    "FAIL: test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+    "FAIL: test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+    "FAIL: test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+    "FAIL: test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+    "FAIL: test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)"
+  ],
+  "new_regressions": {
+    "count": 33,
+    "result": "PASS"
+  },
+  "actual_core_perl_method_tests": {
+    "count": 11,
+    "result": "PASS",
+    "limitations": "Real method bodies and filesystem operations, mocked object/external policy boundaries; not full Moo/MooX application loading."
+  },
+  "policy_and_existing_review_tests": {
+    "count": 15,
+    "result": "PASS",
+    "limitations": "Offline native compilation, not loaded kernel policy; vendor local fragments use synthetic envelopes."
+  },
+  "final_build_check": "PASS",
+  "full_suite_timeline": "The full run overlapped the last protected-backup StateDirectory refinement. Affected new integration tests, source audit, native policy compile and rebuilt payload check were rerun after the last source edit. No claim of a fully green or live target run."
+}

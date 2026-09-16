@@ -1,0 +1,36 @@
+[Unit]
+Description=Recover an interrupted managed AppArmor boot configuration change
+After=apparmor.service
+Before=apparmor-managed-modes.service
+RequiresMountsFor=/etc/default/grub.d /boot/grub
+ConditionPathExists=/var/lib/labwc-apparmor-policy/boot-transaction.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/labwc-apparmor-boot-state recover
+AppArmorProfile=managed-labwc-apparmor-boot-state
+StateDirectory=labwc-apparmor-policy
+StateDirectoryMode=0700
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillMode=control-group
+NoNewPrivileges=false
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/default/grub.d /boot/grub
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+LimitCORE=0
+LimitFSIZE=32M

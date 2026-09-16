@@ -1,0 +1,2586 @@
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+index 1eca975..71f26a8 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -356,6 +356,10 @@ profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_d
+   peer=(name=org.freedesktop.systemd1),
+ 
+   include if exists <local/usr.local.bin.labwc-adb-action>
++  signal (send) set=(hup, int, term, kill, cont),
++  owner @{HOME}/Android/ rw,
++  /sys/devices/**/usb*/** r,
++
+ }
+ 
+ profile managed-labwc-adb-menu /usr/local/bin/labwc-adb-menu flags=(attach_disconnected) {
+@@ -644,6 +648,8 @@ profile managed-labwc-computer-management /usr/local/bin/labwc-computer-manageme
+   owner @{HOME}/.config/labwc/** r,
+ 
+   include if exists <local/usr.local.bin.labwc-computer-management>
++  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
++
+ }
+ 
+ profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach_disconnected) {
+@@ -722,6 +728,11 @@ profile managed-labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action
+   owner @{HOME}/Music/Whisper/{audio,transcribed}/** rwkl,
+ 
+   include if exists <local/usr.local.bin.labwc-ai-copilots-action>
++  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
++
++  /usr/local/lib/perl5/site_perl/managed-runtime/{,**} r,
++  signal (send) set=(hup, int, term, kill, cont),
++
+ }
+ 
+ profile managed-labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root flags=(attach_disconnected) {
+@@ -860,6 +871,10 @@ profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-
+   #include <abstractions/managed-wrapper-perl>
+ 
+   /usr/local/bin/labwc-digital-assets-action rix,
++  include if exists <abstractions/fonts>
++  /etc/{GraphicsMagick*,ImageMagick*}/{,**} r,
++  /usr/share/{poppler,graphicsmagick,pandoc,pandoc-cli}/{,**} r,
++  /usr/lib/GraphicsMagick*/{,**} mr,
+   /usr/local/lib/perl5/site_perl/digital-assets/** r,
+   /usr/local/lib/perl5/site_perl/managed-runtime/ r,
+   /usr/local/lib/perl5/site_perl/managed-runtime/** r,
+@@ -906,6 +921,8 @@ profile managed-digital-assets-release-tools /{usr/local/bin/{pdfcpu,typst},usr/
+   network inet6 dgram,
+ 
+   /usr/local/bin/{pdfcpu,typst} rix,
++  owner /run/user/[0-9]*/labwc-digital-assets.*/ rw,
++  owner /run/user/[0-9]*/labwc-digital-assets.*/** rwkl,
+   /usr/local/lib/{pdfcpu,typst}/ r,
+   /usr/local/lib/{pdfcpu,typst}/** mr,
+   /usr/local/lib/{pdfcpu/pdfcpu,typst/typst} rix,
+@@ -2724,6 +2741,8 @@ profile managed-labwc-network-scan-action /usr/local/bin/labwc-network-scan-acti
+   owner @{HOME}/Captures/network-scanning/** rwkl,
+ 
+   include if exists <local/usr.local.bin.labwc-network-scan-action>
++  owner @{HOME}/Captures/ rw,
++
+ }
+ 
+ profile managed-labwc-network-scan-menu /usr/local/bin/labwc-network-scan-menu flags=(attach_disconnected) {
+@@ -2958,6 +2977,8 @@ profile managed-labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(
+   /run/media/*/** r,
+ 
+   include if exists <local/usr.local.bin.labwc-remote-desktop>
++  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
++
+ }
+ 
+ profile managed-labwc-run /usr/local/bin/labwc-run flags=(attach_disconnected) {
+@@ -3465,6 +3486,10 @@ profile managed-labwc-network-control-action-root /usr/local/libexec/labwc-netwo
+   /sys/class/net/** r,
+ 
+   include if exists <local/usr.local.libexec.labwc-network-control-action-root>
++  # sysfs class entries are symlinks; AppArmor checks their resolved paths.
++  /sys/devices/**/net/*/{type,flags} r,
++  /sys/devices/**/net/*/{device,wireless}/ r,
++
+ }
+ 
+ profile managed-labwc-network-scan-action-root /usr/local/libexec/labwc-network-scan-action-root flags=(attach_disconnected) {
+@@ -3610,6 +3635,8 @@ profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-act
+   /etc/apparmor.d/{abi,abstractions,local,tunables}/ r,
+   /etc/apparmor.d/disable/ r,
+   /etc/apparmor.d/disable/** r,
++  /var/lib/labwc-apparmor-policy/ rw,
++  /var/lib/labwc-apparmor-policy/policy.lock rwk,
+   /var/lib/apparmor/ rw,
+   /var/lib/apparmor/backup/ rw,
+   /var/lib/apparmor/backup/** rwkl,
+@@ -3633,7 +3660,7 @@ profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-
+   #include <abstractions/managed-wrapper-base>
+ 
+   /usr/local/libexec/labwc-system-action-root rix,
+-  /usr/bin/{cat,du,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
++  /usr/bin/{cat,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
+   /usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,
+   /usr/{bin,sbin}/ip PUx,
+   /usr/sbin/{nvme,smartctl,swapon,zramctl} PUx,
+@@ -3644,6 +3671,8 @@ profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-
+   owner /tmp/labwc-system-du.* rwk,
+ 
+   include if exists <local/usr.local.libexec.labwc-system-action-root>
++  /usr/bin/du rPUx,
++
+ }
+ 
+ profile managed-xssh-retrieve /usr/local/bin/xssh-retrieve flags=(attach_disconnected) {
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications b/d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications
+index bc75416..fe4f72d 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications
+@@ -23,6 +23,8 @@ profile managed-zathura /usr/bin/zathura flags=(attach_disconnected, mediate_del
+ profile managed-focuswriter /usr/bin/focuswriter flags=(attach_disconnected, mediate_deleted) {
+   #include <abstractions/managed-document-runtime>
+   /usr/bin/focuswriter mr,
++  owner /run/user/[0-9]*/labwc-digital-assets.*/ rw,
++  owner /run/user/[0-9]*/labwc-digital-assets.*/** rwkl,
+   # Qt single-instance checks and the selected qt6ct colour scheme.
+   owner @{PROC}/[0-9]*/{cmdline,stat} r,
+   /usr/share/qt6ct/colors/{,*.conf} r,
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers b/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+index 78e86b2..024918e 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+@@ -928,3 +928,56 @@ profile managed-secure-boot-kernel-hooks /etc/kernel/{postinst.d/zz-sign-kernel,
+ 
+   include if exists <local/managed-secure-boot-kernel-hooks>
+ }
++
++# PID-1-owned policy workers: no user-data, key-store or network grants.
++profile managed-labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-worker flags=(attach_disconnected) {
++  #include <abstractions/managed-wrapper-perl>
++  /usr/local/libexec/labwc-apparmor-policy-worker rix,
++  /usr/local/lib/perl5/site_perl/labwc-security-action/{,**} r,
++  /usr/local/lib/perl5/site_perl/managed-runtime/{,**} r,
++  /usr/local/libexec/apparmor-managed-modes-run rPx -> managed-apparmor-managed-modes,
++  /usr/local/libexec/labwc-apparmor-boot-state rPx -> managed-labwc-apparmor-boot-state,
++  /usr/bin/{readlink,systemctl} rix,
++  /usr/sbin/{aa-audit,apparmor_parser} rPUx,
++  /etc/apparmor/{logprof.conf,parser.conf} r,
++  /etc/apparmor.d/ r,
++  /etc/apparmor.d/* rw,
++  /etc/apparmor.d/{abi,abstractions,local,tunables}/ r,
++  /var/lib/apparmor/ rw,
++  /var/lib/apparmor/backup/{,**} rwkl,
++  signal (send) set=(hup, int, term, kill, cont),
++  /etc/apparmor/ rw,
++  /etc/apparmor/managed-modes.conf rw,
++  /etc/apparmor/.managed-modes.* rwkl,
++  /sys/module/apparmor/parameters/enabled r,
++  /var/lib/labwc-apparmor-policy/ rw,
++  /var/lib/labwc-apparmor-policy/policy.lock rwk,
++  include if exists <local/usr.local.libexec.labwc-apparmor-policy-worker>
++}
++
++profile managed-labwc-apparmor-boot-state /usr/local/libexec/labwc-apparmor-boot-state flags=(attach_disconnected) {
++  #include <abstractions/managed-wrapper-python>
++  /usr/local/libexec/labwc-apparmor-boot-state r,
++  # Exact package-owned entrypoints; GRUB must probe host devices. The owning
++  # system service still restricts network, writable mounts and process lifetime.
++  /usr/sbin/grub-mkconfig rPUx,
++  /usr/bin/grub-script-check rPUx,
++  signal (send) set=(hup, int, term, kill, cont),
++  / r,
++  /etc/ r,
++  /etc/default/ r,
++  /etc/default/grub.d/ rw,
++  /etc/default/grub.d/35-security-core.cfg rw,
++  /etc/default/grub.d/.labwc-apparmor.* rw,
++  /boot/ r,
++  /boot/grub/ rw,
++  /boot/grub/grub.cfg rw,
++  /boot/grub/.labwc-apparmor.* rw,
++  /usr/ r,
++  /usr/{bin,sbin}/ r,
++  /var/ r,
++  /var/lib/ r,
++  /var/lib/labwc-apparmor-policy/ rw,
++  /var/lib/labwc-apparmor-policy/{boot.lock,boot-transaction.json,.labwc-apparmor.*} rwk,
++  include if exists <local/usr.local.libexec.labwc-apparmor-boot-state>
++}
+diff --git a/d-i/forky/hooks/target/etc/apparmor/managed-modes.conf.tmpl b/d-i/forky/hooks/target/etc/apparmor/managed-modes.conf.tmpl
+index c950ac9..7b299ed 100644
+--- a/d-i/forky/hooks/target/etc/apparmor/managed-modes.conf.tmpl
++++ b/d-i/forky/hooks/target/etc/apparmor/managed-modes.conf.tmpl
+@@ -6,8 +6,8 @@
+ # This tracked managed-modes.conf.tmpl is installed as
+ # /etc/apparmor/managed-modes.conf only after MODE has been rendered from
+ # __DESKTOP_APPARMOR_STATE__ to the selected enforce or complain value. The
+-# installed administrative action may later write enforce, complain, or disable
+-# when it changes the complete managed set.
++# installed administrative action may later write enforce or complain. Full
++# disablement is a separately confirmed next-boot setting, never a live unload.
+ # PRESENCE is required, optional, or if-executable.
+ # PROFILE_FILE is relative to /etc/apparmor.d and must not contain slashes.
+ # EXECUTABLE_PROBE is "-" unless PRESENCE is if-executable.
+diff --git a/d-i/forky/hooks/target/etc/systemd/system/apparmor-managed-modes.service b/d-i/forky/hooks/target/etc/systemd/system/apparmor-managed-modes.service
+index 2c3c353..3083f40 100644
+--- a/d-i/forky/hooks/target/etc/systemd/system/apparmor-managed-modes.service
++++ b/d-i/forky/hooks/target/etc/systemd/system/apparmor-managed-modes.service
+@@ -2,10 +2,12 @@
+ Description=Apply managed AppArmor profile modes
+ Documentation=man:apparmor(7) man:aa-enforce(8) man:aa-complain(8)
+ Requires=apparmor.service
+-After=apparmor.service mullvad-apparmor.service
++Wants=labwc-apparmor-boot-recover.service
++After=apparmor.service mullvad-apparmor.service labwc-apparmor-boot-recover.service
+ Before=systemd-user-sessions.service display-manager.service multi-user.target
+ ReloadPropagatedFrom=apparmor.service
+ 
++ConditionSecurity=apparmor
+ ConditionPathExists=/etc/apparmor/managed-modes.conf
+ ConditionFileIsExecutable=/usr/local/libexec/apparmor-managed-modes-run
+ 
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu
+index cbcde68..949c912 100644
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ LABWC_FUZZEL_MANAGED_ICONS=1
+ export LABWC_FUZZEL_MANAGED_ICONS
+ 
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots b/d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots
+index be71d71..30c1be7 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ : "${HOME:?HOME must be set}"
+ 
+ TERMINAL_LAUNCHER=/usr/local/bin/labwc-ai-copilots
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-computer-management b/d-i/forky/hooks/target/usr/local/bin/labwc-computer-management
+index d9e3317..bf9a49b 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-computer-management
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-computer-management
+@@ -292,7 +292,7 @@ system_configuration_menu() {
+         run_command labwc-keyboard-layout
+         ;;
+       "Audio Control")
+-        run_command pavucontrol
++        run_command labwc-wayland-app auto -- /usr/bin/pavucontrol
+         ;;
+       "Restart Dock")
+         run_command systemctl --user --no-block restart crystal-dock.service
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets b/d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets
+index b4614db..dd9ca5e 100644
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ : "${HOME:?HOME must be set}"
+ 
+ MAX_CANDIDATES=400
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-external-drives b/d-i/forky/hooks/target/usr/local/bin/labwc-external-drives
+index ef24639..6855ee1 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-external-drives
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-external-drives
+@@ -693,7 +693,8 @@ mounted_records_for_disk() {
+   disk_device=$1
+   disk_name=${disk_device#"$DEV_ROOT"/}
+ 
+-  collect_snapshot "$disk_device" |
++  disk_snapshot=$(collect_snapshot "$disk_device") || return 1
++  printf '%s\n' "$disk_snapshot" |
+     awk -v disk_device="$disk_device" -v disk_name="$disk_name" '
+       {
+         split("", field)
+@@ -733,7 +734,7 @@ power_off_drive() {
+   )
+   [ "$confirmation" = 'Sync, unmount volumes, and power off' ] || return 0
+ 
+-  mounted_records=$(mounted_records_for_disk "$disk_device" || true)
++  mounted_records=$(mounted_records_for_disk "$disk_device") || return 1
+   if [ -n "$mounted_records" ]; then
+     while IFS='|' read -r volume_device volume_devnum volume_type; do
+       [ -n "$volume_device" ] || continue
+@@ -771,7 +772,7 @@ $mounted_records
+ EOF
+   fi
+ 
+-  remaining_records=$(mounted_records_for_disk "$disk_device" || true)
++  remaining_records=$(mounted_records_for_disk "$disk_device") || return 1
+   if [ -n "$remaining_records" ]; then
+     printf 'external drive still has mounted volumes: %s\n' "$disk_device" >&2
+     notify_drive critical dialog-error \
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu
+index 396534f..0aab581 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu
+@@ -507,19 +507,17 @@ set_apparmor_application_mode() {
+       "AppArmor profile mode" \
+       'Enforce' \
+       'Complain' \
+-      'Disable' \
+       '← Back'
+   )
+   case "$mode_label" in
+     Enforce) mode=enforce ;;
+     Complain) mode=complain ;;
+-    Disable) mode=disable ;;
+     *) return 0 ;;
+   esac
+ 
+   confirmation=$(
+     choose_lines \
+-      "Set ${application_key} and wrapper AppArmor profiles to ${mode}" \
++      "Set ${application_key} application profiles to ${mode}; required launch profiles remain loaded" \
+       'Cancel' \
+       'Continue with AppArmor mode change'
+   )
+@@ -535,7 +533,7 @@ set_apparmor_application_mode() {
+ set_all_apparmor_desktop_profiles_mode() {
+   requested_mode=$1
+   case "$requested_mode" in
+-    enforce|complain|disable) ;;
++    enforce|complain) ;;
+     *) fatal "unsupported AppArmor desktop profile mode: $requested_mode" ;;
+   esac
+ 
+@@ -554,6 +552,22 @@ set_all_apparmor_desktop_profiles_mode() {
+     confirmed-apparmor-desktop-state-change
+ }
+ 
++set_apparmor_boot_state() {
++  boot_mode=$1
++  case "$boot_mode" in
++    enable) boot_warning='Enable AppArmor on the next normal reboot; live policy is unchanged' ;;
++    disable) boot_warning='Disable ALL AppArmor protection after reboot; live profiles stay loaded; no automatic reboot' ;;
++    *) fatal "unsupported AppArmor boot state: $boot_mode" ;;
++  esac
++  confirmation=$(
++    choose_lines "$boot_warning" \
++      'Cancel' \
++      'Stage AppArmor boot change'
++  )
++  [ "$confirmation" = 'Stage AppArmor boot change' ] || return 0
++  run_security_action set-apparmor-boot-state "$boot_mode" confirmed-apparmor-boot-state-change
++}
++
+ set_apparmor_application_audit() {
+   application_key=$(choose_apparmor_application)
+   [ -n "$application_key" ] || return 0
+@@ -739,7 +753,8 @@ apparmor_managed_modes_menu() {
+         'Generate New Rules' \
+         'Enforce All' \
+         'Complain All' \
+-        'Disable All' \
++        'Disable AppArmor After Reboot' \
++        'Enable AppArmor After Reboot' \
+         'Set App Mode' \
+         'Set App Audit Logging' \
+         'Reload Modes & Clear Audit' \
+@@ -759,8 +774,11 @@ apparmor_managed_modes_menu() {
+       'Complain All')
+         set_all_apparmor_desktop_profiles_mode complain
+         ;;
+-      'Disable All')
+-        set_all_apparmor_desktop_profiles_mode disable
++      'Disable AppArmor After Reboot')
++        set_apparmor_boot_state disable
++        ;;
++      'Enable AppArmor After Reboot')
++        set_apparmor_boot_state enable
+         ;;
+       'Set App Mode')
+         set_apparmor_application_mode
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu
+index 5dc5f7a..b09dbb0 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ fatal() {
+   printf 'fatal: %s\n' "$*" >&2
+   exit 1
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu
+index 3ad6e7d..4313b11 100644
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ fatal() {
+   printf 'fatal: %s\n' "$*" >&2
+   exit 1
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu
+index f0bd7b2..159d45a 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu
+@@ -10,6 +10,8 @@ import json
+ import os
+ from pathlib import Path
+ import re
++import selectors
++import time
+ import signal
+ import stat
+ import subprocess
+@@ -32,29 +34,45 @@ def value(record: dict, name: str, default=None):
+ 
+ def execute(argv: list[str], timeout: float = 45) -> str:
+     process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+-                               text=True, start_new_session=True)
++                               start_new_session=True)
++    output, errors = bytearray(), bytearray()
++    deadline = time.monotonic() + timeout
+     try:
+-        out, err = process.communicate(timeout=timeout)
+-    except BaseException:
+-        # A reaped leader does not mean that its descendants closed our pipes.
+-        for sig, grace in ((signal.SIGTERM, 3), (signal.SIGKILL, 2)):
++        with selectors.DefaultSelector() as selector:
++            for stream, destination in ((process.stdout, output), (process.stderr, errors)):
++                assert stream is not None
++                os.set_blocking(stream.fileno(), False)
++                selector.register(stream, selectors.EVENT_READ, destination)
++            while selector.get_map():
++                remaining = deadline - time.monotonic()
++                if remaining <= 0:
++                    raise subprocess.TimeoutExpired(argv, timeout)
++                for key, _ in selector.select(min(remaining, 0.1)):
++                    block = os.read(key.fileobj.fileno(), 65_536)
++                    if not block:
++                        selector.unregister(key.fileobj)
++                        continue
++                    key.data.extend(block)
++                    if len(output) + len(errors) > 16_777_216:
++                        raise RuntimeError('container query output exceeds 16 MiB')
++        status = process.wait(timeout=max(0.01, deadline - time.monotonic()))
++        if status:
++            raise RuntimeError(f'{Path(argv[0]).name} exited {status}: {text(errors.decode("utf-8", "replace"), 600)}')
++        return output.decode('utf-8', 'replace')
++    finally:
++        # Keep the leader unreaped until escalation ends, so its PGID cannot
++        # be recycled while descendants hold inherited pipes open.
++        if process.returncode is None:
+             try:
+-                os.killpg(process.pid, sig)
++                os.killpg(process.pid, signal.SIGTERM)
++                time.sleep(0.2)
++                os.killpg(process.pid, signal.SIGKILL)
+             except ProcessLookupError:
+                 pass
+-            try:
+-                process.communicate(timeout=grace)
+-                break
+-            except subprocess.TimeoutExpired:
+-                continue
+-        else:
+-            for stream in (process.stdout, process.stderr):
+-                if stream is not None:
+-                    stream.close()
+-        raise
+-    if process.returncode:
+-        raise RuntimeError(f'{Path(argv[0]).name} exited {process.returncode}: {text(err, 600)}')
+-    return out
++            process.wait(timeout=3)
++        for stream in (process.stdout, process.stderr):
++            if stream is not None:
++                stream.close()
+ 
+ 
+ def menu(prompt: str, choices: list[str]) -> str | None:
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop b/d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop
+index e75e8bc..1ab7e6d 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop
+@@ -798,25 +798,53 @@ def read_connection_log(log_path: pathlib.Path) -> str:
+ 
+ 
+ def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
++    environment = freerdp_connection_environment()
+     ensure_profile_directory(log_path.parent)
+-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+-    flags |= getattr(os, "O_CLOEXEC", 0)
+-    flags |= getattr(os, "O_NOFOLLOW", 0)
++    # Open without truncating: validate the opened inode before changing data.
++    # O_NONBLOCK also prevents a substituted FIFO from hanging the launcher.
++    flags = os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+     descriptor = os.open(log_path, flags, 0o600)
+-    with os.fdopen(descriptor, "w", encoding="utf-8") as log_handle:
++    with os.fdopen(descriptor, "wb", buffering=0) as log_handle:
+         metadata = os.fstat(log_handle.fileno())
+-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
+-            fail(f"Remote Desktop log is not a user-owned regular file: {log_path}")
++        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
++                or metadata.st_nlink != 1):
++            fail(f"Remote Desktop log is not a private user-owned regular file: {log_path}")
+         os.fchmod(log_handle.fileno(), 0o600)
+-        completed = subprocess.run(
+-            command,
+-            env=freerdp_connection_environment(),
+-            stdin=subprocess.DEVNULL,
+-            stdout=log_handle,
+-            stderr=subprocess.STDOUT,
+-            check=False,
+-        )
+-        return completed.returncode
++        os.ftruncate(log_handle.fileno(), 0)
++        process = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL,
++                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
++        try:
++            assert process.stdout is not None
++            size = 0
++            while True:
++                block = os.read(process.stdout.fileno(), 65_536)
++                if not block:
++                    break
++                # Keep the latest bounded segment, not an unbounded session log.
++                # RDP sessions have no arbitrary runtime timeout; their service
++                # cgroup owns both the reader and FreeRDP throughout the session.
++                if size + len(block) > MAX_CONNECTION_LOG_BYTES:
++                    log_handle.seek(0)
++                    log_handle.truncate(0)
++                    size = 0
++                pending = memoryview(block)
++                while pending:
++                    written = log_handle.write(pending)
++                    if written is None or written <= 0:
++                        raise OSError("Remote Desktop log write made no progress")
++                    pending = pending[written:]
++                size += len(block)
++            return process.wait()
++        finally:
++            if process.poll() is None:
++                process.terminate()
++                try:
++                    process.wait(timeout=2)
++                except subprocess.TimeoutExpired:
++                    process.kill()
++                    process.wait()
++            if process.stdout is not None:
++                process.stdout.close()
+ 
+ 
+ def connection_failure_message(profile: dict[str, object], log_path: pathlib.Path) -> str:
+@@ -847,7 +875,9 @@ def launch_connection(profile: dict[str, object]) -> None:
+         "Credentials are requested in a protected GTK dialog and are never saved.",
+     )
+     subprocess.run(
+-        [str(script_path), "_connect", encode_profile(connection)],
++        ["/usr/local/bin/labwc-wayland-app", "auto", "--",
++         str(script_path), "_connect", encode_profile(connection)],
++        env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
+         check=False,
+     )
+ 
+@@ -924,7 +954,7 @@ def open_profile_directory() -> None:
+     # pre-existing single-instance Thunar may accept the request over D-Bus;
+     # that handoff has no per-window completion acknowledgement.
+     subprocess.run(
+-        [thunar, str(path.parent)],
++        ["/usr/local/bin/labwc-wayland-app", "auto", "--", thunar, str(path.parent)],
+         env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
+         check=False,
+     )
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu
+index 5eb7555..0f5f1ae 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu
+@@ -1,6 +1,9 @@
+ #!/bin/sh
+ set -eu
+ 
++# Keep this menu behind its independently managed action terminal.
++export LABWC_MENU_ACTION_WAIT=1
++
+ fatal() {
+   printf 'fatal: %s\n' "$*" >&2
+   exit 1
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm
+index da7de6d..a811a83 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm
+@@ -16,6 +16,8 @@ use MooX::TypeTiny;
+ use POSIX qw(strftime WIFEXITED WEXITSTATUS WIFSIGNALED WTERMSIG);
+ use Types::Standard qw(Object Str);
+ 
++use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
++use Managed::Process qw(capture_command);
+ use AICopilots::ModelStore;
+ use AICopilots::Session;
+ use AICopilots::State;
+@@ -171,63 +173,24 @@ sub _run {
+     return 1;
+ }
+ 
+-sub _capture {
++sub _capture_result {
+     my ($self, $maximum, @command) = @_;
+     $maximum >= 1 && $maximum <= 4_194_304
+         or _fatal('capture size is outside the supported bounds');
+-    @command && defined($command[0])
+-        or _fatal('empty capture command');
+-    open my $fh, '-|',
+-        '/usr/bin/timeout',
+-        '--signal=TERM',
+-        '--kill-after=2s',
+-        '30s',
+-        @command
+-        or _fatal("cannot start diagnostic command: $!");
+-    binmode $fh, ':raw';
+-    my $output = q{};
+-    while (1) {
+-        my $buffer = q{};
+-        my $read = read($fh, $buffer, 65_536);
+-        defined($read)
+-            or _fatal("cannot read diagnostic output: $!");
+-        last if $read == 0;
+-        length($output) + $read <= $maximum
+-            or _fatal('diagnostic output exceeds the safety limit');
+-        $output .= $buffer;
+-    }
+-    close $fh
+-        or _fatal('diagnostic command failed');
+-    return $output;
++    return capture_command(argv => \@command, timeout => 30, limit => $maximum);
++}
++
++sub _capture {
++    my ($self, $maximum, @command) = @_;
++    my $result = $self->_capture_result($maximum, @command);
++    $result->{status} == 0
++        or _fatal('diagnostic command failed: ' . _status_detail($result->{status}));
++    return $result->{stdout};
+ }
+ 
+ sub _capture_allow_failure {
+     my ($self, $maximum, @command) = @_;
+-    $maximum >= 1 && $maximum <= 4_194_304
+-        or _fatal('capture size is outside the supported bounds');
+-    @command && defined($command[0])
+-        or _fatal('empty capture command');
+-    open my $fh, '-|',
+-        '/usr/bin/timeout',
+-        '--signal=TERM',
+-        '--kill-after=2s',
+-        '30s',
+-        @command
+-        or _fatal("cannot start diagnostic command: $!");
+-    binmode $fh, ':raw';
+-    my $output = q{};
+-    while (1) {
+-        my $buffer = q{};
+-        my $read = read($fh, $buffer, 65_536);
+-        defined($read)
+-            or _fatal("cannot read diagnostic output: $!");
+-        last if $read == 0;
+-        length($output) + $read <= $maximum
+-            or _fatal('diagnostic output exceeds the safety limit');
+-        $output .= $buffer;
+-    }
+-    close $fh;
+-    return $output;
++    return $self->_capture_result($maximum, @command)->{stdout};
+ }
+ 
+ sub _read_file {
+@@ -365,7 +328,7 @@ sub _codex_action {
+     }
+     if ($action eq 'codex-task') {
+         my $prompt = _assert_text('Codex prompt', $arguments[0], 16_384);
+-        return $self->_exec_codex($prompt);
++        return $self->_exec_codex('--', $prompt);
+     }
+     if ($action eq 'codex-set-project') {
+         my $project = $self->_project_path($arguments[0]);
+@@ -1389,7 +1352,7 @@ sub _whisper_action {
+             return $self->_run('/usr/bin/xdg-open', $self->_whisper_directory('transcribed'));
+         }
+         if ($target eq 'audio-control') {
+-            return $self->_run('/usr/bin/pavucontrol');
++            return $self->_run('/usr/local/bin/labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol');
+         }
+         _fatal('unsupported Whisper open target');
+     }
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm
+index c6e0aec..9a8ea91 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm
+@@ -86,6 +86,14 @@ sub load_config {
+                 "configuration line $line_number has an invalid profile file: "
+                 . $profile_name
+             );
++        # These files contain mandatory Px/AppArmorProfile launch targets and
++        # the policy worker itself. Never replay a legacy global live unload.
++        my %launch_sources = map { $_ => 1 } qw(
++            managed-desktop-wrappers managed-system-wrappers managed-labwc-session
++            managed-document-applications managed-desktop-utilities usr.sbin.aa-status
++        );
++        !($mode eq 'disable' && $launch_sources{$profile_name}) ||
++            fatal("refusing to unload mandatory launch profiles: $profile_name; use reboot-staged disablement");
+         !$seen_profiles{$profile_name}++ ||
+             fatal(
+                 "configuration line $line_number repeats profile file: "
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
+index af34077..364dbcb 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
+@@ -98,6 +98,23 @@ sub command_path {
+     my ($self, $name) = @_;
+     $name =~ /\A[A-Za-z0-9][A-Za-z0-9+_.-]*\z/
+         or _fatal('invalid command name');
++    # The installer publishes these two pinned release binaries through
++    # /usr/local/bin symlinks. Resolve only their fixed, managed destinations;
++    # never follow an arbitrary PATH entry into a user-writable executable.
++    if ($name eq 'typst' || $name eq 'pdfcpu') {
++        my $candidate = "/usr/local/bin/$name";
++        my $expected = "/usr/local/lib/$name/$name";
++        my $resolved = abs_path($candidate);
++        defined($resolved) && $resolved eq $expected && -f $resolved && -x $resolved
++            or _fatal("managed release executable is unavailable: $name");
++        for my $path ('/', '/usr', '/usr/local', '/usr/local/bin',
++                      '/usr/local/lib', "/usr/local/lib/$name", $resolved) {
++            my @metadata = lstat $path;
++            @metadata && !-l _ && $metadata[4] == 0 && ($metadata[2] & 0022) == 0
++                or _fatal("managed executable path is not root-controlled: $path");
++        }
++        return $resolved;
++    }
+     for my $directory (qw(/usr/local/bin /usr/local/sbin /usr/bin /usr/sbin /bin /sbin)) {
+         my $candidate = "$directory/$name";
+         return $candidate if -f $candidate && !-l $candidate && -x $candidate;
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm
+index c1ce4b9..5cc6390 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm
+@@ -84,7 +84,7 @@ sub optimize_png {
+     my ($self, $input_path) = @_;
+     my $context = $self->context();
+     my $output = $context->prepare_output_file('image-optimized', 'png', $input_path);
+-    $context->run_timed($context->command_path('optipng'), '-o2', '-strip', 'all', '-out', $output, $input_path);
++    $context->run_timed($context->command_path('optipng'), '-clobber', '-o2', '-strip', 'all', '-out', $output, $input_path);
+     $context->report_file_output($output, 'optimized PNG');
+ }
+ 
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm
+index 67b8a51..b934c67 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm
+@@ -384,20 +384,31 @@ sub _randomize_direct_interface {
+         $self->command()->run_or_die('bringing interface down before MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'down');
+     }
+ 
+-    my $mac = $self->_generate_random_mac();
+-    $mac =~ /\A(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\z/
+-        or die "generated MAC address is invalid\n";
+-    my $ip = $self->command()->require_executable('ip');
+-    $self->command()->run_or_die('setting randomized MAC address', $ip, 'link', 'set', 'dev', $interface, 'address', $mac);
+-
+-    return if !$was_up;
+-    if ($managed_by_ifupdown) {
+-        my $ifup = $self->command()->require_executable('ifup');
+-        $self->command()->run_or_die('restoring interface after MAC randomization', $ifup, $interface);
+-    }
+-    else {
+-        $self->command()->run_or_die('restoring interface after MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'up');
+-    }
++    # A rejected MAC update must not leave a previously active link down.
++    my $changed = eval {
++        my $mac = $self->_generate_random_mac();
++        $mac =~ /\A(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\z/
++            or die "generated MAC address is invalid\n";
++        my $ip = $self->command()->require_executable('ip');
++        $self->command()->run_or_die('setting randomized MAC address', $ip, 'link', 'set', 'dev', $interface, 'address', $mac);
++        1;
++    };
++    my $change_error = $@;
++    my $restored = eval {
++        if ($was_up) {
++            if ($managed_by_ifupdown) {
++                my $ifup = $self->command()->require_executable('ifup');
++                $self->command()->run_or_die('restoring interface after MAC randomization', $ifup, $interface);
++            }
++            else {
++                my $ip = $self->command()->require_executable('ip');
++                $self->command()->run_or_die('restoring interface after MAC randomization', $ip, 'link', 'set', 'dev', $interface, 'up');
++            }
++        }
++        1;
++    };
++    my $restore_error = $@;
++    die $change_error . $restore_error if !$changed || !$restored;
+     return;
+ }
+ 
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm
+index afefc16..7aa104b 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm
+@@ -7,6 +7,8 @@ use File::Basename qw(basename dirname);
+ use File::Copy qw(copy);
+ use File::Path qw(make_path remove_tree);
+ use File::Temp qw(tempdir tempfile);
++use Fcntl qw(:flock O_CREAT O_RDWR O_RDONLY O_DIRECTORY O_NOFOLLOW);
++use IO::Handle;
+ use Moo;
+ use MooX::StrictConstructor;
+ use MooX::TypeTiny;
+@@ -114,6 +116,65 @@ has rule_generator => (
+     default => sub { '/usr/local/libexec/apparmor-generate-rules' },
+ );
+ 
++has kernel_enabled_path => (
++    is => 'ro', isa => Str,
++    default => sub { '/sys/module/apparmor/parameters/enabled' },
++);
++
++sub _policy_service {
++    my ($self, $request) = @_;
++    $request =~ /\A(?:global-(?:enforce|complain)|boot-(?:enable|disable)|application-[a-z0-9-]+-(?:enforce|complain)|audit-[a-z0-9-]+-(?:enable|disable)|reload-modes)\z/
++        or die "invalid AppArmor policy service request\n";
++    my $unit = "labwc-apparmor-policy\@$request.service";
++    print "Starting independent system policy worker: $unit\n";
++    print "Closing this terminal does not cancel the system worker.\n";
++    my $status = $self->command()->run($self->_program('systemctl'), 'start', '--', $unit);
++    print "Worker journal: journalctl --no-pager -u $unit\n";
++    $status == 0 or die "AppArmor policy worker failed (status $status); inspect its journal before retrying\n";
++    if ($request =~ /\Aboot-/) {
++        print "The boot setting was staged; reboot normally to apply it. Live profiles were not unloaded.\n";
++    }
++    else {
++        print "Managed AppArmor policy operation completed. A boot-disabled kernel still requires explicit boot enablement and a reboot.\n";
++    }
++    return 0;
++}
++
++sub _policy_lock {
++    my ($self) = @_;
++    my $directory = '/var/lib/labwc-apparmor-policy';
++    $self->_ensure_root_directory($directory, 0700, 'AppArmor policy state directory');
++    sysopen my $lock, "$directory/policy.lock", O_RDWR | O_CREAT | O_NOFOLLOW, 0600
++        or die "cannot open AppArmor policy lock: $!\n";
++    my @metadata = stat $lock;
++    @metadata && -f _ && $metadata[4] == 0 && $metadata[3] == 1 && ($metadata[2] & 0077) == 0
++        or die "unsafe AppArmor policy lock\n";
++    flock $lock, LOCK_EX | LOCK_NB or die "another AppArmor policy operation is in progress\n";
++    return $lock;
++}
++
++sub _sync_mode_directory {
++    my ($self) = @_;
++    sysopen my $directory, dirname($self->mode_config()), O_RDONLY | O_DIRECTORY | O_NOFOLLOW
++        or die "cannot open AppArmor mode configuration directory: $!\n";
++    $directory->sync() or die "cannot sync AppArmor mode configuration directory: $!\n";
++    close $directory or die "cannot close AppArmor mode configuration directory: $!\n";
++}
++
++sub _reconcile_modes {
++    my ($self) = @_;
++    my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
++    $enabled =~ s/\s+\z//;
++    $enabled =~ /\A[YN]\z/ or die "unrecognized AppArmor kernel enablement state\n";
++    my @options = $enabled eq 'N' ? ('--no-reload') : ();
++    my ($status, $output, $errors) = $self->command()->capture(
++        argv => [$self->mode_helper(), @options], timeout => 240,
++    );
++    print $output if defined($output) && length($output);
++    print STDERR $errors if defined($errors) && length($errors);
++    return $status;
++}
++
+ sub _program {
+     my ($self, $name) = @_;
+     return $self->command()->require_executable($name);
+@@ -460,6 +521,7 @@ sub _work_dir {
+ 
+ sub run_easyprof {
+     my ($self, $executable, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     my $path = $self->_validate_executable($executable);
+     $self->_require_profile_tool_confirmation($confirmation);
+@@ -478,7 +540,7 @@ sub run_easyprof {
+             if $canonical ne $name;
+         $self->_merge_draft($files[0], $self->easyprof_draft_dir() . "/$canonical", 'easyprof');
+         print "Review the draft before copying it into /etc/apparmor.d and loading it.\n";
+-        return 0;
++        0; # Leave the eval block, not this subroutine; cleanup must run.
+     };
+     my $error = $@;
+     remove_tree($work_dir);
+@@ -488,6 +550,7 @@ sub run_easyprof {
+ 
+ sub run_autodep {
+     my ($self, $executable, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     my $path = $self->_validate_executable($executable);
+     $self->_require_profile_tool_confirmation($confirmation);
+@@ -498,7 +561,7 @@ sub run_autodep {
+         $self->command()->run($tool, '--no-reload', '--dir', $work_dir, $path) == 0
+             or die "aa-autodep failed for executable: $path\n";
+         $self->_publish_generated_drafts($work_dir, 'aa-autodep');
+-        return 0;
++        0; # Leave the eval block, not this subroutine; cleanup must run.
+     };
+     my $error = $@;
+     remove_tree($work_dir);
+@@ -534,6 +597,7 @@ sub _prepare_logprof_input {
+ 
+ sub run_logprof {
+     my ($self, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     $self->_require_profile_tool_confirmation($confirmation);
+     my $work_dir = $self->_work_dir('.logprof');
+@@ -543,7 +607,7 @@ sub run_logprof {
+         $self->command()->run($tool, '--dir', $self->profile_dir(), '--file', $input, '--output-dir', $work_dir) == 0
+             or die "aa-logprof failed while generating profile drafts\n";
+         $self->_publish_generated_drafts($work_dir, 'aa-logprof');
+-        return 0;
++        0; # Leave the eval block, not this subroutine; cleanup must run.
+     };
+     my $error = $@;
+     remove_tree($work_dir);
+@@ -553,6 +617,7 @@ sub run_logprof {
+ 
+ sub run_genprof {
+     my ($self, $executable, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     my $path = $self->_validate_executable($executable);
+     $self->_require_profile_tool_confirmation($confirmation);
+@@ -568,7 +633,7 @@ sub run_genprof {
+             $path,
+         ) == 0 or die "aa-genprof failed for executable: $path\n";
+         $self->_publish_generated_drafts($work_dir, 'aa-genprof');
+-        return 0;
++        0; # Leave the eval block, not this subroutine; cleanup must run.
+     };
+     my $error = $@;
+     remove_tree($work_dir);
+@@ -578,6 +643,7 @@ sub run_genprof {
+ 
+ sub generate_rules {
+     my ($self, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     $confirmation eq 'confirmed-apparmor-rule-generation'
+         or die "AppArmor rule generation requires explicit confirmation\n";
+@@ -802,6 +868,7 @@ sub _copy_atomic {
+ 
+ sub activate_draft {
+     my ($self, $origin, $name, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     $confirmation eq 'confirmed-apparmor-draft-activation'
+         or die "AppArmor draft activation requires explicit confirmation\n";
+@@ -858,36 +925,49 @@ sub activate_draft {
+         print $managed
+             ? "The repository-managed AppArmor mode policy was reapplied.\n"
+             : "The profile was loaded using the mode declared by the draft.\n";
+-        return 0;
++        0; # Leave the eval block, not this subroutine; cleanup must run.
+     };
+     my $error = $@;
+     if ($error) {
++        my @recovery_errors;
+         if ($published) {
+             if ($target_existed && defined $backup && -f $backup) {
+-                eval { $self->_copy_atomic($backup, $target, 0644); };
+-                eval { $self->_activate_installed_profile($target, $managed); };
++                my $restored = eval {
++                    $self->_copy_atomic($backup, $target, 0644);
++                    my $code = $self->_activate_installed_profile($target, $managed);
++                    $code == 0 or die "restored profile reload failed with status $code\n";
++                    1;
++                };
++                push @recovery_errors, $@ || "profile restoration failed\n" if !$restored;
+             }
+             elsif (defined $target) {
+-                unlink $target;
+-                my $parser = $self->command()->executable('apparmor_parser');
+-                eval {
+-                    $self->command()->run(
++                my $removed = eval {
++                    unlink $target or die "cannot remove unsuccessful new profile: $!\n";
++                    my $parser = $self->_program('apparmor_parser');
++                    my $code = $self->command()->run(
+                         $parser,
+                         '--config-file', '/etc/apparmor/parser.conf',
+                         '-q', '-R',
+                         '-I', $self->profile_dir(),
+                         '--base', $self->profile_dir(),
+                         $candidate,
+-                    ) if $parser;
++                    );
++                    $code == 0 or die "new profile unload failed with status $code\n";
++                    1;
+                 };
++                push @recovery_errors, $@ || "new profile cleanup failed\n" if !$removed;
+             }
+         }
+         if ($renamed && defined $draft_original && defined $draft_canonical && -e $draft_canonical) {
+-            rename $draft_canonical, $draft_original;
++            rename $draft_canonical, $draft_original
++                or push @recovery_errors, "cannot restore the draft filename: $!\n";
+         }
++        # Preserve the candidate and last good source even when rollback itself
++        # fails. Do not turn a reload error into loss of the recovery evidence.
++        die $error . "Recovery files retained at $batch\n"
++            . (@recovery_errors ? "Recovery ALSO FAILED:\n" . join(q{}, @recovery_errors) : q{});
+     }
+-    remove_tree($batch) if !$target_existed || $error;
+-    die $error if $error;
++    remove_tree($batch) if !$target_existed;
+     return $status;
+ }
+ 
+@@ -936,6 +1016,8 @@ sub show_events {
+ sub _update_modes {
+     my ($self, $profiles, $requested_mode, $label) = @_;
+ 
++    $requested_mode =~ /\A(?:enforce|complain)\z/
++        or die "live profile unloading is not supported; use reboot-staged AppArmor disablement\n";
+     $self->_validate_mode_config();
+     -x $self->mode_helper()
+         or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
+@@ -962,26 +1044,59 @@ sub _update_modes {
+             or die "managed AppArmor application profile is missing, duplicated, or malformed\n";
+     }
+     my ($fh, $new_path) = tempfile('.managed-modes.new.XXXXXX', DIR => dirname($self->mode_config()), UNLINK => 0);
+-    print {$fh} join("\n", @rendered)
+-        or die "cannot write managed AppArmor mode update: $!\n";
+-    close $fh or die "cannot close managed AppArmor mode update: $!\n";
++    my $rendered = join("\n", @rendered);
++    print {$fh} $rendered or die "cannot write managed AppArmor mode update: $!\n";
+     chmod 0644, $new_path or die "cannot protect managed AppArmor mode update: $!\n";
++    $fh->flush() && $fh->sync() or die "cannot sync managed AppArmor mode update: $!\n";
++    close $fh or die "cannot close managed AppArmor mode update: $!\n";
+     my ($backup_fh, $backup_path) = tempfile('.managed-modes.backup.XXXXXX', DIR => dirname($self->mode_config()), UNLINK => 0);
+-    close $backup_fh;
+-    copy($self->mode_config(), $backup_path)
+-        or die "cannot back up managed AppArmor mode configuration: $!\n";
+-    rename $new_path, $self->mode_config()
+-        or die "cannot publish managed AppArmor mode update: $!\n";
+-    my $status = $self->command()->run($self->mode_helper());
+-    if ($status == 0) {
+-        unlink $backup_path;
++    print {$backup_fh} $content or die "cannot back up managed AppArmor mode configuration: $!\n";
++    chmod 0644, $backup_path or die "cannot protect AppArmor mode backup: $!\n";
++    $backup_fh->flush() && $backup_fh->sync() or die "cannot sync AppArmor mode backup: $!\n";
++    close $backup_fh or die "cannot close AppArmor mode backup: $!\n";
++    my $published = 0;
++    my $ok = eval {
++        local $SIG{HUP} = local $SIG{INT} = local $SIG{TERM} = sub { die "AppArmor policy change interrupted\n" };
++        rename $new_path, $self->mode_config()
++            or die "cannot publish managed AppArmor mode update: $!\n";
++        $published = 1;
++        $self->_sync_mode_directory();
++        my $status = $self->_reconcile_modes();
++        $status == 0 or die "AppArmor reconciliation failed with status $status\n";
++        1;
++    };
++    my $error = $@;
++    unlink $new_path if -e $new_path;
++    if ($ok) {
++        unlink $backup_path or die "policy updated but cannot remove its backup: $backup_path\n";
++        $self->_sync_mode_directory();
+         print "Updated $label AppArmor profile mode to $requested_mode.\n";
+         return 0;
+     }
+-    rename $backup_path, $self->mode_config()
+-        or die "AppArmor reconciliation failed and the mode configuration could not be restored\n";
+-    $self->command()->run($self->mode_helper());
+-    die "AppArmor reconciliation failed with status $status; the previous mode policy was restored\n";
++    if (!$published) {
++        unlink $backup_path;
++        die $error;
++    }
++    # Do not hide failed rollback, destroy the last backup, or overwrite a
++    # configuration changed by another root administrator outside this worker.
++    $self->_read_small_file($self->mode_config(), $self->maximum_config_bytes(), 'current AppArmor mode configuration') eq $rendered
++        or die "$error" . "mode configuration changed concurrently; recovery copy retained at $backup_path\n";
++    copy($backup_path, $new_path) && chmod(0644, $new_path)
++        or die "$error" . "mode configuration could not be restored; backup retained at $backup_path\n";
++    open my $restore_fh, '+<', $new_path
++        or die "cannot open mode rollback for synchronization: $!\n";
++    $restore_fh->sync() && close($restore_fh)
++        or die "cannot synchronize mode rollback; backup retained at $backup_path\n";
++    rename($new_path, $self->mode_config())
++        or die "cannot publish mode rollback; backup retained at $backup_path\n";
++    $self->_sync_mode_directory();
++    my $rollback = eval { $self->_reconcile_modes() };
++    my $rollback_error = $@;
++    if ($rollback_error || !defined($rollback) || $rollback != 0) {
++        die "$error" . "previous configuration restored but kernel/source reconciliation ALSO FAILED; backup: $backup_path\n$rollback_error";
++    }
++    unlink $backup_path;
++    die "$error" . "previous mode policy was restored and reconciled\n";
+ }
+ 
+ sub set_application_mode {
+@@ -989,14 +1104,10 @@ sub set_application_mode {
+ 
+     $confirmation eq 'confirmed-apparmor-mode-change'
+         or die "AppArmor application mode changes require explicit confirmation\n";
+-    $mode =~ /\A(?:enforce|complain|disable)\z/
+-        or die "unsupported AppArmor mode: $mode\n";
+-    my @profiles = $self->_application_profiles($application);
+-    return $self->_update_modes(
+-        \@profiles,
+-        $mode,
+-        $application,
+-    );
++    $self->_application_profiles($application);
++    $mode =~ /\A(?:enforce|complain)\z/
++        or die "per-application unloading would invalidate required launch profiles; use Complain for diagnosis, or disable AppArmor after reboot\n";
++    return $self->_policy_service("application-$application-$mode");
+ }
+ 
+ sub set_desktop_state {
+@@ -1006,52 +1117,103 @@ sub set_desktop_state {
+         or die "AppArmor desktop profile mode changes require explicit confirmation\n";
+     $mode =~ /\A(?:enforce|complain|disable)\z/
+         or die "unsupported AppArmor desktop profile mode: $mode\n";
+-    return $self->_update_modes(
+-        [$self->_desktop_profiles()],
+-        $mode,
+-        'all declared managed profiles',
+-    );
++    # Backward-compatible action token, but never replay the old live-unload
++    # operation. Full disablement is explicitly a next-boot kernel setting.
++    return $self->_policy_service($mode eq 'disable' ? 'boot-disable' : "global-$mode");
++}
++
++sub set_boot_state {
++    my ($self, $mode, $confirmation) = @_;
++    $confirmation eq 'confirmed-apparmor-boot-state-change'
++        or die "AppArmor boot changes require explicit confirmation\n";
++    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor boot state\n";
++    return $self->_policy_service("boot-$mode");
+ }
+ 
+ sub set_application_audit {
+     my ($self, $application, $mode, $confirmation) = @_;
+-
+     $confirmation eq 'confirmed-apparmor-audit-change'
+         or die "AppArmor application audit changes require explicit confirmation\n";
+-    $mode =~ /\A(?:enable|disable)\z/
+-        or die "unsupported AppArmor audit mode: $mode\n";
++    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor audit mode: $mode\n";
++    $self->_application_profiles($application);
++    return $self->_policy_service("audit-$application-$mode");
++}
++
++sub _update_application_audit {
++    my ($self, $application, $mode) = @_;
++    $mode =~ /\A(?:enable|disable)\z/ or die "unsupported AppArmor audit mode\n";
++    my @profiles = map { $self->profile_dir() . "/$_" } $self->_application_profiles($application);
++    # Preflight the complete source set before changing any flags. In
++    # particular, never reverse an already-enabled flag as a guessed rollback.
++    $self->_validate_root_owned_file('AppArmor audit profile', $_) for @profiles;
++    my $enabled = $self->_read_small_file($self->kernel_enabled_path(), 16, 'AppArmor kernel enablement');
++    $enabled =~ s/\s+\z//;
++    $enabled =~ /\A[YN]\z/ or die "unrecognized AppArmor kernel enablement state\n";
+     my $audit = $self->_program('aa-audit');
+-    my @changed;
+-    for my $profile ($self->_application_profiles($application)) {
+-        my @argv = $mode eq 'enable' ? ($audit, $profile) : ($audit, '--remove', $profile);
+-        my $status = $self->command()->run(@argv);
+-        if ($status != 0) {
+-            for my $changed (@changed) {
+-                my @rollback = $mode eq 'enable'
+-                    ? ($audit, '--remove', $changed)
+-                    : ($audit, $changed);
+-                $self->command()->run(@rollback);
++    $self->_prepare_backup_dir();
++    my $batch = tempdir('audit.XXXXXX', DIR => $self->profile_backup_dir(), CLEANUP => 0);
++    my @snapshots;
++    my $started = 0;
++    my $ok = eval {
++        local $SIG{HUP} = local $SIG{INT} = local $SIG{TERM} = sub { die "AppArmor audit change interrupted\n" };
++        for my $profile (@profiles) {
++            my $backup = "$batch/" . basename($profile);
++            my @metadata = stat $profile;
++            copy($profile, $backup) && chmod(0600, $backup)
++                or die "cannot snapshot audit profile: $profile\n";
++            push @snapshots, [$profile, $backup, $metadata[2] & 0777];
++        }
++        $started = 1;
++        for my $profile (@profiles) {
++            my @remove = $mode eq 'disable' ? ('--remove') : ();
++            my $status = $self->command()->run($audit, '--dir', $self->profile_dir(), '--no-reload', @remove, $profile);
++            $status == 0 or die "AppArmor audit flag update failed with status $status\n";
++            $self->_parser_validate($profile) == 0 or die "audit update produced invalid policy: $profile\n";
++        }
++        if ($enabled eq 'Y') {
++            for my $profile (@profiles) {
++                my $status = $self->_activate_installed_profile($profile, 0);
++                $status == 0 or die "AppArmor audit reload failed with status $status\n";
+             }
+-            die "AppArmor audit mode update failed with status $status; completed changes were rolled back\n";
+         }
+-        push @changed, $profile;
++        1;
++    };
++    my $error = $@;
++    if (!$ok) {
++        my @recovery_errors;
++        if ($started) {
++            for my $snapshot (@snapshots) {
++                my ($profile, $backup, $permissions) = @{$snapshot};
++                my $restored = eval {
++                    $self->_copy_atomic($backup, $profile, $permissions);
++                    if ($enabled eq 'Y') {
++                        my $status = $self->_activate_installed_profile($profile, 0);
++                        $status == 0 or die "audit source restored but reload failed: $profile (status $status)\n";
++                    }
++                    1;
++                };
++                push @recovery_errors, $@ || "audit rollback failed: $profile\n" if !$restored;
++            }
++        }
++        die $error . "Audit source backups retained at $batch\n"
++            . (@recovery_errors ? "Recovery ALSO FAILED:\n" . join(q{}, @recovery_errors) : q{});
+     }
++    remove_tree($batch);
+     print "Updated $application AppArmor audit mode to $mode.\n";
++    print "AppArmor is boot-disabled; source flags were updated without a live reload.\n" if $enabled eq 'N';
+     return 0;
+ }
+ 
+ sub reload_managed_modes {
+     my ($self, $confirmation) = @_;
+-
+     $confirmation eq 'confirmed-apparmor-reload'
+         or die "managed AppArmor mode reload requires explicit confirmation\n";
+-    -x $self->mode_helper()
+-        or die "managed AppArmor mode helper is unavailable: " . $self->mode_helper() . "\n";
+-    return $self->command()->run($self->mode_helper());
++    return $self->_policy_service('reload-modes');
+ }
+ 
+ sub reload_service {
+     my ($self, $confirmation) = @_;
++    my $policy_lock = $self->_policy_lock();
+ 
+     $confirmation eq 'confirmed-apparmor-service-reload'
+         or die "AppArmor service reload requires explicit confirmation\n";
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm
+index 0eff828..eefcb02 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm
+@@ -202,6 +202,12 @@ sub _validate_request_shape {
+             or die "apparmor-activate-draft requires confirmation\n";
+         return;
+     }
++    if ($action eq 'set-apparmor-boot-state') {
++        @args == 2 && $args[0] =~ /\A(?:enable|disable)\z/
++            && $args[1] eq 'confirmed-apparmor-boot-state-change'
++            or die "set-apparmor-boot-state requires a mode and explicit confirmation\n";
++        return;
++    }
+     if ($action eq 'set-apparmor-desktop-state') {
+         @args == 2 && $args[0] =~ /\A(?:enforce|complain|disable)\z/
+             && $args[1] eq 'confirmed-apparmor-desktop-state-change'
+@@ -215,7 +221,7 @@ sub _validate_request_shape {
+         return;
+     }
+     if ($action eq 'set-apparmor-application-mode') {
+-        @args == 3 && $self->_valid_application($args[0]) && $args[1] =~ /\A(?:enforce|complain|disable)\z/
++        @args == 3 && $self->_valid_application($args[0]) && $args[1] =~ /\A(?:enforce|complain)\z/
+             && $args[2] eq 'confirmed-apparmor-mode-change'
+             or die "set-apparmor-application-mode requires an application, mode, and confirmation\n";
+         return;
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
+index a6cfcd0..37fab24 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
+@@ -72,6 +72,6 @@ sub capture {
+         timeout => $args{timeout} // 120,
+         limit => 1_048_576,
+     );
+-    return (_status($result->{status}), $result->{stdout});
++    return (_status($result->{status}), $result->{stdout}, $result->{stderr});
+ }
+ 1;
+diff --git a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm
+index 491e4d7..9a9fb96 100644
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm
+@@ -365,6 +365,10 @@ sub _dispatch {
+         @args == 3 or die "$action requires an application, mode, and confirmation\n";
+         return $self->apparmor()->set_application_mode(@args);
+     }
++    if ($action eq 'set-apparmor-boot-state') {
++        @args == 2 or die "set-apparmor-boot-state requires a mode and confirmation\n";
++        return $self->apparmor()->set_boot_state(@args);
++    }
+     if ($action eq 'set-apparmor-desktop-state') {
+         @args == 2 or die "$action requires a mode and confirmation\n";
+         return $self->apparmor()->set_desktop_state(@args);
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/labwc-system-action-root b/d-i/forky/hooks/target/usr/local/libexec/labwc-system-action-root
+index a9524b1..aff20bf 100644
+--- a/d-i/forky/hooks/target/usr/local/libexec/labwc-system-action-root
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-system-action-root
+@@ -182,7 +182,7 @@ show_system_overview() {
+   print_heading Time
+   timedatectl
+   print_heading Systemd
+-  systemctl is-system-running --wait || true
++  systemctl is-system-running || true
+   systemctl --failed --no-legend --no-pager || true
+ }
+ 
+diff --git a/d-i/forky/payload.manifest b/d-i/forky/payload.manifest
+index 108f23c..c475f9c 100644
+--- a/d-i/forky/payload.manifest
++++ b/d-i/forky/payload.manifest
+@@ -113,7 +113,7 @@ d060aca81e0d15b739cf16af6b7b78a1c51d0de0edc973b1f6cd5916eeee640c  hooks/target/e
+ c973e06aca2da47f90e45454dbf9cce8840a4a5dfd50448bf9dcb9f1a3a40732  hooks/target/etc/aliases.tmpl
+ 1cfbe3e7f367907a2e726ddb377453e81bb3ce806bc005daaf2722c99a2573d5  hooks/target/etc/apparmor/easyprof.conf
+ aa2bbe84c5706aeb93f5e59c78407b13b16a7047db1a658bde2a38a52bd51c06  hooks/target/etc/apparmor/logprof.conf
+-0e3a9ce3393dea11a73f64254a276f824ac23a75e27a7500ad3aad371775b429  hooks/target/etc/apparmor/managed-modes.conf.tmpl
++ef9dcba240d0f7ab3d56c7c94ec9b0826e92ee1906520e518b0e0df54eb5dacf  hooks/target/etc/apparmor/managed-modes.conf.tmpl
+ 8a7f309c1758cc93d9b693ca0617923d5698713935e8d66c1d6a44b7840c5bf6  hooks/target/etc/apparmor/parser.conf
+ 95888395653f3709e7a4d38a5135934427074959d059173c8c36d945aff78783  hooks/target/etc/apparmor.d/Discord
+ 311ecbec9697360ac29ba52da77c9e180c1f025d8826089047a67c11915d7fa2  hooks/target/etc/apparmor.d/abstractions/audio.d/managed-no-raw-audio
+@@ -157,10 +157,10 @@ a005f996f2764d85951da636cd92016948c213d2921d146ea944da4ac56a257b  hooks/target/e
+ d9d610533616e614b022f3f56274f6589f0f2bde24b9665213087c87c2a459fc  hooks/target/etc/apparmor.d/local/vivaldi-bin
+ e39fd3ba6c1fbec0b0c718234a60b619086a4847a3fe1f55165c008a8bc419de  hooks/target/etc/apparmor.d/local/vivaldi-stable
+ cff2e23f147b292ab970f1de294fc6dd21f8e5c3ef7446c9ac9a20dbeb4171c0  hooks/target/etc/apparmor.d/managed-desktop-utilities
+-1b1613173582aad885d1d7776776df7fa4fdd0a5db4dc7a155e0bb5ce5ca1e2b  hooks/target/etc/apparmor.d/managed-desktop-wrappers
+-eb03d0f4a0bc2fc1f0d5b471dfdb8bb46ad3e82d73dc8138f9842728d5c30881  hooks/target/etc/apparmor.d/managed-document-applications
++750cfdecfa65491750d3fa6f63fe720b84d6ba4b2fb040587d7059c92cf2ac39  hooks/target/etc/apparmor.d/managed-desktop-wrappers
++931fa0b1174ab50afb34af1503faf087bf1d1d6edfd451a100a05fdfd8fb83a4  hooks/target/etc/apparmor.d/managed-document-applications
+ fe929c99a19c4fc8215546bbb00016a0dd78e364a6c94749060a2401e70f05a2  hooks/target/etc/apparmor.d/managed-labwc-session
+-b38ba2ead511145c6babc6be0812e84f711234da878976fb2f44e55e6799385d  hooks/target/etc/apparmor.d/managed-system-wrappers
++118a9b0d27e0f2206c6f13b1ff326154bd881f410790d385d9e3795fbceb6020  hooks/target/etc/apparmor.d/managed-system-wrappers
+ d9c8c6731100372a9524f12207fc01aaa8981a00c26335503e3dcc8c581e56a7  hooks/target/etc/apparmor.d/obsidian
+ 552e717a7422270cf3cd910c8f79c1cefbac72f334e47cd53e40d099150d5fae  hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden
+ 67e66dbb15676d0e2bbb65d3aee75752f54e446884de6a0ec5c25f7da5f79557  hooks/target/etc/apparmor.d/opt.Filen.Filen
+@@ -639,7 +639,7 @@ bda249c6ae7f69d57c44e4f379c18ca3d789fbfb938658572d9c723ba72ee5f3  hooks/target/e
+ 88847de3d21d787b8d987447b2e0008fe0404046245b1e7ae8b14ca8cdba7845  hooks/target/etc/systemd/logind.conf.d/override.conf
+ 7328826f34b21e17a623bbf7ba8a3863104dc4bdc1aaa5c5c61ebc5c0d985ca0  hooks/target/etc/systemd/system/NetworkManager-dispatcher.service.d/20-managed-persistent.conf
+ 571f7185cb588124ccb60d2c6615013bd8a8c6b051db143487b7590c6e6416d3  hooks/target/etc/systemd/system/NetworkManager.service.d/20-managed-dispatcher.conf
+-ab41f3380d91e17ccc45cd9928b647540a97d073b3f28689b26d2fff022335ac  hooks/target/etc/systemd/system/apparmor-managed-modes.service
++97cc65947ece8a172ea73c1a8aa9b38bde81f7c0426d274fdd34ffb4bb1a9a02  hooks/target/etc/systemd/system/apparmor-managed-modes.service
+ d7e26cd9d874ee68e0f59fa7ff0f5b4f60724908170b86ade4fa6e595d213295  hooks/target/etc/systemd/system/apparmor.service.d/20-managed-cache.conf
+ 93eda63aa71f50257d6ee3bf994bcc4193d04691b37f8df7478f35eb8addb0ea  hooks/target/etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf
+ d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372  hooks/target/etc/systemd/system/apt-daily-upgrade.service.d/60-resource-class.conf
+@@ -668,6 +668,8 @@ fdec53589482ef3b1f26b01c36293264ff2a9fdae17a8bff51a96f4935e69d07  hooks/target/e
+ d83a258f34220b62d3b39b453764b98691f20cc330b858c734f0f2b22521196f  hooks/target/etc/systemd/system/incus-host-managed.service
+ 74225417a918e7c89e6d511cc9bade62a8605a826fb1371ed5b01b2817d4e8e3  hooks/target/etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf
+ f024bb8619c049ac933a7eeb28a3fad04bdd347e6e7ebd09c9ae441dc4a65213  hooks/target/etc/systemd/system/labwc-admin-action@.service
++bf9aae28a0ee6a4804c385f7287efb81bbf958fcfe9422a63dec76ea8c690e8f  hooks/target/etc/systemd/system/labwc-apparmor-boot-recover.service
++d8d8dbf8c3ac984da105003e26ce8cf1e441b9643790bd7f1c33a88bbf52e75b  hooks/target/etc/systemd/system/labwc-apparmor-policy@.service
+ d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372  hooks/target/etc/systemd/system/local-apt-.service.d/60-resource-class.conf
+ 4d21397c85a538d5771c34789e7bc500189bfbda8d06fd34e8d15fb6e60b4474  hooks/target/etc/systemd/system/local-apt-inbox.path
+ bbabe1804f0725ef70788a5f34ea43ac091a33d93e7e4962397bb3b6e6e964c2  hooks/target/etc/systemd/system/local-apt-inbox.service
+@@ -835,21 +837,21 @@ ba56638aaa27a14e797df3d27f71c1e8966864a1eb2b5437074b18977d85edde  hooks/target/u
+ 02b4bec5beb6464114f978badbc65fba44c6ba3d9073a546e5e1379623f24197  hooks/target/usr/local/bin/git-ssh
+ f41931fec734bcb7367e89123a7d226808907bec488c941fdc269c3e451e874c  hooks/target/usr/local/bin/gitops
+ b1532a7f2a444afeb22d63cd3d4aeb5b511f379e48195b28e466b0455461e709  hooks/target/usr/local/bin/labwc-adb-action
+-cf67a2f20e640e72f24495058d7db6bac0bbb2d1cf612e76433b5b813df3ea60  hooks/target/usr/local/bin/labwc-adb-menu
++ccc3bc6368564d56cd85bfacc78f0b2a7d1b472cb0971260e4a53656c6ec266f  hooks/target/usr/local/bin/labwc-adb-menu
+ 0404c96807be7b28e0fa02233cf78cd2f27ce942e9811a3340b5d1a18561371d  hooks/target/usr/local/bin/labwc-admin-action
+-a7654a810517dc9a9f0d4a2454bbc0ae83516162ecd64055106976c8bc772967  hooks/target/usr/local/bin/labwc-ai-copilots
++1e50abf08d3872f2f6a886e92c0f64cba0e9e40ceed042fa281e7c59d9c49f2c  hooks/target/usr/local/bin/labwc-ai-copilots
+ a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/usr/local/bin/labwc-ai-copilots-action
+ b276fa576e636bdfee70d25279ed048f50ea2a0099bbeb8a9d6595c7d2c36d09  hooks/target/usr/local/bin/labwc-autostart
+ 7e1c2cb3adb55cfe292daa52bc8221485b353077a1c8c8674f1108ad3756aa09  hooks/target/usr/local/bin/labwc-bluetooth
+ ddaac779d0c2576fc089d7e6f99683f828f899a213bff723b982a1d4e3b15566  hooks/target/usr/local/bin/labwc-brightness-control
+ bdb1de8cd5b6f2fa5f07ac31eb08ae1fb0b4dd5a7da34ae74217ec42df356548  hooks/target/usr/local/bin/labwc-calendar
+ 7478c487208b503027c61c934d471c42de6f89d6aad97b7f9523c46785f510b5  hooks/target/usr/local/bin/labwc-capture
+-0359817e71e20d470b27fd60359f0d74d1f92e9ba89aedd929fa21fee6a80909  hooks/target/usr/local/bin/labwc-computer-management
+-51b552751b562e9686a99e546e36894cf670bcd969fa9a9c3168f3180d49680a  hooks/target/usr/local/bin/labwc-digital-assets
++6cc7fcd32c0f283ef07d79be8594867beb79079a32875eddc9133aee5a8172f5  hooks/target/usr/local/bin/labwc-computer-management
++c02f5151be2d76867282b4ca6841126b0278495a618c1189c75dc5ab467a562a  hooks/target/usr/local/bin/labwc-digital-assets
+ 76620d2901333bd5da723ad648fcecc3597c7c662c10d0c03c912e40c3ea1d04  hooks/target/usr/local/bin/labwc-digital-assets-action
+ d60b78c9b3254883392ac6aa9f18f0b99af5ed468f4e8401bd5a302b8cd1b1e1  hooks/target/usr/local/bin/labwc-display-configuration
+ dff78693465be40c78f7cb79de31c088c444da1b6313e18ca54855f300a550c5  hooks/target/usr/local/bin/labwc-electron-app
+-2173c6c276c796e845b8a3ce8baf0b173f2017013a945e2baf89804837c4dbdc  hooks/target/usr/local/bin/labwc-external-drives
++7bb60b3e7180fbee9c1cc82b8386cf4c81b591decbe4552cec9328c883b8ce2c  hooks/target/usr/local/bin/labwc-external-drives
+ e57f63a8d5d33c84cd8123cf0a71c92bc2f3d5d48a3f07d14fcffa60d16fd244  hooks/target/usr/local/bin/labwc-firewall-action
+ 31d2b4f6cf90f0ccd5f2979d4ce78144a675e4a1445f0c0bf1ce5e6b0784b704  hooks/target/usr/local/bin/labwc-firewall-menu
+ 9c2aeba305282418af998d7be4d552686b86f5510c2ddf4baea719ddd52ba65c  hooks/target/usr/local/bin/labwc-focuswriter-import
+@@ -863,20 +865,20 @@ e67f687c8b591d14ef37e7d1d78ba01340faf161698212981302a446b1767887  hooks/target/u
+ be84619849e73c808af1e00fd7f211738322cd5bb106436c7873c1a763a40615  hooks/target/usr/local/bin/labwc-keyboard-layout
+ d4fa0660b41d743fd89db2eea7a8760af96f80195108ea16f4be151cd860b1e0  hooks/target/usr/local/bin/labwc-lock
+ 6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759  hooks/target/usr/local/bin/labwc-logout
+-cd944549dc216a55678ca7882d1d6dee8ba120470d1b79519895e3e981071e44  hooks/target/usr/local/bin/labwc-maintenance-menu
++db02917b504fb2a9dbb721308957d578b03afe5a1a107ac47d711e5c8c14004f  hooks/target/usr/local/bin/labwc-maintenance-menu
+ 03291d72bf2e2bdca2a51bc44529e9262848e1b5018112ddde9b77e6a5071b2b  hooks/target/usr/local/bin/labwc-managed-app
+ 0b87eb9f269e5cb4d880d3fdf80a02a21074326b7188cab28d8d492ef0a128a4  hooks/target/usr/local/bin/labwc-managed-wayland-compat-app
+ 410ba1759534862ed9bf5560603692c817c9e9b7af94a45e476ae6f864025b3a  hooks/target/usr/local/bin/labwc-network-control-action
+-a1d5b5e88820235d712917e3f6c50f377a5e54642f218b716cf33204d4ed1d19  hooks/target/usr/local/bin/labwc-network-control-menu
++5dea44b19616f6ddcc2f0625f199ce9d60a77b68881d2f98534c68df6f42304b  hooks/target/usr/local/bin/labwc-network-control-menu
+ 5bb09f5eff72ea5781a58f8e344a586e0d0af069ab32e9e4b1683b9b7cec578b  hooks/target/usr/local/bin/labwc-network-scan-action
+-90b91b2dfd89d94fda42dfe2874b87333f598e6c6b75ed42281c89591c2623ac  hooks/target/usr/local/bin/labwc-network-scan-menu
++a57819bede0733cc519126554f0dbf7e963d1f48c4c6c716c8c61ebc7830858d  hooks/target/usr/local/bin/labwc-network-scan-menu
+ 878c159cfbb4c332d7bdfd3c625c7db45b9eb4a79f5dc95fb7fcb8ee1c2be173  hooks/target/usr/local/bin/labwc-ocr
+-8740e90d6a6d08786487e95bbef9d75eb776dad6a3781aabfc63c3b65b8a9714  hooks/target/usr/local/bin/labwc-podman-menu
++3d25d8721e190a08a3eff507e26fa152a1c91f508ff997a8475e376e0a625e43  hooks/target/usr/local/bin/labwc-podman-menu
+ cd64de811b702751ce862c22aaaf6a698aaa377f06c59147cce492507426e50b  hooks/target/usr/local/bin/labwc-power-menu
+ 34bbc349d67b67cd5c4315f2fff1f111de4fa753de0e84a52b204574b83c060d  hooks/target/usr/local/bin/labwc-power-settings
+ f40f967fcb471a853d2fb4dbc2309e4ba1c0ee1cd714cc41ae2b6a1de2ab351c  hooks/target/usr/local/bin/labwc-qbittorrent
+ 309e1b5c797630adeb620523782beb2bd231ac6db219bd4b8fd14e23889e8986  hooks/target/usr/local/bin/labwc-recovery-action
+-5929c20c66035889dc626c54bd3442d115de208c660edcaa5ddadad0cdc69f48  hooks/target/usr/local/bin/labwc-remote-desktop
++20690402ffbc7d5e40b92ef006498900ffdd11ca76721996ec0851cd9fea125a  hooks/target/usr/local/bin/labwc-remote-desktop
+ 584e7f01e2a39a0771765234dbc137d97a7defa22c424b35d7bbcbfa4f27a351  hooks/target/usr/local/bin/labwc-run
+ 6609cb3e2843b9fd3ff6baa856308b69400c5bf85336e3e2a96376e1c6aec55a  hooks/target/usr/local/bin/labwc-security-action
+ 5f9d60f150110a994e568a665af8bbb6908ddc71f5a81b81dfb4ef3212ef1f49  hooks/target/usr/local/bin/labwc-session.tmpl
+@@ -884,7 +886,7 @@ f40f967fcb471a853d2fb4dbc2309e4ba1c0ee1cd714cc41ae2b6a1de2ab351c  hooks/target/u
+ 0d7519abe582814b3fb9cee52fd2606815b1202011e83fbbee06793d23bb935d  hooks/target/usr/local/bin/labwc-sync-application-launchers
+ dab05fc64ee30b468fb89637c89da905c57785b3ff3ff2937824c924420f0d89  hooks/target/usr/local/bin/labwc-system-action
+ 89afd029ca9fc865150890d185029cecfc92569fe1bb736900ed2fdbca72690b  hooks/target/usr/local/bin/labwc-terminal
+-c123692e2dbddf85df510c81a57f1231cd62230607e156d89d8ae98f02abe539  hooks/target/usr/local/bin/labwc-users-groups-menu
++10e6c09f2cbd750473e3d58e7e9d2fced827da696e279f94544d98cf5c3e281c  hooks/target/usr/local/bin/labwc-users-groups-menu
+ d14aa88ddf8047aa99ca554360c7675da66efd22440e0e0499a72b4703d6c3a7  hooks/target/usr/local/bin/labwc-wallpaper-save
+ edfa38b6e8e92dc500867ecbc46e555835a126b65312bbb8c40a148f59ce25dd  hooks/target/usr/local/bin/labwc-wayland-app
+ 59b0e3c856f5d5cc32d0a85768b4fc428dd620299e12c77140ab9e23bac1977b  hooks/target/usr/local/bin/labwc-wayscriber-toggle
+@@ -902,11 +904,11 @@ c37653fd2e1a13c218abc06a40e119d20631a8444012c8b461a739865f79228e  hooks/target/u
+ ca5f06e3697dbe6059a9e56177259d61a1d1f83509366811af6ec2283ad1fe2f  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelCatalog.pm
+ 6dbfaf5b0e4575b14ca3b8c235676a5a84e52abacd58ce60887f9bcb4cf744ee  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelInstallRoot.pm
+ da76ed569da86dc41362c4a5ae8f6d99eb949b9dadd00acaa4ec8331b95f6009  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/ModelStore.pm
+-28d7f813291de37c1cdc93093ab6e3543b55bb7e021f46701d569f49f197d63f  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm
++2266c5fa84c0e5c5c7ef06e9d479801cbd9ce153a38144c572a5c488588b4bc4  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm
+ e53cb61b78d1c1308b9d54668e00093285cd7f5cd87b1ca7262537276b57bd7e  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Session.pm
+ eb67ec2cb6c97da1d2d6f18a66ee4d4beb11a49346bf93490c8c410ed05a5277  hooks/target/usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/State.pm
+ 8b6388e5dfc87bf26caed36b1498adb8ab922c2657847fbb097549859cb6d2d6  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/CLI.pm
+-a0a30fb9407005fb0e9d9a7ef1d37b079cde602bc07ac8b784ec230315e110b6  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm
++f298c1b9d5392f5563bbf7227fa62bc93801fa97eea186f0f55d4f04631ecda3  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm
+ 75ff97c966647ce074de10bf818f84cb4513368782e4db30453114c88ac08363  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/LoadedState.pm
+ 68507b3e07b52f29991a5cf4f157da1f3f1230619934547912965b5785490395  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Logger.pm
+ dec4479b5c93d59c75919931ccb0ae0770a795542a7f996791fb8fd0132dfc8b  hooks/target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Tool.pm
+@@ -917,9 +919,9 @@ ccf3c4d3673cf038c084c4ea4dc862f783a31f469d24c1782e8424231c445d13  hooks/target/u
+ aa843a0ff5952b37fe32ed42aab49d05cd0e41195a6c2a63707dc44ede5ea681  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Actions.pm
+ d0ebf567dc318741446cdf6fff2c50e848d71479690887946701f6515f80b7a6  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/CLI.pm
+ 3886ccec95bf95a0aaa8aaa8145ccb8dd6a0e04d5ba1813b6e5ae435254e65dc  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Catalog.pm
+-d9fe54f28b38056139877a6502505b8afc38fe0be2d2af844b5e93db58519e47  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
++c338bd09e751b676ff1af2c40322139e0d0953edc8f95385e0448fba2047b7a3  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Context.pm
+ d264835d0662a141da1cff4fc19f647c604326fea9af1cb7392c38512a9ddea4  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Document.pm
+-47057041ed155292d4d88285b84125b2959f1efb40190340e23ce38c2373b741  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm
++c7b1b8f73428a682152b4c9fac0b79f3bc27d5e236d1800257ef298a3ddcb991  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Image.pm
+ b919735f4ee829c56e757a3b4c20c15d15caf830516c38243a51c013cff4fad5  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Logger.pm
+ 7d9074fce7733127f9c56b533833d39a16d14740bf1bcbedd57854a374aede5e  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Metadata.pm
+ 0c7c4f376594ee692acb140bf45136e773e15041a46b1bf4d277e54171d5f280  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/PDF.pm
+@@ -966,7 +968,7 @@ dc135d5fc8815c50080c2017fadf4884ad36d51893d22f1eead583f60d49b981  hooks/target/u
+ a1f292ad438fe0daf0f3a1d9e11b8372ed981dcd81cd448a2016b46e5a8b35e8  hooks/target/usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Vendor/Samsung.pm
+ 071988a2c8284530ece1b525bbf036c09d6b860fbf2b013f4619e5aba09ac822  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Client.pm
+ 89c645eb56ad84fe94b176b561bb4607355f2ebe978ba40a684345f89914052f  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Command.pm
+-a1e6765f78afe86cf86169a336078cb48322362df61203b7169e7a07bc8c8c1c  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm
++cf6310bbdadaf6a4ade9b17272220317ada7b1b896b31c92a53025f5bcbaab9b  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm
+ 58202acc206a9269c2f0388e54b578bfcaa67465d25fb35d7a5467cb17d0330d  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Validation.pm
+ 6296c3a2c0c8704390062859c44be1330cf3bfb09a947a9e2efdf4f51c3ef78b  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Client.pm
+ 9e5661bfe880aecb49b4693beabc0b20c1a70df2f7b0a1ebc22d514e4f510075  hooks/target/usr/local/lib/perl5/site_perl/labwc-network-scan-action/LabwcNetworkScanAction/Command.pm
+@@ -976,11 +978,11 @@ a1e6765f78afe86cf86169a336078cb48322362df61203b7169e7a07bc8c8c1c  hooks/target/u
+ 3d7e1b8d7697462b10a49164dff2037baa54da2eba968e8210f4adefcc282641  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/ProfileIndex.pm
+ 17ba85f5dd7d93f426f4c5d8a5ef47480addf525423c1cd3cd9b0f04dd2e1fcc  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleGenerator.pm
+ cf2fc864eb98a5ca467fb38a2139626e00fdea5e84595992f3c4340b40d0bf94  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor/RuleRenderer.pm
+-3a6830567ca09b5d99e60664bf681d1fb558c5615a2618a9a2bd86f5662e739f  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm
+-f1eb07359e2a48251935260d465a7841002f1ff090cd88599ef35b41f7b90377  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm
+-ad2a32a8148278e26585bbfea8ea65b98bc0361821953b394e491c9b9be60b4e  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
++e3827ab0909f7e66565b6c61ec922578de5f3addc9865e26a55aac2491814073  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm
++0ea3175b0374487288cf863643b28855beca1c756597dffb51fb9a3ffd0086de  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Client.pm
++f9d718b45a657d9495dce18926fc585742a0b9099c586bbdc75b612963901573  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Command.pm
+ 59b9fe9127ea8b9c754a5e83c40be3cfe2205d147b4440767586fc4ab6360b24  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Logger.pm
+-c9ef4fe59ef509ba0cd7a9fbae4c19197caac29fdcfa7d03f10f9c2d2df0e0df  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm
++edc9db0ed6856f5d7d1905257592537758a79d625f3ed6529af9d7e9087fef28  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/Root.pm
+ 4e1589a017806cc6c8d461b6bc3cd7ed036e68f5a54242d6f4f2817c74192b5a  hooks/target/usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/ScannerLog.pm
+ eb8d51d7e0edf4d29354229448182e798ec3340e15f6ec2a3506df474df98a13  hooks/target/usr/local/lib/perl5/site_perl/managed-network/ManagedNetwork/CLI.pm
+ 8e1c7c59c84f850d6cd7483043cde2552a54e6a3251972de045834e9a104e24d  hooks/target/usr/local/lib/perl5/site_perl/managed-network/ManagedNetwork/Config.pm
+@@ -1103,6 +1105,8 @@ ad75063a20974faeff9d8c6a47f949339ed3b0f1b09ef0ff98616b8dffbc35e5  hooks/target/u
+ 3959bd12f12e37d53f27a2f47d62d5eb6190005989e70ddf42fdb6c963805c4b  hooks/target/usr/local/libexec/labwc-ai-llama-server
+ e4cd0f7546c15b9cb082a4368503c05646f2a0e034167400c3763eafaa24de91  hooks/target/usr/local/libexec/labwc-ai-model-info
+ 5d2323e9a23ba28084034f732666c89886b9c243694dec7bd6faefb9d5ff51cb  hooks/target/usr/local/libexec/labwc-ai-model-install-root
++ee71aff760bf00bd9b28f69b7c66e4b67b4948cd5803b24201be2018f2eca3f1  hooks/target/usr/local/libexec/labwc-apparmor-boot-state
++f6875c4a43d8e0f0680aabab17b099d0e6db48851aca74a894545f9aa8dcb061  hooks/target/usr/local/libexec/labwc-apparmor-policy-worker
+ 8755731f4328d6346bd0ed400fb34f891f231b97d16af0f1a370182103446384  hooks/target/usr/local/libexec/labwc-calendar
+ 76374de09488e9e57b0176077635185ccd6944ecd4f13b60566f6684d4221f10  hooks/target/usr/local/libexec/labwc-chatgpt-log-runner
+ 679be821cd60bb3556d65d91f695d6b7dab031015cf0d94f5ede4615546a16a1  hooks/target/usr/local/libexec/labwc-chatgpt-session
+@@ -1125,7 +1129,7 @@ bfc15eed41bd6b7f96400e7301ee240e7f9f9c864fb03e5887c842567e467bc8  hooks/target/u
+ fbb5687752547d4afd8c866296669a57b6ec8e86105d571b7d0ec1c37e8e1ec8  hooks/target/usr/local/libexec/labwc-ssh-key-load
+ f9b25930709708a8389680506b589177b32a6d4176a018a73610ea669cf01de0  hooks/target/usr/local/libexec/labwc-swaybg
+ 06d60bcfda60e42705d30edbc2a4fbb70532bd1f074dd9036911411424e5d080  hooks/target/usr/local/libexec/labwc-swayidle
+-32677f7b52be8e5fb386cf2b6074a13ce820bfc63bfd147eac5185c3e76cc6ae  hooks/target/usr/local/libexec/labwc-system-action-root
++f803dce3b6e55bd34c00c903eb9cd0cccc8929ea4de05f992c1a565abba1e23f  hooks/target/usr/local/libexec/labwc-system-action-root
+ 764ded9443fdf2385dd4ca2e8fd4509bbe793e3ff1a587d52d4a2a56b5b0cd74  hooks/target/usr/local/libexec/labwc-wrap-desktop-files
+ 71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b  hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime
+ 38f56a49deedcc36dc8197e5fa3bf4e12557048a560d6cfbb56b91df25d60a96  hooks/target/usr/local/libexec/local-apt-normalize-sources
+@@ -1256,7 +1260,7 @@ ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21  scripts/common
+ 8dba37a0713e74cd0a9e655d7a683c7b64ba50f917bdfcdc48b89962a88e5ea2  scripts/common/ssh.sh
+ 45ec67bd4e1b38ba9bd705628a460a11e3a0a7ae0d41654a3defbff8982a2776  scripts/common/target.sh
+ cee7ee56d8d9130f84d227eb1c55417c631374c7f21fe28212dedbd6754916fe  scripts/desktop/android-platform-tools.sh
+-c09c0502da95e406fef81f65d4ab3092cb4ce3ebc7c6df39fb5851be4745e6e8  scripts/desktop/components.sh
++75e3a10087af723fc846e43a6a5c30c9825e434c502634a3b608bdf306af1494  scripts/desktop/components.sh
+ a28571ea607a5c5309095b175e8166aae58da9a6a21f44554e1d38bc76e04805  scripts/desktop/detect.sh
+ 5435396aa5ea051b371b863566800c1e891f1946090e1d09e61f72ecb3fbdcd4  scripts/desktop/digital-assets.sh
+ 57d1eccd3bc1b06efc544686648aa8b02d2607664fb066153f40ab2e887490ce  scripts/desktop/labwc.sh
+@@ -1264,7 +1268,7 @@ fc2d5b9c3cab469ff0b6e4dde96266eea894d9078071876f186068a463d033a8  scripts/deskto
+ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/desktop/resctl-bench.sh
+ 258c53d585bb2d0be230de07f68ae0fb63806330a7bdc65cb013f8994d5cc67a  scripts/desktop/samloader.sh
+ 96bdfe253f23eef9b557763a8b9cf98b570e6eb2e1afe394ea41ab8815b9dd6a  scripts/desktop/satty.sh
+-cc745f09800c0e3846f4321d1a9139cee139c5dfb677abbd2869d2efe44633b2  scripts/desktop/verify.sh
++14cc1666f647c88950057f72e1d2931257d8e47594ee2c52f2e7ef7c6553404a  scripts/desktop/verify.sh
+ 722a58f670b89373d31408776943d01f5f7583b33531c2c1c818cc31223f30a7  scripts/desktop/waypaper.sh
+ 5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672  scripts/desktop/xwayland.sh
+ 98a7c90c6c56beaefb210ebb05ee0c8cc24ac5ebd9a846d87b0c79238417a09c  scripts/early/dispatch.sh
+@@ -1301,7 +1305,7 @@ eb7819cb9a65f29967bcc6bbdda3ae9d2b4275ecfef269ebdd9ce169def9f382  scripts/late/f
+ 36a030995b7add8dc5b3503092b071d488cb422fdbff5b1150b35f6ce49d0bbf  scripts/late/network.sh
+ fe430165425b18f822e920ded73d61b868641d8e87915c0487d29b3e3fe6ae45  scripts/late/podman.sh
+ e9ec159eeb80d83a36b85cc9eb0de8e4ebcfc30e20cc356189cc6ef2b21b3cac  scripts/late/qemu.sh
+-ed3ed0e60cbdcfaef0860443279c45c02b1297f93fa126705ed7b96960deea59  scripts/late/security.sh
++a1a658fadcc329d0b73103934eea03a5b8a04b9b09a1145e8423b571abb33a1c  scripts/late/security.sh
+ bc4ad7e84f08d701c91aecf0ae2cd8b46bd0a4f25f62c9e23da1ddd7d4e05961  scripts/late/software.sh
+ a52a3c013a0e3160bad5e37dc1a6f640d059948bcd1a48ec7feca2443efb2d8e  scripts/late/standard.sh
+ 6f989dd6bd48853a582a2ac406e3d5933f75b7137cf58e90d6cb26a7060f5600  scripts/late/storage-maintenance.sh
+diff --git a/d-i/forky/payload.tar.gz b/d-i/forky/payload.tar.gz
+index 8d40c90..e3c60e2 100644
+Binary files a/d-i/forky/payload.tar.gz and b/d-i/forky/payload.tar.gz differ
+diff --git a/d-i/forky/preseed.cfg b/d-i/forky/preseed.cfg
+index 75eb194..00657e2 100644
+--- a/d-i/forky/preseed.cfg
++++ b/d-i/forky/preseed.cfg
+@@ -8,7 +8,7 @@ d-i clock-setup/ntp boolean false
+ d-i clock-setup/ntp seen true
+ 
+ # Resolve the effective URL, validate the complete payload, then include local files.
+-d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" 212355c65d4400e2b8f012e34937f836bd4ad7d54b4a2094f9a3526bc544d4f6 39dd0e6315e7ad3e6615ff5c1b360c530535222a6404a0c71a20e7ab61c37855; installer_lifecycle_complete'
++d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" 89d13d97d7c093d7471a727c6a5ad3b807faa95546ec2e85891fdfd5a78ba5d1 1e9ad92b8b304aedbac340d610c5a3c523e8653bdc30ad49fd382a681c721d0e; installer_lifecycle_complete'
+ 
+ d-i preseed/run string file:///tmp/install-runtime/bootstrap/preseed-apply.sh
+ 
+diff --git a/d-i/forky/scripts/desktop/components.sh b/d-i/forky/scripts/desktop/components.sh
+index 3c2d7ca..cbf009f 100755
+--- a/d-i/forky/scripts/desktop/components.sh
++++ b/d-i/forky/scripts/desktop/components.sh
+@@ -4013,6 +4013,8 @@ desktop_stage_target_assets() {
+   desktop_stage_role_asset usr/local/bin/satty /usr/local/bin/satty 0755
+   desktop_stage_role_asset usr/local/libexec/apparmor-generate-rules /usr/local/libexec/apparmor-generate-rules 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-security-action-root /usr/local/libexec/labwc-security-action-root 0755
++  desktop_stage_role_asset usr/local/libexec/labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-worker 0755
++  desktop_stage_role_asset usr/local/libexec/labwc-apparmor-boot-state /usr/local/libexec/labwc-apparmor-boot-state 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-system-action-root /usr/local/libexec/labwc-system-action-root 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-recovery-action-root /usr/local/libexec/labwc-recovery-action-root 0755
+   desktop_stage_role_asset usr/local/libexec/labwc-network-control-action-root /usr/local/libexec/labwc-network-control-action-root 0755
+diff --git a/d-i/forky/scripts/desktop/verify.sh b/d-i/forky/scripts/desktop/verify.sh
+index ae6cccb..dfb402d 100755
+--- a/d-i/forky/scripts/desktop/verify.sh
++++ b/d-i/forky/scripts/desktop/verify.sh
+@@ -762,6 +762,8 @@ for path in \
+   /usr/bin/wayscriber \
+   /usr/local/libexec/apparmor-generate-rules \
+   /usr/local/libexec/labwc-security-action-root \
++  /usr/local/libexec/labwc-apparmor-policy-worker \
++  /usr/local/libexec/labwc-apparmor-boot-state \
+   /usr/local/libexec/labwc-system-action-root \
+   /usr/local/libexec/labwc-recovery-action-root \
+   /usr/local/libexec/labwc-network-control-action-root \
+diff --git a/d-i/forky/scripts/late/security.sh b/d-i/forky/scripts/late/security.sh
+index 958eaee..f769dc1 100755
+--- a/d-i/forky/scripts/late/security.sh
++++ b/d-i/forky/scripts/late/security.sh
+@@ -1545,6 +1545,8 @@ configure_target_apparmor_auditd() {
+         0644
+     done
+     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor-managed-modes.service)" "/etc/systemd/system/apparmor-managed-modes.service" 0644
++    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-policy@.service)" "/etc/systemd/system/labwc-apparmor-policy@.service" 0644
++    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-boot-recover.service)" "/etc/systemd/system/labwc-apparmor-boot-recover.service" 0644
+     stage_target_desktop_apparmor_profiles
+     run_in_target \
+       "apply managed AppArmor profile modes without touching the installer kernel" \
+diff --git a/d-i/forky/tests/test_desktop_integration_20260914.py b/d-i/forky/tests/test_desktop_integration_20260914.py
+index 8fb323e..0aeac9b 100644
+--- a/d-i/forky/tests/test_desktop_integration_20260914.py
++++ b/d-i/forky/tests/test_desktop_integration_20260914.py
+@@ -276,7 +276,9 @@ class ServiceAndNotificationTests(unittest.TestCase):
+              mock.patch.object(remote.shutil, 'which', return_value='/usr/bin/thunar'), \
+              mock.patch.object(remote.subprocess, 'run') as run:
+             remote.open_profile_directory()
+-        self.assertEqual(run.call_args.args[0], ['/usr/bin/thunar', '/fixture/profiles'])
++        self.assertEqual(run.call_args.args[0], [
++            '/usr/local/bin/labwc-wayland-app', 'auto', '--',
++            '/usr/bin/thunar', '/fixture/profiles'])
+         self.assertEqual(run.call_args.kwargs['env']['LABWC_MENU_ACTION_WAIT'], '1')
+ 
+     def test_wireshark_waits_for_setsids_child(self):
+--- /dev/null
++++ b/d-i/forky/hooks/target/etc/systemd/system/labwc-apparmor-boot-recover.service
+@@ -0,0 +1,36 @@
++[Unit]
++Description=Recover an interrupted managed AppArmor boot configuration change
++After=apparmor.service
++Before=apparmor-managed-modes.service
++RequiresMountsFor=/etc/default/grub.d /boot/grub
++ConditionPathExists=/var/lib/labwc-apparmor-policy/boot-transaction.json
++
++[Service]
++Type=oneshot
++User=root
++Group=root
++UMask=0077
++ExecStart=/usr/local/libexec/labwc-apparmor-boot-state recover
++AppArmorProfile=managed-labwc-apparmor-boot-state
++StateDirectory=labwc-apparmor-policy
++StateDirectoryMode=0700
++StandardInput=null
++StandardOutput=journal
++StandardError=journal
++TimeoutStartSec=30s
++TimeoutStopSec=30s
++KillMode=control-group
++NoNewPrivileges=false
++PrivateDevices=yes
++PrivateNetwork=yes
++PrivateTmp=yes
++ProtectHome=yes
++ProtectSystem=strict
++ReadWritePaths=/etc/default/grub.d /boot/grub
++ProtectControlGroups=yes
++ProtectKernelModules=yes
++ProtectKernelTunables=yes
++RestrictAddressFamilies=AF_UNIX
++RestrictRealtime=yes
++LimitCORE=0
++LimitFSIZE=32M
+--- /dev/null
++++ b/d-i/forky/hooks/target/etc/systemd/system/labwc-apparmor-policy@.service
+@@ -0,0 +1,49 @@
++[Unit]
++Description=Authorized AppArmor policy change (%i)
++Documentation=man:apparmor(7) man:systemd.service(5)
++After=apparmor.service apparmor-managed-modes.service labwc-apparmor-boot-recover.service
++RequiresMountsFor=/etc/apparmor /etc/apparmor.d /etc/default/grub.d /boot/grub
++
++[Service]
++Type=oneshot
++User=root
++Group=root
++UMask=0077
++ExecStart=/usr/local/libexec/labwc-apparmor-policy-worker %i
++AppArmorProfile=managed-labwc-apparmor-policy-worker
++# Create the protected backup leaf before applying the read-only mount view.
++StateDirectory=labwc-apparmor-policy apparmor/backup
++StateDirectoryMode=0700
++StandardInput=null
++StandardOutput=journal
++StandardError=journal
++SyslogIdentifier=labwc-apparmor-policy
++TimeoutStartSec=10min
++TimeoutStopSec=5min
++KillMode=control-group
++SendSIGKILL=yes
++Restart=no
++# Package-owned parser/GRUB tools need their declared AppArmor transitions.
++NoNewPrivileges=false
++# GRUB probes the host's real block devices and mount layout. Do not hide them.
++PrivateDevices=no
++PrivateUsers=no
++PrivatePIDs=no
++PrivateNetwork=yes
++PrivateTmp=yes
++ProtectHome=yes
++ProtectSystem=strict
++ReadWritePaths=/etc/apparmor /etc/apparmor.d /var/cache/apparmor /etc/default/grub.d /boot/grub
++ReadWritePaths=-/sys/kernel/security/apparmor
++ProtectControlGroups=yes
++ProtectKernelModules=yes
++ProtectKernelTunables=yes
++ProtectClock=yes
++ProtectHostname=yes
++RestrictAddressFamilies=AF_UNIX AF_NETLINK
++RestrictRealtime=yes
++LockPersonality=yes
++SystemCallArchitectures=native
++LimitCORE=0
++LimitFSIZE=32M
++TasksMax=256
+--- /dev/null
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-apparmor-boot-state
+@@ -0,0 +1,330 @@
++#!/usr/bin/python3 -I
++"""Stage a managed AppArmor boot change; never unload live policy or reboot.
++
++Only the repository-owned GRUB security fragment and grub.cfg are changed.
++The caller is a PID-1-owned, authorized policy worker. A durable journal makes
++an interrupted two-file publication recoverable without touching unrelated
++configuration, key material, certificates, or user data.
++"""
++from __future__ import annotations
++
++import base64
++import fcntl
++import json
++import os
++from pathlib import Path
++import re
++import selectors
++import shlex
++import signal
++import stat
++import subprocess
++import sys
++import tempfile
++import time
++
++MAX_CONFIG = 65_536
++MAX_GRUB = 8 * 1024 * 1024
++MAX_JOURNAL = 24 * 1024 * 1024
++ENVIRONMENT = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/"}
++
++
++class PolicyError(RuntimeError):
++    pass
++
++
++def trusted_directory(path: Path) -> None:
++    # Do not resolve away symlinks: each ancestor must itself be root-controlled.
++    for component in reversed((path, *path.parents)):
++        value = component.lstat()
++        if not stat.S_ISDIR(value.st_mode) or value.st_uid != 0 or value.st_mode & 0o022:
++            raise PolicyError(f"unsafe root-controlled directory: {component}")
++
++
++def read_file(path: Path, limit: int) -> tuple[bytes, int]:
++    trusted_directory(path.parent)
++    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    with os.fdopen(descriptor, "rb") as stream:
++        value = os.fstat(stream.fileno())
++        if (not stat.S_ISREG(value.st_mode) or value.st_uid != 0 or value.st_gid != 0
++                or value.st_nlink != 1 or value.st_mode & 0o022 or value.st_size > limit):
++            raise PolicyError(f"unsafe or oversized root-owned file: {path}")
++        content = stream.read(limit + 1)
++        if len(content) > limit:
++            raise PolicyError(f"file exceeds its size limit: {path}")
++        return content, stat.S_IMODE(value.st_mode)
++
++
++def sync_directory(path: Path) -> None:
++    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
++    try:
++        os.fsync(descriptor)
++    finally:
++        os.close(descriptor)
++
++
++def write_atomic(path: Path, content: bytes, mode: int) -> None:
++    trusted_directory(path.parent)
++    descriptor, name = tempfile.mkstemp(prefix=".labwc-apparmor.", dir=path.parent)
++    temporary = Path(name)
++    try:
++        with os.fdopen(descriptor, "wb") as stream:
++            os.fchmod(stream.fileno(), mode)
++            stream.write(content)
++            stream.flush()
++            os.fsync(stream.fileno())
++        os.replace(temporary, path)
++        sync_directory(path.parent)
++    finally:
++        temporary.unlink(missing_ok=True)
++
++
++def requested_fragment(content: bytes, enabled: bool) -> bytes:
++    try:
++        text = content.decode("ascii")
++    except UnicodeError as exc:
++        raise PolicyError("the managed GRUB security fragment is not ASCII") from exc
++    lines = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
++    if len(lines) != 1:
++        raise PolicyError("the managed GRUB security fragment must contain exactly one assignment")
++    # This is the exact template contract, not a shell parser or arbitrary edit.
++    prefix = 'GRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX:+$GRUB_CMDLINE_LINUX }'
++    line = lines[0]
++    if not line.startswith(prefix) or not line.endswith('"'):
++        raise PolicyError("unrecognized managed GRUB security fragment; refusing to edit it")
++    flags = line[len(prefix):-1]
++    if not re.fullmatch(r"[A-Za-z0-9_.,=:+ /-]+", flags):
++        raise PolicyError("unexpected syntax in managed GRUB security flags")
++    tokens = flags.split()
++    apparmor = [token for token in tokens if token.startswith("apparmor=")]
++    lsms = [token[4:].split(",") for token in tokens if token.startswith("lsm=")]
++    if len(apparmor) != 1 or apparmor[0] not in {"apparmor=0", "apparmor=1"}:
++        raise PolicyError("expected exactly one apparmor=0 or apparmor=1 security flag")
++    if len(lsms) != 1 or "apparmor" not in lsms[0]:
++        raise PolicyError("the managed LSM list must retain AppArmor")
++    replacement = "apparmor=1" if enabled else "apparmor=0"
++    new_flags = re.sub(r"(?<!\S)apparmor=[01](?!\S)", replacement, flags, count=1)
++    return text.replace(line, prefix + new_flags + '"', 1).encode("ascii")
++
++
++def validate_grub(content: bytes, enabled: bool) -> None:
++    if not content or len(content) > MAX_GRUB:
++        raise PolicyError("generated GRUB configuration is empty or oversized")
++    try:
++        text = content.decode("utf-8")
++    except UnicodeError as exc:
++        raise PolicyError("generated GRUB configuration is not valid UTF-8") from exc
++    expected = "apparmor=1" if enabled else "apparmor=0"
++    kernels = 0
++    for line in text.splitlines():
++        if not re.match(r"^\s*(?:linux|linuxefi|linux16)\s", line):
++            continue
++        try:
++            tokens = shlex.split(line, comments=True)
++        except ValueError as exc:
++            raise PolicyError("unrecognized GRUB kernel command") from exc
++        if len(tokens) < 2 or [token for token in tokens[2:] if token.startswith("apparmor=")] != [expected]:
++            raise PolicyError("a GRUB kernel entry has missing or conflicting AppArmor flags")
++        kernels += 1
++    if not kernels:
++        raise PolicyError("no verifiable GRUB Linux boot entries were generated")
++
++
++def run_bounded(argv: list[str], *, limit: int = MAX_GRUB, timeout: float = 180.0) -> bytes:
++    executable = Path(argv[0])
++    read_file(executable, MAX_GRUB)
++    if not os.access(executable, os.X_OK):
++        raise PolicyError(f"required GRUB command is not executable: {executable}")
++    process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
++                               stderr=subprocess.PIPE, env=ENVIRONMENT, start_new_session=True)
++    output = bytearray()
++    errors = bytearray()
++    deadline = time.monotonic() + timeout
++    try:
++        with selectors.DefaultSelector() as selector:
++            for stream, target in ((process.stdout, output), (process.stderr, errors)):
++                assert stream is not None
++                os.set_blocking(stream.fileno(), False)
++                selector.register(stream, selectors.EVENT_READ, target)
++            while selector.get_map():
++                remaining = deadline - time.monotonic()
++                if remaining <= 0:
++                    raise PolicyError("GRUB command timed out")
++                for key, _ in selector.select(min(remaining, 0.25)):
++                    block = os.read(key.fileobj.fileno(), 65_536)
++                    if not block:
++                        selector.unregister(key.fileobj)
++                        continue
++                    key.data.extend(block)
++                    bound = limit if key.data is output else 1_048_576
++                    if len(key.data) > bound:
++                        raise PolicyError("GRUB command exceeded its output limit")
++        remaining = max(0.01, deadline - time.monotonic())
++        status = process.wait(timeout=remaining)
++        if status:
++            detail = errors.decode("utf-8", "replace")[-4096:]
++            raise PolicyError(f"GRUB command failed with status {status}: {detail}")
++        return bytes(output)
++    finally:
++        # The unreaped leader pins its PID/PGID. Never poll/wait between TERM
++        # and KILL or signal a group after reaping a successfully finished child.
++        if process.returncode is None:
++            try:
++                os.killpg(process.pid, signal.SIGTERM)
++                time.sleep(0.2)
++                os.killpg(process.pid, signal.SIGKILL)
++            except ProcessLookupError:
++                pass
++            process.wait(timeout=3)
++        if process.stdout is not None:
++            process.stdout.close()
++        if process.stderr is not None:
++            process.stderr.close()
++
++
++class BootState:
++    def __init__(self, fragment: Path = Path("/etc/default/grub.d/35-security-core.cfg"),
++                 grub: Path = Path("/boot/grub/grub.cfg"),
++                 directory: Path = Path("/var/lib/labwc-apparmor-policy")) -> None:
++        self.fragment = fragment
++        self.grub = grub
++        self.directory = directory
++        self.journal = directory / "boot-transaction.json"
++
++    def record(self, transaction: dict) -> None:
++        encoded = (json.dumps(transaction, sort_keys=True) + "\n").encode("ascii")
++        if len(encoded) > MAX_JOURNAL:
++            raise PolicyError("boot transaction exceeds its size limit")
++        write_atomic(self.journal, encoded, 0o600)
++
++    @staticmethod
++    def unpack(transaction: dict, field: str, limit: int) -> bytes:
++        try:
++            content = base64.b64decode(transaction[field], validate=True)
++        except (ValueError, KeyError, TypeError) as exc:
++            raise PolicyError("invalid boot recovery journal") from exc
++        if len(content) > limit:
++            raise PolicyError("oversized boot recovery journal field")
++        return content
++
++    def recover(self) -> None:
++        if not self.journal.exists() and not self.journal.is_symlink():
++            return
++        encoded, _ = read_file(self.journal, MAX_JOURNAL)
++        try:
++            transaction = json.loads(encoded)
++        except (ValueError, UnicodeError) as exc:
++            raise PolicyError("invalid boot recovery journal; manual review required") from exc
++        required = {"version", "committed", "fragment_mode", "grub_mode", "old_fragment",
++                    "new_fragment", "old_grub", "new_grub"}
++        if (not isinstance(transaction, dict) or set(transaction) != required
++                or transaction["version"] != 1 or type(transaction["committed"]) is not bool):
++            raise PolicyError("unsupported boot recovery journal; manual review required")
++        for field in ("fragment_mode", "grub_mode"):
++            mode = transaction[field]
++            if type(mode) is not int or not 0 <= mode <= 0o777 or mode & 0o022:
++                raise PolicyError("unsafe file mode in boot recovery journal")
++        old_fragment = self.unpack(transaction, "old_fragment", MAX_CONFIG)
++        new_fragment = self.unpack(transaction, "new_fragment", MAX_CONFIG)
++        old_grub = self.unpack(transaction, "old_grub", MAX_GRUB)
++        new_grub = None if transaction["new_grub"] is None else self.unpack(transaction, "new_grub", MAX_GRUB)
++        current_fragment, _ = read_file(self.fragment, MAX_CONFIG)
++        current_grub, _ = read_file(self.grub, MAX_GRUB)
++        # Never overwrite a subsequent administrator/package-manager change.
++        if current_fragment not in (old_fragment, new_fragment) or current_grub not in (old_grub, new_grub):
++            raise PolicyError("boot files changed outside the pending transaction; manual recovery required")
++        if transaction["committed"]:
++            if current_fragment != new_fragment or new_grub is None or current_grub != new_grub:
++                raise PolicyError("committed boot transaction does not match disk; manual review required")
++        else:
++            write_atomic(self.grub, old_grub, transaction["grub_mode"])
++            write_atomic(self.fragment, old_fragment, transaction["fragment_mode"])
++            print("Recovered the previous GRUB configuration from an interrupted AppArmor change.")
++        self.journal.unlink()
++        sync_directory(self.directory)
++
++    def stage(self, enabled: bool) -> None:
++        self.recover()
++        original, fragment_mode = read_file(self.fragment, MAX_CONFIG)
++        old_grub, grub_mode = read_file(self.grub, MAX_GRUB)
++        proposed = requested_fragment(original, enabled)
++        if proposed == original:
++            try:
++                validate_grub(old_grub, enabled)
++            except PolicyError:
++                pass  # Repair a stale generated file using the same transaction.
++            else:
++                print("The requested AppArmor boot setting is already present. Live policy is unchanged.")
++                return
++        transaction = {
++            "version": 1, "committed": False, "fragment_mode": fragment_mode, "grub_mode": grub_mode,
++            "old_fragment": base64.b64encode(original).decode("ascii"),
++            "new_fragment": base64.b64encode(proposed).decode("ascii"),
++            "old_grub": base64.b64encode(old_grub).decode("ascii"), "new_grub": None,
++        }
++        self.record(transaction)
++        try:
++            write_atomic(self.fragment, proposed, fragment_mode)
++            generated = run_bounded(["/usr/sbin/grub-mkconfig"])
++            validate_grub(generated, enabled)
++            descriptor, name = tempfile.mkstemp(prefix=".labwc-apparmor.", dir=self.directory)
++            try:
++                with os.fdopen(descriptor, "wb") as stream:
++                    stream.write(generated)
++                run_bounded(["/usr/bin/grub-script-check", name], limit=1_048_576, timeout=30)
++            finally:
++                Path(name).unlink(missing_ok=True)
++            if read_file(self.fragment, MAX_CONFIG)[0] != proposed or read_file(self.grub, MAX_GRUB)[0] != old_grub:
++                raise PolicyError("boot files changed during generation; refusing publication")
++            transaction["new_grub"] = base64.b64encode(generated).decode("ascii")
++            self.record(transaction)
++            write_atomic(self.grub, generated, grub_mode)
++            transaction["committed"] = True
++            self.record(transaction)
++            self.recover()  # Verify the committed pair and retire the durable journal.
++        except BaseException as exc:
++            try:
++                self.recover()
++            except (PolicyError, OSError) as recovery_error:
++                raise PolicyError(f"boot change failed; recovery also failed: {recovery_error}") from exc
++            raise
++        state = "enabled" if enabled else "disabled"
++        print(f"AppArmor will be {state} after a normal reboot. No live profiles were unloaded.")
++        print("The system has NOT been rebooted. This helper does not edit keys, certificates or user data.")
++
++
++def main(argv: list[str]) -> int:
++    if os.getuid() != 0 or os.geteuid() != 0:
++        raise PolicyError("this worker requires root")
++    if len(argv) != 1 or argv[0] not in {"enable", "disable", "recover"}:
++        raise PolicyError("expected exactly one action: enable, disable, or recover")
++    os.umask(0o077)
++    state = BootState()
++    state.directory.mkdir(mode=0o700, exist_ok=True)
++    trusted_directory(state.directory)
++    descriptor = os.open(state.directory / "boot.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
++    with os.fdopen(descriptor, "rb+") as lock:
++        metadata = os.fstat(lock.fileno())
++        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o077:
++            raise PolicyError("unsafe boot transaction lock")
++        try:
++            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        except BlockingIOError as exc:
++            raise PolicyError("another AppArmor boot change is in progress") from exc
++        def interrupted(signum: int, _frame: object) -> None:
++            raise PolicyError(f"boot change interrupted by signal {signum}")
++        for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
++            signal.signal(signum, interrupted)
++        if argv[0] == "recover":
++            state.recover()
++        else:
++            state.stage(argv[0] == "enable")
++    return 0
++
++
++if __name__ == "__main__":
++    try:
++        sys.exit(main(sys.argv[1:]))
++    except (PolicyError, OSError, subprocess.SubprocessError) as error:
++        print(f"labwc-apparmor-boot-state: {error}", file=sys.stderr)
++        sys.exit(1)
+--- /dev/null
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-apparmor-policy-worker
+@@ -0,0 +1,44 @@
++#!/usr/bin/perl
++use strict;
++use warnings;
++use lib '/usr/local/lib/perl5/site_perl/labwc-security-action';
++use LabwcSecurityAction::AppArmor;
++
++$< == 0 && $> == 0 or die "AppArmor policy worker requires root\n";
++@ARGV == 1 or die "AppArmor policy worker requires exactly one request\n";
++my ($request) = @ARGV;
++my $apparmor = LabwcSecurityAction::AppArmor->new();
++my ($profiles, $mode, $label, $boot, $audit);
++if ($request =~ /\Aglobal-(enforce|complain)\z/) {
++    $mode = $1;
++    $profiles = [$apparmor->_desktop_profiles()];
++    $label = 'all declared managed profiles';
++}
++elsif ($request =~ /\Aapplication-([a-z0-9-]+)-(enforce|complain)\z/) {
++    ($label, $mode) = ($1, $2);
++    $profiles = [$apparmor->_application_profiles($label)];
++}
++elsif ($request =~ /\Aboot-(enable|disable)\z/) {
++    $boot = $1;
++}
++elsif ($request =~ /\Aaudit-([a-z0-9-]+)-(enable|disable)\z/) {
++    ($label, $mode, $audit) = ($1, $2, 1);
++    $apparmor->_application_profiles($label);
++}
++elsif ($request eq 'reload-modes') {
++    # No caller-supplied mode, profile filename or executable.
++}
++else {
++    die "unsupported AppArmor policy worker request\n";
++}
++
++umask 0077;
++my $lock = $apparmor->_policy_lock();
++if (defined $boot) {
++    # Keep this process and its lock alive until the child has completed.
++    my $status = $apparmor->command()->run('/usr/local/libexec/labwc-apparmor-boot-state', $boot);
++    exit $status;
++}
++exit $apparmor->_update_application_audit($label, $mode) if $audit;
++exit $apparmor->_reconcile_modes() if $request eq 'reload-modes';
++exit $apparmor->_update_modes($profiles, $mode, $label);
+--- /dev/null
++++ b/d-i/forky/tests/test_computer_management_20260916.py
+@@ -0,0 +1,300 @@
++"""Launcher regressions. No real bootloader, service, GUI or policy is modified."""
++from __future__ import annotations
++import base64
++import contextlib
++import io
++import json
++import os
++from pathlib import Path
++import re
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++import types
++import unittest
++from unittest import mock
++
++FORKY = Path(__file__).resolve().parents[1]
++TARGET = FORKY / 'hooks/target'
++
++def load(relative):
++    path = TARGET / relative
++    module = types.ModuleType('test_' + path.name.replace('-', '_'))
++    module.__file__ = str(path)
++    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
++    return module
++
++BOOT = load('usr/local/libexec/labwc-apparmor-boot-state')
++REMOTE = load('usr/local/bin/labwc-remote-desktop')
++PODMAN = load('usr/local/bin/labwc-podman-menu')
++FRAGMENT = b'# managed\nGRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX:+$GRUB_CMDLINE_LINUX }apparmor=1 lsm=landlock,lockdown,yama,integrity,apparmor,bpf audit=1"\n'
++GRUB_ON = b'menuentry Debian {\n linux /vmlinuz root=UUID=test apparmor=1 quiet\n initrd /initrd\n}\n'
++GRUB_OFF = GRUB_ON.replace(b'apparmor=1', b'apparmor=0')
++
++class BootSyntaxTests(unittest.TestCase):
++    def test_change_only_one_managed_flag_and_preserve_lsm_order(self):
++        off = BOOT.requested_fragment(FRAGMENT, False)
++        self.assertEqual(off, FRAGMENT.replace(b'apparmor=1', b'apparmor=0'))
++        self.assertEqual(BOOT.requested_fragment(off, True), FRAGMENT)
++
++    def test_refuse_shell_code_duplicate_missing_or_ambiguous_flags(self):
++        for content in [FRAGMENT + b'touch /tmp/evil\n',
++                        FRAGMENT.replace(b' audit=1', b' apparmor=1'),
++                        FRAGMENT.replace(b'apparmor=1 ', b''),
++                        FRAGMENT.replace(b',apparmor,', b','),
++                        FRAGMENT.replace(b'audit=1', b'$(touch /tmp/evil)'), b'', b'\xff']:
++            with self.subTest(content=content), self.assertRaises(BOOT.PolicyError):
++                BOOT.requested_fragment(content, False)
++
++    def test_all_kernel_entries_must_agree(self):
++        BOOT.validate_grub(GRUB_ON + GRUB_ON.replace(b'linux ', b'linuxefi '), True)
++        for content in [GRUB_ON + GRUB_OFF, GRUB_ON.replace(b'apparmor=1', b''),
++                        GRUB_ON.replace(b'apparmor=1', b'apparmor=1 apparmor=0'), b'# no kernels\n']:
++            with self.subTest(content=content), self.assertRaises(BOOT.PolicyError):
++                BOOT.validate_grub(content, True)
++
++    def test_strict_root_and_action_gate(self):
++        with mock.patch.object(BOOT.os, 'getuid', return_value=1000):
++            with self.assertRaises(BOOT.PolicyError): BOOT.main(['disable'])
++        with mock.patch.object(BOOT.os, 'getuid', return_value=0), mock.patch.object(BOOT.os, 'geteuid', return_value=0):
++            for args in [[], ['disable', '/tmp/x'], ['disable;reboot'], ['reload']]:
++                with self.subTest(args=args), self.assertRaises(BOOT.PolicyError): BOOT.main(args)
++
++@unittest.skipUnless(os.geteuid() == 0, 'real root-owned filesystem fixtures required')
++class BootTransactionTests(unittest.TestCase):
++    def setUp(self):
++        # /tmp and /mnt/data are intentionally not trusted root-only ancestors.
++        self.tmp = tempfile.TemporaryDirectory(prefix='labwc-boot-test-', dir='/root')
++        self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name)
++        self.fragment = self.root / 'security.cfg'
++        self.grub = self.root / 'grub.cfg'
++        self.fragment.write_bytes(FRAGMENT); self.grub.write_bytes(GRUB_ON)
++        self.state = BOOT.BootState(self.fragment, self.grub, self.root)
++        self.command = mock.patch.object(BOOT, 'run_bounded', side_effect=self.run_tool).start()
++        self.addCleanup(mock.patch.stopall)
++        self.output = contextlib.redirect_stdout(io.StringIO()); self.output.__enter__()
++        self.addCleanup(self.output.__exit__, None, None, None)
++
++    def run_tool(self, argv, **kwargs):
++        if argv == ['/usr/sbin/grub-mkconfig']:
++            return GRUB_OFF if b'apparmor=0' in self.fragment.read_bytes() else GRUB_ON
++        self.assertEqual(argv[0], '/usr/bin/grub-script-check')
++        self.assertTrue(Path(argv[1]).is_relative_to(self.root))
++        return b''
++
++    def old_pair(self):
++        self.assertEqual(self.fragment.read_bytes(), FRAGMENT)
++        self.assertEqual(self.grub.read_bytes(), GRUB_ON)
++
++    def test_disable_enable_and_idempotence(self):
++        self.state.stage(False)
++        self.assertEqual(self.grub.read_bytes(), GRUB_OFF)
++        self.assertFalse(self.state.journal.exists())
++        count = self.command.call_count
++        self.state.stage(False); self.assertEqual(self.command.call_count, count)
++        self.state.stage(True); self.old_pair()
++
++    def test_no_op_does_not_run_grub_tools(self):
++        self.state.stage(True); self.command.assert_not_called(); self.old_pair()
++
++    def test_generator_and_checker_failure_restore_both_files(self):
++        for failure in ('generate', 'check'):
++            def tool(argv, **kwargs):
++                if failure == 'generate' or argv[0].endswith('grub-script-check'):
++                    raise BOOT.PolicyError('injected tool failure')
++                return GRUB_OFF
++            with self.subTest(failure=failure):
++                self.command.side_effect = tool
++                with self.assertRaises(BOOT.PolicyError): self.state.stage(False)
++                self.old_pair(); self.assertFalse(self.state.journal.exists())
++
++    def test_invalid_generated_kernel_flags_never_publish(self):
++        self.command.side_effect = lambda *a, **kw: GRUB_ON
++        with self.assertRaises(BOOT.PolicyError): self.state.stage(False)
++        self.old_pair()
++
++    def test_publication_failure_rolls_back(self):
++        original = BOOT.write_atomic
++        once = [False]
++        def failing(path, content, mode):
++            if path == self.grub and content == GRUB_OFF and not once[0]:
++                once[0] = True; raise OSError('injected disk failure')
++            return original(path, content, mode)
++        with mock.patch.object(BOOT, 'write_atomic', side_effect=failing):
++            with self.assertRaises(OSError): self.state.stage(False)
++        self.old_pair()
++
++    def test_commit_journal_failure_rolls_back_published_pair(self):
++        record = self.state.record
++        def failing(transaction):
++            if transaction['committed']: raise OSError('injected fsync failure')
++            record(transaction)
++        with mock.patch.object(self.state, 'record', side_effect=failing):
++            with self.assertRaises(OSError): self.state.stage(False)
++        self.old_pair()
++
++    def test_external_root_changes_are_not_overwritten(self):
++        def changing(argv, **kwargs):
++            self.grub.write_bytes(b'changed externally\n')
++            return GRUB_OFF
++        self.command.side_effect = changing
++        with self.assertRaisesRegex(BOOT.PolicyError, 'recovery also failed'):
++            self.state.stage(False)
++        self.assertEqual(self.grub.read_bytes(), b'changed externally\n')
++        self.assertTrue(self.state.journal.exists())
++
++    def test_interrupted_transaction_is_recovered_on_next_invocation(self):
++        transaction = dict(version=1, committed=False, fragment_mode=0o644, grub_mode=0o644,
++                           old_fragment=base64.b64encode(FRAGMENT).decode(),
++                           new_fragment=base64.b64encode(FRAGMENT.replace(b'apparmor=1', b'apparmor=0')).decode(),
++                           old_grub=base64.b64encode(GRUB_ON).decode(), new_grub=base64.b64encode(GRUB_OFF).decode())
++        self.state.record(transaction)
++        self.fragment.write_bytes(FRAGMENT.replace(b'apparmor=1', b'apparmor=0'))
++        self.grub.write_bytes(GRUB_OFF)
++        self.state.recover(); self.old_pair(); self.assertFalse(self.state.journal.exists())
++
++    def test_hardlinks_symlinks_and_writable_files_are_rejected(self):
++        link = self.root / 'link'; os.link(self.fragment, link)
++        with self.assertRaises(BOOT.PolicyError): BOOT.read_file(self.fragment, 65536)
++        link.unlink(); link.symlink_to(self.fragment)
++        with self.assertRaises(OSError): BOOT.read_file(link, 65536)
++        self.fragment.chmod(0o666)
++        with self.assertRaises(BOOT.PolicyError): BOOT.read_file(self.fragment, 65536)
++
++    def test_symlink_ancestor_and_non_root_parent_are_rejected(self):
++        link = self.root / 'directory'; link.symlink_to(self.root, target_is_directory=True)
++        with self.assertRaises(BOOT.PolicyError): BOOT.read_file(link / 'security.cfg', 65536)
++        with self.assertRaises(BOOT.PolicyError): BOOT.trusted_directory(Path('/tmp'))
++
++    def test_corrupt_journal_is_preserved_for_manual_review(self):
++        self.state.journal.write_text('{bad')
++        with self.assertRaises(BOOT.PolicyError): self.state.recover()
++        self.assertTrue(self.state.journal.exists()); self.old_pair()
++
++    def test_file_modes_are_preserved(self):
++        self.fragment.chmod(0o640); self.grub.chmod(0o600)
++        self.state.stage(False)
++        self.assertEqual(self.fragment.stat().st_mode & 0o777, 0o640)
++        self.assertEqual(self.grub.stat().st_mode & 0o777, 0o600)
++
++class PodmanQueryTests(unittest.TestCase):
++    def test_success_and_nonzero_status(self):
++        self.assertEqual(PODMAN.execute([sys.executable, '-c', 'print("ok")']), 'ok\n')
++        with self.assertRaisesRegex(RuntimeError, 'exited 3'):
++            PODMAN.execute([sys.executable, '-c', 'raise SystemExit(3)'])
++
++    def test_capture_is_bounded(self):
++        with self.assertRaisesRegex(RuntimeError, '16 MiB'):
++            PODMAN.execute([sys.executable, '-c', 'import os; os.write(1,b"x"*17000000)'])
++
++    def test_timeout_includes_inherited_pipes_after_leader_exit(self):
++        code = 'import os,time\nif os.fork() == 0: time.sleep(30)\nelse: os._exit(0)'
++        started = time.monotonic()
++        with self.assertRaises(subprocess.TimeoutExpired):
++            PODMAN.execute([sys.executable, '-c', code], timeout=0.3)
++        self.assertLess(time.monotonic() - started, 4)
++
++    def test_success_never_signals_a_reaped_group(self):
++        with mock.patch.object(PODMAN.os, 'killpg') as kill:
++            PODMAN.execute([sys.executable, '-c', 'pass'])
++            kill.assert_not_called()
++
++class RemoteLogTests(unittest.TestCase):
++    def setUp(self):
++        self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
++        self.root = Path(self.tmp.name); self.log = self.root / 'session.log'
++        mock.patch.object(REMOTE, 'freerdp_connection_environment', return_value=os.environ.copy()).start()
++        mock.patch.object(REMOTE, 'ensure_profile_directory').start()
++        mock.patch.object(REMOTE, 'notify').start()
++        self.addCleanup(mock.patch.stopall)
++
++    def test_hardlink_rejection_does_not_truncate_original(self):
++        original = self.root / 'important'; original.write_text('unchanged key fixture')
++        os.link(original, self.log)
++        with self.assertRaises(SystemExit): REMOTE.run_freerdp_command([sys.executable, '-c', 'pass'], self.log)
++        self.assertEqual(original.read_text(), 'unchanged key fixture')
++
++    def test_symlink_rejection_does_not_truncate_original(self):
++        original = self.root / 'important'; original.write_text('unchanged')
++        self.log.symlink_to(original)
++        with self.assertRaises(OSError): REMOTE.run_freerdp_command([sys.executable, '-c', 'pass'], self.log)
++        self.assertEqual(original.read_text(), 'unchanged')
++
++    def test_fifo_rejection_does_not_block(self):
++        os.mkfifo(self.log)
++        with self.assertRaises(OSError): REMOTE.run_freerdp_command([sys.executable, '-c', 'pass'], self.log)
++
++    def test_log_growth_is_bounded_and_status_preserved(self):
++        code = 'import os; os.write(1,b"x"*2200000); print("FINAL"); raise SystemExit(7)'
++        self.assertEqual(REMOTE.run_freerdp_command([sys.executable, '-c', code], self.log), 7)
++        self.assertLessEqual(self.log.stat().st_size, REMOTE.MAX_CONNECTION_LOG_BYTES)
++        self.assertTrue(self.log.read_bytes().endswith(b'FINAL\n'))
++        self.assertEqual(self.log.stat().st_mode & 0o777, 0o600)
++
++class IntegrationContractTests(unittest.TestCase):
++    def test_new_workers_and_units_are_staged(self):
++        components = (FORKY / 'scripts/desktop/components.sh').read_text()
++        security = (FORKY / 'scripts/late/security.sh').read_text()
++        for name in ('labwc-apparmor-policy-worker', 'labwc-apparmor-boot-state'):
++            self.assertIn(f'usr/local/libexec/{name} /usr/local/libexec/{name} 0755', components)
++        for name in ('labwc-apparmor-policy@.service', 'labwc-apparmor-boot-recover.service'):
++            self.assertIn(f'"/etc/systemd/system/{name}" 0644', security)
++
++    def test_no_live_disable_menu_or_per_app_unload(self):
++        menu = (TARGET / 'usr/local/bin/labwc-maintenance-menu').read_text()
++        self.assertNotIn("'Disable All'", menu)
++        self.assertIn("'Disable AppArmor After Reboot'", menu)
++        self.assertIn("'Enable AppArmor After Reboot'", menu)
++        self.assertNotIn('Disable) mode=disable', menu)
++        for forbidden in ('aa-disable', 'aa-teardown', 'systemctl stop', 'reboot('):
++            self.assertNotIn(forbidden, (TARGET / 'usr/local/libexec/labwc-apparmor-boot-state').read_text())
++
++    def test_critical_profile_sources_cannot_be_disabled_by_legacy_config(self):
++        config = (TARGET / 'usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm').read_text()
++        for name in ('managed-desktop-wrappers', 'managed-system-wrappers', 'managed-labwc-session', 'managed-document-applications', 'managed-desktop-utilities', 'usr.sbin.aa-status'):
++            self.assertIn(name, config)
++        self.assertIn("$mode eq 'disable' && $launch_sources{$profile_name}", config)
++
++    def test_boot_disabled_kernel_skips_mode_reconciliation_at_boot(self):
++        unit = (TARGET / 'etc/systemd/system/apparmor-managed-modes.service').read_text()
++        self.assertIn('ConditionSecurity=apparmor', unit)
++        self.assertIn('Wants=labwc-apparmor-boot-recover.service', unit)
++
++    def test_system_workers_do_not_share_desktop_lifetime(self):
++        unit = (TARGET / 'etc/systemd/system/labwc-apparmor-policy@.service').read_text()
++        for value in ('Type=oneshot', 'KillMode=control-group', 'ProtectHome=yes', 'ProtectSystem=strict', 'PrivatePIDs=no', 'PrivateUsers=no'):
++            self.assertIn(value, unit)
++        self.assertIn('StateDirectory=labwc-apparmor-policy apparmor/backup', unit)
++        self.assertNotIn('PartOf=labwc-session', unit)
++        self.assertNotIn('/home', '\n'.join(x for x in unit.splitlines() if x.startswith('ReadWritePaths=')))
++
++    def test_all_digital_catalog_actions_have_dispatch_branches(self):
++        base = TARGET / 'usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets'
++        catalog = set(re.findall(r"action\s*=>\s*'([^']+)'", (base / 'Catalog.pm').read_text()))
++        branches = set(re.findall(r"\$action eq '([^']+)'", (base / 'Actions.pm').read_text()))
++        self.assertGreater(len(catalog), 40)
++        self.assertEqual(catalog, branches)
++
++    def test_phone_menu_action_tokens_have_runtime_branches(self):
++        menu = (TARGET / 'usr/local/bin/labwc-adb-menu').read_text().replace('\\\n', ' ')
++        tokens = set(re.findall(r'run_adb_action\s+([a-z][a-z0-9-]+)', menu))
++        runtime = (TARGET / 'usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm').read_text()
++        self.assertGreater(len(tokens), 40)
++        for token in tokens:
++            self.assertIn("'" + token + "'", runtime, token)
++
++    def test_codex_prompt_cannot_become_an_option(self):
++        runtime = (TARGET / 'usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm').read_text()
++        self.assertIn("_exec_codex('--', $prompt)", runtime)
++        self.assertIn('capture_command(argv => \\@command, timeout => 30, limit => $maximum)', runtime)
++
++    def test_storage_inventory_failure_is_not_treated_as_unmounted(self):
++        source = (TARGET / 'usr/local/bin/labwc-external-drives').read_text()
++        self.assertIn('disk_snapshot=$(collect_snapshot "$disk_device") || return 1', source)
++        self.assertIn('remaining_records=$(mounted_records_for_disk "$disk_device") || return 1', source)
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ b/d-i/forky/tests/test_management_perl_methods_20260916.py
+@@ -0,0 +1,199 @@
++"""Execute the actual changed Perl method bodies with real core Perl/filesystems.
++
++Only external policy tools, object construction/accessors and the kernel load
++boundary are doubles. This does NOT emulate Moo or count as loading the full
++Moo/MooX application. Full application tests remain a separate dependency gate.
++"""
++from pathlib import Path
++import json
++import os
++import re
++import shutil
++import subprocess
++import tempfile
++import unittest
++
++TARGET = Path(__file__).resolve().parents[1] / 'hooks/target'
++APPARMOR = TARGET / 'usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSecurityAction/AppArmor.pm'
++
++
++def method(name):
++    match = re.search(r'^sub ' + re.escape(name) + r' \{.*?^\}', APPARMOR.read_text(), re.M | re.S)
++    if not match:
++        raise AssertionError('method not found: ' + name)
++    return match.group()
++
++
++@unittest.skipUnless(shutil.which('perl') and os.geteuid() == 0,
++                     'requires real Perl and root-owned filesystem fixtures')
++class PerlPolicyMethodTests(unittest.TestCase):
++    def run_case(self, kind, statuses=(), **options):
++        with tempfile.TemporaryDirectory() as directory:
++            root = Path(directory)
++            (root / 'profiles').mkdir()
++            (root / 'backup').mkdir(mode=0o700)
++            (root / 'drafts').mkdir()
++            for name in ('abi', 'abstractions', 'tunables', 'local'):
++                (root / 'profiles' / name).mkdir()
++            (root / 'mode').write_text('enforce required managed-desktop-wrappers -\n')
++            (root / 'enabled').write_text('Y\n')
++            (root / 'helper').write_text('#!/bin/sh\nexit 0\n'); (root / 'helper').chmod(0o755)
++            (root / 'profiles/vivaldi-stable').write_text('original audit policy\n')
++            (root / 'profiles/vivaldi-bin').write_text('other original policy\n')
++            (root / 'profiles/example').write_text('previous profile\n')
++            (root / 'drafts/example').write_text('candidate profile\n')
++            methods = ('_update_modes', '_validate_mode_config', '_read_small_file',
++                       '_sync_mode_directory', '_ensure_root_directory', '_prepare_backup_dir',
++                       '_prepare_draft_dir', '_validate_root_owned_file', '_application_profiles',
++                       '_copy_atomic', '_draft_path', '_validate_draft_name', '_same_labels',
++                       'activate_draft', '_update_application_audit', '_work_dir',
++                       '_link_support_dirs', '_require_profile_tool_confirmation', 'run_autodep')
++            code = r'''
++use strict; use warnings;
++use JSON::PP; use File::Basename qw(basename dirname);
++use File::Copy qw(copy); use File::Path qw(make_path remove_tree);
++use File::Temp qw(tempdir tempfile); use Fcntl qw(O_RDONLY O_DIRECTORY O_NOFOLLOW);
++use IO::Handle;
++our $o = decode_json($ARGV[0]); our $dir = $ARGV[1];
++our $self = bless {
++    mode_config => "$dir/mode", maximum_config_bytes => 65536,
++    mode_helper => "$dir/helper", profile_dir => "$dir/profiles",
++    profile_backup_dir => "$dir/backup", profile_draft_dir => "$dir/drafts",
++    maximum_draft_bytes => 1048576, kernel_enabled_path => "$dir/enabled",
++    command => bless({}, 'FakeCommand'), calls => 0, reloads => 0,
++}, 'main';
++for my $attribute (keys %{$self}) {
++    my $key = $attribute;
++    no strict 'refs';
++    *{$key} = sub { $_[0]->{$key} };
++}
++sub _reconcile_modes {
++    my ($s) = @_; ++$s->{calls};
++    if ($o->{external_change} && $s->{calls} == 1) {
++        open my $f, '>', $s->mode_config or die $!; print {$f} "external root change\n"; close $f;
++    }
++    return shift(@{$o->{statuses}}) // 0;
++}
++sub _policy_lock { return 1; } # construction/lock boundary tested separately
++sub _validate_executable { return $_[1]; }
++sub _program { return $_[1]; }
++sub _resolve_installed_profile_name { return $_[2]; }
++sub _profile_labels { return ['example']; }
++sub _management_state { return 1; }
++sub _parser_validate { return 0; } # real parser compilation has separate coverage
++sub _activate_installed_profile { ++$self->{reloads}; return shift(@{$o->{reload_statuses}}) // 0; }
++sub _publish_generated_drafts { $self->{last_workspace} = $_[1]; }
++{ package FakeCommand;
++  sub run {
++    my ($s, @args) = @_;
++    if ($args[0] eq 'aa-audit') {
++      open my $f, '>', $args[-1] or die $!; print {$f} "changed flags\n"; close $f;
++      return shift(@{$main::o->{statuses}}) // 0;
++    }
++    return 0;
++  }
++}
++'''
++            code += '\n' + '\n'.join(method(name) for name in methods) + r'''
++my $result = eval {
++    if ($o->{kind} eq 'mode') {
++        $self->_update_modes(['managed-desktop-wrappers'], $o->{mode} // 'complain', 'fixture');
++    } elsif ($o->{kind} eq 'audit') {
++        $self->_update_application_audit('vivaldi', $o->{mode} // 'enable');
++    } elsif ($o->{kind} eq 'activate') {
++        $self->activate_draft('drafts', 'example', 'confirmed-apparmor-draft-activation');
++    } elsif ($o->{kind} eq 'autodep') {
++        $self->run_autodep('/usr/bin/example', 'confirmed-apparmor-profile-tool');
++    } else { die 'unknown fixture'; }
++    1;
++};
++my $error = $@;
++print "\nRESULT=" . encode_json({ok => $result ? 1 : 0, error => $error, calls => $self->{calls},
++    reloads => $self->{reloads}, last_workspace => $self->{last_workspace}}) . "\n";
++'''
++            payload = dict(kind=kind, statuses=list(statuses), reload_statuses=[])
++            payload.update(options)
++            result = subprocess.run(['perl', '-e', code, json.dumps(payload), str(root)],
++                                    text=True, capture_output=True, timeout=15)
++            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
++            metadata = json.loads(result.stdout.rsplit('RESULT=', 1)[1])
++            files = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
++            metadata['files'] = files
++            metadata['directories'] = [p.name for p in (root / 'drafts').iterdir() if p.is_dir()]
++            return metadata
++
++    def test_mode_commit(self):
++        result = self.run_case('mode')
++        self.assertEqual(result['ok'], 1)
++        self.assertEqual(result['files']['mode'], b'complain required managed-desktop-wrappers -\n')
++        self.assertEqual(result['calls'], 1)
++        self.assertFalse(any(name.startswith('.managed-modes') for name in result['files']))
++
++    def test_failed_mode_reconcile_restores_and_reconciles(self):
++        result = self.run_case('mode', [1, 0])
++        self.assertEqual(result['ok'], 0)
++        self.assertIn('restored and reconciled', result['error'])
++        self.assertEqual(result['files']['mode'], b'enforce required managed-desktop-wrappers -\n')
++        self.assertEqual(result['calls'], 2)
++
++    def test_failed_mode_rollback_retains_backup(self):
++        result = self.run_case('mode', [1, 2])
++        self.assertEqual(result['ok'], 0)
++        self.assertIn('ALSO FAILED', result['error'])
++        self.assertTrue(any(name.startswith('.managed-modes.backup.') for name in result['files']))
++
++    def test_external_mode_change_is_preserved(self):
++        result = self.run_case('mode', [1], external_change=True)
++        self.assertIn('changed concurrently', result['error'])
++        self.assertEqual(result['files']['mode'], b'external root change\n')
++
++    def test_live_disable_refused_before_any_mutation(self):
++        result = self.run_case('mode', mode='disable')
++        self.assertEqual(result['ok'], 0)
++        self.assertIn('live profile unloading is not supported', result['error'])
++        self.assertEqual(result['calls'], 0)
++        self.assertEqual(result['files']['mode'], b'enforce required managed-desktop-wrappers -\n')
++
++    def test_autodep_success_still_cleans_workspace(self):
++        result = self.run_case('autodep')
++        self.assertEqual(result['ok'], 1, result['error'])
++        self.assertIsNotNone(result['last_workspace'])
++        self.assertEqual(result['directories'], [])
++
++    def test_profile_activation_failed_rollback_retains_previous_source(self):
++        result = self.run_case('activate', reload_statuses=[1, 2])
++        self.assertEqual(result['ok'], 0)
++        self.assertIn('Recovery ALSO FAILED', result['error'])
++        self.assertEqual(result['files']['profiles/example'], b'previous profile\n')
++        backups = [v for k, v in result['files'].items() if k.endswith('/previous-profile')]
++        self.assertEqual(backups, [b'previous profile\n'])
++
++    def test_profile_activation_success_keeps_previous_source(self):
++        result = self.run_case('activate')
++        self.assertEqual(result['ok'], 1, result['error'])
++        self.assertEqual(result['files']['profiles/example'], b'candidate profile\n')
++        self.assertEqual([v for k, v in result['files'].items() if k.endswith('/previous-profile')],
++                         [b'previous profile\n'])
++
++    def test_audit_failure_restores_exact_flags_not_guessed_inverse(self):
++        result = self.run_case('audit', [0, 7])
++        self.assertEqual(result['ok'], 0)
++        self.assertEqual(result['files']['profiles/vivaldi-stable'], b'original audit policy\n')
++        self.assertEqual(result['files']['profiles/vivaldi-bin'], b'other original policy\n')
++        self.assertIn('Audit source backups retained', result['error'])
++        self.assertEqual(result['reloads'], 2)
++
++    def test_audit_rollback_failure_is_visible_and_backed_up(self):
++        result = self.run_case('audit', [0, 7], reload_statuses=[9, 0])
++        self.assertIn('Recovery ALSO FAILED', result['error'])
++        self.assertTrue(any(k.startswith('backup/audit.') for k in result['files']))
++
++    def test_audit_commit_cleans_only_transaction_backups(self):
++        result = self.run_case('audit', [0, 0])
++        self.assertEqual(result['ok'], 1, result['error'])
++        self.assertEqual(result['reloads'], 2)
++        self.assertEqual(result['files']['profiles/vivaldi-stable'], b'changed flags\n')
++        self.assertFalse(any(k.startswith('backup/audit.') for k in result['files']))
++
++if __name__ == '__main__':
++    unittest.main()

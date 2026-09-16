@@ -4013,6 +4013,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/satty /usr/local/bin/satty 0755
   desktop_stage_role_asset usr/local/libexec/apparmor-generate-rules /usr/local/libexec/apparmor-generate-rules 0755
   desktop_stage_role_asset usr/local/libexec/labwc-security-action-root /usr/local/libexec/labwc-security-action-root 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-apparmor-policy-worker /usr/local/libexec/labwc-apparmor-policy-worker 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-apparmor-boot-state /usr/local/libexec/labwc-apparmor-boot-state 0755
   desktop_stage_role_asset usr/local/libexec/labwc-system-action-root /usr/local/libexec/labwc-system-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-recovery-action-root /usr/local/libexec/labwc-recovery-action-root 0755
   desktop_stage_role_asset usr/local/libexec/labwc-network-control-action-root /usr/local/libexec/labwc-network-control-action-root 0755

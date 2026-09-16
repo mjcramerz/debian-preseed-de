@@ -6,8 +6,8 @@
 # This tracked managed-modes.conf.tmpl is installed as
 # /etc/apparmor/managed-modes.conf only after MODE has been rendered from
 # __DESKTOP_APPARMOR_STATE__ to the selected enforce or complain value. The
-# installed administrative action may later write enforce, complain, or disable
-# when it changes the complete managed set.
+# installed administrative action may later write enforce or complain. Full
+# disablement is a separately confirmed next-boot setting, never a live unload.
 # PRESENCE is required, optional, or if-executable.
 # PROFILE_FILE is relative to /etc/apparmor.d and must not contain slashes.
 # EXECUTABLE_PROBE is "-" unless PRESENCE is if-executable.

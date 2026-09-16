@@ -798,25 +798,53 @@ def read_connection_log(log_path: pathlib.Path) -> str:
 
 
 def run_freerdp_command(command: list[str], log_path: pathlib.Path) -> int:
+    environment = freerdp_connection_environment()
     ensure_profile_directory(log_path.parent)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    flags |= getattr(os, "O_CLOEXEC", 0)
-    flags |= getattr(os, "O_NOFOLLOW", 0)
+    # Open without truncating: validate the opened inode before changing data.
+    # O_NONBLOCK also prevents a substituted FIFO from hanging the launcher.
+    flags = os.O_WRONLY | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     descriptor = os.open(log_path, flags, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as log_handle:
+    with os.fdopen(descriptor, "wb", buffering=0) as log_handle:
         metadata = os.fstat(log_handle.fileno())
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid():
-            fail(f"Remote Desktop log is not a user-owned regular file: {log_path}")
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or metadata.st_nlink != 1):
+            fail(f"Remote Desktop log is not a private user-owned regular file: {log_path}")
         os.fchmod(log_handle.fileno(), 0o600)
-        completed = subprocess.run(
-            command,
-            env=freerdp_connection_environment(),
-            stdin=subprocess.DEVNULL,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-        return completed.returncode
+        os.ftruncate(log_handle.fileno(), 0)
+        process = subprocess.Popen(command, env=environment, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        try:
+            assert process.stdout is not None
+            size = 0
+            while True:
+                block = os.read(process.stdout.fileno(), 65_536)
+                if not block:
+                    break
+                # Keep the latest bounded segment, not an unbounded session log.
+                # RDP sessions have no arbitrary runtime timeout; their service
+                # cgroup owns both the reader and FreeRDP throughout the session.
+                if size + len(block) > MAX_CONNECTION_LOG_BYTES:
+                    log_handle.seek(0)
+                    log_handle.truncate(0)
+                    size = 0
+                pending = memoryview(block)
+                while pending:
+                    written = log_handle.write(pending)
+                    if written is None or written <= 0:
+                        raise OSError("Remote Desktop log write made no progress")
+                    pending = pending[written:]
+                size += len(block)
+            return process.wait()
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            if process.stdout is not None:
+                process.stdout.close()
 
 
 def connection_failure_message(profile: dict[str, object], log_path: pathlib.Path) -> str:
@@ -847,7 +875,9 @@ def launch_connection(profile: dict[str, object]) -> None:
         "Credentials are requested in a protected GTK dialog and are never saved.",
     )
     subprocess.run(
-        [str(script_path), "_connect", encode_profile(connection)],
+        ["/usr/local/bin/labwc-wayland-app", "auto", "--",
+         str(script_path), "_connect", encode_profile(connection)],
+        env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
         check=False,
     )
 
@@ -924,7 +954,7 @@ def open_profile_directory() -> None:
     # pre-existing single-instance Thunar may accept the request over D-Bus;
     # that handoff has no per-window completion acknowledgement.
     subprocess.run(
-        [thunar, str(path.parent)],
+        ["/usr/local/bin/labwc-wayland-app", "auto", "--", thunar, str(path.parent)],
         env={**os.environ, "LABWC_MENU_ACTION_WAIT": "1"},
         check=False,
     )

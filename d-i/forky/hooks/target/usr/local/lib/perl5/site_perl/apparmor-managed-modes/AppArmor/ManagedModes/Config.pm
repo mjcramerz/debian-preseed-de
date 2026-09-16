@@ -86,6 +86,14 @@ sub load_config {
                 "configuration line $line_number has an invalid profile file: "
                 . $profile_name
             );
+        # These files contain mandatory Px/AppArmorProfile launch targets and
+        # the policy worker itself. Never replay a legacy global live unload.
+        my %launch_sources = map { $_ => 1 } qw(
+            managed-desktop-wrappers managed-system-wrappers managed-labwc-session
+            managed-document-applications managed-desktop-utilities usr.sbin.aa-status
+        );
+        !($mode eq 'disable' && $launch_sources{$profile_name}) ||
+            fatal("refusing to unload mandatory launch profiles: $profile_name; use reboot-staged disablement");
         !$seen_profiles{$profile_name}++ ||
             fatal(
                 "configuration line $line_number repeats profile file: "

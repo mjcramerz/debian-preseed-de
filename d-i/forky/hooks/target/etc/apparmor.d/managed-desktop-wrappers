@@ -356,6 +356,10 @@ profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_d
   peer=(name=org.freedesktop.systemd1),
 
   include if exists <local/usr.local.bin.labwc-adb-action>
+  signal (send) set=(hup, int, term, kill, cont),
+  owner @{HOME}/Android/ rw,
+  /sys/devices/**/usb*/** r,
+
 }
 
 profile managed-labwc-adb-menu /usr/local/bin/labwc-adb-menu flags=(attach_disconnected) {
@@ -644,6 +648,8 @@ profile managed-labwc-computer-management /usr/local/bin/labwc-computer-manageme
   owner @{HOME}/.config/labwc/** r,
 
   include if exists <local/usr.local.bin.labwc-computer-management>
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
+
 }
 
 profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach_disconnected) {
@@ -722,6 +728,11 @@ profile managed-labwc-ai-copilots-action /usr/local/bin/labwc-ai-copilots-action
   owner @{HOME}/Music/Whisper/{audio,transcribed}/** rwkl,
 
   include if exists <local/usr.local.bin.labwc-ai-copilots-action>
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
+
+  /usr/local/lib/perl5/site_perl/managed-runtime/{,**} r,
+  signal (send) set=(hup, int, term, kill, cont),
+
 }
 
 profile managed-labwc-ai-model-install-root /usr/local/libexec/labwc-ai-model-install-root flags=(attach_disconnected) {
@@ -860,6 +871,10 @@ profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-
   #include <abstractions/managed-wrapper-perl>
 
   /usr/local/bin/labwc-digital-assets-action rix,
+  include if exists <abstractions/fonts>
+  /etc/{GraphicsMagick*,ImageMagick*}/{,**} r,
+  /usr/share/{poppler,graphicsmagick,pandoc,pandoc-cli}/{,**} r,
+  /usr/lib/GraphicsMagick*/{,**} mr,
   /usr/local/lib/perl5/site_perl/digital-assets/** r,
   /usr/local/lib/perl5/site_perl/managed-runtime/ r,
   /usr/local/lib/perl5/site_perl/managed-runtime/** r,
@@ -906,6 +921,8 @@ profile managed-digital-assets-release-tools /{usr/local/bin/{pdfcpu,typst},usr/
   network inet6 dgram,
 
   /usr/local/bin/{pdfcpu,typst} rix,
+  owner /run/user/[0-9]*/labwc-digital-assets.*/ rw,
+  owner /run/user/[0-9]*/labwc-digital-assets.*/** rwkl,
   /usr/local/lib/{pdfcpu,typst}/ r,
   /usr/local/lib/{pdfcpu,typst}/** mr,
   /usr/local/lib/{pdfcpu/pdfcpu,typst/typst} rix,
@@ -2724,6 +2741,8 @@ profile managed-labwc-network-scan-action /usr/local/bin/labwc-network-scan-acti
   owner @{HOME}/Captures/network-scanning/** rwkl,
 
   include if exists <local/usr.local.bin.labwc-network-scan-action>
+  owner @{HOME}/Captures/ rw,
+
 }
 
 profile managed-labwc-network-scan-menu /usr/local/bin/labwc-network-scan-menu flags=(attach_disconnected) {
@@ -2958,6 +2977,8 @@ profile managed-labwc-remote-desktop /usr/local/bin/labwc-remote-desktop flags=(
   /run/media/*/** r,
 
   include if exists <local/usr.local.bin.labwc-remote-desktop>
+  /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
+
 }
 
 profile managed-labwc-run /usr/local/bin/labwc-run flags=(attach_disconnected) {
@@ -3465,6 +3486,10 @@ profile managed-labwc-network-control-action-root /usr/local/libexec/labwc-netwo
   /sys/class/net/** r,
 
   include if exists <local/usr.local.libexec.labwc-network-control-action-root>
+  # sysfs class entries are symlinks; AppArmor checks their resolved paths.
+  /sys/devices/**/net/*/{type,flags} r,
+  /sys/devices/**/net/*/{device,wireless}/ r,
+
 }
 
 profile managed-labwc-network-scan-action-root /usr/local/libexec/labwc-network-scan-action-root flags=(attach_disconnected) {
@@ -3610,6 +3635,8 @@ profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-act
   /etc/apparmor.d/{abi,abstractions,local,tunables}/ r,
   /etc/apparmor.d/disable/ r,
   /etc/apparmor.d/disable/** r,
+  /var/lib/labwc-apparmor-policy/ rw,
+  /var/lib/labwc-apparmor-policy/policy.lock rwk,
   /var/lib/apparmor/ rw,
   /var/lib/apparmor/backup/ rw,
   /var/lib/apparmor/backup/** rwkl,
@@ -3633,7 +3660,7 @@ profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/libexec/labwc-system-action-root rix,
-  /usr/bin/{cat,du,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
+  /usr/bin/{cat,getent,grep,head,id,mktemp,numfmt,readlink,rm,sed,sort,uname} rix,
   /usr/bin/{apt,apt-get,btrfs,df,dpkg,findmnt,free,fwupdmgr,hostnamectl,journalctl,lsblk,nmcli,resolvectl,ss,systemctl,systemd-analyze,timedatectl,timeout,uptime} PUx,
   /usr/{bin,sbin}/ip PUx,
   /usr/sbin/{nvme,smartctl,swapon,zramctl} PUx,
@@ -3644,6 +3671,8 @@ profile managed-labwc-system-action-root /usr/local/libexec/labwc-system-action-
   owner /tmp/labwc-system-du.* rwk,
 
   include if exists <local/usr.local.libexec.labwc-system-action-root>
+  /usr/bin/du rPUx,
+
 }
 
 profile managed-xssh-retrieve /usr/local/bin/xssh-retrieve flags=(attach_disconnected) {

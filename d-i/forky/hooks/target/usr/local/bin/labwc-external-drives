@@ -693,7 +693,8 @@ mounted_records_for_disk() {
   disk_device=$1
   disk_name=${disk_device#"$DEV_ROOT"/}
 
-  collect_snapshot "$disk_device" |
+  disk_snapshot=$(collect_snapshot "$disk_device") || return 1
+  printf '%s\n' "$disk_snapshot" |
     awk -v disk_device="$disk_device" -v disk_name="$disk_name" '
       {
         split("", field)
@@ -733,7 +734,7 @@ power_off_drive() {
   )
   [ "$confirmation" = 'Sync, unmount volumes, and power off' ] || return 0
 
-  mounted_records=$(mounted_records_for_disk "$disk_device" || true)
+  mounted_records=$(mounted_records_for_disk "$disk_device") || return 1
   if [ -n "$mounted_records" ]; then
     while IFS='|' read -r volume_device volume_devnum volume_type; do
       [ -n "$volume_device" ] || continue
@@ -771,7 +772,7 @@ $mounted_records
 EOF
   fi
 
-  remaining_records=$(mounted_records_for_disk "$disk_device" || true)
+  remaining_records=$(mounted_records_for_disk "$disk_device") || return 1
   if [ -n "$remaining_records" ]; then
     printf 'external drive still has mounted volumes: %s\n' "$disk_device" >&2
     notify_drive critical dialog-error \

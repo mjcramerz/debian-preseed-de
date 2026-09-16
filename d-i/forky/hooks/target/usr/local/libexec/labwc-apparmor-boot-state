@@ -1,0 +1,330 @@
+#!/usr/bin/python3 -I
+"""Stage a managed AppArmor boot change; never unload live policy or reboot.
+
+Only the repository-owned GRUB security fragment and grub.cfg are changed.
+The caller is a PID-1-owned, authorized policy worker. A durable journal makes
+an interrupted two-file publication recoverable without touching unrelated
+configuration, key material, certificates, or user data.
+"""
+from __future__ import annotations
+
+import base64
+import fcntl
+import json
+import os
+from pathlib import Path
+import re
+import selectors
+import shlex
+import signal
+import stat
+import subprocess
+import sys
+import tempfile
+import time
+
+MAX_CONFIG = 65_536
+MAX_GRUB = 8 * 1024 * 1024
+MAX_JOURNAL = 24 * 1024 * 1024
+ENVIRONMENT = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "HOME": "/"}
+
+
+class PolicyError(RuntimeError):
+    pass
+
+
+def trusted_directory(path: Path) -> None:
+    # Do not resolve away symlinks: each ancestor must itself be root-controlled.
+    for component in reversed((path, *path.parents)):
+        value = component.lstat()
+        if not stat.S_ISDIR(value.st_mode) or value.st_uid != 0 or value.st_mode & 0o022:
+            raise PolicyError(f"unsafe root-controlled directory: {component}")
+
+
+def read_file(path: Path, limit: int) -> tuple[bytes, int]:
+    trusted_directory(path.parent)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(descriptor, "rb") as stream:
+        value = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(value.st_mode) or value.st_uid != 0 or value.st_gid != 0
+                or value.st_nlink != 1 or value.st_mode & 0o022 or value.st_size > limit):
+            raise PolicyError(f"unsafe or oversized root-owned file: {path}")
+        content = stream.read(limit + 1)
+        if len(content) > limit:
+            raise PolicyError(f"file exceeds its size limit: {path}")
+        return content, stat.S_IMODE(value.st_mode)
+
+
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def write_atomic(path: Path, content: bytes, mode: int) -> None:
+    trusted_directory(path.parent)
+    descriptor, name = tempfile.mkstemp(prefix=".labwc-apparmor.", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        sync_directory(path.parent)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def requested_fragment(content: bytes, enabled: bool) -> bytes:
+    try:
+        text = content.decode("ascii")
+    except UnicodeError as exc:
+        raise PolicyError("the managed GRUB security fragment is not ASCII") from exc
+    lines = [line for line in text.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    if len(lines) != 1:
+        raise PolicyError("the managed GRUB security fragment must contain exactly one assignment")
+    # This is the exact template contract, not a shell parser or arbitrary edit.
+    prefix = 'GRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX:+$GRUB_CMDLINE_LINUX }'
+    line = lines[0]
+    if not line.startswith(prefix) or not line.endswith('"'):
+        raise PolicyError("unrecognized managed GRUB security fragment; refusing to edit it")
+    flags = line[len(prefix):-1]
+    if not re.fullmatch(r"[A-Za-z0-9_.,=:+ /-]+", flags):
+        raise PolicyError("unexpected syntax in managed GRUB security flags")
+    tokens = flags.split()
+    apparmor = [token for token in tokens if token.startswith("apparmor=")]
+    lsms = [token[4:].split(",") for token in tokens if token.startswith("lsm=")]
+    if len(apparmor) != 1 or apparmor[0] not in {"apparmor=0", "apparmor=1"}:
+        raise PolicyError("expected exactly one apparmor=0 or apparmor=1 security flag")
+    if len(lsms) != 1 or "apparmor" not in lsms[0]:
+        raise PolicyError("the managed LSM list must retain AppArmor")
+    replacement = "apparmor=1" if enabled else "apparmor=0"
+    new_flags = re.sub(r"(?<!\S)apparmor=[01](?!\S)", replacement, flags, count=1)
+    return text.replace(line, prefix + new_flags + '"', 1).encode("ascii")
+
+
+def validate_grub(content: bytes, enabled: bool) -> None:
+    if not content or len(content) > MAX_GRUB:
+        raise PolicyError("generated GRUB configuration is empty or oversized")
+    try:
+        text = content.decode("utf-8")
+    except UnicodeError as exc:
+        raise PolicyError("generated GRUB configuration is not valid UTF-8") from exc
+    expected = "apparmor=1" if enabled else "apparmor=0"
+    kernels = 0
+    for line in text.splitlines():
+        if not re.match(r"^\s*(?:linux|linuxefi|linux16)\s", line):
+            continue
+        try:
+            tokens = shlex.split(line, comments=True)
+        except ValueError as exc:
+            raise PolicyError("unrecognized GRUB kernel command") from exc
+        if len(tokens) < 2 or [token for token in tokens[2:] if token.startswith("apparmor=")] != [expected]:
+            raise PolicyError("a GRUB kernel entry has missing or conflicting AppArmor flags")
+        kernels += 1
+    if not kernels:
+        raise PolicyError("no verifiable GRUB Linux boot entries were generated")
+
+
+def run_bounded(argv: list[str], *, limit: int = MAX_GRUB, timeout: float = 180.0) -> bytes:
+    executable = Path(argv[0])
+    read_file(executable, MAX_GRUB)
+    if not os.access(executable, os.X_OK):
+        raise PolicyError(f"required GRUB command is not executable: {executable}")
+    process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env=ENVIRONMENT, start_new_session=True)
+    output = bytearray()
+    errors = bytearray()
+    deadline = time.monotonic() + timeout
+    try:
+        with selectors.DefaultSelector() as selector:
+            for stream, target in ((process.stdout, output), (process.stderr, errors)):
+                assert stream is not None
+                os.set_blocking(stream.fileno(), False)
+                selector.register(stream, selectors.EVENT_READ, target)
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise PolicyError("GRUB command timed out")
+                for key, _ in selector.select(min(remaining, 0.25)):
+                    block = os.read(key.fileobj.fileno(), 65_536)
+                    if not block:
+                        selector.unregister(key.fileobj)
+                        continue
+                    key.data.extend(block)
+                    bound = limit if key.data is output else 1_048_576
+                    if len(key.data) > bound:
+                        raise PolicyError("GRUB command exceeded its output limit")
+        remaining = max(0.01, deadline - time.monotonic())
+        status = process.wait(timeout=remaining)
+        if status:
+            detail = errors.decode("utf-8", "replace")[-4096:]
+            raise PolicyError(f"GRUB command failed with status {status}: {detail}")
+        return bytes(output)
+    finally:
+        # The unreaped leader pins its PID/PGID. Never poll/wait between TERM
+        # and KILL or signal a group after reaping a successfully finished child.
+        if process.returncode is None:
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+                time.sleep(0.2)
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait(timeout=3)
+        if process.stdout is not None:
+            process.stdout.close()
+        if process.stderr is not None:
+            process.stderr.close()
+
+
+class BootState:
+    def __init__(self, fragment: Path = Path("/etc/default/grub.d/35-security-core.cfg"),
+                 grub: Path = Path("/boot/grub/grub.cfg"),
+                 directory: Path = Path("/var/lib/labwc-apparmor-policy")) -> None:
+        self.fragment = fragment
+        self.grub = grub
+        self.directory = directory
+        self.journal = directory / "boot-transaction.json"
+
+    def record(self, transaction: dict) -> None:
+        encoded = (json.dumps(transaction, sort_keys=True) + "\n").encode("ascii")
+        if len(encoded) > MAX_JOURNAL:
+            raise PolicyError("boot transaction exceeds its size limit")
+        write_atomic(self.journal, encoded, 0o600)
+
+    @staticmethod
+    def unpack(transaction: dict, field: str, limit: int) -> bytes:
+        try:
+            content = base64.b64decode(transaction[field], validate=True)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise PolicyError("invalid boot recovery journal") from exc
+        if len(content) > limit:
+            raise PolicyError("oversized boot recovery journal field")
+        return content
+
+    def recover(self) -> None:
+        if not self.journal.exists() and not self.journal.is_symlink():
+            return
+        encoded, _ = read_file(self.journal, MAX_JOURNAL)
+        try:
+            transaction = json.loads(encoded)
+        except (ValueError, UnicodeError) as exc:
+            raise PolicyError("invalid boot recovery journal; manual review required") from exc
+        required = {"version", "committed", "fragment_mode", "grub_mode", "old_fragment",
+                    "new_fragment", "old_grub", "new_grub"}
+        if (not isinstance(transaction, dict) or set(transaction) != required
+                or transaction["version"] != 1 or type(transaction["committed"]) is not bool):
+            raise PolicyError("unsupported boot recovery journal; manual review required")
+        for field in ("fragment_mode", "grub_mode"):
+            mode = transaction[field]
+            if type(mode) is not int or not 0 <= mode <= 0o777 or mode & 0o022:
+                raise PolicyError("unsafe file mode in boot recovery journal")
+        old_fragment = self.unpack(transaction, "old_fragment", MAX_CONFIG)
+        new_fragment = self.unpack(transaction, "new_fragment", MAX_CONFIG)
+        old_grub = self.unpack(transaction, "old_grub", MAX_GRUB)
+        new_grub = None if transaction["new_grub"] is None else self.unpack(transaction, "new_grub", MAX_GRUB)
+        current_fragment, _ = read_file(self.fragment, MAX_CONFIG)
+        current_grub, _ = read_file(self.grub, MAX_GRUB)
+        # Never overwrite a subsequent administrator/package-manager change.
+        if current_fragment not in (old_fragment, new_fragment) or current_grub not in (old_grub, new_grub):
+            raise PolicyError("boot files changed outside the pending transaction; manual recovery required")
+        if transaction["committed"]:
+            if current_fragment != new_fragment or new_grub is None or current_grub != new_grub:
+                raise PolicyError("committed boot transaction does not match disk; manual review required")
+        else:
+            write_atomic(self.grub, old_grub, transaction["grub_mode"])
+            write_atomic(self.fragment, old_fragment, transaction["fragment_mode"])
+            print("Recovered the previous GRUB configuration from an interrupted AppArmor change.")
+        self.journal.unlink()
+        sync_directory(self.directory)
+
+    def stage(self, enabled: bool) -> None:
+        self.recover()
+        original, fragment_mode = read_file(self.fragment, MAX_CONFIG)
+        old_grub, grub_mode = read_file(self.grub, MAX_GRUB)
+        proposed = requested_fragment(original, enabled)
+        if proposed == original:
+            try:
+                validate_grub(old_grub, enabled)
+            except PolicyError:
+                pass  # Repair a stale generated file using the same transaction.
+            else:
+                print("The requested AppArmor boot setting is already present. Live policy is unchanged.")
+                return
+        transaction = {
+            "version": 1, "committed": False, "fragment_mode": fragment_mode, "grub_mode": grub_mode,
+            "old_fragment": base64.b64encode(original).decode("ascii"),
+            "new_fragment": base64.b64encode(proposed).decode("ascii"),
+            "old_grub": base64.b64encode(old_grub).decode("ascii"), "new_grub": None,
+        }
+        self.record(transaction)
+        try:
+            write_atomic(self.fragment, proposed, fragment_mode)
+            generated = run_bounded(["/usr/sbin/grub-mkconfig"])
+            validate_grub(generated, enabled)
+            descriptor, name = tempfile.mkstemp(prefix=".labwc-apparmor.", dir=self.directory)
+            try:
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(generated)
+                run_bounded(["/usr/bin/grub-script-check", name], limit=1_048_576, timeout=30)
+            finally:
+                Path(name).unlink(missing_ok=True)
+            if read_file(self.fragment, MAX_CONFIG)[0] != proposed or read_file(self.grub, MAX_GRUB)[0] != old_grub:
+                raise PolicyError("boot files changed during generation; refusing publication")
+            transaction["new_grub"] = base64.b64encode(generated).decode("ascii")
+            self.record(transaction)
+            write_atomic(self.grub, generated, grub_mode)
+            transaction["committed"] = True
+            self.record(transaction)
+            self.recover()  # Verify the committed pair and retire the durable journal.
+        except BaseException as exc:
+            try:
+                self.recover()
+            except (PolicyError, OSError) as recovery_error:
+                raise PolicyError(f"boot change failed; recovery also failed: {recovery_error}") from exc
+            raise
+        state = "enabled" if enabled else "disabled"
+        print(f"AppArmor will be {state} after a normal reboot. No live profiles were unloaded.")
+        print("The system has NOT been rebooted. This helper does not edit keys, certificates or user data.")
+
+
+def main(argv: list[str]) -> int:
+    if os.getuid() != 0 or os.geteuid() != 0:
+        raise PolicyError("this worker requires root")
+    if len(argv) != 1 or argv[0] not in {"enable", "disable", "recover"}:
+        raise PolicyError("expected exactly one action: enable, disable, or recover")
+    os.umask(0o077)
+    state = BootState()
+    state.directory.mkdir(mode=0o700, exist_ok=True)
+    trusted_directory(state.directory)
+    descriptor = os.open(state.directory / "boot.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    with os.fdopen(descriptor, "rb+") as lock:
+        metadata = os.fstat(lock.fileno())
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_nlink != 1 or metadata.st_mode & 0o077:
+            raise PolicyError("unsafe boot transaction lock")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise PolicyError("another AppArmor boot change is in progress") from exc
+        def interrupted(signum: int, _frame: object) -> None:
+            raise PolicyError(f"boot change interrupted by signal {signum}")
+        for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
+            signal.signal(signum, interrupted)
+        if argv[0] == "recover":
+            state.recover()
+        else:
+            state.stage(argv[0] == "enable")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (PolicyError, OSError, subprocess.SubprocessError) as error:
+        print(f"labwc-apparmor-boot-state: {error}", file=sys.stderr)
+        sys.exit(1)

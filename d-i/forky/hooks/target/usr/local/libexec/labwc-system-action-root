@@ -182,7 +182,7 @@ show_system_overview() {
   print_heading Time
   timedatectl
   print_heading Systemd
-  systemctl is-system-running --wait || true
+  systemctl is-system-running || true
   systemctl --failed --no-legend --no-pager || true
 }
 

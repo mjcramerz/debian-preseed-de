@@ -2,10 +2,12 @@
 Description=Apply managed AppArmor profile modes
 Documentation=man:apparmor(7) man:aa-enforce(8) man:aa-complain(8)
 Requires=apparmor.service
-After=apparmor.service mullvad-apparmor.service
+Wants=labwc-apparmor-boot-recover.service
+After=apparmor.service mullvad-apparmor.service labwc-apparmor-boot-recover.service
 Before=systemd-user-sessions.service display-manager.service multi-user.target
 ReloadPropagatedFrom=apparmor.service
 
+ConditionSecurity=apparmor
 ConditionPathExists=/etc/apparmor/managed-modes.conf
 ConditionFileIsExecutable=/usr/local/libexec/apparmor-managed-modes-run
 

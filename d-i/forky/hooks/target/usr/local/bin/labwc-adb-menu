@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+# Keep this menu behind its independently managed action terminal.
+export LABWC_MENU_ACTION_WAIT=1
+
 LABWC_FUZZEL_MANAGED_ICONS=1
 export LABWC_FUZZEL_MANAGED_ICONS
 

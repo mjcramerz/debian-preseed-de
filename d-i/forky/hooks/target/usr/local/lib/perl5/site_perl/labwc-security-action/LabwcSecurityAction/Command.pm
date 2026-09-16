@@ -72,6 +72,6 @@ sub capture {
         timeout => $args{timeout} // 120,
         limit => 1_048_576,
     );
-    return (_status($result->{status}), $result->{stdout});
+    return (_status($result->{status}), $result->{stdout}, $result->{stderr});
 }
 1;
