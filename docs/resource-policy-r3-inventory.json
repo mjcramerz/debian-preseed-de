@@ -1,0 +1,326 @@
+{
+  "base": "accepted R2",
+  "new_target_assets": [
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/60-resource-class.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/app-.scope.d/60-resource-class.conf",
+      "sha256": "8561e3731f946a5680ec5f6405d3a7dec26b62eb42fc4eea4b4a140f0fdfba78",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Scope]",
+        "Slice=app.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-bitwarden-.service.d/70-no-core.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-bitwarden-.service.d/70-no-core.conf",
+      "sha256": "cb3e19f7c8c465ecc1b7de5cd46b6606e63eb0e26617d673adec95af48740eb1",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "LimitCORE=0"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-compositor.service.d/60-resources.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-compositor.service.d/60-resources.conf",
+      "sha256": "805935819fc78566d9276cddc575ef17e18bab08631085cffe7079f9da436f62",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D__",
+        "__SYSTEMD_IOWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D__"
+      ],
+      "active_lines": [
+        "[Service]",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D__",
+        "__SYSTEMD_IOWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service.d/60-resource-class.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-kwallet-portal.service.d/60-resource-class.conf",
+      "sha256": "499d453edd82e475902bdef35a72c108a5471a2d65c0602e73be5ac006e8cc23",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-kwallet-portal.service.d/70-no-core.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-kwallet-portal.service.d/70-no-core.conf",
+      "sha256": "c84b11d6c6d26f12bf92898a2f79183ecdd2482abf4dfc1070f496d12c2e6aaa",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "LimitCORE=0"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-power-lock-.service.d/60-resource-class.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-power-lock-.service.d/60-resource-class.conf",
+      "sha256": "724769cdce31d5aefe8fa1e792862a2bd3e7980e948e8343753378bdd504ecfa",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-power-lock-.service.d/70-no-core.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-power-lock-.service.d/70-no-core.conf",
+      "sha256": "c5e98052f39c81f417a0b14ce2cf2e785ea97062f60fe02fea7c511936120b7f",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "LimitCORE=0"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service.d/60-resource-class.conf",
+      "installed_path": "$ACCOUNT_HOME/.config/systemd/user/labwc-ssh-key-load.service.d/60-resource-class.conf",
+      "sha256": "9e66ad597ccae7bb07491a667e28c786de2b3edaa0a8f4de95d5f90dd8a4b3e5",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/apt-daily-upgrade.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/apt-daily-upgrade.service.d/60-resource-class.conf",
+      "sha256": "d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-maintenance.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/apt-daily.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/apt-daily.service.d/60-resource-class.conf",
+      "sha256": "d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-maintenance.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/local-apt-.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/local-apt-.service.d/60-resource-class.conf",
+      "sha256": "d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-maintenance.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/managed-clamav-signature-update.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/managed-clamav-signature-update.service.d/60-resource-class.conf",
+      "sha256": "d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-maintenance.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf",
+      "sha256": "262520e40690a50eb5552017dc31726479ddb6b3b3c52e9841c42bad9a8976a4",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-background.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/system-background.slice",
+      "installed_path": "/etc/systemd/system/system-background.slice",
+      "sha256": "34b6032e020094f1325a8dc90f5096803c863c16c877934405b43b3643072774",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Unit]",
+        "Description=Background system synchronization",
+        "Documentation=man:systemd.resource-control(5)",
+        "[Slice]"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/system-background.slice.d/60-resources.conf",
+      "installed_path": "/etc/systemd/system/system-background.slice.d/60-resources.conf",
+      "sha256": "d60dceeec59d9b919c2d6210c2b8e57b07898fe079628dfb9ad5b18ab2343b09",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_SYSTEM_BACKGROUND_SLICE_D__",
+        "__SYSTEMD_IOWEIGHT_SYSTEM_BACKGROUND_SLICE_D__"
+      ],
+      "active_lines": [
+        "[Slice]",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_SYSTEM_BACKGROUND_SLICE_D__",
+        "__SYSTEMD_IOWEIGHT_SYSTEM_BACKGROUND_SLICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/system-maintenance.slice",
+      "installed_path": "/etc/systemd/system/system-maintenance.slice",
+      "sha256": "e952b5f63f0a89b5a2709842fefd0eba576bf315076210897988f7cabfd8582f",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Unit]",
+        "Description=Noninteractive scheduled system maintenance",
+        "Documentation=man:systemd.resource-control(5)",
+        "[Slice]"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/system-maintenance.slice.d/60-resources.conf",
+      "installed_path": "/etc/systemd/system/system-maintenance.slice.d/60-resources.conf",
+      "sha256": "689bd549bc2a78bddb9a5d4809a21dc9fdccc295f140155eb56907c8e8754650",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_SYSTEM_MAINTENANCE_SLICE_D__",
+        "__SYSTEMD_IOWEIGHT_SYSTEM_MAINTENANCE_SLICE_D__"
+      ],
+      "active_lines": [
+        "[Slice]",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_SYSTEM_MAINTENANCE_SLICE_D__",
+        "__SYSTEMD_IOWEIGHT_SYSTEM_MAINTENANCE_SLICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf",
+      "installed_path": "/etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf",
+      "sha256": "a5f8322ed16525c00c50c237c2c875e4eca2ccac9ac4aaad266fc4c64cccfce5",
+      "profile_tokens": [
+        "__SYSTEMD_COREDUMP_MAX_CONNECTIONS__",
+        "__SYSTEMD_COREDUMP_POLL_LIMIT_BURST__",
+        "__SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC__"
+      ],
+      "active_lines": [
+        "[Socket]",
+        "MaxConnections=__SYSTEMD_COREDUMP_MAX_CONNECTIONS__",
+        "PollLimitIntervalSec=__SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC__s",
+        "PollLimitBurst=__SYSTEMD_COREDUMP_POLL_LIMIT_BURST__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/system/timeshift-.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/system/timeshift-.service.d/60-resource-class.conf",
+      "sha256": "d2264eb2176949c6762e53b0e55076cc09fffcbc192d214b3bcb372d21bcc372",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=system-maintenance.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/filter-chain.service.d/60-resources.conf",
+      "installed_path": "/etc/systemd/user/filter-chain.service.d/60-resources.conf",
+      "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/hyprpolkitagent.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/hyprpolkitagent.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/hyprpolkitagent.service.d/70-no-core.conf",
+      "installed_path": "/etc/systemd/user/hyprpolkitagent.service.d/70-no-core.conf",
+      "sha256": "e198b95300c03415f650c3c52ebf3fc1b6a61be6252b7eacb41b13ec764b5167",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "LimitCORE=0"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/mako.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/mako.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/pipewire-pulse.service.d/60-resources.conf",
+      "installed_path": "/etc/systemd/user/pipewire-pulse.service.d/60-resources.conf",
+      "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/pipewire.service.d/60-resources.conf",
+      "installed_path": "/etc/systemd/user/pipewire.service.d/60-resources.conf",
+      "sha256": "a1b105da68b0af5e5e313224318b2f2bac12fb9bf1df2231095f1445d8f15a2d",
+      "profile_tokens": [
+        "__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice",
+        "CPUWeight=__SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D__"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/ssh-agent.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/ssh-agent.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/wireplumber.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/wireplumber.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal-.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/xdg-desktop-portal-.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    },
+    {
+      "source": "d-i/forky/hooks/target/etc/systemd/user/xdg-desktop-portal.service.d/60-resource-class.conf",
+      "installed_path": "/etc/systemd/user/xdg-desktop-portal.service.d/60-resource-class.conf",
+      "sha256": "2c9c321ed2d7fc341d93aaa8f6206eb6af91f5f17980ebf4b2400c358e2ae246",
+      "profile_tokens": [],
+      "active_lines": [
+        "[Service]",
+        "Slice=session.slice"
+      ]
+    }
+  ]
+}

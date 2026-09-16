@@ -28,3 +28,4 @@
 	mcr-salsa-verify-protected-sync = !/usr/local/bin/gitops mcr-salsa-verify-protected-sync
 	mcr-salsa-test = !/usr/local/bin/gitops mcr-salsa-test
 	mcr-salsa-push = !/usr/local/bin/gitops mcr-salsa-push
+	mcr-repo-mirror = !/usr/local/bin/gitops mcr-repo-mirror

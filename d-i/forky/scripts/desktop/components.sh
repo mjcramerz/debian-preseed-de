@@ -3540,9 +3540,99 @@ desktop_install_user_resource_policy() {
     "$user_manager_config" \
     0644
 
+  # Render before desktop_install_user_config copies .config/systemd into
+  # ACCOUNT_HOME. Only existing repository-owned units get class assignments.
+  systemd_resource_placeholder_map >/dev/null || return 1
+  for resource_asset in \
+    etc/skel-desktop/.config/systemd/user/session.slice.d/60-resources.conf \
+    etc/skel-desktop/.config/systemd/user/app.slice.d/60-resources.conf \
+    etc/skel-desktop/.config/systemd/user/background.slice.d/60-resources.conf
+  do
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || return 1
+  done
+  for resource_unit in \
+    labwc-compositor waybar crystal-dock kanshi labwc-output-watch swayidle labwc-calendar-sync \
+    labwc-kwallet-portal labwc-ssh-key-load
+  do
+    # Optional services (notably kanshi) may be deliberately omitted by a
+    # profile. Never create orphaned drop-ins or enable a disabled service.
+    resource_base="/etc/skel-desktop/.config/systemd/user/${resource_unit}.service"
+    [ -f "$(target_asset_host_path "$resource_base")" ] || continue
+    resource_asset="etc/skel-desktop/.config/systemd/user/${resource_unit}.service.d/60-resource-class.conf"
+    stage_target_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || return 1
+  done
+
+  # These narrowly scoped overrides add no dependencies or lifecycle changes.
+  for resource_pair in \
+    labwc-compositor:60-resources.conf \
+    labwc-kwallet-portal:70-no-core.conf
+  do
+    resource_unit=${resource_pair%%:*}
+    resource_name=${resource_pair#*:}
+    resource_base="/etc/skel-desktop/.config/systemd/user/${resource_unit}.service"
+    [ -f "$(target_asset_host_path "$resource_base")" ] || continue
+    resource_asset="etc/skel-desktop/.config/systemd/user/${resource_unit}.service.d/${resource_name}"
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || return 1
+  done
+  # Runtime-created scopes/services intentionally have no base file to probe.
+  for resource_leaf in \
+    app-.scope.d/60-resource-class.conf \
+    labwc-bitwarden-.service.d/70-no-core.conf \
+    labwc-power-lock-.service.d/60-resource-class.conf \
+    labwc-power-lock-.service.d/70-no-core.conf
+  do
+    resource_asset="etc/skel-desktop/.config/systemd/user/$resource_leaf"
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || return 1
+  done
+  desktop_install_vendor_resource_policy || return 1
+
   desktop_log \
     "staged_user_resource_policy slice=user-1000 accounting=${user_slice_dropin} user_manager=${user_manager_dropin} defaults=${user_manager_config}"
 }
+
+# Package-owned user services retain their existing fragments and activation.
+# Only resource/security drop-ins are installed, and only for available units.
+desktop_install_vendor_resource_policy() (
+  set -eu
+  for resource_pair in \
+    hyprpolkitagent.service:60-resource-class.conf \
+    hyprpolkitagent.service:70-no-core.conf \
+    mako.service:60-resource-class.conf \
+    ssh-agent.service:60-resource-class.conf \
+    wireplumber.service:60-resource-class.conf \
+    pipewire.service:60-resources.conf \
+    pipewire-pulse.service:60-resources.conf \
+    filter-chain.service:60-resources.conf \
+    xdg-desktop-portal.service:60-resource-class.conf
+  do
+    resource_unit=${resource_pair%%:*}
+    resource_name=${resource_pair#*:}
+    resource_path=$(desktop_user_unit_source_path "$resource_unit" || true)
+    [ -n "$resource_path" ] || continue
+    resource_asset="etc/systemd/user/${resource_unit}.d/${resource_name}"
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || exit 1
+  done
+  # One shared class policy for the backend family, not three identical copies.
+  for resource_unit in xdg-desktop-portal-gtk.service xdg-desktop-portal-wlr.service xdg-desktop-portal-lxqt.service; do
+    resource_path=$(desktop_user_unit_source_path "$resource_unit" || true)
+    [ -n "$resource_path" ] || continue
+    resource_asset=etc/systemd/user/xdg-desktop-portal-.service.d/60-resource-class.conf
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || exit 1
+    break
+  done
+)
 
 desktop_configure_greeter_access() {
   : "${LABWC_GREETER_USER:?LABWC_GREETER_USER must be set}"
@@ -3929,6 +4019,7 @@ desktop_stage_target_assets() {
   desktop_render_greeter_power_rule
   desktop_stage_role_asset etc/fangfrisch.conf /etc/fangfrisch.conf 0644
   desktop_stage_role_asset etc/systemd/system/managed-clamav-signature-update.service /etc/systemd/system/managed-clamav-signature-update.service 0644
+  desktop_stage_role_asset etc/systemd/system/managed-clamav-signature-update.service.d/60-resource-class.conf /etc/systemd/system/managed-clamav-signature-update.service.d/60-resource-class.conf 0644
   desktop_stage_role_asset etc/systemd/system/managed-clamav-signature-update.timer /etc/systemd/system/managed-clamav-signature-update.timer 0644
   desktop_stage_role_asset etc/bluetooth/main.conf /etc/bluetooth/main.conf 0644
   desktop_stage_role_asset usr/local/libexec/bluetooth-controller-init /usr/local/libexec/bluetooth-controller-init 0755

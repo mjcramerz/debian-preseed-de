@@ -181,7 +181,9 @@ customization that must survive this operation before using `--apply`.
 A temporary index constructs the proposed tree; the ordinary index is untouched
 during preview. Successful application records parent ancestry and a recovery
 ref under `refs/gitops/backups/`, then fast-forwards the checked-out branch.
-The engine never runs `reset --hard`, force-pushes or executes repository hooks.
+Protected synchronization never runs `reset --hard`, force-pushes origin, or
+executes repository hooks. The separately opted-in mirror role described below
+can rewrite mirror refs, but only with explicit object-ID leases and recovery refs.
 Only `mcr/*` branches are writable sync targets. Dirty/staged/untracked changes,
 ignored-path collisions, sparse/skip-worktree/assume-unchanged state, active Git
 operations and submodules are refused for explicit manual review.
@@ -218,7 +220,9 @@ git mcr-fork-cicd origin/gitlab/mcr/main --apply
 | `mcr-branch-create NAME` | Create/switch a validated `mcr/*` branch |
 | `mcr-branch-delete NAME` | Delete a merged non-core local branch only |
 | `mcr-branch-show`, `mcr-repo-status` | Status, branches and remotes |
-| `mcr-repo-clone SSH-URL [DEST]` | Clone an existing GitHub/GitLab repository through SSH |
+| `mcr-repo-clone SSH-URL [DEST]` or `mcr-repo-clone <gh|glab> NAMESPACE REPO` | Clone an existing GitHub/GitLab repository through SSH |
+| `mcr-repo-mirror <gh|glab> NAMESPACE [--apply]` | Preview or configure a private, push-only promotion mirror on the other provider |
+| `mcr-repo-mirror <gh|glab> del [--apply]` | Preview or remove the local mirror remote; never delete a provider repository |
 | `mcr-repo-sync` | Non-force push of the current `mcr/*` branch to origin |
 | `mcr-branch-push` | Fast-forward promotion through main/staging/release, then atomic remote push |
 | `mcr-tag-create TAG`, `mcr-tag-push TAG` | Create annotated local tag, or explicitly push that tag |
@@ -248,9 +252,94 @@ Patch checking reads `debian/patches/series` preferentially, or the existing
 optional `-pN`, applies sequentially to a disposable index, and leaves the
 worktree unchanged. Unsupported options fail. A standalone check requires a
 series; chain update/push records when none exists rather than pretending a
-patch test ran. These aliases do not create remote projects, force-rewrite mirror
-branches, run provider CLI commands, generate age keys or start build pipelines.
-Those reference features are intentionally not copied into this scoped change.
+patch test ran. Remote project creation is confined to explicit mirror setup
+below. These commands do not generate age keys or start build pipelines.
+
+### Push-only GitHub / GitLab mirrors
+
+Prepare the three local promotion branches with `git mcr-branch-init`, then run
+as the desktop user with the provider CLI already authenticated:
+
+```sh
+# Example: origin is on GitLab, destination is a GitHub user or organization.
+git mcr-repo-mirror gh YOUR_NAMESPACE             # preview; no remote writes
+git mcr-repo-mirror gh YOUR_NAMESPACE --apply     # explicit destructive consent
+# Reverse direction, with a nested GitLab group:
+git mcr-repo-mirror glab YOUR_GROUP/SUBGROUP
+# Remove the LOCAL role only; the provider project and its data remain:
+git mcr-repo-mirror gh del --apply
+```
+
+Use only the example matching origin's provider; origin and mirror cannot have
+the same provider. The destination repository basename comes from origin's
+single canonical push URL. The named remote is `mirror-gh` or `mirror-glab`.
+An existing mirror with a different URL is refused instead of silently retargeted.
+Preview reports the proposed full ref IDs and deletions. `--apply` creates a
+missing project privately, or verifies and retains an existing project's
+visibility. Auth/API errors are not treated as evidence that a project is
+missing. Namespace, repository identity, and provider host are checked.
+GitHub organizations and the authenticated user's namespace are supported;
+GitLab supports owned user namespaces and nested groups with write access.
+
+Configuration makes the remote's default branch `mcr/main`, and leaves exactly
+`mcr/main`, `mcr/staging`, and `mcr/release` as its branches with no tags.
+**Applying setup to an existing repository can rewrite branches and delete all
+other remote branches and tags.** Read the preview first. Local tags, feature
+branches, origin refs/refspecs, and origin's default branch are not removed or
+retargeted. This does not create a conventional all-refs `git --mirror` backup.
+
+Before changing existing remote refs, their objects are fetched into unique
+local `refs/gitops/mirror-backups/...` recovery refs and their identities checked.
+Pushes use pinned source object IDs, a per-ref `--force-with-lease` expectation,
+and `--atomic`; there is no plain `--force` or non-atomic fallback. A concurrent
+remote change fails instead of overwriting unreviewed work. Provider protection
+rules remain in force: the tool does not unprotect branches to force success.
+Recovery refs remain local; retain the local repository when investigating a
+failure. Inspect them with:
+
+```sh
+git for-each-ref --format='%(refname) %(objectname)' refs/gitops/mirror-backups/
+```
+
+Setting the provider default branch and bootstrapping that branch necessarily
+precede deleting an old default branch. These API operations and later Git
+pushes **are not one transaction**. Failed setup can leave a private project or
+an updated default branch; the error explicitly requires inspection before retry.
+Local mirror configuration is published only after remote ref verification.
+Repeated successful setup preserves the same local configuration.
+
+Successful origin branch-push workflows (`mcr-repo-sync`, `mcr-branch-push`,
+and `mcr-{fork,salsa}-push`) subsequently send the three promotion tips to
+configured mirrors. They never send local tags or feature/upstream branches to
+mirrors. Explicit tag-push aliases still target origin only. A mirror failure
+makes the command fail, but an already successful origin push cannot be rolled
+back across providers. The output states this partial outcome. Setup normalization
+prunes remote extras; ordinary subsequent branch updates leave unrelated tags
+untouched until setup is explicitly reapplied.
+
+### Terminal reports and exact commit identities
+
+All managed aliases print their invocation and outcome. Repository commands
+print before/after state, full changed-ref IDs, and detailed commit information;
+Git's successful stdout and stderr are retained for mutating/network commands.
+Output includes operation start/completion, branch/ref changes, repository object
+format, full native commit ID, tree, parents, author/date, and subject where a
+commit exists. There is no invented commit identity for an unborn repository.
+Output is captured per subprocess, not promised as byte-by-byte live progress.
+Control characters are escaped and URL user-info is redacted in reports.
+
+The extra `SHA256(stored commit object)` value is calculated as:
+
+```text
+SHA256(b"commit " + ASCII(decimal_payload_length) + b"\0" + raw_commit_payload)
+```
+
+It fingerprints the complete canonical stored commit object. In a SHA-1-format
+repository the native commit ID is still SHA-1; the fingerprint does NOT claim
+to convert that repository or its embedded tree/parent IDs into Git's SHA-256
+object format. In a native SHA-256 repository the fingerprint matches its native
+commit ID. Both formats are covered by the offline fixtures. Failures return
+nonzero and print the state to inspect rather than a success message.
 
 ## 4. Codex home
 

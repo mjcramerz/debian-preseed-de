@@ -2111,6 +2111,9 @@ for software_inbox_unit in local-apt-inbox.service local-apt-inbox.path local-ap
     "/etc/systemd/system/${software_inbox_unit}" 0644
 done
 software_stage_seed_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/local-apt-.service.d/60-resource-class.conf)" \
+  /etc/systemd/system/local-apt-.service.d/60-resource-class.conf 0644
+software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.config/systemd/user/managed-external-software-notify.service)" \
   "$software_notify_service" 0644
 software_stage_seed_asset \

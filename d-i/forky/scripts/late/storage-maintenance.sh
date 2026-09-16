@@ -231,7 +231,58 @@ getent group devops >/dev/null 2>&1 || groupadd --system devops
   normalize_target_tmpfiles_directory_policy "/etc/tmpfiles.d/10-runtime-storage-roots.conf" "shared runtime storage roots"
 }
 
+# Global manager/delegation policy is installed even without the desktop role.
+stage_target_systemd_resource_policy_assets() (
+  set -eu
+  # Validate the complete resource profile before publishing any new policy.
+  systemd_resource_placeholder_map >/dev/null || exit 1
+  for resource_asset in \
+    etc/systemd/system.conf.d/60-resource-accounting.conf \
+    etc/systemd/user.conf.d/60-resource-accounting.conf \
+    etc/systemd/system/user@.service.d/60-resource-delegation.conf \
+    etc/systemd/coredump.conf.d/60-managed-limits.conf \
+    etc/systemd/system/systemd-coredump.socket.d/60-concurrency.conf \
+    etc/systemd/system/system-maintenance.slice \
+    etc/systemd/system/system-maintenance.slice.d/60-resources.conf \
+    etc/systemd/system/system-background.slice \
+    etc/systemd/system/system-background.slice.d/60-resources.conf \
+    etc/systemd/system/apt-daily.service.d/60-resource-class.conf \
+    etc/systemd/system/apt-daily-upgrade.service.d/60-resource-class.conf
+  do
+    render_target_resource_asset \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET "$resource_asset")" \
+      "/$resource_asset" 0644 || exit 1
+  done
+)
+
+# Validate rendered values, not hard-coded profile defaults. Retain the original
+# routing/retention contract while allowing the requested storage overrides.
+validate_target_journal_storage_policy() (
+  set -eu
+  journal_path=$(target_asset_host_path "$FILE_JOURNALD_STORAGE_CONF") || exit 1
+  for required_line in \
+    'Storage=persistent' \
+    "SystemMaxUse=$SYSTEMD_JOURNAL_SYSTEM_MAX_USE" \
+    "SystemKeepFree=$SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE" \
+    "SystemMaxFileSize=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE" \
+    "SystemMaxFiles=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILES" \
+    "RuntimeMaxUse=$SYSTEMD_JOURNAL_RUNTIME_MAX_USE" \
+    "RuntimeKeepFree=$SYSTEMD_JOURNAL_RUNTIME_KEEP_FREE" \
+    "RuntimeMaxFileSize=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE" \
+    "RuntimeMaxFiles=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILES" \
+    'MaxRetentionSec=1month' \
+    'ForwardToSyslog=yes' \
+    'ForwardToKMsg=no' \
+    'ReadKMsg=no'
+  do
+    grep -Fxq -- "$required_line" "$journal_path" || {
+      installer_fatal "managed journald policy mismatch: $required_line"; exit 1;
+    }
+  done
+)
+
 stage_target_common_storage_maintenance_assets() {
+  stage_target_systemd_resource_policy_assets || return 1
   stage_target_runtime_storage_root_policy
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/tmp.conf)" "/etc/tmpfiles.d/tmp.conf" 0644
   grep -Fxq 'D! /tmp 1777 root root 0' /target/etc/tmpfiles.d/tmp.conf &&
@@ -239,15 +290,8 @@ stage_target_common_storage_maintenance_assets() {
     grep -Fxq 'd /var/tmp 1777 root root 30d' /target/etc/tmpfiles.d/tmp.conf ||
     installer_fatal "managed temporary-directory tmpfiles policy is incomplete"
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/libexec/install-tools/system-log.sh)" "/usr/libexec/install-tools/system-log.sh" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/journald.conf.d/10-storage.conf)" "${FILE_JOURNALD_STORAGE_CONF}" 0644
-  grep -Fxq 'Storage=persistent' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'SystemMaxUse=1G' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'RuntimeMaxUse=128M' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'MaxRetentionSec=1month' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'ForwardToSyslog=yes' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'ForwardToKMsg=no' "/target${FILE_JOURNALD_STORAGE_CONF}" &&
-    grep -Fxq 'ReadKMsg=no' "/target${FILE_JOURNALD_STORAGE_CONF}" ||
-    installer_fatal "managed journald policy must retain userspace logs, forward them to rsyslog, and leave kernel logging to imklog"
+  render_target_resource_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/journald.conf.d/10-storage.conf)" "${FILE_JOURNALD_STORAGE_CONF}" 0644
+  validate_target_journal_storage_policy || return 1
   install_target_tmpfs_pre_clean_assets
   install_target_tmpfs_tmpfiles_assets
   stage_target_conditional_apt_refresh_assets

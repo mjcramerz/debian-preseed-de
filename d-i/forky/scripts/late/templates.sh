@@ -383,3 +383,142 @@ render_target_template() (
   (TMP_ENV_DIR=$template_work; _render_target_template_in_place "$template_source" "$template_work/payload" "$template_mode") || exit 1
   mv -fT -- "$template_work/payload" "$template_destination" || exit 1
 )
+
+
+# This allowlist is intentionally limited to managed resource-policy assets.
+# Existing zram/Podman policies and the generic renderer remain independent.
+# Values are data: indirect variable names below are literal, never user input.
+systemd_resource_placeholder_map() (
+  set -eu
+  case "${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}" in
+    true) io_accounting=yes ;;
+    false) io_accounting=no ;;
+    *) installer_fatal "SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE must be true or false"; exit 1 ;;
+  esac
+  printf 'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE=%s\n' "$io_accounting"
+  for name in \
+    SYSTEMD_IOWEIGHT_HOME_USER_SESSION_SLICE_D \
+    SYSTEMD_IOWEIGHT_HOME_USER_APP_SLICE_D \
+    SYSTEMD_IOWEIGHT_HOME_USER_BACKGROUND_SLICE_D \
+    SYSTEMD_IOWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D \
+    SYSTEMD_IOWEIGHT_SYSTEM_MAINTENANCE_SLICE_D \
+    SYSTEMD_IOWEIGHT_SYSTEM_BACKGROUND_SLICE_D
+  do
+    eval 'present=${'"$name"'+yes}'
+    [ "$present" = yes ] || { installer_fatal "$name must be defined (empty is allowed)"; exit 1; }
+    eval 'value=${'"$name"'-}'
+    case "$value" in
+      '') ;;
+      IOWeight=*)
+        number=${value#IOWeight=}
+        case "$number" in ''|*[!0-9]*|0*)
+          installer_fatal "$name must be empty or IOWeight=1..10000"; exit 1 ;;
+        esac
+        [ "${#number}" -le 5 ] && [ "$number" -le 10000 ] || {
+          installer_fatal "$name must be empty or IOWeight=1..10000"; exit 1;
+        }
+        ;;
+      *) installer_fatal "$name must be empty or IOWeight=1..10000"; exit 1 ;;
+    esac
+    [ "$io_accounting" = yes ] || value=
+    printf '%s=%s\n' "$name" "$value"
+  done
+  # CPU preferences are independent of I/O accounting and always rendered.
+  for name in \
+    SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D \
+    SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D \
+    SYSTEMD_CPUWEIGHT_SYSTEM_MAINTENANCE_SLICE_D \
+    SYSTEMD_CPUWEIGHT_SYSTEM_BACKGROUND_SLICE_D
+  do
+    eval 'value=${'"$name"'-}'
+    case "$value" in ''|*[!0-9]*|0*)
+      installer_fatal "$name must be an integer from 1 to 10000"; exit 1 ;;
+    esac
+    [ "${#value}" -le 5 ] && [ "$value" -le 10000 ] || {
+      installer_fatal "$name must be an integer from 1 to 10000"; exit 1;
+    }
+    printf '%s=%s\n' "$name" "$value"
+  done
+  for name in \
+    SYSTEMD_COREDUMP_MAX_CONNECTIONS \
+    SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC \
+    SYSTEMD_COREDUMP_POLL_LIMIT_BURST
+  do
+    eval 'value=${'"$name"'-}'
+    # Bound integer input before numeric comparisons (also on 32-bit shells).
+    case "$name" in
+      SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC) minimum=2; maximum=60 ;;
+      *) minimum=1; maximum=64 ;;
+    esac
+    case "$value" in ''|*[!0-9]*|0*)
+      installer_fatal "$name must be an integer from $minimum to $maximum"; exit 1 ;;
+    esac
+    [ "${#value}" -le 2 ] && [ "$value" -ge "$minimum" ] && [ "$value" -le "$maximum" ] || {
+      installer_fatal "$name must be an integer from $minimum to $maximum"; exit 1;
+    }
+    printf '%s=%s\n' "$name" "$value"
+  done
+  case "${SYSTEMD_COREDUMP_STORAGE-}" in
+    external|none) printf 'SYSTEMD_COREDUMP_STORAGE=%s\n' "$SYSTEMD_COREDUMP_STORAGE" ;;
+    *) installer_fatal "SYSTEMD_COREDUMP_STORAGE must be external or none"; exit 1 ;;
+  esac
+  for name in \
+    SYSTEMD_COREDUMP_PROCESS_SIZE_MAX \
+    SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX \
+    SYSTEMD_COREDUMP_MAX_USE \
+    SYSTEMD_COREDUMP_KEEP_FREE \
+    SYSTEMD_JOURNAL_SYSTEM_MAX_USE \
+    SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE \
+    SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE \
+    SYSTEMD_JOURNAL_RUNTIME_MAX_USE \
+    SYSTEMD_JOURNAL_RUNTIME_KEEP_FREE \
+    SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE
+  do
+    eval 'value=${'"$name"'-}'
+    # Single-line bounded subset of systemd's size grammar; no signs, shell
+    # expansions, whitespace, ambiguous leading zeroes or unbounded sizes.
+    case "$value" in ''|*[!0-9BKMG]*)
+      installer_fatal "$name must be a bounded size (bytes or B/K/M/G)"; exit 1 ;;
+    esac
+    printf '%s\n' "$value" | LC_ALL=C grep -Eq '^(0|[1-9][0-9]{0,8}[BKMG]?)$' || {
+      installer_fatal "$name must be a bounded size (bytes or B/K/M/G)"; exit 1;
+    }
+    case "$name:$value" in
+      SYSTEMD_COREDUMP_PROCESS_SIZE_MAX:0|SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX:0) ;;
+      *:0) installer_fatal "$name must be nonzero"; exit 1 ;;
+    esac
+    printf '%s=%s\n' "$name" "$value"
+  done
+  for name in SYSTEMD_JOURNAL_SYSTEM_MAX_FILES SYSTEMD_JOURNAL_RUNTIME_MAX_FILES; do
+    eval 'value=${'"$name"'-}'
+    case "$value" in ''|*[!0-9]*|0*)
+      installer_fatal "$name must be an integer from 1 to 1000000"; exit 1 ;;
+    esac
+    [ "${#value}" -le 7 ] && [ "$value" -le 1000000 ] || {
+      installer_fatal "$name must be an integer from 1 to 1000000"; exit 1;
+    }
+    printf '%s=%s\n' "$name" "$value"
+  done
+)
+
+apply_systemd_resource_placeholders() (
+  set -eu
+  resource_file=$1
+  # Static class/delegation drop-ins need no rendering. This helper is called
+  # only by render_target_resource_asset, never by the generic unit renderer.
+  grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file" || exit 0
+  resource_map=$(mktemp "${TMP_ENV_DIR}/systemd-resource-map.XXXXXX") || exit 1
+  trap 'rm -f -- "$resource_map"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  systemd_resource_placeholder_map >"$resource_map" || exit 1
+  render_target_scalar_placeholders "$resource_file" "$resource_map" || exit 1
+  if grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file"; then
+    installer_fatal "unresolved systemd resource placeholder in $resource_file"; exit 1
+  fi
+  if [ "$SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE" = false ] &&
+      grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
+    installer_fatal "disabled class I/O policy left a weight in $resource_file"; exit 1
+  fi
+)

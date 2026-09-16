@@ -1,0 +1,151 @@
+test_all_menu_collectors_have_probe_and_file_plan (test_managed_git_debugsys.DebugTests.test_all_menu_collectors_have_probe_and_file_plan) ... ok
+test_child_output_limit_timeout_and_missing (test_managed_git_debugsys.DebugTests.test_child_output_limit_timeout_and_missing) ... ok
+test_enable_remove_only_owned_hooks_and_rebuild_all (test_managed_git_debugsys.DebugTests.test_enable_remove_only_owned_hooks_and_rebuild_all) ... ok
+test_failed_rebuild_restores_and_rebuilds_previous_images (test_managed_git_debugsys.DebugTests.test_failed_rebuild_restores_and_rebuilds_previous_images) ... ok
+test_failed_removal_restores_enabled_hooks (test_managed_git_debugsys.DebugTests.test_failed_removal_restores_enabled_hooks) ... ok
+test_initramfs_backups_and_orphans_are_retained_not_verified_as_live (test_managed_git_debugsys.DebugTests.test_initramfs_backups_and_orphans_are_retained_not_verified_as_live) ... ok
+test_initramfs_empty_or_unsafe_inventory_is_refused (test_managed_git_debugsys.DebugTests.test_initramfs_empty_or_unsafe_inventory_is_refused) ... ok
+test_initramfs_names_and_rebuild_validation (test_managed_git_debugsys.DebugTests.test_initramfs_names_and_rebuild_validation) ... ok
+test_multiselection_and_conflicting_actions (test_managed_git_debugsys.DebugTests.test_multiselection_and_conflicting_actions) ... ok
+test_redacts_credentials_pem_and_terminal_escapes (test_managed_git_debugsys.DebugTests.test_redacts_credentials_pem_and_terminal_escapes) ... ok
+test_report_files_are_private_and_hashed (test_managed_git_debugsys.DebugTests.test_report_files_are_private_and_hashed) ... ok
+test_symlink_output_refused (test_managed_git_debugsys.DebugTests.test_symlink_output_refused) ... ok
+test_unmanaged_hook_never_replaced (test_managed_git_debugsys.DebugTests.test_unmanaged_hook_never_replaced) ... ok
+test_wrapper_enters_sudo_login (test_managed_git_debugsys.DebugTests.test_wrapper_enters_sudo_login) ... ok
+test_distinct_lists (test_managed_git_debugsys.PatternTests.test_distinct_lists) ... ok
+test_duplicate_and_unknown_assignment_rejected (test_managed_git_debugsys.PatternTests.test_duplicate_and_unknown_assignment_rejected) ... ok
+test_empty_list (test_managed_git_debugsys.PatternTests.test_empty_list) ... ok
+test_parent_components_and_rooted_subtree (test_managed_git_debugsys.PatternTests.test_parent_components_and_rooted_subtree) ... ok
+test_protected_absence_deletion_and_type_collision (test_managed_git_debugsys.PatternTests.test_protected_absence_deletion_and_type_collision) ... ok
+test_shell_code_is_never_evaluated (test_managed_git_debugsys.PatternTests.test_shell_code_is_never_evaluated) ... ok
+test_symlink_hardlink_and_unsafe_mode_rejected (test_managed_git_debugsys.PatternTests.test_symlink_hardlink_and_unsafe_mode_rejected) ... ok
+test_private_initrd_filenames_refused_anywhere_under_public_root (test_managed_git_debugsys.PublishingGuardTests.test_private_initrd_filenames_refused_anywhere_under_public_root) ... ok
+test_public_key_and_documented_example_are_allowed (test_managed_git_debugsys.PublishingGuardTests.test_public_key_and_documented_example_are_allowed) ... ok
+test_renamed_private_key_header_refused (test_managed_git_debugsys.PublishingGuardTests.test_renamed_private_key_header_refused) ... ok
+test_report_requires_disk_headroom (test_managed_git_debugsys.PublishingGuardTests.test_report_requires_disk_headroom) ... ok
+test_ambient_git_index_ignored (test_managed_git_debugsys.RealGitTests.test_ambient_git_index_ignored) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_apply_preserves_protected_content_and_absence (test_managed_git_debugsys.RealGitTests.test_apply_preserves_protected_content_and_absence) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_chain_keeps_each_branch_policy_and_restores_original (test_managed_git_debugsys.RealGitTests.test_chain_keeps_each_branch_policy_and_restores_original) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] branch mcr/staging mcr/main
+[git] completed (exit 0)
+[git] branch mcr/release mcr/main
+[git] completed (exit 0)
+ok
+test_dirty_index_worktree_untracked_refused (test_managed_git_debugsys.RealGitTests.test_dirty_index_worktree_untracked_refused) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_distinct_lists (test_managed_git_debugsys.RealGitTests.test_distinct_lists) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_duplicate_and_unknown_assignment_rejected (test_managed_git_debugsys.RealGitTests.test_duplicate_and_unknown_assignment_rejected) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_empty_list (test_managed_git_debugsys.RealGitTests.test_empty_list) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_ignored_file_collision_refused (test_managed_git_debugsys.RealGitTests.test_ignored_file_collision_refused) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_mirror_detection_prefers_gitlab_mcr_namespace (test_managed_git_debugsys.RealGitTests.test_mirror_detection_prefers_gitlab_mcr_namespace) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_non_mcr_branch_refused (test_managed_git_debugsys.RealGitTests.test_non_mcr_branch_refused) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+ok
+test_parent_components_and_rooted_subtree (test_managed_git_debugsys.RealGitTests.test_parent_components_and_rooted_subtree) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_preview_leaves_tree_index_and_head_unchanged (test_managed_git_debugsys.RealGitTests.test_preview_leaves_tree_index_and_head_unchanged) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_protected_absence_deletion_and_type_collision (test_managed_git_debugsys.RealGitTests.test_protected_absence_deletion_and_type_collision) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_quilt_patch_series_is_checked_without_worktree_change (test_managed_git_debugsys.RealGitTests.test_quilt_patch_series_is_checked_without_worktree_change) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_repeat_does_not_create_duplicate_commit (test_managed_git_debugsys.RealGitTests.test_repeat_does_not_create_duplicate_commit) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_salsa_uses_separate_policy (test_managed_git_debugsys.RealGitTests.test_salsa_uses_separate_policy) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_shell_code_is_never_evaluated (test_managed_git_debugsys.RealGitTests.test_shell_code_is_never_evaluated) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_skip_worktree_refused (test_managed_git_debugsys.RealGitTests.test_skip_worktree_refused) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_submodule_gitlink_refused (test_managed_git_debugsys.RealGitTests.test_submodule_gitlink_refused) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_symlink_hardlink_and_unsafe_mode_rejected (test_managed_git_debugsys.RealGitTests.test_symlink_hardlink_and_unsafe_mode_rejected) ... [git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+ok
+test_codex_agent_isolation_and_all_profiles (test_managed_git_debugsys.SSHTests.test_codex_agent_isolation_and_all_profiles) ... ok
+test_header_requires_encryption_and_bcrypt (test_managed_git_debugsys.SSHTests.test_header_requires_encryption_and_bcrypt) ... ok
+test_host_fingerprints (test_managed_git_debugsys.SSHTests.test_host_fingerprints) ... ok
+test_input_permissions_symlinks_hardlinks_and_bounds (test_managed_git_debugsys.SSHTests.test_input_permissions_symlinks_hardlinks_and_bounds) ... ok
+test_installer_input_boundary_and_pipe (test_managed_git_debugsys.SSHTests.test_installer_input_boundary_and_pipe) ... ok
+test_no_agent_start_in_zprofile (test_managed_git_debugsys.SSHTests.test_no_agent_start_in_zprofile) ... ok
+test_pair_publication_rolls_back_new_private_on_failure (test_managed_git_debugsys.SSHTests.test_pair_publication_rolls_back_new_private_on_failure) ... ok
+test_public_identity_and_strict_hosts_only (test_managed_git_debugsys.SSHTests.test_public_identity_and_strict_hosts_only) ... ok
+test_real_agent_correct_wrong_and_mismatched_passphrase (test_managed_git_debugsys.SSHTests.test_real_agent_correct_wrong_and_mismatched_passphrase) ... skipped 'OpenSSH client binaries are not installed in this validation container'
+test_real_gpg_seal_round_trip_contains_no_plaintext_file (test_managed_git_debugsys.SSHTests.test_real_gpg_seal_round_trip_contains_no_plaintext_file) ... ok
+test_session_unit_contract (test_managed_git_debugsys.SSHTests.test_session_unit_contract) ... ok
+
+----------------------------------------------------------------------
+Ran 56 tests in 1.770s
+
+OK (skipped=1)

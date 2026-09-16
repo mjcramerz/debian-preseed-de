@@ -11,6 +11,8 @@ import contextlib
 import datetime
 import fcntl
 import fnmatch
+import hashlib
+import json
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -21,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from urllib.parse import quote
 
 sys.dont_write_bytecode = True
 KEYS = ('GITOPS_FORKS_MERGE_PROTECTED', 'GITOPS_SALSA_MERGE_PROTECTED')
@@ -41,6 +44,16 @@ def git(*args: str, cwd: Path | None = None, data: bytes | None = None,
             env.pop(key)
     env.update({'LC_ALL': 'C.UTF-8', 'GIT_TERMINAL_PROMPT': '0', 'GIT_LITERAL_PATHSPECS': '1'})
     env.update(extra or {})
+    operation = 0
+    while operation < len(args) and args[operation] == '-c':
+        operation += 2
+    visible = operation < len(args) and args[operation] in ('clone', 'fetch', 'push', 'switch', 'merge', 'remote')
+    if operation < len(args) and args[operation] in ('branch', 'tag'):
+        visible = not any(a in ('--list', '-vv') for a in args[operation+1:])
+    if operation < len(args) and args[operation] == 'remote':
+        visible = operation+1 < len(args) and args[operation+1] == 'remove'
+    if visible:
+        print(terminal_text('[git] '+shlex.join(list(args))), flush=True)
     proc = subprocess.Popen(['/usr/bin/git', '-c', 'core.hooksPath=/dev/null',
                              '-c', 'submodule.recurse=false', *args], cwd=cwd, env=env,
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
@@ -49,7 +62,12 @@ def git(*args: str, cwd: Path | None = None, data: bytes | None = None,
         out, err = proc.communicate(data, timeout=300)
         if check and proc.returncode:
             # Git stderr can include remote URLs: only show bounded text, not env.
-            raise GitOpsError(err.decode(errors='replace')[:4000].strip() or 'Git command failed')
+            raise GitOpsError(terminal_text(err.decode(errors='replace')[:4000].strip()) or 'Git command failed')
+        if visible and proc.returncode == 0:
+            for output in (out, err):
+                if output:
+                    print(terminal_text(output.decode(errors='replace')), end='' if output.endswith(b'\n') else '\n')
+            print('[git] completed (exit 0)', flush=True)
         return out if proc.returncode == 0 else b''
     finally:
         try:
@@ -217,6 +235,8 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
             git('fetch', '--prune', 'origin', cwd=root)
         source = source_ref(root, source)
         old, other = resolve('HEAD', root), resolve(source, root)
+        report_commit(root, old, 'Protected destination before sync')
+        report_commit(root, other, 'Source commit')
         local, upstream = tree(old, root), tree(other, root)
         desired = desired_tree(local, upstream, patterns)
         # Submodule worktrees have separate lifecycles. Refuse instead of leaving
@@ -230,7 +250,7 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
                 raise GitOpsError('an ignored local path would be overwritten; move it before syncing')
         kept = sum(1 for name in local.keys() | upstream.keys()
                    if protected(name, patterns) and local.get(name) != upstream.get(name))
-        print(f'{workflow}: {source} -> {branch}; {len(changes)} changed paths; {kept} protected differences')
+        print(terminal_text(f'{workflow}: {source} -> {branch}; {len(changes)} changed paths; {kept} protected differences'))
         for name in changes[:100]:
             action = 'A' if name not in local else 'D' if name not in desired else 'M'
             print(f'  {action} {name!r}')
@@ -266,6 +286,7 @@ def sync(root: Path, workflow: str, source: str | None, apply: bool,
         git('-c', 'merge.autoStash=false', 'merge', '--ff-only', '--no-edit', '--no-stat', commit, cwd=root)
         if tree('HEAD', root) != desired:
             raise GitOpsError('post-sync tree verification failed; recovery ref was retained')
+        report_commit(root, 'HEAD', 'Protected sync result')
         print('Protected sync committed. Review with git show; pushing is a separate action.')
 
 def validate_branch(name: str, root: Path) -> None:
@@ -331,7 +352,7 @@ def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
             if any(v[0]=='160000' for v in (*before.values(),*after.values())):
                 raise GitOpsError('submodule promotion requires manual review')
             changes=sum(before.get(name)!=after.get(name) for name in before.keys()|after.keys())
-            print(f'{workflow}: {previous} -> {branch}; {changes} planned changed paths')
+            print(terminal_text(f'{workflow}: {previous} -> {branch}; {changes} planned changed paths'))
             planned=after;previous=branch
         if not apply:
             print('Preview only. --apply creates local recovery-backed commits; push is explicit.')
@@ -352,16 +373,346 @@ def sync_chain(root: Path, workflow: str, source: str | None, apply: bool,
                 previous=branch
             if push:
                 git('push','--atomic','origin',*[f'refs/heads/{b}:refs/heads/{b}' for b in BRANCHES],cwd=root)
+                push_configured_mirrors(root)
         finally:
             if current_branch(root)!=original:
                 git('switch','--no-overwrite-ignore',original,cwd=root)
 
 
-def main(argv: list[str] | None = None) -> int:
+# GitOps diagnostics and promotion-only mirrors. No shell-sourced configuration.
+def terminal_text(value: str) -> str:
+    value = re.sub(r'(https?://)[^/@\s]+@', r'\1[redacted]@', value)
+    return ''.join(c if c in '\n\t' or (c.isprintable() and ord(c) != 127)
+                   else f'\\x{ord(c):02x}' for c in value)
+
+
+def report_commit(root: Path, ref: str, label: str) -> None:
+    oid = resolve(ref, root)
+    payload = git('cat-file', 'commit', oid, cwd=root)
+    # This fingerprints the stored representation, including its Git header.
+    # It is NOT a converted SHA-256 Git object ID for a SHA-1 repository.
+    fingerprint = hashlib.sha256(b'commit '+str(len(payload)).encode()+b'\0'+payload).hexdigest()
+    algorithm = git('rev-parse', '--show-object-format=storage', cwd=root).decode().strip()
+    print(terminal_text(f'{label}: {ref}\n  Git {algorithm} commit: {oid}\n'
+                        f'  SHA256(stored commit object): {fingerprint}'))
+    details = git('show', '--no-patch', '--format=  Tree: %T%n  Parents: %P%n'
+                  '  Author: %an <%ae>%n  Authored: %aI%n  Committed: %cI%n  Subject: %s', oid, cwd=root)
+    print(terminal_text(details.decode(errors='replace')), end='')
+
+
+def ref_snapshot(root: Path) -> dict[str, str]:
+    records = git('for-each-ref', '--format=%(refname) %(objectname)',
+                  'refs/heads/', 'refs/tags/', cwd=root).decode().splitlines()
+    return dict(line.split(' ', 1) for line in records)
+
+
+def report_repository(root: Path, label: str, before: dict[str, str] | None = None) -> None:
+    print(terminal_text(f'[{label}] Repository: {root}'), flush=True)
+    if git('rev-parse', '--verify', 'HEAD^{commit}', cwd=root, check=False):
+        report_commit(root, 'HEAD', 'Current tip')
+    else:
+        print('Current tip: unborn (no commit yet)')
+    print(terminal_text(git('status', '--short', '--branch', cwd=root).decode(errors='replace')), end='')
+    refs = ref_snapshot(root)
+    names = sorted(refs.keys() | (before or {}).keys())
+    for name in names:
+        old, new = (before or {}).get(name), refs.get(name)
+        if before is None or old != new:
+            print(terminal_text(f'  {name}: {old or "<absent>"} -> {new or "<deleted>"}'))
+            if before is not None and new and git('rev-parse', '--verify', new+'^{commit}', cwd=root, check=False):
+                report_commit(root, new, 'Changed ref commit')
+    if before is not None and before == refs:
+        print('Local branch/tag refs unchanged.')
+
+
+PROVIDERS = {'gh': 'github.com', 'glab': 'gitlab.com'}
+
+
+def provider_path(provider: str, namespace: str, name: str) -> str:
+    if provider not in PROVIDERS:
+        raise GitOpsError('provider must be gh or glab')
+    parts = namespace.split('/')
+    if provider == 'gh' and len(parts) != 1:
+        raise GitOpsError('GitHub owner must be one user/organization name')
+    if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*', p) or p in ('.', '..')
+           for p in [*parts, name]):
+        raise GitOpsError('unsafe provider namespace or repository name')
+    return namespace+'/'+name
+
+
+def provider_url(provider: str, namespace: str, name: str) -> str:
+    path = provider_path(provider, namespace, name)
+    return f'git@{PROVIDERS[provider]}:{path}.git'
+
+
+def parse_provider_url(url: str) -> tuple[str, str, str]:
+    match = re.fullmatch(r'(?:git@|ssh://git@|https://)(github\.com|gitlab\.com)[:/]'
+                         r'([A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+?)(?:\.git)?/?', url)
+    if not match:
+        raise GitOpsError('origin/mirror must use a canonical GitHub or GitLab SSH/HTTPS URL without credentials')
+    provider = 'gh' if match[1] == 'github.com' else 'glab'
+    namespace, name = match[2].removesuffix('.git').rsplit('/', 1)
+    provider_path(provider, namespace, name)
+    return provider, namespace, name
+
+
+def remote_url(root: Path, name: str) -> str:
+    urls = git('remote', 'get-url', '--push', '--all', name, cwd=root).decode().splitlines()
+    if len(urls) != 1:
+        raise GitOpsError(f'{name} must have exactly one push URL')
+    return urls[0]
+
+
+def provider_api(provider: str, method: str, endpoint: str,
+                 body: dict | None = None, *, missing_ok: bool = False):
+    """Fixed-host authenticated CLI API. Only an actual HTTP 404 means absent."""
+    executable = Path('/usr/bin')/provider
+    if not executable.is_file() or not os.access(executable, os.X_OK):
+        raise GitOpsError(f'install {provider} and authenticate to {PROVIDERS[provider]} as your desktop user')
+    command = [str(executable), 'api', '--hostname', PROVIDERS[provider],
+               '--method', method, '--include', endpoint]
+    data = None
+    if body is not None:
+        command += ['--input', '-']
+        data = json.dumps(body).encode()
+    env = os.environ.copy()
+    for key in list(env):
+        if key.startswith('GIT_') or key in ('GH_DEBUG', 'GLAB_DEBUG', 'GLAB_DEBUG_HTTP', 'DEBUG', 'GH_REPO', 'GLAB_REPO'):
+            env.pop(key)
+    env.update({'GH_PROMPT_DISABLED': '1', 'GIT_TERMINAL_PROMPT': '0', 'NO_COLOR': '1'})
+    print(f'[provider] {provider} {method} {endpoint}', flush=True)
+    proc = subprocess.Popen(command, cwd=Path.home(), env=env, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    try:
+        out, err = proc.communicate(data, timeout=120)
+        raw = out.replace(b'\r\n', b'\n')
+        header, sep, payload = raw.partition(b'\n\n')
+        status = re.match(rb'HTTP/\S+ ([0-9]{3})\b', header)
+        code = int(status[1]) if status else 0
+        if missing_ok and code == 404:
+            return None
+        if proc.returncode or not 200 <= code < 300 or not sep:
+            detail = terminal_text(err.decode(errors='replace')[:2000])
+            raise GitOpsError(f'{provider} API failed (HTTP {code or "unknown"}); {detail}')
+        if len(payload) > 4*1024*1024:
+            raise GitOpsError('provider API response exceeds the safety limit')
+        return json.loads(payload) if payload.strip() else {}
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+
+def provider_repository(provider: str, namespace: str, name: str, *, create: bool = False):
+    path = provider_path(provider, namespace, name)
+    endpoint = ('repos/'+path if provider == 'gh' else 'projects/'+quote(path, safe=''))
+    existing = provider_api(provider, 'GET', endpoint, missing_ok=True)
+    if existing is not None:
+        if not isinstance(existing, dict):
+            raise GitOpsError('provider returned malformed repository metadata')
+        identity = existing.get('full_name' if provider == 'gh' else 'path_with_namespace')
+        if not isinstance(identity, str) or identity.casefold() != path.casefold():
+            raise GitOpsError('provider redirected to a different repository identity; refusing to mirror')
+        advertised = existing.get('ssh_url' if provider == 'gh' else 'ssh_url_to_repo')
+        if not isinstance(advertised, str) or advertised.casefold() != provider_url(provider, namespace, name).casefold():
+            raise GitOpsError('provider repository SSH URL does not match the requested mirror')
+        return existing
+    if not create:
+        return None
+    # New mirrors are private. Existing repositories keep their visibility.
+    if provider == 'gh':
+        owner = provider_api(provider, 'GET', 'users/'+namespace)
+        if not isinstance(owner, dict):
+            raise GitOpsError('provider returned malformed GitHub owner metadata')
+        if owner.get('type') == 'Organization':
+            endpoint = 'orgs/'+namespace+'/repos'
+        elif owner.get('type') == 'User':
+            me = provider_api(provider, 'GET', 'user')
+            if not isinstance(me, dict) or str(me.get('login', '')).lower() != namespace.lower():
+                raise GitOpsError('cannot create a repository in another GitHub user account')
+            endpoint = 'user/repos'
+        else:
+            raise GitOpsError('unrecognized GitHub namespace type')
+        provider_api(provider, 'POST', endpoint, {'name': name, 'private': True, 'auto_init': False})
+    else:
+        space = provider_api(provider, 'GET', 'namespaces/'+quote(namespace, safe=''))
+        if not isinstance(space, dict) or space.get('full_path') != namespace or space.get('kind') not in ('user', 'group'):
+            raise GitOpsError('provider returned an unexpected GitLab namespace identity')
+        if space['kind'] == 'user':
+            me = provider_api(provider, 'GET', 'user')
+            if not isinstance(me, dict) or me.get('username') != namespace:
+                raise GitOpsError('cannot create a repository in another GitLab user namespace')
+        namespace_id = space.get('id')
+        if type(namespace_id) is not int or namespace_id <= 0:
+            raise GitOpsError('provider returned an invalid namespace ID')
+        provider_api(provider, 'POST', 'projects', {'name': name, 'path': name,
+                     'namespace_id': namespace_id, 'visibility': 'private', 'initialize_with_readme': False})
+    return provider_repository(provider, namespace, name)
+
+
+def remote_refs(root: Path, url: str) -> dict[str, str]:
+    result = {}
+    for line in git('ls-remote', '--refs', '--heads', '--tags', '--', url, cwd=root).decode().splitlines():
+        oid, ref = line.split('\t', 1)
+        if not re.fullmatch(r'(?:[0-9a-f]{40}|[0-9a-f]{64})', oid) or not ref.startswith(('refs/heads/', 'refs/tags/')):
+            raise GitOpsError('invalid remote ref advertisement')
+        git('check-ref-format', ref, cwd=root)
+        if ref in result or len(result) >= MAX_ENTRIES:
+            raise GitOpsError('duplicate/excessive remote refs')
+        result[ref] = oid
+    return result
+
+
+def promotion_tips(root: Path) -> dict[str, str]:
+    return {'refs/heads/'+branch: resolve('refs/heads/'+branch, root) for branch in BRANCHES}
+
+
+def mirror_plan(before: dict[str, str], desired: dict[str, str], *, purge: bool) -> list[str]:
+    affected = sorted((before.keys() | desired.keys()) if purge else desired.keys())
+    for ref in affected:
+        print(terminal_text(f'  mirror {ref}: {before.get(ref, "<absent>")} -> {desired.get(ref, "<delete>")}'))
+    return affected
+
+
+def backup_mirror_refs(root: Path, url: str, before: dict[str, str], affected: list[str],
+                       desired: dict[str, str]) -> None:
+    changed = [ref for ref in affected if ref in before and before[ref] != desired.get(ref)]
+    if not changed:
+        return
+    prefix = 'refs/gitops/mirror-backups/'+uuid.uuid4().hex+'/'
+    # Fetch by ref (not an arbitrary unadvertised SHA), then verify against the
+    # preflight advertisement. A remote race aborts before destructive pushes.
+    specs = [f'{ref}:{prefix}{ref.removeprefix("refs/")}' for ref in changed]
+    git('fetch', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', '--', url, *specs, cwd=root)
+    for ref in changed:
+        saved = prefix+ref.removeprefix('refs/')
+        actual = git('rev-parse', '--verify', saved, cwd=root).decode().strip()
+        if actual != before[ref]:
+            raise GitOpsError('mirror changed while creating recovery refs; no mirror push was attempted')
+        print(terminal_text(f'Remote recovery ref: {saved} -> {actual}'))
+
+
+def leased_mirror_push(root: Path, url: str, before: dict[str, str], desired: dict[str, str],
+                       *, purge: bool = False) -> None:
+    affected = mirror_plan(before, desired, purge=purge)
+    if not affected:
+        return
+    leases = [f'--force-with-lease={ref}:{before.get(ref, "")}' for ref in affected]
+    # Pin source OIDs, not mutable branch names. Explicit empty leases guard
+    # newly created refs too. Never --mirror, --force or implicit tag following.
+    specs = [f'{desired.get(ref, "")}:{ref}' for ref in affected]
+    git('-c', 'push.followTags=false', 'push', '--atomic', '--porcelain',
+        '--recurse-submodules=no', *leases, '--', url, *specs, cwd=root)
+    actual = remote_refs(root, url)
+    if (purge and actual != desired) or any(actual.get(ref) != oid for ref, oid in desired.items()):
+        raise GitOpsError('mirror verification differs from the requested refs; a concurrent writer may have changed it')
+
+
+def configure_mirror(root: Path, provider: str, namespace: str, apply: bool) -> None:
+    if provider not in PROVIDERS:
+        raise GitOpsError('mirror syntax: mcr-repo-mirror <gh|glab> <namespace|del> [--apply]')
+    origin = remote_url(root, 'origin')
+    origin_provider, _, name = parse_provider_url(origin)
+    if provider == origin_provider:
+        raise GitOpsError('the origin provider cannot also be the promotion mirror provider')
+    remote = 'mirror-'+provider
+    present = remote in git('remote', cwd=root).decode().splitlines()
+    if namespace == 'del':
+        print(f'{"Remove" if apply else "Would remove"} local remote {remote}; provider repository is NOT deleted.')
+        if apply and present:
+            git('remote', 'remove', remote, cwd=root)
+        return
+    url = provider_url(provider, namespace, name)
+    if present and remote_url(root, remote) != url:
+        raise GitOpsError('mirror already points elsewhere; explicitly remove it before choosing another destination')
+    desired = promotion_tips(root)
+    info = provider_repository(provider, namespace, name)
+    print(terminal_text(f'Mirror destination: {url}; '+('create PRIVATE repository' if info is None else
+          'reuse repository; visibility='+str(info.get('visibility', 'private' if info.get('private') else 'public')))))
+    before = {} if info is None else remote_refs(root, url)
+    mirror_plan(before, desired, purge=True)
+    if not apply:
+        print('Preview only. --apply creates/reuses the mirror, sets its default branch to mcr/main,\n'
+              'and removes all mirror tags and non-promotion branches. Origin is not changed.')
+        return
+    if info is None:
+        info = provider_repository(provider, namespace, name, create=True)
+        if info is None:
+            raise GitOpsError('provider repository was not visible after creation; no push performed')
+        private = info.get('private') is True if provider == 'gh' else info.get('visibility') == 'private'
+        if not private:
+            raise GitOpsError('new repository is not private; no repository data was pushed')
+        before = remote_refs(root, url)
+    backup_mirror_refs(root, url, before, mirror_plan(before, desired, purge=True), desired)
+    main_ref = 'refs/heads/mcr/main'
+    # Hosts refuse to delete the default branch. Bootstrap main and change the
+    # provider default BEFORE pruning old default branches, not afterwards.
+    if before.get(main_ref) != desired[main_ref]:
+        leased_mirror_push(root, url, before, {main_ref: desired[main_ref]})
+    path = provider_path(provider, namespace, name)
+    endpoint = 'repos/'+path if provider == 'gh' else 'projects/'+quote(path, safe='')
+    provider_api(provider, 'PATCH' if provider == 'gh' else 'PUT', endpoint, {'default_branch': 'mcr/main'})
+    verified = provider_repository(provider, namespace, name)
+    if verified is None or verified.get('default_branch') != 'mcr/main':
+        raise GitOpsError('provider default branch verification failed; pruning was not attempted')
+    expected = {**before, main_ref: desired[main_ref]}
+    if remote_refs(root, url) != expected:
+        raise GitOpsError('mirror changed during default-branch setup; pruning aborted, recovery refs retained')
+    leased_mirror_push(root, url, expected, desired, purge=True)
+    # Install local role only after remote verification. Scope all settings to
+    # this explicitly named mirror; no origin/global refspec modifications.
+    git('config', '--local', '--replace-all', f'remote.{remote}.url', url, cwd=root)
+    git('config', '--local', '--replace-all', f'remote.{remote}.pushurl', url, cwd=root)
+    git('config', '--local', '--unset-all', f'remote.{remote}.fetch', cwd=root, check=False)
+    push_specs = [f'{ref}:{ref}' for ref in desired]
+    current_specs = git('config', '--local', '--get-all', f'remote.{remote}.push',
+                        cwd=root, check=False).decode().splitlines()
+    if current_specs != push_specs:
+        git('config', '--local', '--unset-all', f'remote.{remote}.push', cwd=root, check=False)
+        for spec in push_specs:
+            git('config', '--local', '--add', f'remote.{remote}.push', spec, cwd=root)
+    for key, value in (('skipDefaultUpdate', 'true'), ('skipFetchAll', 'true'),
+                       ('tagOpt', '--no-tags'), ('mirror', 'false'), ('gitopsManaged', 'true')):
+        git('config', '--local', '--replace-all', f'remote.{remote}.{key}', value, cwd=root)
+    if remote_url(root, 'origin') != origin:
+        raise GitOpsError('origin changed concurrently; inspect repository configuration')
+    print(f'Configured {remote}: push-only promotion branches; no tags; default mcr/main; origin unchanged.')
+
+
+def push_configured_mirrors(root: Path) -> None:
+    """Called only after a successful origin branch push, never after tag pushes."""
+    for provider in PROVIDERS:
+        remote = 'mirror-'+provider
+        if remote not in git('remote', cwd=root).decode().splitlines():
+            continue
+        try:
+            marker = git('config', '--get', f'remote.{remote}.gitopsManaged', cwd=root, check=False).strip()
+            if marker != b'true':
+                raise GitOpsError(f'run mcr-repo-mirror {provider} <namespace> --apply to validate this mirror first')
+            url = remote_url(root, remote)
+            parsed = parse_provider_url(url)
+            origin = parse_provider_url(remote_url(root, 'origin'))
+            if parsed[0] != provider or origin[0] == provider or parsed[2] != origin[2]:
+                raise GitOpsError('mirror identity no longer matches its configured role')
+            before, desired = remote_refs(root, url), promotion_tips(root)
+            backup_mirror_refs(root, url, before, list(desired), desired)
+            leased_mirror_push(root, url, before, desired)
+            print(f'{remote}: all three promotion tips verified; tags untouched.')
+        except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            raise GitOpsError(f'Origin push succeeded, but {remote} failed: {exc}. '
+                              'There is no cross-provider transaction; inspect the printed refs before retrying.') from exc
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', nargs='?', default='status')
     parser.add_argument('arguments', nargs='*')
-    parser.add_argument('--apply', action='store_true', help='apply the previewed protected tree synchronization')
+    parser.add_argument('--apply', action='store_true', help='apply the previewed protected sync or destructive mirror configuration')
     parser.add_argument('--no-fetch', action='store_true', help='use already-fetched refs (offline)')
     args = parser.parse_intermixed_args(argv)
     try:
@@ -372,12 +723,32 @@ def main(argv: list[str] | None = None) -> int:
         if command == 'config':
             for workflow in ('forks', 'salsa'):
                 print(workflow+': '+repr(load_patterns(config, workflow)))
-            print(f'Edit {config}; changes apply on the next invocation.'); return 0
+            print(terminal_text(f'Edit {config}; changes apply on the next invocation.')); return 0
         if command in ('clone', 'mcr-repo-clone'):
+            if len(args.arguments) == 3 and args.arguments[0] in PROVIDERS:
+                provider, namespace, name = args.arguments
+                args.arguments = [provider_url(provider, namespace, name.removesuffix('.git'))]
             if not 1 <= len(args.arguments) <= 2 or not re.fullmatch(r'git@(github|gitlab)\.com:[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.git', args.arguments[0]):
                 raise GitOpsError('clone requires a GitHub/GitLab SSH URL and optional destination')
-            print(git('clone', '--', *args.arguments).decode()); return 0
+            url = args.arguments[0]
+            parse_provider_url(url)
+            git('clone', '--', *args.arguments)
+            destination = Path(args.arguments[1]) if len(args.arguments) == 2 else Path(parse_provider_url(url)[2])
+            report_repository(destination.resolve(), 'CLONED')
+            return 0
         root = Path(os.fsdecode(git('rev-parse', '--show-toplevel')).rstrip('\n'))
+        if command in ('mirror', 'mcr-repo-mirror'):
+            if len(args.arguments) != 2:
+                raise GitOpsError('mirror syntax: mcr-repo-mirror <gh|glab> <namespace|del> [--apply]')
+            with repository_lock(root):
+                try:
+                    configure_mirror(root, args.arguments[0], args.arguments[1], args.apply)
+                except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
+                    if args.apply:
+                        raise GitOpsError(f'{exc}. Mirror setup may be partially applied; inspect the '
+                                          'provider repository and printed recovery refs before retrying.') from exc
+                    raise
+            return 0
         aliases = {
             'mcr-branch-show':'status', 'mcr-repo-status':'status', 'mcr-tag-show':'tags',
             'mcr-branch-init':'branch-init', 'mcr-fork-init':'branch-init', 'mcr-salsa-init':'branch-init',
@@ -403,11 +774,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         command = aliases.get(command, command)
         if command == 'status':
-            print(git('status', '--short', '--branch', cwd=root).decode(), end='')
-            print(git('branch', '-vv', cwd=root).decode(), end='')
-            print(git('remote', '-v', cwd=root).decode(), end=''); return 0
+            print(terminal_text(git('status', '--short', '--branch', cwd=root).decode()), end='')
+            print(terminal_text(git('branch', '-vv', '--no-abbrev', cwd=root).decode()), end='')
+            print(terminal_text(git('remote', '-v', cwd=root).decode()), end=''); return 0
         if command == 'tags':
-            print(git('tag', '--list', cwd=root).decode(), end=''); return 0
+            print(terminal_text(git('for-each-ref', '--format=%(refname) %(objectname) %(*objectname)', 'refs/tags/', cwd=root).decode()), end=''); return 0
         with repository_lock(root):
             require_clean(root)
             if command == 'branch-init' and len(args.arguments) <= 1:
@@ -435,17 +806,21 @@ def main(argv: list[str] | None = None) -> int:
                         git('merge', '--ff-only', '--no-edit', source, cwd=root)
                         source = branch
                     git('push', '--atomic', 'origin', *[f'refs/heads/{x}:refs/heads/{x}' for x in BRANCHES], cwd=root)
+                    push_configured_mirrors(root)
                 finally:
                     git('switch', '--no-overwrite-ignore', original, cwd=root)
             elif command == 'push' and not args.arguments:
                 branch = current_branch(root)
                 validate_branch(branch, root)
                 git('push', '--atomic', 'origin', f'refs/heads/{branch}:refs/heads/{branch}', cwd=root)
+                push_configured_mirrors(root)
             elif command in ('tag', 'tag-push', 'tag-delete') and len(args.arguments) == 1:
                 tag = args.arguments[0]
                 if tag.startswith('-'):
                     raise GitOpsError('invalid tag')
                 git('check-ref-format', 'refs/tags/'+tag, cwd=root)
+                if command != 'tag':
+                    report_commit(root, 'refs/tags/'+tag, 'Tag target')
                 if command == 'tag':
                     git('tag', '-a', tag, '-m', 'Release '+tag, cwd=root)
                 elif command == 'tag-push':
@@ -456,8 +831,34 @@ def main(argv: list[str] | None = None) -> int:
                 raise GitOpsError('unsupported command/arguments; see /usr/local/share/doc/managed-git/README.md')
         return 0
     except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
-        print('gitops: '+str(exc), file=sys.stderr)
+        print('gitops: '+terminal_text(str(exc)), file=sys.stderr)
         return 1
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    print(terminal_text('[gitops] '+shlex.join(arguments or ['status'])), flush=True)
+    root = None
+    before = None
+    if os.geteuid() != 0:
+        try:
+            located = git('rev-parse', '--show-toplevel', check=False)
+            if located:
+                root = Path(os.fsdecode(located).rstrip('\n'))
+                before = ref_snapshot(root)
+                report_repository(root, 'BEFORE')
+        except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            print('gitops: preflight reporting failed: '+terminal_text(str(exc)), file=sys.stderr)
+            return 1
+    result = _main(arguments)
+    if root is not None:
+        try:
+            report_repository(root, 'AFTER' if result == 0 else 'FAILED - inspect current state', before)
+        except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
+            print('gitops: operation exit '+str(result)+'; final reporting failed: '+terminal_text(str(exc)), file=sys.stderr)
+            result = 1
+    print(f'[gitops] exit {result}', flush=True)
+    return result
+
 
 def install_signal_handlers() -> None:
     # Git/SSH run in separate process groups; default TERM/HUP would orphan

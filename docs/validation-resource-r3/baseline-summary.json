@@ -1,0 +1,32 @@
+[
+  {
+    "suite": "desktop_sandbox",
+    "exit_code": 1,
+    "status": [
+      "FAIL: test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+      "FAILED (failures=1, skipped=1)"
+    ],
+    "log": "baseline-desktop_sandbox.log"
+  },
+  {
+    "suite": "managed_external_software",
+    "exit_code": 1,
+    "status": [
+      "FAIL: test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "FAIL: test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "FAIL: test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "FAIL: test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+      "FAILED (failures=4)"
+    ],
+    "log": "baseline-managed_external_software.log"
+  },
+  {
+    "suite": "podman_incus_redesign",
+    "exit_code": 1,
+    "status": [
+      "ERROR: test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)",
+      "FAILED (errors=1)"
+    ],
+    "log": "baseline-podman_incus_redesign.log"
+  }
+]

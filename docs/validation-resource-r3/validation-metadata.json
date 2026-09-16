@@ -1,0 +1,14 @@
+{
+  "counts": {
+    "run": 453,
+    "failures": 5,
+    "errors": 1,
+    "skipped": 3,
+    "passed": 444
+  },
+  "suites": 16,
+  "resource_tests": 25,
+  "synthetic_units_per_io_mode": 36,
+  "unit_dropins_in_fixture": 38,
+  "scope_note": "Scope drop-ins structurally checked; no static scope activation or live transient API test."
+}

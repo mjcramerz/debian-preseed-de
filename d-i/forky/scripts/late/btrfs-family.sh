@@ -601,6 +601,7 @@ configure_target_timeshift() {
   btrfs_stage_shared_target_asset etc/systemd/system/timeshift-weekly.timer "${FILE_TIMESHIFT_WEEKLY_TIMER}" 0644
   btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.service "${FILE_TIMESHIFT_MONTHLY_SERVICE}" 0644
   btrfs_stage_shared_target_asset etc/systemd/system/timeshift-monthly.timer "${FILE_TIMESHIFT_MONTHLY_TIMER}" 0644
+  btrfs_stage_shared_target_asset etc/systemd/system/timeshift-.service.d/60-resource-class.conf /etc/systemd/system/timeshift-.service.d/60-resource-class.conf 0644
   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.service "${FILE_GRUB_BTRFS_REFRESH_SERVICE}" 0644
   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.path "${FILE_GRUB_BTRFS_REFRESH_PATH}" 0644
 

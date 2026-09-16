@@ -98,6 +98,10 @@ publish_target_asset() (
       (TMP_ENV_DIR=$asset_work; render_target_template "$asset_work/payload" "$asset_work/rendered" "$asset_mode") || exit 1
       mv -f "$asset_work/rendered" "$asset_work/payload" || exit 1
       ;;
+    resources)
+      (TMP_ENV_DIR=$asset_work; apply_systemd_resource_placeholders "$asset_work/payload") || exit 1
+      (target_asset_assert_no_unresolved_installer_placeholders "$asset_work/payload" "resource asset $asset_source") || exit 1
+      ;;
     map)
       (TMP_ENV_DIR=$asset_work; apply_placeholder_map_to_target "$asset_work/payload" "$asset_map") || exit 1
       (target_asset_assert_no_unresolved_installer_placeholders "$asset_work/payload" "rendered target asset $asset_source") || exit 1
@@ -116,6 +120,11 @@ remove_target_asset() (
   target_host_path=$(target_asset_host_path "$1") || exit 1
   rm -f -- "$target_host_path"
 )
+
+# Opt-in renderer: only explicitly selected resource-policy assets use it.
+render_target_resource_asset() {
+  publish_target_asset "$1" "$2" "$3" resources
+}
 
 render_target_asset() {
   publish_target_asset "$1" "$2" "$3" template

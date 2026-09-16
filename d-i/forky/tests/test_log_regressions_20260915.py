@@ -216,7 +216,13 @@ class DesktopAssetTests(unittest.TestCase):
         units = TARGET / 'etc/skel-desktop/.config/systemd/user'
         found = list(units.glob('app-*.scope.d/*.conf'))
         path = units / 'app-.scope.d/50-session-labwc.conf'
-        self.assertEqual(found, [path])
+        # Resource class placement is separate from the original lifecycle policy.
+        # Keep the inventory exact: no additional scope-wide weights or limits.
+        resource_path = path.with_name('60-resource-class.conf')
+        self.assertEqual(sorted(found), sorted([path, resource_path]))
+        active = [line for line in resource_path.read_text().splitlines()
+                  if line and not line.startswith('#')]
+        self.assertEqual(active, ['[Scope]', 'Slice=app.slice'])
         text = path.read_text()
         for setting in ('Requisite=labwc-session.target', 'After=labwc-session.target',
                         'PartOf=labwc-session.target', 'KillMode=control-group',

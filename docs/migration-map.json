@@ -7820,8 +7820,8 @@
       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
       "content_status": "unchanged",
-      "current_sha256": "047564577a6381d4fd45b876d0996716e9701f21766a47ec2ce5a7c8bad35d88",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "449382abd2870d4f328609379cf4bb50ccb9c9ebb1d0994856515488379b141b",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
@@ -7829,8 +7829,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "481b532c00eb68327719c687e2ea7468aa7aea872b524ff5872d97451c053924",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "fb42053a07fe3a8e3b3f5956e20638eb33670aac6797c34f4f1ddd531e5d8d44",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
@@ -7838,8 +7838,8 @@
       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
       "content_status": "unchanged",
-      "current_sha256": "095f44ec084caac0b23fb07541fd5e497cbf30ad668d9c6e328410fa633501bc",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "449630c51d0b47329ac64a3199aa4fca7584f349fb5335518467d55d08290b60",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
@@ -7847,8 +7847,8 @@
       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
       "content_status": "unchanged",
-      "current_sha256": "988c740b7d5bc2b904063d9e5c7542a41b72863a5834fa2ca7d389bfba653b77",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "e6439b41e9ccc712aef0f7378634401ae777b591813171196dc62d18a0a653b2",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
@@ -7856,8 +7856,8 @@
       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
       "content_status": "unchanged",
-      "current_sha256": "ef2c6acdeacffaa86378d9ad0dddb10ecde7d4c549572e5b440f0109da22630a",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "0434779fb7b42a889438903971431ab1e93938a88f97a89a7943f91e31fa8b1a",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
@@ -7865,8 +7865,8 @@
       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
       "content_status": "unchanged",
-      "current_sha256": "73fc293a8ce582952c9ae4959d7ef48a29772d6f208231bf57a318ab22866521",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "0288297e0f8640ea16fb0b179efac9c72dd8a7370849ac5ba933dc9bdd47c204",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
@@ -7874,8 +7874,8 @@
       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
       "content_status": "unchanged",
-      "current_sha256": "f9ba00ff355b9e90bd692bea193addf41ebaa532f19dc57acd77259074fde835",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)",
+      "current_sha256": "e0e1fcf023d0c42a11db6fd559742a226a09aba0dd165fc59607b82dd167f681",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)",
       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
     },
     {
@@ -7884,8 +7884,8 @@
       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
       "content_status": "unchanged",
-      "current_sha256": "9810516ed69cff447d5e60614ffd994ab587923804d911391cc0ff0c0ac4460d",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "82041642414fa29d2293e913acb896db551853188f1055695ee02f56290ae2e5",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
@@ -7893,8 +7893,8 @@
       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
       "content_status": "unchanged",
-      "current_sha256": "668b2669f9d360858eb56079bf8680c0fd75eb35b3efa8553809368aa8fc795e",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "67c7791df75b70cc1df77d71ecb5f0d73a91e925c09f0029d87ffd478ed1f06a",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
@@ -7902,8 +7902,8 @@
       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
       "content_status": "unchanged",
-      "current_sha256": "4e05ef3eeab5ac2e6320cda2e3584177b3445d9dea15ccdb83f76d41803c52fa",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "f04b7176153b713e3373ef14db78a186947e0fbf4518b375776e9dbb48773e8c",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
@@ -7911,8 +7911,8 @@
       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
       "content_status": "unchanged",
-      "current_sha256": "481b532c00eb68327719c687e2ea7468aa7aea872b524ff5872d97451c053924",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "fb42053a07fe3a8e3b3f5956e20638eb33670aac6797c34f4f1ddd531e5d8d44",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
@@ -7920,8 +7920,8 @@
       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
       "content_status": "unchanged",
-      "current_sha256": "29cfc232597caee710bbae8ee262bd7d90c37bd8f3cf3bfd3cb479dc97713b70",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "2f30d712c246b8b7be1c250f82dba7f5ae2bb21302cb4e8c493ca4a86491ad21",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
@@ -7929,8 +7929,8 @@
       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
       "content_status": "unchanged",
-      "current_sha256": "1a914f198acd17d31bcf9d2bbe05d53f733e523ab4f7893ba71b750680b0d156",
-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14)"
+      "current_sha256": "bd4b010ac1f14b5f71066eeb921e1d46b23691f37cbd89ae89ccb90841fc1710",
+      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3)"
     },
     {
       "source": "d-i/forky/hosts/shared/account.env",

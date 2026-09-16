@@ -297,6 +297,9 @@ tailscale_render_target_asset \
   ACCOUNT_HOME "$ACCOUNT_HOME" \
   DIR_HOME_SYNCTHING "$DIR_HOME_SYNCTHING" \
   DIR_HOME_SYNCTHING_STATE "$DIR_HOME_SYNCTHING_STATE"
+tailscale_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf)" \
+  /etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf 0644
 
 {
   write_shell_config_var TAILSCALE_AUTH_KEY_FILE "$auth_key_file"
