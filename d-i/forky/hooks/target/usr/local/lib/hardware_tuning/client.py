@@ -19,7 +19,7 @@ EXECUTABLE = "/usr/local/bin/labwc-hardware-tuning"
 def connect_request(request: dict) -> tuple[socket.socket, dict]:
     channel = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        channel.settimeout(70)
+        channel.settimeout(240)
         channel.connect(SOCKET)
         channel.sendall(json.dumps(request).encode() + b"\n")
         data = bytearray()
@@ -165,6 +165,7 @@ def render_report(data: dict) -> str:
         lines.extend(["Generated UTC: " + report["generated_utc"],
                       "Telemetry: " + json.dumps(report["telemetry"], indent=2),
                       "Temperature C: " + str(report["temperature_c"]),
+                      "Platform / policy ownership: " + json.dumps(report.get("platform", {}), indent=2),
                       "Combined profile preflight: " + json.dumps(report.get("profile_preflight", {}), indent=2)])
         for knob in report["controls"]:
             lines.extend(["", knob["id"], "  Setting: " + knob["setting"] + " [" + knob["unit"] + "]",
@@ -252,4 +253,8 @@ def main(argv: list[str]) -> int:
     else:
         raise TuningError("usage: labwc-hardware-tuning {menu|status|report|auto-start|auto-stop|profiles-reset|reset|boot-enable|boot-disable|manual VENDOR PROFILE}")
     print(json.dumps(result, indent=2, allow_nan=False))
+    if argv == ["pause"]:
+        return int(bool(result.get("recovery_pending")) or any(result.get("owns_controls", {}).values()))
+    if argv == ["resume"]:
+        return int(bool(result.get("recovery_pending")))
     return int(bool(result.get("faults")))

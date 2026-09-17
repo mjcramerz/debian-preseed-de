@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
+from contextlib import asynccontextmanager
 import ctypes as C
 import json
 import logging
@@ -55,16 +56,19 @@ class LocalSeat:
 
 
 def on_ac(root: Path = Path("/sys/class/power_supply")) -> bool:
-    found = []
+    found, battery = [], False
     for device in sorted(root.glob("*")):
         try:
             kind = read_text(device / "type")
-            if kind in ("Mains", "USB", "USB_C", "USB_PD", "Wireless"):
+            if kind == "Battery":
+                battery = True
+            if kind in ("Mains", "USB", "USB_C", "USB_PD", "USB_PD_DRP", "Wireless"):
                 found.append(read_text(device / "online") == "1")
         except (OSError, TuningError):
             continue
-    # No readable source (or desktop without battery): balanced, not maximum.
-    return any(found) if found else True
+    # A laptop with unknown AC state is treated as battery-powered. A desktop
+    # without any battery retains its normal AC policy.
+    return any(found) if found else not battery
 
 
 class Selection:
@@ -107,6 +111,7 @@ class Broker:
         self.applied = {v: None for v in self.selection.vendors}
         self.owned = {v: False for v in self.selection.vendors}
         self.details: dict = {}
+        self.recovery_pending: set[str] = set()
         self.connections = 0
         self.tokens, self.updated = 16.0, time.monotonic()
         self.report_after = 0.0
@@ -132,7 +137,7 @@ class Broker:
         if not isinstance(data["faults"], dict) or not set(data["faults"]) <= set(self.selection.vendors) or any(not isinstance(v, str) or len(v) > 8192 for v in data["faults"].values()):
             raise TuningError("invalid fault state")
         self.selection.automatic = data["automatic"]
-        self.selection.manual = data["manual"]
+        self.selection.manual = data["manual"] if self.seat.active() else {v: None for v in self.selection.vendors}
         self.selection.paused = data["paused"]
         self.selection.faults = data["faults"]
 
@@ -172,12 +177,14 @@ class Broker:
         self.details[vendor] = await self.worker(vendor, "reset")
         self.applied[vendor] = None
         self.owned[vendor] = False
+        self.recovery_pending.discard(vendor)
 
     async def fault(self, vendor: str, exc: Exception) -> None:
         error = str(exc)
         try:
             await self.restore(vendor)
         except Exception as recovery:
+            self.recovery_pending.add(vendor)
             error += "; recovery still pending: " + str(recovery)
         self.selection.faults[vendor] = error[:8192]
         LOG.error("%s: %s", vendor, error)
@@ -192,6 +199,8 @@ class Broker:
         self.was_active = active
         idle = self.config["idle_ac" if on_ac() else "idle_battery"]
         for vendor in self.selection.vendors:
+            if vendor in self.selection.faults:
+                continue  # Explicit reset/start retries; do not hammer a failed device.
             desired = self.selection.desired(vendor, active, idle)
             try:
                 if self.owned[vendor] and (health or desired is not None and desired != self.applied[vendor]) and vendor not in self.selection.faults:
@@ -234,7 +243,7 @@ class Broker:
                 "paused": self.selection.paused, "active_local_seat": self.seat.active(),
                 "autostart": AUTOSTART.is_symlink() and os.readlink(AUTOSTART) == AUTOSTART_UNIT,
                 "leases": {f"{v}/{p}": n for (v, p), n in sorted(self.selection.leases.items())},
-                "faults": self.selection.faults, "last_result": self.details}
+                "faults": self.selection.faults, "recovery_pending": sorted(self.recovery_pending), "last_result": self.details}
 
     def rate_limit(self, uid: int, action: str) -> None:
         if uid == 0:
@@ -309,9 +318,15 @@ class Broker:
             self.boot(action == "boot-enable")
         elif action in {"pause", "resume"}:
             self.selection.paused = action == "pause"
-            # Resume may retry a device which vanished just before suspend.
-            if action == "resume":
-                self.selection.faults.clear()
+            # A previous thermal/ownership fault must not be automatically
+            # cleared by resume. Pause retries pending recovery once; sleep is
+            # blocked only when hardware remains owned or unrecovered.
+            if action == "pause":
+                for vendor in tuple(self.recovery_pending):
+                    try:
+                        await self.restore(vendor)
+                    except Exception as exc:
+                        await self.fault(vendor, exc)
         else:
             raise TuningError("unsupported action")
         self.save()
@@ -329,23 +344,34 @@ class Broker:
             raise TuningError("vendor/profile is not installed or not supported")
         return request
 
+    @asynccontextmanager
+    async def control_lock(self):
+        try:
+            await asyncio.wait_for(self.lock.acquire(), 5)
+        except asyncio.TimeoutError as exc:
+            raise TuningError("hardware controller busy; request was not executed") from exc
+        try:
+            yield
+        finally:
+            self.lock.release()
+
     async def serve(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         lease = None
         self.connections += 1
         self.writers.add(writer)
         try:
-            if self.connections > 64:
-                raise TuningError("too many control connections")
             sock = writer.get_extra_info("socket")
             _pid, uid, _gid = struct.unpack("3i", sock.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
             if uid not in (0, self.config["uid"]):
                 raise TuningError("unauthorized peer UID")
+            if self.connections > (68 if uid == 0 else 64):
+                raise TuningError("too many control connections")
             line = await asyncio.wait_for(reader.readline(), 5)
             if not line.endswith(b"\n") or len(line) > 4096:
                 raise TuningError("one bounded JSON request is required")
             request = self.validate_request(decode(line))
             self.rate_limit(uid, request["action"])
-            async with self.lock:
+            async with self.control_lock():
                 if request["action"] == "lease":
                     if uid != self.config["uid"]:
                         raise TuningError("leases belong to the configured desktop user")

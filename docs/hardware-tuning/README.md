@@ -4,7 +4,7 @@
 
 This change adds a separate, opt-in hardware policy controller. It does not replace the existing energy-profile menu, cgroup delegation, resource weights, launcher isolation, display configuration, driver installation, or power-management services. The served payload and generated preseed must be rebuilt together with `make build` after changing any installer profile.
 
-Both `HARDWARE_INTEL_CPU_TUNING_ENABLE` and `HARDWARE_NVIDIA_GPU_TUNING_ENABLE` are `"true"` in `btrfs-de-main.env`, `btrfs-de-dual-main.env`, `btrfs-de-flex.env`, and `btrfs-de-dual-flex.env`. Both are `"false"` in the other nine profiles. Every profile carries the same initial tuning values; enablement is the only intended difference in this added configuration block.
+`HARDWARE_INTEL_CPU_TUNING_ENABLE="true"` in the two main and two Flex profiles. `HARDWARE_NVIDIA_GPU_TUNING_ENABLE="true"` only in `btrfs-de-main.env` and `btrfs-de-dual-main.env`; it is explicitly `"false"` in both Flex profiles. Both flags are `"false"` in the other nine profiles. Every profile carries the same initial tuning values; enablement is the only intended difference in this added configuration block.
 
 Intel additionally requires a detected GenuineIntel CPU. NVIDIA additionally requires a selected `addon/nvidia` or `addon/nvidia-legacy` class and a detected NVIDIA display GPU. NVIDIA GPU detection, not a nonexistent requirement for an NVIDIA CPU, is used. Both flags are literal booleans; invalid values fail installation. The desktop role and Labwc must also be enabled by the existing installer policy.
 
@@ -19,6 +19,40 @@ The supplied Flex audit reports an Intel i3-1115G4, 400000..4100000 kHz CPU limi
 Evidence: `debugsys-flex.zip/20260916T211928Z-report-3925b3f9/evidence/` and `debugsys-p15s.zip/20260916T212228Z-report-70f722af/evidence/`. The audit's temporary missing delegation was not used to change any CPU, cpuset or I/O delegation policy. Runtime feature discovery, not a hostname or those particular clock numbers, determines each installed machine's controls.
 
 The P520 must not be treated as a Volta/Ampere GPU. Driver support for power, offsets and legacy application clocks is individually queried; a P520 may expose some controls read-only or not at all. The implementation does not promise clock offsets merely because an NVML symbol exists.
+
+## One CPU policy owner, with thermal protection retained
+
+The supplied audits show power-profiles-daemon already active. Installing this feature does not stop, mask or replace it. Before **CPU/RAPL/uncore** tuning can start, the worker reads the fixed competing-service list through libsystemd's typed D-Bus `ActiveState` API. An active/activating/unknown owner blocks the request **before hardware writes**. Missing bus access or a query error also blocks it. The report exposes the states and reason. No privileged shell or systemd mutation is added to the worker. Intel GPU-only requests do not unnecessarily depend on CPU-policy ownership.
+
+This choice intentionally avoids automatic policy takeover. Normal left-click power profiles work unchanged with custom tuning off. For an administrator-controlled, current-boot trial on these PPD-managed machines:
+
+```sh
+labwc-hardware-tuning reset
+systemctl show power-profiles-daemon.service -p ActiveState -p UnitFileState
+# Record the output first. Do not run this on an already masked service.
+sudo systemctl mask --runtime --now power-profiles-daemon.service
+labwc-hardware-tuning report
+labwc-hardware-tuning manual intel balanced
+```
+
+Use only the managers actually installed on the machine; the report also checks TLP/TLP-PD, tuned/tuned-PPD, auto-cpufreq, cpufrequtils, ondemand and throttled. A runtime mask avoids D-Bus reactivation during this trial and disappears on reboot. The left-click PPD menu cannot apply a PPD profile while PPD is masked. After the trial, **first reset and verify that there are no pending recovery entries**, then reverse only the runtime mask created above and restore the recorded initial service state:
+
+```sh
+labwc-hardware-tuning reset
+labwc-hardware-tuning status
+sudo systemctl unmask --runtime power-profiles-daemon.service
+sudo systemctl start power-profiles-daemon.service  # only if originally active
+```
+
+Persistent autostart requires an explicit, persistent owner decision by the administrator; enabling tuning autostart does not silently disable other policy software. Keep thermald, kernel thermal protection and firmware policy enabled. A thermal controller/EC can still change a limit: the tuner detects divergence and yields rather than repeatedly forcing it back. Service-state checks are a guard against known managers, not a guarantee against arbitrary root scripts or firmware writers. If a different manager appears after application, the next health check faults and restores/yields owned values.
+
+## Passive platform coverage
+
+An Intel report includes CPU driver status, package thermal-throttle counters, CPU0 idle states, platform-profile choices, i915 firmware-related parameters, PCIe current/maximum links, runtime-PM state and cumulative AER counters, plus Thunderbolt domain security and IOMMU protection. This inventory is bounded and read-only; it does not enumerate serial numbers. Compare snapshots on the same boot and link state under load. No automatic ASPM, NVMe APST, C-state, USB/TB authorization, firmware, IOMMU, or raw PCI/MSR changes are made.
+
+RAPL discovery follows supported flat/nested/MSR/MMIO layouts, resolves aliases once, identifies constraints by name rather than index, skips disabled zones, and treats nonpositive optional bounds as unknown. Read-only mode bits are reported without write probes. TPMI uncore cluster interfaces take precedence over aggregate package interfaces so both layers do not overwrite one another. Active intel_pstate `powersave` remains adaptive; generic `powersave` is never selected as an adaptive fallback.
+
+NVIDIA reports add PCIe current/maximum generation/width and the 64-bit clock-event reason mask, with the older driver symbol fallback. Full capability scans remain available in reports and apply preflight; periodic health/recovery only discover the owned NVML control families/P-states, avoiding a complete offset/clock-table sweep every five seconds. This reduces unnecessary queries but cannot guarantee a GPU stays suspended while NVML is queried. Oversized clock tables are rejected rather than silently truncated. Application clocks cannot be combined with offsets/modern locks on one GPU.
 
 ## Waybar menu and command line
 
@@ -81,10 +115,10 @@ Source values use `HARDWARE_INTEL_CPU_TUNING_<PROFILE>_<SETTING>` or `HARDWARE_N
 | Setting | Performance | High | Balanced | Silent |
 |---|---|---|---|---|
 | `CPU_GOVERNOR` | `adaptive` | `adaptive` | `adaptive` | `adaptive` |
-| `CPU_EPP` | `performance` | `balance_performance` | `balance_power` | `power` |
+| `CPU_EPP` | `performance` | `balance_performance` | `balance_performance` | `power` |
 | `CPU_EPB` | `0` | `4` | `6` | `15` |
 | `CPU_MIN_PERF_PCT` | `keep` | `keep` | `keep` | `keep` |
-| `CPU_MAX_PERF_PCT` | `100` | `100` | `85` | `55` |
+| `CPU_MAX_PERF_PCT` | `100` | `100` | `100` | `55` |
 | `CPU_NO_TURBO` | `0` | `0` | `0` | `1` |
 | `CPU_HWP_DYNAMIC_BOOST` | `1` | `1` | `0` | `0` |
 | `CPU_MIN_FREQ_KHZ` | `keep` | `keep` | `keep` | `keep` |
@@ -127,13 +161,13 @@ NVIDIA performance and high intentionally share stock default power unless the a
 
 All defaults preserve firmware voltage, manual-fan and thermal-protection policy. There is no automatic stress-test/overclock search. Automatic tuning selects configured profiles; it does not experiment with unstable clocks.
 
-`ALLOW_OVERCLOCK="false"` rejects positive GPU offsets. `ALLOW_POWER_INCREASE="false"` rejects limits above NVIDIA's driver default or the Intel pre-tuning baseline. Both can be explicitly enabled per vendor, but cannot widen known hardware bounds. Readable temperature coverage is required for these higher-risk changes; for NVIDIA, every enumerated GPU must have a valid sensor reading so one GPU cannot mask another GPU's missing sensor. Loss of that coverage or reaching the configured threshold causes restoration and a latched fault. Initial interlocks are 85 C for Intel and 80 C for NVIDIA; accepted configuration range is 50..95 C. Shutdown/slowdown thresholds and fan controls are never weakened. A configurable acoustic GPU target must be at or below the software interlock.
+`ALLOW_OVERCLOCK="false"` rejects positive GPU offsets. `ALLOW_POWER_INCREASE="false"` rejects limits above NVIDIA's driver default or the Intel pre-tuning baseline. Both can be explicitly enabled per vendor, but cannot widen known hardware bounds. Readable temperature coverage is required for these higher-risk changes; for NVIDIA, every enumerated GPU must have a valid sensor reading; for Intel, coretemp coverage must span every discovered CPU package, with no missing/invalid input masquerading as a valid temperature. Loss of that coverage or reaching the configured threshold causes restoration and a latched fault. Initial interlocks are 85 C for Intel and 80 C for NVIDIA; accepted configuration range is 50..95 C. Shutdown/slowdown thresholds and fan controls are never weakened. A configurable acoustic GPU target must be at or below the software interlock.
 
 `EXCLUSIVE_CLOCK_CONTROL="false"` prevents use of NVIDIA lock APIs whose previous lock range is not queryable through the portable NVML interface. Enabling it is an explicit assertion that no other clock-lock owner exists. The report displays unknown, not a fabricated current lock range. Reset releases this manager's locks to driver-default clock behavior; it cannot reconstruct an unknown externally established lock range. Do not combine exclusive locks with another locking tool.
 
 The Linux powercap interface makes RAPL minimum/maximum and window-bound attributes optional. A current value is not a maximum, a guessed TDP is not an advertised bound, and a firmware write lock is not bypassed. With missing bounds, RAPL values remain report-only/keep by default.
 
-To use a RAPL constraint whose bounds are not fully exposed, the hardware owner must first verify the safe endpoints against that platform's specification, then explicitly set `HARDWARE_INTEL_CPU_TUNING_ALLOW_VERIFIED_BOUNDS="true"` and both `HARDWARE_INTEL_CPU_TUNING_RAPL_<PL1|PL2|PL4>_<POWER_UW|WINDOW_US>_VERIFIED_MIN/MAX`. All these fields ship as keep. No numeric RAPL endpoints are inferred from the audit. In runtime JSON the corresponding optional fields are `allow_verified_bounds` and `verified_bounds`, whose keys are named package RAPL settings and whose values contain positive integer `minimum` and `maximum`. Every known driver bound is intersected with, never widened by, these constraints. Reports distinguish administrator-supplied effective bounds from actual driver-advertised bounds. The driver may still reject or quantize a request.
+To use a RAPL constraint whose bounds are not fully exposed, the hardware owner must first verify the safe endpoints against that platform's specification, then explicitly set `HARDWARE_INTEL_CPU_TUNING_ALLOW_VERIFIED_BOUNDS="true"` and both `HARDWARE_INTEL_CPU_TUNING_RAPL_<PL1|PL2|PL4>_<POWER_UW|WINDOW_US>_VERIFIED_MIN/MAX`. All these fields ship as keep. No numeric RAPL endpoints are inferred from the audit. In runtime JSON the corresponding optional fields are `allow_verified_bounds` and `verified_bounds`, whose keys are named package RAPL settings and whose values contain positive integer `minimum` and `maximum`. Every known driver bound is intersected with, never widened by, these constraints. Reports distinguish administrator-supplied effective bounds from actual driver-advertised bounds. The driver may still reject or quantize a request; a nonmatching readback is an explicit failure, not a successful request. Use a driver-representable value established during platform validation.
 
 Raw MSR/voltage mailbox writes, Intel multiplier unlocking, GPU voltage overrides, firmware flashing, manual fan control, PCI GPU reset, changing ECC/compute/MIG mode and deferred reboot clock settings are deliberately not exposed. There is no safe portable interface covering those operations across these machines. The report explains this limitation rather than inventing a current value or claiming an unsupported overclock was applied.
 
@@ -145,11 +179,11 @@ Edit only the relevant root-owned JSON through your normal administrator mechani
 
 Use **Start Automatic Tuning** again, or reselect the desired single profile, to recover old owned settings and reload the edited vendor policy even when the profile name is unchanged. Broker-wide UID, polling and idle settings are installer/root policy; restarting `hardware-tuning.service` reloads them. Modifying source `.env` files affects future installations only and requires `make build`.
 
-Transactions acquire a per-vendor exclusive lock, discover current controls, preflight complete profile requests and persist a root-owned write-ahead journal before the first hardware mutation. Min/max pairs are ordered against current readback. Governor/turbo side effects and legacy application-clock/auto-boost effects are captured as companions. Actual driver readback, including permitted quantization, is recorded and checked against bounds and permission gates. Exceptions and normal signals trigger rollback; an interrupted process leaves journal evidence for the next recovery.
+Transactions acquire a per-vendor exclusive lock, discover current controls, preflight complete profile requests and persist a root-owned write-ahead journal before the first hardware mutation. Min/max pairs are ordered against current readback. Governor/turbo side effects and legacy application-clock/auto-boost effects are captured as companions. Every explicitly requested readable value must match final driver readback exactly as well as satisfy bounds and permission gates. In-range ignored, quantized or overridden requests fail and roll back; no undocumented portable rounding tolerance is assumed. Initially equal requests are rechecked after governor/global side effects. Exceptions and normal signals trigger rollback; an interrupted process leaves journal evidence for the next recovery. Reset itself persists pending intent before restoring, validates the final coupled state, and retains all affected companion/pair baselines when one restore fails. Even the empty-journal reset path acquires the transaction lock.
 
 Restoration means returning owned controls to their pre-tuning values, not resetting unrelated platform software or another tool's configuration. Another writer's changed value is preserved. Because intel_pstate globals and per-policy governor/EPP/frequency values are coupled, external CPU-policy interference hands back the complete coupled group rather than overwriting it through a sibling write. Automatic transitions check for interference before applying a different profile and latch a vendor-specific fault instead of repeatedly fighting power-profiles-daemon/firmware. Explicit re-enablement is required after a fault. A reset cannot promise factory defaults for settings changed by other software.
 
-The broker restores on seat loss, session/lease loss, full reset, service termination and before sleep. Manual selections are cleared on local-seat loss. Only the configured non-system desktop UID on active `seat0` can activate a profile; SSH/lingering alone is insufficient. Root may invoke the bounded administrative controls. Sleep uses a required, ordered hook: failed restoration blocks the sleep transaction rather than knowingly sleeping with an unresolved operation. Resume re-evaluates current state/leases. Failure to restore keeps the journal and reports a fault; it is never silently reported as success.
+The broker restores on seat loss, session/lease loss, full reset, service termination and before sleep. Manual selections are cleared on local-seat loss. Only the configured non-system desktop UID on active `seat0` can activate a profile; SSH/lingering alone is insufficient. Root may invoke the bounded administrative controls. Sleep uses a required, ordered hook: failed restoration blocks the sleep transaction rather than knowingly sleeping with an unresolved operation. Resume re-evaluates current state/leases without clearing latched thermal/ownership faults. A historical fault whose controls were successfully restored does not itself block sleep; nonempty recovery_pending or still-owned controls do. Faulted vendors are not continuously retried by the health poll: explicit reset/start or a pre-sleep pending-recovery retry is required. Failure to restore keeps the journal and reports a fault; it is never silently reported as success.
 
 Root-only emergency recovery (stop the broker first so it cannot reapply):
 

@@ -278,8 +278,8 @@ for resctl_binary in resctl-bench rd-agent rd-hashd; do
   require_executable "/usr/local/bin/$resctl_binary"
   require_mode "/usr/local/bin/$resctl_binary" 755
 done
-require_readable /data/docs/resctl-bench/INSTALLATION.json
-require_readable /data/docs/resctl-bench/release/SHA256SUMS
+require_readable /usr/local/share/doc/resctl-bench/INSTALLATION.json
+require_readable /usr/local/share/doc/resctl-bench/release/SHA256SUMS
 
 # Managed Git and diagnostics assets: no credential decryption during verification.
 require_executable /usr/local/bin/gitops

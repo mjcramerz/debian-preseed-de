@@ -13,3 +13,13 @@
 /sys/devices/**/constraint_[0-9]*_{power_limit_uw,time_window_us} w,
 /sys/devices/**/{gt_min_freq_mhz,gt_max_freq_mhz,gt_boost_freq_mhz,rps_min_freq_mhz,rps_max_freq_mhz,rps_boost_freq_mhz} w,
 /sys/devices/**/tile[0-9]*/gt[0-9]*/freq0/{min_freq,max_freq} w,
+
+# Read-only single-policy-owner checks; no systemd start/stop/set methods.
+/usr/local/lib/hardware_tuning/system_state.py r,
+/run/dbus/system_bus_socket rw,
+unix,
+dbus (send) bus=system path=/org/freedesktop/DBus
+  interface=org.freedesktop.DBus member=Hello peer=(name=org.freedesktop.DBus),
+dbus (send) bus=system path=/org/freedesktop/systemd1/unit/*
+  interface=org.freedesktop.DBus.Properties member=Get
+  peer=(name=org.freedesktop.systemd1),

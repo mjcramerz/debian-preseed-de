@@ -275,8 +275,8 @@ validate_desktop_role() {
     /usr/local/bin/resctl-bench \
     /usr/local/bin/rd-agent \
     /usr/local/bin/rd-hashd \
-    /data/docs/resctl-bench/INSTALLATION.json \
-    /data/docs/resctl-bench/release/SHA256SUMS \
+    /usr/local/share/doc/resctl-bench/INSTALLATION.json \
+    /usr/local/share/doc/resctl-bench/release/SHA256SUMS \
     /usr/local/bin/labwc-admin-action \
     /usr/local/libexec/labwc-admin-action-root \
     /usr/local/libexec/labwc-admin-action-worker \

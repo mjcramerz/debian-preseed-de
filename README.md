@@ -1,5 +1,11 @@
 # debian-preseed-de
 
+## Hardware tuning and protected resctl documentation - 17 September 2026
+
+See [the current scoped refactor and validation report](docs/HARDWARE-TUNING-REFACTOR-20260917.md), [operator guide](docs/hardware-tuning/README.md), and [on-host acceptance](docs/hardware-tuning/ACCEPTANCE.md). Intel tuning is selectable on the two main and two Flex profiles; NVIDIA tuning only on the main pair. Other profiles retain the same values with both enable flags false. Autostart and higher-risk tuning permissions remain off. CPU policy requires an explicitly chosen single owner; thermal protection is retained.
+
+The resctl installer now publishes release documentation to root-controlled `/usr/local/share/doc/resctl-bench`, not the account-owned `/data/docs`. Its trust checks, release pins, noexec protections, credential-dropped probes and no-clobber publication remain intact. Current evidence is under `validation/tuning-refactor-20260917/`; dated reports below remain historical.
+
 ## resctl-bench release pin repair - 17 September 2026
 
 All 13 desktop profiles now pin `resctl-bench-v0.0.2-P15s`, version `2.2.6`,

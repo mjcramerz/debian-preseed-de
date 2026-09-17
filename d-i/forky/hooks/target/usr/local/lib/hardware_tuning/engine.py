@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import stat
 from typing import Any
 from common import (CONFIG, STATE, PROFILES, VENDORS, Knob, TuningError,
                     atomic_json, read_text, trusted_json, validate_policy)
@@ -35,7 +36,7 @@ class Engine:
                 raise TuningError("invalid recovery phase")
             ids.add(entry["id"])
             knob = self.backend.knobs.get(entry["id"])
-            if knob and knob.setting.startswith("RAPL_") and knob.power_default is not None:
+            if knob and knob.power_default is not None and knob.setting.startswith(("RAPL_", "DOMAIN_")):
                 # Never ratchet the power-increase gate from an already-tuned limit.
                 knob.power_default = entry["before"]
 
@@ -52,6 +53,12 @@ class Engine:
                 conflicts.append(entry["id"] + ": interrupted transaction")
             elif knob.restorable and knob.read() != entry["last"]:
                 conflicts.append(entry["id"] + ": changed by firmware/another power manager")
+        checker = getattr(self.backend, "check_ownership", None)
+        if checker and self.journal["entries"]:
+            try:
+                checker({e["id"]: e["requested"] for e in self.journal["entries"]})
+            except (OSError, TuningError) as exc:
+                conflicts.append(str(exc))
         temperature = self.backend.temperature()
         if temperature is None:
             for entry in self.journal["entries"]:
@@ -109,13 +116,19 @@ class Engine:
         # one directory: restoring a global knob could overwrite another power
         # manager's per-policy update as an implicit kernel side effect.
         coupled_cpu = {"CPU_GOVERNOR", "CPU_EPP", "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ",
-                       "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT", "CPU_NO_TURBO"}
+                       "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT", "CPU_NO_TURBO", "CPU_EPB", "CPU_HWP_DYNAMIC_BOOST"}
         cpu_conflict = any(self.backend.knobs[k].setting in coupled_cpu for k in yielded)
         for key in list(restore):
             if cpu_conflict and self.backend.knobs[key].setting in coupled_cpu:
                 yielded.append(key)
                 del restore[key]
         complete = set(yielded)
+        # Recovery is a transaction too. Persist intent before a restore write,
+        # otherwise a killed reset looks like interference on the next run.
+        for key in restore:
+            entries[key]["pending"] = True
+        if restore:
+            self.save()
         for key, value in self.ordered(restore):
             knob = self.backend.knobs[key]
             try:
@@ -127,6 +140,29 @@ class Engine:
                 complete.add(key)
             except (OSError, TuningError, ValueError) as exc:
                 failures.append(f"{key}: {exc}")
+        # Later governor/global/paired writes may alter an earlier readback.
+        # Verify the complete final state, not only each intermediate write.
+        for key in sorted(complete - set(yielded)):
+            knob = self.backend.knobs[key]
+            try:
+                if knob.restorable and knob.read() != entries[key]["before"]:
+                    raise TuningError("final restoration readback differs from original value")
+            except (OSError, TuningError, ValueError) as exc:
+                complete.discard(key)
+                failures.append(f"{key}: {exc}")
+        # Retain the complete side-effect domain if any restoration in it
+        # failed. A later retry of a governor/pair can otherwise change a
+        # successfully restored companion whose baseline was already discarded.
+        failed = set(restore) - complete
+        retained = set(failed)
+        for key in failed:
+            knob = self.backend.knobs[key]
+            retained.update(k for k in restore if k in knob.companions or key in self.backend.knobs[k].companions)
+            if knob.pair:
+                retained.update(k for k in restore if self.backend.knobs[k].pair == knob.pair)
+            if knob.setting in coupled_cpu:
+                retained.update(k for k in restore if self.backend.knobs[k].setting in coupled_cpu)
+        complete.difference_update(retained)
         self.journal["entries"] = [e for e in self.journal["entries"] if e["id"] not in complete]
         if not self.journal["entries"]:
             self.journal["profile"] = None
@@ -158,8 +194,9 @@ class Engine:
             if resolved is not None:
                 if knob.setting == "TARGET_TEMPERATURE_C" and resolved > self.policy["max_temperature_c"]:
                     raise TuningError("temperature target exceeds the thermal interlock")
-                if not knob.restorable or resolved != knob.read():
-                    values[key] = resolved
+                # Retain even initially equal requests until coupling has been
+                # resolved: a preceding governor/turbo write may change them.
+                values[key] = resolved
         for key, value in list(values.items()):
             knob = self.backend.knobs[key]
             if knob.pair:
@@ -167,12 +204,21 @@ class Engine:
                 if len(pair) == 2 and pair["min"] > pair["max"]:
                     raise TuningError(f"inverted min/max pair: {knob.pair}")
         for knob in self.backend.knobs.values():
-            if knob.setting == "CPU_EPP" and knob.id in values:
+            if knob.setting == "CPU_EPP":
                 directory = knob.id.rsplit("/", 1)[0]
                 governor = next((k for k in self.backend.knobs.values() if k.setting == "CPU_GOVERNOR" and
                                  k.id.rsplit("/", 1)[0] == directory), None)
-                if governor and values.get(governor.id, governor.read()) == "performance" and values[knob.id] != "performance":
+                if governor and values.get(governor.id, governor.read()) == "performance" and values.get(knob.id, knob.read()) != "performance":
                     raise TuningError("performance governor cannot be combined with non-performance EPP")
+        checker = getattr(self.backend, "check_ownership", None)
+        if checker:
+            checker(values)
+        # Non-default clock APIs must not be applied concurrently to one GPU.
+        # Their side effects and precedence are not portable across generations.
+        for device in {k.split("/", 1)[0] for k in values if k.startswith("GPU-")}:
+            families = {self.backend.knobs[k].setting for k in values if k.startswith(device + "/")}
+            if "APPLICATION_CLOCKS_MHZ" in families and families & {"GPU_LOCK_MHZ", "MEMORY_LOCK_MHZ", "GPU_OFFSET_MHZ", "MEMORY_OFFSET_MHZ"}:
+                raise TuningError("choose application clocks OR offsets/clock locks for " + device)
         return values, skipped
 
     def apply(self, name: str, settings: dict) -> dict:
@@ -190,35 +236,50 @@ class Engine:
         risky = risky or any(self.backend.knobs[k].power_default is not None and v > self.backend.knobs[k].power_default for k, v in values.items())
         if risky and temperature is None:
             raise TuningError("overclock/power increases require a readable temperature sensor")
-        affected = set(values)
-        for key in values:
+        # Snapshot only changed controls and their side-effect domains. Avoid
+        # owning or repeatedly writing already-correct independent attributes.
+        changed = {k for k, v in values.items()
+                   if not self.backend.knobs[k].restorable or self.backend.knobs[k].read() != v}
+        affected = set(changed)
+        for key in changed:
             knob = self.backend.knobs[key]
             affected.update(k for k in knob.companions if k in self.backend.knobs)
-            if knob.setting == "CPU_GOVERNOR":
-                affected.update(k for k in self.backend.knobs if k.rsplit("/", 1)[0] == key.rsplit("/", 1)[0])
-            if knob.setting in {"CPU_NO_TURBO", "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT"}:
+            if knob.pair:
+                affected.update(k.id for k in self.backend.knobs.values() if k.pair == knob.pair)
+            if knob.setting in {"CPU_GOVERNOR", "CPU_NO_TURBO", "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT"}:
                 affected.update(k.id for k in self.backend.knobs.values() if k.setting in
-                                {"CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT", "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ"})
+                                {"CPU_GOVERNOR", "CPU_EPP", "CPU_EPB", "CPU_MIN_PERF_PCT", "CPU_MAX_PERF_PCT",
+                                 "CPU_MIN_FREQ_KHZ", "CPU_MAX_FREQ_KHZ", "CPU_NO_TURBO"})
+        # Include unchanged explicit requests in any affected domain. Recheck
+        # them after earlier writes instead of omitting them based on old state.
+        values = {k: v for k, v in values.items() if k in affected}
         self.journal = {"version": 1, "profile": name, "entries": [
             {"id": key, "before": self.backend.knobs[key].read(), "last": None,
              "pending": True, "requested": values.get(key)} for key in sorted(affected)]}
         self.save()  # Write-ahead snapshot precedes the FIRST hardware mutation.
         try:
+            written = 0
             for key, value in self.ordered(values):
-                self.backend.knobs[key].write(value)
+                knob = self.backend.knobs[key]
+                if not knob.restorable or knob.read() != value:
+                    knob.write(value)
+                    written += 1
             actual = {}
             for entry in self.journal["entries"]:
                 knob = self.backend.knobs[entry["id"]]
                 entry["last"] = knob.read() if knob.restorable else values[entry["id"]]
                 if knob.restorable and entry["id"] in values:
-                    # Kernel quantization is allowed, not out-of-range or
-                    # above-policy readback. Never label a rejected cap safe.
                     knob.resolve(str(entry["last"]), self.policy)
+                    if entry["last"] != values[entry["id"]]:
+                        # A legal value is not evidence that our request was
+                        # accepted. Do not invent portable rounding tolerances.
+                        raise TuningError(f"{knob.id}: requested {values[entry['id']]!r}, "
+                                          f"read back {entry['last']!r}; rejected, quantized or overridden request")
                 entry["pending"] = False
                 actual[entry["id"]] = {"requested": entry["requested"], "readback": entry["last"],
                                       "hardware_readback": knob.restorable}
             self.save()
-            return {"profile": name, "changed": len(values), "controls": actual,
+            return {"profile": name, "changed": written, "controls": actual,
                     "skipped": skipped, "temperature_c": temperature}
         except BaseException as exc:
             # Includes orderly signal interruption in the worker. SIGKILL is
@@ -236,13 +297,14 @@ class Engine:
         for name in PROFILES:
             try:
                 values, skipped = self.plan(name, settings)
-                preflight[name] = {"valid": True, "planned_changes": len(values), "skipped": skipped}
+                preflight[name] = {"valid": True, "planned_changes": sum(not self.backend.knobs[k].restorable or self.backend.knobs[k].read() != v for k, v in values.items()), "skipped": skipped}
             except (OSError, TuningError, ValueError) as exc:
                 preflight[name] = {"valid": False, "error": str(exc)}
         return {"generated_utc": datetime.now(timezone.utc).isoformat(),
                 "read_only": True, "profile": self.journal.get("profile"),
                 "profile_preflight": preflight,
                 "policy": self.policy, "telemetry": self.backend.telemetry,
+                "platform": getattr(self.backend, "platform_report", lambda: {})(),
                 "temperature_c": self.backend.temperature(),
                 "controls": [k.report(installed, self.policy) for k in self.backend.knobs.values()],
                 "unavailable_settings": sorted(set(settings) - supported),
@@ -255,19 +317,28 @@ def execute(vendor: str, action: str, profile: str | None = None) -> dict:
     if vendor not in VENDORS or action not in {"apply", "reset", "report", "health"}:
         raise TuningError("unsupported worker operation")
     journal = STATE / f"{vendor}.json"
-    # Recovery of an untouched backend must not load/wake its driver.
-    if action == "reset":
-        if not journal.exists():
-            return {"restored": 0}
-        old = trusted_json(journal)
-        if isinstance(old, dict) and old.get("version") == 1 and old.get("entries") == []:
-            return {"restored": 0}
+    if action == "reset" and not STATE.exists():
+        return {"restored": 0}
     lock = os.open(STATE / f"{vendor}.lock", os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
     try:
+        st = os.fstat(lock)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
+            raise TuningError("untrusted hardware transaction lock")
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Check only AFTER acquiring the shared apply/reset lock. Otherwise a
+        # reset can race an apply and falsely report that there is no ownership.
+        old = trusted_json(journal) if journal.exists() else None
+        if action == "reset" and (old is None or isinstance(old, dict) and old.get("version") == 1 and old.get("entries") == []):
+            return {"restored": 0}
         module = importlib.import_module(vendor)
         policy = None if action == "reset" else validate_policy(trusted_json(CONFIG / f"{vendor}.json"), module.SETTINGS)
-        backend = module.Backend()
+        # Health/recovery need only the owned NVIDIA families, not the complete
+        # offset and clock table on every five-second poll. Full reports retain
+        # exhaustive capability discovery. No driver is loaded for empty reset.
+        wanted = None
+        if vendor == "nvidia" and action in {"health", "reset"} and old is not None:
+            wanted = {e["id"] for e in old["entries"]}
+        backend = module.Backend(wanted=wanted) if vendor == "nvidia" else module.Backend()
         try:
             engine = Engine(backend, journal, policy)
             if action == "reset":

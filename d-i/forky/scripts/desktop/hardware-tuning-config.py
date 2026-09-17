@@ -71,6 +71,14 @@ def boolean(value: str) -> bool:
 def policy(environment: dict, vendor: str, settings: dict) -> dict:
     from common import validate_policy
     prefix = PREFIXES[vendor]
+    suffixes = {"ENABLE", "ALLOW_OVERCLOCK", "ALLOW_POWER_INCREASE", "EXCLUSIVE_CLOCK_CONTROL", "MAX_TEMPERATURE_C"}
+    suffixes.update(profile.upper() + "_" + setting for profile in PROFILES for setting in settings)
+    if vendor == "intel":
+        suffixes.add("ALLOW_VERIFIED_BOUNDS")
+        suffixes.update(setting + "_VERIFIED_" + bound for setting in settings if setting.startswith("RAPL_") for bound in ("MIN", "MAX"))
+    unexpected = {key for key in environment if key.startswith(prefix)} - {prefix + suffix for suffix in suffixes}
+    if unexpected:
+        raise ValueError("unknown hardware policy fields: " + ", ".join(sorted(unexpected)))
     result = {"version": 1,
         "allow_overclock": boolean(environment[prefix + "ALLOW_OVERCLOCK"]),
         "allow_power_increase": boolean(environment[prefix + "ALLOW_POWER_INCREASE"]),
@@ -144,6 +152,9 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
         raise ValueError("the installer must supply a nonempty, uniquely gated vendor list")
     if type(gid) is not int or not 0 <= gid < 2**31:
         raise ValueError("invalid account primary group")
+    common_keys = {"HARDWARE_TUNING_" + key for key in ("POLL_SECONDS", "IDLE_AC", "IDLE_BATTERY", "AUTOSTART_ENABLE")}
+    if {key for key in environment if key.startswith("HARDWARE_TUNING_")} - common_keys:
+        raise ValueError("unknown common hardware tuning field")
     config = validate_config({"version": 1, "uid": uid, "vendors": vendors,
         "poll_seconds": int(environment["HARDWARE_TUNING_POLL_SECONDS"]),
         "idle_ac": environment["HARDWARE_TUNING_IDLE_AC"], "idle_battery": environment["HARDWARE_TUNING_IDLE_BATTERY"]})
@@ -253,7 +264,7 @@ After=hardware-tuning.socket apparmor.service systemd-logind.service
 [Service]
 Type=oneshot
 ExecStart=/usr/local/bin/labwc-hardware-tuning auto-start
-TimeoutStartSec=75s
+TimeoutStartSec=240s
 """ + client_hardening + "\n[Install]\nWantedBy=multi-user.target\n")
     put("etc/systemd/system/hardware-tuning-sleep.service", """[Unit]
 Description=Restore hardware controls before sleep and re-evaluate after resume
@@ -268,8 +279,8 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/local/bin/labwc-hardware-tuning pause
 ExecStop=/usr/local/bin/labwc-hardware-tuning resume
-TimeoutStartSec=75s
-TimeoutStopSec=75s
+TimeoutStartSec=240s
+TimeoutStopSec=240s
 """ + client_hardening + "\n[Install]\nRequiredBy=sleep.target\n")
     for vendor in vendors:
         for profile in PROFILES:

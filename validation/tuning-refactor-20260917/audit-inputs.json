@@ -1,0 +1,105 @@
+{
+  "purpose": "Minimal hardware/policy input evidence; raw audits not redistributed",
+  "hosts": {
+    "flex": [
+      {
+        "path": "debugsys-flex/20260916T211928Z-report-3925b3f9/evidence/0002-cpu.txt",
+        "sha256": "c932fb138f8000394c0ede3ab9232f8c337721b8b16a25c76d7592ec80eebcbd",
+        "observations": [
+          "CPU(s):                                  4",
+          "Vendor ID:                               GenuineIntel",
+          "Model name:                              11th Gen Intel(R) Core(TM) i3-1115G4 @ 3.00GHz",
+          "Thread(s) per core:                      2",
+          "Core(s) per socket:                      2",
+          "CPU max MHz:                             4100.0000",
+          "CPU min MHz:                             400.0000",
+          "NUMA node0 CPU(s):                       0-3"
+        ]
+      },
+      {
+        "path": "debugsys-flex/20260916T211928Z-report-3925b3f9/evidence/0014-power-profiles.txt",
+        "sha256": "6034e7445232a4aa0e2baabcaa57a88db9140767fea3f7683d13254853d82b83",
+        "observations": [
+          "  performance:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile",
+          "    Degraded:   no",
+          "",
+          "* balanced:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile",
+          "",
+          "  power-saver:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile"
+        ]
+      },
+      {
+        "path": "debugsys-flex/20260916T211928Z-report-3925b3f9/evidence/0158-_sys_devices_system_cpu_intel_pstate_status.txt",
+        "sha256": "45df5ad5e0ecfa54d3226343e0e6857337494ba6e32f189d1174070665d8c659",
+        "observations": [
+          "active"
+        ]
+      },
+      {
+        "path": "debugsys-flex/20260916T211928Z-report-3925b3f9/evidence/0156-_sys_devices_system_cpu_intel_pstate_no_turbo.txt",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "observations": [
+          "0"
+        ]
+      }
+    ],
+    "p15s": [
+      {
+        "path": "debugsys-p15s/20260916T212228Z-report-70f722af/evidence/0002-cpu.txt",
+        "sha256": "ce34cb44a2dd160cac0a502c487455a58f8e045b094affb62529a569ee3a19d3",
+        "observations": [
+          "CPU(s):                                  8",
+          "Vendor ID:                               GenuineIntel",
+          "Model name:                              Intel(R) Core(TM) i7-10610U CPU @ 1.80GHz",
+          "Thread(s) per core:                      2",
+          "Core(s) per socket:                      4",
+          "CPU max MHz:                             4900.0000",
+          "CPU min MHz:                             400.0000",
+          "NUMA node0 CPU(s):                       0-7"
+        ]
+      },
+      {
+        "path": "debugsys-p15s/20260916T212228Z-report-70f722af/evidence/0014-power-profiles.txt",
+        "sha256": "6034e7445232a4aa0e2baabcaa57a88db9140767fea3f7683d13254853d82b83",
+        "observations": [
+          "  performance:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile",
+          "    Degraded:   no",
+          "",
+          "* balanced:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile",
+          "",
+          "  power-saver:",
+          "    CpuDriver:\tintel_pstate",
+          "    PlatformDriver:\tplatform_profile"
+        ]
+      },
+      {
+        "path": "debugsys-p15s/20260916T212228Z-report-70f722af/evidence/0526-_sys_devices_system_cpu_intel_pstate_status.txt",
+        "sha256": "45df5ad5e0ecfa54d3226343e0e6857337494ba6e32f189d1174070665d8c659",
+        "observations": [
+          "active"
+        ]
+      },
+      {
+        "path": "debugsys-p15s/20260916T212228Z-report-70f722af/evidence/0524-_sys_devices_system_cpu_intel_pstate_no_turbo.txt",
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "observations": [
+          "0"
+        ]
+      }
+    ]
+  },
+  "operator_deployment_overrides": {
+    "target": "Debian Forky, systemd 261.2",
+    "cpu_cpuset_io_delegation": "available by operator instruction; no delegation changes"
+  }
+}

@@ -35,6 +35,9 @@ desktop_install_hardware_tuning() (
     desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" 0644
   done
   for hardware_vendor in $hardware_vendors; do
+    if [ "$hardware_vendor" = intel ]; then
+      desktop_stage_role_asset usr/local/lib/hardware_tuning/system_state.py /usr/local/lib/hardware_tuning/system_state.py 0644
+    fi
     desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" 0644
   done
 

@@ -4,16 +4,18 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import re
+import stat
+import system_state
 from common import Knob, TuningError, read_text
 
 # Values are ordered performance, high, balanced, silent. keep is deliberately
 # used for controls whose board-specific thermal envelope cannot be inferred.
 SETTINGS = {
     "CPU_GOVERNOR": ("adaptive",) * 4,
-    "CPU_EPP": ("performance", "balance_performance", "balance_power", "power"),
+    "CPU_EPP": ("performance", "balance_performance", "balance_performance", "power"),
     "CPU_EPB": ("0", "4", "6", "15"),
     "CPU_MIN_PERF_PCT": ("keep",) * 4,
-    "CPU_MAX_PERF_PCT": ("100", "100", "85", "55"),
+    "CPU_MAX_PERF_PCT": ("100", "100", "100", "55"),
     "CPU_NO_TURBO": ("0", "0", "0", "1"),
     "CPU_HWP_DYNAMIC_BOOST": ("1", "1", "0", "0"),
     "CPU_MIN_FREQ_KHZ": ("keep",) * 4,
@@ -45,6 +47,9 @@ class Backend:
         if not vendors or set(vendors) != {"GenuineIntel"}:
             raise TuningError("Intel CPU not detected at runtime")
         self.telemetry["cpu_model"] = re.findall(r"^model name\s*:\s*(.*)", cpuinfo, re.M)[:1]
+        self.package_count = max(1, len(set(re.findall(r"^physical id\s*:\s*(\d+)", cpuinfo, re.M))))
+        self.manager_states = None
+        self.manager_error = None
         self.discover()
 
     def optional_int(self, path: Path) -> int | None:
@@ -80,6 +85,11 @@ class Backend:
             finally:
                 os.close(fd)
 
+        # Mode-bit inspection is not a write probe. The driver may still reject
+        # a root-writable attribute due to firmware locks or current state.
+        if not canonical.stat().st_mode & stat.S_IWUSR:
+            self.unavailable.append(f"{key}: read-only kernel attribute; current={read()!r}")
+            return
         self.knobs[key] = Knob(key, setting, read, write, low, high, **kwargs)
 
     def pair(self, directory: Path, min_name: str, max_name: str, low: int | None,
@@ -103,9 +113,11 @@ class Backend:
                 continue
             adaptive = "powersave" if driver == "intel_pstate" else "schedutil"
             if adaptive not in governors:
-                adaptive = "ondemand" if "ondemand" in governors else "powersave"
+                adaptive = "ondemand" if "ondemand" in governors else None
+            # Generic powersave pins the minimum frequency; it is NOT the
+            # adaptive intel_pstate algorithm. Never silently select it.
             self.attribute(directory / "scaling_governor", "CPU_GOVERNOR", choices=governors,
-                           symbols={"adaptive": adaptive}, unit="enum")
+                           symbols={"adaptive": adaptive} if adaptive else {}, unit="enum")
             prefs = directory / "energy_performance_available_preferences"
             if prefs.is_file():
                 choices = tuple(read_text(prefs).split())
@@ -126,7 +138,11 @@ class Backend:
             self.attribute(ps / leaf, setting, 0, 1, unit="boolean")
         for path in sorted(cpu.glob("cpu[0-9]*/power/energy_perf_bias")):
             self.attribute(path, "CPU_EPB", 0, 15)
-        for directory in sorted((cpu / "intel_uncore_frequency").glob("*")):
+        uncore = sorted((cpu / "intel_uncore_frequency").glob("*"))
+        # TPMI's aggregate package controls overwrite fabric-cluster limits.
+        # Prefer independent cluster controls when present, never both layers.
+        clusters = [p for p in uncore if re.fullmatch(r"uncore[0-9]+", p.name)]
+        for directory in clusters or uncore:
             if directory.is_dir():
                 self.pair(directory, "min_freq_khz", "max_freq_khz",
                           self.optional_int(directory / "initial_min_freq_khz"),
@@ -156,13 +172,30 @@ class Backend:
         # Limit defaults to package domains. Per-domain controls still appear in
         # the report and can be explicitly selected using identifier overrides.
         seen = set()
-        for directory in sorted((self.root / "sys/class/powercap").glob("intel-rapl*")):
+        powercap = self.root / "sys/class/powercap"
+        # Both flat class aliases and nested control-type layouts occur. Use
+        # bounded explicit depths so kernel symlinks are followed deliberately.
+        directories = set()
+        for pattern in ("intel-rapl*", "intel-rapl*/intel-rapl*", "intel-rapl*/intel-rapl*/intel-rapl*"):
+            directories.update(powercap.glob(pattern))
+        for directory in sorted(directories):
+            if not re.fullmatch(r"intel-rapl(?:-mmio)?(?::[0-9]+){1,3}", directory.name):
+                continue
             if not directory.is_dir() or directory.resolve() in seen:
                 continue
             seen.add(directory.resolve())
             try:
                 zone = read_text(directory / "name")
             except OSError:
+                continue
+            enabled = self.optional_int(directory / "enabled")
+            self.telemetry[str(directory.relative_to(self.root))] = {
+                "name": zone, "enabled": enabled,
+                "energy_uj": self.optional_int(directory / "energy_uj"),
+                "max_energy_range_uj": self.optional_int(directory / "max_energy_range_uj"),
+            }
+            if enabled == 0:
+                self.unavailable.append(f"{directory.name}/{zone}: RAPL zone disabled; not enabled or tuned implicitly")
                 continue
             for name_file in sorted(directory.glob("constraint_[0-9]*_name")):
                 name = read_text(name_file)
@@ -176,9 +209,9 @@ class Backend:
                     setting = f"RAPL_{short}_{suffix}" if zone.startswith("package-") else f"DOMAIN_{zone}_{short}_{suffix}"
                     current = self.optional_int(path)
                     self.attribute(path, setting,
-                                   self.optional_int(directory / (prefix + "min_" + bounds)),
-                                   self.optional_int(directory / (prefix + "max_" + bounds)),
-                                   unit=unit, power_default=current if suffix == "POWER_UW" else None,
+                                   self.positive_bound(directory / (prefix + "min_" + bounds)),
+                                   self.positive_bound(directory / (prefix + "max_" + bounds)),
+                                   unit=unit, power_default=current,
                                    verified_bounds_allowed=setting.startswith("RAPL_"),
                                    note="Optional RAPL bounds may be absent. Missing bounds require explicitly acknowledged administrator-verified platform limits; no board limits are guessed.")
         self.unavailable.append("CPU/GPU voltage offsets and unlocked multiplier overclocking: no portable safe sysfs ABI; raw MSR writes are deliberately unavailable")
@@ -196,19 +229,53 @@ class Backend:
             key: self.optional_int(directory / (prefix + key))
             for key in ("cur_freq_mhz", "act_freq_mhz", "RPn_freq_mhz", "RP0_freq_mhz", "RP1_freq_mhz")}
 
+    def positive_bound(self, path: Path) -> int | None:
+        value = self.optional_int(path)
+        # Zero is an unavailable RAPL bound, not permission to set a zero cap.
+        return value if value is not None and value > 0 else None
+
+    def check_ownership(self, values: dict) -> None:
+        owned = {self.knobs[k].setting for k in values if k in self.knobs}
+        if not any(k.startswith(("CPU_", "RAPL_", "DOMAIN_", "UNCORE_")) for k in owned):
+            return
+        if self.manager_states is None and self.manager_error is None:
+            try:
+                self.manager_states = system_state.power_managers()
+            except (OSError, TuningError) as exc:
+                self.manager_error = str(exc)
+        if self.manager_error:
+            raise TuningError(self.manager_error)
+        active = [name for name, state in self.manager_states.items()
+                  if state not in {"inactive", "failed", "not-loaded"}]
+        if active:
+            raise TuningError("CPU tuning requires one policy owner; stop/mask the competing policy service explicitly before enabling custom tuning: " + ", ".join(active))
+
+    def platform_report(self) -> dict:
+        result = system_state.platform_report(self.root)
+        result["competing_policy_services"] = self.manager_states
+        result["policy_owner_query_error"] = self.manager_error
+        result["thermal_policy"] = "thermald and firmware protection are retained; do not disable thermal protection to force a limit"
+        return result
+
     def temperature(self) -> float | None:
-        values = []
+        values, devices = [], 0
         for hw in (self.root / "sys/class/hwmon").glob("hwmon[0-9]*"):
             try:
-                if read_text(hw / "name") not in {"coretemp", "k10temp"}:
+                if read_text(hw / "name") != "coretemp":
                     continue
             except OSError:
                 continue
-            for path in hw.glob("temp[0-9]*_input"):
+            devices += 1
+            sensors = list(hw.glob("temp[0-9]*_input"))
+            if not sensors:
+                return None
+            for path in sensors:
                 value = self.optional_int(path)
-                if value is not None and 0 < value < 150000:
-                    values.append(value / 1000)
-        return max(values) if values else None
+                if value is None or not 0 < value < 150000:
+                    return None
+                values.append(value / 1000)
+        # One readable package must not mask a missing sensor on another CPU.
+        return max(values) if values and devices >= self.package_count else None
 
     def close(self) -> None:
         pass

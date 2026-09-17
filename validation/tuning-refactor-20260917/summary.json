@@ -1,0 +1,84 @@
+{
+  "revision": "2026-09-17 hardware tuning / protected resctl documentation",
+  "all_requested_scoped_tests_pass": true,
+  "whole_repository_all_green": false,
+  "hardware": {
+    "tests": 116,
+    "seconds": 4.191,
+    "status": "OK",
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "hardware-final.log"
+  },
+  "resctl": {
+    "tests": 68,
+    "seconds": 7.2,
+    "status": "OK",
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "log": "resctl-final.log"
+  },
+  "tools": {
+    "tests": 179,
+    "seconds": 39.314,
+    "status": "OK",
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "full/tools-tests-rerun.log"
+  },
+  "whole_repository": {
+    "tests": 1400,
+    "seconds": 463.683,
+    "status": "FAILED",
+    "failures": 7,
+    "errors": 2,
+    "skipped": 28,
+    "log": "full/tests.log"
+  },
+  "generated_unit_and_apparmor_checks": {
+    "checks": 9,
+    "success": true,
+    "systemd_parser_version": "systemd 257 (257.9-1~deb13u1)",
+    "live_services_started": false,
+    "apparmor_kernel_load": false
+  },
+  "preseed_check": {
+    "files": 59,
+    "success": true
+  },
+  "shell_check": {
+    "success": true,
+    "shell_files": 280,
+    "parser_checks": 571,
+    "failures": [],
+    "scope": "parse checks only; runtime execution is a separate test stage"
+  },
+  "build_check": {
+    "success": true,
+    "log": "final-build-check.log"
+  },
+  "audit_check_counts": {
+    "blocked-dependency": 156,
+    "inventory-only": 495,
+    "pass": 459,
+    "structure-pass": 175,
+    "template-needs-render": 2
+  },
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "baseline_comparison": {
+    "reproduced": 8,
+    "not_reproduced_focused": 1,
+    "focused_problem_entries_identical": true
+  },
+  "orchestration_note": "The initial orchestration process was interrupted by the execution transport while its separate-session main test child continued. That child completed all 1400 tests; the complete output is retained. The partial first tools-suite log is retained, and the tools suite was rerun to completion with captured exit status 0. Remaining audit/final parser/build checks completed separately. Counts are from completed unittest summaries, not the interrupted parent.",
+  "limitations": [
+    "No physical Forky/systemd 261.2 unattended install or target service activation.",
+    "No on-host AppArmor enforcement, GPU/CPU thermal soak, suspend/resume or Thunderbolt hot-plug certification.",
+    "Pinned upstream native binaries were not downloaded/executed in this revision; installer probes use synthetic harmless ELF fixtures in tests.",
+    "156 audit checks are blocked by missing dependencies; inventory/structural results are not runtime passes.",
+    "All nine broad-suite failure/error entries remain recorded; eight reproduce on the untouched baseline and one unchanged timing-sensitive Spotify test passes both focused reruns."
+  ]
+}

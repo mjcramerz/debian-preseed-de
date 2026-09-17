@@ -98,7 +98,7 @@ class PolicyTests(unittest.TestCase):
                 env = environment(path.stem)
                 self.assertEqual(set(env), reference_keys)
                 for vendor, module in (("intel", intel), ("nvidia", nvidia)):
-                    self.assertEqual(env[installer.PREFIXES[vendor] + "ENABLE"], str(path.stem in enabled).lower())
+                    self.assertEqual(env[installer.PREFIXES[vendor] + "ENABLE"], str(path.stem in (enabled if vendor == "intel" else {"btrfs-de-main", "btrfs-de-dual-main"})).lower())
                     value = installer.policy(env, vendor, module.SETTINGS)
                     self.assertFalse(value["allow_overclock"])
                     self.assertFalse(value["allow_power_increase"])
@@ -209,6 +209,7 @@ desktop_install_hardware_tuning
                 assets = (root / "trace").read_text().splitlines() if (root / "trace").exists() else []
                 wanted_intel, wanted_nv = intelflag and intelcpu, nvflag and nvclass and nvgpu
                 self.assertEqual("usr/local/lib/hardware_tuning/intel.py" in assets, wanted_intel)
+                self.assertEqual("usr/local/lib/hardware_tuning/system_state.py" in assets, wanted_intel)
                 self.assertEqual("usr/local/lib/hardware_tuning/nvidia.py" in assets, wanted_nv)
                 self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-intel" in assets, wanted_intel)
                 self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-nvidia" in assets, wanted_nv)

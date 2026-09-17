@@ -25,7 +25,9 @@ import tempfile
 BINS = frozenset({'resctl-bench', 'rd-agent', 'rd-hashd', 'resctl-demo'})
 REQUIRED_BINS = BINS - {'resctl-demo'}
 BIN_DIR = Path('/usr/local/bin')
-DOC_DIR = Path('/data/docs/resctl-bench')
+# /data/docs is intentionally account-owned (tmpfiles mode 2750). Never
+# weaken the trusted-directory guard or move executable provenance below it.
+DOC_DIR = Path('/usr/local/share/doc/resctl-bench')
 ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', 'HOME': '/nonexistent'}
 
 

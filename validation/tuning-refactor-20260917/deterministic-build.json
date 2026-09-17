@@ -1,0 +1,9 @@
+{
+  "two_builds_identical": true,
+  "products": {
+    "d-i/forky/payload.tar.gz": "dd14fc16122f22c70774ace36ca878026b3e558f1a7727abe9c5929f08506103",
+    "d-i/forky/payload.manifest": "cb0bfb9f16ab7a55d21524509fc90292cf89313786a893fafc7476270992cc6a",
+    "d-i/forky/preseed.cfg": "ddd5b17af4844655fca51c5d51c8b38ede879dc5cd455414f088917883eef763"
+  },
+  "build_output": "resctl-bench: 13 profiles have identical, valid release pins (offline)\nUpdated 0 browser artifacts\nbuilt 1359 payload files; publish the complete repository atomically\n"
+}

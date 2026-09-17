@@ -80,24 +80,33 @@ class NVML:
 
 
 class Backend:
-    def __init__(self, nvml: NVML | None = None) -> None:
+    def __init__(self, nvml: NVML | None = None, wanted: set[str] | None = None) -> None:
         self.api = nvml or NVML()
+        self.wanted = wanted
+        self.closed = False
         self.knobs: dict[str, Knob] = {}
         self.telemetry: dict[str, object] = {}
         self.unavailable: list[str] = []
         self.handles: list[H] = []
-        count = U()
-        self.api.call("nvmlDeviceGetCount_v2", [PU], [C.byref(count)])
-        if not 1 <= count.value <= 64:
-            raise TuningError("no physical NVIDIA GPUs, or unsupported GPU count")
-        for index in range(count.value):
-            handle = H()
-            self.api.call("nvmlDeviceGetHandleByIndex_v2", [U, C.POINTER(H)], [index, C.byref(handle)])
-            uuid = self.api.text("nvmlDeviceGetUUID", handle)
-            if not re.fullmatch(r"GPU-[A-Za-z0-9-]{8,100}", uuid):
-                raise TuningError("NVML did not return a physical GPU UUID")
-            self.handles.append(handle)
-            self.device(uuid, handle)
+        try:
+            count = U()
+            self.api.call("nvmlDeviceGetCount_v2", [PU], [C.byref(count)])
+            if not 1 <= count.value <= 64:
+                raise TuningError("no physical NVIDIA GPUs, or unsupported GPU count")
+            for index in range(count.value):
+                handle = H()
+                self.api.call("nvmlDeviceGetHandleByIndex_v2", [U, C.POINTER(H)], [index, C.byref(handle)])
+                uuid = self.api.text("nvmlDeviceGetUUID", handle)
+                if not re.fullmatch(r"GPU-[A-Za-z0-9-]{8,100}", uuid):
+                    raise TuningError("NVML did not return a physical GPU UUID")
+                self.handles.append(handle)
+                self.device(uuid, handle)
+        except BaseException:
+            try:
+                self.close()
+            except Exception:
+                pass
+            raise
         self.unavailable.append("Manual fan curves, voltage control, firmware limits, ECC/compute/MIG modes and deferred driver-reload clocks are not altered")
 
     def optional(self, label: str, function):
@@ -122,28 +131,55 @@ class Backend:
             power_default=power_default)
 
     def device(self, uuid: str, handle: H) -> None:
+        def wanted(setting):
+            return self.wanted is None or any(k == f"{uuid}/{setting}" or k.startswith(f"{uuid}/{setting}/") for k in self.wanted)
+
+        full = self.wanted is None
         info = {"name": self.api.text("nvmlDeviceGetName", handle)}
-        for name, call, extra in [
-            ("graphics_clock_mhz", "nvmlDeviceGetClockInfo", (0,)),
-            ("memory_clock_mhz", "nvmlDeviceGetClockInfo", (2,)),
-            ("graphics_max_mhz", "nvmlDeviceGetMaxClockInfo", (0,)),
-            ("memory_max_mhz", "nvmlDeviceGetMaxClockInfo", (2,)),
-            ("power_usage_mw", "nvmlDeviceGetPowerUsage", ()),
-            ("performance_state", "nvmlDeviceGetPerformanceState", ()),
-            ("temperature_c", "nvmlDeviceGetTemperature", (0,)),
-            ("fan_percent", "nvmlDeviceGetFanSpeed", ()),
-            ("architecture", "nvmlDeviceGetArchitecture", ()),
-        ]:
-            info[name] = self.optional(f"{uuid}/{name}", lambda c=call, e=extra: self.api.scalar(c, handle, *e))
+        if full:
+            for name, call, extra in [
+                ("graphics_clock_mhz", "nvmlDeviceGetClockInfo", (0,)),
+                ("memory_clock_mhz", "nvmlDeviceGetClockInfo", (2,)),
+                ("graphics_max_mhz", "nvmlDeviceGetMaxClockInfo", (0,)),
+                ("memory_max_mhz", "nvmlDeviceGetMaxClockInfo", (2,)),
+                ("power_usage_mw", "nvmlDeviceGetPowerUsage", ()),
+                ("performance_state", "nvmlDeviceGetPerformanceState", ()),
+                ("temperature_c", "nvmlDeviceGetTemperature", (0,)),
+                ("fan_percent", "nvmlDeviceGetFanSpeed", ()),
+                ("pcie_generation_current", "nvmlDeviceGetCurrPcieLinkGeneration", ()),
+                ("pcie_width_current", "nvmlDeviceGetCurrPcieLinkWidth", ()),
+                ("pcie_generation_max", "nvmlDeviceGetMaxPcieLinkGeneration", ()),
+                ("pcie_width_max", "nvmlDeviceGetMaxPcieLinkWidth", ()),
+            ]:
+                info[name] = self.optional(f"{uuid}/{name}", lambda c=call, e=extra: self.api.scalar(c, handle, *e))
+            def reasons():
+                value = C.c_ulonglong()
+                # Older drivers expose the same 64-bit flags through the
+                # legacy ThrottleReasons name. This is telemetry, never a setter.
+                fn = "nvmlDeviceGetCurrentClocksEventReasons"
+                if not self.api.has(fn):
+                    fn = "nvmlDeviceGetCurrentClocksThrottleReasons"
+                self.api.call(fn, [H, C.POINTER(C.c_ulonglong)], [handle, C.byref(value)])
+                return value.value
+            info["clock_event_reason_mask"] = self.optional(uuid + "/clock_events", reasons)
+        if full or wanted("GPU_LOCK_MHZ") or wanted("MEMORY_LOCK_MHZ"):
+            info["architecture"] = self.optional(uuid + "/architecture", lambda: self.api.scalar("nvmlDeviceGetArchitecture", handle))
         self.telemetry[uuid] = info
-        self.optional(uuid + "/power", lambda: self.power(uuid, handle))
-        self.optional(uuid + "/persistence", lambda: self.scalar_knob(uuid, handle,
-            "PERSISTENCE_MODE", "nvmlDeviceGetPersistenceMode", "nvmlDeviceSetPersistenceMode", 0, 1))
-        self.optional(uuid + "/auto_boost", lambda: self.auto_boost(uuid, handle))
+        if wanted("POWER_LIMIT_MW"):
+            self.optional(uuid + "/power", lambda: self.power(uuid, handle))
+        if wanted("PERSISTENCE_MODE"):
+            self.optional(uuid + "/persistence", lambda: self.scalar_knob(uuid, handle,
+                "PERSISTENCE_MODE", "nvmlDeviceGetPersistenceMode", "nvmlDeviceSetPersistenceMode", 0, 1))
+        if wanted("AUTO_BOOST"):
+            self.optional(uuid + "/auto_boost", lambda: self.auto_boost(uuid, handle))
         for domain, prefix, setting in [(0, "Gpc", "GPU_OFFSET_MHZ"), (2, "Mem", "MEMORY_OFFSET_MHZ")]:
+            if not wanted(setting):
+                continue
             found = False
             if self.api.has("nvmlDeviceGetClockOffsets") and self.api.has("nvmlDeviceSetClockOffsets"):
                 for pstate in range(16):
+                    if not full and f"{uuid}/{setting}/P{pstate}" not in self.wanted:
+                        continue
                     try:
                         self.offset(uuid, handle, domain, pstate, setting)
                         found = True
@@ -151,26 +187,34 @@ class Backend:
                         pass
             if not found:
                 self.optional(uuid + "/" + setting, lambda p=prefix, s=setting: self.legacy_offset(uuid, handle, p, s))
-        memories = self.optional(uuid + "/memory_clock_table", lambda: self.api.clocks("nvmlDeviceGetSupportedMemoryClocks", handle))
         tables = {}
-        if memories:
-            for memory in memories[:256]:
-                clocks = self.optional(f"{uuid}/graphics_clock_table/{memory}",
-                    lambda m=memory: self.api.clocks("nvmlDeviceGetSupportedGraphicsClocks", handle, m))
-                if clocks:
-                    tables[memory] = clocks
-        info["supported_clocks_memory_to_graphics_mhz"] = tables
-        self.optional(uuid + "/application_clocks", lambda: self.application_clocks(uuid, handle, tables))
+        if any(wanted(k) for k in ("APPLICATION_CLOCKS_MHZ", "GPU_LOCK_MHZ", "MEMORY_LOCK_MHZ")):
+            memories = self.optional(uuid + "/memory_clock_table", lambda: self.api.clocks("nvmlDeviceGetSupportedMemoryClocks", handle))
+            if memories:
+                if len(memories) > 256:
+                    self.unavailable.append(uuid + "/clock table: more than 256 memory frequencies; no truncated table offered")
+                else:
+                    for memory in memories:
+                        clocks = self.optional(f"{uuid}/graphics_clock_table/{memory}",
+                            lambda m=memory: self.api.clocks("nvmlDeviceGetSupportedGraphicsClocks", handle, m))
+                        if clocks:
+                            tables[memory] = clocks
+            info["supported_clocks_memory_to_graphics_mhz"] = tables
+        if wanted("APPLICATION_CLOCKS_MHZ"):
+            self.optional(uuid + "/application_clocks", lambda: self.application_clocks(uuid, handle, tables))
         arch = info.get("architecture")
-        if isinstance(arch, int) and 5 <= arch < 0xffffffff:
-            self.optional(uuid + "/gpu_lock", lambda: self.clock_lock(uuid, handle, "GPU", tables))
-        else:
-            self.unavailable.append(f"{uuid}/GPU_LOCK_MHZ: Volta+ required; architecture={arch}")
-        if isinstance(arch, int) and 7 <= arch < 0xffffffff and arch != 9:
-            self.optional(uuid + "/memory_lock", lambda: self.clock_lock(uuid, handle, "MEMORY", tables))
-        else:
-            self.unavailable.append(f"{uuid}/MEMORY_LOCK_MHZ: runtime-modifiable memory locks unavailable on this architecture")
-        self.optional(uuid + "/target_temperature", lambda: self.target_temperature(uuid, handle))
+        if wanted("GPU_LOCK_MHZ"):
+            if isinstance(arch, int) and 5 <= arch < 0xffffffff:
+                self.optional(uuid + "/gpu_lock", lambda: self.clock_lock(uuid, handle, "GPU", tables))
+            else:
+                self.unavailable.append(f"{uuid}/GPU_LOCK_MHZ: Volta+ required; architecture={arch}")
+        if wanted("MEMORY_LOCK_MHZ"):
+            if isinstance(arch, int) and 7 <= arch < 0xffffffff and arch != 9:
+                self.optional(uuid + "/memory_lock", lambda: self.clock_lock(uuid, handle, "MEMORY", tables))
+            else:
+                self.unavailable.append(f"{uuid}/MEMORY_LOCK_MHZ: runtime-modifiable memory locks unavailable on this architecture")
+        if wanted("TARGET_TEMPERATURE_C"):
+            self.optional(uuid + "/target_temperature", lambda: self.target_temperature(uuid, handle))
 
     def power(self, uuid: str, handle: H) -> None:
         low, high = self.api.bounds("nvmlDeviceGetPowerManagementLimitConstraints", handle)
@@ -293,4 +337,6 @@ class Backend:
         return float(max(valid)) if valid and len(valid) == len(self.handles) else None
 
     def close(self) -> None:
-        self.api.call("nvmlShutdown", [], [])
+        if not self.closed:
+            self.closed = True
+            self.api.call("nvmlShutdown", [], [])
