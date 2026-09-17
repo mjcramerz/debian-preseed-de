@@ -1,0 +1,13 @@
+[browser-check] running; log: /mnt/data/baseline-validation/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/baseline-validation/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/baseline-validation/preseed-check.log
+[preseed-check] PASS (0)
+[shell-check] running; log: /mnt/data/baseline-validation/shell-check.log
+[shell-check] PASS (0)
+[tests] running; log: /mnt/data/baseline-validation/tests.log
+[tests] FAIL (124)
+[audit] running; log: /mnt/data/baseline-validation/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/baseline-validation/summary.json

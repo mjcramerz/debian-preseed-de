@@ -37,11 +37,24 @@ class PowerWorkerTests(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.stack.enter_context(mock.patch.object(power, 'run', side_effect=self.mock_run))
         self.sync = self.stack.enter_context(mock.patch.object(power.os, 'sync'))
+        self.stack.enter_context(mock.patch.object(power, 'ready'))
+        self.stack.enter_context(mock.patch.object(power, 'hold_reservation'))
+        self.stack.enter_context(mock.patch.object(power, 'PackageLocks'))
+        self.stack.enter_context(mock.patch.object(power.Worker, 'session_identity', return_value='a' * 32))
 
     def mock_run(self, argv, **kwargs):
         self.calls.append(argv)
         if self.failure and self.failure(argv):
             raise power.Error('injected failure')
+        if '--property=ConsistsOf' in argv:
+            return ''
+        if '--property=Id,ActiveState,Job,MainPID,ControlPID' in argv:
+            return '\n\n'.join('Id=' + name + '\nActiveState=inactive\nJob=0\nMainPID=0\nControlPID=0'
+                                for name in ('labwc-session.target','labwc-compositor.service'))
+        if '--property=LoadState,ActiveState' in argv:
+            return 'LoadState=not-found\nActiveState=inactive\n'
+        if '--property=ActiveState' in argv:
+            return 'inactive\n'
         return ''
 
     def execute(self, action):
@@ -49,29 +62,24 @@ class PowerWorkerTests(unittest.TestCase):
         worker.execute()
         return worker
 
-    def test_reboot_and_poweroff_order_and_exact_uid_cleanup(self):
+    def test_reboot_and_poweroff_wait_for_quiescence_without_account_wide_kills(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
                 self.execute(action)
                 prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
-                stop = next(i for i, c in enumerate(self.calls) if c[-2:] == ['labwc-session.target', 'labwc-compositor.service'])
-                terminate = self.calls.index(['/usr/bin/loginctl', 'terminate-user', '1000'])
-                manager = self.calls.index(['/usr/bin/systemctl', 'stop', 'user@1000.service', 'user-1000.slice'])
-                kill = self.calls.index(['/usr/bin/pkill', '--signal', 'TERM', '--uid', '1000'])
-                final = self.calls.index(['/usr/bin/systemctl', '--force', action])
+                stop = next(i for i, c in enumerate(self.calls) if c[-3:] == ['stop', 'labwc-session.target', 'labwc-compositor.service'])
+                final = self.calls.index(['/usr/bin/systemctl', '--force', '--no-ask-password', action])
                 self.assertLess(prepare, stop)
-                self.assertLess(stop, terminate)
-                self.assertLess(terminate, manager)
-                self.assertLess(manager, kill)
-                self.assertLess(kill, final)
+                self.assertLess(stop, final)
+                self.assertFalse(any('terminate-user' in c or c[0].endswith(('/pkill','/pgrep')) for c in self.calls))
                 self.assertFalse(any(command.count('--force') > 1 for command in self.calls))
 
     def test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps(self):
         self.execute('suspend')
         self.assertTrue(any('--service-type=forking' in c and c[-1] == '/usr/local/bin/labwc-lock' for c in self.calls))
         self.assertTrue(any(c[-2:] == ['start', 'labwc-session-state@locked.service'] for c in self.calls))
-        self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', 'suspend'])
+        self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--check-inhibitors=yes', '--no-ask-password', 'suspend'])
         self.assertFalse(any('stop' in c or 'terminate-user' in c or c[0].endswith('/pkill') or c[-1] == 'labwc-session-state@prepare.service' for c in self.calls))
         self.sync.assert_not_called()
 
@@ -149,7 +157,7 @@ class SessionStateTests(unittest.TestCase):
         self.assertEqual(len(closes), 1)
         self.assertFalse(any('kill' in ' '.join(c.args[0]) for c in self.run.call_args_list))
 
-    def test_success_records_state_before_clearing_clipboard_and_orphans(self):
+    def test_success_records_state_before_clearing_clipboard_without_premature_unit_stops(self):
         initial = {'labwc-editor.service': {'LABWC_SESSION_APP': '1', 'LABWC_SESSION_RESTORE': self.token}}
         with mock.patch.object(state, 'services', side_effect=[initial, {}]), mock.patch.object(state, 'windows', side_effect=['editor: document', '']):
             state.prepare(self.state, self.runtime, timeout=0)
@@ -157,19 +165,20 @@ class SessionStateTests(unittest.TestCase):
         self.assertEqual((self.state / 'resume.json').stat().st_mode & 0o777, 0o600)
         self.assertTrue((self.runtime / 'labwc-session-closing').exists())
         self.clipboard.assert_called_once()
-        self.orphans.assert_called_once()
+        self.orphans.assert_not_called()
 
-    def test_tray_process_blocks_even_without_windows(self):
+    def test_tray_process_is_left_for_the_verified_manager_stop_phase(self):
         with mock.patch.object(state, 'services', return_value={'app.service': {'LABWC_SESSION_APP': '1'}}), mock.patch.object(state, 'windows', return_value=''):
-            with self.assertRaisesRegex(state.Error, 'remaining application'):
-                state.prepare(self.state, self.runtime, timeout=0)
-        self.clipboard.assert_not_called()
+            state.prepare(self.state, self.runtime, timeout=0)
+        self.clipboard.assert_called_once()
+        self.orphans.assert_not_called()
+        self.assertTrue((self.runtime / 'labwc-session-closing').exists())
 
-    def test_nested_compositor_blocks_before_close_requests(self):
-        with mock.patch.object(state, 'services', return_value={'cage.service': {'LABWC_SESSION_NESTED': '1'}}):
-            with self.assertRaisesRegex(state.Error, 'nested Cage'):
-                state.prepare(self.state, self.runtime, timeout=0)
-        self.run.assert_not_called()
+    def test_nested_service_without_windows_is_left_for_manager_quiescence(self):
+        with mock.patch.object(state, 'services', return_value={'cage.service': {'LABWC_SESSION_NESTED': '1'}}), mock.patch.object(state, 'windows', return_value=''):
+            state.prepare(self.state, self.runtime, timeout=0)
+        self.orphans.assert_not_called()
+        self.assertFalse(any('kill' in call.args[0] for call in self.run.call_args_list))
 
     def test_null_app_id_window_is_not_mistaken_for_empty_desktop(self):
         with mock.patch.object(state.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='', stderr='')):
@@ -243,10 +252,11 @@ class WiringTests(unittest.TestCase):
     def test_root_worker_keeps_nnp_with_inherited_command_confinement(self):
         unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
         self.assertIn('NoNewPrivileges=yes', unit)
-        self.assertIn('CapabilityBoundingSet=CAP_KILL', unit)
+        self.assertIn('CapabilityBoundingSet=\n', unit)
         profiles = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
         worker = profiles.split('profile managed-labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
-        self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,pgrep,pkill} rix,', worker)
+        self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,sync} rix,', worker)
+        self.assertIn('/var/lib/dpkg/{lock,lock-frontend} rk,', worker)
         self.assertNotIn('} PUx,', worker)
         self.assertIn('/run/systemd/private rw,', worker)
         self.assertIn('peer=(name=org.freedesktop.login1)', worker)

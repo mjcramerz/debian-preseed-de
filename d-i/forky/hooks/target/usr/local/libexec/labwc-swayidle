@@ -56,6 +56,8 @@ require_idle_timeout_order "$lock_seconds" "$dpms_seconds" "$suspend_seconds"
 swayidle_cmd=$(command -v swayidle 2>/dev/null || true)
 [ -n "$swayidle_cmd" ] || { printf 'fatal: swayidle is unavailable\n' >&2; exit 1; }
 
+# All systemctl/logind sleep requests require labwc-package-sleep-guard.service
+# through sleep.target, including this idle path and hardware lid/sleep events.
 if [ "$suspend_seconds" -gt 0 ]; then
   exec "$swayidle_cmd" -w \
     timeout "$lock_seconds" /usr/local/bin/labwc-lock \

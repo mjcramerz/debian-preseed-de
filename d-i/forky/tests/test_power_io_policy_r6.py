@@ -161,10 +161,12 @@ class HandoffTests(unittest.TestCase):
     def setUp(self):
         self.power = worker_module()
         self.worker = self.power.Worker(1000, 'desktop', 'reboot')
+        self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
 
     def test_both_actions_submit_exactly_one_force_after_quiescence(self):
         for action in ('reboot', 'poweroff'):
             worker = self.power.Worker(1000, 'desktop', action)
+            worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
             worker.quiesced = True
             with mock.patch.object(self.power, 'run', return_value='') as run, \
                     contextlib.redirect_stderr(io.StringIO()) as output:
@@ -202,7 +204,9 @@ class HandoffTests(unittest.TestCase):
 
     def test_saving_and_other_account_recheck_precede_handoff(self):
         events = []
-        with mock.patch.object(self.worker, 'userctl', side_effect=lambda *a, **k: events.append('active')), \
+        with mock.patch.object(self.worker, 'session_identity', side_effect=lambda: (events.append('active'), 'a' * 32)[1]), \
+             mock.patch.object(self.power, 'PackageLocks'), \
+             mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append('hold')), \
              mock.patch.object(self.worker, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
              mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')), \
              mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)), \
@@ -210,7 +214,7 @@ class HandoffTests(unittest.TestCase):
              mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')), \
              mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')):
             self.worker.execute()
-        self.assertEqual(events, ['active', 'accounts', 'ready', 'prepare', 'accounts', 'quiesce', 'guests', 'handoff'])
+        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'quiesce', 'guests', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':

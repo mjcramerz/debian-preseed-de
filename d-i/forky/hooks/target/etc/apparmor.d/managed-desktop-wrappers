@@ -405,6 +405,8 @@ profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-
   #include <abstractions/managed-wrapper-python>
 
   /usr/local/libexec/labwc-admin-action-worker rix,
+  # Shared POSIX locks conflict with dpkg/APT writers; no database writes.
+  /var/lib/dpkg/{lock,lock-frontend} rk,
   # NoNewPrivileges=yes is intentional: these fixed utilities inherit this
   # profile instead of requiring a privilege-widening PUx transition. The
   # user@.host transport spawns its PAM/stdio bridge through PID 1, not here.
@@ -3717,11 +3719,18 @@ profile managed-bluetooth-controller-init /usr/local/libexec/bluetooth-controlle
   include if exists <local/usr.local.libexec.bluetooth-controller-init>
 }
 
+profile managed-greetd-power-action-root /usr/local/libexec/greetd-power-action-root flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-base>
+  /usr/local/libexec/greetd-power-action-root rix,
+  /usr/local/libexec/labwc-admin-action-root rPx -> managed-labwc-admin-action-root,
+  include if exists <local/usr.local.libexec.greetd-power-action-root>
+}
+
 profile managed-greetd-power-action /usr/local/sbin/greetd-power-action flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-base>
 
   /usr/local/sbin/greetd-power-action rix,
-  /usr/bin/busctl PUx,
+  /usr/bin/pkexec PUx,
 
   include if exists <local/usr.local.sbin.greetd-power-action>
 }

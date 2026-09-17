@@ -273,11 +273,16 @@ class PowerWorkerTests(unittest.TestCase):
     def setUp(self):
         self.power = module('labwc-admin-action-worker')
         self.worker = self.power.Worker(1000, 'testuser', 'reboot')
+        self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
 
     def execution(self):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         events = []
+        stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
+        stack.enter_context(mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append(('hold', ()))))
+        stack.enter_context(mock.patch.object(self.worker, 'session_identity',
+            side_effect=lambda: (self.worker.userctl('identity'), 'a' * 32)[1]))
         for name in ('userctl', 'protect_other_sessions', 'helper', 'terminate_user', 'final_power_action', 'lock', 'stop_optional_guests'):
             stack.enter_context(mock.patch.object(self.worker, name,
                 side_effect=lambda *args, _name=name, **kwargs: events.append((_name, args))))
@@ -293,9 +298,9 @@ class PowerWorkerTests(unittest.TestCase):
     def test_readiness_and_prepare_precede_orderly_power_transaction(self):
         events = self.execution()
         self.worker.execute()
-        self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready',
-                         'helper', 'protect_other_sessions', 'quiesce_desktop', 'stop_optional_guests', 'final_power_action'])
-        self.assertEqual(events[3][1], ('prepare',))
+        self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready', 'userctl', 'protect_other_sessions',
+                         'helper', 'protect_other_sessions', 'quiesce_desktop', 'stop_optional_guests', 'final_power_action', 'hold'])
+        self.assertEqual(events[5][1], ('prepare',))
         self.assertTrue(self.worker.committed)
 
     def test_prepare_failure_never_starts_teardown(self):
@@ -309,7 +314,7 @@ class PowerWorkerTests(unittest.TestCase):
 
     def test_other_user_arriving_during_save_cancels_before_commit(self):
         self.execution()
-        self.worker.protect_other_sessions.side_effect = [None, self.power.Error('other account')]
+        self.worker.protect_other_sessions.side_effect = [None, None, self.power.Error('other account')]
         with self.assertRaises(self.power.Error):
             self.worker.execute()
         self.assertFalse(self.worker.committed)
@@ -344,10 +349,10 @@ class PowerWorkerTests(unittest.TestCase):
         events = self.execution()
         self.worker.execute()
         self.worker.lock.assert_called_once()
-        self.worker.helper.assert_not_called()
+        self.worker.helper.assert_called_once_with('locked')
         self.worker.terminate_user.assert_not_called()
         self.assertFalse(self.worker.committed)
-        self.assertIn(['/usr/bin/systemctl', '--force', 'suspend'], events[-1][1])
+        self.assertIn(['/usr/bin/systemctl', '--check-inhibitors=yes', '--no-ask-password', 'suspend'], events[-1][1])
 
     def test_cleanup_failure_does_not_skip_term_and_kill(self):
         self.worker.action = 'logout'
@@ -381,6 +386,7 @@ class PowerWorkerTests(unittest.TestCase):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.worker = self.power.Worker(1000, 'testuser', action)
+                self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
                 self.worker.quiesced = True
                 with mock.patch.object(self.power, 'run', return_value='') as run, \
                      contextlib.redirect_stderr(io.StringIO()) as output:
@@ -443,7 +449,7 @@ class PowerWorkerTests(unittest.TestCase):
     def test_template_acknowledges_before_frontend_returns(self):
         unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
         self.assertIn('Type=notify\nNotifyAccess=main', unit)
-        self.assertIn('RuntimeMaxSec=600s', unit)
+        self.assertIn('RuntimeMaxSec=infinity', unit)
         self.assertIn('NoNewPrivileges=yes', unit)
         root = (TARGET / 'usr/local/libexec/labwc-admin-action-root').read_text()
         self.assertIn('exec /usr/bin/systemctl start "$worker_unit"', root)
@@ -452,7 +458,7 @@ class PowerWorkerTests(unittest.TestCase):
         settings = (TARGET / 'usr/local/bin/labwc-power-settings').read_text()
         for action in ('suspend', 'reboot', 'poweroff', 'logout'):
             self.assertIn('exec /usr/local/bin/labwc-power-settings ' + action, menu)
-        self.assertIn('suspend|reboot|poweroff) exec /usr/local/bin/labwc-admin-action "$1"', settings)
+        self.assertIn('suspend|reboot|poweroff|shutdown) exec /usr/local/bin/labwc-admin-action "$1"', settings)
         logout = (TARGET / 'usr/local/libexec/labwc-logout-root').read_text()
         self.assertIn('exec /usr/local/libexec/labwc-admin-action-root logout', logout)
 

@@ -280,11 +280,14 @@ validate_desktop_role() {
     /usr/local/bin/labwc-admin-action \
     /usr/local/libexec/labwc-admin-action-root \
     /usr/local/libexec/labwc-admin-action-worker \
+    /usr/local/libexec/greetd-power-action-root \
     /usr/local/libexec/labwc-logout-root \
     /usr/local/libexec/labwc-session-state \
     /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service \
     /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service \
     /etc/systemd/system/labwc-admin-action@.service \
+    /etc/systemd/system/labwc-package-sleep-guard.service \
+    /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf \
     /usr/local/bin/labwc-calendar \
     /usr/local/libexec/labwc-calendar \
     /usr/local/bin/labwc-logout \
@@ -1010,6 +1013,19 @@ validate_desktop_role() {
   else
     record "FAIL desktop-greeter-labwc-gtkgreet-command"
     log_line validation error desktop "greeter_command_mismatch=true"
+    failures=$((failures + 1))
+  fi
+
+  if grep -qx 'Requires=labwc-package-sleep-guard.service' /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 2>/dev/null &&
+     grep -qx 'Before=sleep.target' /etc/systemd/system/labwc-package-sleep-guard.service 2>/dev/null &&
+     grep -qx 'TimeoutStartSec=infinity' /etc/systemd/system/labwc-package-sleep-guard.service 2>/dev/null &&
+     grep -qx 'RuntimeMaxSec=infinity' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
+     grep -q '/usr/local/libexec/greetd-power-action-root' /etc/polkit-1/rules.d/10-greetd-power.rules 2>/dev/null &&
+     grep -q 'PackageLocks' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null; then
+    record "PASS desktop-package-power-guard"
+  else
+    record "FAIL desktop-package-power-guard"
+    log_line validation error desktop "package_power_guard_invalid=true"
     failures=$((failures + 1))
   fi
 

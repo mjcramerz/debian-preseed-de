@@ -1,0 +1,860 @@
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,13 @@
+ # debian-preseed-de
++
++## Retained Debian archive repair - 17 September 2026
++
++The retained-package validator now shares the repository's 1 GiB archive ceiling,
++with bounded streaming hashes, explicit file diagnostics and new regression tests.
++See the [repair report and validation limits](docs/RETAINED-ARCHIVE-REPAIR-20260917.md)
++and `validation/retained-archive-fix-20260917/` for current evidence. This is a scoped
++repair; inherited failing tests and blocked runtime checks remain explicitly reported.
++The installer payload, manifest and preseed pins have been rebuilt together.
+ 
+ Current desktop power lifecycle and resctl-bench integration:
+ [implementation and deployment checks](POWER-RESCTL-2026-09-16.md),
+--- /dev/null
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ArtifactLimits.pm
+@@ -0,0 +1,17 @@
++package ExternalSoftware::Servicing::ArtifactLimits;
++
++use strict;
++use warnings;
++use Exporter qw(import);
++
++our @EXPORT_OK = qw(MAX_DEB_BYTES);
++
++# The immutable local APT pool admits at most 1 GiB per Debian archive.
++# This is the bound on both downloaded and locally rewritten .deb files;
++# gzip policy rewrites need not have the same size as the upstream archive.
++# Individual download specifications may impose a smaller transport limit.
++# Keep this aligned with MAX_DEB in local-apt-repository. The cross-language
++# regression test checks the actual values, not just their source spelling.
++use constant MAX_DEB_BYTES => 1_073_741_824;
++
++1;
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Atomic.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Atomic.pm
+@@ -14,10 +14,11 @@
+ use File::Temp qw(tempfile);
+ use IO::Handle;
+ use Errno qw(EINTR);
++use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
+ 
+ sub assert_absolute_path {
+     my ($class, $label, $path) = @_;
+-    defined $path && $path =~ m{\A/(?:[A-Za-z0-9._@%:+,-]+/)*[A-Za-z0-9._@%:+,-]+\z}
++    defined $path && $path =~ m{\A/(?:[A-Za-z0-9._@%:+~,-]+/)*[A-Za-z0-9._@%:+~,-]+\z}
+         or die "$label must be a safe absolute path\n";
+     grep { $_ eq q{.} || $_ eq q{..} } split m{/}, $path
+         and die "$label contains a traversal component\n";
+@@ -77,7 +78,7 @@
+ sub sha256_file {
+     my ($class, $path, $limit) = @_;
+     $class->assert_absolute_path('digest input path', $path);
+-    defined($limit) && $limit =~ /\A[1-9][0-9]*\z/ && $limit <= 536_870_912
++    defined($limit) && $limit =~ /\A[1-9][0-9]*\z/ && $limit <= MAX_DEB_BYTES
+         or die "invalid digest input limit\n";
+ 
+     my @before = lstat $path;
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ChatGPT.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ChatGPT.pm
+@@ -8,6 +8,7 @@
+ 
+ use Fcntl qw(S_IFMT S_IFREG);
+ use ExternalSoftware::Servicing::Atomic;
++use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
+ 
+ has state => (is => 'ro', required => 1);
+ 
+@@ -39,7 +40,7 @@
+         name       => 'chatgpt',
+         label      => 'ChatGPT/Codex Desktop',
+         url        => 'https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb',
+-        maximum    => 536_870_912,
++        maximum    => MAX_DEB_BYTES,
+         hosts      => ['persistent.oaistatic.com'],
+         packages   => ['chatgpt'],
+         validate_payload => 0,
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Deb.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Deb.pm
+@@ -6,10 +6,12 @@
+ use Moo;
+ use MooX::StrictConstructor;
+ 
+-use Fcntl qw(O_NOFOLLOW O_RDONLY O_TRUNC O_WRONLY S_IFMT S_IFREG);
++use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY O_TRUNC O_WRONLY S_IFMT S_IFREG);
++use Errno qw(EINTR);
+ use File::Spec;
+ use POSIX qw(_exit);
+ use ExternalSoftware::Servicing::Atomic;
++use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
+ 
+ has repository => (is => 'ro', required => 1);
+ 
+@@ -517,16 +519,26 @@
+     ExternalSoftware::Servicing::Atomic->assert_absolute_path("$args{label} package", $args{path});
+     my @package_stat = lstat $args{path};
+     @package_stat
+-        && ($package_stat[2] & S_IFMT) == S_IFREG
+-        && !-l _
+-        && $package_stat[7] >= 8
+-        && $package_stat[7] <= 536_870_912
+-        or die "$args{label} package is not a bounded regular file\n";
+-    sysopen my $package_fh, $args{path}, O_RDONLY | O_NOFOLLOW
+-        or die "$args{label} package cannot be opened: $!\n";
++        or die "$args{label} package cannot be inspected: $args{path}: $!\n";
++    ($package_stat[2] & S_IFMT) == S_IFREG && !-l _
++        or die "$args{label} package is not a bounded regular file: $args{path} (symlinks and special files are forbidden)\n";
++    my $maximum = MAX_DEB_BYTES;
++    $package_stat[7] >= 8 && $package_stat[7] <= $maximum
++        or die "$args{label} package is not a bounded regular file: $args{path} (size=$package_stat[7] bytes; permitted=8..$maximum bytes)\n";
++    # O_NONBLOCK also prevents a substituted FIFO from hanging the installer.
++    sysopen my $package_fh, $args{path}, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
++        or die "$args{label} package cannot be opened: $args{path}: $!\n";
++    my @opened_stat = stat $package_fh;
++    @opened_stat && ($opened_stat[2] & S_IFMT) == S_IFREG
++        && join("\0", @opened_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
++            eq join("\0", @package_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
++        or die "$args{label} package changed while opening: $args{path}\n";
+     binmode $package_fh;
+     my $magic = q{};
+-    my $magic_read = read $package_fh, $magic, 8;
++    my $magic_read;
++    do {
++        $magic_read = read $package_fh, $magic, 8;
++    } while (!defined($magic_read) && $! == EINTR);
+     close $package_fh
+         or die "$args{label} package cannot be closed: $!\n";
+     defined $magic_read && $magic_read == 8 && $magic eq "!<arch>\n"
+@@ -595,6 +607,13 @@
+         or die "$args{label} package version is invalid\n";
+     defined $architecture && $architecture eq 'amd64'
+         or die "$args{label} package architecture is not amd64\n";
++    # The pool is immutable and root-managed, but fail closed if a file was
++    # replaced or changed while the external metadata readers inspected it.
++    my @after_stat = lstat $args{path};
++    @after_stat && ($after_stat[2] & S_IFMT) == S_IFREG
++        && join("\0", @after_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
++            eq join("\0", @package_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
++        or die "$args{label} package changed during validation: $args{path}\n";
+     return { package => $package, version => $version, architecture => $architecture };
+ }
+ 
+@@ -603,6 +622,8 @@
+     ref $spec eq 'HASH'
+         or die "managed Debian package specification is invalid\n";
+     $label //= $spec->{label};
++    # spec->{maximum} is an upstream HTTP transfer bound, not the size of the
++    # policy-rewritten archive retained by the local APT repository.
+     return $self->validate(
+         label                => $label,
+         path                 => $path,
+--- a/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm
++++ b/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm
+@@ -7,6 +7,7 @@
+ use MooX::Types::MooseLike::Base qw(Str);
+ use JSON::PP qw(decode_json);
+ use ExternalSoftware::Servicing::Atomic;
++use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
+ use ExternalSoftware::Servicing::Process;
+ 
+ # Compatibility boundary for explicit installer/bootstrap and offline repair.
+@@ -71,7 +72,7 @@
+         next if !$metadata;
+         my $digest;
+         if ($spec->{name} eq 'bitwarden') {
+-            $digest = ExternalSoftware::Servicing::Atomic->sha256_file($path, 536_870_912);
++            $digest = ExternalSoftware::Servicing::Atomic->sha256_file($path, MAX_DEB_BYTES);
+             next if !$self->bitwarden_vendor_digest_matches("$path.vendor-sha256", $digest);
+         }
+         if (!$candidate || system('/usr/bin/dpkg', '--compare-versions', $metadata->{version},
+--- a/d-i/forky/payload.manifest
++++ b/d-i/forky/payload.manifest
+@@ -940,11 +940,12 @@
+ 7d775a3039d0362a105a44066780ece0235bd5a5a31f807316ca298bde419ac9  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Policy.pm
+ d6aa2b91a41e530becdf30d4c81579ec48cf275573cb1071ceffd01852fef4a2  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Runtime.pm
+ ba59f64409591b9b81a21b094fde707f2a881213af19a47e154479ce16d5a23c  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Session.pm
+-5cc2d3560053b89792e20a29a68850776112497876be4d9e78da0f9b85d827df  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Atomic.pm
++6e2ad12935db1b82904f5a7c795d99f637389e42cccef4e5ca04baf29fe6c031  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ArtifactLimits.pm
++f5eaf2721ccecb6ce68c2b8bab82605f2d139ec2f223e898ca4003956bacb01c  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Atomic.pm
+ a9f3849f38460576b83bbcdb10e4bd051a7b95a1a05c915569354709916a2b69  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Bitwarden.pm
+ 2c42eef98685e120ba45e49cf7fcf6a6a103f83d7a589125bc4c5efc99474345  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/CLI.pm
+-b33b9976b6010a4a19dbac41ba1c0fd907518b0948f6a18612d1147bfdd43c63  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ChatGPT.pm
+-0c2a14f8939a33e8664ed05fb260394289f388a76971b2cccfa5abb752f63758  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Deb.pm
++7e0efb60f12b391b63feeac7d46aff18f122ecb0b4efb815a91b659f34003096  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/ChatGPT.pm
++194d68f3f80430bd0b89e5aa5aaa67ea1d6195a5e318f63fbae440f9810260a6  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Deb.pm
+ abf6df87e28c2c85bc80f670a03c80e2b864bd69cf4a0577bae18c8fa4fc676b  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Discord.pm
+ 6e4863daef95e526beb83f2e2130af7dc095e748be14e05d1b0f088064c85f7a  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Event.pm
+ efe9a8595d2289f34c7aa5726bbd8e91255ffc4a964e7546c09f9cd4d6c584de  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/HTTP.pm
+@@ -954,7 +955,7 @@
+ 6b1f09e85e10dbcb378c3482df3cc9167eac53afe4bf0cfe881f18e7ac1e84fb  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Obsidian.pm
+ 4864e86409c2ba2d76696dca5ff1417455d25eb704f064ecc3bb08e74199044e  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Postman.pm
+ 0a2aca7f0a2d62aca4ad985cd37a75a55d3a9b1462ba456f327286a2df562335  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Process.pm
+-c15c5dc0d656f74cccf65afbd55f278de1cc5890d3bb5b28e914fc7c899aa048  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm
++b6d22d144e5497b8fd39882344bef51dca15bb644bfb1ae620c20e22f36fcbe7  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm
+ f94f182d93b1825a8359742e1a002ef675295a740027c031e7a1da37475e7f2d  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Sleek.pm
+ 4b749eba9503835cc332b78e49fce7a02c870008f60d043272be668942e98516  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/State.pm
+ 2290c70d22f62594f0927830109b54df8cec3c7d5d9bde67c7e454da051579df  hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Tuta.pm
+@@ -1322,7 +1323,7 @@
+ fe430165425b18f822e920ded73d61b868641d8e87915c0487d29b3e3fe6ae45  scripts/late/podman.sh
+ e9ec159eeb80d83a36b85cc9eb0de8e4ebcfc30e20cc356189cc6ef2b21b3cac  scripts/late/qemu.sh
+ a1a658fadcc329d0b73103934eea03a5b8a04b9b09a1145e8423b571abb33a1c  scripts/late/security.sh
+-bc4ad7e84f08d701c91aecf0ae2cd8b46bd0a4f25f62c9e23da1ddd7d4e05961  scripts/late/software.sh
++8c5fc62cac8da35b9c774df030444a70a1d3f809c8e641f4a3f1621a44874f90  scripts/late/software.sh
+ a52a3c013a0e3160bad5e37dc1a6f640d059948bcd1a48ec7feca2443efb2d8e  scripts/late/standard.sh
+ 6f989dd6bd48853a582a2ac406e3d5933f75b7137cf58e90d6cb26a7060f5600  scripts/late/storage-maintenance.sh
+ 240aafc1b43409c9baa87bf0185e0aeb17c2691e423c5a450ad247e6c2a36df5  scripts/late/tailscale.sh
+Binary files a/d-i/forky/payload.tar.gz and b/d-i/forky/payload.tar.gz differ (rebuilt product supplied in the complete release).
+--- a/d-i/forky/preseed.cfg
++++ b/d-i/forky/preseed.cfg
+@@ -8,7 +8,7 @@
+ d-i clock-setup/ntp seen true
+ 
+ # Resolve the effective URL, validate the complete payload, then include local files.
+-d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" ac6de8c03e1b3eb85b8db6ab9c36a7b63be4de83a1c02485eef9fef72ad314d4 8f0a570f6b6945dbc9ae93e1fc01e6abc7909e1fa828ec3f312502151e3f4c32; installer_lifecycle_complete'
++d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = ca3ba60ea2daa0e958a2621961b8d29eae3860bf79c357f7a472709bb5765c21 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" 34f96b2967cd4aca4fe1baed5f99b56585c34840ab595939a474ed037aae6812 8a9a39aa2ca5ed8dc17a4004b1146439b6ed5158c9db9110fa252fa802b1e39b; installer_lifecycle_complete'
+ 
+ d-i preseed/run string file:///tmp/install-runtime/bootstrap/preseed-apply.sh
+ 
+--- a/d-i/forky/scripts/late/software.sh
++++ b/d-i/forky/scripts/late/software.sh
+@@ -435,6 +435,7 @@
+ 
+ software_perl_modules() {
+   cat <<'EOF'
++ExternalSoftware/Servicing/ArtifactLimits.pm
+ ExternalSoftware/Servicing/Atomic.pm
+ ExternalSoftware/Servicing/Bitwarden.pm
+ ExternalSoftware/Servicing/ChatGPT.pm
+--- /dev/null
++++ b/d-i/forky/tests/test_retained_package_bounds.py
+@@ -0,0 +1,354 @@
++#!/usr/bin/env python3
++"""Offline retained-package boundary regressions; never install a package.
++
++The Perl harness evaluates the exact production method bodies with core Perl
++imports and explicit fixture objects. It deliberately does not replace Moo or
++claim constructor/module-load coverage. This keeps the archive and filesystem
++checks executable even on a publishing host without the target's Moo packages.
++Full module loading remains part of audit_codebase.py and the existing managed
++external-software tests. The Python publisher and dpkg-deb are executed directly.
++"""
++from __future__ import annotations
++
++import gzip
++import hashlib
++import io
++import json
++import os
++from pathlib import Path
++import re
++import resource
++import runpy
++import shutil
++import stat
++import subprocess
++import tarfile
++import tempfile
++import unittest
++
++FORKY = Path(__file__).resolve().parents[1]
++PERL_LIB = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl/external-managed-software'
++SERVICING = PERL_LIB / 'ExternalSoftware/Servicing'
++HELPER = FORKY / 'hooks/target/usr/local/libexec/local-apt-repository'
++MAX_DEB = 1 << 30
++OLD_BOUND = 1 << 29
++ENV = {**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'PERL5OPT': ''}
++
++
++def method(filename: str, name: str) -> str:
++    """Take a complete top-level method verbatim, without rewriting its body."""
++    text = (SERVICING / filename).read_text()
++    match = re.search(rf'^sub {re.escape(name)}\s*\{{.*?(?=^sub [A-Za-z_]|^1;\s*$)',
++                      text, re.M | re.S)
++    if match is None:
++        raise AssertionError(f'production method missing: {filename}:{name}')
++    return match.group(0)
++
++
++def perl_program() -> str:
++    # Only the catalogue transport and Moo constructors are fixture boundaries.
++    # The validation, path policy, hashing, spec and selection methods are the
++    # actual production source. No command, file-size or dpkg result is faked.
++    common = '''use strict; use warnings;
++use Fcntl qw(:DEFAULT O_NOFOLLOW O_NONBLOCK S_IFMT S_IFREG);
++use Errno qw(EINTR); use Digest::SHA; use JSON::PP;
++use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
++'''
++    constants = '\n'.join(re.findall(r'^use constant\s+.*?;',
++                                     (SERVICING / 'ChatGPT.pm').read_text(), re.M | re.S))
++    return ('package ExternalSoftware::Servicing::Atomic;\n' + common
++            + method('Atomic.pm', 'assert_absolute_path')
++            + method('Atomic.pm', 'read_limited') + method('Atomic.pm', 'sha256_file')
++            + 'package ExternalSoftware::Servicing::ChatGPT;\n' + common + constants + '\n'
++            + method('ChatGPT.pm', 'spec')
++            + 'package ExternalSoftware::Servicing::Deb;\n' + common
++            + method('Deb.pm', '_capture') + method('Deb.pm', 'control')
++            + method('Deb.pm', 'validate') + method('Deb.pm', 'validate_spec')
++            + 'package ExternalSoftware::Servicing::Repository;\n' + common
++            + "use constant HELPER => '/fixture/catalogue-transport';\n"
++            + 'sub directory { return $_[0]->{directory}; }\n'
++            + 'sub _capture { return $_[0]->{catalogue}; }\n'
++            + method('Repository.pm', 'latest')
++            + method('Repository.pm', 'bitwarden_vendor_digest_matches')
++            + '''package main;
++use strict; use warnings; use JSON::PP;
++my ($action, $path, $extra) = @ARGV;
++my $deb = bless {}, 'ExternalSoftware::Servicing::Deb';
++my $spec = ExternalSoftware::Servicing::ChatGPT->spec();
++my $result;
++if ($action eq 'limit') {
++    $result = ExternalSoftware::Servicing::ArtifactLimits::MAX_DEB_BYTES();
++} elsif ($action eq 'spec-limit') {
++    $result = $spec->{maximum};
++} elsif ($action eq 'path') {
++    $result = ExternalSoftware::Servicing::Atomic->assert_absolute_path('fixture', $path);
++} elsif ($action eq 'digest') {
++    my ($size, $sha256) = ExternalSoftware::Servicing::Atomic->sha256_file($path, $extra);
++    $result = { size => $size, sha256 => $sha256 };
++} elsif ($action eq 'validate') {
++    $result = $deb->validate_spec($path, $spec, "$spec->{label} retained archive");
++} elsif ($action eq 'changed') {
++    my $original = \\&ExternalSoftware::Servicing::Deb::control;
++    no warnings 'redefine';
++    local *ExternalSoftware::Servicing::Deb::control = sub {
++        my $value = $original->(@_);
++        if ($_[2] eq 'Architecture') {
++            open my $out, '>>', $_[1] or die "fixture append: $!";
++            print {$out} "changed"; close $out or die "fixture close: $!";
++        }
++        return $value;
++    };
++    $result = $deb->validate_spec($path, $spec);
++} elsif ($action eq 'latest') {
++    my $repository = bless { directory => $path, catalogue => $extra },
++        'ExternalSoftware::Servicing::Repository';
++    $result = $repository->latest($deb, $spec);
++} elsif ($action eq 'latest-bitwarden') {
++    my $repository = bless { directory => $path, catalogue => $extra },
++        'ExternalSoftware::Servicing::Repository';
++    $spec = { %$spec, name => 'bitwarden', packages => ['bitwarden'], label => 'Bitwarden' };
++    $result = $repository->latest($deb, $spec);
++} else {
++    die "unknown fixture action\\n";
++}
++print 'RESULT:' . JSON::PP->new->canonical->encode($result) . "\\n";
++''')
++
++
++def ar_header(name: str, size: int) -> bytes:
++    return (f'{name + "/":<16}{0:<12}{0:<6}{0:<6}{"100644":<8}{size:<10}`\n').encode('ascii')
++
++
++def sparse_deb(path: Path, size: int = 8192, *, package: str = 'chatgpt',
++               version: str = '1.0+localrepo1', architecture: str = 'amd64') -> None:
++    """Create a real ar/control/data Debian archive with a sparse zero payload."""
++    control = (f'Package: {package}\nVersion: {version}\nArchitecture: {architecture}\n'
++               'Maintainer: Fixture <fixture@localhost>\nDescription: Offline boundary fixture\n').encode()
++    stream = io.BytesIO()
++    with tarfile.open(fileobj=stream, mode='w', format=tarfile.USTAR_FORMAT) as archive:
++        member = tarfile.TarInfo('./control')
++        member.mode, member.size = 0o644, len(control)
++        archive.addfile(member, io.BytesIO(control))
++    control_archive = gzip.compress(stream.getvalue(), mtime=0)
++    with path.open('wb') as output:
++        output.write(b'!<arch>\n')
++        for name, data in (('debian-binary', b'2.0\n'), ('control.tar.gz', control_archive)):
++            output.write(ar_header(name, len(data)))
++            output.write(data)
++            if len(data) % 2:
++                output.write(b'\n')
++        data_size = size - output.tell() - 60
++        if data_size < 2048 or data_size % 2:
++            raise ValueError('fixture size must leave an even, complete data archive')
++        output.write(ar_header('data.tar', data_size))
++        member = tarfile.TarInfo('./usr/share/fixture/padding')
++        member.mode = 0o644
++        member.size = ((data_size - 1536) // 512) * 512
++        output.write(member.tobuf(format=tarfile.USTAR_FORMAT))
++        output.seek(member.size, os.SEEK_CUR)
++        output.write(b'\0' * (data_size - 512 - member.size))
++    path.chmod(0o600)
++    if path.stat().st_size != size:
++        raise AssertionError('fixture size mismatch')
++
++
++def run_perl(action: str, path: object = '', extra: object = '', *, memory_limit: bool = False):
++    def limit_memory():
++        resource.setrlimit(resource.RLIMIT_AS, (128 << 20, 128 << 20))
++    return subprocess.run(['/usr/bin/perl', '-I', str(PERL_LIB), '-e', perl_program(),
++                           action, str(path), str(extra)], text=True, capture_output=True,
++                          env=ENV, timeout=45,
++                          preexec_fn=limit_memory if memory_limit else None)
++
++
++def result_value(result):
++    if result.returncode:
++        raise AssertionError(result.stderr)
++    records = [line.removeprefix('RESULT:') for line in result.stdout.splitlines()
++               if line.startswith('RESULT:')]
++    if len(records) != 1:
++        raise AssertionError(result.stdout)
++    return json.loads(records[0])
++
++
++class RetainedPackageBoundsTests(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.temporary = tempfile.TemporaryDirectory(prefix='retained-package-bounds-')
++        cls.addClassCleanup(cls.temporary.cleanup)
++        cls.directory = Path(cls.temporary.name)
++        cls.small = cls.directory / 'chatgpt-small.deb'
++        cls.large = cls.directory / 'chatgpt-large.deb'
++        cls.at_limit = cls.directory / 'chatgpt-at-limit.deb'
++        sparse_deb(cls.small)
++        sparse_deb(cls.large, OLD_BOUND + 4096)
++        sparse_deb(cls.at_limit, MAX_DEB)
++        cls.publisher = runpy.run_path(str(HELPER), run_name='retained_package_publisher_test')
++
++    def assert_rejected(self, path, reason: str, *, action='validate', extra=''):
++        result = run_perl(action, path, extra)
++        self.assertNotEqual(result.returncode, 0, result.stdout)
++        self.assertIn(reason, result.stderr)
++        return result
++
++    def test_perl_and_python_package_ceilings_are_identical(self):
++        self.assertEqual(result_value(run_perl('limit')), self.publisher['MAX_DEB'])
++        self.assertEqual(self.publisher['MAX_DEB'], MAX_DEB)
++
++    def test_chatgpt_transport_uses_the_same_bounded_ceiling(self):
++        self.assertEqual(result_value(run_perl('spec-limit')), MAX_DEB)
++
++    def test_limit_module_is_in_the_installer_staging_inventory(self):
++        script = (FORKY / 'scripts/late/software.sh').read_text()
++        inventory = re.search(r"software_perl_modules\(\) \{\s*cat <<'EOF'\n(.*?)\nEOF", script, re.S)
++        self.assertIsNotNone(inventory)
++        entries = inventory[1].splitlines()
++        self.assertEqual(entries.count('ExternalSoftware/Servicing/ArtifactLimits.pm'), 1)
++        for entry in entries:
++            self.assertTrue((PERL_LIB / entry).is_file(), entry)
++
++    def test_small_valid_debian_archive_still_passes(self):
++        self.assertEqual(result_value(run_perl('validate', self.small)),
++                         {'package': 'chatgpt', 'version': '1.0+localrepo1', 'architecture': 'amd64'})
++
++    def test_real_archive_above_old_512_mib_limit_passes_both_readers(self):
++        fields = self.publisher['inspect_deb'](self.large, {'amd64'})
++        self.assertEqual(fields['Package'], 'chatgpt')
++        self.assertEqual(result_value(run_perl('validate', self.large))['version'], fields['Version'])
++        self.assertGreater(self.large.stat().st_size, OLD_BOUND)
++
++    def test_real_archive_exactly_at_one_gib_is_accepted(self):
++        self.assertEqual(result_value(run_perl('validate', self.at_limit))['package'], 'chatgpt')
++        self.assertEqual(self.at_limit.stat().st_size, MAX_DEB)
++
++    def test_one_byte_over_limit_reports_actual_size_path_and_ceiling(self):
++        path = self.directory / 'oversized.deb'
++        with path.open('wb') as output:
++            output.write(b'!<arch>\n')
++            output.truncate(MAX_DEB + 1)
++        result = self.assert_rejected(path, 'not a bounded regular file')
++        for text in (str(path), f'size={MAX_DEB + 1}', f'permitted=8..{MAX_DEB}'):
++            self.assertIn(text, result.stderr)
++        with self.assertRaises(self.publisher['Error']):
++            fd = self.publisher['checked_file'](path)
++            os.close(fd)
++
++    def test_empty_and_short_archives_are_rejected(self):
++        for size in range(8):
++            with self.subTest(size=size):
++                path = self.directory / f'truncated-{size}.deb'
++                path.write_bytes(b'!<arch>\n'[:size])
++                self.assert_rejected(path, f'size={size}')
++
++    def test_missing_file_is_distinguished_from_excess_size(self):
++        self.assert_rejected(self.directory / 'missing.deb', 'cannot be inspected')
++
++    def test_regular_and_dangling_symlinks_are_rejected(self):
++        for name, target in (('linked.deb', self.small), ('dangling.deb', self.directory / 'absent')):
++            with self.subTest(name=name):
++                path = self.directory / name
++                path.symlink_to(target)
++                self.assert_rejected(path, 'symlinks and special files are forbidden')
++
++    def test_directory_and_fifo_are_rejected_without_blocking(self):
++        path = self.directory / 'fifo.deb'
++        os.mkfifo(path, 0o600)
++        for candidate in (self.directory, path):
++            self.assert_rejected(candidate, 'symlinks and special files are forbidden')
++
++    def test_open_is_nonblocking_nofollow_and_descriptor_checked(self):
++        source = method('Deb.pm', 'validate')
++        self.assertIn('O_RDONLY | O_NOFOLLOW | O_NONBLOCK', source)
++        self.assertIn('my @opened_stat = stat $package_fh', source)
++        self.assertIn('package changed while opening', source)
++
++    def test_non_debian_header_is_rejected(self):
++        path = self.directory / 'html.deb'
++        path.write_bytes(b'<html>not a Debian archive</html>')
++        self.assert_rejected(path, 'does not have Debian archive framing')
++
++    def test_framing_alone_does_not_bypass_dpkg_validation(self):
++        path = self.directory / 'magic-only.deb'
++        path.write_bytes(b'!<arch>\n')
++        self.assert_rejected(path, 'is not a valid Debian package')
++
++    def test_wrong_identity_and_architecture_are_still_rejected(self):
++        for name, architecture, reason in (
++                ('unapproved', 'amd64', 'package name is unapproved'),
++                ('chatgpt', 'arm64', 'package architecture is not amd64')):
++            with self.subTest(name=name, architecture=architecture):
++                path = self.directory / f'{name}-{architecture}.deb'
++                sparse_deb(path, package=name, architecture=architecture)
++                self.assert_rejected(path, reason)
++
++    def test_modification_during_metadata_validation_is_rejected(self):
++        path = self.directory / 'changing.deb'
++        shutil.copyfile(self.small, path)
++        self.assert_rejected(path, 'package changed during validation', action='changed')
++
++    def test_valid_tilde_version_filename_is_accepted(self):
++        path = self.directory / 'chatgpt_1.0~rc1+localrepo1_amd64.deb'
++        sparse_deb(path, version='1.0~rc1+localrepo1')
++        self.assertEqual(result_value(run_perl('validate', path))['version'], '1.0~rc1+localrepo1')
++
++    def test_unsafe_path_characters_and_traversal_remain_rejected(self):
++        for path in ('relative.deb', '/tmp/../file.deb', '/tmp/./file.deb',
++                     '/tmp/file;touch.deb', '/tmp/file\n.deb', '/tmp/file with space.deb'):
++            with self.subTest(path=path):
++                result = run_perl('path', path)
++                self.assertNotEqual(result.returncode, 0)
++
++    def test_streaming_digest_accepts_large_retained_file_under_memory_cap(self):
++        with self.large.open('rb') as source:
++            expected = hashlib.file_digest(source, 'sha256').hexdigest()
++        self.assertEqual(result_value(run_perl('digest', self.large, MAX_DEB, memory_limit=True)),
++                         {'size': self.large.stat().st_size, 'sha256': expected})
++
++    def test_digest_keeps_explicit_smaller_transport_limits(self):
++        self.assert_rejected(self.large, 'not a bounded regular file', action='digest', extra=OLD_BOUND)
++
++    def test_digest_rejects_unbounded_or_invalid_limits(self):
++        for limit in (0, -1, MAX_DEB + 1, 'unlimited', '1.5', '1e9', '01'):
++            with self.subTest(limit=limit):
++                self.assert_rejected(self.small, 'invalid digest input limit', action='digest', extra=limit)
++
++    def test_digest_does_not_follow_symlinks(self):
++        path = self.directory / 'digest-link.deb'
++        path.symlink_to(self.small)
++        self.assert_rejected(path, 'not a bounded regular file', action='digest', extra=MAX_DEB)
++
++    def test_latest_reads_a_large_retained_catalogue_candidate(self):
++        root = self.directory / 'catalogue'
++        pool = root / 'pool/chatgpt' / ('a' * 64)
++        pool.mkdir(parents=True)
++        path = pool / 'chatgpt_1.0+localrepo1_amd64.deb'
++        sparse_deb(path, OLD_BOUND + 4096)
++        # Only the list transport is fixture-provided; selection and validation
++        # use the production methods and actual on-disk Debian archive.
++        catalogue = json.dumps({'packages': {'chatgpt:amd64': {
++            'package': 'chatgpt', 'filename': str(path.relative_to(root))}}})
++        record = result_value(run_perl('latest', root, catalogue))
++        self.assertEqual(record['path'], str(path))
++        self.assertEqual(record['metadata']['package'], 'chatgpt')
++
++    def test_bitwarden_retained_digest_also_uses_repository_ceiling(self):
++        root = self.directory / 'bitwarden-catalogue'
++        pool = root / 'pool/bitwarden' / ('b' * 64)
++        pool.mkdir(parents=True)
++        path = pool / 'bitwarden_1.0+localrepo1_amd64.deb'
++        sparse_deb(path, OLD_BOUND + 4096, package='bitwarden')
++        with path.open('rb') as source:
++            digest = hashlib.file_digest(source, 'sha256').hexdigest()
++        receipt = Path(str(path) + '.vendor-sha256')
++        receipt.write_text(digest + '\n')
++        receipt.chmod(0o644)
++        catalogue = json.dumps({'packages': {'bitwarden:amd64': {
++            'package': 'bitwarden', 'filename': str(path.relative_to(root))}}})
++        record = result_value(run_perl('latest-bitwarden', root, catalogue))
++        self.assertEqual(record['vendor_sha256'], digest)
++        receipt.write_text('0' * 64 + '\n')
++        self.assertIsNone(result_value(run_perl('latest-bitwarden', root, catalogue)))
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ b/docs/RETAINED-ARCHIVE-REPAIR-20260917.md
+@@ -0,0 +1,237 @@
++# Retained Debian archive repair - 17 September 2026
++
++## Delivery status
++
++The retained-package size-limit mismatch has been repaired and reproduced passing.
++This is a complete source-tree delivery, including regenerated installer products,
++not a patch-only delivery. It is **not a certification that the entire repository
++or an unattended installation is failure-free**. The full validation results below
++include inherited failures and blocked checks; none have been hidden or converted
++to passing results.
++
++The supplied error does not identify the actual failed file or its size. That vendor
++archive and the failed host were not supplied. The size mismatch is a demonstrated
++code defect that produces the reported class of error, rather than a claim to have
++inspected the original failing package.
++
++## Root cause and affected execution path
++
++`d-i/forky/scripts/late/software.sh` stages the servicing modules and invokes the
++managed-software bootstrap with `--bootstrap-chatgpt`. Its CLI obtains a retained
++package from `ExternalSoftware::Servicing::Repository::latest`, which delegates to
++`Deb::validate_spec` / `Deb::validate` before installing it.
++
++The Python publisher `hooks/target/usr/local/libexec/local-apt-repository` already
++accepts Debian archives up to 1,073,741,824 bytes (1 GiB). The old Perl validator
++rejected archives larger than 536,870,912 bytes (512 MiB), including valid archives
++that the same repository had legitimately retained. The publisher can rewrite
++package metadata and recompress packages; the size of a retained package therefore
++need not equal the size of the vendor's downloaded package.
++
++A real, sparse Debian archive of **536,875,008 bytes** was passed through the exact
++original validation method and through the repaired method. The original returned
++255 with `ChatGPT/Codex Desktop retained archive package is not a bounded regular
++file`; the repaired method returned 0 and validated the package metadata. Both runs
++used real `dpkg-deb`, not fabricated package metadata or file-size responses. The
++harness limitations are documented below and in the JSON evidence.
++
++The same path also contained a filename inconsistency: child-name and catalogue
++validation allowed `~`, while absolute-path validation rejected it. A tilde is a
++valid Debian version character, so a valid retained package could also be rejected
++when its filename contains a prerelease version.
++
++## Scoped implementation
++
++| Component | Change |
++| --- | --- |
++| `ExternalSoftware/Servicing/ArtifactLimits.pm` | New core-Perl module exports the finite 1 GiB `MAX_DEB_BYTES` ceiling. This is the shared Perl limit; regression tests compare it with the existing Python publisher limit. |
++| `Deb.pm` | Uses the shared ceiling, checks the opened descriptor against the initial `lstat`, opens with `O_NOFOLLOW` and `O_NONBLOCK`, retries interrupted header reads, and checks for file changes after metadata inspection. Error messages distinguish inspection, type, size, open and mutation failures. Size errors include the path, observed bytes and allowed range. |
++| `Atomic.pm` | Permits explicitly bounded streaming SHA-256 requests up to 1 GiB, while retaining 64 KiB reads and the caller's lower bound. Allows literal `~` in absolute path components; traversal and other unsafe pathname forms remain rejected. |
++| `ChatGPT.pm` | Aligns the ChatGPT upstream transfer ceiling with the existing 1 GiB Python downloader/publisher ceiling. |
++| `Repository.pm` | Uses the retained-archive ceiling for Bitwarden's retained-object digest. Its separate 512 MiB vendor-source receipt check is deliberately preserved. |
++| `scripts/late/software.sh` | Stages the new constant module alongside the existing servicing modules, so an installed helper does not reference a missing dependency. |
++| `tools/validate.py` | Adds the previously omitted `tools/tests` suite and a positive, configurable per-suite `--test-timeout` (default 900 seconds instead of a fixed 300). Failures still produce a nonzero exit and `success: false`. |
++| `tests/test_retained_package_bounds.py` | Adds 24 executable boundary, malformed-file, pathname, digest and catalogue regressions. No existing test is removed or rewritten. |
++| Generated installer products | Rebuilds `preseed.cfg`, `payload.manifest` and `payload.tar.gz` together; they include 1,355 payload files, including the new module. |
++
++This does **not** remove the size ceiling or turn an invalid package into an
++accepted package. Archives larger than 1 GiB remain rejected; a future vendor
++package above that ceiling would require an explicit, coordinated policy change.
++Debian framing, `dpkg-deb` validation, approved package identity, version validation,
++`amd64`, existing application payload policy and digest checks remain in place.
++The retained-archive limit is deliberately distinct from an application's download
++budget because local rewriting may change the archive's size.
++
++The descriptor and end-of-validation identity checks are defense in depth, not a
++claim of race-proof access against a privileged adversary. `O_NOFOLLOW` applies to
++the final pathname component; external `dpkg-deb` processes still reopen a pathname.
++The retained pool must continue to be root-controlled and immutable as designed.
++No unrelated ownership model or repository trust policy was changed.
++
++All 2,410 input files are retained. All 13 uploaded profiles are byte-identical.
++The 510 input files with AppArmor, systemd, labwc, wlroots, Waybar or Crystal Dock
++names/paths are unchanged. No desktop power policy, resource class, hardware tuning
++setting, AppArmor rule, mixed-suite APT policy or existing trust exception was
++altered to make an unrelated test pass. Historical reports and logs remain intact.
++The normal builder changes its three generated products to mode 0644; other
++original file modes are preserved.
++
++## Validation actually performed
++
++| Check | Observed result |
++| --- | --- |
++| New retained-archive regressions | 24 tests; all pass; zero skips. |
++| Original versus fixed large-archive reproduction | Same real 536,875,008-byte fixture: original exits 255; fixed exits 0. |
++| Browser generated assets | PASS (exit 0). |
++| Generated snapshot and pins | PASS (exit 0). |
++| Preseed include/layout checks | PASS (exit 0). |
++| Shell parsing | PASS (exit 0); 279 files, 569 parser invocations. |
++| Main suite | 1,295 tests; 17 failure entries; 2 error entries; 28 skipped. Completed without the old timeout. |
++| Tools suite | 179 tests; 3 failure entries; 5 error entries; 0 skipped. Completed without the old timeout. |
++| Codebase audit | No hard audit failures reported, but dependencies/tools remain blocked; counts below are not an all-pass runtime result. |
++| Payload integrity | 1,355 unique regular members match source and manifest; checksum pins agree; two rebuilds produce identical artifacts. |
++| Source preservation | All 2,410 original files retained, all 13 profiles unchanged; only the documented source changes and generated products differ. |
++
++**Overall validation status: FAIL**, correctly recorded as `success: false` in
++`full-validation/summary.json`. All current failure/error entries match entries
++reproduced on the untouched upload; this comparison does not prove that every
++possible new runtime defect has been ruled out.
++
++Audit inventory counts: `blocked-dependency` = 156, `blocked-tool` = 11, `inventory-only` = 495, `pass` = 446, `structure-pass` = 173, `template-needs-render` = 2.
++Structure-only, blocked, inventory-only and unrendered-template entries are not
++successful target-runtime tests. Failure/error counts above are unittest entries;
++subtests can produce multiple entries within a single test method.
++
++Generated product SHA-256 values:
++
++```text
++3a246e9d74b04b75ec301bb8f64b3d30790247f9b882b25c4e6754bee290cfee  preseed.cfg
++8a9a39aa2ca5ed8dc17a4004b1146439b6ed5158c9db9110fa252fa802b1e39b  payload.manifest
++34f96b2967cd4aca4fe1baed5f99b56585c34840ab595939a474ed037aae6812  payload.tar.gz
++```
++
++### Boundary regression coverage and its limits
++
++The new suite passes all 24 tests without skips. It exercises a small valid
++package, an archive just above 512 MiB, the exact 1 GiB ceiling, and an archive one
++byte above that ceiling. It rejects missing/empty/truncated files, symbolic links,
++dangling links, FIFOs, directories, invalid magic, framing without valid package
++metadata, unexpected package names, incorrect architecture and modification during
++metadata validation. It checks tilde-bearing version filenames and rejected unsafe
++paths, caller-specific digest limits, catalogue selection, and retained Bitwarden
++digest/receipt agreement and disagreement. One test hashes an archive above
++512 MiB under a 128 MiB address-space limit to verify streaming rather than loading
++the package into memory. Large fixture files are temporary and are not delivered.
++
++These tests evaluate the **actual production Perl method bodies** with core Perl
++imports and explicit fixture objects. They isolate the methods from Moo constructor
++loading; catalogue transport is fixture-provided. The filesystem operations, byte
++counts, SHA-256 work and `dpkg-deb` responses are real. This is meaningful method-level
++coverage, not end-to-end execution of the full Moo application. No replacement or
++stub Moo implementation was added. Full module-loading checks remain dependent on
++the real target dependencies.
++
++The check environment is a Debian 13 container, not a booted forky installer. Moo
++and some other audit dependencies/tools are unavailable here. The uploaded desktop
++package-selection file already declares `libmoo-perl` and the relevant MooX
++packages. An attempt to refresh Debian package indexes failed DNS resolution; no
++successful dependency installation or network validation is claimed. Blocked
++checks are reported as blocked, not as passing.
++
++No destructive disk operation, actual unattended installation, live vendor package
++fetch, target systemd activation, AppArmor enforcement run, or labwc/Waybar/Crystal
++Dock GUI/hardware acceptance test was performed. A clean installation result cannot
++be inferred from offline checks alone.
++
++### Inherited failures that remain visible
++
++The untouched upload was validated before edits. Its fixed 300-second main-suite
++timeout expired; its historical supplied log had already recorded a 377-second
++main-suite run. The original tool suite completed with 3 failures and 5 errors.
++A second untouched source copy was used to reproduce the relevant failing main
++checks independently. The evidence retains both the timed-out baseline and those
++focused baseline reruns; it does not mislabel the timed-out baseline as a completed
++full pass or fail count.
++
++Known independent issues include missing raw AppArmor incident fixtures
++(`todo/apparmor.log` and `todo/managed/apparmor/apparmor.log`), an older test's
++expectation that every profile enables hardware tuning despite the uploaded
++`btrfs-de-dual-flex.env` disabling it, stale provenance hashes for two untouched
++profiles, older resctl-bench tests expecting v0.0.1 release pins while two uploaded
++profiles explicitly use v0.0.2, an older scope-drop-in expectation, a fuzzel launcher mock that targets an
++old subprocess API, and older power/session tests whose expectations disagree with
++the subsequently delivered lifecycle implementation. Four managed-software tests
++also fail when they attempt to load the unavailable real Moo dependency. An
++unmodified Spotify cancellation test failed in the initial timed-out run but passed
++in the focused original-tree rerun; it is recorded as intermittent, not dismissed
++as proven harmless.
++
++The provenance ledger was not silently updated to bless differing hashes. Raw
++incident evidence was not fabricated. Hardware settings and power lifecycle code
++were not changed to satisfy contradictory older expectations. These are unresolved
++validation/acceptance items, not claims of repaired runtime behavior. See the final
++failure inventory for the exact current results and baseline comparisons.
++
++## Deployment and reproduction
++
++Extract the complete release into a **new** directory. Publish the complete served
++repository atomically using the deployment mechanism already in use. Do not overlay
++only `Deb.pm`, and do not combine a new `preseed.cfg` with an older payload or
++manifest. Keep the rebuilt sources, manifest, payload and preseed checksum pins
++together. Retain the previous release separately for rollback.
++
++On a disposable validation host with the repository's declared test dependencies:
++
++```sh
++cd debian-preseed-de
++python3 -B tools/build.py --check
++python3 -B -m unittest discover -v -s d-i/forky/tests -p test_retained_package_bounds.py
++python3 -B tools/validate.py --test-timeout 900 --output-dir validation/local-recheck
++```
++
++The last command deliberately returns failure while any of the independent checks
++above remain unresolved in that host/environment. Review both `tests.log` and
++`tools-tests.log`, the summary and blocked audit checks rather than relying on one
++passing stage.
++
++A failed installer may already hold an older verified snapshot and a fatal-state
++marker. Test the new release with a fresh installer boot and its matching preseed
++entry point. Do not disable the fatal-state guard or checksum verification to resume
++an old mixed snapshot. Before production rollout, perform an unattended installation
++in an appropriate disposable VM, validate the retained package actually involved,
++then test the required target services and desktop session on representative
++hardware. These deployment acceptance steps were not performed in this repair.
++
++## Evidence map
++
++All new evidence is under `validation/retained-archive-fix-20260917/`:
++
++- `before-after-reproduction.json` and `regressions.log`: original/fixed reproduction
++  and the 24 new tests.
++- `payload-integrity.json`: every payload member checked against both source and
++  manifest, safe unique member paths, matching preseed pins, two identical in-memory
++  rebuilds, original-file preservation and unchanged profiles/configuration.
++- `full-validation/`: complete current logs, summary and detailed audit inventory.
++- `baseline/`: original-tree validation, original tool-suite results, focused
++  original-tree failures, and the unsuccessful package-index dependency attempt.
++- `failure-inventory.json`: exact current failures and their baseline comparison.
++- `source-input-inventory.json`, `change-manifest.json` and `source-changes.patch`:
++  input hashes/modes and the scoped source/documentation changes. The patch is a
++  convenience only; the release tarball contains the entire repository.
++
++Historical validation elsewhere in the tree belongs to earlier revisions and must
++not be interpreted as acceptance evidence for this delivery.
++
++## Primary references checked
++
++- Debian `deb-version(7)` (permitted version characters, including tilde):
++  https://manpages.debian.org/trixie/dpkg-dev/deb-version.7.en.html
++- Debian `dpkg-deb(1)` (archive inspection and compression behavior):
++  https://manpages.debian.org/stable/dpkg/dpkg-deb.1.en.html
++- Debian `open(2)` (the scope of `O_NOFOLLOW` and `O_NONBLOCK`):
++  https://manpages.debian.org/trixie/manpages-dev/open.2.en.html
++- Perl `lstat` and `stat`:
++  https://perldoc.perl.org/functions/lstat and https://perldoc.perl.org/functions/stat
++
++Code paths and observed results in this report come from the uploaded source and
++the included execution evidence, not from assumptions about a current vendor binary.
+--- a/tools/validate.py
++++ b/tools/validate.py
+@@ -48,7 +48,11 @@
+ def main() -> int:
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument('--output-dir', type=Path, default=ROOT/'validation')
++    parser.add_argument('--test-timeout', type=int, default=900,
++                        help='positive per-suite timeout in seconds (default: 900)')
+     args = parser.parse_args()
++    if args.test_timeout < 1:
++        parser.error('--test-timeout must be a positive integer')
+     output = args.output_dir.resolve()
+     output.mkdir(parents=True,exist_ok=True)
+     interpreter = resolve_python_interpreter()
+@@ -57,7 +61,8 @@
+         ('build-check', [interpreter,'-B','tools/build.py','--check'],90),
+         ('preseed-check', [interpreter,'-B','tools/check_preseeds.py'],90),
+         ('shell-check', [interpreter,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
+-        ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],300),
++        ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],args.test_timeout),
++        ('tools-tests', [interpreter,'-B','-m','unittest','discover','-v','-s','tools/tests','-p','test_*.py'],args.test_timeout),
+         ('audit', [interpreter,'-B','d-i/forky/tests/audit_codebase.py','--output',str(output/'audit.json')],120),
+     ]
+     child_environment = validation_environment()
+@@ -89,7 +94,7 @@
+                 status=124
+         record={'stage':name,'returncode':status,'timed_out':timed_out,
+                 'seconds':round(time.monotonic()-start,3),'log':log.name}
+-        if name=='tests':
++        if name in ('tests', 'tools-tests'):
+             text=log.read_text()
+             record['tests_run'], record['skipped'] = unittest_counts(text)
+         results.append(record)

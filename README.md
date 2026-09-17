@@ -1,5 +1,26 @@
 # debian-preseed-de
 
+## Package limits and package-safe power actions - 17 September 2026
+
+The local APT publisher now accepts packages up to **2 GiB**. Retained Debian
+archive validation and streaming digests have a separate **4 GiB** ceiling;
+ChatGPT transport uses the publisher's 2 GiB limit. Existing application-specific
+lower transport and extraction budgets are unchanged.
+
+Managed desktop logout, suspend, reboot and poweroff (including the `shutdown`
+alias), plus greeter reboot/poweroff, now wait for the actual POSIX locks on both
+`/var/lib/dpkg/lock-frontend` and `/var/lib/dpkg/lock`. No applications are closed
+while waiting, and no timeout authorizes an upgrade-interrupting fallback. A
+required `sleep.target` guard also reserves these locks through sleep/resume for
+idle/lid/systemd suspend paths. Administrator bypasses and physical power loss
+are not covered.
+
+See the [implementation, deployment and validation report](docs/PACKAGE-POWER-GUARD-20260917.md)
+and `validation/package-power-guard-20260917/` for this revision's evidence and
+remaining inherited validation failures. The payload, manifest and preseed pins
+are rebuilt together. The [earlier archive repair](docs/RETAINED-ARCHIVE-REPAIR-20260917.md)
+and its 1 GiB policy are historical; its file-hardening repairs remain included.
+
 Current desktop power lifecycle and resctl-bench integration:
 [implementation and deployment checks](POWER-RESCTL-2026-09-16.md),
 [current validation](POWER-RESCTL-VALIDATION.md). Reboot/poweroff synchronously

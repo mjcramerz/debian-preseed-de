@@ -8,8 +8,8 @@ if [ "$#" -ne 0 ]; then
   case "$1" in
     lock) exec /usr/local/bin/labwc-lock ;;
     logout) exec /usr/local/bin/labwc-logout ;;
-    suspend|reboot|poweroff) exec /usr/local/bin/labwc-admin-action "$1" ;;
-    *) printf 'usage: labwc-power-settings [lock|logout|suspend|reboot|poweroff]\n' >&2; exit 64 ;;
+    suspend|reboot|poweroff|shutdown) exec /usr/local/bin/labwc-admin-action "$1" ;;
+    *) printf 'usage: labwc-power-settings [lock|logout|suspend|reboot|poweroff|shutdown]\n' >&2; exit 64 ;;
   esac
 fi
 

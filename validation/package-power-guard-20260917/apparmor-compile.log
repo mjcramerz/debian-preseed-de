@@ -1,0 +1,5 @@
+Offline compile only (-Q); no profile loaded or enforced.
+Command: /usr/sbin/apparmor_parser -Q -T -I /mnt/data/work/debian-preseed-de/d-i/forky/hooks/target/etc/apparmor.d -I /etc/apparmor.d /mnt/data/work/debian-preseed-de/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
+
+Exit status: 0

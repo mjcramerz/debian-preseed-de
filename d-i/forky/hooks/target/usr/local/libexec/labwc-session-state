@@ -295,8 +295,8 @@ def restore(state: Path, runtime: Path) -> None:
 def main(argv: list[str]) -> int:
     if os.getuid() == 0 or os.geteuid() != os.getuid():
         raise Error("session preparation must run as the invoking desktop user, never root")
-    if len(argv) != 1 or argv[0] not in {"prepare", "restore", "cancel", "locked", "error"}:
-        raise Error("usage: labwc-session-state prepare|restore|cancel|locked|error")
+    if len(argv) != 1 or argv[0] not in {"prepare", "restore", "cancel", "locked", "error", "waiting"}:
+        raise Error("usage: labwc-session-state prepare|restore|cancel|locked|error|waiting")
     os.umask(0o077)
     runtime = Path(f"/run/user/{os.getuid()}")
     st = runtime.lstat()
@@ -315,6 +315,9 @@ def main(argv: list[str]) -> int:
     action = argv[0]
     if action == "cancel":
         (runtime / "labwc-session-closing").unlink(missing_ok=True)
+        return 0
+    if action == "waiting":
+        notify("Waiting for software installation or unattended upgrades to finish. No applications are being closed. The power/logout request will continue after the package locks are released.")
         return 0
     if action == "error":
         notify("The power/logout request stopped. Your session was not forcibly closed while applications were awaiting a save. See journalctl -b -u 'labwc-admin-action@*'.")

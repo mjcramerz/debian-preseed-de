@@ -31,9 +31,10 @@ require_executable() {
 
 action=${1:-}
 [ "$#" -eq 1 ] && [ -n "$action" ] ||
-  fatal "usage: labwc-admin-action <suspend|reboot|poweroff|logout>"
+  fatal "usage: labwc-admin-action <suspend|reboot|poweroff|shutdown|logout>"
 
 case "$action" in
+  shutdown) action=poweroff ;;
   suspend|reboot|poweroff|logout) ;;
   *)
     fatal "unsupported privileged desktop action: ${action}"

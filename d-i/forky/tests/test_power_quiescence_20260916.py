@@ -24,6 +24,7 @@ class QuiescenceTests(unittest.TestCase):
     def setUp(self):
         self.power = module()
         self.worker = self.power.Worker(1000, 'desktop', 'reboot')
+        self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
         self.members = {'labwc-session.target', 'labwc-compositor.service',
                         'labwc-wayland-foot-0123456789.service', 'waybar.service', 'labwc-swayidle.service'}
         self.addCleanup(mock.patch.stopall)

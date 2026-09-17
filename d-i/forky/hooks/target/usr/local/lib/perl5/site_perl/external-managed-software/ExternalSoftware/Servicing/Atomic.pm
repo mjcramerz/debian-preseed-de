@@ -14,10 +14,11 @@ use File::Spec;
 use File::Temp qw(tempfile);
 use IO::Handle;
 use Errno qw(EINTR);
+use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
 
 sub assert_absolute_path {
     my ($class, $label, $path) = @_;
-    defined $path && $path =~ m{\A/(?:[A-Za-z0-9._@%:+,-]+/)*[A-Za-z0-9._@%:+,-]+\z}
+    defined $path && $path =~ m{\A/(?:[A-Za-z0-9._@%:+~,-]+/)*[A-Za-z0-9._@%:+~,-]+\z}
         or die "$label must be a safe absolute path\n";
     grep { $_ eq q{.} || $_ eq q{..} } split m{/}, $path
         and die "$label contains a traversal component\n";
@@ -77,7 +78,7 @@ sub read_limited {
 sub sha256_file {
     my ($class, $path, $limit) = @_;
     $class->assert_absolute_path('digest input path', $path);
-    defined($limit) && $limit =~ /\A[1-9][0-9]*\z/ && $limit <= 536_870_912
+    defined($limit) && $limit =~ /\A[1-9][0-9]*\z/ && $limit <= MAX_DEB_BYTES
         or die "invalid digest input limit\n";
 
     my @before = lstat $path;

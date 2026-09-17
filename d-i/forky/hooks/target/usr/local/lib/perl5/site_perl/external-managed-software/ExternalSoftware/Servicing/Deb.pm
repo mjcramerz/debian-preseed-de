@@ -6,10 +6,12 @@ use warnings;
 use Moo;
 use MooX::StrictConstructor;
 
-use Fcntl qw(O_NOFOLLOW O_RDONLY O_TRUNC O_WRONLY S_IFMT S_IFREG);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY O_TRUNC O_WRONLY S_IFMT S_IFREG);
+use Errno qw(EINTR);
 use File::Spec;
 use POSIX qw(_exit);
 use ExternalSoftware::Servicing::Atomic;
+use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
 
 has repository => (is => 'ro', required => 1);
 
@@ -517,16 +519,26 @@ sub validate {
     ExternalSoftware::Servicing::Atomic->assert_absolute_path("$args{label} package", $args{path});
     my @package_stat = lstat $args{path};
     @package_stat
-        && ($package_stat[2] & S_IFMT) == S_IFREG
-        && !-l _
-        && $package_stat[7] >= 8
-        && $package_stat[7] <= 536_870_912
-        or die "$args{label} package is not a bounded regular file\n";
-    sysopen my $package_fh, $args{path}, O_RDONLY | O_NOFOLLOW
-        or die "$args{label} package cannot be opened: $!\n";
+        or die "$args{label} package cannot be inspected: $args{path}: $!\n";
+    ($package_stat[2] & S_IFMT) == S_IFREG && !-l _
+        or die "$args{label} package is not a bounded regular file: $args{path} (symlinks and special files are forbidden)\n";
+    my $maximum = MAX_DEB_BYTES;
+    $package_stat[7] >= 8 && $package_stat[7] <= $maximum
+        or die "$args{label} package is not a bounded regular file: $args{path} (size=$package_stat[7] bytes; permitted=8..$maximum bytes)\n";
+    # O_NONBLOCK also prevents a substituted FIFO from hanging the installer.
+    sysopen my $package_fh, $args{path}, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+        or die "$args{label} package cannot be opened: $args{path}: $!\n";
+    my @opened_stat = stat $package_fh;
+    @opened_stat && ($opened_stat[2] & S_IFMT) == S_IFREG
+        && join("\0", @opened_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
+            eq join("\0", @package_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
+        or die "$args{label} package changed while opening: $args{path}\n";
     binmode $package_fh;
     my $magic = q{};
-    my $magic_read = read $package_fh, $magic, 8;
+    my $magic_read;
+    do {
+        $magic_read = read $package_fh, $magic, 8;
+    } while (!defined($magic_read) && $! == EINTR);
     close $package_fh
         or die "$args{label} package cannot be closed: $!\n";
     defined $magic_read && $magic_read == 8 && $magic eq "!<arch>\n"
@@ -595,6 +607,13 @@ sub validate {
         or die "$args{label} package version is invalid\n";
     defined $architecture && $architecture eq 'amd64'
         or die "$args{label} package architecture is not amd64\n";
+    # The pool is immutable and root-managed, but fail closed if a file was
+    # replaced or changed while the external metadata readers inspected it.
+    my @after_stat = lstat $args{path};
+    @after_stat && ($after_stat[2] & S_IFMT) == S_IFREG
+        && join("\0", @after_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
+            eq join("\0", @package_stat[0, 1, 2, 3, 4, 5, 7, 9, 10])
+        or die "$args{label} package changed during validation: $args{path}\n";
     return { package => $package, version => $version, architecture => $architecture };
 }
 
@@ -603,6 +622,8 @@ sub validate_spec {
     ref $spec eq 'HASH'
         or die "managed Debian package specification is invalid\n";
     $label //= $spec->{label};
+    # spec->{maximum} is an upstream HTTP transfer bound, not the size of the
+    # policy-rewritten archive retained by the local APT repository.
     return $self->validate(
         label                => $label,
         path                 => $path,

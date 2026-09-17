@@ -1,0 +1,14 @@
+{
+  "returncode": 1,
+  "seconds": 2.438083456999948,
+  "cases": [
+    "test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped",
+    "test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas",
+    "test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events",
+    "test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation",
+    "test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged",
+    "test_managed_external_software",
+    "test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only",
+    "test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance"
+  ]
+}

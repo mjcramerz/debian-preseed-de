@@ -7,6 +7,7 @@ use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Base qw(Str);
 use JSON::PP qw(decode_json);
 use ExternalSoftware::Servicing::Atomic;
+use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
 use ExternalSoftware::Servicing::Process;
 
 # Compatibility boundary for explicit installer/bootstrap and offline repair.
@@ -71,7 +72,7 @@ sub latest {
         next if !$metadata;
         my $digest;
         if ($spec->{name} eq 'bitwarden') {
-            $digest = ExternalSoftware::Servicing::Atomic->sha256_file($path, 536_870_912);
+            $digest = ExternalSoftware::Servicing::Atomic->sha256_file($path, MAX_DEB_BYTES);
             next if !$self->bitwarden_vendor_digest_matches("$path.vendor-sha256", $digest);
         }
         if (!$candidate || system('/usr/bin/dpkg', '--compare-versions', $metadata->{version},

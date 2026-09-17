@@ -1,0 +1,9 @@
+{
+  "returncode": 1,
+  "seconds": 0.774,
+  "cases": [
+    "test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once",
+    "test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup"
+  ],
+  "scope": "Executed against separately extracted untouched upload, not repaired source."
+}

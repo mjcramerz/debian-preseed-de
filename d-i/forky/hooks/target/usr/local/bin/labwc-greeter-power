@@ -19,6 +19,7 @@ class GreeterPower:
     def __init__(self):
         self.pending_action = None
         self.buttons = {}
+        self.action_process = None
 
         self.window = Gtk.Window()
         self.window.set_name("greeter-power")
@@ -78,6 +79,8 @@ class GreeterPower:
         if expected_action is not None and self.pending_action != expected_action:
             return GLib.SOURCE_REMOVE
 
+        if self.action_process is not None:
+            return GLib.SOURCE_REMOVE
         self.pending_action = None
         for button, label in self.buttons.values():
             button.set_label(label)
@@ -86,6 +89,8 @@ class GreeterPower:
         return GLib.SOURCE_REMOVE
 
     def request_action(self, button, action):
+        if self.action_process is not None:
+            return
         if self.pending_action != action:
             self.reset_pending()
             self.pending_action = action
@@ -98,15 +103,32 @@ class GreeterPower:
 
         for current_button, _ in self.buttons.values():
             current_button.set_sensitive(False)
-        button.set_label("Rebooting…" if action == "reboot" else "Shutting down…")
-        subprocess.Popen(
-            [ACTION_HELPER, action],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-            start_new_session=True,
-        )
+        button.set_label("Reboot queued" if action == "reboot" else "Shutdown queued")
+        try:
+            self.action_process = subprocess.Popen(
+                [ACTION_HELPER, action],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,
+            )
+        except OSError:
+            self.reset_pending()
+            return
+        GLib.timeout_add(250, self.check_action)
+
+    def check_action(self):
+        result = self.action_process.poll()
+        if result is None:
+            return GLib.SOURCE_CONTINUE
+        self.action_process = None
+        # The fixed greeter frontend uses systemctl --wait: process exit means
+        # the unit ended, not merely that it acknowledged a pending request.
+        # Restore the buttons on errors AND administrator cancellation.
+        self.reset_pending()
+        return GLib.SOURCE_REMOVE
+
 
 
 if not os.path.isfile(ACTION_HELPER) or not os.access(ACTION_HELPER, os.X_OK):

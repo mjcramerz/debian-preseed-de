@@ -1,0 +1,18 @@
+PASS exact helper
+PASS helper with suffix
+PASS helper with injected argument
+PASS admin helper
+PASS no program
+PASS inactive greeter
+PASS nonlocal greeter
+PASS unknown local state
+PASS other account
+PASS virtual terminal switch
+PASS other action
+PASS direct power-off
+PASS direct power-off-multiple-sessions
+PASS direct power-off-ignore-inhibit
+PASS direct reboot
+PASS direct reboot-multiple-sessions
+PASS direct reboot-ignore-inhibit
+17 authorization cases passed (offline JavaScript rule evaluation).

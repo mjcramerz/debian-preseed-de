@@ -1,0 +1,14 @@
+{
+  "rebuild_exit": 0,
+  "sha256_before": {
+    "preseed.cfg": "9dc7e98a29ef8d34cea29028fa04096313b426dcab653f5113962d3795efdb05",
+    "payload.manifest": "184c8291681dc3362ac7a3d833fc5497e7cebfaae5c070474ef2096f71c3a603",
+    "payload.tar.gz": "c4f78d2ed1ce51995c14a66c5880fe75ea47d959b34b564eeeb2e00d6d8c09f7"
+  },
+  "sha256_after": {
+    "preseed.cfg": "9dc7e98a29ef8d34cea29028fa04096313b426dcab653f5113962d3795efdb05",
+    "payload.manifest": "184c8291681dc3362ac7a3d833fc5497e7cebfaae5c070474ef2096f71c3a603",
+    "payload.tar.gz": "c4f78d2ed1ce51995c14a66c5880fe75ea47d959b34b564eeeb2e00d6d8c09f7"
+  },
+  "identical": true
+}

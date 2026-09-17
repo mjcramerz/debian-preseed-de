@@ -1,0 +1,4 @@
+Offline verification of final units; only ExecStart is remapped to source executables. No service is started.
+systemd-analyze verify --man=no --generators=no /mnt/data/systemd-verify/labwc-admin-action@1000-reboot.service /mnt/data/systemd-verify/labwc-package-sleep-guard.service suspend.target
+
+Exit status: 0

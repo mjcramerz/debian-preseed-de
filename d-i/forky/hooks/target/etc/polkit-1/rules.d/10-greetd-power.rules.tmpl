@@ -1,30 +1,27 @@
 // Managed by unattended-installer.
-
+// Greeter power must enter the package-aware PID-1 worker, not raw login1.
 (function() {
     var GREETER_USER = "__INSTALLER_LABWC_GREETER_USER__";
-    var ALLOWED_ACTIONS = [
-        "org.freedesktop.login1.chvt",
-        "org.freedesktop.login1.power-off",
-        "org.freedesktop.login1.power-off-multiple-sessions",
-        "org.freedesktop.login1.power-off-ignore-inhibit",
-        "org.freedesktop.login1.reboot",
-        "org.freedesktop.login1.reboot-multiple-sessions",
-        "org.freedesktop.login1.reboot-ignore-inhibit"
-    ];
-
+    var POWER_HELPER = "/usr/local/libexec/greetd-power-action-root";
     polkit.addRule(function(action, subject) {
         if (subject.user !== GREETER_USER) {
             return polkit.Result.NOT_HANDLED;
         }
-        if (subject.active !== true) {
+        if (subject.active !== true || subject.local !== true) {
             return polkit.Result.NO;
         }
-        if (subject.local !== true) {
+        if (action.id === "org.freedesktop.policykit.exec" &&
+            action.lookup("program") === POWER_HELPER) {
+            return polkit.Result.YES;
+        }
+        if (action.id === "org.freedesktop.login1.chvt") {
+            return polkit.Result.YES;
+        }
+        // No direct power-off/reboot or ignore-inhibit bypass from the greeter.
+        if (action.id.indexOf("org.freedesktop.login1.power-off") === 0 ||
+            action.id.indexOf("org.freedesktop.login1.reboot") === 0) {
             return polkit.Result.NO;
         }
-        if (ALLOWED_ACTIONS.indexOf(action.id) === -1) {
-            return polkit.Result.NOT_HANDLED;
-        }
-        return polkit.Result.YES;
+        return polkit.Result.NOT_HANDLED;
     });
 })();

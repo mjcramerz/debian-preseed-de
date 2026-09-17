@@ -1,6 +1,8 @@
 #!/usr/bin/python3 -I
 """Authorized PID-1-owned power worker; user documents never run as root."""
 from __future__ import annotations
+import contextlib
+import errno
 import fcntl
 import os
 from pathlib import Path
@@ -27,6 +29,173 @@ GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
 
 class Error(Exception):
     pass
+
+
+
+# Never accept lock paths, commands, or timeouts from caller-controlled input.
+# POSIX record locks (lockf/fcntl), not BSD flock, interoperate with APT/dpkg.
+PACKAGE_LOCK_PATHS = (Path("/var/lib/dpkg/lock-frontend"), Path("/var/lib/dpkg/lock"))
+ACTION_LOCK_DIRECTORY = Path("/run/labwc-power")
+
+
+class PackageLocks:
+    """Drain package writers, then keep both inodes read-locked during handoff.
+
+    A shared whole-file POSIX lock conflicts with APT/dpkg's exclusive locks
+    without requiring write access to the package database. The descriptors
+    stay in this PID-1-owned process, never in a caller's desktop cgroup.
+    Partial acquisitions are released before waiting to avoid lock-order
+    deadlocks with another frontend. Missing/untrusted paths fail closed;
+    this code never creates, truncates, removes, or repairs dpkg lock files.
+    """
+    def __init__(self, on_wait=None):
+        self.fds: list[tuple[Path, int]] = []
+        self.on_wait = on_wait
+
+    @staticmethod
+    def trusted(st) -> bool:
+        return (stat.S_ISREG(st.st_mode) and st.st_uid == 0
+                and st.st_nlink == 1 and not st.st_mode & 0o022)
+
+    def verify(self) -> None:
+        if len(self.fds) != len(PACKAGE_LOCK_PATHS):
+            raise Error("package lock reservation is not held")
+        for path, fd in self.fds:
+            opened, current = os.fstat(fd), path.lstat()
+            if (not self.trusted(opened) or not self.trusted(current)
+                    or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)):
+                raise Error(f"package lock path changed or is unsafe: {path}")
+
+    def close(self) -> None:
+        while self.fds:
+            _, fd = self.fds.pop()
+            os.close(fd)  # POSIX locks are released by closing this descriptor.
+
+    def __enter__(self):
+        next_report = 0.0
+        notified = False
+        try:
+            while True:
+                busy = None
+                for path in PACKAGE_LOCK_PATHS:
+                    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+                    self.fds.append((path, fd))
+                    if not self.trusted(os.fstat(fd)):
+                        raise Error(f"unsafe package lock: {path}")
+                    try:
+                        fcntl.lockf(fd, fcntl.LOCK_SH | fcntl.LOCK_NB, 0, 0, os.SEEK_SET)
+                    except OSError as exc:
+                        if exc.errno == errno.EINTR:
+                            busy = path
+                            break
+                        if exc.errno not in {errno.EACCES, errno.EAGAIN}:
+                            raise
+                        busy = path
+                        break
+                if busy is None:
+                    self.verify()
+                    status("Package locks reserved; continuing authorized power action")
+                    return self
+                # Do not hold the frontend while waiting for a backend writer.
+                self.close()
+                now = time.monotonic()
+                if now >= next_report:
+                    message = f"Waiting for package activity to release {busy}; no power action performed"
+                    print(message, file=sys.stderr, flush=True)
+                    status(message)
+                    next_report = now + 30
+                if not notified and self.on_wait is not None:
+                    self.on_wait()
+                    notified = True
+                # No timeout may turn a busy package database into permission
+                # to tear down a session, power off, reboot, or suspend.
+                time.sleep(1)
+        except BaseException:
+            self.close()
+            raise
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.close()
+
+
+def status(message: str) -> None:
+    """Best-effort journal-visible service status, never an authorization gate."""
+    address = os.environ.get("NOTIFY_SOCKET", "")
+    if not address or address[0] not in "/@":
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notifier:
+            notifier.settimeout(2)
+            notifier.connect(address)
+            notifier.sendall(("STATUS=" + message.replace("\n", " ")).encode())
+    except OSError as exc:
+        print(f"power status notification: {exc}", file=sys.stderr, flush=True)
+
+
+@contextlib.contextmanager
+def action_lock(*, wait: bool = False):
+    """Serialize desktop/greeter requests and the whole system sleep cycle.
+
+    Sleep waits for a queued desktop action to finish; explicit desktop actions
+    retain their existing immediate duplicate-request rejection. The suspend
+    worker releases this lock after systemctl has enqueued (not completed) the
+    sleep job, so its sleep guard can then acquire it without a circular wait.
+    """
+    directory = ACTION_LOCK_DIRECTORY
+    st = directory.lstat()
+    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or stat.S_IMODE(st.st_mode) != 0o700:
+        raise Error("unsafe system power lock directory")
+    path = directory / "action.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
+            raise Error("unsafe system power lock")
+        next_report = 0.0
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if not wait:
+                    raise Error("another managed power action or sleep request is pending") from None
+                now = time.monotonic()
+                if now >= next_report:
+                    message = "Waiting for the existing managed power action before sleep"
+                    print(message, file=sys.stderr, flush=True)
+                    status(message)
+                    next_report = now + 30
+                time.sleep(1)
+        current = path.lstat()
+        if (current.st_dev, current.st_ino) != (st.st_dev, st.st_ino):
+            raise Error("system power lock path changed while waiting")
+        yield
+    finally:
+        os.close(fd)
+
+
+def hold_reservation() -> None:
+    # PowerOff/Reboot/Suspend APIs enqueue work; their return is not completion.
+    # Keep the reservation alive until PID 1 stops this service. For the sleep
+    # guard, StopWhenUnneeded releases it only after the sleep/resume job ends.
+    while True:
+        signal.pause()
+
+
+def sleep_guard() -> int:
+    # sleep.target REQUIRES this Type=notify service, ordered before the target.
+    # Unlike a late system-sleep script, readiness is withheld until packages
+    # finish, and the locks remain held through both pre- and post-sleep hooks.
+    # Take the action lock BEFORE package locks; never reserve the package
+    # database while waiting for a desktop worker that needs it to finish.
+    with action_lock(wait=True):
+        with PackageLocks():
+            ready()
+            status("Package locks reserved for the complete sleep/resume cycle")
+            hold_reservation()
+    return 0
 
 
 def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,)) -> str:
@@ -57,7 +226,7 @@ def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,))
                 pass
         try:
             # Keep the original bounded reap even for an uninterruptible child;
-            # systemd retains the final cgroup stop/RuntimeMaxSec boundary.
+            # systemd retains the final cgroup stop boundary on cancellation.
             proc.wait(timeout=2)
         finally:
             proc.stdout.close()
@@ -79,8 +248,10 @@ def ready() -> None:
 
 
 class Worker:
-    def __init__(self, uid: int, user: str, action: str):
+    def __init__(self, uid: int, user: str, action: str, *, greeter: bool = False):
         self.uid, self.user, self.action = uid, user, action
+        self.greeter = greeter
+        self.package_locks = None
         self.machine = user + "@.host"
         self.committed = False
         self.quiesced = False
@@ -91,7 +262,7 @@ class Worker:
                     "--no-ask-password", *args], **kwargs)
 
     def helper(self, action: str) -> None:
-        if action not in {"prepare", "cancel", "locked", "error"}:
+        if action not in {"prepare", "cancel", "locked", "error", "waiting"}:
             raise Error("invalid desktop state operation")
         # This is a USER unit, not a PID-1 service with User=. Its manager owns
         # the desktop environment and executes the helper without root rights.
@@ -158,6 +329,7 @@ class Worker:
         # stop jobs and contacts PID 1 directly, without a shutdown transaction.
         if self.action != "logout":
             raise Error("account teardown is only valid for logout")
+        self.require_package_reservation()
         # Once committed, one failed stop must not strand a half-closed desktop.
         # Queue stops first (disabling restart), then use PID 1's cgroup-wide
         # TERM/KILL paths. No process-name matching and no caller-owned worker.
@@ -188,6 +360,7 @@ class Worker:
         return {DESKTOP_TARGET, COMPOSITOR, *names}
 
     def quiesce_desktop(self) -> None:
+        self.require_package_reservation()
         members = self.desktop_members()
         # Commit BEFORE enqueueing stop jobs. A lost reply must not clear the
         # launch gate or restart a half-torn-down desktop. Stop is synchronous:
@@ -249,6 +422,7 @@ class Worker:
             raise Error("invalid machine shutdown action")
         if not self.quiesced or self.handoff_attempted:
             raise Error("forced handoff requires a quiesced desktop and may run only once")
+        self.require_package_reservation()
         self.committed = True
         self.handoff_attempted = True
         print(f"power handoff: systemctl --force {self.action}; desktop stop verified",
@@ -261,54 +435,98 @@ class Worker:
         except (Error, OSError, subprocess.SubprocessError) as exc:
             raise Error(f"{self.action} handoff status uncertain; do not retry automatically: {exc}") from exc
 
+    def require_package_reservation(self) -> None:
+        if self.package_locks is None:
+            raise Error("power action requires an active package lock reservation")
+        self.package_locks.verify()
+
+    def package_waiting(self) -> None:
+        if not self.greeter:
+            self.best_effort("package-wait notification", lambda: self.helper("waiting"))
+
+    def session_identity(self) -> str:
+        self.userctl("--quiet", "is-active", DESKTOP_TARGET)
+        identity = self.userctl("show", COMPOSITOR, "--property=InvocationID", "--value").strip()
+        if not re.fullmatch(r"[0-9a-f]{32}", identity) or identity == "0" * 32:
+            raise Error("cannot identify the invoking desktop session")
+        return identity
+
     def execute(self) -> None:
-        self.userctl("--quiet", "is-active", "labwc-session.target")
+        identity = None if self.greeter else self.session_identity()
         self.protect_other_sessions()
         if self.action == "suspend":
             self.lock()
-            ready()
-            # Retain systemd-sleep and GPU hooks; do not stop user applications.
-            run(["/usr/bin/systemctl", "--force", "suspend"], timeout=60)
-            return
+        # Startup/authorization is acknowledged before an unbounded package
+        # wait. The system worker, not pkexec/Waybar, owns the pending request.
         ready()
-        self.helper("prepare")
-        # A second account may have logged in while a save dialog was open.
-        self.protect_other_sessions()
-        if self.action == "logout":
-            self.committed = True
-            self.terminate_user()
-        else:
-            self.quiesce_desktop()
-            self.stop_optional_guests()
-            self.final_power_action()
+        with PackageLocks(self.package_waiting) as reservation:
+            self.package_locks = reservation
+            try:
+                # A long upgrade may outlive the original desktop or login.
+                # Never apply its old request to a newly started compositor.
+                if not self.greeter and self.session_identity() != identity:
+                    raise Error("desktop session changed while waiting for package activity")
+                self.protect_other_sessions()
+                if self.greeter:
+                    if self.action not in {"poweroff", "reboot"}:
+                        raise Error("invalid greeter power action")
+                    self.require_package_reservation()
+                    self.committed = self.handoff_attempted = True
+                    # Preserve the greeter's normal logind shutdown path; do
+                    # not grant it an inhibitor override or a force fallback.
+                    run(["/usr/bin/systemctl", "--check-inhibitors=yes",
+                         "--no-ask-password", self.action], timeout=20)
+                    hold_reservation()
+                    return
+                if self.action == "suspend":
+                    # A user may unlock the desktop during a long package wait.
+                    # Cancel rather than suspending an unlocked session later.
+                    self.helper("locked")
+                    self.require_package_reservation()
+                    # The required sleep.target guard independently reserves
+                    # the locks until resume. systemctl suspend is asynchronous.
+                    run(["/usr/bin/systemctl", "--check-inhibitors=yes",
+                         "--no-ask-password", "suspend"], timeout=60)
+                    return
+                self.helper("prepare")
+                self.protect_other_sessions()
+                self.require_package_reservation()
+                if self.action == "logout":
+                    self.committed = True
+                    self.terminate_user()
+                else:
+                    self.quiesce_desktop()
+                    self.stop_optional_guests()
+                    self.final_power_action()
+                    # Never release locks just because the enqueue call returned.
+                    hold_reservation()
+            finally:
+                self.package_locks = None
 
 
 def main(argv: list[str]) -> int:
     if os.geteuid() != 0 or len(argv) != 1:
-        raise Error("usage (system service only): labwc-admin-action-worker UID-suspend|reboot|poweroff|logout")
-    match = re.fullmatch(r"([1-9][0-9]{0,9})-(suspend|reboot|poweroff|logout)", argv[0])
+        raise Error("usage (system service only): labwc-admin-action-worker UID-ACTION or --sleep-guard")
+    if argv == ["--sleep-guard"]:
+        return sleep_guard()
+    match = re.fullmatch(r"([1-9][0-9]{0,9})-(greeter-)?(suspend|reboot|poweroff|shutdown|logout)", argv[0])
     if not match:
         raise Error("invalid power-worker instance")
-    uid, action = int(match[1]), match[2]
+    uid, greeter, action = int(match[1]), bool(match[2]), match[3]
+    if action == "shutdown":
+        action = "poweroff"
+    if greeter and action not in {"reboot", "poweroff"}:
+        raise Error("greeter workers only accept poweroff and reboot")
     account = pwd.getpwuid(uid)
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", account.pw_name):
         raise Error("unsafe invoking account identifier")
     os.umask(0o077)
-    directory = Path("/run/labwc-power")
-    st = directory.lstat()
-    if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or stat.S_IMODE(st.st_mode) != 0o700:
-        raise Error("unsafe system power lock directory")
-    fd = os.open(directory / "action.lock", os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600)
-    try:
-        st = os.fstat(fd)
-        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_nlink != 1 or stat.S_IMODE(st.st_mode) != 0o600:
-            raise Error("unsafe system power lock")
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        worker = Worker(uid, account.pw_name, action)
+    with action_lock():
+        worker = Worker(uid, account.pw_name, action, greeter=greeter)
         try:
             worker.execute()
         except BaseException:
-            if not worker.committed:
+            if not worker.committed and not worker.greeter:
                 for operation in ("cancel", "error"):
                     try:
                         worker.helper(operation)
@@ -317,8 +535,6 @@ def main(argv: list[str]) -> int:
             # Never resurrect a user manager or claim a save-dialog cancellation
             # after destructive teardown. PID 1's journal retains the real error.
             raise
-    finally:
-        os.close(fd)
     return 0
 
 

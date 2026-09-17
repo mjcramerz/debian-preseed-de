@@ -408,6 +408,8 @@ for path in \
   /etc/systemd/system/managed-clamav-signature-update.service \
   /etc/systemd/system/managed-clamav-signature-update.timer \
   /etc/systemd/system/labwc-admin-action@.service \
+  /etc/systemd/system/labwc-package-sleep-guard.service \
+  /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf \
   /etc/systemd/user/wireplumber.service.d/60-resource-class.conf \
   /usr/local/share/nmap/scripts/managed-admin-surface-policy.nse \
   /usr/local/share/nmap/scripts/managed-approved-services.nse \
@@ -516,6 +518,13 @@ do
 done
 
 require_mode /etc/systemd/system/labwc-admin-action@.service 644
+require_mode /etc/systemd/system/labwc-package-sleep-guard.service 644
+require_mode /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 644
+require_mode /usr/local/libexec/greetd-power-action-root 755
+grep -qx 'Requires=labwc-package-sleep-guard.service' /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf ||
+  fatal 'sleep.target does not require the package lock guard'
+grep -qx 'Before=sleep.target' /etc/systemd/system/labwc-package-sleep-guard.service ||
+  fatal 'package lock guard is not ordered before sleep.target'
 for power_action in reboot poweroff; do
   for power_kind in service target; do
     legacy_power_unit="/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
@@ -701,6 +710,7 @@ for path in \
   /usr/local/bin/labwc-admin-action \
   /usr/local/libexec/labwc-admin-action-root \
   /usr/local/libexec/labwc-admin-action-worker \
+  /usr/local/libexec/greetd-power-action-root \
   /usr/local/libexec/labwc-logout-root \
   /usr/local/libexec/labwc-session-state \
   /usr/local/bin/labwc-calendar \

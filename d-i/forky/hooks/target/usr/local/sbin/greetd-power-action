@@ -1,34 +1,13 @@
 #!/bin/sh
+# The unprivileged greeter never invokes logind power methods directly.
 set -eu
-
-action=${1:-}
-bus_name=org.freedesktop.login1
-
+[ "$#" -eq 1 ] || { printf 'usage: greetd-power-action {poweroff|shutdown|reboot}\n' >&2; exit 64; }
+action=$1
 case "$action" in
-  poweroff)
-    object_path=/org/freedesktop/login1
-    interface_name=org.freedesktop.login1.Manager
-    method=PowerOff
-    signature=b
-    set -- true
-    ;;
-  reboot)
-    object_path=/org/freedesktop/login1
-    interface_name=org.freedesktop.login1.Manager
-    method=Reboot
-    signature=b
-    set -- true
-    ;;
-  *)
-    printf 'usage: greetd-power-action {poweroff|reboot}\n' >&2
-    exit 64
-    ;;
+  shutdown) action=poweroff ;;
+  poweroff|reboot) ;;
+  *) printf 'usage: greetd-power-action {poweroff|shutdown|reboot}\n' >&2; exit 64 ;;
 esac
-
-exec /usr/bin/busctl --system call \
-  "$bus_name" \
-  "$object_path" \
-  "$interface_name" \
-  "$method" \
-  "$signature" \
-  "$@"
+# Only the active, local, configured greeter is authorized for this exact
+# fixed-function helper. No interactive/root-password fallback in the greeter.
+exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"

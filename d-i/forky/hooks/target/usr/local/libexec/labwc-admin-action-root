@@ -36,9 +36,10 @@ esac
 
 action=${1:-}
 [ "$#" -eq 1 ] && [ -n "$action" ] ||
-  fatal "usage: labwc-admin-action-root <suspend|reboot|poweroff|logout>"
+  fatal "usage: labwc-admin-action-root <suspend|reboot|poweroff|shutdown|logout>"
 case "$action" in
-  suspend|reboot|poweroff|logout) ;;
+  shutdown) action=poweroff ;;
+  suspend|reboot|poweroff|logout|greeter-poweroff|greeter-reboot) ;;
   *) fatal "unsupported privileged power action: ${action}" ;;
 esac
 
@@ -50,6 +51,11 @@ esac
 # descendant, owns session teardown and therefore survives stopping the
 # requester's managed user target.
 worker_unit="labwc-admin-action@${PKEXEC_UID}-${action}.service"
-# Type=notify returns after identity/session checks and lock acquisition, not
-# merely after enqueueing a job. A rejected worker leaves the desktop intact.
+# Type=notify returns after identity/session checks and request serialization,
+# before an unbounded package wait. The system worker owns that entire wait.
+# The greeter has no desktop notification helper: keep its fixed frontend
+# attached to the unit result so failed/cancelled starts can restore its UI.
+case "$action" in
+  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;
+esac
 exec /usr/bin/systemctl start "$worker_unit"

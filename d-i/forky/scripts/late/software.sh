@@ -435,6 +435,7 @@ software_normalize_system_perl_module_parents() {
 
 software_perl_modules() {
   cat <<'EOF'
+ExternalSoftware/Servicing/ArtifactLimits.pm
 ExternalSoftware/Servicing/Atomic.pm
 ExternalSoftware/Servicing/Bitwarden.pm
 ExternalSoftware/Servicing/ChatGPT.pm

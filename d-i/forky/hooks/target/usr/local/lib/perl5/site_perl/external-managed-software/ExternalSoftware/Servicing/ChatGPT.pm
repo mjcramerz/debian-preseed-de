@@ -8,6 +8,7 @@ use MooX::StrictConstructor;
 
 use Fcntl qw(S_IFMT S_IFREG);
 use ExternalSoftware::Servicing::Atomic;
+use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DOWNLOAD_BYTES);
 
 has state => (is => 'ro', required => 1);
 
@@ -39,7 +40,7 @@ sub spec {
         name       => 'chatgpt',
         label      => 'ChatGPT/Codex Desktop',
         url        => 'https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb',
-        maximum    => 536_870_912,
+        maximum    => MAX_DOWNLOAD_BYTES,
         hosts      => ['persistent.oaistatic.com'],
         packages   => ['chatgpt'],
         validate_payload => 0,

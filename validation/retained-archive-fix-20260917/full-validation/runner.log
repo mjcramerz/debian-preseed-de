@@ -1,0 +1,15 @@
+[browser-check] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/preseed-check.log
+[preseed-check] PASS (0)
+[shell-check] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/shell-check.log
+[shell-check] PASS (0)
+[tests] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/tests.log
+[tests] FAIL (1)
+[tools-tests] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/tools-tests.log
+[tools-tests] FAIL (1)
+[audit] running; log: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/work/debian-preseed-de/validation/retained-archive-fix-20260917/full-validation/summary.json

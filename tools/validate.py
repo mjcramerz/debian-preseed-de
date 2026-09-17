@@ -48,7 +48,11 @@ def unittest_counts(text: str) -> tuple[int | None, int]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path, default=ROOT/'validation')
+    parser.add_argument('--test-timeout', type=int, default=900,
+                        help='positive per-suite timeout in seconds (default: 900)')
     args = parser.parse_args()
+    if args.test_timeout < 1:
+        parser.error('--test-timeout must be a positive integer')
     output = args.output_dir.resolve()
     output.mkdir(parents=True,exist_ok=True)
     interpreter = resolve_python_interpreter()
@@ -57,7 +61,8 @@ def main() -> int:
         ('build-check', [interpreter,'-B','tools/build.py','--check'],90),
         ('preseed-check', [interpreter,'-B','tools/check_preseeds.py'],90),
         ('shell-check', [interpreter,'-B','tools/check_shells.py','--output',str(output/'shell-check.json')],120),
-        ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],300),
+        ('tests', [interpreter,'-B','-m','unittest','discover','-v','-s','d-i/forky/tests','-p','test_*.py'],args.test_timeout),
+        ('tools-tests', [interpreter,'-B','-m','unittest','discover','-v','-s','tools/tests','-p','test_*.py'],args.test_timeout),
         ('audit', [interpreter,'-B','d-i/forky/tests/audit_codebase.py','--output',str(output/'audit.json')],120),
     ]
     child_environment = validation_environment()
@@ -89,7 +94,7 @@ def main() -> int:
                 status=124
         record={'stage':name,'returncode':status,'timed_out':timed_out,
                 'seconds':round(time.monotonic()-start,3),'log':log.name}
-        if name=='tests':
+        if name in ('tests', 'tools-tests'):
             text=log.read_text()
             record['tests_run'], record['skipped'] = unittest_counts(text)
         results.append(record)

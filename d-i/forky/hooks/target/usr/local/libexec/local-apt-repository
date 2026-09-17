@@ -35,7 +35,8 @@ import urllib.parse
 import uuid
 import xml.etree.ElementTree as ET
 
-MAX_DEB = 1024 * 1024 * 1024
+# Publisher input/output ceiling; retained Perl validation has separate headroom.
+MAX_DEB = 2 * 1024 * 1024 * 1024
 MAX_CONTROL = 16 * 1024 * 1024
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": "/root", "LC_ALL": "C.UTF-8"}
 NAME = re.compile(r"[a-z0-9][a-z0-9+.-]+\Z")
