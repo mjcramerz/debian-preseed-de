@@ -1,0 +1,68 @@
+test_complete_sensor_coverage_uses_hottest_gpu (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_complete_sensor_coverage_uses_hottest_gpu) ... ok
+test_missing_one_sensor_blocks_positive_offset_before_any_write (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_missing_one_sensor_blocks_positive_offset_before_any_write) ... FAIL
+test_no_readable_gpu_temperature_remains_unknown (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_no_readable_gpu_temperature_remains_unknown) ... ok
+test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) ... 
+  test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, None]) ... FAIL
+  test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[None, 35]) ... FAIL
+  test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, 0]) ... FAIL
+  test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, 150]) ... FAIL
+test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock) ... FAIL
+
+======================================================================
+FAIL: test_missing_one_sensor_blocks_positive_offset_before_any_write (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_missing_one_sensor_blocks_positive_offset_before_any_write)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 46, in test_missing_one_sensor_blocks_positive_offset_before_any_write
+    with self.assertRaisesRegex(base.common.TuningError, 'readable temperature sensor'):
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: TuningError not raised
+
+======================================================================
+FAIL: test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, None])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 31, in test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature
+    self.assertIsNone(self.hardware(readings).temperature())
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 35.0 is not None
+
+======================================================================
+FAIL: test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[None, 35])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 31, in test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature
+    self.assertIsNone(self.hardware(readings).temperature())
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 35.0 is not None
+
+======================================================================
+FAIL: test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, 0])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 31, in test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature
+    self.assertIsNone(self.hardware(readings).temperature())
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 35.0 is not None
+
+======================================================================
+FAIL: test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature) (readings=[35, 150])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 31, in test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature
+    self.assertIsNone(self.hardware(readings).temperature())
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 35.0 is not None
+
+======================================================================
+FAIL: test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/review/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_followup_20260917.py", line 62, in test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock
+    self.assertIn('thermal sensor disappeared', '; '.join(transaction.health()['conflicts']))
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'thermal sensor disappeared' not found in ''
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.005s
+
+FAILED (failures=6)

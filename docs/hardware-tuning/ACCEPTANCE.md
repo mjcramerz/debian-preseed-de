@@ -31,6 +31,8 @@ Capture baseline knobs in the report. While tuning owns controls, use the origin
 
 Switch away from the active local seat or log out: owned settings restore. Test suspend/resume and inspect `hardware-tuning-sleep.service` ordering and journal output. A restore failure must not be reported as a successful reset or silently ignored by the sleep hook. Verify an SSH-only/lingering user cannot activate a profile without active seat0.
 
+On multi-GPU hosts, confirm the report has a valid temperature for every enumerated NVIDIA GPU before requesting positive offsets or above-default power. Missing/invalid coverage must block those requests rather than borrowing a temperature from another GPU. Do not disable physical thermal protection to test this; use fault-injected fixtures for sensor-loss scenarios.
+
 Test boot enable/disable on subsequent real boots. Merely enabling future boot autostart must not alter the current state. Full Reset must remove the exact autostart link and prevent tuning on the next boot. Do not remove pending journals as a substitute for recovery.
 
 ## Custom values only after stock acceptance

@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "build_rounds": [
+    {
+      "payload.tar.gz": "b5e8215e55894a099abf4e48cce3c0e61acfe3bcc00e34e425bd5b5d069654d0",
+      "payload.manifest": "9a9fea1d206a63190361e34367e440a16de2c8e376e9842adebd13c315cfa47c",
+      "preseed.cfg": "34340b1139a568965d6c7e013f5e178b93ef0b9b6d01cedc1ae572350d65225b"
+    },
+    {
+      "payload.tar.gz": "b5e8215e55894a099abf4e48cce3c0e61acfe3bcc00e34e425bd5b5d069654d0",
+      "payload.manifest": "9a9fea1d206a63190361e34367e440a16de2c8e376e9842adebd13c315cfa47c",
+      "preseed.cfg": "34340b1139a568965d6c7e013f5e178b93ef0b9b6d01cedc1ae572350d65225b"
+    },
+    {
+      "payload.tar.gz": "b5e8215e55894a099abf4e48cce3c0e61acfe3bcc00e34e425bd5b5d069654d0",
+      "payload.manifest": "9a9fea1d206a63190361e34367e440a16de2c8e376e9842adebd13c315cfa47c",
+      "preseed.cfg": "34340b1139a568965d6c7e013f5e178b93ef0b9b6d01cedc1ae572350d65225b"
+    }
+  ],
+  "identical_rebuilds": true,
+  "payload_manifest_members": 1354,
+  "all_payload_member_hashes_match_source_and_manifest": true,
+  "preseed_pins_match": true,
+  "checks": [
+    "tools/build.py",
+    "tools/build.py",
+    "tools/build.py --check",
+    "independent SHA256 member comparison"
+  ]
+}

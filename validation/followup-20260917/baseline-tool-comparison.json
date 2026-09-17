@@ -1,0 +1,75 @@
+{
+  "current_suite": "tools/tests",
+  "current_summary": "179 tests; 3 failure entries and 5 error entries",
+  "current_entries": [
+    [
+      "ERROR",
+      "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)"
+    ],
+    [
+      "ERROR",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')"
+    ],
+    [
+      "ERROR",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')"
+    ],
+    [
+      "ERROR",
+      "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)"
+    ],
+    [
+      "ERROR",
+      "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)"
+    ],
+    [
+      "FAIL",
+      "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)"
+    ],
+    [
+      "FAIL",
+      "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)"
+    ],
+    [
+      "FAIL",
+      "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+    ]
+  ],
+  "baseline_entries": [
+    [
+      "ERROR",
+      "test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action)"
+    ],
+    [
+      "ERROR",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='reboot')"
+    ],
+    [
+      "ERROR",
+      "test_reboot_and_poweroff_order_and_exact_uid_cleanup (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_order_and_exact_uid_cleanup) (action='poweroff')"
+    ],
+    [
+      "ERROR",
+      "test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps)"
+    ],
+    [
+      "ERROR",
+      "test_nested_compositor_blocks_before_close_requests (test_labwc_power_handoff.SessionStateTests.test_nested_compositor_blocks_before_close_requests)"
+    ],
+    [
+      "FAIL",
+      "test_success_records_state_before_clearing_clipboard_and_orphans (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_and_orphans)"
+    ],
+    [
+      "FAIL",
+      "test_tray_process_blocks_even_without_windows (test_labwc_power_handoff.SessionStateTests.test_tray_process_blocks_even_without_windows)"
+    ],
+    [
+      "FAIL",
+      "test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement)"
+    ]
+  ],
+  "all_failure_error_entries_reproduced": true,
+  "baseline": "untouched prior delivered tarball, tools/tests/test_labwc_power_handoff.py",
+  "log": "baseline-power-tool-tests.log"
+}

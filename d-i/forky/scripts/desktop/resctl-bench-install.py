@@ -192,10 +192,15 @@ def smoke(root: Path, binaries: list[str], version: str, home: Path) -> None:
     os.chown(home, nobody.pw_uid, nobody.pw_gid)
     environment = dict(ENV, HOME=str(home), PATH=str(root / 'bin') + ':' + ENV['PATH'])
     for binary in binaries:
-        result = subprocess.run([str(root / 'bin' / binary), '--version'],
-                                stdin=subprocess.DEVNULL, capture_output=True,
-                                text=True, env=environment, cwd=home, timeout=20,
-                                user=nobody.pw_uid, group=nobody.pw_gid, extra_groups=())
+        try:
+            result = subprocess.run([str(root / 'bin' / binary), '--version'],
+                                    stdin=subprocess.DEVNULL, capture_output=True,
+                                    text=True, env=environment, cwd=home, timeout=20,
+                                    user=nobody.pw_uid, group=nobody.pw_gid, extra_groups=())
+        except PermissionError as exc:
+            raise Error(f'{binary} --version execution denied at {root / "bin" / binary}; '
+                        'check directory traversal, mount noexec, and AppArmor policy; '
+                        'no executable published and no security policy changed') from exc
         if result.returncode or (binary == 'resctl-bench' and not re.search(
                 r'(?<![0-9.])' + re.escape(version) + r'(?![0-9.])', result.stdout)):
             raise Error(f'{binary} --version failed: native CPU/loader/version incompatibility '
@@ -211,6 +216,39 @@ def trusted_directory(path: Path) -> None:
         st = parent.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
             raise Error(f'unsafe installation directory: {parent}')
+
+
+def smoke_verified(root: Path, binaries: list[str], version: str) -> None:
+    """Probe verified binaries on their destination filesystem, before publishing.
+
+    /var/tmp deliberately remains noexec and its archive workspace stays 0700.
+    Copy only the allowlisted executables into a fresh root-owned directory on
+    the filesystem that must ultimately execute them. Never remount, bypass the
+    ELF loader, relax AppArmor, or run a downloaded installer/benchmark as root.
+    """
+    if not binaries or len(set(binaries)) != len(binaries) or not set(binaries) <= BINS:
+        raise Error('invalid smoke-test binary inventory')
+    trusted_directory(BIN_DIR)
+    if os.statvfs(BIN_DIR).f_flag & os.ST_NOEXEC:
+        raise Error(f'executable destination {BIN_DIR} is mounted noexec; '
+                    'cannot safely install runnable tools; mount policy left unchanged')
+    with tempfile.TemporaryDirectory(prefix='.resctl-bench-smoke-', dir=BIN_DIR) as temporary:
+        probe = Path(temporary)
+        (probe / 'bin').mkdir(mode=0o755)
+        for binary in binaries:
+            source = root / 'bin' / binary
+            st = source.lstat()
+            if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+                raise Error(f'untrusted verified executable: {source}')
+            destination = probe / 'bin' / binary
+            shutil.copyfile(source, destination, follow_symlinks=False)
+            if digest(destination) != digest(source):
+                raise Error(f'{binary}: smoke copy checksum mismatch; nothing installed')
+            destination.chmod(0o555)
+        # Traversable, not writable/listable, by the credential-dropped child.
+        # Only its separate 0700 home is owned by nobody. Release data stays root-owned.
+        probe.chmod(0o711)
+        smoke(probe, binaries, version, probe / 'home')
 
 
 def publish(args: argparse.Namespace, root: Path, binaries: list[str]) -> None:
@@ -301,10 +339,10 @@ def main() -> int:
             stage = work / 'stage'
             stage.mkdir(mode=0o755)
             root, binaries = unpack(args, archive, stage)
-            # Only verified public release data becomes readable to the smoke
-            # process. All installation destinations are still untouched.
-            work.chmod(0o755)
-            smoke(root, binaries, args.version, work / 'smoke-home')
+            # /var/tmp is intentionally noexec on the installed profiles.
+            # Keep this archive workspace private; probe only verified copies
+            # on the executable destination filesystem before publication.
+            smoke_verified(root, binaries, args.version)
             publish(args, root, binaries)
     finally:
         os.close(lock)

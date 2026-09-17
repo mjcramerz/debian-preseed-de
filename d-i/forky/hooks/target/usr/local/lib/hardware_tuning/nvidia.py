@@ -287,7 +287,10 @@ class Backend:
     def temperature(self) -> float | None:
         values = [self.optional("temperature", lambda h=h: self.api.scalar("nvmlDeviceGetTemperature", h, 0)) for h in self.handles]
         valid = [v for v in values if v is not None and 0 < v < 150]
-        return float(max(valid)) if valid else None
+        # A readable sensor on GPU A cannot prove that an offset/power
+        # increase on GPU B is thermally monitored. Preserve unknown coverage
+        # so the engine blocks risky writes and trips its owned-risk interlock.
+        return float(max(valid)) if valid and len(valid) == len(self.handles) else None
 
     def close(self) -> None:
         self.api.call("nvmlShutdown", [], [])
