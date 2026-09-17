@@ -324,6 +324,10 @@ def main() -> int:
     args = parser.parse_args()
     try:
         refuse_private_inputs()
+        # Run the target installer's policy on every profile before generating
+        # ANY release products. Shell syntax alone cannot detect invalid pins.
+        subprocess.run([resolve_python_interpreter(), '-I', '-B',
+                        str(ROOT / 'tools/check_resctl_bench.py')], check=True)
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)

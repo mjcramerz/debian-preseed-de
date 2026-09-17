@@ -23,9 +23,9 @@ from unittest import mock
 import test_systemd_resource_policy as base
 
 SEED = Path(__file__).resolve().parents[1]
-PIN = '466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c'
-TAG = 'resctl-bench-v0.0.1-P15s'
-URL = 'https://github.com/mjcramerz/resctl-bench/releases/download/' + TAG + '/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz'
+PIN = 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857'
+TAG = 'resctl-bench-v0.0.2-P15s'
+URL = 'https://github.com/mjcramerz/resctl-bench/releases/download/' + TAG + '/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz'
 ARCHIVE_ROOT = 'resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-20260916-test'
 
 

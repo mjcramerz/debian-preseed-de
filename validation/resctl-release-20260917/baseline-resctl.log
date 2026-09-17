@@ -1,0 +1,184 @@
+test_absolute_parent_alias_and_control_character_paths_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_absolute_parent_alias_and_control_character_paths_are_rejected) ... ok
+test_all_link_and_special_node_types_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_all_link_and_special_node_types_are_rejected) ... ok
+test_checksum_inventory_or_format_mismatch_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_checksum_inventory_or_format_mismatch_is_rejected) ... ok
+test_duplicate_member_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_duplicate_member_is_rejected) ... ok
+test_expansion_and_member_count_are_bounded (test_resctl_bench_20260916.ArchiveTests.test_expansion_and_member_count_are_bounded) ... ok
+test_gzip_truncation_is_not_accepted (test_resctl_bench_20260916.ArchiveTests.test_gzip_truncation_is_not_accepted) ... ok
+test_highly_compressible_member_is_not_limited_to_compressed_ceiling (test_resctl_bench_20260916.ArchiveTests.test_highly_compressible_member_is_not_limited_to_compressed_ceiling) ... ok
+test_missing_companion_binary_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_missing_companion_binary_is_rejected) ... ok
+test_non_elf_and_wrong_elf_architecture_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_non_elf_and_wrong_elf_architecture_are_rejected) ... ok
+test_optional_demo_is_validated_too (test_resctl_bench_20260916.ArchiveTests.test_optional_demo_is_validated_too) ... ok
+test_parent_file_collision_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_parent_file_collision_is_rejected) ... ok
+test_sparse_pax_payload_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_sparse_pax_payload_is_rejected) ... ok
+test_unknown_executable_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_unknown_executable_is_rejected) ... ok
+test_valid_archive_preserves_docs_licenses_debug_and_companions (test_resctl_bench_20260916.ArchiveTests.test_valid_archive_preserves_docs_licenses_debug_and_companions) ... ok
+test_wrong_release_root_or_second_root_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_wrong_release_root_or_second_root_is_rejected) ... ok
+test_existing_unmanaged_binary_is_never_overwritten (test_resctl_bench_20260916.PublicationTests.test_existing_unmanaged_binary_is_never_overwritten) ... ok
+test_partial_publication_error_rolls_back_new_files (test_resctl_bench_20260916.PublicationTests.test_partial_publication_error_rolls_back_new_files) ... ok
+test_publication_modes_provenance_and_identical_repeat_install (test_resctl_bench_20260916.PublicationTests.test_publication_modes_provenance_and_identical_repeat_install) ... ok
+test_real_unprivileged_smoke_with_harmless_compiled_fixture (test_resctl_bench_20260916.PublicationTests.test_real_unprivileged_smoke_with_harmless_compiled_fixture) ... ok
+test_smoke_drops_groups_uses_fixed_version_only_and_fails_before_publish (test_resctl_bench_20260916.PublicationTests.test_smoke_drops_groups_uses_fixed_version_only_and_fails_before_publish) ... ok
+test_symlinked_destination_or_writable_parent_is_rejected (test_resctl_bench_20260916.PublicationTests.test_symlinked_destination_or_writable_parent_is_rejected) ... ok
+test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) ... 
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='TAG') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='URL') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='SHA256') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='TAG') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='URL') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='SHA256') ... FAIL
+test_desktop_pipeline_fetches_and_installs_for_all_profiles (test_resctl_bench_20260916.ReleasePolicyTests.test_desktop_pipeline_fetches_and_installs_for_all_profiles) ... ok
+test_download_enforces_https_bounds_and_hash_before_unpacking (test_resctl_bench_20260916.ReleasePolicyTests.test_download_enforces_https_bounds_and_hash_before_unpacking) ... ok
+test_download_rejects_oversize_and_empty_response (test_resctl_bench_20260916.ReleasePolicyTests.test_download_rejects_oversize_and_empty_response) ... ok
+test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) ... 
+  test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=False) ... FAIL
+  test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=True) ... FAIL
+test_shell_refuses_wrong_architecture_before_staging (test_resctl_bench_20260916.ReleasePolicyTests.test_shell_refuses_wrong_architecture_before_staging) ... ok
+test_valid_policy_and_each_invalid_input (test_resctl_bench_20260916.ReleasePolicyTests.test_valid_policy_and_each_invalid_input) ... ok
+test_bad_copy_digest_is_rejected_before_execution (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_bad_copy_digest_is_rejected_before_execution) ... ok
+test_main_uses_private_archive_then_smoke_then_publish (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_main_uses_private_archive_then_smoke_then_publish) ... ok
+test_noexec_destination_fails_without_running_or_changing_mount_policy (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_noexec_destination_fails_without_running_or_changing_mount_policy) ... ok
+test_nonzero_probe_never_publishes_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_nonzero_probe_never_publishes_and_cleans_staging) ... ok
+test_only_verified_binaries_copied_to_private_destination_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_only_verified_binaries_copied_to_private_destination_staging) ... ok
+test_permission_denial_has_actionable_diagnostic_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_permission_denial_has_actionable_diagnostic_and_cleans_staging) ... ok
+test_real_noexec_reproduces_eacces_then_staged_probe_succeeds (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_noexec_reproduces_eacces_then_staged_probe_succeeds) ... skipped 'no existing noexec /dev/shm; test never mounts filesystems'
+test_real_probes_work_without_exposing_private_archive_workspace (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_probes_work_without_exposing_private_archive_workspace) ... ok
+test_timeout_never_publishes_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_timeout_never_publishes_and_cleans_staging) ... ok
+test_unlisted_or_duplicate_binary_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_unlisted_or_duplicate_binary_is_rejected) ... ok
+test_untrusted_executable_or_symlink_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_untrusted_executable_or_symlink_is_rejected) ... ok
+test_untrusted_staging_ancestor_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_untrusted_staging_ancestor_is_rejected) ... ok
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='TAG')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['resctl-bench-v0.0.2-P15s'] != ['resctl-bench-v0.0.1-P15s']
+
+First differing element 0:
+'resctl-bench-v0.0.2-P15s'
+'resctl-bench-v0.0.1-P15s'
+
+- ['resctl-bench-v0.0.2-P15s']
+?                     ^
+
++ ['resctl-bench-v0.0.1-P15s']
+?                     ^
+
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='URL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['htt[70 chars]v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-[37 chars].gz'] != ['htt[70 chars]v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-[20 chars].gz']
+
+First differing element 0:
+'http[69 chars]v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-[36 chars]r.gz'
+'http[69 chars]v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-[19 chars]r.gz'
+
+- ['https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz']
+?                                                                                 ^                                                        -----------------
+
++ ['https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz']
+?                                                                                 ^
+
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='SHA256')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857'] != ['466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c']
+
+First differing element 0:
+'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857'
+'466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c'
+
+- ['bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857']
++ ['466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c']
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='TAG')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['resctl-bench-v0.0.2-P15s'] != ['resctl-bench-v0.0.1-P15s']
+
+First differing element 0:
+'resctl-bench-v0.0.2-P15s'
+'resctl-bench-v0.0.1-P15s'
+
+- ['resctl-bench-v0.0.2-P15s']
+?                     ^
+
++ ['resctl-bench-v0.0.1-P15s']
+?                     ^
+
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='URL')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['htt[70 chars]v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-[37 chars].gz'] != ['htt[70 chars]v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-[20 chars].gz']
+
+First differing element 0:
+'http[69 chars]v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-[36 chars]r.gz'
+'http[69 chars]v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-[19 chars]r.gz'
+
+- ['https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz']
+?                                                                                 ^                                                        -----------------
+
++ ['https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz']
+?                                                                                 ^
+
+
+======================================================================
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='SHA256')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
+    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857'] != ['466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c']
+
+First differing element 0:
+'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857'
+'466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c'
+
+- ['bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857']
++ ['466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c']
+
+======================================================================
+FAIL: test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 159, in test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup
+    self.assertIn(value, args)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: '466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c' not found in ['install pinned resctl-bench release', '/usr/bin/env', '-i', 'HOME=/root', 'LC_ALL=C', 'PATH=/usr/sbin:/usr/bin:/sbin:/bin', '/usr/bin/timeout', '--signal=TERM', '--kill-after=5s', '900s', '/usr/bin/python3', '-I', '/usr/local/libexec/installer-resctl-bench', '--version', '2.2.6', '--tag', 'resctl-bench-v0.0.2-P15s', '--url', 'https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz', '--sha256', 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857', '--architecture', 'amd64', '--max-archive', '536870912', '--max-extracted', '2147483648', '--max-members', '8192']
+
+======================================================================
+FAIL: test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/resctl-repair/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 159, in test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup
+    self.assertIn(value, args)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+AssertionError: '466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c' not found in ['install pinned resctl-bench release', '/usr/bin/env', '-i', 'HOME=/root', 'LC_ALL=C', 'PATH=/usr/sbin:/usr/bin:/sbin:/bin', '/usr/bin/timeout', '--signal=TERM', '--kill-after=5s', '900s', '/usr/bin/python3', '-I', '/usr/local/libexec/installer-resctl-bench', '--version', '2.2.6', '--tag', 'resctl-bench-v0.0.2-P15s', '--url', 'https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz', '--sha256', 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857', '--architecture', 'amd64', '--max-archive', '536870912', '--max-extracted', '2147483648', '--max-members', '8192']
+
+----------------------------------------------------------------------
+Ran 40 tests in 0.477s
+
+FAILED (failures=8, skipped=1)
+Installed resctl-bench 2.2.6; docs: /var/lib/resctl-noexec-test-av4ml72s/data/docs/resctl-bench; no benchmark executed

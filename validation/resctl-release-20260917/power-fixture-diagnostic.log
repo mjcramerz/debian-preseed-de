@@ -1,0 +1,7 @@
+Actual monotonic clock: 496.895021215
+test_sleep_waits_for_desktop_action_without_holding_package_locks (test_package_power_guard.WorkerFlowTests.test_sleep_waits_for_desktop_action_without_holding_package_locks) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.649s
+
+OK

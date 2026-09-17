@@ -46,10 +46,20 @@ def policy(args: argparse.Namespace) -> None:
         raise Error('invalid release tag')
     if args.architecture != 'amd64':
         raise Error('the pinned native x86-64 release requires an amd64 target')
-    expected = (f'https://github.com/mjcramerz/resctl-bench/releases/download/{args.tag}/'
-                f'resctl-bench-{args.version}-x86_64-unknown-linux-gnu-native.tar.gz')
-    if args.url != expected or not re.fullmatch(r'[0-9a-f]{64}', args.sha256):
-        raise Error('release URL/tag/version or SHA-256 is invalid')
+    if not re.fullmatch(r'[0-9a-f]{64}', args.sha256):
+        raise Error('invalid RESCTL_BENCH_SHA256: expected exactly 64 lowercase '
+                    'hexadecimal characters')
+    prefix = (f'https://github.com/mjcramerz/resctl-bench/releases/download/{args.tag}/'
+              f'resctl-bench-{args.version}-x86_64-unknown-linux-gnu-native')
+    # Upstream publishes both legacy names and names with a 16-hex build ID.
+    # The build ID is NOT the archive digest: SHA-256 remains independently
+    # required and checked on the downloaded bytes before unpacking/execution.
+    # A full match forbids URL aliases, other origins, query/fragment suffixes,
+    # encoded separators and version/tag/architecture drift.
+    if not re.fullmatch(re.escape(prefix) + r'(?:-[0-9a-f]{16})?\.tar\.gz', args.url):
+        raise Error('invalid RESCTL_BENCH_URL for the configured tag/version/architecture: '
+                    f'expected {prefix}.tar.gz or {prefix}-<16 lowercase hex>.tar.gz; '
+                    f'got {args.url!r}')
     if not (1024 <= args.max_archive <= 536870912
             and args.max_archive <= args.max_extracted <= 2147483648
             and 3 <= args.max_members <= 16384):
@@ -68,8 +78,10 @@ def download(args: argparse.Namespace, destination: Path) -> None:
     st = destination.lstat()
     if not stat.S_ISREG(st.st_mode) or not 1 <= st.st_size <= args.max_archive:
         raise Error('download is not a bounded regular archive')
-    if digest(destination) != args.sha256:
-        raise Error('archive SHA-256 mismatch; nothing installed')
+    actual_sha256 = digest(destination)
+    if actual_sha256 != args.sha256:
+        raise Error('archive SHA-256 mismatch; nothing installed: '
+                    f'expected {args.sha256}, got {actual_sha256}; URL {args.url!r}')
 
 
 def member_path(name: str) -> PurePosixPath:
@@ -316,8 +328,13 @@ def main() -> int:
         parser.add_argument('--' + name, required=True)
     for name in ('max-archive', 'max-extracted', 'max-members'):
         parser.add_argument('--' + name, type=int, required=True)
+    parser.add_argument('--validate-only', action='store_true',
+                        help='validate release pins offline, without root, downloads or installation')
     args = parser.parse_args()
     policy(args)
+    if args.validate_only:
+        print(f'resctl-bench release pins valid: version={args.version} tag={args.tag}')
+        return 0
     if os.geteuid() != 0:
         raise Error('installer must run as root inside the target')
     architecture = subprocess.run(['/usr/bin/dpkg', '--print-architecture'],

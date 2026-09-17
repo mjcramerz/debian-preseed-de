@@ -1,5 +1,24 @@
 # debian-preseed-de
 
+## resctl-bench release pin repair - 17 September 2026
+
+All 13 desktop profiles now pin `resctl-bench-v0.0.2-P15s`, version `2.2.6`,
+including the `-aa3786abb93aa646` asset build ID and the requested archive SHA-256.
+The installer accepts the upstream 16-hex build-ID filename and reports URL
+validation separately from malformed or mismatched SHA-256 values. Archive and
+member checksum verification remain mandatory; no downloaded installer executes.
+
+`python3 -I -B tools/check_resctl_bench.py` validates all eight profile pins with
+the target installer's actual policy, without sourcing the profiles or using
+the network. Both `tools/build.py` and `tools/build.py --check` run this gate
+before generating release products. Missing, duplicate, nonliteral, inconsistent
+or invalid pins stop publication rather than surfacing late in d-i.
+
+See [the current repair and deployment report](docs/RESCTL-RELEASE-REPAIR-20260917.md)
+and `validation/resctl-release-20260917/`. The earlier resctl release pins and
+validation reports below are historical. The 2 GiB publisher ceiling, 4 GiB
+retained-archive ceiling, and package-safe power flows remain unchanged.
+
 ## Package limits and package-safe power actions - 17 September 2026
 
 The local APT publisher now accepts packages up to **2 GiB**. Retained Debian

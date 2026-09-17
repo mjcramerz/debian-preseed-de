@@ -1,0 +1,21 @@
+{
+  "verified_on": "2026-09-17",
+  "release_tag": "resctl-bench-v0.0.2-P15s",
+  "release_page": "https://github.com/mjcramerz/resctl-bench/releases/tag/resctl-bench-v0.0.2-P15s",
+  "asset_metadata_page": "https://github.com/mjcramerz/resctl-bench/releases/expanded_assets/resctl-bench-v0.0.2-P15s",
+  "asset_name": "resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz",
+  "github_published_sha256": "bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857",
+  "github_displayed_size": "40.2 MB",
+  "github_asset_timestamp": "2026-09-17T07:42:52Z",
+  "matches_user_supplied_filename_and_digest": true,
+  "packaging_source": "https://raw.githubusercontent.com/mjcramerz/resctl-bench/resctl-bench-v0.0.2-P15s/scripts/build.py",
+  "packaging_source_observation": "Build identifier is SHA-256 of canonical build settings truncated to 16 lowercase hex characters; stage and .tar.gz basename include it. It is not the archive checksum.",
+  "archive_bytes_downloaded": false,
+  "archive_independent_sha256_calculated": false,
+  "download_limitations": [
+    "Container curl could not resolve api.github.com.",
+    "Container direct-download tool failed for the release asset.",
+    "Web reader verified the release asset metadata and packaging source, not binary bytes."
+  ],
+  "live_binary_execution_or_benchmark": false
+}

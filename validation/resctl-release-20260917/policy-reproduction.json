@@ -1,0 +1,24 @@
+{
+  "arguments": {
+    "version": "2.2.6",
+    "tag": "resctl-bench-v0.0.2-P15s",
+    "architecture": "amd64",
+    "url": "https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz",
+    "sha256": "bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857",
+    "max_archive": 536870912,
+    "max_extracted": 2147483648,
+    "max_members": 8192
+  },
+  "results": [
+    {
+      "label": "before",
+      "accepted": false,
+      "error": "release URL/tag/version or SHA-256 is invalid"
+    },
+    {
+      "label": "after",
+      "accepted": true,
+      "error": null
+    }
+  ]
+}
