@@ -209,7 +209,8 @@ desktop_install_hardware_tuning
                 assets = (root / "trace").read_text().splitlines() if (root / "trace").exists() else []
                 wanted_intel, wanted_nv = intelflag and intelcpu, nvflag and nvclass and nvgpu
                 self.assertEqual("usr/local/lib/hardware_tuning/intel.py" in assets, wanted_intel)
-                self.assertEqual("usr/local/lib/hardware_tuning/system_state.py" in assets, wanted_intel)
+                self.assertEqual("usr/local/lib/hardware_tuning/system_state.py" in assets, wanted_intel or wanted_nv)
+                self.assertEqual("usr/local/lib/hardware_tuning/policy_owner.py" in assets, wanted_intel or wanted_nv)
                 self.assertEqual("usr/local/lib/hardware_tuning/nvidia.py" in assets, wanted_nv)
                 self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-intel" in assets, wanted_intel)
                 self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-nvidia" in assets, wanted_nv)
@@ -720,12 +721,37 @@ class FakeBroker(broker.Broker):
                           "idle_ac": "balanced", "idle_battery": "silent"}, FakeSeat())
         self.calls, self.fail, self.hot = [], None, False
         self.boot_enabled = False
+        self.policy_calls = []
+        self.claimed = False
+        self.ppd_file, self.ppd_active = "enabled", "active"
+        self.marker_active = "inactive"
 
     def save(self):
         pass
 
-    def boot(self, enable):
-        self.boot_enabled = enable
+    async def policy(self, action):
+        # No live systemd calls in broker fixtures. Policy transitions have
+        # independent real-protocol and filesystem regression coverage.
+        self.policy_calls.append(action)
+        if action in {"prepare-runtime", "prepare-boot"}:
+            self.claimed, self.ppd_active = True, "inactive"
+            if action == "prepare-boot":
+                self.boot_enabled, self.ppd_file = True, "masked"
+            elif self.ppd_file != "masked":
+                self.ppd_file = "masked-runtime"
+        elif action in {"stop", "disable", "recover"}:
+            self.claimed, self.ppd_active, self.marker_active = False, "active", "inactive"
+            if action == "disable":
+                self.boot_enabled = False
+            self.ppd_file = "disabled" if self.boot_enabled else "enabled"
+        elif action == "activate" and self.boot_enabled:
+            self.marker_active = "active"
+        self.policy_state = {
+            "claimed": self.claimed,
+            "ppd": {"load": "loaded", "active": self.ppd_active, "file": self.ppd_file},
+            "autostart_unit": {"load": "loaded", "active": self.marker_active,
+                               "file": "enabled" if self.boot_enabled else "disabled"}}
+        return self.policy_state
 
     async def worker(self, vendor, action, profile=None):
         self.calls.append((vendor, action, profile))
@@ -746,7 +772,7 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.ac.stop)
 
     async def test_start_stop_manual_reset_and_full_reset(self):
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         self.assertEqual(self.work.applied, {"intel": "balanced", "nvidia": "balanced"})
         self.work.selection.change_lease("intel", "high", 1)
         await self.work.reconcile()
@@ -755,7 +781,7 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         await self.work.action({"action": "profiles-reset"}, 1000)
         self.assertEqual(self.work.applied["intel"], "high")
         self.assertTrue(self.work.selection.automatic)
-        await self.work.action({"action": "boot-enable"}, 1000)
+        await self.work.action({"action": "boot-enable", "confirm_policy_owner": True}, 1000)
         self.assertTrue(self.work.boot_enabled)
         await self.work.action({"action": "reset"}, 1000)
         self.assertEqual(self.work.applied, {"intel": None, "nvidia": None})
@@ -763,14 +789,16 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.work.boot_enabled)
         self.assertEqual(self.work.selection.leases[("intel", "high")], 1)
 
-    async def test_stop_auto_keeps_explicit_single_profile(self):
-        await self.work.action({"action": "auto-start"}, 1000)
-        await self.work.action({"action": "manual", "vendor": "intel", "profile": "high"}, 1000)
+    async def test_stop_auto_releases_manual_profiles_before_ppd_handback(self):
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
+        await self.work.action({"action": "manual", "vendor": "intel", "profile": "high", "confirm_policy_owner": True}, 1000)
         await self.work.action({"action": "auto-stop"}, 1000)
-        self.assertEqual(self.work.applied, {"intel": "high", "nvidia": None})
+        self.assertEqual(self.work.applied, {"intel": None, "nvidia": None})
+        self.assertEqual(self.work.selection.manual, {"intel": None, "nvidia": None})
+        self.assertEqual(self.work.ppd_active, "active")
 
     async def test_pause_restores_and_resume_reapplies(self):
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         await self.work.action({"action": "pause"}, 0)
         self.assertEqual(self.work.applied, {"intel": None, "nvidia": None})
         await self.work.action({"action": "resume"}, 0)
@@ -779,17 +807,17 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
             await self.work.action({"action": "pause"}, 1000)
 
     async def test_losing_active_seat_restores_and_clears_manual(self):
-        await self.work.action({"action": "manual", "vendor": "intel", "profile": "high"}, 1000)
+        await self.work.action({"action": "manual", "vendor": "intel", "profile": "high", "confirm_policy_owner": True}, 1000)
         self.work.seat.present = False
         await self.work.reconcile()
         self.assertEqual(self.work.applied["intel"], None)
         self.assertEqual(self.work.selection.manual["intel"], None)
         with self.assertRaises(common.TuningError):
-            await self.work.action({"action": "auto-start"}, 1000)
+            await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
 
     async def test_worker_failure_latches_only_affected_vendor(self):
         self.work.fail = ("nvidia", "apply")
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         self.assertEqual(self.work.applied["intel"], "balanced")
         self.assertEqual(self.work.applied["nvidia"], None)
         self.assertIn("nvidia", self.work.selection.faults)
@@ -798,7 +826,7 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.work.calls), calls)
 
     async def test_thermal_health_restores_and_does_not_thrash(self):
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         self.work.hot = True
         await self.work.reconcile(health=True)
         self.assertTrue(self.work.selection.faults)
@@ -808,9 +836,9 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.work.calls), calls)
 
     async def test_same_profile_explicit_start_reloads_configuration(self):
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         self.work.calls.clear()
-        await self.work.action({"action": "auto-start"}, 1000)
+        await self.work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
         self.assertIn(("intel", "reset", None), self.work.calls)
         self.assertIn(("intel", "apply", "balanced"), self.work.calls)
 
@@ -1072,7 +1100,7 @@ class PeerCredentialTests(unittest.IsolatedAsyncioTestCase):
     async def test_automatic_profile_transition_checks_external_interference_first(self):
         work = FakeBroker()
         with patch.object(broker, "on_ac", return_value=True):
-            await work.action({"action": "auto-start"}, 1000)
+            await work.action({"action": "auto-start", "confirm_policy_owner": True}, 1000)
             work.calls.clear()
             work.hot = True
             work.selection.change_lease("intel", "performance", 1)

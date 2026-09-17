@@ -327,7 +327,7 @@ def execute(vendor: str, action: str, profile: str | None = None) -> dict:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # Check only AFTER acquiring the shared apply/reset lock. Otherwise a
         # reset can race an apply and falsely report that there is no ownership.
-        old = trusted_json(journal) if journal.exists() else None
+        old = trusted_json(journal) if journal.exists() or journal.is_symlink() else None
         if action == "reset" and (old is None or isinstance(old, dict) and old.get("version") == 1 and old.get("entries") == []):
             return {"restored": 0}
         module = importlib.import_module(vendor)
@@ -360,6 +360,12 @@ def main(argv: list[str]) -> int:
     if argv == ["recover-all"]:
         results, failed = {}, False
         for vendor in VENDORS:
+            # A gated-out backend has no AppArmor lock/device permissions.
+            # Still attempt recovery of an existing journal after a partial
+            # installation; never create an absent vendor's lock needlessly.
+            paths = (CONFIG / f"{vendor}.json", STATE / f"{vendor}.json")
+            if not any(path.exists() or path.is_symlink() for path in paths):
+                continue
             try:
                 results[vendor] = execute(vendor, "reset")
             except (OSError, TuningError, ValueError, ImportError) as exc:

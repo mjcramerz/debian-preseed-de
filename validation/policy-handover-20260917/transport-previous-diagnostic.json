@@ -1,0 +1,15 @@
+{
+  "diagnostic_only": true,
+  "repository_test_unmodified": true,
+  "basis": "/mnt/data/handover-baseline/debian-preseed-de",
+  "observations": [
+    {
+      "standard_timeout_seconds": 8,
+      "diagnostic_timeout_seconds": 30,
+      "observed_seconds": 15.523,
+      "record_found": true,
+      "record": "format=1\nstate=FATAL\nstatus=1\nphase=prepare-context\ncomponent=preseed answers (prepare-context)\ntimestamp=2026-09-17T16:46:45Z\ndetail=unknown installer class: server; use group/class for declared classes or add classes/class-addon/server.cfg\n"
+    }
+  ],
+  "diagnostic_assertions_succeeded": true
+}

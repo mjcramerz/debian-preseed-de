@@ -24,20 +24,18 @@ desktop_install_hardware_tuning() (
     return 0
   fi
 
-  for hardware_module in common engine broker client $hardware_vendors; do
+  for hardware_module in common engine broker client policy_owner system_state $hardware_vendors; do
     desktop_stage_role_asset "usr/local/lib/hardware_tuning/${hardware_module}.py" "/usr/local/lib/hardware_tuning/${hardware_module}.py" 0644
   done
   desktop_stage_role_asset usr/local/bin/labwc-hardware-tuning /usr/local/bin/labwc-hardware-tuning 0755
   desktop_stage_role_asset usr/local/libexec/hardware-tuningd /usr/local/libexec/hardware-tuningd 0755
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker 0755
+  desktop_stage_role_asset usr/local/libexec/hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy 0755
   desktop_stage_role_asset etc/apparmor.d/managed-hardware-tuning /etc/apparmor.d/managed-hardware-tuning 0644
   for hardware_bridge in desktop-parent fuzzel-parent; do
     desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" 0644
   done
   for hardware_vendor in $hardware_vendors; do
-    if [ "$hardware_vendor" = intel ]; then
-      desktop_stage_role_asset usr/local/lib/hardware_tuning/system_state.py /usr/local/lib/hardware_tuning/system_state.py 0644
-    fi
     desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" 0644
   done
 

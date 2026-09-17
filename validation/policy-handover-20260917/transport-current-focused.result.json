@@ -1,0 +1,14 @@
+{
+  "basis": "current",
+  "command": [
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker"
+  ],
+  "returncode": 1,
+  "seconds": 9.512,
+  "log": "transport-current-focused.log"
+}

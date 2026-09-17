@@ -15,9 +15,11 @@ profile managed-hardware-tuning-broker /usr/local/libexec/hardware-tuningd flags
   /usr/local/lib/hardware_tuning/ r,
   /usr/local/lib/hardware_tuning/{common,broker}.py r,
   /usr/local/libexec/hardware-tuning-worker rPx -> managed-hardware-tuning-worker,
+  /usr/local/libexec/hardware-tuning-policy rPx -> managed-hardware-tuning-policy,
   unix,
   signal (receive) peer=unconfined,
   signal (receive, send) peer=managed-hardware-tuning-worker,
+  signal (receive, send) peer=managed-hardware-tuning-policy,
   /proc/[0-9]*/attr/{current,apparmor/current} r,
   /run/systemd/{seats,sessions,users}/ r,
   /run/systemd/{seats,sessions,users}/** r,
@@ -30,8 +32,8 @@ profile managed-hardware-tuning-broker /usr/local/libexec/hardware-tuningd flags
   /run/hardware-tuning/control.sock rw,
   /run/hardware-tuning/controls.json rw,
   /run/hardware-tuning/.controls.json.tuning-* rw,
-  /etc/systemd/system/multi-user.target.wants/ rw,
-  /etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service rw,
+  # No direct unit-file writes; PID 1 applies allowlisted policy operations.
+  /etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service r,
   /etc/systemd/system/hardware-tuning-autostart.service r,
   # No sysfs writes, device nodes, capabilities, arbitrary exec, or network.
 }
@@ -88,7 +90,9 @@ profile managed-hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flag
   /run/systemd/{sessions,users}/** r,
   owner /run/user/[0-9]*/{bus,systemd/private} rw,
   owner /proc/[0-9]*/ r,
-  owner /proc/[0-9]*/{stat,status} r,
+  # notify-send/libsystemd resolves its own cgroup identity. No proc write or
+  # cross-user read is granted; retain confinement for inherited execution.
+  owner /proc/[0-9]*/{stat,status,cgroup} r,
   owner /proc/[0-9]*/attr/{current,apparmor/current} r,
   /proc/sys/kernel/pid_max r,
   signal (receive) peer=unconfined,
@@ -101,4 +105,44 @@ profile managed-hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flag
   owner @{HOME}/.local/state/hardware-tuning/ rw,
   owner @{HOME}/.local/state/hardware-tuning/*.{txt,json} rw,
   # No hardware files, configuration/state writes, sudo, or privileged exec.
+}
+
+# Unit-management authority is NOT granted to the network-facing broker,
+# desktop client, or hardware worker. Only this root-only fixed-operation
+# helper may ask PID 1 to manage PPD and the autostart marker. AppArmor D-Bus
+# rules do not filter method arguments: the helper's immutable unit allowlist
+# is therefore part of the trusted boundary, not a claim about bus filtering.
+profile managed-hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /usr/local/libexec/hardware-tuning-policy r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,policy_owner,system_state}.py r,
+  /etc/{group,nsswitch.conf,passwd} r,
+  /etc/hardware-tuning/ r,
+  /etc/hardware-tuning/broker.json r,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /run/hardware-tuning/ rw,
+  /run/hardware-tuning/policy-owner.json rw,
+  /run/hardware-tuning/.policy-owner.json.tuning-* rw,
+  /run/hardware-tuning/policy-owner.lock rwk,
+  /run/hardware-tuning/{intel,nvidia}.json r,
+  /run/hardware-tuning/{intel,nvidia}.lock rwk,
+  /run/dbus/system_bus_socket rw,
+  unix,
+  dbus (send) bus=system path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus member=Hello peer=(name=org.freedesktop.DBus),
+  dbus (send) bus=system path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member={LoadUnit,GetUnitFileState,EnableUnitFiles,DisableUnitFiles,MaskUnitFiles,UnmaskUnitFiles,Reload,StartUnit,StopUnit}
+    peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=system path=/org/freedesktop/systemd1{,/unit/*,/job/[0-9]*}
+    interface=org.freedesktop.DBus.Properties member=Get peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=system path=/org/freedesktop/systemd1/job/[0-9]*
+    interface=org.freedesktop.systemd1.Job member=Cancel peer=(name=org.freedesktop.systemd1),
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=managed-hardware-tuning-broker,
+  # No systemctl, shell, arbitrary exec, sysfs writes, or device access.
 }

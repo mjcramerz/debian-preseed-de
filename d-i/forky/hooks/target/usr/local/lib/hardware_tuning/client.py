@@ -19,7 +19,7 @@ EXECUTABLE = "/usr/local/bin/labwc-hardware-tuning"
 def connect_request(request: dict) -> tuple[socket.socket, dict]:
     channel = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        channel.settimeout(240)
+        channel.settimeout(360)
         channel.connect(SOCKET)
         channel.sendall(json.dumps(request).encode() + b"\n")
         data = bytearray()
@@ -41,10 +41,12 @@ def connect_request(request: dict) -> tuple[socket.socket, dict]:
         raise
 
 
-def request(action: str, vendor: str | None = None, profile: str | None = None) -> dict:
+def request(action: str, vendor: str | None = None, profile: str | None = None, *, confirm_policy_owner: bool = False) -> dict:
     value = {"action": action}
     if vendor is not None:
         value.update(vendor=vendor, profile=profile)
+    if confirm_policy_owner:
+        value["confirm_policy_owner"] = True
     channel, result = connect_request(value)
     channel.close()
     return result
@@ -199,6 +201,14 @@ def save_report(data: dict) -> tuple[Path, Path]:
     return paths[0], paths[1]
 
 
+def confirm_owner(boot: bool = False) -> bool:
+    # Cancellation is the default; typed/free-form responses are not commands.
+    cancel = "Cancel - leave power policy unchanged"
+    accept = ("Confirm: stop, disable and mask PPD; start tuning now and at boot" if boot else
+              "Confirm: stop PPD and block its restart until tuning is stopped")
+    return choose([cancel, accept], "power-profiles-daemon.service handover> ") == accept
+
+
 def menu() -> int:
     status = request("status")
     entries = ["Set Single Tuning Profile", "Generate Hardware Tuning Report", "Start Automatic Tuning", "Stop Automatic Tuning",
@@ -215,7 +225,13 @@ def menu() -> int:
         chosen = choose(list(choices), "Single tuning profile> ")
         if chosen is None:
             return 0
-        result = request(*choices[chosen])
+        action, vendor, profile = choices[chosen]
+        confirmed = False
+        if vendor == "intel" and not status.get("policy_owner", {}).get("claimed"):
+            if not confirm_owner():
+                return 0
+            confirmed = True
+        result = request(action, vendor, profile, confirm_policy_owner=confirmed)
         selected = chosen
     elif selected == entries[1]:
         data = request("report")
@@ -225,15 +241,26 @@ def menu() -> int:
         return int(bool(errors))
     else:
         action = dict(zip(entries[2:], ("auto-start", "auto-stop", "boot-enable", "boot-disable", "reset")))[selected]
-        result = request(action)
+        confirmed = False
+        if action in {"auto-start", "boot-enable"} and "intel" in status["vendors"]:
+            if not confirm_owner(action == "boot-enable"):
+                return 0
+            confirmed = True
+        result = request(action, confirm_policy_owner=confirmed)
     if result.get("faults"):
         notify("Tuning requires attention: " + json.dumps(result["faults"]), True)
         return 1
-    notify(selected + "; applied=" + json.dumps(result.get("applied")) + "; automatic=" + str(result.get("automatic")))
+    notify(selected + "; applied=" + json.dumps(result.get("applied")) + "; automatic=" + str(result.get("automatic"))
+           + "; autostart=" + str(result.get("autostart"))
+           + "; PPD=" + str(result.get("policy_owner", {}).get("ppd", {}).get("active", "unknown")))
     return 0
 
 
 def main(argv: list[str]) -> int:
+    if argv == ["autostart-marker"]:
+        if os.geteuid() != 0:
+            raise TuningError("the autostart marker is system-manager-only")
+        return 0  # No socket callback into the broker's active transaction.
     if argv == ["menu"]:
         try:
             return menu()
@@ -244,14 +271,19 @@ def main(argv: list[str]) -> int:
         return devops_start()
     if len(argv) == 3 and argv[0] == "watch-parent" and argv[1].isdigit() and argv[2].isdigit():
         return watch_parent(int(argv[1]), argv[2])
+    confirmed = bool(argv and argv[-1] == "--confirm-policy-owner")
+    if confirmed:
+        argv = argv[:-1]
+        if not argv or argv[0] not in {"auto-start", "boot-enable", "manual"}:
+            raise TuningError("--confirm-policy-owner is only valid for explicit tuning activation")
     if len(argv) == 3 and argv[0] in {"lease", "manual"} and argv[1] in VENDORS and argv[2] in PROFILES:
         if argv[0] == "lease":
             return lease(argv[1], argv[2])
-        result = request(*argv)
+        result = request(*argv, confirm_policy_owner=confirmed)
     elif len(argv) == 1 and argv[0] in {"status", "report", "auto-start", "auto-stop", "profiles-reset", "reset", "boot-enable", "boot-disable", "pause", "resume"}:
-        result = request(argv[0])
+        result = request(argv[0], confirm_policy_owner=confirmed)
     else:
-        raise TuningError("usage: labwc-hardware-tuning {menu|status|report|auto-start|auto-stop|profiles-reset|reset|boot-enable|boot-disable|manual VENDOR PROFILE}")
+        raise TuningError("usage: labwc-hardware-tuning {menu|status|report|auto-start|auto-stop|profiles-reset|reset|boot-enable|boot-disable|manual VENDOR PROFILE} [--confirm-policy-owner]")
     print(json.dumps(result, indent=2, allow_nan=False))
     if argv == ["pause"]:
         return int(bool(result.get("recovery_pending")) or any(result.get("owns_controls", {}).values()))

@@ -24,6 +24,7 @@ from common import (AUTOSTART, AUTOSTART_UNIT, CONFIG, MAX_JSON, PROFILES, RANK,
 
 LOG = logging.getLogger("hardware-tuning")
 WORKER = "/usr/local/libexec/hardware-tuning-worker"
+POLICY = "/usr/local/libexec/hardware-tuning-policy"
 
 
 def validate_config(data: dict) -> dict:
@@ -118,17 +119,24 @@ class Broker:
         self.stop = asyncio.Event()
         self.writers = set()
         self.was_active = self.seat.active()
+        self.policy_state: dict = {}
+        self.policy_error = ""
+        self.policy_release: str | None = None
 
     def save(self) -> None:
-        atomic_json(STATE / "controls.json", {"version": 1, "automatic": self.selection.automatic,
-            "manual": self.selection.manual, "paused": self.selection.paused, "faults": self.selection.faults})
+        atomic_json(STATE / "controls.json", {"version": 2, "automatic": self.selection.automatic,
+            "manual": self.selection.manual, "paused": self.selection.paused, "faults": self.selection.faults,
+            "policy_release": self.policy_release, "policy_error": self.policy_error})
 
-    def load(self) -> None:
+    def load(self) -> bool:
         path = STATE / "controls.json"
-        if not path.exists():
-            return
+        if not path.exists() and not path.is_symlink():
+            return False
         data = trusted_json(path)
-        if not isinstance(data, dict) or set(data) != {"version", "automatic", "manual", "paused", "faults"} or type(data["version"]) is not int or data["version"] != 1:
+        legacy = {"version", "automatic", "manual", "paused", "faults"}
+        if (not isinstance(data, dict) or type(data.get("version")) is not int
+                or data["version"] not in (1, 2)
+                or set(data) != (legacy if data["version"] == 1 else legacy | {"policy_release", "policy_error"})):
             raise TuningError("invalid broker recovery state")
         if type(data["automatic"]) is not bool or type(data["paused"]) is not bool:
             raise TuningError("invalid automatic/pause state")
@@ -136,15 +144,30 @@ class Broker:
             raise TuningError("invalid manual recovery state")
         if not isinstance(data["faults"], dict) or not set(data["faults"]) <= set(self.selection.vendors) or any(not isinstance(v, str) or len(v) > 8192 for v in data["faults"].values()):
             raise TuningError("invalid fault state")
+        if (data.get("policy_release") not in (None, "stop", "disable")
+                or not isinstance(data.get("policy_error", ""), str) or len(data.get("policy_error", "")) > 8192):
+            raise TuningError("invalid policy handover recovery state")
         self.selection.automatic = data["automatic"]
         self.selection.manual = data["manual"] if self.seat.active() else {v: None for v in self.selection.vendors}
         self.selection.paused = data["paused"]
         self.selection.faults = data["faults"]
+        self.policy_release = data.get("policy_release")
+        self.policy_error = data.get("policy_error", "")
+        return True
 
     async def worker(self, vendor: str, action: str, profile: str | None = None) -> dict:
         if vendor not in self.selection.vendors or action not in ("apply", "reset", "report", "health") or profile not in (*PROFILES, None):
             raise TuningError("invalid internal worker operation")
         args = [WORKER, vendor, action] + ([profile] if profile is not None else [])
+        return await self.child(args, 25)
+
+    async def policy(self, action: str) -> dict:
+        if action not in {"status", "prepare-runtime", "prepare-boot", "activate", "stop", "disable", "recover"}:
+            raise TuningError("invalid internal policy operation")
+        self.policy_state = await self.child([POLICY, action], 50)
+        return self.policy_state
+
+    async def child(self, args: list[str], timeout: int) -> dict:
         process = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}, limit=MAX_JSON + 1)
@@ -152,14 +175,14 @@ class Broker:
             # Read with explicit byte bounds; communicate() alone is unbounded.
             async def bounded(stream, limit):
                 data = await stream.readexactly(limit + 1)
-                raise TuningError("worker output limit exceeded")
+                raise TuningError("helper output limit exceeded")
             async def read_stream(stream, limit):
                 try:
                     return await bounded(stream, limit)
                 except asyncio.IncompleteReadError as exc:
                     return exc.partial
             output, errors, _ = await asyncio.wait_for(asyncio.gather(
-                read_stream(process.stdout, MAX_JSON), read_stream(process.stderr, 65536), process.wait()), 25)
+                read_stream(process.stdout, MAX_JSON), read_stream(process.stderr, 65536), process.wait()), timeout)
         except BaseException:
             if process.returncode is None:
                 process.kill()
@@ -168,9 +191,9 @@ class Broker:
         try:
             result = decode(output)
         except (ValueError, TuningError) as exc:
-            raise TuningError("worker did not return valid bounded JSON") from exc
+            raise TuningError("helper did not return valid bounded JSON") from exc
         if process.returncode or not isinstance(result, dict) or result.get("ok") is not True:
-            raise TuningError(str(result.get("error", errors.decode(errors="replace")[:4096] or "worker failure")) if isinstance(result, dict) else "worker failure")
+            raise TuningError(str(result.get("error", errors.decode(errors="replace")[:4096] or "helper failure")) if isinstance(result, dict) else "helper failure")
         return result["result"]
 
     async def restore(self, vendor: str) -> None:
@@ -201,7 +224,9 @@ class Broker:
         for vendor in self.selection.vendors:
             if vendor in self.selection.faults:
                 continue  # Explicit reset/start retries; do not hammer a failed device.
-            desired = self.selection.desired(vendor, active, idle)
+            # An interrupted start may retain a manual selection as retry
+            # intent. Never apply it while policy handback is outstanding.
+            desired = None if self.policy_release else self.selection.desired(vendor, active, idle)
             try:
                 if self.owned[vendor] and (health or desired is not None and desired != self.applied[vendor]) and vendor not in self.selection.faults:
                     report = await self.worker(vendor, "health")
@@ -220,30 +245,129 @@ class Broker:
             except Exception as exc:
                 await self.fault(vendor, exc)
 
-    def boot(self, enable: bool) -> None:
-        # The ONLY persistent systemd link this process is allowed to mutate.
-        if AUTOSTART.is_symlink():
-            if os.readlink(AUTOSTART) != AUTOSTART_UNIT:
-                raise TuningError("unrecognized autostart link; refusing to replace it")
-            if not enable:
-                AUTOSTART.unlink()
-        elif AUTOSTART.exists():
-            raise TuningError("autostart path is not a managed link")
-        elif enable:
-            os.symlink(AUTOSTART_UNIT, AUTOSTART)
-        directory = os.open(AUTOSTART.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        if ("intel" in self.selection.faults and self.policy_state.get("claimed")
+                and (self.selection.automatic or any(self.selection.manual.values()))):
+            await self.stop_tuning(clear_faults=False)
+        elif (not self.selection.automatic and not any(self.selection.manual.values())
+                and self.policy_state.get("claimed") and self.policy_release is None
+                and not self.recovery_pending and not any(self.owned.values())):
+            try:
+                await self.policy("stop")
+            except Exception as exc:
+                self.policy_release, self.policy_error = "stop", str(exc)[:8192]
+                self.save()
+
+    def autostart_enabled(self) -> bool:
+        if self.policy_state:
+            return self.policy_state["autostart_unit"]["file"] == "enabled"
+        return AUTOSTART.is_symlink() and os.readlink(AUTOSTART) == AUTOSTART_UNIT
 
     def status(self) -> dict:
+        faults = dict(self.selection.faults)
+        if self.policy_error:
+            faults["policy-owner"] = self.policy_error
         return {"vendors": self.selection.vendors, "automatic": self.selection.automatic,
                 "manual": self.selection.manual, "applied": self.applied, "owns_controls": self.owned,
                 "paused": self.selection.paused, "active_local_seat": self.seat.active(),
-                "autostart": AUTOSTART.is_symlink() and os.readlink(AUTOSTART) == AUTOSTART_UNIT,
+                "autostart": self.autostart_enabled(), "policy_owner": self.policy_state,
+                "policy_release_pending": self.policy_release,
                 "leases": {f"{v}/{p}": n for (v, p), n in sorted(self.selection.leases.items())},
-                "faults": self.selection.faults, "recovery_pending": sorted(self.recovery_pending), "last_result": self.details}
+                "faults": faults, "recovery_pending": sorted(self.recovery_pending), "last_result": self.details}
+
+    async def stop_tuning(self, disable: bool = False, *, clear_faults: bool = True) -> None:
+        # PPD may not resume while a manual profile or any unrecovered write
+        # remains. Stop therefore releases manual selections as well as auto.
+        self.selection.automatic = False
+        self.selection.manual = {v: None for v in self.selection.vendors}
+        self.policy_release = "disable" if disable else "stop"
+        self.policy_error = ""
+        if clear_faults:
+            self.selection.faults.clear()
+        self.save()  # Durable intent precedes every restoration/service change.
+        for vendor in self.selection.vendors:
+            try:
+                await self.restore(vendor)
+            except Exception as exc:
+                await self.fault(vendor, exc)
+        if not self.recovery_pending and not any(self.owned.values()):
+            try:
+                await self.policy(self.policy_release)
+                self.policy_release = None
+            except Exception as exc:
+                self.policy_error = str(exc)[:8192]
+        self.save()
+
+    async def start_tuning(self, boot: bool = False) -> None:
+        if self.selection.paused:
+            raise TuningError("tuning is paused for sleep; retry after resume")
+        old_boot = self.autostart_enabled()
+        ppd = self.policy_state.get("ppd", {})
+        if (boot and old_boot and self.selection.automatic and not self.status()["faults"]
+                and not self.recovery_pending and self.policy_state.get("claimed")
+                and ("intel" not in self.selection.vendors or ppd.get("file") == "masked" and ppd.get("active") in {"inactive", "failed"})):
+            await self.policy("activate")  # Idempotent; no hardware reapply.
+            return
+        self.selection.automatic = False
+        self.selection.faults.clear()
+        self.policy_error = ""
+        self.policy_release = "stop"
+        self.save()
+        for vendor in self.selection.vendors:
+            try:
+                await self.restore(vendor)
+            except Exception as exc:
+                await self.fault(vendor, exc)
+        if self.recovery_pending:
+            return  # Keep PPD excluded until all owned controls are recovered.
+        try:
+            await self.policy("prepare-boot" if boot or old_boot else "prepare-runtime")
+            self.selection.automatic = True
+            self.policy_release = None
+            self.save()
+            await self.reconcile()
+            if self.selection.automatic:
+                await self.policy("activate")
+        except Exception as exc:
+            message = str(exc)
+            await self.stop_tuning(disable=boot and not old_boot, clear_faults=False)
+            self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
+            self.save()
+
+    async def initialize(self) -> None:
+        recovered = self.load()
+        await self.policy("status")
+        # /run records an explicit Stop for the rest of this boot. Only a new
+        # boot (no runtime state) inherits the persistent autostart preference.
+        if not recovered:
+            self.selection.automatic = self.autostart_enabled()
+        for vendor in self.selection.vendors:
+            try:
+                await self.restore(vendor)
+            except Exception as exc:
+                await self.fault(vendor, exc)
+        if self.policy_release:
+            await self.stop_tuning(self.policy_release == "disable", clear_faults=False)
+        elif not self.recovery_pending:
+            if self.selection.automatic:
+                # Persistent boot opt-in authorizes this noninteractive path.
+                # start_tuning clears retry faults, so preserve historical
+                # interlocks across a same-boot broker restart instead.
+                try:
+                    await self.policy("prepare-boot" if self.autostart_enabled() else "prepare-runtime")
+                    await self.reconcile()
+                    if self.selection.automatic:
+                        await self.policy("activate")
+                except Exception as exc:
+                    message = str(exc)
+                    await self.stop_tuning(clear_faults=False)
+                    self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
+            elif any(self.selection.manual.values()):
+                if self.selection.manual.get("intel") is not None:
+                    await self.policy("prepare-runtime")
+                await self.reconcile()
+            elif self.policy_state.get("claimed"):
+                await self.stop_tuning(clear_faults=False)
+        self.save()
 
     def rate_limit(self, uid: int, action: str) -> None:
         if uid == 0:
@@ -265,6 +389,18 @@ class Broker:
             raise TuningError("sleep coordination is root-only")
         if action not in {"lease", "status", "reset", "auto-stop", "profiles-reset", "boot-disable"} and uid != 0 and not self.seat.active():
             raise TuningError("an active local seat0 session is required")
+        if action in {"status", "report", "auto-start", "boot-enable", "manual"}:
+            try:
+                await self.policy("status")
+            except Exception as exc:
+                if action not in {"status", "report"}:
+                    raise
+                self.policy_error = str(exc)[:8192]
+        requires_owner = "intel" in self.selection.vendors and (
+            action in {"auto-start", "boot-enable"} or action == "manual" and request["vendor"] == "intel")
+        if (requires_owner and uid != 0 and request.get("confirm_policy_owner") is not True
+                and (action == "boot-enable" or not self.policy_state.get("claimed"))):
+            raise TuningError("policy handover needs confirmation; use the launcher confirmation or --confirm-policy-owner")
         if action == "status":
             return self.status()
         if action == "report":
@@ -275,52 +411,41 @@ class Broker:
                 except Exception as exc:
                     result["hardware"][vendor] = {"error": str(exc)}
             return result
-        if action == "auto-start":
-            self.selection.automatic = True
-            self.selection.faults.clear()
-            # Explicit start also reloads edited root policy, even when the
-            # selected profile name has not changed.
-            for vendor in self.selection.vendors:
+        if action in {"auto-start", "boot-enable"}:
+            await self.start_tuning(action == "boot-enable")
+            return self.status()
+        if action in {"auto-stop", "boot-disable", "reset"}:
+            await self.stop_tuning(action in {"boot-disable", "reset"})
+            return self.status()
+        if action == "manual":
+            if self.policy_release:
+                raise TuningError("a policy handback is pending; complete Stop or Reset first")
+            if requires_owner and not self.policy_state.get("claimed"):
+                self.policy_release = "stop"
+                self.save()
                 try:
-                    await self.restore(vendor)
+                    for vendor in self.selection.vendors:
+                        await self.restore(vendor)
+                    await self.policy("prepare-runtime")
+                    self.policy_release, self.policy_error = None, ""
                 except Exception as exc:
-                    await self.fault(vendor, exc)
-        elif action == "auto-stop":
-            self.selection.automatic = False
-        elif action == "manual":
+                    message = str(exc)
+                    await self.stop_tuning(clear_faults=False)
+                    self.policy_error = (message + ("; recovery: " + self.policy_error if self.policy_error else ""))[:8192]
+                    self.save()
+                    return self.status()
             self.selection.manual[request["vendor"]] = request["profile"]
             self.selection.faults.pop(request["vendor"], None)
-            # Same named profile can be reapplied after editing root config.
             try:
                 await self.restore(request["vendor"])
             except Exception as exc:
                 await self.fault(request["vendor"], exc)
         elif action == "profiles-reset":
             self.selection.manual = {v: None for v in self.selection.vendors}
-        elif action == "reset":
-            self.selection.automatic = False
-            self.selection.manual = {v: None for v in self.selection.vendors}
-            boot_error = None
-            try:
-                self.boot(False)
-            except Exception as exc:
-                boot_error = exc
-            self.selection.faults.clear()
-            for vendor in self.selection.vendors:
-                try:
-                    await self.restore(vendor)
-                except Exception as exc:
-                    await self.fault(vendor, exc)
-            self.save()
-            if boot_error:
-                raise TuningError("hardware reset attempted, but autostart could not be disabled: " + str(boot_error))
-        elif action in {"boot-enable", "boot-disable"}:
-            self.boot(action == "boot-enable")
         elif action in {"pause", "resume"}:
             self.selection.paused = action == "pause"
-            # A previous thermal/ownership fault must not be automatically
-            # cleared by resume. Pause retries pending recovery once; sleep is
-            # blocked only when hardware remains owned or unrecovered.
+            # A thermal/ownership fault is not cleared by resume. Pause retries
+            # pending recovery once; ownership remains excluded during sleep.
             if action == "pause":
                 for vendor in tuple(self.recovery_pending):
                     try:
@@ -338,8 +463,11 @@ class Broker:
         if not isinstance(request, dict) or request.get("action") not in actions:
             raise TuningError("invalid control request")
         required = {"action", "vendor", "profile"} if request["action"] in {"manual", "lease"} else {"action"}
-        if set(request) != required:
+        optional = {"confirm_policy_owner"} if request["action"] in {"auto-start", "boot-enable", "manual"} else set()
+        if not required <= set(request) or set(request) - required - optional:
             raise TuningError("unexpected or missing request fields")
+        if "confirm_policy_owner" in request and type(request["confirm_policy_owner"]) is not bool:
+            raise TuningError("policy confirmation must be a boolean")
         if len(required) > 1 and (request["vendor"] not in self.selection.vendors or request["profile"] not in PROFILES):
             raise TuningError("vendor/profile is not installed or not supported")
         return request
@@ -422,13 +550,7 @@ class Broker:
                     await self.reconcile(health=True)
 
     async def run(self, listener: socket.socket) -> None:
-        self.load()
-        for vendor in self.selection.vendors:
-            try:
-                await self.restore(vendor)
-            except Exception as exc:
-                await self.fault(vendor, exc)
-        self.save()
+        await self.initialize()
         server = await asyncio.start_unix_server(self.serve, sock=listener, limit=4096)
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -446,7 +568,8 @@ class Broker:
                     await self.restore(vendor)
                 except Exception as exc:
                     LOG.error("shutdown recovery pending for %s: %s", vendor, exc)
-        # ExecStopPost runs recovery again if a handler/worker was interrupted.
+        # ExecStopPost verifies hardware recovery again, then the separately
+        # confined policy helper restores PPD (never during system shutdown).
 
 
 def main() -> int:

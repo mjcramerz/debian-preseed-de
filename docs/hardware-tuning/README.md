@@ -2,7 +2,7 @@
 
 ## Scope and installation
 
-This change adds a separate, opt-in hardware policy controller. It does not replace the existing energy-profile menu, cgroup delegation, resource weights, launcher isolation, display configuration, driver installation, or power-management services. The served payload and generated preseed must be rebuilt together with `make build` after changing any installer profile.
+This change adds a separate, opt-in hardware policy controller. It does not replace the existing energy-profile menu, cgroup delegation, resource weights, launcher isolation, display configuration, driver installation, or unrelated power-management services. Confirmed activation temporarily hands CPU-policy ownership from power-profiles-daemon (PPD) to custom tuning; stopping hands it back. The served payload and generated preseed must be rebuilt together with `make build` after changing any installer profile.
 
 `HARDWARE_INTEL_CPU_TUNING_ENABLE="true"` in the two main and two Flex profiles. `HARDWARE_NVIDIA_GPU_TUNING_ENABLE="true"` only in `btrfs-de-main.env` and `btrfs-de-dual-main.env`; it is explicitly `"false"` in both Flex profiles. Both flags are `"false"` in the other nine profiles. Every profile carries the same initial tuning values; enablement is the only intended difference in this added configuration block.
 
@@ -10,7 +10,7 @@ Intel additionally requires a detected GenuineIntel CPU. NVIDIA additionally req
 
 A disabled or undetected vendor installs no vendor backend, vendor JSON, vendor target/lease service, or vendor AppArmor permissions. With neither vendor selected, no common tuning executable, service, socket, policy, or Waybar right-click hook is installed. The source files necessarily remain in the COMPLETE served repository so a different host can select the feature. This is a fresh-install mechanism, not an in-place uninstaller for previously installed assets.
 
-**Enabling installation does not start tuning.** `HARDWARE_TUNING_AUTOSTART_ENABLE="false"` is the initial value in every profile. Automatic tuning is off until explicitly started; a single profile is also an explicit action. Enabling boot autostart affects subsequent boots, not the current automatic state.
+**Enabling installation does not start tuning.** `HARDWARE_TUNING_AUTOSTART_ENABLE="false"` is the initial value in every profile. Automatic tuning is off until explicitly started; a single profile is also an explicit action. Confirming boot autostart enables and starts automatic tuning immediately as well as at subsequent boots. Installer profiles still default to no autostart.
 
 ## Audit-based choices
 
@@ -20,31 +20,31 @@ Evidence: `debugsys-flex.zip/20260916T211928Z-report-3925b3f9/evidence/` and `de
 
 The P520 must not be treated as a Volta/Ampere GPU. Driver support for power, offsets and legacy application clocks is individually queried; a P520 may expose some controls read-only or not at all. The implementation does not promise clock offsets merely because an NVML symbol exists.
 
-## One CPU policy owner, with thermal protection retained
+## Confirmed CPU policy handover, with thermal protection retained
 
-The supplied audits show power-profiles-daemon already active. Installing this feature does not stop, mask or replace it. Before **CPU/RAPL/uncore** tuning can start, the worker reads the fixed competing-service list through libsystemd's typed D-Bus `ActiveState` API. An active/activating/unknown owner blocks the request **before hardware writes**. Missing bus access or a query error also blocks it. The report exposes the states and reason. No privileged shell or systemd mutation is added to the worker. Intel GPU-only requests do not unnecessarily depend on CPU-policy ownership.
+The worker's independent single-owner preflight remains in place. It still refuses CPU/RAPL/uncore writes while a competing policy service is active/activating/unknown or cannot be queried. The launcher now offers an explicit, cancel-first Fuzzel confirmation before Intel automatic tuning or boot enablement. A first manual Intel selection also asks before acquiring PPD ownership. No confirmation means no mutation. This is an acknowledgement of the fixed operation, not a substitute for the existing peer-UID and active-local-seat authorization.
 
-This choice intentionally avoids automatic policy takeover. Normal left-click power profiles work unchanged with custom tuning off. For an administrator-controlled, current-boot trial on these PPD-managed machines:
+| Launcher operation | Current tuning | PPD | Custom boot preference |
+|---|---|---|---|
+| Start Automatic Tuning | Restore old owned controls, acquire policy ownership, enable arbitration and apply the selected/idle profile on an active seat | Stop and runtime-mask; if custom autostart was already enabled, re-establish persistent exclusion | Preserve |
+| Stop Automatic Tuning | Stop automatic AND manual selections; verify restoration of all owned controls | Unmask as needed and start; do not change its existing enablement merely for a temporary stop | Preserve, but stop the active autostart marker |
+| Enable Autostart Tuning at Boot | Start now; a repeated healthy enable does not reset/reapply hardware | Stop, disable and persistently mask | Enable and start marker |
+| Disable Autostart Tuning at Boot | Stop automatic/manual tuning and verify restoration | Unmask both mask layers, enable and start | Disable and stop marker |
+| Reset Hardware Tuning | Same lifecycle handback as Disable, explicitly retrying all owned hardware journals | Unmask, enable and start unless already default | Disable and stop marker |
 
-```sh
-labwc-hardware-tuning reset
-systemctl show power-profiles-daemon.service -p ActiveState -p UnitFileState
-# Record the output first. Do not run this on an already masked service.
-sudo systemctl mask --runtime --now power-profiles-daemon.service
-labwc-hardware-tuning report
-labwc-hardware-tuning manual intel balanced
-```
+A runtime mask is intentional: stopping a D-Bus-activatable service alone does not prevent it from starting again. Ordinary left-click PPD controls cannot change PPD profiles while custom tuning owns CPU policy. Stop/Disable/Reset restore their normal use; the existing left-click launcher itself is unchanged.
 
-Use only the managers actually installed on the machine; the report also checks TLP/TLP-PD, tuned/tuned-PPD, auto-cpufreq, cpufrequtils, ondemand and throttled. A runtime mask avoids D-Bus reactivation during this trial and disappears on reboot. The left-click PPD menu cannot apply a PPD profile while PPD is masked. After the trial, **first reset and verify that there are no pending recovery entries**, then reverse only the runtime mask created above and restore the recorded initial service state:
+**Temporary Stop with boot autostart enabled:** a persistent mask cannot remain in place while PPD starts. Stop therefore removes both masks, starts PPD and stops the custom marker, but preserves the custom boot preference. PPD remains disabled if the preceding custom boot takeover disabled it. On the next boot custom tuning re-establishes its persistent PPD mask before any custom hardware write. Disable or Reset instead returns PPD to enabled-and-active as the persistent default. Do not confuse the stopped marker with the saved boot preference.
 
-```sh
-labwc-hardware-tuning reset
-labwc-hardware-tuning status
-sudo systemctl unmask --runtime power-profiles-daemon.service
-sudo systemctl start power-profiles-daemon.service  # only if originally active
-```
+The handover helper has exactly two mutable unit names: `power-profiles-daemon.service` and `hardware-tuning-autostart.service`. It uses libsystemd D-Bus operations, not shell commands, systemctl, sudoers or new polkit authorizations. Unit-file changes are explicitly followed by a manager reload, and start/stop jobs are bounded and checked against final state. A timed-out job receives a bounded cancellation attempt; a failure retains the ownership/recovery evidence and is never reported as success.
 
-Persistent autostart requires an explicit, persistent owner decision by the administrator; enabling tuning autostart does not silently disable other policy software. Keep thermald, kernel thermal protection and firmware policy enabled. A thermal controller/EC can still change a limit: the tuner detects divergence and yields rather than repeatedly forcing it back. Service-state checks are a guard against known managers, not a guarantee against arbitrary root scripts or firmware writers. If a different manager appears after application, the next health check faults and restores/yields owned values.
+Systemd skips a masked unit's installation metadata when disabling it. To reliably disable PPD, a boot-mode transition first restores/locks out all custom hardware writes, enables the custom boot recovery path, removes any PPD masks, disables PPD, and then persistently masks and stops it. The brief unmasked interval occurs only while custom hardware journals are empty. PPD exclusion is verified before custom values are applied. On permanent handback, the default PPD boot path is enabled before custom boot recovery is removed. These orderings prevent an interrupted transition from leaving both next-boot policy paths disabled; they are not a claim that multiple systemd calls form one atomic transaction.
+
+Stop/Disable/Reset persist release intent in `/run/hardware-tuning/controls.json` before restoring hardware. The isolated policy helper independently obtains the same per-vendor locks and requires empty, valid recovery journals before returning PPD ownership. A failed restore keeps PPD excluded and exposes `policy_release_pending`, `recovery_pending` and the fault; retry Reset after resolving the device/driver problem. The helper records its own claim before its first mutation, so crash recovery can distinguish managed takeover from an unrelated PPD setup. It does not automatically start PPD during system shutdown.
+
+TLP/TLP-PD, tuned/tuned-PPD, auto-cpufreq, system76-power, cpufrequtils, ondemand and throttled remain independent-owner guards, not automatically stopped services. The same guard runs before starting PPD so the vendor PPD unit's Conflicts dependencies cannot silently stop an unrelated owner. Keep thermald, kernel thermal protection and firmware policy enabled. An Intel ownership/thermal fault releases remaining custom controls and hands back to PPD only after successful restoration; a failed handback is visible and retained for retry. These service checks cannot prevent arbitrary administrator scripts or firmware from writing hardware outside the managed services.
+
+NVIDIA-only installations manage their own autostart marker but do not inspect, mask, disable or stop PPD. They include the common D-Bus metadata module required by the helper, without Intel hardware permissions. A genuinely absent PPD unit is reported as absent; the helper does not install PPD or create a phantom masked service.
 
 ## Passive platform coverage
 
@@ -62,19 +62,19 @@ The first entry is **Set Single Tuning Profile**. Its submenu contains **Reset P
 
 The remaining main-menu entries are **Generate Hardware Tuning Report**, **Start Automatic Tuning**, **Stop Automatic Tuning**, **Enable Autostart Tuning at Boot**, **Disable Autostart Tuning at Boot**, and **Reset Hardware Tuning**.
 
-`Reset Profiles [All]` clears both manual selections but leaves automatic tuning enabled when it already was enabled. `Stop Automatic Tuning` leaves explicit manual selections alone. `Reset Hardware Tuning` clears automatic/manual state, disables this manager's boot-autostart link and restores the controls it owns. It does not select balanced as a substitute for resetting. Unprivileged lease processes may remain while their applications are open, but cannot re-enable automatic tuning; this avoids terminating applications or racing systemd's Upholds dependencies.
+`Reset Profiles [All]` clears both manual selections but leaves automatic tuning enabled when it already was enabled. `Stop Automatic Tuning` also releases explicit manual selections so PPD can safely become the sole CPU-policy owner. `Reset Hardware Tuning` clears automatic/manual state, disables the custom boot preference, verifies restoration of owned controls, and restores PPD enablement/operation. It does not select balanced as a substitute for resetting. Unprivileged lease processes may remain while their applications are open, but cannot re-enable automatic tuning; this avoids terminating applications or racing systemd's Upholds dependencies.
 
 The same bounded API is available from a terminal in the active local desktop session:
 
 ```sh
 labwc-hardware-tuning status
 labwc-hardware-tuning report
-labwc-hardware-tuning auto-start
+labwc-hardware-tuning auto-start --confirm-policy-owner
 labwc-hardware-tuning auto-stop
-labwc-hardware-tuning manual intel high
+labwc-hardware-tuning manual intel high --confirm-policy-owner
 labwc-hardware-tuning manual nvidia performance
 labwc-hardware-tuning profiles-reset
-labwc-hardware-tuning boot-enable
+labwc-hardware-tuning boot-enable --confirm-policy-owner
 labwc-hardware-tuning boot-disable
 labwc-hardware-tuning reset
 ```
@@ -196,27 +196,37 @@ For a single vendor use `hardware-tuning-worker intel reset` or `nvidia reset`. 
 
 ## Security and operational cost
 
-One root AF_UNIX broker listens on `/run/hardware-tuning/control.sock` (root:desktop-primary-group, 0660). Kernel `SO_PEERCRED` UID checks remain authoritative even if another group member can connect. Requests contain only finite actions/vendor/profile names: no paths, clock numbers, executable names, shell text or caller-supplied lifecycle PIDs enter the privileged API. The broker uses fixed worker argv, a clean environment, response limits, connection/request deadlines, a 64-connection cap and rate limiting; user reports are limited to one per 30 seconds.
+One root AF_UNIX broker listens on `/run/hardware-tuning/control.sock` (root:desktop-primary-group, 0660). Kernel `SO_PEERCRED` UID checks remain authoritative even if another group member can connect. Requests contain only finite actions/vendor/profile names and, for acquisition, an optional strictly boolean confirmation: no paths, clock numbers, executable names, shell text or caller-supplied lifecycle PIDs enter the privileged API. The broker uses fixed worker argv, a clean environment, response limits, connection/request deadlines, a 64-connection cap and rate limiting; user reports are limited to one per 30 seconds.
 
-The broker's AppArmor domain can edit only its own control state and the exact boot-autostart symlink, not sysfs or GPU devices. A separate root-only worker domain has only the selected vendor's hardware permissions. Intel-only installations have an empty capability bounding set and private devices; NVIDIA setters receive bounded device access and CAP_SYS_ADMIN only inside the worker's AppArmor domain. No sudoers rule, polkit policy, setuid binary or world-writable control/configuration file is added.
+The broker's AppArmor domain can edit only its own runtime control state, not unit files, sysfs or GPU devices. A separate root-only hardware worker has only the selected vendor's hardware permissions. A fourth, separately confined root-only policy helper manages only the two allowlisted units through PID 1, and cannot write hardware or execute systemctl/a shell. Its manager D-Bus rules constrain methods and peers, not argument values: the fixed Python unit allowlist is part of the trusted boundary. PID 1 performs unit-file mutations in its own namespace, so the broker no longer needs a writable `/etc/systemd/system` path. The desktop profile adds only an owner-qualified read of `/proc/[0-9]*/cgroup` for notify-send/libsystemd; it receives no system-bus unit-management rights. Intel-only installations have an empty capability bounding set and private devices; NVIDIA setters receive bounded device access and CAP_SYS_ADMIN only inside the worker's AppArmor domain. No sudoers rule, polkit policy, setuid binary or world-writable control/configuration file is added.
 
-The broker unit deliberately does not set `NoNewPrivileges=yes`: the fixed worker must transition into a different hardware-capable AppArmor domain. That worker sets no-new-privileges immediately after exec and executes no commands. Executable attachment chooses the correct profile for both ExecStart and ExecStopPost; a single unit-wide AppArmorProfile would incorrectly put emergency recovery in the broker domain. Root profiles do not inherit the repository's shell-permitting wrapper abstraction. Minimal conditional parent/child SIGCHLD bridges preserve Fuzzel and DevOps operation without granting the parent any hardware access.
+The broker unit deliberately does not set `NoNewPrivileges=yes`: the fixed helpers must transition into their different AppArmor domains. Both helpers set no-new-privileges immediately after exec and execute no commands. Executable attachment chooses the correct profile for both ExecStart and ExecStopPost; a single unit-wide AppArmorProfile would incorrectly put emergency recovery in the broker domain. Root profiles do not inherit the repository's shell-permitting wrapper abstraction. Minimal conditional parent/child SIGCHLD bridges preserve Fuzzel and DevOps operation without granting the parent any hardware access.
 
 App leases share one connection/process per active vendor/profile target, not one worker per browser. DevOps sidecars wait on pidfds without periodic PID scanning. Workers are short-lived; NVML handles close after operations and no NVML worker is started for untouched vendor recovery or health when that vendor owns no changed control. The broker checks active selection/interlocks on the configured 5..60-second interval (default 5); this is a software interlock, NOT a real-time thermal guarantee. A slow driver operation can delay checks; each worker operation has a 25-second deadline, and firmware thermal protections remain responsible for immediate hardware protection. Serialized workers favor correctness over simultaneous writes. Tune idle policy/polling deliberately rather than disabling hardware protection.
+
+## Systemd roles and slice placement
+
+The socket-activated broker deliberately has no `Conflicts=power-profiles-daemon.service`: a status/report request must not stop the default policy owner as a dependency side effect. The confirmed, journaled handover controls that transition instead.
+
+`hardware-tuning.service`, its short-lived hardware/policy children, `hardware-tuning-autostart.service`, and `hardware-tuning-sleep.service` belong in the system manager. Their service units explicitly use `Slice=system.slice`. No new CPU quotas, resource weights, cgroup delegation or system-level custom slice is introduced.
+
+The autostart unit is a `Type=oneshot`, `RemainAfterExit=yes` marker bound to the broker with `BindsTo=`/`After=`. Its root-only `autostart-marker` entrypoint makes no broker request. This prevents a synchronous StartUnit transaction inside the broker from deadlocking on a client callback waiting for the broker's own lock. Persistent enablement authorizes fresh-boot activation inside broker initialization; saved `/run` state preserves an explicit Stop across a same-boot broker restart. The marker's active state describes boot/lifecycle coordination, not a guarantee that a physical hardware profile passed all checks; inspect the control status for faults and applied profiles.
+
+Stopping tuning does **not** stop the socket-activated broker or terminate applications. The broker remains available for status, reset, recovery and existing harmless lease connections. Automatic/manual hardware arbitration is off and all owned settings are released before PPD resumes. Application lease services stay unprivileged in the **user** manager's `background.slice`; moving them into the system manager would break their session ownership. User `intel-*.target`/`nvidia-*.target` units are dependency groups with no processes and have no `Slice=` setting.
 
 ## Validation and acceptance boundary
 
 Offline checks can be repeated from the repository root:
 
 ```sh
-python3 -B -m unittest discover -v -s d-i/forky/tests -p 'test_hardware_tuning_20260916.py'
+python3 -B -m unittest discover -v -s d-i/forky/tests -p 'test_hardware_tuning*.py'
 sudo python3 -B tools/check_hardware_tuning.py
 python3 -B tools/build.py --check
 ```
 
 The generated-unit checker requires root only to satisfy the real installer's root-ownership validation in disposable fixture directories. It never starts a target unit, loads a kernel policy or writes hardware. Read its header before running against any checkout.
 
-See `validation/hardware-tuning/` for actual logs and `docs/hardware-tuning/ACCEPTANCE.md` for the installed-host acceptance procedure. Unit tests use fixture sysfs/NVML, fault injection, real Unix peer credentials and real pidfds. They never write the build container's hardware. The full repository validator is also run without partitioning, booting d-i or starting target services.
+See `validation/policy-handover-20260917/` for this revision's logs (older validation directories are retained history) and `docs/hardware-tuning/ACCEPTANCE.md` for the installed-host acceptance procedure. Unit tests use fixture sysfs/NVML, fault injection, real Unix peer credentials and real pidfds. The handover tests additionally use a real libsystemd connection to an isolated, test-only D-Bus protocol peer; this validates signatures and failures, not real PID 1 jobs. They never write the build container's hardware or manage its services. The full repository validator is also run without partitioning, booting d-i or starting target services.
 
 The implementation targets the supplied systemd 261.2 deployment. The available offline checker is systemd 257.9; generated unit verification is a parser/dependency check with explicit fixture executables/dependencies, not proof of 261.2 live behavior. This environment has no Flex/P15s hardware, NVIDIA device, graphical session or enforceable target AppArmor kernel. Real installation, thermal behavior, firmware write permissions, suspend/resume and GUI acceptance remain on-target checks, not claimed passes.
 
@@ -232,3 +242,10 @@ The implementation targets the supplied systemd 261.2 deployment. The available 
 - NVIDIA NVML device commands: https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html
 - NVIDIA NVML device queries: https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html
 - NVIDIA-SMI architecture/support notes: https://docs.nvidia.com/deploy/nvidia-smi/index.html
+
+Policy-handover interface references (consulted for this revision):
+
+- https://manpages.debian.org/unstable/systemd/systemctl.1.en.html (mask layers, disable/enable behavior)
+- https://manpages.debian.org/trixie/systemd/org.freedesktop.systemd1.5.en.html (typed unit-file and lifecycle methods)
+- https://manpages.debian.org/unstable/systemd/systemd.target.5.en.html (target dependency-group semantics)
+- https://manpages.debian.org/unstable/apparmor/apparmor.d.5.en.html (owner-qualified file permissions and D-Bus rule scope)

@@ -1,5 +1,7 @@
 # Hardware tuning and protected resctl documentation refactor
 
+> Historical revision report. The subsequent confirmed PPD handover and current menu semantics are documented in `HARDWARE-TUNING-POLICY-HANDOVER-20260917.md` and `hardware-tuning/README.md`.
+
 Revision: 17 September 2026. Input: the supplied `debian-preseed-de(1).zip`.
 Target supplied by the operator: Debian Forky with systemd 261.2.
 

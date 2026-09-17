@@ -14,7 +14,7 @@ from common import TuningError, read_text
 POWER_MANAGERS = (
     "power-profiles-daemon.service", "tlp.service", "tlp-pd.service",
     "tuned.service", "tuned-ppd.service", "auto-cpufreq.service",
-    "cpufrequtils.service", "ondemand.service", "throttled.service",
+    "cpufrequtils.service", "ondemand.service", "throttled.service", "system76-power.service",
 )
 
 

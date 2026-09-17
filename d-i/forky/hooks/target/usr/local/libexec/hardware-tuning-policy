@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -I
+"""Root-only, AppArmor-confined policy-owner helper; never executes commands."""
+import ctypes
+import json
+import os
+from pathlib import Path
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/usr/local/lib/hardware_tuning")
+from common import TuningError
+from policy_owner import main
+
+if __name__ == "__main__":
+    try:
+        if os.geteuid() != 0:
+            raise TuningError("policy handover requires root; use the authenticated control socket")
+        label = Path("/proc/self/attr/current").read_text(encoding="ascii").strip()
+        if label != "managed-hardware-tuning-policy (enforce)":
+            raise TuningError("the enforced hardware policy AppArmor profile is required")
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(38, 1, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), "PR_SET_NO_NEW_PRIVS failed")
+        raise SystemExit(main(sys.argv[1:]))
+    except Exception as exc:
+        print(json.dumps({"ok": False, "error": str(exc)[:8192]}))
+        raise SystemExit(1)

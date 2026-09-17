@@ -201,10 +201,12 @@ StartLimitBurst=3
 Type=exec
 ExecStart=/usr/local/libexec/hardware-tuningd
 ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all
+ExecStopPost=/usr/local/libexec/hardware-tuning-policy recover
 Restart=on-failure
 RestartSec=5s
-TimeoutStopSec=75s
+TimeoutStopSec=150s
 KillMode=control-group
+Slice=system.slice
 RuntimeDirectory=hardware-tuning
 RuntimeDirectoryMode=0755
 RuntimeDirectoryPreserve=yes
@@ -214,7 +216,8 @@ UMask=0077
 # The broker entrypoint refuses to run unless its enforced profile is attached.
 # Intentional: the root-only worker must transition into its DIFFERENT,
 # hardware-capable AppArmor domain. It sets NNP itself immediately after exec.
-# The broker cannot execute a shell or any program except that fixed worker.
+# The broker can execute only the fixed hardware and policy helpers, never a shell.
+# The policy helper cannot write hardware; the hardware worker cannot manage units.
 NoNewPrivileges=no
 PrivateUsers=no
 PrivatePIDs=no
@@ -228,7 +231,7 @@ ProtectKernelModules=yes
 ProtectControlGroups=yes
 ProtectKernelTunables=no
 ReadOnlyPaths=/proc/sys /sys/kernel /sys/module
-ReadWritePaths=/run/hardware-tuning /etc/systemd/system/multi-user.target.wants /sys/devices
+ReadWritePaths=/run/hardware-tuning /sys/devices
 RestrictAddressFamilies=AF_UNIX
 RestrictNamespaces=yes
 RestrictRealtime=yes
@@ -240,7 +243,8 @@ TasksMax=32
 LimitNOFILE=256
 """ + ("CapabilityBoundingSet=CAP_SYS_ADMIN\nAmbientCapabilities=\nPrivateDevices=no\nDevicePolicy=closed\nDeviceAllow=char-nvidia* rw\n" if nv else
        "CapabilityBoundingSet=\nAmbientCapabilities=\nPrivateDevices=yes\n"))
-    client_hardening = """UMask=0077
+    client_hardening = """Slice=system.slice
+UMask=0077
 AppArmorProfile=managed-hardware-tuning-client
 NoNewPrivileges=yes
 PrivateTmp=yes
@@ -257,14 +261,18 @@ LockPersonality=yes
 MemoryDenyWriteExecute=yes
 """
     put("etc/systemd/system/hardware-tuning-autostart.service", """[Unit]
-Description=Enable automatic hardware tuning arbitration for this boot
-Requires=hardware-tuning.socket
-After=hardware-tuning.socket apparmor.service systemd-logind.service
+Description=Boot opt-in and active marker for automatic hardware tuning
+BindsTo=hardware-tuning.service
+After=hardware-tuning.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/labwc-hardware-tuning auto-start
-TimeoutStartSec=240s
+RemainAfterExit=yes
+# No broker callback: synchronous StartUnit from the broker must not deadlock.
+# The broker initializes from persistent enablement only on a fresh boot;
+# runtime Stop survives socket reactivation and broker restarts on this boot.
+ExecStart=/usr/local/bin/labwc-hardware-tuning autostart-marker
+TimeoutStartSec=30s
 """ + client_hardening + "\n[Install]\nWantedBy=multi-user.target\n")
     put("etc/systemd/system/hardware-tuning-sleep.service", """[Unit]
 Description=Restore hardware controls before sleep and re-evaluate after resume
@@ -279,8 +287,8 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/local/bin/labwc-hardware-tuning pause
 ExecStop=/usr/local/bin/labwc-hardware-tuning resume
-TimeoutStartSec=240s
-TimeoutStopSec=240s
+TimeoutStartSec=360s
+TimeoutStopSec=360s
 """ + client_hardening + "\n[Install]\nRequiredBy=sleep.target\n")
     for vendor in vendors:
         for profile in PROFILES:

@@ -1,0 +1,107 @@
+{
+  "success": true,
+  "scope": "systemctl --root against disposable harmless unit files; no system bus, host units, service processes or hardware changes",
+  "masked_disable_keeps_enablement_link": true,
+  "records": [
+    {
+      "arguments": [
+        "enable",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Created symlink '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/graphical.target.wants/power-profiles-daemon.service' \u2192 '/usr/lib/systemd/system/power-profiles-daemon.service'.\nUnit /mnt/data/handover-unit-files-t4nx61hv/usr/lib/systemd/system/power-profiles-daemon.service is added as a dependency to a non-existent unit graphical.target.\n",
+      "persistent_wants_link": true
+    },
+    {
+      "arguments": [
+        "mask",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Created symlink '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/power-profiles-daemon.service' \u2192 '/dev/null'.\n",
+      "persistent_wants_link": true
+    },
+    {
+      "arguments": [
+        "disable",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Unit /mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/power-profiles-daemon.service is masked, ignoring.\nThe unit files have no installation config (WantedBy=, RequiredBy=, UpheldBy=,\nAlso=, or Alias= settings in the [Install] section, and DefaultInstance= for\ntemplate units). This means they are not meant to be enabled or disabled using systemctl.\n \nPossible reasons for having these kinds of units are:\n\u2022 A unit may be statically enabled by being symlinked from another unit's\n  .wants/, .requires/, or .upholds/ directory.\n\u2022 A unit's purpose may be to act as a helper for some other unit which has\n  a requirement dependency on it.\n\u2022 A unit may be started when needed via activation (socket, path, timer,\n  D-Bus, udev, scripted systemctl call, ...).\n\u2022 In case of template units, the unit is meant to be enabled with some\n  instance name specified.\n",
+      "persistent_wants_link": true
+    },
+    {
+      "arguments": [
+        "unmask",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Removed '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/power-profiles-daemon.service'.\n",
+      "persistent_wants_link": true
+    },
+    {
+      "arguments": [
+        "disable",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Removed '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/graphical.target.wants/power-profiles-daemon.service'.\n",
+      "persistent_wants_link": false
+    },
+    {
+      "arguments": [
+        "mask",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Created symlink '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/power-profiles-daemon.service' \u2192 '/dev/null'.\n",
+      "persistent_wants_link": false
+    },
+    {
+      "arguments": [
+        "is-enabled",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 1,
+      "stdout": "masked\n",
+      "stderr": "",
+      "persistent_wants_link": false
+    },
+    {
+      "arguments": [
+        "unmask",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Removed '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/power-profiles-daemon.service'.\n",
+      "persistent_wants_link": false
+    },
+    {
+      "arguments": [
+        "enable",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Created symlink '/mnt/data/handover-unit-files-t4nx61hv/etc/systemd/system/graphical.target.wants/power-profiles-daemon.service' \u2192 '/usr/lib/systemd/system/power-profiles-daemon.service'.\nUnit /mnt/data/handover-unit-files-t4nx61hv/usr/lib/systemd/system/power-profiles-daemon.service is added as a dependency to a non-existent unit graphical.target.\n",
+      "persistent_wants_link": true
+    },
+    {
+      "arguments": [
+        "is-enabled",
+        "power-profiles-daemon.service"
+      ],
+      "returncode": 0,
+      "stdout": "enabled\n",
+      "stderr": "",
+      "persistent_wants_link": true
+    }
+  ]
+}
