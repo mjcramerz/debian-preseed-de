@@ -1,0 +1,37 @@
+[Unit]
+Description=Reconcile system Labwc desktop overrides
+After=local-fs.target
+ConditionPathExists=/etc/default/labwc-desktop
+# Real input events can arrive rapidly during unpack. There is no output watch.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/labwc-wrap-desktop-files
+TimeoutStartSec=5min
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+StateDirectory=labwc-desktop-files
+StateDirectoryMode=0700
+# The initial installer invocation creates the output directory. AppArmor
+# restricts the writable lock directory to our one never-unlinked lock file.
+ReadWritePaths=/usr/local/share/applications /var/lib/labwc-desktop-files /run/lock
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/nonexistent LC_ALL=C
+
+[Install]
+# Existing state also gets one content-gated check on boot, not just changes.
+WantedBy=multi-user.target

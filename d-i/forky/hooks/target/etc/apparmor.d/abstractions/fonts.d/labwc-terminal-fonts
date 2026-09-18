@@ -1,0 +1,4 @@
+# Managed by unattended-installer. Fonts are deliberately stored in this
+# isolated icons subtree; consumers need read access, never write permission.
+owner @{HOME}/.local/share/icons/terminal-fonts/ r,
+owner @{HOME}/.local/share/icons/terminal-fonts/** r,

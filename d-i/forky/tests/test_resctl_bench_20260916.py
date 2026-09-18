@@ -124,7 +124,7 @@ class ReleasePolicyTests(unittest.TestCase):
 
     def test_desktop_pipeline_fetches_and_installs_for_all_profiles(self):
         role = (SEED/'scripts/late/desktop.sh').read_text()
-        self.assertIn('digital-assets resctl-bench labwc;', role)
+        self.assertIn('digital-assets resctl-bench fonts labwc;', role)
         self.assertIn('. "${desktop_module_dir}/resctl-bench.sh"', role)
         pipeline = (SEED/'scripts/desktop/labwc.sh').read_text()
         self.assertIn('  desktop_resctl_bench_preflight_target_architecture\n', pipeline)

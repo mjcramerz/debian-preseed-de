@@ -220,7 +220,7 @@ class FuzzelOutputSizingTests(unittest.TestCase):
         self.assertIn('--lines=8', arguments)
         self.assertIn(
             '--font=Noto Sans:size=9,Noto Color Emoji:size=9,'
-            'Font Awesome 6 Free:size=9',
+            'Font Awesome 6 Free:size=9,Symbols Nerd Font Mono:size=9',
             arguments,
         )
         self.assertNotIn('--width=40', arguments)

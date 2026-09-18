@@ -3,6 +3,16 @@ set -eu
 
 MENU_FAILURE_STATUS=2
 
+# Management child pickers reuse their existing data protocol in a controlling
+# terminal. Application search and ordinary graphical menus never opt in.
+if [ "${LABWC_MENU_BACKEND:-fuzzel}" = fzf ]; then
+  case "${1:-}" in
+    menu|--dmenu|--dmenu0)
+      exec /usr/local/bin/labwc-fzf-menu "$@"
+      ;;
+  esac
+fi
+
 fatal() {
   fatal_message=$*
   fatal_log_scope=${managed_log_scope:-${LABWC_FUZZEL_LOG_SCOPE:-desktop}}
@@ -217,7 +227,7 @@ if [ "$mode" = menu ]; then
     set -- "$@" "--lines=${menu_lines_override}"
   fi
   if [ -n "$menu_font_size_override" ]; then
-    menu_font="Noto Sans:size=${menu_font_size_override},Noto Color Emoji:size=${menu_font_size_override},Font Awesome 6 Free:size=${menu_font_size_override}"
+    menu_font="Noto Sans:size=${menu_font_size_override},Noto Color Emoji:size=${menu_font_size_override},Font Awesome 6 Free:size=${menu_font_size_override},Symbols Nerd Font Mono:size=${menu_font_size_override}"
     set -- "$@" "--font=${menu_font}"
   fi
 fi

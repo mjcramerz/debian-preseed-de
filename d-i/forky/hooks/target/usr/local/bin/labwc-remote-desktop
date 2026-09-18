@@ -170,7 +170,7 @@ def clean_text(label: str, value: str, *, maximum: int, allow_empty: bool = Fals
     return cleaned
 
 
-def run_fuzzel(prompt: str, choices: list[str]) -> str | None:
+def run_fuzzel(prompt: str, choices: list[str], *, text_input: bool = False) -> str | None:
     fuzzel = shutil.which("labwc-fuzzel")
     if fuzzel is None:
         fail("labwc-fuzzel is not installed")
@@ -183,6 +183,7 @@ def run_fuzzel(prompt: str, choices: list[str]) -> str | None:
             "--prompt",
             prompt,
         ],
+        env={**os.environ, "LABWC_MENU_INPUT_MODE": "text" if text_input else "choice"},
         input="\n".join(bounded_choices) + ("\n" if bounded_choices else ""),
         text=True,
         stdout=subprocess.PIPE,
@@ -215,7 +216,7 @@ def prompt_text(prompt: str, suggestions: list[str], *, default: str = "", maxim
     for suggestion in suggestions:
         if suggestion and suggestion not in values:
             values.append(suggestion)
-    selection = run_fuzzel(prompt, values)
+    selection = run_fuzzel(prompt, values, text_input=True)
     if selection is None:
         return None
     return clean_text(prompt, selection, maximum=maximum)

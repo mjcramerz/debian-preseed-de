@@ -85,7 +85,8 @@ def menu(prompt: str, choices: list[str]) -> str | None:
 
 def entry(prompt: str) -> str | None:
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
-                            input='', text=True, stdout=subprocess.PIPE, check=False)
+                            input='', text=True, stdout=subprocess.PIPE, check=False,
+                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'text'})
     selected = result.stdout.strip()
     if result.returncode or not selected:
         return None

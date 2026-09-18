@@ -1,477 +1,132 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/python3 -I
+"""Computer Management: six task-oriented groups, existing action boundaries.
 
-# Keep the menu hidden until its action window and cgroup have finished.
-export LABWC_MENU_ACTION_WAIT=1
+The no-argument entry point opens one managed terminal, like AI & Copilots.
+All child dmenu pickers opt into the terminal-only fzf data adapter; their
+existing allowlisted dispatch, confirmations and privileged helpers remain.
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 
-fatal() {
-  printf 'fatal: %s\n' "$*" >&2
-  exit 1
+SELF = '/usr/local/bin/labwc-computer-management'
+PICKER = '/usr/local/bin/labwc-fuzzel'
+TERMINAL = '/usr/local/bin/labwc-terminal'
+LOG = '/usr/local/bin/labwc-fuzzel-log'
+
+# Labels are presentation. Only these fixed argv vectors can be launched.
+MENUS = {
+    'System & Recovery': {
+        'Maintenance & Health': ('labwc-maintenance-menu', 'system'),
+        'Recovery & Repair': ('labwc-maintenance-menu', 'recovery'),
+    },
+    'Network & Remote': {
+        'Connection Profiles': ('labwc-network-control-menu', 'connections'),
+        'VPN Connections': ('labwc-network-control-menu', 'vpn'),
+        'WireGuard Connections': ('labwc-network-control-menu', 'wireguard'),
+        'DNS Configuration': ('labwc-network-control-menu', 'dns'),
+        'Network Discovery': ('labwc-network-scan-menu',),
+        'Remote Desktop': ('labwc-remote-desktop',),
+    },
+    'Security & Accounts': {
+        'Protection & Firewall': ('labwc-maintenance-menu', 'security'),
+        'Users & Groups': ('labwc-users-groups-menu',),
+    },
+    'Devices & Desktop': {
+        'Displays & Layout': ('labwc-display-configuration',),
+        'Refresh Display Layout': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
+        'Power Profile': ('labwc-power-settings',),
+        'Keyboard Layout': ('labwc-keyboard-layout',),
+        'Audio Control': ('labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol'),
+        'Restart Dock': ('/usr/bin/systemctl', '--user', '--no-block', 'restart', 'crystal-dock.service'),
+        'Android Devices': ('labwc-adb-menu',),
+        'Bluetooth Devices': ('labwc-bluetooth', 'menu'),
+        'Brightness': ('labwc-brightness-control',),
+    },
+    'Containers & AI': {
+        'Containers': ('labwc-podman-menu',),
+        'AI & Copilots': ('labwc-ai-copilots', '--terminal'),
+    },
+    'Files & Documents': {
+        'Documents & Media': ('labwc-digital-assets',),
+        'Drives & Backups': ('labwc-external-drives',),
+    },
 }
 
-desktop_defaults=${LABWC_DESKTOP_DEFAULTS_FILE:-/etc/default/labwc-desktop}
-if [ -r "$desktop_defaults" ]; then
-  # The defaults path is intentionally selected at runtime for managed tests.
-  # shellcheck disable=SC1090,SC1091
-  . "$desktop_defaults"
-fi
 
-LABWC_FUZZEL_MANAGED_ICONS=1
-export LABWC_FUZZEL_MANAGED_ICONS
+def choose(labels: list[str], prompt: str) -> str | None:
+    result = subprocess.run([PICKER, 'menu', '--dmenu', '--prompt', prompt],
+                            input=''.join(label + '\n' for label in labels), text=True,
+                            stdout=subprocess.PIPE, check=False,
+                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice'})
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'management picker failed ({result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in labels else None
 
-export LABWC_FUZZEL_LOG_SCOPE=computer-management
-export LABWC_FUZZEL_LOG_SCOPE
 
-container_management_width=${LABWC_FUZZEL_CONTAINER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-container_management_lines=${LABWC_FUZZEL_CONTAINER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-container_management_font_size=${LABWC_FUZZEL_CONTAINER_MANAGEMENT_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-remote_desktop_width=${LABWC_FUZZEL_REMOTE_DESKTOP_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-remote_desktop_lines=${LABWC_FUZZEL_REMOTE_DESKTOP_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-remote_desktop_font_size=${LABWC_FUZZEL_REMOTE_DESKTOP_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-endpoint_security_width=${LABWC_FUZZEL_ENDPOINT_SECURITY_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-endpoint_security_lines=${LABWC_FUZZEL_ENDPOINT_SECURITY_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-endpoint_security_font_size=${LABWC_FUZZEL_ENDPOINT_SECURITY_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-digital_assets_width=${LABWC_FUZZEL_DIGITAL_ASSETS_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-digital_assets_lines=${LABWC_FUZZEL_DIGITAL_ASSETS_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-digital_assets_font_size=${LABWC_FUZZEL_DIGITAL_ASSETS_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-users_groups_width=${LABWC_FUZZEL_USERS_GROUPS_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-users_groups_lines=${LABWC_FUZZEL_USERS_GROUPS_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-users_groups_font_size=${LABWC_FUZZEL_USERS_GROUPS_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-network_management_width=${LABWC_FUZZEL_NETWORK_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-network_management_lines=${LABWC_FUZZEL_NETWORK_MANAGEMENT_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-network_management_font_size=${LABWC_FUZZEL_NETWORK_MANAGEMENT_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-firewall_security_width=${LABWC_FUZZEL_FIREWALL_SECURITY_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-firewall_security_lines=${LABWC_FUZZEL_FIREWALL_SECURITY_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-firewall_security_font_size=${LABWC_FUZZEL_FIREWALL_SECURITY_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-LABWC_FUZZEL_FIREWALL_SECURITY_WIDTH=$firewall_security_width
-LABWC_FUZZEL_FIREWALL_SECURITY_LINES=$firewall_security_lines
-LABWC_FUZZEL_FIREWALL_SECURITY_FONT_SIZE=$firewall_security_font_size
-export \
-  LABWC_FUZZEL_FIREWALL_SECURITY_WIDTH \
-  LABWC_FUZZEL_FIREWALL_SECURITY_LINES \
-  LABWC_FUZZEL_FIREWALL_SECURITY_FONT_SIZE
-system_configuration_width=${LABWC_FUZZEL_SYSTEM_CONFIGURATION_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-system_configuration_lines=${LABWC_FUZZEL_SYSTEM_CONFIGURATION_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-system_configuration_font_size=${LABWC_FUZZEL_SYSTEM_CONFIGURATION_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-phone_management_width=${LABWC_FUZZEL_PHONE_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-phone_management_lines=${LABWC_FUZZEL_PHONE_MANAGEMENT_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-phone_management_font_size=${LABWC_FUZZEL_PHONE_MANAGEMENT_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-backup_recovery_width=${LABWC_FUZZEL_BACKUP_RECOVERY_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-backup_recovery_lines=${LABWC_FUZZEL_BACKUP_RECOVERY_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-backup_recovery_font_size=${LABWC_FUZZEL_BACKUP_RECOVERY_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-hardware_peripherals_width=${LABWC_FUZZEL_HARDWARE_PERIPHERALS_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-22}}
-hardware_peripherals_lines=${LABWC_FUZZEL_HARDWARE_PERIPHERALS_LINES:-${LABWC_FUZZEL_MENU_LINES:-5}}
-hardware_peripherals_font_size=${LABWC_FUZZEL_HARDWARE_PERIPHERALS_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
-ai_copilots_width=${LABWC_FUZZEL_AI_COPILOTS_WIDTH:-${LABWC_FUZZEL_MENU_WIDTH:-30}}
-ai_copilots_lines=${LABWC_FUZZEL_AI_COPILOTS_LINES:-${LABWC_FUZZEL_MENU_LINES:-16}}
-ai_copilots_font_size=${LABWC_FUZZEL_AI_COPILOTS_FONT_SIZE:-${LABWC_FUZZEL_FONT_SIZE:-15}}
+def run_action(arguments: tuple[str, ...]) -> int:
+    executable = arguments[0]
+    if not executable.startswith('/'):
+        executable = '/usr/local/bin/' + executable
+    command = (executable, *arguments[1:])
+    try:
+        status = subprocess.run(command, check=False).returncode
+    except OSError as error:
+        print(f'Computer Management: {Path(executable).name}: {error}', file=sys.stderr)
+        status = 127
+    if Path(LOG).is_file():
+        subprocess.run([LOG, 'action', 'completed', 'source=computer-management',
+                        'action=' + Path(executable).name, 'status=' + str(status)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    return status
 
-choose_menu_input() (
-  prompt=$1
-  root_menu=${2:-0}
-  menu_input=$(cat)
 
-  case "$root_menu" in
-    0) ;;
-    1)
-      LABWC_FUZZEL_ROOT_MENU=1
-      export LABWC_FUZZEL_ROOT_MENU
-      ;;
-    *) fatal "invalid Computer Management root-menu state: $root_menu" ;;
-  esac
+def run_menu() -> int:
+    while True:
+        group = choose([*MENUS, 'Exit'], 'Computer Management')
+        if group is None or group == 'Exit':
+            return 0
+        entries = MENUS[group]
+        while True:
+            selected = choose([*entries, 'Back'], 'Computer Management / ' + group)
+            if selected is None or selected == 'Back':
+                break
+            run_action(entries[selected])
 
-  if menu_selection=$(printf '%s\n' "$menu_input" | labwc-fuzzel menu --dmenu --prompt "$prompt"); then
-    printf '%s\n' "$menu_selection"
-    exit 0
-  else
-    menu_status=$?
-  fi
 
-  if [ "$menu_status" -eq 2 ] &&
-     [ -n "${LABWC_FUZZEL_MENU_WIDTH_OVERRIDE:-}${LABWC_FUZZEL_MENU_LINES_OVERRIDE:-}${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}" ]
-  then
-    log_computer_management_menu_failure "$prompt" "$menu_status"
-    printf 'warning: retrying the %s menu without category sizing overrides\n' \
-      "$prompt" >&2
-    unset \
-      LABWC_FUZZEL_MENU_WIDTH_OVERRIDE \
-      LABWC_FUZZEL_MENU_LINES_OVERRIDE \
-      LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE
-    if menu_selection=$(printf '%s\n' "$menu_input" | labwc-fuzzel menu --dmenu --prompt "$prompt"); then
-      printf '%s\n' "$menu_selection"
-      exit 0
-    else
-      menu_status=$?
-    fi
-  fi
-
-  case "$menu_status" in
-    1)
-      # Fuzzel uses status 1 when the user dismisses a dmenu picker.
-      exit 0
-      ;;
-    *)
-      fatal "unable to open the ${prompt} menu (status ${menu_status})"
-      ;;
-  esac
-)
-
-choose_lines() {
-  prompt=$1
-  shift
-
-  printf '%s\n' "$@" |
-    choose_menu_input "$prompt"
-}
-
-choose_root_lines() {
-  prompt=$1
-  shift
-
-  printf '%s\n' "$@" |
-    choose_menu_input "$prompt" 1
-}
-
-run_command() {
-  command_name=$1
-  shift
-
-  command -v "$command_name" >/dev/null 2>&1 ||
-    fatal "${command_name} is not installed"
-
-  if "$command_name" "$@"; then
-    log_computer_management_action "$command_name" 0
-    return 0
-  else
-    command_status=$?
-  fi
-
-  log_computer_management_action "$command_name" "$command_status"
-  printf 'warning: Computer Management action returned status %s: %s\n' \
-    "$command_status" "$command_name" >&2
-  # A child action must not terminate the surrounding Fuzzel launcher. The
-  # action has already surfaced its own detail in the terminal or notification.
-  return 0
-}
-
-log_computer_management_action() {
-  action_name=$1
-  action_status=$2
-
-  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
-  if ! /usr/local/bin/labwc-fuzzel-log \
-      action \
-      completed \
-      "source=computer-management" \
-      "action=$action_name" \
-      "status=$action_status" \
-      >/dev/null 2>&1
-  then
-    :
-  fi
-}
-
-log_computer_management_menu_failure() {
-  menu_prompt=$1
-  menu_status=$2
-
-  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
-  if ! /usr/local/bin/labwc-fuzzel-log \
-      action \
-      launcher-failed \
-      "source=computer-management" \
-      "menu=$menu_prompt" \
-      "status=$menu_status" \
-      >/dev/null 2>&1
-  then
-    :
-  fi
-}
-
-run_sized_menu() (
-  LABWC_FUZZEL_MENU_WIDTH_OVERRIDE=$1
-  LABWC_FUZZEL_MENU_LINES_OVERRIDE=$2
-  LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE=$3
-  export \
-    LABWC_FUZZEL_MENU_WIDTH_OVERRIDE \
-    LABWC_FUZZEL_MENU_LINES_OVERRIDE \
-    LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE
-  shift 3
-  "$@"
-)
-
-run_sized_menu_if_distinct() {
-  requested_width=$1
-  requested_lines=$2
-  requested_font_size=$3
-  shift 3
-
-  if [ "$requested_width" = "${LABWC_FUZZEL_MENU_WIDTH:-22}" ] &&
-     [ "$requested_lines" = "${LABWC_FUZZEL_MENU_LINES:-5}" ] &&
-     [ "$requested_font_size" = "${LABWC_FUZZEL_FONT_SIZE:-15}" ]
-  then
-    "$@"
-    return
-  fi
-
-  run_sized_menu \
-    "$requested_width" \
-    "$requested_lines" \
-    "$requested_font_size" \
-    "$@"
-}
-
-network_management_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Network Management" \
-        "⮞ Network Scanning" \
-        "⮞ Connection Profiles" \
-        "⮞ VPN Connections" \
-        "⮞ WireGuard Connections" \
-        "⮞ DNS Configuration" \
-        "← Back"
-    )
-
-    case "$action" in
-      "⮞ Network Scanning")
-        run_command labwc-network-scan-menu
-        ;;
-      "⮞ Connection Profiles")
-        run_command labwc-network-control-menu connections
-        ;;
-      "⮞ VPN Connections")
-        run_command labwc-network-control-menu vpn
-        ;;
-      "⮞ WireGuard Connections")
-        run_command labwc-network-control-menu wireguard
-        ;;
-      "⮞ DNS Configuration")
-        run_command labwc-network-control-menu dns
-        ;;
-      "← Back")
+def main(argv: list[str]) -> int:
+    if argv == ['--catalog']:
+        print(json.dumps(MENUS, ensure_ascii=False, indent=2))
         return 0
-        ;;
-      '')
-        return 0
-        ;;
-    esac
-  done
-}
+    if os.geteuid() == 0:
+        raise ValueError('Computer Management must run as the desktop user')
+    if not argv:
+        os.execv(TERMINAL, [TERMINAL, '-e', SELF, '--terminal'])
+    if argv != ['--terminal']:
+        raise ValueError('usage: labwc-computer-management [--terminal|--catalog]')
+    with open('/dev/tty', 'r+'):
+        pass
+    # Set this only after entering the managed terminal. No global session
+    # export: application menus remain Fuzzel and GUI actions remain isolated.
+    os.environ.update(LABWC_MENU_BACKEND='fzf', LABWC_MENU_ACTION_WAIT='1',
+                      LABWC_FUZZEL_LOG_SCOPE='computer-management')
+    # Direct AI & Copilots fzf invocations receive the same safe defaults.
+    for key in list(os.environ):
+        if key.startswith('FZF_'):
+            del os.environ[key]
+    return run_menu()
 
-system_configuration_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "System Configuration" \
-        "⮞ System Maintenance & Diagnostics" \
-        "Display Configuration" \
-        "Refresh Display Layout" \
-        "Power Profile" \
-        "Keyboard Layout" \
-        "Audio Control" \
-        "Restart Dock" \
-        "← Back"
-    )
 
-    case "$action" in
-      "⮞ System Maintenance & Diagnostics")
-        run_command labwc-maintenance-menu system
-        ;;
-      "Display Configuration")
-        run_command labwc-display-configuration
-        ;;
-      "Refresh Display Layout")
-        run_command /usr/local/libexec/labwc-output-watch --refresh
-        ;;
-      "Power Profile")
-        run_command labwc-power-settings
-        ;;
-      "Keyboard Layout")
-        run_command labwc-keyboard-layout
-        ;;
-      "Audio Control")
-        run_command labwc-wayland-app auto -- /usr/bin/pavucontrol
-        ;;
-      "Restart Dock")
-        run_command systemctl --user --no-block restart crystal-dock.service
-        ;;
-      "← Back")
-        return 0
-        ;;
-      '')
-        return 0
-        ;;
-    esac
-  done
-}
-
-backup_recovery_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Backup & Recovery" \
-        "⮞ Troubleshooting" \
-        "⮞ Backup Drives" \
-        "← Back"
-    )
-
-    case "$action" in
-      "⮞ Troubleshooting")
-        run_command labwc-maintenance-menu recovery
-        ;;
-      "⮞ Backup Drives")
-        run_command labwc-external-drives
-        ;;
-      "← Back")
-        return 0
-        ;;
-      '')
-        return 0
-        ;;
-    esac
-  done
-}
-
-hardware_peripherals_menu() {
-  while :; do
-    action=$(
-      choose_lines \
-        "Hardware & Peripherals" \
-        "⮞ External Drives" \
-        "⮞ Bluetooth Devices" \
-        "⮞ Brightness" \
-        "← Back"
-    )
-
-    case "$action" in
-      "⮞ External Drives")
-        run_command labwc-external-drives
-        ;;
-      "⮞ Bluetooth Devices")
-        run_command labwc-bluetooth menu
-        ;;
-      "⮞ Brightness")
-        run_command labwc-brightness-control
-        ;;
-      "← Back")
-        return 0
-        ;;
-      '')
-        return 0
-        ;;
-    esac
-  done
-}
-
-command -v labwc-fuzzel >/dev/null 2>&1 ||
-  fatal "labwc-fuzzel is not installed"
-
-[ "$(id -u)" -ne 0 ] ||
-  fatal "labwc-computer-management must run as the logged-in desktop user"
-
-while :; do
-  category=$(
-    choose_root_lines \
-      "Computer Management" \
-      "⮞ Container Management" \
-      "⮞ Remote Desktop" \
-      "⮞ Endpoint Security" \
-      "⮞ Digital Assets" \
-      "⮞ Users & Groups" \
-      "⮞ Network Management" \
-      "⮞ System Configuration" \
-      "⮞ Phone Management" \
-      "⮞ Backup & Recovery" \
-      "⮞ Hardware & Peripherals" \
-      "⮞ AI & Copilots" \
-      "Exit"
-  )
-
-  case "$category" in
-    "⮞ Container Management")
-      run_sized_menu \
-        "$container_management_width" \
-        "$container_management_lines" \
-        "$container_management_font_size" \
-        run_command labwc-podman-menu
-      ;;
-    "⮞ Remote Desktop")
-      run_sized_menu \
-        "$remote_desktop_width" \
-        "$remote_desktop_lines" \
-        "$remote_desktop_font_size" \
-        run_command labwc-remote-desktop
-      ;;
-    "⮞ Endpoint Security")
-      run_sized_menu \
-        "$endpoint_security_width" \
-        "$endpoint_security_lines" \
-        "$endpoint_security_font_size" \
-        run_command labwc-maintenance-menu security
-      ;;
-    "⮞ Digital Assets")
-      run_sized_menu \
-        "$digital_assets_width" \
-        "$digital_assets_lines" \
-        "$digital_assets_font_size" \
-        run_command labwc-digital-assets
-      ;;
-    "⮞ Users & Groups")
-      run_sized_menu \
-        "$users_groups_width" \
-        "$users_groups_lines" \
-        "$users_groups_font_size" \
-        run_command labwc-users-groups-menu
-      ;;
-    "⮞ Network Management")
-      run_sized_menu \
-        "$network_management_width" \
-        "$network_management_lines" \
-        "$network_management_font_size" \
-        network_management_menu
-      ;;
-    "⮞ System Configuration")
-      # Managed profiles deliberately give this submenu the global menu
-      # geometry. Avoid exporting redundant per-category overrides while still
-      # preserving an explicitly distinct profile value.
-      run_sized_menu_if_distinct \
-        "$system_configuration_width" \
-        "$system_configuration_lines" \
-        "$system_configuration_font_size" \
-        system_configuration_menu
-      ;;
-    "⮞ Phone Management")
-      run_sized_menu \
-        "$phone_management_width" \
-        "$phone_management_lines" \
-        "$phone_management_font_size" \
-        run_command labwc-adb-menu
-      ;;
-    "⮞ Backup & Recovery")
-      run_sized_menu \
-        "$backup_recovery_width" \
-        "$backup_recovery_lines" \
-        "$backup_recovery_font_size" \
-        backup_recovery_menu
-      ;;
-    "⮞ Hardware & Peripherals")
-      run_sized_menu \
-        "$hardware_peripherals_width" \
-        "$hardware_peripherals_lines" \
-        "$hardware_peripherals_font_size" \
-        hardware_peripherals_menu
-      ;;
-    "⮞ AI & Copilots")
-      run_sized_menu \
-        "$ai_copilots_width" \
-        "$ai_copilots_lines" \
-        "$ai_copilots_font_size" \
-        run_command labwc-ai-copilots
-      ;;
-    Exit|'')
-      exit 0
-      ;;
-  esac
-done
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        raise SystemExit(0)
+    except (OSError, ValueError, RuntimeError) as error:
+        print('Computer Management: ' + str(error), file=sys.stderr)
+        raise SystemExit(2)

@@ -179,23 +179,46 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             with self.subTest(path=relative):
                 original = (ROOT / relative).read_bytes()
                 if relative == 'd-i/forky/scripts/desktop/labwc.sh':
-                    # Exclude only the three explicitly added installer calls.
+                    # The categorized-menu task explicitly changes menu policy
+                    # and adds this exact dependency check, not workload policy.
+                    menu_default = b'LABWC_MENU_COMMAND:-labwc-main-menu'
+                    self.assertEqual(original.count(menu_default), 1)
+                    original = original.replace(menu_default, b'LABWC_MENU_COMMAND:-labwc-fuzzel launcher', 1)
+                    gio_check = (
+                        b'  # python3-gi is already a selected desktop dependency. Verify the small GIO\n'
+                        b'  # Unix binding used by the on-demand menu in the installed target, not the d-i\n'
+                        b'  # interpreter. No graphical session or root application discovery is needed.\n'
+                        b'  run_in_target "verify GIO desktop-entry binding" /usr/bin/python3 -I -c \'\n'
+                        b'import gi\n'
+                        b'gi.require_version("Gio", "2.0")\n'
+                        b'gi.require_version("GioUnix", "2.0")\n'
+                        b'from gi.repository import Gio, GioUnix\n'
+                        b'assert Gio.AppInfo and GioUnix.DesktopAppInfo\n'
+                        b"'\n"
+                    )
+                    self.assertEqual(original.count(gio_check), 1)
+                    original = original.replace(gio_check, b'', 1)
+                    # Exclude only the four explicitly added installer calls.
                     # Hardware tuning is separate; original workload policy
                     # bytes must still match the unchanged historical fixture.
                     for added in (b'  desktop_resctl_bench_preflight_target_architecture\n',
                                   b'  desktop_install_resctl_bench\n',
-                                  b'  desktop_install_hardware_tuning\n'):
+                                  b'  desktop_install_hardware_tuning\n',
+                                  b'  desktop_install_fonts\n'):
                         self.assertEqual(original.count(added), 1)
                         original = original.replace(added, b'', 1)
                 self.assertEqual(hashlib.sha256(original).hexdigest(), expected)
         for profile in PROFILES:
             # The separate resctl-bench suite verifies every exact pin/value.
             # Remove just its added block, not any original profile policy.
+            menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
+            self.assertEqual(profile.read_text().count(menu_policy), 1)
+            profile_text = profile.read_text().replace(menu_policy, 'LABWC_MENU_COMMAND="labwc-fuzzel launcher"', 1)
             original, count = re.subn(
                 r'# Native x86-64 resource-control benchmark release \(installation only\)\.\n'
                 r'# Native CPU compatibility is checked with unprivileged --version on the target\.\n'
                 r'(?:RESCTL_BENCH_[A-Z0-9_]+="[^"\n]*"\n){8}\n',
-                '', profile.read_text(), count=1)
+                '', profile_text, count=1)
             self.assertEqual(count, 1)
             prefix = original.split('\n# Systemd accounting and user resource classes.', 1)[0]
             self.assertEqual(hashlib.sha256((prefix.rstrip()+'\n').encode()).hexdigest(),

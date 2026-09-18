@@ -11,7 +11,7 @@ desktop_log_policy_context() {
   desktop_log "policy outputs=${LABWC_OUTPUT_POLICY:-auto} detected=${LABWC_DETECTED_OUTPUTS:-none} internal=${LABWC_DETECTED_INTERNAL_OUTPUTS:-none} external=${LABWC_DETECTED_EXTERNAL_OUTPUTS:-none} primary=${LABWC_DETECTED_PRIMARY_OUTPUT:-none}"
   desktop_log "policy acceleration intel=${LABWC_INTEL_ACCELERATION_AVAILABLE:-false} nvidia=${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}"
   desktop_log "policy enables waybar=${LABWC_ENABLE_WAYBAR:-true} kanshi=${LABWC_ENABLE_KANSHI:-true} mako=${LABWC_ENABLE_MAKO:-true} swayidle=${LABWC_ENABLE_SWAYIDLE:-true} swaybg=${LABWC_ENABLE_SWAYBG:-true} polkit=${LABWC_ENABLE_POLKIT_AGENT:-true} portal=${LABWC_ENABLE_XDG_DESKTOP_PORTAL:-true}"
-  desktop_log "policy commands launcher=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher} menu=${LABWC_MENU_COMMAND:-labwc-fuzzel launcher} file_manager=${LABWC_FILE_MANAGER_COMMAND:-thunar} terminal=${LABWC_TERMINAL_PRIMARY:-foot}/${LABWC_TERMINAL_FALLBACK:-kitty} brightness=${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control} power=${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}"
+  desktop_log "policy commands launcher=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher} menu=${LABWC_MENU_COMMAND:-labwc-main-menu} file_manager=${LABWC_FILE_MANAGER_COMMAND:-thunar} terminal=${LABWC_TERMINAL_PRIMARY:-foot}/${LABWC_TERMINAL_FALLBACK:-kitty} brightness=${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control} power=${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}"
 }
 
 desktop_install_codex_standalone() (
@@ -163,6 +163,16 @@ run_desktop_late_command() {
   desktop_log "installed pinned samloader-rs Samsung firmware tool"
   desktop_install_digital_assets
   desktop_log "installed pinned Digital Assets PDF, document, and image tools"
+  # python3-gi is already a selected desktop dependency. Verify the small GIO
+  # Unix binding used by the on-demand menu in the installed target, not the d-i
+  # interpreter. No graphical session or root application discovery is needed.
+  run_in_target "verify GIO desktop-entry binding" /usr/bin/python3 -I -c '
+import gi
+gi.require_version("Gio", "2.0")
+gi.require_version("GioUnix", "2.0")
+from gi.repository import Gio, GioUnix
+assert Gio.AppInfo and GioUnix.DesktopAppInfo
+'
   desktop_install_resctl_bench
   desktop_stage_target_assets
   desktop_log "staged Labwc desktop target assets"
@@ -174,6 +184,7 @@ run_desktop_late_command() {
   desktop_install_user_resource_policy
   desktop_log "rendered Labwc desktop defaults and greetd config"
   desktop_install_user_config
+  desktop_install_fonts
   desktop_install_waypaper
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"
   desktop_enable_target_services

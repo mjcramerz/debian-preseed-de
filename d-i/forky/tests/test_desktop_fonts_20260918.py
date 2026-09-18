@@ -1,0 +1,301 @@
+"""Pinned-font installer tests. No released/proprietary font bytes are bundled.
+
+Archives are local synthetic fixtures. One optional test exercises real
+fontconfig as a non-root uid using an already installed system test font.
+"""
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import pwd
+import shutil
+import stat
+import subprocess
+import tarfile
+import tempfile
+import types
+import unittest
+from unittest import mock
+
+FORKY = Path(__file__).resolve().parents[1]
+SOURCE = FORKY / 'scripts/desktop/fonts-install.py'
+
+
+def load():
+    module = types.ModuleType('font_installer_fixture')
+    module.__file__ = str(SOURCE)
+    exec(compile(SOURCE.read_bytes(), str(SOURCE), 'exec'), module.__dict__)
+    return module
+
+
+class FontInstallTests(unittest.TestCase):
+    def setUp(self):
+        self.m = load()
+        self.temp = tempfile.TemporaryDirectory(prefix='desktop-font-fixture-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.root.chmod(0o755)
+        self.cache = self.root / 'cache'; self.cache.mkdir()
+        self.home = self.root / 'home'; self.home.mkdir(mode=0o700)
+        self.archives = {}
+        triples = []
+        for name in self.m.NAMES:
+            path = self.archive(name + '.tar.xz', [('font.ttf', b'fixture-font-data', tarfile.REGTYPE)])
+            self.archives[name] = path
+            triples.append([name, 'https://github.com/mjcramerz/fonts/releases/download/test/' + name + '.tar.xz', self.m.digest(path)])
+        self.policy = self.m.validate_policy(triples)
+        self.download = self.enterContext(mock.patch.object(self.m, 'download', side_effect=self.copy_archive))
+
+    def archive(self, filename, members):
+        path = self.root / filename
+        with tarfile.open(path, 'w:xz') as tar:
+            for name, data, kind in members:
+                info = tarfile.TarInfo(name); info.type = kind
+                info.mode = 0o777; info.uid = 12345; info.gid = 12345
+                if kind == tarfile.REGTYPE:
+                    info.size = len(data); tar.addfile(info, io.BytesIO(data))
+                else:
+                    info.linkname = '/etc/passwd'; tar.addfile(info)
+        return path
+
+    def copy_archive(self, url, destination, sha):
+        name = Path(url).name.removesuffix('.tar.xz')
+        shutil.copyfile(self.archives[name], destination)
+
+    def generation(self):
+        return self.m.prepare_generation(self.cache, self.policy)
+
+    def test_policy_has_exactly_five_unique_https_pins(self):
+        self.assertEqual({x['name'] for x in self.policy}, set(self.m.NAMES))
+        triples = [[x['name'], x['url'], x['sha256']] for x in self.policy]
+        for broken in (triples[:-1], triples + triples[:1], triples[:-1] + triples[:1]):
+            with self.assertRaises(ValueError): self.m.validate_policy(broken)
+        for bad in ('http://github.com/x', 'https://github.com.evil/x', self.policy[0]['url'] + '?x', 'file:///etc/passwd'):
+            rows = [row[:] for row in triples]; rows[0][1] = bad
+            with self.assertRaises(ValueError): self.m.validate_policy(rows)
+
+    def test_policy_hash_is_order_independent_after_validation(self):
+        rows = [[x['name'], x['url'], x['sha256']] for x in reversed(self.policy)]
+        self.assertEqual(self.m.policy_id(self.policy), self.m.policy_id(self.m.validate_policy(rows)))
+
+    def test_sha_mismatch_rejected_before_extraction(self):
+        out = self.root / 'out'; out.mkdir()
+        with self.assertRaises(ValueError):
+            self.m.extract_archive(self.archives['FiraCode'], out, '0' * 64)
+        self.assertEqual(list(out.iterdir()), [])
+
+    def test_unsafe_paths_rejected(self):
+        for name in ('../font.ttf', '/font.ttf', 'dir/../../font.ttf', 'dir\\font.ttf', 'dir/\x1bfont.ttf'):
+            with self.subTest(name=name):
+                archive = self.archive('bad.tar.xz', [(name, b'x', tarfile.REGTYPE)])
+                with tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+                    self.m.extract_archive(archive, Path(output), self.m.digest(archive))
+
+    def test_links_devices_fifo_rejected(self):
+        for kind in (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.CHRTYPE, tarfile.BLKTYPE, tarfile.FIFOTYPE):
+            archive = self.archive('bad.tar.xz', [('font.ttf', b'', kind)])
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+                self.m.extract_archive(archive, Path(output), self.m.digest(archive))
+
+    def test_duplicates_rejected(self):
+        archive = self.archive('bad.tar.xz', [('font.ttf', b'a', tarfile.REGTYPE)] * 2)
+        with tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+            self.m.extract_archive(archive, Path(output), self.m.digest(archive))
+
+    def test_archive_without_fonts_rejected(self):
+        archive = self.archive('bad.tar.xz', [('README', b'not a font', tarfile.REGTYPE)])
+        with tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+            self.m.extract_archive(archive, Path(output), self.m.digest(archive))
+
+    def test_member_size_and_expansion_limits(self):
+        for setting in ('MAX_MEMBER', 'MAX_EXPANDED', 'MAX_ARCHIVE'):
+            with self.subTest(setting=setting), mock.patch.object(self.m, setting, 1), tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+                self.m.extract_archive(self.archives['FiraCode'], Path(output), self.m.digest(self.archives['FiraCode']))
+
+    def test_decompressed_header_bytes_are_bounded(self):
+        stream = self.m.BoundedStream(io.BytesIO(b'x' * 20), 10)
+        self.assertEqual(stream.read(5), b'x' * 5)
+        with self.assertRaises(ValueError): stream.read(1000)
+
+    def test_archive_member_count_limit(self):
+        with mock.patch.object(self.m, 'MAX_MEMBERS', 0), tempfile.TemporaryDirectory(dir=self.root) as output, self.assertRaises(ValueError):
+            self.m.extract_archive(self.archives['FiraCode'], Path(output), self.m.digest(self.archives['FiraCode']))
+
+    def test_modes_archive_owners_and_executable_bits_are_not_preserved(self):
+        generation = self.generation()
+        for path in generation.rglob('*'):
+            self.assertEqual(path.stat().st_uid, os.geteuid())
+            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755 if path.is_dir() else 0o644)
+
+    def test_identical_generation_does_not_download_again(self):
+        source = self.generation(); before = source.stat().st_mtime_ns
+        self.assertEqual(self.download.call_count, 5)
+        self.assertEqual(source, self.generation())
+        self.assertEqual(self.download.call_count, 5)
+        self.assertEqual(before, source.stat().st_mtime_ns)
+
+    def test_bad_late_archive_never_publishes_partial_generation(self):
+        self.archives['ProFont'] = self.archive('bad.tar.xz', [('../font.ttf', b'x', tarfile.REGTYPE)])
+        with self.assertRaises(ValueError): self.generation()
+        self.assertEqual(list((self.cache / 'releases').iterdir()), [])
+        self.assertFalse(list(self.cache.glob('.font-stage-*')))
+
+    def test_modified_cache_generation_is_preserved_and_rejected(self):
+        generation = self.generation(); font = generation / 'FiraCode/font.ttf'; font.write_bytes(b'admin')
+        with self.assertRaises(ValueError): self.generation()
+        self.assertEqual(font.read_bytes(), b'admin')
+
+    def test_source_symlink_and_hardlink_rejected(self):
+        for kind in ('symlink', 'hardlink'):
+            with self.subTest(kind=kind):
+                generation = self.generation(); font = generation / 'FiraCode/font.ttf'; link = generation / 'extra.ttf'
+                if kind == 'symlink': link.symlink_to(font)
+                else: os.link(font, link)
+                with self.assertRaises(ValueError): self.m.verify_generation(generation, self.policy)
+                link.unlink()
+
+    def test_user_and_skeleton_use_icons_path_and_fontconfig_rule(self):
+        source = self.generation()
+        for name in ('user-home', 'skel-desktop'):
+            home = self.root / name; home.mkdir()
+            current, changed = self.m.publish(home, source, self.policy)
+            self.assertTrue(changed)
+            self.assertEqual(current, home / '.local/share/icons/terminal-fonts/current')
+            self.assertTrue(current.is_symlink())
+            conf = home / '.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf'
+            self.assertEqual(conf.read_bytes(), self.m.FONT_CONFIG)
+            self.assertIn(b'<dir prefix="xdg">icons/terminal-fonts/current</dir>', conf.read_bytes())
+
+    def test_unchanged_publication_and_font_cache_are_noop(self):
+        source = self.generation(); current, changed = self.m.publish(self.home, source, self.policy)
+        with mock.patch.object(self.m.subprocess, 'run') as run:
+            self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), changed)
+            self.assertEqual(run.call_count, 1)
+            before = {str(p): p.lstat().st_mtime_ns for p in self.home.rglob('*')}
+            current, changed = self.m.publish(self.home, source, self.policy)
+            self.assertFalse(changed)
+            self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), changed)
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(before, {str(p): p.lstat().st_mtime_ns for p in self.home.rglob('*')})
+
+    def test_failed_font_cache_is_retried(self):
+        source = self.generation(); current, changed = self.m.publish(self.home, source, self.policy)
+        with mock.patch.object(self.m.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, 'fc-cache')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), changed)
+        self.assertFalse((current.parent / '.cache-ready').exists())
+        with mock.patch.object(self.m.subprocess, 'run') as run:
+            self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), False)
+            run.assert_called_once()
+            self.assertNotIn('shell', run.call_args.kwargs)
+            self.assertEqual(run.call_args.args[0][0], '/usr/bin/fc-cache')
+
+    def test_modified_user_generation_is_not_overwritten(self):
+        source = self.generation(); current, _ = self.m.publish(self.home, source, self.policy)
+        font = current / 'FiraCode/font.ttf'; font.write_bytes(b'user-data')
+        with self.assertRaises(ValueError): self.m.publish(self.home, source, self.policy)
+        self.assertEqual(font.read_bytes(), b'user-data')
+
+    def test_unmanaged_config_is_not_replaced(self):
+        config = self.home / '.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf'
+        config.parent.mkdir(parents=True); config.write_bytes(b'admin-config')
+        with self.assertRaises(ValueError): self.m.publish(self.home, self.generation(), self.policy)
+        self.assertEqual(config.read_bytes(), b'admin-config')
+        self.assertFalse((self.home / '.local/share/icons/terminal-fonts/current').exists())
+
+    def test_symlink_home_component_refused(self):
+        other = self.root / 'elsewhere'; other.mkdir()
+        (self.home / '.local').symlink_to(other)
+        with self.assertRaises(ValueError): self.m.publish(self.home, self.generation(), self.policy)
+        self.assertEqual(list(other.iterdir()), [])
+
+    def test_unmanaged_current_refused(self):
+        base = self.home / '.local/share/icons/terminal-fonts'; base.mkdir(parents=True)
+        (base / 'current').symlink_to('/usr/share/fonts')
+        with self.assertRaises(ValueError): self.m.publish(self.home, self.generation(), self.policy)
+        self.assertEqual(os.readlink(base / 'current'), '/usr/share/fonts')
+
+    def test_atomic_pointer_failure_is_recoverable(self):
+        source = self.generation()
+        real_replace = os.replace
+        def fail_pointer(src, dst):
+            if Path(dst).name == 'current': raise OSError('simulated interruption')
+            return real_replace(src, dst)
+        with mock.patch.object(self.m.os, 'replace', side_effect=fail_pointer):
+            with self.assertRaises(OSError): self.m.publish(self.home, source, self.policy)
+        current, changed = self.m.publish(self.home, source, self.policy)
+        self.assertTrue(current.is_dir()); self.assertTrue(changed)
+        self.assertFalse(list(current.parent.glob('.current-*')))
+
+    @unittest.skipUnless(os.geteuid() == 0, 'requires root ownership fixture')
+    def test_root_created_xdg_parents_repaired_without_recursive_chown(self):
+        nobody = pwd.getpwnam('nobody')
+        account = types.SimpleNamespace(pw_uid=nobody.pw_uid, pw_gid=nobody.pw_gid, pw_dir=str(self.home))
+        os.chown(self.home, account.pw_uid, account.pw_gid)
+        share = self.home / '.local/share'; share.mkdir(parents=True)
+        unrelated = share / 'unrelated'; unrelated.write_bytes(b'unchanged')
+        self.m.prepare_user_parents(account)
+        self.assertEqual((self.home / '.local').stat().st_uid, account.pw_uid)
+        self.assertEqual(share.stat().st_uid, account.pw_uid)
+        self.assertEqual(unrelated.stat().st_uid, 0)
+        self.m.prepare_user_parents(account)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'requires root ownership fixture')
+    def test_xdg_parent_symlink_never_chowns_its_target(self):
+        nobody = pwd.getpwnam('nobody')
+        account = types.SimpleNamespace(pw_uid=nobody.pw_uid, pw_gid=nobody.pw_gid, pw_dir=str(self.home))
+        os.chown(self.home, account.pw_uid, account.pw_gid)
+        other = self.root / 'outside'; other.mkdir()
+        (self.home / '.local').symlink_to(other)
+        with self.assertRaises(OSError): self.m.prepare_user_parents(account)
+        self.assertEqual(other.stat().st_uid, 0)
+        self.assertEqual(list(other.iterdir()), [])
+
+    @unittest.skipUnless(os.geteuid() == 0 and shutil.which('fc-cache') and shutil.which('fc-list'), 'requires root privilege-drop fixture and real fontconfig')
+    def test_real_nonroot_publication_and_fontconfig_discovery(self):
+        candidates = sorted(Path('/usr/share/fonts').rglob('*.ttf'))
+        if not candidates: self.skipTest('no system font available for a temporary fixture')
+        # This file is used only in TemporaryDirectory, never in the source tree.
+        data = candidates[0].read_bytes()
+        for item in self.policy:
+            self.archives[item['name']] = self.archive(item['name'] + '.tar.xz', [('fixture.ttf', data, tarfile.REGTYPE)])
+            item['sha256'] = self.m.digest(self.archives[item['name']])
+        source = self.generation()
+        nobody = pwd.getpwnam('nobody')
+        account = types.SimpleNamespace(pw_uid=nobody.pw_uid, pw_gid=nobody.pw_gid, pw_dir=str(self.home))
+        os.chown(self.home, account.pw_uid, account.pw_gid)
+        self.m.install_user(account, source, self.policy)
+        current = self.home / '.local/share/icons/terminal-fonts/current'
+        self.assertEqual(current.lstat().st_uid, account.pw_uid)
+        for path in self.home.rglob('*'):
+            self.assertEqual(path.lstat().st_uid, account.pw_uid)
+        result = subprocess.run(['/usr/bin/fc-list', '-f', '%{file}\n'],
+            env={'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home / '.local/share'),
+                 'XDG_CONFIG_HOME': str(self.home / '.config'), 'XDG_CACHE_HOME': str(self.home / '.cache'),
+                 'LC_ALL': 'C.UTF-8', 'PATH': '/usr/bin:/bin'},
+            user=account.pw_uid, group=account.pw_gid, extra_groups=[], cwd='/',
+            capture_output=True, text=True, check=True)
+        self.assertIn(str(self.home / '.local/share/icons/terminal-fonts'), result.stdout)
+
+    def test_all_profiles_and_role_flow_have_complete_pins(self):
+        profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
+        self.assertEqual(len(profiles), 13)
+        keys = ('FIRACODE', 'SYMBOLS', 'PROFONT', 'APTOS', 'MICROSOFT')
+        for profile in profiles:
+            text = profile.read_text()
+            for key in keys:
+                self.assertEqual(text.count('LABWC_FONT_' + key + '_URL='), 1)
+                self.assertEqual(text.count('LABWC_FONT_' + key + '_SHA256='), 1)
+        self.assertIn('desktop_install_fonts', (FORKY / 'scripts/desktop/labwc.sh').read_text())
+        self.assertIn('fonts.sh', (FORKY / 'scripts/late/desktop.sh').read_text())
+        self.assertIn('fonts-install.py', (FORKY / 'scripts/desktop/fonts.sh').read_text())
+        self.assertIn('fonts.d/labwc-terminal-fonts', (FORKY / 'scripts/late/security.sh').read_text())
+
+    def test_requested_debian_packages_present(self):
+        packages = (FORKY / 'classes/class-select/role/desktop.cfg').read_text().split()
+        for name in 'wtype fonts-liberation2 fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto fonts-noto-cjk fonts-dejavu fonts-dejavu-extra fonts-noto-ui-core fonts-noto-ui-extra fonts-texgyre'.split():
+            self.assertIn(name, packages)
+
+
+if __name__ == '__main__': unittest.main()

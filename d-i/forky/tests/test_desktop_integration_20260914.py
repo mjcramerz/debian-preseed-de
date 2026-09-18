@@ -327,8 +327,8 @@ class MenuRoundTripTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='menu-roundtrip-') as name:
             root=Path(name);bin_dir=root/'bin';bin_dir.mkdir()
             queue=root/'queue.json';events=root/'events.jsonl'
-            choices=['\u2b9e Endpoint Security','\u2b9e Security Auditing','Check Firmware Security',
-                     '\u2190 Back','\u2190 Back','Exit']
+            choices=['Security & Accounts', 'Protection & Firewall', '\u2b9e Security Auditing',
+                     'Check Firmware Security', '\u2190 Back', '\u2190 Back', 'Back', 'Exit']
             queue.write_text(json.dumps(choices))
             def executable(name,content):
                 p=bin_dir/name;p.write_text(content);p.chmod(0o755)
@@ -354,20 +354,43 @@ with p.open('a') as f:f.write(json.dumps(['action-finished'])+'\\n')
 raise SystemExit(7)
 ''')
             (bin_dir/'labwc-maintenance-menu').symlink_to(TARGET/'usr/local/bin/labwc-maintenance-menu')
-            result=subprocess.run(['/bin/sh',str(TARGET/'usr/local/bin/labwc-computer-management')],
-                env={**os.environ,'PATH':str(bin_dir)+':/usr/bin:/bin', 'MENU_TEST_ROOT':str(root),
-                     'LABWC_DESKTOP_DEFAULTS_FILE':str(root/'absent')},capture_output=True,text=True,timeout=10)
-            self.assertEqual(result.returncode,0,result.stderr)
+            # The requested terminal UI now owns navigation; keep the real
+            # maintenance subprocess and asynchronous action fixture so this
+            # still proves wait/return behavior, not only static menu strings.
+            menu = load_script('labwc-computer-management')
+            menu.PICKER = str(bin_dir / 'labwc-fuzzel')
+            outcomes = []
+            def action(arguments):
+                self.assertEqual(arguments, ('labwc-maintenance-menu', 'security'))
+                result = subprocess.run(['/bin/sh', str(TARGET/'usr/local/bin/labwc-maintenance-menu'), 'security'],
+                                        capture_output=True, text=True, timeout=10)
+                outcomes.append(result)
+                return result.returncode
+            with mock.patch.dict(os.environ, {'PATH':str(bin_dir)+':/usr/bin:/bin',
+                    'MENU_TEST_ROOT':str(root), 'LABWC_DESKTOP_DEFAULTS_FILE':str(root/'absent')}), \
+                    mock.patch.object(menu, 'run_action', side_effect=action):
+                self.assertEqual(menu.run_menu(), 0)
+            self.assertEqual(len(outcomes), 1)
+            self.assertEqual(outcomes[0].returncode, 0, outcomes[0].stderr)
             rows=[json.loads(line) for line in events.read_text().splitlines()]
-            self.assertEqual([row[0] for row in rows],['menu','menu','menu','action-start','action-finished','menu','menu','menu'])
-            self.assertEqual(rows[2][1:],rows[5][1:])
-            self.assertIn('returned status 7',result.stderr)
+            self.assertEqual([row[0] for row in rows], ['menu']*4 + ['action-start','action-finished'] + ['menu']*4)
+            self.assertEqual(rows[3][1:], rows[6][1:])
+            self.assertIn('returned status 7', outcomes[0].stderr)
             self.assertEqual(json.loads(queue.read_text()),[])
 
-    def test_menu_retry_replays_the_original_input(self):
-        source=(TARGET/'usr/local/bin/labwc-computer-management').read_text()
-        self.assertIn('menu_input=$(cat)',source)
-        self.assertEqual(source.count('printf \'%s\\n\' "$menu_input" | labwc-fuzzel'),2)
+
+    def test_terminal_menu_preserves_original_choice_data_and_rejects_free_text(self):
+        # Graphical sizing retries no longer apply to the full-screen terminal
+        # UI. The equivalent invariant is exact-choice data round-tripping.
+        menu = load_script('labwc-computer-management')
+        choices = ['Network & Remote', 'Files & Documents']
+        with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(
+                returncode=0, stdout='Files & Documents\n')) as run:
+            self.assertEqual(menu.choose(choices, 'Computer Management'), choices[1])
+            self.assertEqual(run.call_args.kwargs['input'], '\n'.join(choices) + '\n')
+        with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(
+                returncode=0, stdout='$(touch /not-an-action)\n')):
+            self.assertIsNone(menu.choose(choices, 'Computer Management'))
 
 
 if __name__ == '__main__':

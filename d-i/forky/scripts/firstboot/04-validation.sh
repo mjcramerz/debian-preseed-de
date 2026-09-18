@@ -337,6 +337,7 @@ validate_desktop_role() {
     /etc/systemd/system/user@.service.d/50-oom-score.conf \
     /etc/systemd/user.conf.d/50-resource-defaults.conf \
     /usr/local/bin/labwc-run \
+    /usr/local/bin/labwc-main-menu \
     /usr/local/bin/labwc-wayscriber-toggle \
     /usr/bin/wayscriber \
     /etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf \
@@ -403,6 +404,8 @@ validate_desktop_role() {
     /etc/skel-desktop/.config/systemd/user/labwc-calendar-sync.timer \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
     /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
+    /etc/systemd/system/labwc-system-desktop-overrides.service \
+    /etc/systemd/system/labwc-system-desktop-overrides.path \
     /etc/skel-desktop/.config/Thunar/uca.xml \
     /etc/skel-desktop/.config/user-dirs.dirs \
     /etc/skel-desktop/.config/btop/btop.conf \
@@ -878,6 +881,10 @@ validate_desktop_role() {
     labwc-network-scan-menu \
     labwc-network-scan-action \
     labwc-run \
+    labwc-main-menu \
+  labwc-fzf-menu \
+  labwc-window-switcher \
+  wtype \
     labwc-terminal \
     labwc-bluetooth \
     labwc-remote-desktop \

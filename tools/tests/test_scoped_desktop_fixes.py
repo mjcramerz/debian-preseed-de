@@ -34,16 +34,20 @@ class DesktopOverrideTests(unittest.TestCase):
         self.state = self.root / 'state'; self.state.mkdir()
         self.hook = load('labwc-wrap-desktop-files')
         self.patches = mock.patch.multiple(self.hook, APPLICATION_DIRS=(self.vendor,), OUTPUT_DIR=self.local,
-            STATE_DIR=self.state, MANIFEST=self.state/'overrides.json', PENDING=self.state/'pending.json')
+            STATE_DIR=self.state, MANIFEST=self.state/'overrides.json', PENDING=self.state/'pending.json',
+            DATABASE_DIRTY=self.state/'database-dirty', SOURCE_STATE=self.state/'source-state.json')
         self.patches.start()
         self.trust = mock.patch.object(self.hook, 'trusted_directory'); self.trust.start()
         self.owner = mock.patch.object(self.hook, 'package_for', return_value='test-package'); self.owner.start()
         self.electron = mock.patch.object(self.hook, 'is_electron', return_value=False); self.electron.start()
+        # Ownership tests isolate external tools; the menu integration suite
+        # separately runs desktop-file-validate when installed.
+        self.validator = mock.patch.object(self.hook, 'validate_desktop'); self.validator.start()
         self.defaults = {'electron':'/usr/local/bin/labwc-electron-app intel','wayland':'/usr/local/bin/labwc-wayland-app intel'}
         self.text = '[Desktop Entry]\nType=Application\nName=Test\nExec=/usr/bin/example "a b" %U\nDBusActivatable=true\n\n[Desktop Action New]\nExec=/usr/bin/example --new %f\n'
         self.source = self.vendor / 'example.desktop'; self.source.write_text(self.text)
     def tearDown(self):
-        self.electron.stop(); self.owner.stop(); self.trust.stop(); self.patches.stop(); self.temp.cleanup()
+        self.validator.stop(); self.electron.stop(); self.owner.stop(); self.trust.stop(); self.patches.stop(); self.temp.cleanup()
     def test_pristine_vendor_idempotent_generated_override(self):
         before = self.source.stat()
         self.assertTrue(self.hook.generate_overrides(self.defaults))

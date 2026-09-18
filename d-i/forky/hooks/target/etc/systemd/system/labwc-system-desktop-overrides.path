@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch system inputs for Labwc desktop override reconciliation
+
+[Path]
+PathChanged=/usr/share/applications
+PathChanged=/etc/default/labwc-desktop
+PathChanged=/usr/local/libexec/labwc-wrap-desktop-files
+Unit=labwc-system-desktop-overrides.service
+TriggerLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target

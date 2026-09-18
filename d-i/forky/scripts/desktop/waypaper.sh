@@ -296,7 +296,8 @@ desktop_install_waypaper() {
   desktop_render_role_target_template \
     "etc/skel-desktop/.local/share/applications/waypaper.desktop.tmpl" \
     "$waypaper_launcher" \
-    0644
+    0644 \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"
   chown \
     "$waypaper_account_uid:$waypaper_account_gid" \
     "/target${waypaper_launcher_dir}" \

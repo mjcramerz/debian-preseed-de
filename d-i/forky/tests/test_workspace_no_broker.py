@@ -83,7 +83,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                     self.assertEqual(int(rc.findtext('desktops/number')), count)
                     self.assertEqual([n.text for n in rc.findall('desktops/names/name')],
                                      [str(i) for i in range(1, count + 1)])
-                    for key, action in (('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
+                    for key, action in (('F13', 'NextWindow'), ('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
                         binding = rc.findall(f'keyboard/keybind[@key="{key}"]')
                         self.assertEqual(len(binding), 1)
                         actions = binding[0].findall('action')
@@ -108,7 +108,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                     bars = json.loads((config / 'waybar/config').read_text())
                     self.assertEqual(len(bars), 2)
                     for bar in bars:
-                        expected = ['custom/launcher', 'ext/workspaces', 'custom/wayscriber', 'group/apps']
+                        expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'group/apps']
                         if count == 1:
                             expected += ['wlr/taskbar']
                         self.assertEqual(bar['modules-left'], expected)
@@ -139,7 +139,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
             switcher = rc.find('windowSwitcher')
             self.assertEqual(switcher.attrib, dict(order='age', preview='no', outlines='no', unshade='no'))
             self.assertEqual(switcher.find('osd').get('output'), 'cursor')
-            for key in ('A-Tab', 'A-S-Tab'):
+            for key in ('F13', 'A-Tab', 'A-S-Tab'):
                 action = rc.find(f'keyboard/keybind[@key="{key}"]/action')
                 self.assertEqual(action.get('workspace'), 'current')
                 self.assertEqual(action.get('output'), 'focused')
@@ -214,8 +214,24 @@ class InstalledVerifierTests(unittest.TestCase):
 
     def test_rejects_global_alt_tab_in_account_copy(self):
         path = self.root / 'home/test/.config/labwc/rc.xml'
-        path.write_text(path.read_text().replace('workspace="current"', 'workspace="all"', 1))
+        tree = ET.parse(path)
+        tree.find("./keyboard/keybind[@key='A-Tab']/action").set('workspace', 'all')
+        tree.write(path, encoding='unicode')
         self.assertIn('non-local A-Tab', self.verify().stderr)
+
+    def test_rejects_global_f13_in_account_copy(self):
+        path = self.root / 'home/test/.config/labwc/rc.xml'
+        tree = ET.parse(path)
+        tree.find("./keyboard/keybind[@key='F13']/action").set('workspace', 'all')
+        tree.write(path, encoding='unicode')
+        self.assertIn('non-local F13', self.verify().stderr)
+
+    def test_rejects_misplaced_window_switcher_button(self):
+        path = self.root / 'etc/skel-desktop/.config/waybar/config'
+        bars = json.loads(path.read_text())
+        bars[0]['modules-left'].remove('custom/window-switcher')
+        path.write_text(json.dumps(bars))
+        self.assertIn('native switcher button missing', self.verify().stderr)
 
     def test_rejects_broken_classic_fallback(self):
         path = self.root / 'home/test/.config/labwc/rc.xml'

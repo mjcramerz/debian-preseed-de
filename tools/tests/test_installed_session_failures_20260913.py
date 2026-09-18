@@ -267,7 +267,8 @@ class PanelAndWiringTests(unittest.TestCase):
                 self.assertIn(option, args)
             self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
             count += 1
-        self.assertEqual(count, 56)
+        # Two new native-switcher clicks, one per rendered bar.
+        self.assertEqual(count, 58)
 
     def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
         text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()

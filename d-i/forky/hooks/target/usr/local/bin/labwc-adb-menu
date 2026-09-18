@@ -67,7 +67,7 @@ choose_text() {
   suggested_value=${2:-}
 
   printf '%s\n' "$suggested_value" |
-    choose_menu_input "$prompt"
+    LABWC_MENU_INPUT_MODE=text choose_menu_input "$prompt"
 }
 
 run_adb_action() {

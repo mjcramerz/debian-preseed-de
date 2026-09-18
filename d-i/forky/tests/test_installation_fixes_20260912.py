@@ -80,7 +80,7 @@ class DesktopHookTests(unittest.TestCase):
             self.hook.rewrite_desktop('[Desktop Entry]\nExec=one\nExec=two\n', self.prefix)
 
     def test_crlf_and_literal_dollar_are_preserved(self):
-        text = '[Desktop Entry]\r\nExec=/usr/bin/demo "$HOME" %% %F\r\n'
+        text = '[Desktop Entry]\r\nType=Application\r\nExec=/usr/bin/demo "$HOME" %% %F\r\n'
         result = self.hook.rewrite_desktop(text, self.prefix)
         self.assertEqual(result, text.replace('Exec=', 'Exec=' + self.prefix + ' -- '))
 
@@ -142,7 +142,7 @@ class DesktopHookTests(unittest.TestCase):
         with mock.patch.object(self.hook.os, 'geteuid', return_value=0), \
              mock.patch.dict(os.environ, {'DPKG_ROOT': '/some/offline/root'}, clear=True), \
              mock.patch.object(self.hook, 'load_defaults') as load:
-            self.assertEqual(self.hook.main(), 0)
+            self.assertEqual(self.hook.main([]), 0)
             load.assert_not_called()
 
 

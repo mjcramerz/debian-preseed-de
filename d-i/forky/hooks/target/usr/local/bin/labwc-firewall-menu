@@ -22,7 +22,7 @@ choose_lines() {
 choose_text() {
   prompt=$1
   printf '\n' |
-    labwc-fuzzel menu \
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu \
       --dmenu \
       --prompt "$prompt" 2>/dev/null ||
     true

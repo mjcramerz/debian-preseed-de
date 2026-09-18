@@ -54,7 +54,7 @@ choose_private_target() {
     printf '%s\n' 192.168.50.0/24 192.168.50.1
   } |
     awk 'NF && !seen[$0]++' |
-    labwc-fuzzel menu --dmenu --prompt "Private IPv4 or /24-/32 CIDR" 2>/dev/null ||
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private IPv4 or /24-/32 CIDR" 2>/dev/null ||
     true
 }
 
@@ -74,7 +74,7 @@ choose_private_host() {
     printf '%s\n' 192.168.50.1
   } |
     awk 'NF && !seen[$0]++' |
-    labwc-fuzzel menu --dmenu --prompt "Private or loopback IPv4 host" 2>/dev/null ||
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private or loopback IPv4 host" 2>/dev/null ||
     true
 }
 

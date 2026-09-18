@@ -117,6 +117,10 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <numlock>on</numlock>
     <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
     <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
+    <!-- Keep Alt+Tab native. F13 stays open; click selects, Escape cancels. -->
+    <keybind key="F13">
+      <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+    </keybind>
     <keybind key="A-Tab">
       <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
     </keybind>

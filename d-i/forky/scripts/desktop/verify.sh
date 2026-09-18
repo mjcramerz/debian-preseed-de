@@ -79,6 +79,10 @@ for cmd in \
   labwc-remote-desktop \
   labwc-freerdp-askpass \
   labwc-run \
+  labwc-main-menu \
+  labwc-fzf-menu \
+  labwc-window-switcher \
+  wtype \
   labwc-terminal \
   labwc-bluetooth \
   labwc-brightness-control \
@@ -281,6 +285,14 @@ done
 require_readable /usr/local/share/doc/resctl-bench/INSTALLATION.json
 require_readable /usr/local/share/doc/resctl-bench/release/SHA256SUMS
 
+# Pinned fonts are already SHA-verified and atomically published by fonts.sh.
+require_readable /etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf
+require_mode /etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf 644
+require_readable /etc/skel-desktop/.local/share/icons/terminal-fonts/current/release-manifest.json
+[ -L /etc/skel-desktop/.local/share/icons/terminal-fonts/current ] ||
+  fatal "skeleton font generation is not activated"
+require_absent /usr/local/libexec/installer-desktop-fonts
+
 # Managed Git and diagnostics assets: no credential decryption during verification.
 require_executable /usr/local/bin/gitops
 require_mode /usr/local/bin/gitops 755
@@ -473,6 +485,10 @@ for path in \
   /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
   /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.service \
   /etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path \
+  /etc/systemd/system/labwc-system-desktop-overrides.service \
+  /etc/systemd/system/labwc-system-desktop-overrides.path \
+  /etc/systemd/system/multi-user.target.wants/labwc-system-desktop-overrides.service \
+  /etc/systemd/system/multi-user.target.wants/labwc-system-desktop-overrides.path \
   /etc/skel-desktop/.profile.d \
   /etc/systemd/system/greetd.service.d/20-labwc-vt.conf \
   /etc/systemd/system/bluetooth-controller-init.service \
@@ -720,6 +736,8 @@ for path in \
   /usr/local/bin/labwc-fuzzel \
   /usr/local/bin/labwc-fuzzel-log \
   /usr/local/bin/labwc-computer-management \
+  /usr/local/bin/labwc-fzf-menu \
+  /usr/local/bin/labwc-window-switcher \
   /usr/local/bin/labwc-ai-copilots \
   /usr/local/bin/labwc-ai-copilots-action \
   /usr/local/libexec/labwc-ai-llama-server \
@@ -763,6 +781,7 @@ for path in \
   /usr/local/bin/labwc-qbittorrent \
   /usr/local/bin/labwc-sync-application-launchers \
   /usr/local/bin/labwc-run \
+  /usr/local/bin/labwc-main-menu \
   /usr/local/bin/labwc-lock \
   /usr/local/bin/labwc-power-menu \
   /usr/local/bin/labwc-keyboard-layout \
@@ -1216,7 +1235,10 @@ for path in \
   "$account_home/.config/systemd/user/app-.scope.d/60-resource-class.conf" \
   "$account_home/.local/share/dbus-1/services/org.freedesktop.secrets.service" \
   "$account_home/.local/share/applications/org.keepassxc.KeePassXC.desktop" \
-  "$account_home/.local/share/applications/waypaper.desktop"
+  "$account_home/.local/share/applications/waypaper.desktop" \
+  "$account_home/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf" \
+  "$account_home/.local/share/icons/terminal-fonts/current/release-manifest.json" \
+  "$account_home/.local/share/icons/terminal-fonts/.cache-ready"
 do
   check_required_owned "$path"
 done
@@ -1726,9 +1748,11 @@ for config in config_roots:
     require(osd.get("thumbnailLabelFormat") == "%n \u2014 %T  %S  %o", "invalid switcher label")
     require([(f.get("content"), f.get("width")) for f in switcher.findall("fields/field")] ==
             [("icon", "7%"), ("desktop_entry_name", "23%"), ("state", "8%"), ("output", "12%"), ("title", "50%")], "invalid classic fallback fields")
-    for key, action in (("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
+    for key, action in (("F13", "NextWindow"), ("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
         bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
         require(len(bindings) == 1, "duplicate or absent " + key)
+        if key == "F13":
+            require(bindings[0].get("onRelease") is None, "F13 must use native press handling")
         actions = bindings[0].findall("action")
         require(len(actions) == 1 and actions[0].get("name") == action, "non-native " + key)
         require(actions[0].get("workspace") == "current", "non-local " + key)
@@ -1737,6 +1761,13 @@ for config in config_roots:
     bars = json.loads((config / "waybar/config").read_text())
     require(len(bars) == 2, "expected internal and external bars")
     for bar in bars:
+        left = bar.get("modules-left", [])
+        require(all(name in left for name in ("ext/workspaces", "custom/window-switcher", "custom/wayscriber")), "native switcher button missing")
+        require(left.index("custom/window-switcher") == left.index("ext/workspaces") + 1
+                and left.index("custom/wayscriber") == left.index("custom/window-switcher") + 1, "native switcher button order changed")
+        click = bar["custom/window-switcher"].get("on-click", "")
+        require(click.endswith(" -- labwc-window-switcher") and "--property=KillMode=control-group" in click
+                and "--property=PartOf=labwc-session.target" in click, "native switcher launch contract changed")
         selected = list(bar.get("modules-left", [])) + list(bar.get("modules-center", [])) + list(bar.get("modules-right", []))
         seen = set()
         while selected:

@@ -85,7 +85,7 @@
         <action name="Execute" command="nwg-look" />
       </item>
       <item label="Wallpaper" icon="preferences-desktop-wallpaper">
-        <action name="Execute" command="/usr/local/bin/waypaper" />
+        <action name="Execute" command="/usr/local/bin/labwc-wayland-app auto -- /usr/local/bin/waypaper" />
       </item>
       <item label="Labwc Tweaks" icon="labwc_tweaks">
         <action name="Execute" command="labwc-tweaks" />

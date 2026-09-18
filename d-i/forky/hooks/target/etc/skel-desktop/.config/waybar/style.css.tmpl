@@ -59,6 +59,7 @@ tooltip label {
 }
 
 #custom-launcher,
+#custom-window-switcher,
 #custom-wayscriber,
 #custom-apps,
 #custom-app-terminal,
@@ -339,6 +340,7 @@ window#waybar.internal #taskbar button {
 }
 
 window#waybar.internal #custom-apps,
+window#waybar.internal #custom-window-switcher,
 window#waybar.internal #custom-wayscriber,
 window#waybar.internal #custom-app-terminal,
 window#waybar.internal #custom-app-files,
@@ -449,4 +451,17 @@ window#waybar.internal #custom-app-sleek {
 #cpu.warning,
 #memory.warning {
   color: @amber;
+}
+
+/* Native Labwc cycle entry point, distinct from the blue annotation tool. */
+#custom-window-switcher {
+  min-width: 28px;
+  padding: 0 7px;
+  color: @emeraldgreen;
+  font-family: "Font Awesome 6 Free", "Symbols Nerd Font Mono", "Noto Sans";
+  font-weight: 700;
+}
+#custom-window-switcher:hover {
+  color: @emeraldgreen;
+  background: alpha(@emeraldgreen, 0.15);
 }

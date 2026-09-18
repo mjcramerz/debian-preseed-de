@@ -608,7 +608,7 @@ desktop_validate_policy_env() {
     "${LABWC_MANAGED_APP_DEFAULT_EXEC:?LABWC_MANAGED_APP_DEFAULT_EXEC must be set by the desktop host profile}"
   desktop_validate_command_string LABWC_GREETER_COMMAND "${LABWC_GREETER_COMMAND:-/usr/local/bin/labwc-greeter-session}"
   desktop_validate_command_string LABWC_LAUNCHER_COMMAND "${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}"
-  desktop_validate_command_string LABWC_MENU_COMMAND "${LABWC_MENU_COMMAND:-labwc-fuzzel launcher}"
+  desktop_validate_command_string LABWC_MENU_COMMAND "${LABWC_MENU_COMMAND:-labwc-main-menu}"
   desktop_validate_command_string LABWC_FILE_MANAGER_COMMAND "${LABWC_FILE_MANAGER_COMMAND:-thunar}"
   desktop_validate_command_string LABWC_AUDIO_CONTROL_COMMAND "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}"
   desktop_validate_command_string LABWC_DISPLAY_CONTROL_COMMAND "${LABWC_DISPLAY_CONTROL_COMMAND:-labwc-display-configuration}"

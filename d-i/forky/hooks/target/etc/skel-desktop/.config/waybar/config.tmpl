@@ -40,7 +40,7 @@
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-run"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=WAYBAR_OUTPUT_NAME -- labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",
@@ -57,6 +57,12 @@
       "custom/app-notes",
       "custom/app-sleek"
     ]
+  },
+  "custom/window-switcher": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
   },
   "custom/wayscriber": {
     "format": "",
@@ -319,7 +325,7 @@
   "custom/launcher": {
     "format": "Menu",
     "tooltip": false,
-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-run"
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s --setenv=WAYBAR_OUTPUT_NAME -- labwc-main-menu"
   },
   "group/apps": {
     "orientation": "inherit",
@@ -336,6 +342,12 @@
       "custom/app-notes",
       "custom/app-sleek"
     ]
+  },
+  "custom/window-switcher": {
+    "format": "",
+    "tooltip": true,
+    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
+    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
   },
   "custom/wayscriber": {
     "format": "",

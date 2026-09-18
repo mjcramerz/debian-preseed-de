@@ -20,6 +20,123 @@ choose_lines() {
     true
 }
 
+# UI grouping only. The existing confirmed/privilege-separated dispatch below
+# remains the authority for every action. No destructive action is promoted.
+choose_system_action() {
+  case "$1" in
+    'Overview & Health')
+      choose_lines 'Maintenance / Overview & Health' \
+        'Show System Overview' \
+        'Show Memory and Swap' \
+        'Show Boot Performance' \
+        'Show Kernel Warnings' \
+        '← Back'
+      ;;
+    'Services & Logs')
+      choose_lines 'Maintenance / Services & Logs' \
+        'Show Failed Services' \
+        'Show Failed System Units' \
+        'Show Failed User Units' \
+        'Inspect Service and Logs' \
+        'Show Timers' \
+        'Show Recent System Errors' \
+        'Show Journal Disk Usage' \
+        'Rotate and Vacuum Journals by Time' \
+        'Rotate and Vacuum Journals by Size' \
+        '← Back'
+      ;;
+    'Packages & Firmware')
+      choose_lines 'Maintenance / Packages & Firmware' \
+        'Check Package Health' \
+        'List Pending Upgrades' \
+        'Show Upgradeable Packages' \
+        'Run Unattended Upgrades Now' \
+        'List Firmware-Capable Devices' \
+        'Refresh Firmware Metadata' \
+        'Check Firmware Updates' \
+        'Apply Firmware Updates' \
+        '← Back'
+      ;;
+    'Storage & Filesystems')
+      choose_lines 'Maintenance / Storage & Filesystems' \
+        'Show Storage Overview' \
+        'Manage External Drives' \
+        'Show NVMe SMART Health' \
+        'Show NVMe Firmware Slots' \
+        'Show NVMe Identify Data' \
+        'Show NVMe SMART via smartctl' \
+        'Show Btrfs Usage' \
+        'Show Btrfs DF Summary' \
+        'Show Last Btrfs Scrub Status' \
+        'Top Disk Usage in Root' \
+        'Top Disk Usage in Home' \
+        '← Back'
+      ;;
+    'Audio & Desktop')
+      choose_lines 'Maintenance / Audio & Desktop' \
+        'Show PipeWire Status' \
+        'Show WirePlumber Status' \
+        'Restart PipeWire' \
+        'Restart WirePlumber' \
+        'Test Mako Notification' \
+        'Refresh Waybar Custom Module' \
+        '← Back'
+      ;;
+    'Network & DNS')
+      choose_lines 'Maintenance / Network & DNS' \
+        'Show Network Overview' \
+        'Flush DNS Cache' \
+        'Reset Resolver Server Features' \
+        'Show Resolver Statistics' \
+        '← Back'
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+choose_recovery_action() {
+  case "$1" in
+    'Desktop & Services')
+      choose_lines 'Recovery / Desktop & Services' \
+        'Restart Waybar' \
+        'Restart Audio Services' \
+        'Restart Desktop Portals' \
+        'Refresh Display Configuration' \
+        'Reset Failed System Units' \
+        'Restart NetworkManager' \
+        'Restart Bluetooth Service' \
+        'Restart UDisks Service' \
+        'Restart Polkit Service' \
+        '← Back'
+      ;;
+    'Packages & Boot')
+      choose_lines 'Recovery / Packages & Boot' \
+        'Refresh Package Index' \
+        'Complete Interrupted Package Configuration' \
+        'Repair Package Dependencies' \
+        'Rebuild Initramfs' \
+        'Refresh GRUB Configuration' \
+        '← Back'
+      ;;
+    'Snapshots & Storage')
+      choose_lines 'Recovery / Snapshots & Storage' \
+        'Create Timeshift Recovery Snapshot' \
+        'Emergency Btrfs Unused-Chunk Reclaim' \
+        '← Back'
+      ;;
+    'Memory & Cleanup')
+      choose_lines 'Recovery / Memory & Cleanup' \
+        'Drop Page Cache Only' \
+        'Drop Dentries and Inodes' \
+        'Drop All Clean Caches' \
+        'Reset zram Swap' \
+        'Aggressive Journal Vacuum' \
+        '← Back'
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 run_security_action() {
   command -v labwc-security-action >/dev/null 2>&1 ||
     fatal "labwc-security-action is not installed"
@@ -209,7 +326,7 @@ choose_service() {
   } |
     awk '!seen[$0]++' |
     sort |
-    labwc-fuzzel menu --dmenu --prompt "Inspect service" 2>/dev/null ||
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Inspect service" 2>/dev/null ||
     true
 }
 
@@ -243,7 +360,7 @@ choose_security_folder() {
   } |
     awk '!seen[$0]++' |
     sed -n '1,400p' |
-    labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
     true
 }
 
@@ -267,7 +384,7 @@ choose_security_file() {
   } |
     awk '!seen[$0]++' |
     sed -n '1,400p' |
-    labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
     true
 }
 
@@ -386,7 +503,7 @@ vulnerability_integrity_menu() {
         verify_file=$(choose_security_file "File path to verify")
         if [ -n "$verify_file" ]; then
           expected_sha256=$(
-            choose_lines \
+            LABWC_MENU_INPUT_MODE=text choose_lines \
               "Expected SHA-256 (64 hexadecimal characters)" \
               'Paste or type the expected SHA-256 digest'
           )
@@ -458,7 +575,7 @@ choose_apparmor_application() {
 
 choose_apparmor_executable() {
   executable=$(
-    choose_lines \
+    LABWC_MENU_INPUT_MODE=text choose_lines \
       "Absolute executable path" \
       'Type or paste an absolute executable path' \
       '← Back'
@@ -947,54 +1064,27 @@ while :; do
       endpoint_security_menu
       ;;
     '⮞ System')
+      system_group=''
       while :; do
-        action=$(
-          choose_lines \
-            System \
-            'Show System Overview' \
-            'Show Failed Services' \
-            'Show Boot Performance' \
-            'Show Recent System Errors' \
-            'Show Kernel Warnings' \
-            'Show Storage Overview' \
-            'Manage External Drives' \
-            'Show Memory and Swap' \
-            'Show Network Overview' \
-            'Check Package Health' \
-            'List Pending Upgrades' \
-            'Inspect Service and Logs' \
-            'List Firmware-Capable Devices' \
-            'Refresh Firmware Metadata' \
-            'Check Firmware Updates' \
-            'Apply Firmware Updates' \
-            'Show Upgradeable Packages' \
-            'Run Unattended Upgrades Now' \
-            'Show NVMe SMART Health' \
-            'Show NVMe Firmware Slots' \
-            'Show NVMe Identify Data' \
-            'Show NVMe SMART via smartctl' \
-            'Show Btrfs Usage' \
-            'Show Btrfs DF Summary' \
-            'Show Last Btrfs Scrub Status' \
-            'Show Journal Disk Usage' \
-            'Rotate and Vacuum Journals by Time' \
-            'Rotate and Vacuum Journals by Size' \
-            'Top Disk Usage in Root' \
-            'Top Disk Usage in Home' \
-            'Show Failed System Units' \
-            'Show Failed User Units' \
-            'Show Timers' \
-            'Show PipeWire Status' \
-            'Show WirePlumber Status' \
-            'Restart PipeWire' \
-            'Restart WirePlumber' \
-            'Flush DNS Cache' \
-            'Reset Resolver Server Features' \
-            'Show Resolver Statistics' \
-            'Test Mako Notification' \
-            'Refresh Waybar Custom Module' \
-            '← Back'
-        )
+        if [ -z "${system_group:-}" ]; then
+          system_group=$(
+            choose_lines 'Maintenance' \
+              'Overview & Health' \
+              'Services & Logs' \
+              'Packages & Firmware' \
+              'Storage & Filesystems' \
+              'Audio & Desktop' \
+              'Network & DNS' \
+              '← Back'
+          )
+          case "$system_group" in
+            '← Back'|'') break ;;
+          esac
+        fi
+        action=$(choose_system_action "$system_group")
+        case "$action" in
+          '← Back'|'') system_group=''; continue ;;
+        esac
 
         case "$action" in
           'Show System Overview')
@@ -1156,33 +1246,25 @@ while :; do
       done
       ;;
     '⮞ Troubleshooting')
+      recovery_group=''
       while :; do
-        action=$(
-          choose_lines \
-            Troubleshooting \
-            'Restart Waybar' \
-            'Restart Audio Services' \
-            'Restart Desktop Portals' \
-            'Refresh Display Configuration' \
-            'Reset Failed System Units' \
-            'Restart NetworkManager' \
-            'Restart Bluetooth Service' \
-            'Restart UDisks Service' \
-            'Restart Polkit Service' \
-            'Refresh Package Index' \
-            'Complete Interrupted Package Configuration' \
-            'Repair Package Dependencies' \
-            'Rebuild Initramfs' \
-            'Refresh GRUB Configuration' \
-            'Create Timeshift Recovery Snapshot' \
-            'Drop Page Cache Only' \
-            'Drop Dentries and Inodes' \
-            'Drop All Clean Caches' \
-            'Reset zram Swap' \
-            'Aggressive Journal Vacuum' \
-            'Emergency Btrfs Unused-Chunk Reclaim' \
-            '← Back'
-        )
+        if [ -z "${recovery_group:-}" ]; then
+          recovery_group=$(
+            choose_lines 'Recovery' \
+              'Desktop & Services' \
+              'Packages & Boot' \
+              'Snapshots & Storage' \
+              'Memory & Cleanup' \
+              '← Back'
+          )
+          case "$recovery_group" in
+            '← Back'|'') break ;;
+          esac
+        fi
+        action=$(choose_recovery_action "$recovery_group")
+        case "$action" in
+          '← Back'|'') recovery_group=''; continue ;;
+        esac
 
         case "$action" in
           'Restart Waybar')

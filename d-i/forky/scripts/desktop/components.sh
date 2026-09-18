@@ -1919,7 +1919,7 @@ desktop_waybar_modules_left_json() {
   # expose a global window list as a supposedly workspace-local taskbar.
   # With one configured workspace its native per-window buttons are safe.
   desktop_validate_uint_range LABWC_WORKSPACE_COUNT "${LABWC_WORKSPACE_COUNT:-4}" 1 12
-  printf '"custom/launcher", "ext/workspaces", "custom/wayscriber", "group/apps"'
+  printf '"custom/launcher", "ext/workspaces", "custom/window-switcher", "custom/wayscriber", "group/apps"'
   if [ "${LABWC_WORKSPACE_COUNT:-4}" -eq 1 ]; then
     printf ', "wlr/taskbar"'
   fi
@@ -2850,7 +2850,7 @@ desktop_render_labwc_default_config() {
     LABWC_TERMINAL_FONT_FAMILY "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_FAMILY:-Noto Sans Mono}")" \
     LABWC_TERMINAL_FONT_SIZE "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_SIZE:-12}")" \
     LABWC_LAUNCHER_COMMAND "$(desktop_shell_config_value "${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}")" \
-    LABWC_MENU_COMMAND "$(desktop_shell_config_value "${LABWC_MENU_COMMAND:-labwc-fuzzel launcher}")" \
+    LABWC_MENU_COMMAND "$(desktop_shell_config_value "${LABWC_MENU_COMMAND:-labwc-main-menu}")" \
     LABWC_FILE_MANAGER_COMMAND "$(desktop_shell_config_value "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
     LABWC_AUDIO_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \
     LABWC_DISPLAY_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_DISPLAY_CONTROL_COMMAND:-labwc-display-configuration}")" \
@@ -3974,6 +3974,16 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/bin/labwc-electron-app /usr/local/bin/labwc-electron-app 0755
   desktop_stage_role_asset usr/local/bin/labwc-wayland-app /usr/local/bin/labwc-wayland-app 0755
   desktop_stage_role_asset usr/local/libexec/labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files 0755
+  desktop_stage_role_asset usr/local/bin/labwc-main-menu /usr/local/bin/labwc-main-menu 0755
+  desktop_stage_role_asset usr/local/bin/labwc-window-switcher /usr/local/bin/labwc-window-switcher 0755
+  desktop_stage_role_asset usr/local/bin/labwc-fzf-menu /usr/local/bin/labwc-fzf-menu 0755
+  desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.service /etc/systemd/system/labwc-system-desktop-overrides.service 0644
+  desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.path /etc/systemd/system/labwc-system-desktop-overrides.path 0644
+  desktop_render_role_target_template \
+    etc/skel-desktop/.local/share/applications/waypaper.desktop.tmpl \
+    /etc/skel-desktop/.local/share/applications/waypaper.desktop \
+    0644 \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"
   desktop_stage_role_asset etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps /etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps 0644
   desktop_stage_role_asset usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755
   desktop_stage_role_asset usr/local/bin/labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wayland-compat-app 0755
@@ -4581,6 +4591,10 @@ desktop_mask_unit_if_available() {
 }
 
 desktop_enable_target_services() {
+  # Boot reconciliation handles inputs that predate path activation. The same
+  # helper already runs synchronously during desktop installation.
+  desktop_enable_unit_if_available labwc-system-desktop-overrides.service system
+  desktop_enable_unit_if_available labwc-system-desktop-overrides.path system
   desktop_enable_unit_if_available greetd.service system
   desktop_enable_unit_if_available seatd.service system
   desktop_enable_unit_if_available bluetooth-controller-init.service system
