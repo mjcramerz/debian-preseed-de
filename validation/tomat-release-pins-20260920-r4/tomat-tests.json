@@ -1,0 +1,19 @@
+{
+  "suite": "tomat",
+  "tests_run": 53,
+  "passed": 51,
+  "failures": [],
+  "errors": [],
+  "skipped": [
+    {
+      "test": "test_full_moo_module_pin_validation_when_dependencies_are_installed (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_full_moo_module_pin_validation_when_dependencies_are_installed)",
+      "reason": "Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl"
+    },
+    {
+      "test": "test_perl_bootstrap_release_metadata_validation (test_native_tomat_20260920.TomatRepositoryTests.test_perl_bootstrap_release_metadata_validation)",
+      "reason": "Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl"
+    }
+  ],
+  "seconds": 3.231,
+  "python": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]"
+}

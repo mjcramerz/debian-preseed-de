@@ -1,0 +1,11 @@
+{
+  "os_release": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.3\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "perl": "This is perl 5, version 40, subversion 1 (v5.40.1) built for x86_64-linux-gnu-thread-multi\n(with 48 registered patches, see perl -V for more detail)\n\nCopyright 1987-2025, Larry Wall\n\nPerl may be copied only under the terms of either the Artistic License or the\nGNU General Public License, which may be found in the Perl 5 source kit.\n\nComplete documentation for Perl, including FAQ lists, should be found on\nthis system using \"man perl\" or \"perldoc perl\".  If you have access to the\nInternet, point your browser at https://www.perl.org/, the Perl Home Page.",
+  "/usr/bin/python3": "Python 3.13.5",
+  "systemctl": "systemd 257 (257.9-1~deb13u1)\n+PAM +AUDIT +SELINUX +APPARMOR +IMA +IPE +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBCRYPTSETUP_PLUGINS +LIBFDISK +PCRE2 +PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD +BPF_FRAMEWORK +BTF -XKBCOMMON -UTMP +SYSVINIT +LIBARCHIVE",
+  "dpkg-deb": "Debian 'dpkg-deb' package archive backend version 1.22.22 (amd64).\nThis is free software; see the GNU General Public License version 2 or\nlater for copying conditions. There is NO warranty.",
+  "final_test_python_executable": "/opt/pyvenv/bin/python3",
+  "final_test_pyyaml_version": "6.0.3",
+  "final_test_pyyaml_module": "/opt/pyvenv/lib/python3.13/site-packages/yaml/__init__.py"
+}

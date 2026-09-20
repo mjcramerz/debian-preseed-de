@@ -233,6 +233,11 @@ temporary_unshare_state_path=/var/lib/installer-state/temporary-unshare-shim
 temporary_unshare_marker=INSTALLER_TEMPORARY_FAKE_UNSHARE_V1
 managed_application_minimum_bytes=1048576
 
+# These are profile data, not inherited defaults or a mutable latest release.
+: "${SOFTWARE_TOMAT_TAG:?SOFTWARE_TOMAT_TAG must be set by every desktop host profile}"
+: "${SOFTWARE_TOMAT_URL:?SOFTWARE_TOMAT_URL must be set by every desktop host profile}"
+: "${SOFTWARE_TOMAT_SHA256:?SOFTWARE_TOMAT_SHA256 must be set by every desktop host profile}"
+
 : "${SOFTWARE_QOREDB_VERSION:?SOFTWARE_QOREDB_VERSION must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_URL:?SOFTWARE_QOREDB_URL must be set by every desktop host profile}"
 : "${SOFTWARE_QOREDB_SHA256:?SOFTWARE_QOREDB_SHA256 must be set by every desktop host profile}"
@@ -1797,9 +1802,9 @@ chroot "$target_root" /usr/bin/desktop-file-validate \
   /usr/share/applications/obsidian.desktop >/dev/null 2>&1
 chroot "$target_root" /usr/bin/update-desktop-database /usr/share/applications
 
-# Resolve the supplied latest-release endpoint once, then download the exact
-# immutable tag asset with its advertised byte length and mandatory SHA-256.
-# No source checkout, compiler, global pip installation or unverified fallback.
+# Bootstrap only the profile-pinned Tomat asset. The adapter validates the tag,
+# canonical URL, digest, bounded download and exact Debian package version.
+# No latest-release API, source build or unverified fallback is used here.
 chroot "$target_root" /usr/bin/perl \
   -I/usr/local/lib/perl5/site_perl/external-managed-software \
   -MExternalSoftware::Servicing::Tomat \
@@ -1807,12 +1812,13 @@ chroot "$target_root" /usr/bin/perl \
   -MExternalSoftware::Servicing::Deb \
   -MExternalSoftware::Servicing::Repository \
   -e 'use strict; use warnings;
-      @ARGV == 1 or die "expected private workspace\n";
+      @ARGV == 4 or die "expected private workspace and Tomat tag, URL, SHA-256\n";
       my $repository = ExternalSoftware::Servicing::Repository->new();
       my $deb = ExternalSoftware::Servicing::Deb->new(repository => $repository);
       ExternalSoftware::Servicing::Tomat->new(
           http => ExternalSoftware::Servicing::HTTP->new(), deb => $deb,
-      )->download($ARGV[0]);' -- "$work_dir" ||
+      )->download_pinned(@ARGV);' -- "$work_dir" \
+        "$SOFTWARE_TOMAT_TAG" "$SOFTWARE_TOMAT_URL" "$SOFTWARE_TOMAT_SHA256" ||
   software_fatal "Tomat verified binary download failed"
 # Neither a packaged system daemon nor a default.target user daemon may compete
 # with the session-scoped transient daemon. Persistent admin masks survive dpkg

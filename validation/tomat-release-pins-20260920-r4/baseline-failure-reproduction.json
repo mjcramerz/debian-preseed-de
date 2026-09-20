@@ -1,0 +1,19 @@
+{
+  "scope": "Actual production Perl _release method bodies; core-Perl filesystem harness, synthetic metadata size; no network/installation/Moo loading",
+  "r3": {
+    "value": null,
+    "ok": 0,
+    "error": "Tomat release has no unique amd64 Debian asset\n"
+  },
+  "r4": {
+    "value": {
+      "version": "2.13.0",
+      "url": "https://github.com/jolars/tomat/releases/download/v2.13.0/tomat_2.13.0-1_amd64.deb",
+      "package_version": "2.13.0-1",
+      "size": 1000000,
+      "sha256": "871ee4fd19f3367cf4aa638a2364ae83de6c4ce4550a7ebe5ee6124be86c6aa1"
+    },
+    "ok": 1,
+    "error": ""
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "payload_entries": 1401,
+  "validated_profiles": 13,
+  "source_bytes_and_modes_match": true,
+  "preseed_pins_match": true,
+  "sha256": {
+    "payload.tar.gz": "0d84e34f265e611402d24055d37c6fafe59bdc7aa76b46ae0fdb1d39a8132cc4",
+    "payload.manifest": "28aba1663222a0cba3f2aa3c91ee4d24e8fe0932635a56a4eb3249bcf9e47e4c",
+    "scripts/common/source.sh": "eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c",
+    "preseed.cfg": "91daa00aaeee0a8e045528b927feaf5d82f506f580bd0e941e37428f8592aecb"
+  }
+}

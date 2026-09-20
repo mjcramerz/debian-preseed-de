@@ -205,8 +205,11 @@ def inspect_deb(path: Path, architectures: set[str]) -> dict[str, str]:
 
 
 def verify_tomat_release_version(fields: dict[str, str], version: str) -> None:
+    # Versioned filenames include the packaging revision: do not accept a
+    # different revision (or an extra suffix) after verifying that exact asset.
+    suffix = "" if "-" in version else r"(?:-[0-9][A-Za-z0-9.+~]*)?"
     if (fields["Package"] != "tomat" or fields["Architecture"] != "amd64"
-            or not re.fullmatch(re.escape(version) + r"(?:-[0-9][A-Za-z0-9.+~]*)?", fields["Version"])):
+            or not re.fullmatch(re.escape(version) + suffix, fields["Version"])):
         raise Error("Tomat package identity/version does not match its verified release")
 
 
@@ -744,7 +747,13 @@ def compatible_asset(name: str, architecture: str) -> bool:
 def select_asset(assets: list[dict], source: dict, package: str, architecture: str) -> dict | None:
     candidates = [asset for asset in assets if compatible_asset(asset["name"], architecture)]
     if source.get("family"):
-        candidates = [asset for asset in candidates if asset_family(asset["name"]) == source["family"]]
+        families = {source["family"]}
+        # Existing Tomat records can carry the old unversioned filename hint.
+        # Permit its versioned replacement only for this exact upstream source.
+        if (source["url"] == "https://api.github.com/repos/jolars/tomat/releases?per_page=100"
+                and source["family"] == "tomat_amd64.deb"):
+            families.add("tomat_{version}_amd64.deb")
+        candidates = [asset for asset in candidates if asset_family(asset["name"]) in families]
     else:
         compact = re.sub(r"[-_.]", "", package.lower())
         matched = [asset for asset in candidates if re.sub(r"[-_.]", "", asset["name"].lower()).startswith(compact)]
@@ -892,8 +901,10 @@ class Discovery:
                     if source["url"] == "https://api.github.com/repos/jolars/tomat/releases?per_page=100":
                         if (package != "tomat" or architecture != "amd64"
                                 or not re.fullmatch(r"v[0-9]+(?:\.[0-9]+)+", tag)
-                                or candidate["name"] != "tomat_amd64.deb"
-                                or candidate["url"] != f"https://github.com/jolars/tomat/releases/download/{tag}/tomat_amd64.deb"
+                                or (candidate["name"] != "tomat_amd64.deb"
+                                    and not re.fullmatch(r"tomat_" + re.escape(tag[1:])
+                                                         + r"-[1-9][0-9]{0,8}_amd64\.deb", candidate["name"]))
+                                or candidate["url"] != f"https://github.com/jolars/tomat/releases/download/{tag}/{candidate['name']}"
                                 or not 65_536 <= candidate.get("size", 0) <= 134_217_728
                                 or not re.fullmatch(r"[0-9a-f]{64}", candidate.get("sha256", ""))):
                             raise Error("Tomat release lacks the approved identity, size or SHA-256")

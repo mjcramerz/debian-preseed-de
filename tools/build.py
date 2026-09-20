@@ -342,6 +342,34 @@ def validate_iocost_profiles() -> None:
         if result.returncode or set(values) != {line.split('=', 1)[0] for line in result.stdout.splitlines()}:
             raise ValueError(f'{profile.name}: invalid IOCost policy: {result.stderr.strip()}')
 
+def validate_tomat_profiles() -> None:
+    """Reject absent/unsafe bootstrap pins before publishing any installer files."""
+    required = {"SOFTWARE_TOMAT_TAG", "SOFTWARE_TOMAT_URL", "SOFTWARE_TOMAT_SHA256"}
+    profiles = sorted((SEED / "hosts/profiles").glob("*.env"))
+    if not profiles:
+        raise ValueError("no desktop profiles available for Tomat pin validation")
+    for profile in profiles:
+        values = {}
+        for line in profile.read_text().splitlines():
+            if not re.match(r"\s*(?:export\s+)?SOFTWARE_TOMAT_", line):
+                continue
+            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
+            if not match or match[1] in values or match[1] not in required:
+                raise ValueError(f"{profile.name}: malformed, duplicate or unknown Tomat pin")
+            values[match[1]] = match[2]
+        if set(values) != required:
+            raise ValueError(f"{profile.name}: missing Tomat tag, URL or SHA-256")
+        tag = values["SOFTWARE_TOMAT_TAG"]
+        match = re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)", tag)
+        if not match or len(match[1]) > 32:
+            raise ValueError(f"{profile.name}: invalid Tomat release tag")
+        expected_url = (r"https://github\.com/jolars/tomat/releases/download/" + re.escape(tag)
+                        + r"/tomat_" + re.escape(match[1]) + r"-[1-9][0-9]{0,8}_amd64\.deb")
+        if not re.fullmatch(expected_url, values["SOFTWARE_TOMAT_URL"]):
+            raise ValueError(f"{profile.name}: Tomat URL does not match its tag and amd64 asset")
+        if not re.fullmatch(r"[0-9a-f]{64}", values["SOFTWARE_TOMAT_SHA256"]):
+            raise ValueError(f"{profile.name}: invalid Tomat SHA-256")
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='fail if generated files are stale')
@@ -353,6 +381,7 @@ def main() -> int:
         subprocess.run([resolve_python_interpreter(), '-I', '-B',
                         str(ROOT / 'tools/check_resctl_bench.py')], check=True)
         validate_iocost_profiles()
+        validate_tomat_profiles()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)

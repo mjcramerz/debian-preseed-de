@@ -1,0 +1,181 @@
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-qoc1893m/runtime/65534.ma37hh8u
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-807n_hml/runtime/65534.7ng5rdc3
+codex-installer-session: installer finished with status=37
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-_dpduf9z/runtime/65534.m8g3nj_3
+codex-installer-session: installer deadline exceeded; stopping installer process group
+codex-installer-session: installer finished with status=124
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-uoofak_0/runtime/65534.fk2oe8xh
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-8qix5g6e/runtime/65534.j6givw3t
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-awdhci45/runtime/65534.1_90wlb6
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-awdhci45/runtime/65534.2xr_e16q
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-43h65q98/runtime/65534.21uxstwy
+official Codex standalone package 1.2.3 is already installed
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-43h65q98/runtime/65534.wlo7zptb
+official Codex standalone package 1.2.3 is already installed
+codex-installer-session: installer finished with status=0
+fatal: Remote Desktop log is not a private user-owned regular file: /tmp/tmpgebpud1z/session.log
+fatal: invalid desktop activation token
+fatal: invalid desktop activation token
+fatal: HOME-relative file must not traverse symlinks: /tmp/tuta-integration-0smnh56p/.config/mimeapps.list
+fatal: persistent runtime directory must be a real directory owned by the current user: /tmp/tuta-integration-sxyn2epr/bad
+gitops: main/staging/release branches cannot be deleted
+intel: thermal
+nvidia: thermal
+nvidia: injected worker error
+intel: thermal
+intel: injected worker error
+nvidia: injected worker error; recovery still pending: injected worker error
+intel: injected worker error; recovery still pending: injected worker error
+intel: failed write; recovery still pending: injected worker error
+fatal: ChatGPT launcher forbids ambient environment variable: LD_PRELOAD
+fatal: ChatGPT launcher forbids ambient environment variable: LD_LIBRARY_PATH
+fatal: ChatGPT launcher forbids ambient environment variable: PYTHONPATH
+fatal: ChatGPT launcher forbids ambient environment variable: BASH_ENV
+fatal: ChatGPT DevOps profile has unsafe ownership, type or mode: /tmp/tmpd70ffz2f/.profile.d/71-devops-de.sh
+fatal: desktop env assignment cannot replace the account identity: HOME
+fatal: desktop env assignment conflicts with launch isolation: DISPLAY
+fatal: desktop env assignment conflicts with launch isolation: LD_PRELOAD
+fatal: desktop env assignment cannot replace the account identity: DBUS_SESSION_BUS_ADDRESS
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-gpu-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-namespace-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-seccomp-filter-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --in-process-gpu
+fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --no-zygote
+fatal: Electron launcher refuses sandbox-disabling switch: --single-process
+fatal: Electron desktop Exec must name the executable, not a shell -c script
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: LABWC_NATIVE_APP_SESSION_UNIT has an invalid value
+fatal: managed application user manager still hides host ownership
+fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+dbus_broker_compatibility=refreshed
+dbus_broker_compatibility=refreshed
+dbus_broker_compatibility=refreshed
+desktop_font_verification terminal=3 microsoft=2 content=verified
+desktop_font_verification terminal=3 microsoft=2 content=verified
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] branch mcr/staging mcr/main
+[git] completed (exit 0)
+[git] branch mcr/release mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+fatal: menu picker failed (status 2)
+fatal: menu picker failed (status 127)
+fatal: Prompt contains unsupported control characters
+nvidia-vram-check: disk backing ready; need=9019431322 available=17179869184
+podman-devops: system-service preflight verified
+incus-host-managed: install-time storage prepared; no Incus daemon activation
+incus-host-managed: static configuration verified; no daemon calls or filesystem changes
+Installed resctl-bench 2.2.6; docs: /var/lib/resctl-noexec-test-qi5vp0_k/data/docs/resctl-bench; no benchmark executed
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: disabled by policy
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: already running; use restart after a policy change
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: stopped
+labwc-wlsunset: stopped
+{
+  "suite": "full",
+  "tests_run": 2038,
+  "passed": 1984,
+  "failures": 4,
+  "errors": 1,
+  "skipped": 49,
+  "seconds": 397.214,
+  "python": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]"
+}

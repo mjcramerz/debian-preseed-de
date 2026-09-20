@@ -1,0 +1,16 @@
+{
+  "tag": "v2.13.0",
+  "asset": "tomat_2.13.0-1_amd64.deb",
+  "url": "https://github.com/jolars/tomat/releases/download/v2.13.0/tomat_2.13.0-1_amd64.deb",
+  "sha256": "871ee4fd19f3367cf4aa638a2364ae83de6c4ce4550a7ebe5ee6124be86c6aa1",
+  "published_metadata_confirmed": true,
+  "published_metadata_source": "https://github.com/jolars/tomat/releases/expanded_assets/v2.13.0",
+  "published_metadata_checked_on": "2026-09-20",
+  "vendor_package_bytes_downloaded": false,
+  "vendor_package_sha256_recomputed": false,
+  "binary_download_attempts": [
+    "curl failed to resolve github.com",
+    "container.download returned download failed"
+  ],
+  "note": "Published GitHub asset name/digest matched the supplied pins. Real vendor bytes and a live installation were not tested; hash/deb-validation regression fixtures are synthetic."
+}
