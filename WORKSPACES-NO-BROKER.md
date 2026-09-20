@@ -85,9 +85,10 @@ LABWC_WINDOW_SWITCHER_OSD_OUTPUT=focused
 LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT=all
 ```
 
-The metadata label, classic fallback fields, thumbnail/classic geometry,
-Papirus application-icon theme, current-workspace scope and existing move/follow
-bindings are retained. Workspace names are generated for all 1--12 workspaces;
+The metadata label, thumbnail geometry, Papirus application-icon theme,
+current-workspace scope and existing move/follow bindings are retained.
+As of 20 September 2026, classic mode and its list fields are no longer supported;
+all managed switchers use native thumbnails from the unmodified Debian package. Workspace names are generated for all 1--12 workspaces;
 the existing direct numbered keyboard bindings cover 1--9, with the workspace
 selector providing access to higher-numbered workspaces. No unrelated keyboard
 binding policy was changed.

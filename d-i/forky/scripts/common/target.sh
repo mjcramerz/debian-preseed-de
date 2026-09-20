@@ -182,18 +182,29 @@ target_exec() (
   case "$target_root" in
     /target|/target/)
       if command -v in-target >/dev/null 2>&1; then
-        unset \
-          DEBCONF_DB_REPLACE \
-          DEBCONF_REDIR \
-          DEBCONF_FRONTEND \
-          DEBCONF_NONINTERACTIVE_SEEN \
-          DEBCONF_SYSTEMRC \
-          DEBCONF_PIPE \
-          DEBCONF_USE_CDEBCONF \
-          DEBCONF_DEBUG \
-          DEBCONF_NOWARNINGS \
-          DEBCONF_TERSE \
-          DEBIAN_FRONTEND
+        # chroot-setup calls debconf-get BEFORE entering the target. Its live
+        # frontend state, especially DEBCONF_REDIR, must survive until then.
+        # Clearing it here sends requests into a command-substitution pipe and
+        # blocks forever waiting for a reply that the frontend never received.
+        if [ -n "${DEBIAN_HAS_FRONTEND:-}" ]; then
+          if [ "${INSTALLER_DEBCONF_STDIN_SAVED:-}" != 1 ] ||
+             [ -z "${DEBCONF_REDIR:-}" ] ||
+             ! ( : <&8 && : >&3 ) 2>/dev/null; then
+            printf '%s\n' '[in-target] error: frontend descriptors are not initialized; refusing target execution' >&2
+            return 125
+          fi
+          # FD 8 is the saved protocol input; FD 9 is this invocation's data
+          # input (/dev/null, a file, a pipe or /dev/tty). Restore protocol stdin
+          # only for in-target, then select the independent data input in the
+          # target. No command arguments are interpolated as shell source.
+          exec 9<&0
+          exec 0<&8
+          set -- /bin/sh -c '
+            DEBCONF_READFD=8
+            export DEBCONF_READFD
+            exec "$@" <&9 9<&-
+          ' installer-target "$@"
+        fi
         # chroot-setup.sh otherwise resets LANG from installer debconf. Its
         # setup/cleanup commands must use C too, not an unavailable locale.
         IT_LANG_OVERRIDE=C
@@ -205,6 +216,10 @@ target_exec() (
           -u LC_MONETARY -u LC_MESSAGES -u LC_PAPER -u LC_NAME -u LC_ADDRESS \
           -u LC_TELEPHONE -u LC_MEASUREMENT -u LC_IDENTIFICATION \
           -u LOCPATH -u NLSPATH -u GCONV_PATH -u IT_LANG_OVERRIDE \
+          -u DEBCONF_DB_REPLACE -u DEBCONF_REDIR -u DEBCONF_FRONTEND \
+          -u DEBCONF_NONINTERACTIVE_SEEN -u DEBCONF_SYSTEMRC -u DEBCONF_PIPE \
+          -u DEBCONF_USE_CDEBCONF -u DEBCONF_DEBUG -u DEBCONF_NOWARNINGS \
+          -u DEBCONF_TERSE -u DEBIAN_HAS_FRONTEND -u INSTALLER_DEBCONF_STDIN_SAVED \
           HOME=/root USER=root LOGNAME=root LANG=C.UTF-8 LC_ALL=C.UTF-8 \
           XDG_CONFIG_HOME=/root/.config XDG_CACHE_HOME=/root/.cache \
           XDG_DATA_HOME=/root/.local/share XDG_STATE_HOME=/root/.local/state \

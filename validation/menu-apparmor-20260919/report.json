@@ -1,0 +1,375 @@
+{
+  "release": "desktop-menu-apparmor-20260919",
+  "input_archive": "debian-preseed-de-no-stat-fixed.tar.gz",
+  "input_sha256": "5e491448feeefceac096f7b2f32a816f6f71deb27eda3a374cc84033fb7bc8fc",
+  "status": "implemented; deterministic checks pass; full-suite exceptions match untouched input",
+  "baseline": {
+    "tests": 1647,
+    "seconds": 453.42,
+    "result": "FAILED (failures=6, errors=2, skipped=31)",
+    "failure_identifiers": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+      "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ]
+  },
+  "final_full_test": {
+    "tests": 1674,
+    "seconds": 480.315,
+    "result": "FAILED (failures=6, errors=2, skipped=31)",
+    "failure_identifiers": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+      "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ]
+  },
+  "final_validate_test_stage": {
+    "tests": 1674,
+    "seconds": 442.458,
+    "result": "FAILED (failures=6, errors=2, skipped=31)",
+    "failure_identifiers": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+      "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ]
+  },
+  "new_failure_identifiers": [],
+  "baseline_failures_exactly_preserved": true,
+  "earlier_validation_attempt": {
+    "test_result": {
+      "tests": 1674,
+      "seconds": 481.813,
+      "result": "FAILED (failures=7, errors=2, skipped=31)",
+      "failure_identifiers": [
+        "test_actual_generated_http_bootstrap_under_busybox_at_every_boundary (test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_http_bootstrap_under_busybox_at_every_boundary)",
+        "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+        "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+        "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+        "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+        "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+        "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+        "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+        "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+      ]
+    },
+    "observation": "While the independent full suite overlapped validation, the successful HTTP bootstrap made six recorded requests rather than the expected five. The assertion was not changed. Exact cause was not established; completed isolated repeats and the serial final validation are recorded separately.",
+    "baseline_isolated_repeats": {
+      "source": "/mnt/data/menu-baseline/debian-preseed-de",
+      "runs": 3,
+      "counts": [
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        },
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        },
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        }
+      ],
+      "failures": 0,
+      "errors": 0
+    },
+    "final_isolated_repeats": {
+      "source": "/mnt/data/menu-work/debian-preseed-de",
+      "runs": 3,
+      "counts": [
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        },
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        },
+        {
+          "/short": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+          "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+        }
+      ],
+      "failures": 0,
+      "errors": 0
+    },
+    "bootstrap_source_unchanged": {
+      "d-i/forky/tests/test_bootstrap_portability.py": "432426d0588841b44a95c4ee0add4a9d9612f374d5bae0df3e209b6f31e61dc2",
+      "d-i/forky/tests/test_repository_transport.py": "337822cb9931988d2955753425252fcb2742548cf469d0d170586644fa07f98d",
+      "d-i/forky/scripts/common/source.sh": "970ef3fa67a7f562e00581bff5ad89601fad3e2ee82b772a3cf03432c2cbbc50"
+    }
+  },
+  "baseline_exception_explanations": [
+    "Two historical AppArmor tests reference a missing todo/managed/apparmor/apparmor.log fixture in the supplied input.",
+    "One historical scope assertion expects one drop-in although an additional drop-in exists in the untouched input.",
+    "One pre-existing Podman terminal test replaces subprocess.Popen with an incompatible mock used by subprocess.run.",
+    "Four managed-external-software tests fail because Perl Moo is unavailable in this execution environment."
+  ],
+  "commands": {
+    "build": {
+      "command": "make build",
+      "exit_code": 0,
+      "log": "build.log"
+    },
+    "check": {
+      "command": "make check",
+      "exit_code": 0,
+      "log": "check.log"
+    },
+    "audit": {
+      "command": "make audit",
+      "exit_code": 0,
+      "log": "audit.log"
+    },
+    "test": {
+      "command": "make test",
+      "exit_code": 2,
+      "log": "test.log",
+      "tests": 1674,
+      "seconds": 480.315,
+      "result": "FAILED (failures=6, errors=2, skipped=31)",
+      "failure_identifiers": [
+        "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+        "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+        "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+        "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+        "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+        "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+        "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+        "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+      ]
+    },
+    "validate": {
+      "command": "make validate",
+      "exit_code": 2,
+      "log": "validate.log"
+    },
+    "hardware-check": {
+      "command": "python3 -B tools/check_hardware_tuning.py",
+      "exit_code": 0,
+      "log": "hardware-check.log"
+    },
+    "check-after-pipeline": {
+      "command": "make check",
+      "exit_code": 0,
+      "log": "check-after-pipeline.log"
+    },
+    "focused-menus": {
+      "command": "PYTHONPATH=d-i/forky/tests python3 -B -m unittest test_menu_apparmor_integration_20260919 test_categorized_menu test_desktop_navigation_20260918 test_computer_management_20260916 test_management_perl_methods_20260916 test_security_refactor test_hardware_tuning_20260916 test_hardware_tuning_followup_20260917 test_hardware_tuning_handover_20260917 test_hardware_tuning_refactor_20260917",
+      "exit_code": 0,
+      "log": "focused-menus.log",
+      "tests": 343,
+      "seconds": 27.602,
+      "result": "OK (skipped=3)",
+      "failure_identifiers": []
+    },
+    "inherited-policies": {
+      "command": "PYTHONPATH=d-i/forky/tests python3 -B -m unittest test_metadata_portability_20260919 test_iocost_20260919 test_intel_policy_20260919 test_policy_alignment_20260919 test_desktop_fonts_20260918 test_systemd_resource_policy",
+      "exit_code": 0,
+      "log": "inherited-policies.log",
+      "tests": 102,
+      "seconds": 19.786,
+      "result": "OK",
+      "failure_identifiers": []
+    }
+  },
+  "normal_validation_summary": {
+    "repository": "debian-preseed-de",
+    "utc": "2026-09-19T14:49:13.845278+00:00",
+    "stages": [
+      {
+        "stage": "browser-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 0.769,
+        "log": "browser-check.log"
+      },
+      {
+        "stage": "build-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 4.183,
+        "log": "build-check.log"
+      },
+      {
+        "stage": "preseed-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 0.718,
+        "log": "preseed-check.log"
+      },
+      {
+        "stage": "shell-check",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 2.474,
+        "log": "shell-check.log"
+      },
+      {
+        "stage": "tests",
+        "returncode": 1,
+        "timed_out": false,
+        "seconds": 443.545,
+        "log": "tests.log",
+        "tests_run": 1674,
+        "skipped": 31
+      },
+      {
+        "stage": "tools-tests",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 36.416,
+        "log": "tools-tests.log",
+        "tests_run": 179,
+        "skipped": 0
+      },
+      {
+        "stage": "audit",
+        "returncode": 0,
+        "timed_out": false,
+        "seconds": 2.185,
+        "log": "audit.log"
+      }
+    ],
+    "success": false,
+    "audit_check_counts": {
+      "blocked-dependency": 156,
+      "blocked-tool": 11,
+      "inventory-only": 499,
+      "pass": 458,
+      "structure-pass": 177,
+      "template-needs-render": 2
+    },
+    "runtime_product_sha256": {
+      "preseed.cfg": "c9ca20c1a566b368d02fdc191552f63e81439a1d2eb0bba9a1c5daf78d70fad4",
+      "payload.manifest": "0684b6f0015f97ac5ce38567138e31b55dc414e39960f4958d1ce0dc63502469",
+      "payload.tar.gz": "f2c875de2eb8b7e8c481341a0b10ee838b8d9a97cccbacea6e34d0eabe64aaa6"
+    },
+    "limits": [
+      "Offline/loopback checks, not a booted Debian installer.",
+      "Systemd unit checks are lexical structure only.",
+      "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+      "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+      "Browser export coverage is static, not live site testing or GUI import acceptance."
+    ]
+  },
+  "new_test_count": 27,
+  "new_test_file": "d-i/forky/tests/test_menu_apparmor_integration_20260919.py",
+  "coverage": {
+    "computer_management_groups": 6,
+    "computer_management_fixed_routes": 23,
+    "maintenance_menu_dispatches": 42,
+    "recovery_menu_dispatches": 21,
+    "offline_top_level_apparmor_policy_files": 35,
+    "payload_apparmor_assets": 78,
+    "statically_enumerated_profile_names": 239,
+    "unique_explicit_transition_targets": 107,
+    "managed_required_include_staging": true,
+    "named_transition_closure_checked": true,
+    "vendor_owned_transition_exceptions": [
+      "chromium",
+      "microsoft-edge-stable",
+      "mullvad-browser"
+    ],
+    "graphical_wrapper_term_cleanup_fixture": true,
+    "unknown_fzf_mode_and_control_input_rejection": true,
+    "closed_ai_fzf_environment": true,
+    "authorized_wan_text_prompt_dispatch": true,
+    "all_13_profiles_byte_identical_to_input": true,
+    "external_metadata_executable_dependency_check": "pass",
+    "payload_files": 1375
+  },
+  "runtime_file_changes": {
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities": "Paired TERM receive permission for the confined tracked Fuzzel child; no broad signal rule added.",
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers": "Strict Main Menu management transition, AI read-only terminfo, and peer-specific TERM send permission.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots": "Closed fzf environment and fixed selection/cancellation flags.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-bluetooth": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-brightness-control": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-capture": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets": "Strict complete catalog validation and selection error/temporary-list cleanup.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-external-drives": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-firewall-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel": "Signal exit traps and tracked-child terminate/reap cleanup.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-fzf-menu": "Closed input-mode validation and control/bidi rejection for text suggestions.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-main-menu": "Fixed Computer Management action and icon in the graphical Main Menu.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu": "Explicit authorized WAN text prompts; preserve errors and return to parent on cancellation.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu": "Exact chooser output and backend error versus dismissal handling.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-power-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-power-settings": "Closed exact power-profile selection and backend error propagation.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop": "Exact chooser output and backend error versus dismissal handling.",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu": "Propagate picker failures distinctly from cancellation through the existing menu/action flow.",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/client.py": "Exact chooser output and backend error versus dismissal handling.",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-calendar": "Propagate picker failures distinctly from cancellation through the existing menu/action flow."
+  },
+  "other_source_changes": {
+    "d-i/forky/tests/test_menu_apparmor_integration_20260919.py": "Focused menu, action and AppArmor regression coverage.",
+    "docs/DESKTOP-MENU-CONTRACTS.md": "Active picker, lifecycle, transition, validation and acceptance contracts."
+  },
+  "regenerated_runtime_products": [
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/preseed.cfg"
+  ],
+  "normal_validation_products": "Updated only by repository validation commands; older historical reports preserved.",
+  "environment": {
+    "python": "3.13.5",
+    "kernel": "6.18.44",
+    "apparmor_parser": "AppArmor parser version 4.1.0\nCopyright (C) 1999-2008 Novell Inc.\nCopyright 2009-2018 Canonical Ltd.",
+    "fzf_executable": null,
+    "fuzzel_executable": null
+  },
+  "primary_references": [
+    {
+      "url": "https://junegunn.github.io/fzf/reference/",
+      "use": "Environment-supplied options and commands, abort status, data protocols and safe fixed flags."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apparmor/apparmor/master/parser/apparmor.d.pod",
+      "use": "Two-sided confined signal mediation and strict exec-transition syntax."
+    }
+  ],
+  "limitations": [
+    "No live Wayland session or native fzf/Fuzzel executable was available; UI endpoints are controlled test fixtures.",
+    "Offline AppArmor parser checks do not load policy or prove kernel-mediated application behavior.",
+    "No privileged management action, destructive recovery, firmware operation, physical-device test or network scan was executed.",
+    "No unattended installation was booted on target hardware.",
+    "Unavailable Perl Moo and other dependency-limited audit entries remain reported, not counted as passes.",
+    "Native Python/Perl metadata APIs, Linux proc filenames, explanatory comments, negative tests and historical records are not external metadata-command dependencies."
+  ]
+}

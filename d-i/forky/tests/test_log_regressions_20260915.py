@@ -94,7 +94,7 @@ class AccountStagingTests(unittest.TestCase):
                 path.chmod(0o600)
             wants = home / '.config/systemd/user/labwc-session.target.wants'
             wants.mkdir()
-            for name in ('ssh-agent.socket', 'labwc-ssh-key-load.service'):
+            for name in ('ssh-agent.socket',):
                 (wants / name).symlink_to('../' + name)
             for directory in home.rglob('*'):
                 if directory.is_dir():
@@ -217,7 +217,8 @@ class DesktopAssetTests(unittest.TestCase):
         found = list(units.glob('app-*.scope.d/*.conf'))
         path = units / 'app-.scope.d/50-session-labwc.conf'
         # The original lifecycle policy remains; launchers already select app.slice.
-        self.assertEqual(found, [path])
+        # Resource-class policy is an additional, separately owned drop-in.
+        self.assertEqual(set(found), {path, units / 'app-.scope.d/60-resource-class.conf'})
         text = path.read_text()
         for setting in ('Requisite=labwc-session.target', 'After=labwc-session.target',
                         'PartOf=labwc-session.target', 'KillMode=control-group',

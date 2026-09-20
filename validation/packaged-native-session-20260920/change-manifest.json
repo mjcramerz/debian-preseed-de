@@ -1,0 +1,171 @@
+{
+  "success": true,
+  "input_archive": "debian-preseed-de(4).zip",
+  "input_archive_sha256": "99046d28aadeb5b087c3ddd8235dab07a8aa00bd7fc93aebc207efd52294d5fc",
+  "original_regular_files": 3095,
+  "unchanged_original_regular_files": 3076,
+  "modified_original_regular_files": 17,
+  "deleted_original_regular_files": 2,
+  "added_source_and_documentation_files": 2,
+  "original_directory_entries": 563,
+  "deleted_directories": [
+    "d-i/forky/hooks/target/usr/local/share/labwc/native-repairs"
+  ],
+  "all_retained_original_file_and_directory_modes_preserved": true,
+  "all_nonallowlisted_original_files_byte_identical": true,
+  "protected_original_files_byte_identical": {
+    "apparmor": 79,
+    "systemd": 190
+  },
+  "changes": [
+    {
+      "path": "NATIVE-SESSION-FOLLOWUP-20260919.md",
+      "change": "modified",
+      "before_sha256": "55d9caaa146bf8afab11f24b03f9a83e9302205df8c8a78a1749a47f26e9f889",
+      "after_sha256": "4a69b679c4b22c7d234da32772a31bb267e81e59dac320adfaf727c205b977d4",
+      "mode": "0o640"
+    },
+    {
+      "path": "README.md",
+      "change": "modified",
+      "before_sha256": "a830fb55c995259b80f7f2c7481341aa5bbcbf71e8fa2ceb15cef51344bd107f",
+      "after_sha256": "8285489e129b75af1b7db7935d5b91f4846ab41c16612de0abcc6d0b9db7b323",
+      "mode": "0o600"
+    },
+    {
+      "path": "WORKSPACES-NO-BROKER.md",
+      "change": "modified",
+      "before_sha256": "4da9c4e84ac4a281d76e9ca31695747564296293711f362e231047c5914220cc",
+      "after_sha256": "7114c16182ca5c432d694f8ed0e90d5760bfd7e539759de76d8816aa668e7198",
+      "mode": "0o600"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl",
+      "change": "modified",
+      "before_sha256": "8b6b90cf2a62b049f2b4f9f7f007ea8a0bb3c707a92fd897e4df54135c6ccd45",
+      "after_sha256": "27e0b31e6e8fc9d60d0c087cf6a4e94226c3817f609a0635276a73e8d52113cb",
+      "mode": "0o600"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/themerc-override",
+      "change": "modified",
+      "before_sha256": "7d69ecba580e47e4dd6ddcc35673023910d3a6f797a7c79a9f6c2d4ee66c4e78",
+      "after_sha256": "b584ed84e7d223733cb813f70703f0aac4edbf9fda1a86db2ecb439e410e5ba7",
+      "mode": "0o600"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher",
+      "change": "modified",
+      "before_sha256": "0e7b11fee32053df5b735ec3b2752c095da850b82918c2882fc8e3d0774106e3",
+      "after_sha256": "d39621ba5d3df7cd85f82ae92652b64e8a83644ec084f685974001f5e4eb41b6",
+      "mode": "0o700"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/build_native.py",
+      "change": "deleted",
+      "before_sha256": "1785d9f35dde989d870bb46e269110fd2163b5c382af14047926fff3873d712b",
+      "before_mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/patch_sources.py",
+      "change": "deleted",
+      "before_sha256": "8bea87cb5e3619b268f10687bfbb15176c2d364c2536ce69ec1c39d4501be8ca",
+      "before_mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "change": "modified",
+      "before_sha256": "b64c09730474b95799fd89bd3bf7e00a5722d1e6fcd593fd0396830b8b87e3e2",
+      "after_sha256": "e8b694b9f18017173ac57d3c06937896f0e11d8f557920fb5f8f4d2c8b5539ea",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "change": "modified",
+      "before_sha256": "b420ddecb81a2dcf43cec2617f34490cb23c87bbfc2c53cd673b926b58024e72",
+      "after_sha256": "261d40610ff125683290f5287e8e62917ce0e3f7b891598b52a7104f400e4e4e",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "change": "modified",
+      "before_sha256": "5069496d0b053f0e1bd31f52a364e78b143d747a3ed3da318dcf34bdfd4927cc",
+      "after_sha256": "42941f658ecb728ffca3ffe7539d337286da274566cefde2e2f166e5520f76aa",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "change": "modified",
+      "before_sha256": "bee684cebb2db2e2a95ea3a5a1c0ecf7b42312f1f52c37121f5b1fc8e5f2f90d",
+      "after_sha256": "242e37d8ab90432e8a42b42dc8ec81f2b2c734db79200b2cd2ee7aa1d697b919",
+      "mode": "0o700"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/detect.sh",
+      "change": "modified",
+      "before_sha256": "ab73e4cabeb00f9d8acd070f1a38fb1e14f378aa7d7c61424daf71f1598103d0",
+      "after_sha256": "2de502da81e207d677b39a7d49ebfc7769b45183417666b39e6f687efffc650e",
+      "mode": "0o700"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/labwc.sh",
+      "change": "modified",
+      "before_sha256": "542f465b042ee93197bed700ac4ae9cedc862c24f92c6ece3d422daa82522a87",
+      "after_sha256": "374323a218115db90fad29964aa1dc0aa1e112d66cbcb12684705bddbbbcd1f2",
+      "mode": "0o700"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/verify.sh",
+      "change": "modified",
+      "before_sha256": "daa6b2c9e881441f877612f0414b3be472014c3b36bd49d2f2e03851df76158c",
+      "after_sha256": "4d6437b20c04509e2ab4261bf6ca33d21cceac474377304a1783c24880596abd",
+      "mode": "0o700"
+    },
+    {
+      "path": "d-i/forky/tests/test_native_session_followup_20260919.py",
+      "change": "modified",
+      "before_sha256": "d782c3771303b546de55655e0c36a41a1bbac2fa50a2c0be3cb91914f2d90339",
+      "after_sha256": "d33ca7b55253398740d531135fedf97a9d9f6db36f7ffeccd64656314dca794c",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/tests/test_packaged_native_session_20260920.py",
+      "change": "added",
+      "after_sha256": "4d8f53e835b4deaa5fe069e100bc26f12aa0508cf693c5c31128b5f93bf2cfca",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/tests/test_policy_alignment_20260919.py",
+      "change": "modified",
+      "before_sha256": "475afaa9ae59f848c6dacd7d61824e500da8a5e891cc8d70753997af23bfc88e",
+      "after_sha256": "8bfc74722ab95d1aef2e06aba025d818a525d923d789487c61362d6e7383ee3e",
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/tests/test_systemd_resource_policy.py",
+      "change": "modified",
+      "before_sha256": "e4131d42f9dd2489e4086a6a82b34a581dee9d27ea837400d58460aa11724952",
+      "after_sha256": "85a29ad5c1b3367df2b663d0843a9c6f30c9129664a3f8a95bc7c884973a79e6",
+      "mode": "0o600"
+    },
+    {
+      "path": "d-i/forky/tests/test_workspace_no_broker.py",
+      "change": "modified",
+      "before_sha256": "3c038ae4b2aac25ca2a7624d24017c14451aaf3c0480fb47ac17fb79b648cb8c",
+      "after_sha256": "0654a527c9603438788d3e09ce3c059b86617370b78ed59a571e443afd694c62",
+      "mode": "0o600"
+    },
+    {
+      "path": "docs/PACKAGED-NATIVE-SESSION-20260920.md",
+      "change": "added",
+      "after_sha256": "6f9c32ab0b82c2ce41497ba104eb477659c17b329737ce9837f1e50a5fae36db",
+      "mode": "0o640"
+    }
+  ],
+  "evidence_namespace_excluded_from_change_list": "validation/packaged-native-session-20260920/",
+  "notes": [
+    "All original historical validation files are retained unchanged.",
+    "The excluded evidence namespace contains results produced during this revision.",
+    "scope.patch omits the binary payload archive; its hashes are in this manifest."
+  ]
+}

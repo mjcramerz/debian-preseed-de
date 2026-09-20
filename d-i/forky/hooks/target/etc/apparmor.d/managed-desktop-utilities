@@ -96,6 +96,8 @@ profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} 
 # developer domain. There is no general unconfined execution fallback.
 profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected) {
   include if exists <abstractions/managed-hardware-tuning-desktop-parent>
+  # The tracked Fuzzel child must accept its wrapper's cancellation cleanup.
+  signal (receive) set=(term) peer=managed-labwc-fuzzel,
   # General-purpose file managers and ncdu must enumerate the filesystem.
   # Trailing slash restricts this to directories; file data, writes and exec
   # retain their existing policy, and ordinary DAC permissions still apply.

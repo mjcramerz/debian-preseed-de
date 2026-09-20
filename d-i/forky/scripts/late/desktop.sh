@@ -26,7 +26,7 @@ late_command_load_host_env
 
 desktop_module_dir="${runtime_dir}/bootstrap/desktop-modules"
 install -d -m 0700 "$desktop_module_dir"
-for desktop_module in detect components satty xwayland waypaper android-platform-tools samloader hardware-tuning digital-assets resctl-bench fonts labwc; do
+for desktop_module in detect components satty xwayland waypaper android-platform-tools samloader hardware-tuning digital-assets resctl-bench fonts verify labwc; do
   fetch_hook "scripts/desktop/${desktop_module}.sh" "${desktop_module_dir}/${desktop_module}.sh"
 done
 unset desktop_module
@@ -53,6 +53,10 @@ unset desktop_module
 . "${desktop_module_dir}/hardware-tuning.sh"
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/fonts.sh"
+# Load definitions only; the role calls the narrow Kanshi check, not the
+# intentionally skipped broad staging verifier.
+# shellcheck disable=SC1090,SC1091
+. "${desktop_module_dir}/verify.sh"
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/labwc.sh"
 

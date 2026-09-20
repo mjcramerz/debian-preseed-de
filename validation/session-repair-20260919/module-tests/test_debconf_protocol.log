@@ -1,0 +1,49 @@
+test_all_generated_phase_commands_preserve_debconf_roundtrip (test_debconf_protocol.DebconfProtocolTests.test_all_generated_phase_commands_preserve_debconf_roundtrip) ... ok
+test_bounded_installer_selector_preserves_live_stdin (test_debconf_protocol.DebconfProtocolTests.test_bounded_installer_selector_preserves_live_stdin) ... ok
+test_canonical_debconf_copies_are_identical (test_debconf_protocol.DebconfProtocolTests.test_canonical_debconf_copies_are_identical) ... ok
+test_cleanup_retains_root_failure_and_rejects_successful_work_with_failed_cleanup (test_debconf_protocol.DebconfProtocolTests.test_cleanup_retains_root_failure_and_rejects_successful_work_with_failed_cleanup) ... ok
+test_dash_supervisor_also_preserves_busybox_client_protocol (test_debconf_protocol.DebconfProtocolTests.test_dash_supervisor_also_preserves_busybox_client_protocol) ... ok
+test_eof_reply_is_fatal_without_illegal_return_or_secret_leak (test_debconf_protocol.DebconfProtocolTests.test_eof_reply_is_fatal_without_illegal_return_or_secret_leak) ... ok
+test_failed_selector_in_preseed_command_holds_without_reentry (test_debconf_protocol.DebconfProtocolTests.test_failed_selector_in_preseed_command_holds_without_reentry) ... ok
+test_failed_selector_not_retried_and_diagnostics_remain_private (test_debconf_protocol.DebconfProtocolTests.test_failed_selector_not_retried_and_diagnostics_remain_private) ... ok
+test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply) ... FAIL
+test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply) ... ok
+test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply) ... ok
+test_full_debian_preseed_vm_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_vm_apply) ... ok
+test_malformed_reply_is_not_converted_to_shell_status (test_debconf_protocol.DebconfProtocolTests.test_malformed_reply_is_not_converted_to_shell_status) ... ok
+test_negative_control_reproduces_exact_illegal_number_with_r2_redirection (test_debconf_protocol.DebconfProtocolTests.test_negative_control_reproduces_exact_illegal_number_with_r2_redirection) ... ok
+test_nested_supervision_and_capture_preserve_connection_and_fd9 (test_debconf_protocol.DebconfProtocolTests.test_nested_supervision_and_capture_preserve_connection_and_fd9) ... ok
+test_raw_main_menu_descriptors_initialized_before_supervision (test_debconf_protocol.DebconfProtocolTests.test_raw_main_menu_descriptors_initialized_before_supervision) ... ok
+test_runtime_password_not_written_to_upstream_preseed_log (test_debconf_protocol.DebconfProtocolTests.test_runtime_password_not_written_to_upstream_preseed_log) ... ok
+test_runtime_trailing_backslash_empty_hash_seen_and_literal_metacharacters (test_debconf_protocol.DebconfProtocolTests.test_runtime_trailing_backslash_empty_hash_seen_and_literal_metacharacters) ... ok
+test_single_value_registration_never_pipes_answers_to_selector (test_debconf_protocol.DebconfProtocolTests.test_single_value_registration_never_pipes_answers_to_selector) ... ok
+test_supervised_installer_selector_registers_and_sets_real_database (test_debconf_protocol.DebconfProtocolTests.test_supervised_installer_selector_registers_and_sets_real_database) ... ok
+test_symlink_answer_file_rejected_before_database_changes (test_debconf_protocol.DebconfProtocolTests.test_symlink_answer_file_rejected_before_database_changes) ... ok
+test_valid_nonzero_reply_preserves_original_status (test_debconf_protocol.DebconfProtocolTests.test_valid_nonzero_reply_preserves_original_status) ... ok
+
+======================================================================
+FAIL: test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 286, in test_full_debian_preseed_f2fs_arm64_apply
+    self.bootstrap('file=/seed/preseed.cfg classes=prod;desktop;standard;dhcp;ssh')
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 252, in bootstrap
+    result, session = self.run_code(code, env={'INSTALLER_CMDLINE': cmdline}, timeout=70)
+                      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 35, in run_code
+    self.assertFalse(timed_out, 'protocol deadlock or fatal hold: ' + result.stderr +
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     self.failure_details())
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : protocol deadlock or fatal hold: roxy freerdp-sdl fonts-font-awesome fonts-noto fonts-noto-core fonts-noto-mono fontconfig fonts-noto-color-emoji fonts-symbola desktop-file-utils nwg-look papirus-icon-theme qt6ct adwaita-qt6 crystal-dock labwc-tweaks zsh zsh-autosuggestions zsh-syntax-highlighting starship fonts-material-design-icons-iconfont fonts-weather-icons xarchiver libarchive-tools 7zip zip unar unrar-free lzip lrzip mpv qimgv featherpad neovim micro vim kdiff3 qalculate-qt gnumeric focuswriter pandoc qpdf tesseract-ocr tesseract-ocr-eng tesseract-ocr-swe poppler-utils libimage-exiftool-perl libarchive-zip-perl graphicsmagick libvips-tools webp optipng jpegoptim zathura zathura-pdf-poppler poppler-data fonts-crosextra-carlito fonts-crosextra-caladea recoll recollgui ripgrep fd-find tmux btop ncdu fzf libpam-wtmpdb wtmpdb openssh-client network-manager-tui network-manager-openvpn wireguard-tools vdirsyncer khal todoman/trixie taskwarrior taskwarrior-tui wsdd chromium xournalpp gnote liferea iproute2 nmap lua5.5 debsums debsecan chkrootkit rkhunter lynis clamav clamav-freshclam fangfrisch spectre-meltdown-checker fwupd wireshark wireshark-common tshark tcpdump libcap2-bin libayatana-appindicator3-1 lscolors make build-essential cmake ninja-build sccache golang-go python3-venv pre-commit black flake8 mypy bandit shellcheck shfmt yamllint clang clang-format clang-tidy cppcheck yq jq jsonschema-jv markdownlint gitlint sqlfluff direnv hyperfine libhttp-tiny-perl libio-socket-ssl-perl pciutils usbutils dmidecode lshw lm-sensors nvme-cli smartmontools sysstat numactl linux-cpupower wtype fonts-liberation2 fonts-noto-cjk fonts-dejavu fonts-dejavu-extra fonts-noto-ui-core fonts-noto-ui-extra fonts-texgyre grub-efi-arm64 grub-efi-arm64-signed shim-signed shim-helpers-arm64-signed linux-image-arm64 linux-headers-arm64 fwupd-arm64-signed auditd audispd-plugins apparmor apparmor-notify apparmor-profiles apparmor-profiles-extra apparmor-utils linux-xanmod-x64v2 f2fs-tools openssh-server
+2026-09-19T16:55:00Z stage=bootloader level=info component=grub planned dualboot_class=false update_nvram=true force_extra_removable=false
+2026-09-19T16:55:02Z stage=preseed_loaded level=info component=preseed-answers rendered preseed answers file: /tmp/install-runtime/state/preseed.answers.cfg
+2026-09-19T16:55:11Z stage=preseed_loaded level=info component=preseed-answers applied dynamic preseed answers for f2fs-desktop from classes=prod,desktop,standard,dhcp,ssh,arch/arm64,cpu/generic-arm64,gpu/generic,disk/emmc
+
+
+
+----------------------------------------------------------------------
+Ran 22 tests in 259.215s
+
+FAILED (failures=1)

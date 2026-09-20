@@ -143,9 +143,9 @@ load_hardware_profile_flags() {
     [ -e "$hardware_path" ] || [ -L "$hardware_path" ] || continue
     [ -f "$hardware_path" ] && [ ! -L "$hardware_path" ] ||
       fatal "hardware GRUB fragment is not a direct regular file: $hardware_path"
-    [ "$(stat -c %u "$hardware_path")" = 0 ] ||
+    [ "$(find -P "$hardware_path" -maxdepth 0 -printf %U)" = 0 ] ||
       fatal "hardware GRUB fragment must be root-owned: $hardware_path"
-    hardware_mode=$(stat -c %a "$hardware_path")
+    hardware_mode=$(find -P "$hardware_path" -maxdepth 0 -printf %m)
     case "$hardware_mode" in
       [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
       *) fatal "invalid hardware GRUB fragment mode: $hardware_path" ;;

@@ -13,7 +13,7 @@ llama_require_root_directory() {
 
   [ -d "$directory_path" ] && [ ! -L "$directory_path" ] ||
     llama_fatal "${directory_label} is missing or is not a real directory: ${directory_path}"
-  directory_metadata=$(stat -c '%u:%g:%a' -- "$directory_path" 2>/dev/null) ||
+  directory_metadata=$(find -P "$directory_path" -maxdepth 0 -printf '%U:%G:%m' 2>/dev/null) ||
     llama_fatal "cannot inspect ${directory_label}: ${directory_path}"
   [ "$directory_metadata" = "0:0:${expected_mode}" ] ||
     llama_fatal "${directory_label} must be root:root mode ${expected_mode}: ${directory_path}"
@@ -26,7 +26,7 @@ llama_require_root_file() {
 
   [ -f "$file_path" ] && [ ! -L "$file_path" ] ||
     llama_fatal "${file_label} is missing or is not a regular file: ${file_path}"
-  file_metadata=$(stat -c '%u:%g:%a' -- "$file_path" 2>/dev/null) ||
+  file_metadata=$(find -P "$file_path" -maxdepth 0 -printf '%U:%G:%m' 2>/dev/null) ||
     llama_fatal "cannot inspect ${file_label}: ${file_path}"
   [ "$file_metadata" = "0:0:${expected_mode}" ] ||
     llama_fatal "${file_label} must be root:root mode ${expected_mode}: ${file_path}"
@@ -69,7 +69,7 @@ llama_config_path=/etc/llama/llama.conf
 llama_binary_dir=/data/llama/bin
 llama_require_root_directory /etc/llama 755 "configuration directory"
 llama_require_root_file "$llama_config_path" 644 "configuration file"
-llama_config_size=$(stat -c '%s' -- "$llama_config_path" 2>/dev/null) ||
+llama_config_size=$(find -P "$llama_config_path" -maxdepth 0 -printf '%s' 2>/dev/null) ||
   llama_fatal "cannot determine configuration file size"
 case "$llama_config_size" in
   ''|*[!0123456789]*) llama_fatal "configuration file size is invalid" ;;

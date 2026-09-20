@@ -1,0 +1,11 @@
+{
+  "source_files": 78,
+  "top_level_policy_files": 35,
+  "declared_profile_names": 239,
+  "explicit_transition_targets": 107,
+  "vendor_owned_targets": [
+    "chromium",
+    "microsoft-edge-stable",
+    "mullvad-browser"
+  ]
+}

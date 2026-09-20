@@ -1,0 +1,6 @@
+test_signed_file_repository_changes_candidate_without_installing (test_local_apt_integration.AptIntegrationTests.test_signed_file_repository_changes_candidate_without_installing) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.302s
+
+OK

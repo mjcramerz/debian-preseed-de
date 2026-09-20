@@ -241,7 +241,7 @@ def validate_policy(data: Any, settings: dict[str, tuple[str, ...]]) -> dict[str
     integer(data["max_temperature_c"], 50, 95)
     if not isinstance(data["profiles"], dict) or set(data["profiles"]) != set(PROFILES):
         raise TuningError("all four profiles must be specified")
-    for profile in data["profiles"].values():
+    for profile_name, profile in data["profiles"].items():
         if not isinstance(profile, dict) or set(profile) != {"knobs", "overrides"}:
             raise TuningError("a profile must contain knobs and overrides")
         if not isinstance(profile["knobs"], dict) or set(profile["knobs"]) != set(settings):
@@ -254,4 +254,10 @@ def validate_policy(data: Any, settings: dict[str, tuple[str, ...]]) -> dict[str
             safe_value(value)
         for value in profile["knobs"].values():
             safe_value(value)
+        if "CPU_EPP" in settings:
+            epp = profile["knobs"]["CPU_EPP"]
+            if epp not in {"keep", "default", "performance", "balance_performance", "balance_power", "power", "balanced"}:
+                raise TuningError("invalid configured Intel EPP")
+            if epp == "balanced" and profile_name != "balanced":
+                raise TuningError("the balanced EPP selector is restricted to the Balanced profile")
     return data

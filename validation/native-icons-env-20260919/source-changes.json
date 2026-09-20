@@ -1,0 +1,225 @@
+{
+  "original_archive": {
+    "filename": "debian-preseed-de.tar.gz",
+    "sha256": "8f4a525df6900a761d4699c7e6e12518aee1649af1839b937e578b8d11797a50",
+    "regular_files": 2975
+  },
+  "modified_original_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "original_sha256": "3ab041e517138665c958d58dfbbf2050cfff1f2e605c7e517fbc4f32acb3ac72",
+      "sha256": "fe945fb4c2aa68e166fc1307c8da5c5aef51d17c0008c3d29977a2d47a929839",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-hardware-tuning",
+      "original_sha256": "dcf408dd5ff8d6d9e6d784e6065d5c04f81cf63fa34bb2fcb58a741134116a55",
+      "sha256": "39ccbc637e2c416a56ee3115a92846f686ef7785ded3b2686342dcb5d9e874b3",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/fuzzel/fuzzel.ini.tmpl",
+      "original_sha256": "efae4f28a57efe1efeb3d925365c8453b343b8b452566e6b4efe9b39b14f9722",
+      "sha256": "63d384c36301b9207584437a84f10c137c900949a2980252de8a318d4cc951c0",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-computer-management",
+      "original_sha256": "0b2cf5bfb71ed8e651d52e06da0db11ddaa94cbc17878060129e2f2ee1323f46",
+      "sha256": "c36ca6b56bfafa68ea16e1c1b8916626d34ac06c8f7338da19c328092e769027",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel",
+      "original_sha256": "9e1f9bfb4dc737a2a811422b5b1315f8baea00da7a0c582cc6a38b6c7705535d",
+      "sha256": "8cef87533d56534b399754a8ee5c8eb99590a595d1eb9617413da44515a59466",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fzf-menu",
+      "original_sha256": "aea112caada0f39ef14dc841ea59170c18b9b8137bce046951a5fccf6839547e",
+      "sha256": "7a1a09796a65e3349b0a6a98c5d859bdf26bee788192ac42820f36dfe8bb1cda",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-main-menu",
+      "original_sha256": "e26452c26e8ccda2b1c3d3d0b3c30d7cb9320441ad342d26cb6bd14288c1c16d",
+      "sha256": "f541cf0e5a79348ce184bfdd8f00bbec7fb6474f918115bae6b99d6941e930f1",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/client.py",
+      "original_sha256": "c1942d3b89eb2a8f245ac637fa30f46d9bd76144a16622461ad24426655ddf5c",
+      "sha256": "e2af5b78e554344d1f73a0ce191ae16902a51437465fb2ef0f660264b28feeb0",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "original_sha256": "27d55840546d9359bcb6ef4030a0a803ba7be7e5568b2273ffa451d9febe2c68",
+      "sha256": "a333103f4a92de006c1bbd672b2ddfff0ecdac14491db657087f56b0a325c5e5",
+      "original_mode": "0o644",
+      "mode": "0o644",
+      "generated": true
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "original_sha256": "219ac104dc39e092541c996d075d30da36aa5850f5a67007f53d49c246493e0e",
+      "sha256": "6aaaa412a29aa200d1e61d4e87b3ee1f5870d35080c04e1c4718175129705654",
+      "original_mode": "0o644",
+      "mode": "0o644",
+      "generated": true
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "original_sha256": "f9bfb65a89248c8b7ca4bb772a69b2d050e4c60fe982c194a7e607b68948ace1",
+      "sha256": "9b9dcff6226fb10b5d51000a1bd4087207100a4d9de4b0492773b779e183143d",
+      "original_mode": "0o644",
+      "mode": "0o644",
+      "generated": true
+    },
+    {
+      "path": "d-i/forky/scripts/common/lib.sh",
+      "original_sha256": "1b39e0a2c1e0947bce4fe4d7d486a63313bc518aa119dd6f46536e3914f88707",
+      "sha256": "ad6543a2ab83f909618fbe639c730d1df6bf8923cbe62d324db4bada41803275",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/hardware-tuning.sh",
+      "original_sha256": "e83567983b03aaa983ea24319990cecc1e433ace4961217c3d3527607935771a",
+      "sha256": "b2710b4f4e6bf56eb84f6fd75d06589278c960e023cd958c604dbd6e568d02d7",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/scripts/late/core.sh",
+      "original_sha256": "7dceaea7109ff2b78dd35dbf6e3f6fd2fd8544c00dfea2ba58ec26d52bb4ea76",
+      "sha256": "95beb3fca50a44a5a310f7c4897f2d72673bf35207e437d93f18e784c6313788",
+      "original_mode": "0o700",
+      "mode": "0o700",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_bootstrap_portability.py",
+      "original_sha256": "432426d0588841b44a95c4ee0add4a9d9612f374d5bae0df3e209b6f31e61dc2",
+      "sha256": "f9dbaf9fd4c363acad8ea95f8ad8de3b48ce5a724f6244b24de00625851f9f15",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_navigation_20260918.py",
+      "original_sha256": "c10038774a917c52c512fc5cdefaa46c8c5202fbba47e7ad92495d76f86721d9",
+      "sha256": "5224fd181cfa4d052b18d353b7911258bed227b7ed41c14f4ff36c294cf440b6",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_sandbox.py",
+      "original_sha256": "81cc107b561651572659206058c3276b2451d68bc5c28e372d22ee290a977749",
+      "sha256": "daf0dbdc4e5aef186a7f8af8659876ed1e8fb0af02318f610d04871bed048437",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_installed_failures_20260911.py",
+      "original_sha256": "34ed2cdb3fccac4fd8d30536e010f5e355a4051ec1242e1b5118bc9354660e52",
+      "sha256": "0212a09906e5a61dfb2041c36dbefaa922eb53c4bad29d620f3c83ff0e29fa18",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_kanshi_fuzzel_followup_20260919.py",
+      "original_sha256": "8eec71bf98a36c6ac564bd6f1b8d3d7ac40f9758086b86e85582071f37d45cb0",
+      "sha256": "e448356628ef5f27b31c4d82458137e2c99c54819d3c30f6d13968ebdd40802a",
+      "original_mode": "0o644",
+      "mode": "0o644",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_log_regressions_20260915.py",
+      "original_sha256": "889659199bde16819048ba0045c17c4b988660121206ee6c05a17aea1ce6f370",
+      "sha256": "d1e939aa0b75f4445fbb0c361e2e385c45352e36da2489b39315a00e3f9098dc",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_managed_external_software.py",
+      "original_sha256": "95ae53e68d5f8cbf5f2dda07c0a5396dd23b6a3acaa9ae8d1902ecab2a5ba223",
+      "sha256": "ad7d527dea64acfaccc303a7801e70274aa3f542ac9c0d2a4c38927f647b5831",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_menu_apparmor_integration_20260919.py",
+      "original_sha256": "0e98a3013ba0fe6a4425eb6c606c0cb1140b9367228468351f8783896643e984",
+      "sha256": "c2ee1b821d59dd545297cb218187f1fa0520a3a1831790a3f93e8b994f2291d4",
+      "original_mode": "0o640",
+      "mode": "0o640",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_podman_incus_redesign.py",
+      "original_sha256": "59038982ac2159e4e5412984e062c7923ed85e6a23360ee0741a825ec66b303b",
+      "sha256": "6e920f33361862ee7945b4a50e759fb880d53179175a4d4d2a8fc0bfd7a54143",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    },
+    {
+      "path": "d-i/forky/tests/test_resctl_bench_20260916.py",
+      "original_sha256": "5b4a3de8bb91c8f4063e36be03388035afe77e490da5dfbc54f2d19840525416",
+      "sha256": "ac5dc255ea0934a279550b70738bb308ea6ead14d6787f142df6a67adc05c3fc",
+      "original_mode": "0o600",
+      "mode": "0o600",
+      "generated": false
+    }
+  ],
+  "new_source_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/abstractions/managed-hardware-tuning-management-parent",
+      "sha256": "217525aa16006b208bfcb2e7ac208f94217a74cce34b91896b29614d36113ba2",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/tests/test_env_publication_20260919.py",
+      "sha256": "70f985b50aa9c9b7af129e80730711c690481233d0f9f4cca039ff58f98c213b",
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/tests/test_native_tuning_menu_20260919.py",
+      "sha256": "e74e759f9e40ec40f432cf631f89d2cc8e7943a9ba38138cdd6266e6b17658b4",
+      "mode": "0o644"
+    }
+  ],
+  "removed_original_files": [],
+  "patch_excludes_generated_products": [
+    "d-i/forky/payload.manifest",
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/preseed.cfg"
+  ],
+  "additional_artifacts": "Documentation and validation evidence are separate from runtime payload contents."
+}

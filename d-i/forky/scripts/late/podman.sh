@@ -33,10 +33,12 @@ podman_resolve_native_storage_driver() (
   case "$relative" in
     *..*|*//*|*[!A-Za-z0-9_./-]*) podman_fatal 'unsafe Podman storage path' ;;
   esac
-  filesystem=$(chroot "$target" /usr/bin/stat -f -c '%T' -- "$relative") ||
-    podman_fatal 'target coreutils could not inspect the Podman storage filesystem'
+  # The native filesystem-name lookup reads the target mount table. Use the
+  # shared executor so d-i's in-target performs its normal proc/chroot setup.
+  filesystem=$(target_exec /usr/bin/find -P "$relative" -maxdepth 0 -printf '%F') ||
+    podman_fatal 'target findutils could not inspect the Podman storage filesystem'
   case "$filesystem" in
-    btrfs|ext2/ext3|xfs|f2fs) ;;
+    btrfs|ext2|ext3|ext4|xfs|f2fs) ;;
     *) podman_fatal "unsupported Podman storage filesystem: $filesystem" ;;
   esac
   case "$requested" in

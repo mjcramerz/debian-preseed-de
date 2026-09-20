@@ -13,8 +13,9 @@ installer_debconf_error() {
 
 # Use the inherited frontend when present. Starting debconf-communicate against
 # its database would introduce a second writer and can lose in-memory changes.
-# The caller must preserve stdin (including inside read loops). FDs 3-6 belong
-# to d-i; stdout here is solely a returned VALUE, never the protocol connection.
+# Lifecycle entry preserves reply stdin on FD 8. Legacy standalone callers
+# without that snapshot must preserve stdin themselves. FDs 3-6 belong to d-i;
+# stdout here is solely a returned VALUE, never the protocol connection.
 installer_debconf_request() (
   set +x
   set +v
@@ -34,6 +35,13 @@ installer_debconf_request() (
     if [ -z "${DEBCONF_REDIR:-}" ]; then
       installer_debconf_error 'frontend descriptors were not initialized'
       exit 125
+    fi
+    if [ "${INSTALLER_DEBCONF_STDIN_SAVED:-}" = 1 ]; then
+      ( : <&8 ) 2>/dev/null || {
+        installer_debconf_error 'saved frontend reply descriptor is unavailable'
+        exit 125
+      }
+      exec 0<&8
     fi
     if ! printf '%s\n' "$idb_request" >&3; then
       installer_debconf_error 'cannot write to inherited frontend'
@@ -97,6 +105,14 @@ installer_debconf_apply_file() (
   idb_work=$(mktemp -d /tmp/installer-debconf.XXXXXX) || exit 125
   # Diagnostics can contain selections. Keep them private; do not echo them.
   # Successful calls clean up. Failed calls retain diagnostics for recovery.
+  if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] &&
+     [ "${INSTALLER_DEBCONF_STDIN_SAVED:-}" = 1 ]; then
+    ( : <&8 ) 2>/dev/null || {
+      installer_debconf_error 'saved frontend reply descriptor is unavailable'
+      exit 125
+    }
+    exec 0<&8
+  fi
   if debconf-set-selections "$idb_file" 2>"$idb_work/stderr"; then
     rm -rf "$idb_work"
   else
@@ -158,6 +174,7 @@ installer_metadata_value() (
   case "$lc_field" in
     uid) printf '%s\n' "$3" ;;
     gid) printf '%s\n' "$4" ;;
+    uid_gid) printf '%s:%s\n' "$3" "$4" ;;
     links) printf '%s\n' "$2" ;;
     mode|uid_gid_mode|uid_gid_mode_links)
       lc_mode=$(printf '%s\n' "$1" | awk '
@@ -387,6 +404,27 @@ installer_lifecycle_arm() {
   if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then
     [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf 'shell confmodule is unavailable';
     . /usr/share/debconf/confmodule;
+  fi;
+  # Keep one phase-owned copy of the frontend reply stream. Target-command
+  # wrappers, pipelines and class-helper loops may legitimately replace stdin.
+  # FDs 3-6 belong to d-i; FD 7 is used by record readers and FD 9 is launch-local.
+  # Never overwrite an unrelated open FD or silently recapture redirected stdin.
+  if [ -n "${DEBIAN_HAS_FRONTEND:-}" ]; then
+    case "${INSTALLER_DEBCONF_STDIN_SAVED:-}" in
+      1)
+        ( : <&8 ) 2>/dev/null || installer_lifecycle_abort 125 debconf 'saved frontend reply descriptor is unavailable';
+        ;;
+      '')
+        if ( : <&8 ) 2>/dev/null; then
+          installer_lifecycle_abort 125 debconf 'frontend reply descriptor 8 is already in use';
+        fi;
+        ( : <&0 ) 2>/dev/null || installer_lifecycle_abort 125 debconf 'frontend reply stream is unavailable';
+        exec 8<&0;
+        INSTALLER_DEBCONF_STDIN_SAVED=1;
+        export INSTALLER_DEBCONF_STDIN_SAVED;
+        ;;
+      *) installer_lifecycle_abort 125 debconf 'invalid saved frontend descriptor state' ;;
+    esac;
   fi;
   INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0;
   export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE;
@@ -2693,7 +2731,10 @@ installer_profile_override_metadata() {
   INSTALLER_PROFILE_OVERRIDE_HOST_FAMILY=$override_host_family
 }
 
-installer_fetch_composite_env_paths() {
+installer_fetch_composite_env_paths() (
+  # Keep all assembly variables/traps private. A failed fetch must never leave
+  # a nonempty partial host.env which later callers mistake for a cached one.
+  umask 077
   composite_seed_base=$1
   composite_dest_path=$2
   composite_mode=$3
@@ -2701,26 +2742,49 @@ installer_fetch_composite_env_paths() {
   composite_fetched_any=false
   composite_fetched_paths=
 
-  install -d -m 0700 "$(dirname "$composite_dest_path")"
-  : >"$composite_dest_path"
+  case "$composite_mode" in
+    [0-7][0-7][0-7]|0[0-7][0-7][0-7]) ;;
+    *) installer_fatal 'invalid composite environment mode' ;;
+  esac
+  [ ! -L "$composite_dest_path" ] &&
+    { [ ! -e "$composite_dest_path" ] || [ -f "$composite_dest_path" ]; } ||
+    installer_fatal "host env destination is not a regular file: ${composite_dest_path}"
+  install -d -m 0700 "$(dirname "$composite_dest_path")" ||
+    installer_fatal "cannot prepare host env directory: ${composite_dest_path}"
+  composite_work=$(mktemp -d "${composite_dest_path}.parts.XXXXXX") ||
+    installer_fatal "cannot stage host env: ${composite_dest_path}"
+  composite_part_dest="${composite_work}/part"
+  composite_staged="${composite_work}/host.env"
+  # A terminated transport may leave its own nested temporary file. Remove
+  # only our private mktemp workspace, including those interrupted-copy files.
+  trap 'rm -rf -- "$composite_work"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  : >"$composite_staged" || installer_fatal 'cannot initialize staged host env'
   for composite_candidate in "$@"; do
     [ -n "$composite_candidate" ] || continue
-    composite_part_dest="${composite_dest_path}.part.$$"
-    if ! installer_fetch_seed_path "$composite_seed_base" "$composite_candidate" "$composite_part_dest" "$composite_mode"; then
-      rm -f "$composite_part_dest"
+    if ! installer_fetch_seed_path "$composite_seed_base" "$composite_candidate" "$composite_part_dest" 0600; then
       installer_fatal "failed to fetch required host env ${composite_candidate} into ${composite_dest_path}"
     fi
-    cat "$composite_part_dest" >>"$composite_dest_path"
-    printf '\n' >>"$composite_dest_path"
-    rm -f "$composite_part_dest"
+    [ -s "$composite_part_dest" ] || installer_fatal "empty required host env: ${composite_candidate}"
+    /bin/sh -n "$composite_part_dest" >/dev/null 2>&1 ||
+      installer_fatal "invalid shell syntax in required host env: ${composite_candidate}"
+    { cat "$composite_part_dest" && printf '\n'; } >>"$composite_staged" ||
+      installer_fatal "cannot append required host env: ${composite_candidate}"
     composite_fetched_any=true
     composite_fetched_paths="${composite_fetched_paths:+$composite_fetched_paths }$composite_candidate"
   done
 
   [ "$composite_fetched_any" = true ] || installer_fatal "failed to fetch host env into $composite_dest_path"
-  chmod "$composite_mode" "$composite_dest_path"
+  /bin/sh -n "$composite_staged" >/dev/null 2>&1 || installer_fatal 'invalid composed host environment'
+  # Explicit guards also work when a caller uses this function in an if/OR
+  # list, where POSIX shells suppress errexit throughout the function body.
+  chmod "$composite_mode" "$composite_staged" &&
+    mv -f -- "$composite_staged" "$composite_dest_path" ||
+    installer_fatal "cannot publish complete host env: ${composite_dest_path}"
   installer_info "fetched host env ${composite_dest_path} from:${composite_fetched_paths:+ ${composite_fetched_paths}}"
-}
+)
 
 installer_fetch_host_env() {
   host_seed_base=$1

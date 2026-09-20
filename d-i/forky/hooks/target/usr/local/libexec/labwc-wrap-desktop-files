@@ -161,6 +161,37 @@ def original_generic_exec(value: str) -> str | None:
     return match.group(1) if match else None
 
 
+def repair_known_vendor_entry(name: str, text: str) -> str:
+    """Repair only the two vendor defects observed in the September 19 log.
+
+    Desktop Exec quoting is not shell quoting. Do not run a shell parser over
+    arbitrary entries or relax desktop-file-validate for unknown syntax.
+    """
+    if name not in {'lynis.desktop', 'sdl-freerdp-file.desktop'}:
+        return text
+    lines = text.splitlines(keepends=True)
+    has_edit = any(line.strip() == '[Desktop Action Edit]' for line in lines)
+    section = ''
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            section = stripped
+        key, separator, value = line.partition('=')
+        if separator and section == '[Desktop Entry]':
+            ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
+            if name == 'lynis.desktop' and key.strip() == 'Exec' and value.strip() == (
+                    "su-to-root -c '/usr/sbin/lynis audit system --no-colors'"):
+                line = key + '=su-to-root -c "/usr/sbin/lynis audit system --no-colors"' + ending
+            elif name == 'sdl-freerdp-file.desktop' and key.strip() == 'Actions' and not has_edit:
+                # An undeclared action is unusable; retain every other action.
+                actions = value.strip().split(';')
+                if 'Edit' in actions:
+                    line = key + '=' + ';'.join(action for action in actions if action != 'Edit') + ending
+        result.append(line)
+    return ''.join(result)
+
+
 def rewrite_desktop(text: str, prefix: str) -> str:
     lines = text.splitlines(keepends=True)
     section = ''
@@ -347,6 +378,7 @@ def generate_overrides(defaults: dict[str, str]) -> bool:
             name = path.relative_to(directory).as_posix()
             try:
                 text, _, _ = read_desktop(path)
+                text = repair_known_vendor_entry(name, text)
             except UnicodeError as exc:
                 print(f'labwc desktop hook: skipped malformed {path}: {exc}', file=sys.stderr)
                 if owned_override(OUTPUT_DIR / name, previous.get(name)):

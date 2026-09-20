@@ -601,13 +601,13 @@ chatgpt_fatal() {
 chatgpt_verify_stat() {
   expected=$1
   path=$2
-  actual=$(stat -c "%u:%g:%a" -- "$path")
+  actual=$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")
   [ "$actual" = "$expected" ] ||
     chatgpt_fatal "unexpected ownership or mode for ${path}: expected ${expected}, found ${actual}"
 }
 
 account_user=$1
-for required_command in awk getent id runuser stat; do
+for required_command in awk getent id runuser find; do
   command -v "$required_command" >/dev/null 2>&1 ||
     chatgpt_fatal "required ChatGPT log-policy command is unavailable: $required_command"
 done
@@ -1064,9 +1064,8 @@ software_prepare_managed_deb_repository_apt_tmp() {
     -- "$apt_tmp_path" ||
     software_fatal "managed repository APT temporary directory preparation failed"
   apt_tmp_metadata=$(
-    chroot "$target_root" /usr/bin/stat \
-      -c '%u:%g:%a' \
-      -- "$apt_tmp_path" 2>/dev/null
+    chroot "$target_root" /usr/bin/find -P "$apt_tmp_path" \
+      -maxdepth 0 -printf '%U:%G:%m' 2>/dev/null
   ) ||
     software_fatal "managed repository APT temporary directory metadata is unavailable"
   [ "$apt_tmp_metadata" = "${apt_uid}:${root_gid}:700" ] ||
@@ -1253,10 +1252,10 @@ software_configure_chromium_sandbox() {
     software_fatal "$label Chromium sandbox must be a regular non-symlink file: $sandbox_path"
   chown root:root "$sandbox_host_path"
   chmod 4755 "$sandbox_host_path"
-  # Debian Installer does not guarantee a GNU-compatible host-side stat(1).
-  # Inspect the normalized file with the target system's coreutils instead.
+  # Keep GNU metadata formatting in the installed target, not the initrd.
+  # Inspect the normalized file with the target system's findutils.
   sandbox_metadata=$(
-    chroot "$target_root" /usr/bin/stat -c '%u:%g:%a' -- "$sandbox_path" 2>/dev/null || true
+    chroot "$target_root" /usr/bin/find -P "$sandbox_path" -maxdepth 0 -printf '%U:%G:%m' 2>/dev/null || true
   )
   [ "$sandbox_metadata" = 0:0:4755 ] ||
     software_fatal "$label Chromium sandbox has invalid ownership or mode: ${sandbox_metadata:-unreadable}"

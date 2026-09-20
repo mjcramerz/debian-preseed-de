@@ -115,12 +115,12 @@ Source values use `HARDWARE_INTEL_CPU_TUNING_<PROFILE>_<SETTING>` or `HARDWARE_N
 | Setting | Performance | High | Balanced | Silent |
 |---|---|---|---|---|
 | `CPU_GOVERNOR` | `adaptive` | `adaptive` | `adaptive` | `adaptive` |
-| `CPU_EPP` | `performance` | `balance_performance` | `balance_performance` | `power` |
+| `CPU_EPP` | `performance` | `balance_performance` | `balanced` (see below) | `power` |
 | `CPU_EPB` | `0` | `4` | `6` | `15` |
 | `CPU_MIN_PERF_PCT` | `keep` | `keep` | `keep` | `keep` |
 | `CPU_MAX_PERF_PCT` | `100` | `100` | `100` | `55` |
 | `CPU_NO_TURBO` | `0` | `0` | `0` | `1` |
-| `CPU_HWP_DYNAMIC_BOOST` | `1` | `1` | `0` | `0` |
+| `CPU_HWP_DYNAMIC_BOOST` | `1` | `1` | `1` | `0` |
 | `CPU_MIN_FREQ_KHZ` | `keep` | `keep` | `keep` | `keep` |
 | `CPU_MAX_FREQ_KHZ` | `keep` | `keep` | `keep` | `keep` |
 | `UNCORE_MIN_FREQ_KHZ` | `keep` | `keep` | `keep` | `keep` |
@@ -136,6 +136,12 @@ Source values use `HARDWARE_INTEL_CPU_TUNING_<PROFILE>_<SETTING>` or `HARDWARE_N
 | `RAPL_PL4_WINDOW_US` | `keep` | `keep` | `keep` | `keep` |
 
 Active intel_pstate uses the powersave governor with EPP to retain hardware-managed frequency selection; `adaptive` resolves differently for passive Intel/acpi-cpufreq drivers. Unsupported portable defaults are reported and skipped. A customized request for an unsupported knob, unknown device override, unsupported enum, inverted pair, or performance-governor/nonperformance-EPP combination fails before writes. An explicitly configured value identical to a portable default remains indistinguishable from that default and retains the same optional behavior; use an exact device override to require a discovered control.
+
+The built-in `balanced` EPP selector prefers `balance_power` only when the policy advertises it in `energy_performance_available_preferences`; otherwise it selects advertised `balance_performance`. Neither arbitrary invalid EPP input nor an explicitly selected unsupported EPP is silently converted to this fallback. All thirteen profiles use this selector. Balanced keeps EPB 6, a 100% maximum, turbo enabled, and **HWP dynamic boost 1**. Boost remains capability-gated: missing hardware is optional, but a supported failed write/readback is an error. Silent retains its 55% maximum and boost 0.
+
+Boot profiles (Default/Hardened/Performance) are a separate layer from runtime profiles (performance/high/balanced/silent). CPU-family GRUB fragments own governor arguments, not architecture-neutral host profiles. Intel Default and Performance use `intel_pstate=active cpufreq.default_governor=powersave`; Hardened uses `intel_pstate=passive cpufreq.default_governor=schedutil`. Linux CPUFreq parses active-driver setpolicy names directly; the active Intel algorithm is not generic CPUFreq powersave. AMD/generic fragments retain the previous schedutil/powersave/performance boot intent. VM profiles do not gain CPU-family tuning. Runtime `adaptive` continues to select active Intel powersave or passive/generic schedutil (with the existing generic ondemand fallback).
+
+Profile-managed storage policy is described in [IOCost](IOCOST.md).
 
 CPUFreq governors/EPP, per-CPU EPB, intel_pstate percentages/turbo/HWP, supported uncore domains, i915 legacy/per-GT frequencies and Xe tile/GT frequency interfaces are discovered. Graphics limits use advertised stock RPn..RP0 bounds. RAPL package PL1/PL2/PL4 constraints are discovered by constraint name; subdomains appear in the report and can use exact device overrides. PL4 generally has no time-window control: its source setting remains keep and the report marks it unavailable.
 

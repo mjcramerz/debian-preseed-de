@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 brightnessctl_cmd() {
   brightnessctl --class=backlight "$@"
 }
@@ -125,8 +132,7 @@ choice=$(
     'Balanced 55%' \
     'Bright 80%' \
     'Maximum 100%' |
-    labwc-fuzzel menu --dmenu --prompt "Brightness (${current_label})" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "Brightness (${current_label})" || menu_failure "$?"
 )
 
 case "$choice" in

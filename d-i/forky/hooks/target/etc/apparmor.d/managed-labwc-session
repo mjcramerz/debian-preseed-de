@@ -4,6 +4,9 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
+  owner @{HOME}/.local/share/icons/{,**} r,
+  # The virtual keyboard transfers its unlinked, user-owned keymap fd.
+  owner /tmp/wtype-?????? rw,
   # Do not include managed-desktop-graphics: its client policy denies primary
   # DRM nodes. Only this compositor domain owns the seat/input/card interfaces.
   #include <abstractions/base>

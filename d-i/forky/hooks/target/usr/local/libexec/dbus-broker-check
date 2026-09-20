@@ -16,7 +16,7 @@ case "$scope" in
     uid=$(id -u)
     XDG_RUNTIME_DIR=/run/user/$uid
     [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] || exit 1
-    [ "$(stat -c '%u:%a' "$XDG_RUNTIME_DIR")" = "$uid:700" ] || exit 1
+    [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U:%m')" = "$uid:700" ] || exit 1
     DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
     export XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
     unit_directory=user

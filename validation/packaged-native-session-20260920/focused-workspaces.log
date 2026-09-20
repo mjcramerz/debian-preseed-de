@@ -1,0 +1,33 @@
+test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration) ... ok
+test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration) ... ok
+test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields) ... ok
+test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style) ... ok
+test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement) ... ok
+test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy) ... ok
+test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group) ... ok
+test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option) ... ok
+test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy) ... ok
+test_rejects_misplaced_window_switcher_button (test_workspace_no_broker.InstalledVerifierTests.test_rejects_misplaced_window_switcher_button) ... ok
+test_rejects_stale_broker_executable (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_broker_executable) ... ok
+test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency) ... ok
+test_rejects_unresolved_template (test_workspace_no_broker.InstalledVerifierTests.test_rejects_unresolved_template) ... ok
+test_all_twelve_counts_use_native_thumbnails (test_workspace_no_broker.NativeWorkspaceRenderingTests.test_all_twelve_counts_use_native_thumbnails) ... ok
+test_native_theme_geometry_preserved (test_workspace_no_broker.NativeWorkspaceRenderingTests.test_native_theme_geometry_preserved) ... ok
+test_switcher_enums_reject_invalid_values (test_workspace_no_broker.NativeWorkspaceRenderingTests.test_switcher_enums_reject_invalid_values) ... ok
+test_valid_alternative_switcher_profile (test_workspace_no_broker.NativeWorkspaceRenderingTests.test_valid_alternative_switcher_profile) ... ok
+test_workspace_module_generator_validates_input (test_workspace_no_broker.NativeWorkspaceRenderingTests.test_workspace_module_generator_validates_input) ... ok
+test_empty_target_is_noop_and_idempotent (test_workspace_no_broker.RetirementTests.test_empty_target_is_noop_and_idempotent) ... ok
+test_invalid_home_does_not_delete_assets (test_workspace_no_broker.RetirementTests.test_invalid_home_does_not_delete_assets) ... ok
+test_non_file_retired_entry_rejected (test_workspace_no_broker.RetirementTests.test_non_file_retired_entry_rejected) ... ok
+test_removes_all_known_modules_and_units_preserves_other_services (test_workspace_no_broker.RetirementTests.test_removes_all_known_modules_and_units_preserves_other_services) ... ok
+test_symlink_parent_rejected_before_any_deletion (test_workspace_no_broker.RetirementTests.test_symlink_parent_rejected_before_any_deletion) ... ok
+test_unknown_private_files_preserved (test_workspace_no_broker.RetirementTests.test_unknown_private_files_preserved) ... ok
+test_unlinks_final_symlinks_without_touching_destination (test_workspace_no_broker.RetirementTests.test_unlinks_final_symlinks_without_touching_destination) ... ok
+test_user_unit_symlink_parent_rejected (test_workspace_no_broker.RetirementTests.test_user_unit_symlink_parent_rejected) ... ok
+test_cleanup_and_verification_are_wired (test_workspace_no_broker.SourceWiringTests.test_cleanup_and_verification_are_wired) ... ok
+test_retired_runtime_files_absent (test_workspace_no_broker.SourceWiringTests.test_retired_runtime_files_absent) ... ok
+
+----------------------------------------------------------------------
+Ran 28 tests in 22.971s
+
+OK

@@ -12,12 +12,12 @@ from common import Knob, TuningError, read_text
 # used for controls whose board-specific thermal envelope cannot be inferred.
 SETTINGS = {
     "CPU_GOVERNOR": ("adaptive",) * 4,
-    "CPU_EPP": ("performance", "balance_performance", "balance_performance", "power"),
+    "CPU_EPP": ("performance", "balance_performance", "balanced", "power"),
     "CPU_EPB": ("0", "4", "6", "15"),
     "CPU_MIN_PERF_PCT": ("keep",) * 4,
     "CPU_MAX_PERF_PCT": ("100", "100", "100", "55"),
     "CPU_NO_TURBO": ("0", "0", "0", "1"),
-    "CPU_HWP_DYNAMIC_BOOST": ("1", "1", "0", "0"),
+    "CPU_HWP_DYNAMIC_BOOST": ("1", "1", "1", "0"),
     "CPU_MIN_FREQ_KHZ": ("keep",) * 4,
     "CPU_MAX_FREQ_KHZ": ("keep",) * 4,
     "UNCORE_MIN_FREQ_KHZ": ("keep",) * 4,
@@ -113,7 +113,7 @@ class Backend:
                 continue
             adaptive = "powersave" if driver == "intel_pstate" else "schedutil"
             if adaptive not in governors:
-                adaptive = "ondemand" if "ondemand" in governors else None
+                adaptive = "ondemand" if driver != "intel_pstate" and "ondemand" in governors else None
             # Generic powersave pins the minimum frequency; it is NOT the
             # adaptive intel_pstate algorithm. Never silently select it.
             self.attribute(directory / "scaling_governor", "CPU_GOVERNOR", choices=governors,
@@ -122,8 +122,13 @@ class Backend:
             if prefs.is_file():
                 choices = tuple(read_text(prefs).split())
                 # An active intel_pstate performance governor rejects nonzero EPP.
+                # Only the built-in Balanced selector has a capability fallback.
+                # Explicit EPP values still have to be advertised by this policy.
+                balanced = next((p for p in ("balance_power", "balance_performance")
+                                 if p in choices), None)
                 self.attribute(directory / "energy_performance_preference", "CPU_EPP",
-                               choices=choices, unit="enum")
+                               choices=choices, symbols={"balanced": balanced} if balanced else {},
+                               unit="enum")
             self.pair(directory, "scaling_min_freq", "scaling_max_freq",
                       self.optional_int(directory / "cpuinfo_min_freq"),
                       self.optional_int(directory / "cpuinfo_max_freq"),

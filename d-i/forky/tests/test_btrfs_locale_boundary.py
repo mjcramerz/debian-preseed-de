@@ -114,9 +114,18 @@ class LocaleBoundaryTests(unittest.TestCase):
                 self.assertEqual(bridge['LANG'], 'C')
                 self.assertEqual(bridge['LC_ALL'], 'C')
                 self.assertEqual(bridge['IT_LANG_OVERRIDE'], 'C')
-                for key in (*CATEGORIES, *EXTRA_LOCALE[:-1], *DEBCONF):
+                for key in (*CATEGORIES, *EXTRA_LOCALE[:-1]):
                     self.assertNotIn(key, bridge, key)
-                self.assert_clean_child(env_parse(p.stdout))
+                # in-target must query the LIVE installer frontend before it
+                # enters /target. Sanitization belongs after chroot-setup, not
+                # before it (the old assertion mandated the reported deadlock).
+                for key in DEBCONF:
+                    self.assertEqual(bridge[key], 'installer_debconf', key)
+                child = env_parse(p.stdout)
+                for key in DEBCONF:
+                    if key != 'DEBIAN_FRONTEND':
+                        self.assertNotIn(key, child, key)
+                self.assert_clean_child(child)
                 self.assertEqual(p.stderr, b'')
 
     def test_target_rejects_bridge_reintroduced_categories_and_paths(self):

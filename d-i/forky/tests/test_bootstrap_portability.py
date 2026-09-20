@@ -337,7 +337,7 @@ class GeneratedInstallerShellTests(unittest.TestCase):
         self.assertEqual(web.counts[RAW_PREFIX + '/scripts/common/source.sh'], 1)
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.tar.gz'], 1)
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.manifest'], 1)
-        self.assertEqual(sum(web.counts.values()), 5)
+        self.assertEqual(sum(web.counts.values()), 5, dict(web.counts))
 
     def test_generated_http_bootstrap_handles_decimal_padded_timeouts(self):
         web = self.endpoint()

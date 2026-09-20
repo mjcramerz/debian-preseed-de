@@ -36,7 +36,7 @@ devops_assert_target_metadata() (
   esac
   devops_validate_abs_path "${metadata_label} target path" "$metadata_target_path"
   actual_metadata=$(chroot "$metadata_target_root" \
-    /usr/bin/stat -c '%u:%g:%a' -- "$metadata_target_path") ||
+    /usr/bin/find -P "$metadata_target_path" -maxdepth 0 -printf '%U:%G:%m') ||
     devops_fatal "${metadata_label} metadata is unavailable: $target_host_path"
   [ "$actual_metadata" = "$expected_metadata" ] ||
     devops_fatal "${metadata_label} has unsafe ownership or mode: $target_host_path"
@@ -1465,7 +1465,7 @@ for required_command in \
   /usr/bin/id \
   /usr/bin/install \
   /usr/bin/readlink \
-  /usr/bin/stat
+  /usr/bin/find
 do
   [ -x "$required_command" ] ||
     aptly_signing_key_fatal "required target command is unavailable: $required_command"
@@ -1492,11 +1492,11 @@ account_uid=$(/usr/bin/id -u)
 account_gid=$(/usr/bin/id -g)
 [ -d "$account_home" ] && [ ! -L "$account_home" ] ||
   aptly_signing_key_fatal "account home is missing or is a symlink"
-[ "$(/usr/bin/stat -c "%u:%g" -- "$account_home")" = "${account_uid}:${account_gid}" ] ||
+[ "$(/usr/bin/find -P "$account_home" -maxdepth 0 -printf "%U:%G")" = "${account_uid}:${account_gid}" ] ||
   aptly_signing_key_fatal "account home is not owned by the target account"
 [ -d "$aptly_root" ] && [ ! -L "$aptly_root" ] ||
   aptly_signing_key_fatal "Aptly state root is missing or is a symlink"
-[ "$(/usr/bin/stat -c "%u:%g:%a" -- "$aptly_root")" = "${account_uid}:${account_gid}:700" ] ||
+[ "$(/usr/bin/find -P "$aptly_root" -maxdepth 0 -printf "%U:%G:%m")" = "${account_uid}:${account_gid}:700" ] ||
   aptly_signing_key_fatal "Aptly state root is not a private account directory"
 
 [ -f "$staged_key" ] && [ ! -L "$staged_key" ] && [ -r "$staged_key" ] ||
@@ -1509,9 +1509,9 @@ case "$staged_key_real" in
   "${aptly_root_real}"/.aptly-signing-key.*) ;;
   *) aptly_signing_key_fatal "transient Aptly signing key escaped its state root" ;;
 esac
-[ "$(/usr/bin/stat -c "%u:%g:%a" -- "$staged_key")" = "${account_uid}:${account_gid}:600" ] ||
+[ "$(/usr/bin/find -P "$staged_key" -maxdepth 0 -printf "%U:%G:%m")" = "${account_uid}:${account_gid}:600" ] ||
   aptly_signing_key_fatal "transient Aptly signing key is not account-owned mode 0600"
-staged_key_bytes=$(/usr/bin/stat -c "%s" -- "$staged_key") ||
+staged_key_bytes=$(/usr/bin/find -P "$staged_key" -maxdepth 0 -printf "%s") ||
   aptly_signing_key_fatal "unable to determine the transient Aptly signing-key size"
 case "$staged_key_bytes" in
   ""|*[!0123456789]*)
@@ -1528,7 +1528,7 @@ if [ ! -e "$gnupg_home" ]; then
 fi
 [ -d "$gnupg_home" ] && [ ! -L "$gnupg_home" ] ||
   aptly_signing_key_fatal "target GnuPG home is not a directory"
-[ "$(/usr/bin/stat -c "%u:%g:%a" -- "$gnupg_home")" = "${account_uid}:${account_gid}:700" ] ||
+[ "$(/usr/bin/find -P "$gnupg_home" -maxdepth 0 -printf "%U:%G:%m")" = "${account_uid}:${account_gid}:700" ] ||
   aptly_signing_key_fatal "target GnuPG home is not account-owned mode 0700"
 
 key_listing=$(
@@ -2089,7 +2089,7 @@ template_dir="${config_dir}/packer"
 target_template="${template_dir}/template.pkr.hcl"
 mise_config_dir="${config_dir}/mise"
 
-for required_command in awk chmod chown getent id install runuser stat; do
+for required_command in awk chmod chown getent id install runuser find; do
   command -v "$required_command" >/dev/null 2>&1 ||
     packer_fatal "required Packer template staging command is unavailable: $required_command"
 done
@@ -2139,13 +2139,13 @@ chmod 0700 "$template_dir"
 chmod 0644 "$target_template"
 chmod 0755 "$mise_config_dir"
 
-[ "$(stat -c "%u:%g:%a" -- "$config_dir")" = "$account_uid:$account_gid:755" ] ||
+[ "$(find -P "$config_dir" -maxdepth 0 -printf "%U:%G:%m")" = "$account_uid:$account_gid:755" ] ||
   packer_fatal "Packer account config directory ownership or mode is invalid: $config_dir"
-[ "$(stat -c "%u:%g:%a" -- "$template_dir")" = "$account_uid:$account_gid:700" ] ||
+[ "$(find -P "$template_dir" -maxdepth 0 -printf "%U:%G:%m")" = "$account_uid:$account_gid:700" ] ||
   packer_fatal "Packer template directory ownership or mode is invalid: $template_dir"
-[ "$(stat -c "%u:%g:%a" -- "$target_template")" = "$account_uid:$account_gid:644" ] ||
+[ "$(find -P "$target_template" -maxdepth 0 -printf "%U:%G:%m")" = "$account_uid:$account_gid:644" ] ||
   packer_fatal "Packer account template ownership or mode is invalid: $target_template"
-[ "$(stat -c "%u:%g:%a" -- "$mise_config_dir")" = "$account_uid:$account_gid:755" ] ||
+[ "$(find -P "$mise_config_dir" -maxdepth 0 -printf "%U:%G:%m")" = "$account_uid:$account_gid:755" ] ||
   packer_fatal "Mise account config directory ownership or mode is invalid: $mise_config_dir"
 /usr/sbin/runuser -u "$account_user" -- /usr/bin/test -x "$template_dir" ||
   packer_fatal "primary account cannot traverse the managed Packer template directory"
@@ -3001,7 +3001,7 @@ codex_log_dir=$3
 codex_sqlite_home=$4
 codex_runtime_root=$5
 
-for required_command in chmod getent id install stat; do
+for required_command in chmod getent id install find; do
   command -v "$required_command" >/dev/null 2>&1 || {
     printf "fatal: required Codex target command is unavailable: %s\n" "$required_command" >&2
     exit 1
@@ -3045,7 +3045,7 @@ codex_prepare_directory() {
         "$directory_label" "$directory_path" >&2
       exit 1
     }
-    actual_metadata=$(stat -c "%u:%g:%a" -- "$directory_path")
+    actual_metadata=$(find -P "$directory_path" -maxdepth 0 -printf "%U:%G:%m")
     [ "$actual_metadata" = "$expected_metadata" ] || {
       printf "fatal: existing Codex %s has unexpected ownership or mode: expected %s, found %s\n" \
         "$directory_label" "$expected_metadata" "$actual_metadata" >&2
@@ -3058,7 +3058,7 @@ codex_prepare_directory() {
     "$directory_path"
   chmod a-s -- "$directory_path"
   chmod "$expected_mode" -- "$directory_path"
-  actual_metadata=$(stat -c "%u:%g:%a" -- "$directory_path")
+  actual_metadata=$(find -P "$directory_path" -maxdepth 0 -printf "%U:%G:%m")
   [ "$actual_metadata" = "$expected_metadata" ] || {
     printf "fatal: prepared Codex %s has unexpected ownership or mode: expected %s, found %s\n" \
       "$directory_label" "$expected_metadata" "$actual_metadata" >&2
@@ -3112,7 +3112,7 @@ codex_fatal() {
 codex_verify_stat() {
   expected=$1
   path=$2
-  actual=$(stat -c "%u:%g:%a" -- "$path")
+  actual=$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")
   [ "$actual" = "$expected" ] ||
     codex_fatal "unexpected ownership or mode for ${path}: expected ${expected}, found ${actual}"
 }
@@ -3130,7 +3130,7 @@ shift 9
 home_path=$1
 host_log_dir=$2
 
-for required_command in awk find getent id readlink runuser stat; do
+for required_command in awk find getent id readlink runuser; do
   command -v "$required_command" >/dev/null 2>&1 ||
     codex_fatal "required Codex policy verification command is unavailable: $required_command"
 done
@@ -3225,7 +3225,7 @@ codex_verify_stat "${account_uid}:${devops_gid}:600" "$codex_root/credentials/mc
 if [ -e "$home_path/auth.json" ] || [ -L "$home_path/auth.json" ]; then
   [ -f "$home_path/auth.json" ] && [ ! -L "$home_path/auth.json" ] ||
     codex_fatal "CODEX_HOME auth state is not a direct regular file"
-  [ "$(stat -c "%h" -- "$home_path/auth.json")" = 1 ] ||
+  [ "$(find -P "$home_path/auth.json" -maxdepth 0 -printf "%n")" = 1 ] ||
     codex_fatal "CODEX_HOME auth state must not be hard linked"
   codex_verify_stat "${account_uid}:${devops_gid}:600" "$home_path/auth.json"
 fi
@@ -3687,8 +3687,8 @@ codex_file_matches() {
 
   [ -f "$expected_file" ] && [ ! -L "$expected_file" ] || return 1
   [ -f "$actual_file" ] && [ ! -L "$actual_file" ] || return 1
-  [ "$(stat -c "%u:%g:%a" -- "$actual_file")" = \
-    "$(stat -c "%u:%g:%a" -- "$expected_file")" ] || return 1
+  [ "$(find -P "$actual_file" -maxdepth 0 -printf "%U:%G:%m")" = \
+    "$(find -P "$expected_file" -maxdepth 0 -printf "%U:%G:%m")" ] || return 1
   cmp -s -- "$expected_file" "$actual_file"
 }
 
@@ -3827,7 +3827,7 @@ for required_command in \
   rm \
   rmdir \
   sha256sum \
-  stat \
+  find \
   tar \
   timeout \
   tr \
@@ -3858,13 +3858,13 @@ esac
   codex_fatal "staged Codex wrapper is missing or indirect: $wrapper_path"
 [ -f "$archive_helper_path" ] && [ ! -L "$archive_helper_path" ] ||
   codex_fatal "staged Codex archive helper is missing or indirect: $archive_helper_path"
-[ "$(stat -c "%u:%g:%a" -- "$archive_helper_path")" = 0:0:700 ] ||
+[ "$(find -P "$archive_helper_path" -maxdepth 0 -printf "%U:%G:%m")" = 0:0:700 ] ||
   codex_fatal "staged Codex archive helper has unexpected ownership or mode"
 
 state_helper_path="${archive_helper_path%/*}/.installer-codex-state.py"
 [ -f "$state_helper_path" ] && [ ! -L "$state_helper_path" ] ||
   codex_fatal "Codex state verifier is missing or indirect"
-[ "$(stat -c "%u:%g:%a" -- "$state_helper_path")" = 0:0:700 ] ||
+[ "$(find -P "$state_helper_path" -maxdepth 0 -printf "%U:%G:%m")" = 0:0:700 ] ||
   codex_fatal "Codex state verifier has unsafe ownership or mode"
 
 staging_dir=
@@ -4147,7 +4147,7 @@ publish_binary_directory=0
 existing_binary_entry=$(find "$codex_root/share/bin" \
   -mindepth 1 -maxdepth 1 -print -quit)
 if [ -z "$existing_binary_entry" ]; then
-  [ "$(stat -c "%u:%g:%a" -- "$codex_root/share/bin")" = 0:0:755 ] ||
+  [ "$(find -P "$codex_root/share/bin" -maxdepth 0 -printf "%U:%G:%m")" = 0:0:755 ] ||
     codex_fatal "empty Codex binary directory has unexpected ownership or mode"
   publish_binary_directory=1
 elif ! codex_tree_matches "$extracted_binary_dir" "$codex_root/share/bin" 0; then
@@ -4669,13 +4669,13 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   [ ! -L "${target_root}${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}" ] &&
   [ -x "${target_root}${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}" ] ||
   devops_fatal "target Codex standalone installer is missing or unsafe"
-[ "$(chroot "$target_root" /usr/bin/stat -c '%u:%g:%a' -- "${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}")" = 0:0:755 ] ||
+[ "$(chroot "$target_root" /usr/bin/find -P "${DEVOPS_CODEX_STANDALONE_INSTALLER_HELPER}" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:755 ] ||
   devops_fatal "target Codex standalone installer ownership or mode is invalid"
 [ -f "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] &&
   [ ! -L "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] &&
   [ -x "${target_root}${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" ] ||
   devops_fatal "temporary Codex installer supervisor is missing or unsafe"
-[ "$(chroot "$target_root" /usr/bin/stat -c '%u:%g:%a' -- "${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}")" = 0:0:700 ] ||
+[ "$(chroot "$target_root" /usr/bin/find -P "${DEVOPS_CODEX_INSTALLER_SESSION_HELPER}" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:700 ] ||
   devops_fatal "temporary Codex installer supervisor ownership or mode is invalid"
 [ -r "${target_root}${DEVOPS_CODEX_APP_SERVER_ENVIRONMENT}" ] ||
   devops_fatal "Codex app-server environment policy is missing after installation"

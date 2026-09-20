@@ -246,6 +246,7 @@ sub refresh_outputs {
 
     if ($mode eq '--restore-idle-topology') {
         return 0 if !idle_topology_restore_requested();
+        pause_output_authority();
         my $wlr_randr = find_command('wlr-randr');
         return 0 if !defined $wlr_randr;
         return 0 if !prepare_dock_for_output_change(1);
@@ -254,6 +255,7 @@ sub refresh_outputs {
 
     if ($mode eq '--dpms-off') {
         return 0 if idle_topology_active(); # Never overwrite the pre-idle snapshot.
+        pause_output_authority();
         return 0 if !prepare_dock_for_output_change(1);
         my $wlr_randr = find_command('wlr-randr');
         defined($wlr_randr) && capture_idle_topology($wlr_randr)
@@ -270,6 +272,7 @@ sub refresh_outputs {
     }
 
     if ($mode eq '--dpms-on') {
+        pause_output_authority();
         run_optional('wlopm', '--on', '*') or die "cannot power on outputs\n";
         my $wlr_randr = find_command('wlr-randr');
         if (defined $wlr_randr && idle_topology_active()) {
@@ -288,11 +291,10 @@ sub refresh_outputs {
     my $state_before = capture_command($wlr_randr);
     return 0 if $state_before eq q{};
     my $previous_topology = load_saved_topology();
-    # Kanshi is the topology authority when its managed unit is running. This
-    # watcher still restores chrome after a changed geometry, but never races
-    # Kanshi by imposing a second connector/mode policy.
-    my $systemctl = find_command('systemctl');
-    if (defined($systemctl) && run_quiet_command($systemctl, '--user', '--quiet', 'is-active', 'kanshi.service')) {
+    # Authority is a configuration decision, not an instantaneous service-state
+    # probe. In particular, "activating" and automatic restarts must not enable
+    # a competing fallback writer. The compositor enables its initial output.
+    if (kanshi_is_configured()) {
         save_topology($state_before);
         return topology_changed($previous_topology, $state_before) ? 300_000 : 0;
     }
@@ -322,19 +324,20 @@ sub refresh_outputs {
         return 0 if !prepare_dock_for_output_change(1);
     }
 
-    for my $output_plan (@output_plans_to_apply) {
-        return 0 if !session_is_active();
-        enable_output(
-            $wlr_randr,
-            $output_plan->{name},
-            $output_plan->{mode},
-            $output_plan->{position},
-        ) or return 0;
+    # Submit one complete topology, not a train of overlapping per-head commits.
+    # A rejected transaction is not replayed against an obsolete snapshot.
+    my @transaction;
+    for my $plan (@output_plans_to_apply) {
+        output_name_safe($plan->{name}) or die "unsafe output name\n";
+        push @transaction, '--output', $plan->{name}, '--on';
+        push @transaction, '--mode', $plan->{mode} if defined($plan->{mode}) && $plan->{mode} ne q{};
+        push @transaction, '--scale', scale_for_output($plan->{name}), '--pos', $plan->{position};
     }
-    for my $output_name (@outputs_to_turn_off) {
-        return 0 if !session_is_active();
-        disable_output($wlr_randr, $output_name);
+    for my $name (@outputs_to_turn_off) {
+        output_name_safe($name) or die "unsafe output name\n";
+        push @transaction, '--output', $name, '--off';
     }
+    return 0 if @transaction && !apply_output_transaction($wlr_randr, @transaction);
 
     return 0 if !session_is_active();
     usleep(250_000);
@@ -346,6 +349,58 @@ sub refresh_outputs {
       || topology_changed($previous_topology, $state_after)
       ? $restart_delay_us
       : 0;
+}
+
+# These helpers are called only while output-refresh.lock is held. The pause
+# marker lives in the private runtime directory, so it cannot survive reboot.
+# Publish BEFORE stopping Kanshi: concurrent systemd starts then exit before
+# connecting to Wayland. stop is synchronous; --no-block is only used to resume.
+sub kanshi_is_configured {
+    my $value = $defaults{LABWC_ENABLE_KANSHI} // 'false';
+    return 1 if $value =~ /\A(?:true|yes|1|on)\z/;
+    return 0 if $value =~ /\A(?:false|no|0|off)\z/;
+    die "invalid LABWC_ENABLE_KANSHI policy\n";
+}
+
+sub authority_pause_path {
+    my $dir = topology_state_dir();
+    defined($dir) or die "output authority runtime directory is unavailable\n";
+    return "$dir/output-authority.paused";
+}
+
+sub pause_output_authority {
+    return if !kanshi_is_configured();
+    my $systemctl = find_command('systemctl');
+    defined($systemctl) or die "systemctl is required to pause Kanshi\n";
+    write_atomic_file(authority_pause_path(), "v1\n")
+        or die "cannot publish output authority pause\n";
+    run_quiet_command($systemctl, '--user', 'stop', 'kanshi.service')
+        or die "cannot stop Kanshi before output transaction\n";
+}
+
+sub resume_output_authority {
+    return if idle_topology_active() || !session_is_active();
+    my $path = authority_pause_path();
+    return if !-e $path && !-l $path;
+    read_bounded_file($path, 16) eq "v1\n" or die "unsafe output authority pause marker\n";
+    unlink($path) or die "cannot remove output authority pause\n";
+    return if !kanshi_is_configured();
+    my $systemctl = find_command('systemctl');
+    if (!defined($systemctl) || !run_quiet_command($systemctl, '--user', '--no-block', 'start', 'kanshi.service')) {
+        write_atomic_file($path, "v1\n");
+        die "cannot resume Kanshi after output transaction\n";
+    }
+}
+
+sub apply_output_transaction {
+    my ($wlr_randr, @args) = @_;
+    return 0 if !session_is_active();
+    my ($ok, $diagnostic) = run_command_capture_stderr($wlr_randr, @args);
+    if (!$ok) {
+        $diagnostic =~ s/[\x00-\x1f\x7f]+/ /g;
+        warn "warning: output transaction rejected; next reconciliation will take a fresh snapshot: $diagnostic\n";
+    }
+    return $ok ? 1 : 0;
 }
 
 sub selection_plan {
@@ -715,23 +770,19 @@ sub wait_for_idle_outputs {
 
 sub apply_idle_topology {
     my ($wlr_randr, $expected_outputs) = @_;
-
+    my %current = map { $_->{name} => $_ } parse_output_topology(capture_command($wlr_randr));
+    # DPMS often preserves the exact geometry. Do not request another modeset
+    # merely because the power-on callback and output-watch both observed wake.
+    my @transaction;
     for my $output (@{$expected_outputs}) {
-        return 0 if !session_is_active();
-        my $result = apply_output_change(
-            $wlr_randr,
-            $output->{name},
-            '--output', $output->{name},
-            '--on',
-            '--mode', $output->{mode},
-            '--scale', $output->{scale},
-            '--transform', $output->{transform},
-            '--pos', $output->{position},
-        );
-        return 0 if $result ne 'applied';
+        return 0 if !exists $current{$output->{name}};
+        next if same_idle_output_geometry($current{$output->{name}}, $output);
+        push @transaction, '--output', $output->{name}, '--on',
+            '--mode', $output->{mode}, '--scale', $output->{scale},
+            '--transform', $output->{transform}, '--pos', $output->{position};
     }
-
-    return 1;
+    return 1 if !@transaction;
+    return apply_output_transaction($wlr_randr, @transaction);
 }
 
 sub wait_for_idle_topology_commit {
@@ -1444,12 +1495,20 @@ sub run_refresh_action {
     return with_refresh_lock(sub {
         $dock_restore_requested = 0;
         my $result;
-        my $ok = eval { $result = refresh_outputs($requested_mode); 1 };
+        my $ok = eval {
+            $result = refresh_outputs($requested_mode);
+            resume_output_authority() if $requested_mode ne '--idle-topology-active';
+            1;
+        };
         my $error = $@;
         if (!$ok) {
             # Restore chrome even when a mode commit or state write fails;
             # never start it back up during session teardown.
             eval { refresh_dock() if $dock_restore_requested && session_is_active(); 1 };
+            # Preserve the first error; never abandon a paused authority when a
+            # pre-snapshot operation failed. With an idle snapshot, keep it
+            # stopped until a later successful wake/restore transaction.
+            eval { resume_output_authority(); 1 } or warn $@;
             die $error;
         }
         return $result ? 0 : 1 if $requested_mode eq '--idle-topology-active';
@@ -1605,6 +1664,7 @@ sub main {
         \%defaults,
         qw(
           LABWC_ENABLE_WAYBAR
+          LABWC_ENABLE_KANSHI
           LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT
           LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ
           LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH

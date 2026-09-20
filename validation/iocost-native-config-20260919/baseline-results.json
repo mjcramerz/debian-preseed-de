@@ -1,0 +1,37 @@
+[
+  {
+    "name": "baseline-check",
+    "command": [
+      "make",
+      "check"
+    ],
+    "returncode": 0,
+    "seconds": 6.8
+  },
+  {
+    "name": "baseline-iocost",
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "d-i/forky/tests",
+      "-p",
+      "test_iocost_20260919.py",
+      "-v"
+    ],
+    "returncode": 0,
+    "seconds": 6.4
+  },
+  {
+    "name": "baseline-tests",
+    "command": [
+      "make",
+      "test"
+    ],
+    "returncode": 2,
+    "seconds": 452.02
+  }
+]

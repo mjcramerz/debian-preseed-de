@@ -10,6 +10,7 @@ import contextlib
 import gzip
 import hashlib
 import http.server
+import http.client
 import io
 import os
 from pathlib import Path
@@ -54,6 +55,12 @@ class Endpoint:
                 if path in endpoint.redirects:
                     self.send_response(302)
                     self.send_header('Location', endpoint.redirects[path])
+                    # HTTP/1.0 closes this connection. Explicit framing prevents
+                    # Wget racing the close and reusing it for the redirect,
+                    # which correctly triggers a retry but corrupts test counts.
+                    self.send_header('Content-Length', '0')
+                    self.send_header('Connection', 'close')
+                    self.close_connection = True
                     self.end_headers()
                     return
                 if not path.startswith(RAW_PREFIX + '/'):
@@ -112,6 +119,16 @@ class TransportFixture(unittest.TestCase):
         return endpoint
 
 class TransportTests(TransportFixture):
+    def test_redirect_fixture_has_explicit_close_framing(self):
+        web = self.endpoint()
+        with contextlib.closing(http.client.HTTPConnection('127.0.0.1', web.server.server_port, timeout=3)) as connection:
+            connection.request('GET', '/short')
+            response = connection.getresponse()
+            self.assertEqual(response.status, 302)
+            self.assertEqual(response.getheader('Content-Length'), '0')
+            self.assertEqual(response.getheader('Connection'), 'close')
+            self.assertEqual(response.read(), b'')
+        self.assertEqual(dict(web.counts), {'/short': 1})
     def test_raw_style_ref_path_is_not_truncated(self):
         web = self.endpoint()
         result = self.shell('source_resolve_seed', env={'INSTALLER_CMDLINE': f'url={web.base}/preseed.cfg'})
@@ -359,7 +376,7 @@ class RealBootstrapTests(TransportFixture):
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.tar.gz'], 1)
         self.assertEqual(web.counts[RAW_PREFIX + '/payload.manifest'], 1)
         # Individual envs, class fragments and late assets never hit the network.
-        self.assertEqual(sum(web.counts.values()), 5)
+        self.assertEqual(sum(web.counts.values()), 5, dict(web.counts))
     @skip_unless_process_tree_visibility
     def test_opposite_role_fails_before_preflight_marker(self):
         other = 'desktop' if ROLE == 'server' else 'server'

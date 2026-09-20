@@ -492,7 +492,7 @@ llama_target_write_runtime_config() {
   fi
   [ -f "$runtime_conf_template" ] && [ ! -L "$runtime_conf_template" ] ||
     llama_fatal "runtime configuration template is unavailable"
-  [ "$(stat -c '%u:%g:%a' "$runtime_conf_template")" = 0:0:600 ] ||
+  [ "$(find -P "$runtime_conf_template" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:600 ] ||
     llama_fatal "runtime configuration template must be root:root mode 0600"
 
   install -d -o 0 -g 0 -m 0755 "$runtime_conf_dir"
@@ -541,7 +541,7 @@ llama_target_download_and_install_release() {
   target_archive_helper_path=/tmp/installer-ai-runtime-archive.py
   [ -f "$target_archive_helper_path" ] && [ ! -L "$target_archive_helper_path" ] ||
     llama_fatal "managed AI runtime archive helper is unavailable"
-  [ "$(stat -c '%u:%g:%a' "$target_archive_helper_path")" = 0:0:700 ] ||
+  [ "$(find -P "$target_archive_helper_path" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:700 ] ||
     llama_fatal "managed AI runtime archive helper must be root:root mode 0700"
 
   release_record="${LLAMA_ROOT}/.installer-release"
@@ -650,7 +650,7 @@ llama_target_install_wrapper() {
   fi
   [ -f "$wrapper_source" ] && [ ! -L "$wrapper_source" ] ||
     llama_fatal "managed llama launcher source is unavailable"
-  [ "$(stat -c '%u:%g:%a' "$wrapper_source")" = 0:0:600 ] ||
+  [ "$(find -P "$wrapper_source" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:600 ] ||
     llama_fatal "managed llama launcher source must be root:root mode 0600"
   /bin/sh -n "$wrapper_source" ||
     llama_fatal "managed llama launcher source is not valid POSIX shell"
@@ -671,7 +671,7 @@ llama_target_verify_metadata() {
 
   [ ! -L "$metadata_path" ] ||
     llama_fatal "${metadata_label} must not be a symbolic link: $metadata_path"
-  metadata_actual=$(stat -c '%u:%g:%a' -- "$metadata_path" 2>/dev/null) ||
+  metadata_actual=$(find -P "$metadata_path" -maxdepth 0 -printf '%U:%G:%m' 2>/dev/null) ||
     llama_fatal "cannot inspect ${metadata_label} metadata: $metadata_path"
   [ "$metadata_actual" = "$metadata_expected" ] ||
     llama_fatal \
@@ -816,10 +816,10 @@ llama_target_install() {
     /tmp/llama-install.env) ;;
     *) llama_fatal "unexpected configuration path: ${config_path:-unset}" ;;
   esac
-  llama_target_require_command stat
+  llama_target_require_command find
   [ -f "$config_path" ] && [ ! -L "$config_path" ] ||
     llama_fatal "temporary configuration file is unavailable"
-  [ "$(stat -c '%u:%g:%a' "$config_path")" = 0:0:600 ] ||
+  [ "$(find -P "$config_path" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:600 ] ||
     llama_fatal "temporary configuration file must be root:root mode 0600"
 
   llama_release_staging=
@@ -839,7 +839,7 @@ llama_target_install() {
   . "$config_path"
   llama_validate_policy
 
-  for required_command in awk cat chmod chown curl dd find getconf getent grep install mktemp mv od python3 rm sed sha256sum stat tr wc; do
+  for required_command in awk cat chmod chown curl dd find getconf getent grep install mktemp mv od python3 rm sed sha256sum tr wc; do
     llama_target_require_command "$required_command"
   done
   unset required_command

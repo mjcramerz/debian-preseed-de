@@ -135,7 +135,7 @@ ensure_state_dir() (
   ancestor=$parent
   while [ "$ancestor" != / ]; do
     [ ! -L "$ancestor" ] && [ -d "$ancestor" ] || exit 1
-    owner=$(/usr/bin/stat -c %u -- "$ancestor")
+    owner=$(/usr/bin/find -P "$ancestor" -maxdepth 0 -printf %U)
     [ "$owner" = 0 ] || [ "$owner" = "$USER_UID" ] || exit 1
     # A world-writable ancestor can redirect future operations even when the
     # leaf is private. Desktop state belongs under a trusted home/state root.
@@ -147,7 +147,7 @@ ensure_state_dir() (
     /usr/bin/mkdir -m 0700 -- "$directory" || [ -d "$directory" ]
   fi
   [ -d "$directory" ] && [ ! -L "$directory" ] || exit 1
-  [ "$(/usr/bin/stat -c %u -- "$directory")" = "$USER_UID" ] || exit 1
+  [ "$(/usr/bin/find -P "$directory" -maxdepth 0 -printf %U)" = "$USER_UID" ] || exit 1
   /usr/bin/chmod 0700 -- "$directory"
 )
 
@@ -161,7 +161,7 @@ done
 notification_lock="$STATE_DIR/notify.lock"
 [ ! -L "$notification_lock" ] && { [ ! -e "$notification_lock" ] || [ -f "$notification_lock" ]; } || exit 1
 exec 9>>"$notification_lock"
-[ "$(/usr/bin/stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$USER_UID:1:600" ] || exit 1
+[ "$(/usr/bin/find -H /proc/self/fd/9 -maxdepth 0 -printf '%U:%n:%m')" = "$USER_UID:1:600" ] || exit 1
 /usr/bin/flock --exclusive --nonblock --conflict-exit-code 75 9 || {
   lock_status=$?
   [ "$lock_status" -eq 75 ] && exit 0
@@ -185,8 +185,8 @@ read_state() (
   source=$1
   [ -e "$source" ] || { [ ! -L "$source" ] && exit 0; exit 1; }
   [ ! -L "$source" ] && [ -f "$source" ] || exit 1
-  [ "$(/usr/bin/stat -c '%u:%h:%a' -- "$source")" = "$USER_UID:1:600" ] || exit 1
-  [ "$(/usr/bin/stat -c %s -- "$source")" -le 4096 ] || exit 1
+  [ "$(/usr/bin/find -P "$source" -maxdepth 0 -printf '%U:%n:%m')" = "$USER_UID:1:600" ] || exit 1
+  [ "$(/usr/bin/find -P "$source" -maxdepth 0 -printf %s)" -le 4096 ] || exit 1
   /usr/bin/head -c 4096 -- "$source"
 )
 

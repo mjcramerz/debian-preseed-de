@@ -198,7 +198,7 @@ transient build trees are excluded. Only the KeePassXC subtree below
 Image-only PDFs use bounded Tesseract OCR with the installed English and Swedish
 language data, backed by Poppler extraction tools.
 
-The desktop role stages Labwc session assets, Waybar/Fuzzel/Mako/Kanshi user
+The desktop role stages Labwc session assets, Waybar/Fuzzel/Mako user
 defaults, Zsh/Starship/fzf/btop defaults, portal and KWallet defaults, and a
 Labwc-bound `systemd --user` service for `crystal-dock`. The Waybar
 `quick-controls` groups render
@@ -475,9 +475,16 @@ connector hotplug or connector add/remove events before one settled refresh;
 DRM `change` events without connector hotplug evidence do not reapply output
 policy. Output-dependent units such as Foot and the output
 watcher retain their own readiness gates rather than delaying the entire
-session target. Every managed desktop profile disables Kanshi, leaving the
-repository-owned watcher as the sole output-policy owner; the
-tracked Kanshi wrapper exits cleanly when that policy is false.
+session target. Every shipped desktop profile disables Kanshi. The desktop
+package class no longer requests it: only an enabled `LABWC_ENABLE_KANSHI`
+policy installs the package, wrapper, profile, account-local service, resource
+drop-in and session activation link. Disabled installation removes only known
+installer-owned activation artifacts and purges only the Kanshi package;
+administrator-modified artifacts stop reconciliation rather than being erased.
+Inert existing display profiles are preserved. The output watcher remains the
+repository-controlled output-policy owner when Kanshi is disabled. Installer
+and firstboot checks verify the selected package/activation state. See
+[Kanshi and Fuzzel follow-up](KANSHI-FUZZEL-FOLLOWUP-20260919.md).
 Every managed desktop profile also exports
 `WLR_SCENE_DISABLE_DIRECT_SCANOUT=1` for the user Labwc compositor. Accelerated
 application surfaces remain GPU-rendered but stay in the compositor path rather

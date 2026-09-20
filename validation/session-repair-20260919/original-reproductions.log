@@ -1,0 +1,80 @@
+test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events) ... ERROR
+test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped) ... FAIL
+test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged) ... FAIL
+test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only) ... ERROR
+test_original_workload_policy_is_byte_identical (test_systemd_resource_policy.ResourcePolicyTests.test_original_workload_policy_is_byte_identical) ... ok
+
+======================================================================
+ERROR: test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/baseline-tree/d-i/forky/tests/test_installed_failures_20260911.py", line 284, in test_fixture_exactly_matches_the_supplied_raw_audit_events
+    raw_text = raw_path.read_text()
+  File "/usr/lib/python3.13/pathlib/_local.py", line 548, in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_abc.py", line 632, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/pathlib/_local.py", line 539, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/baseline-tree/todo/managed/apparmor/apparmor.log'
+
+======================================================================
+ERROR: test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/baseline-tree/d-i/forky/tests/test_podman_incus_redesign.py", line 466, in test_terminal_launch_is_argv_only
+    MENU.terminal('podman', 'build', '/tmp/path with spaces;literal')
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/baseline-tree/d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu", line 117, in terminal
+    subprocess.run([TERMINAL, '-e', SELF, '--terminal', tool, *arguments],
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   env={**os.environ, 'LABWC_MENU_ACTION_WAIT': '1'},
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   check=False)
+                   ^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+    ^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 2, got 0)
+
+======================================================================
+FAIL: test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/baseline-tree/d-i/forky/tests/test_desktop_sandbox.py", line 1306, in test_apparmor_complain_incident_is_fully_mapped
+    self.assertTrue(incident.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/baseline-tree/d-i/forky/tests/test_log_regressions_20260915.py", line 220, in test_scope_dropin_covers_all_app_prefixes_and_is_staged
+    self.assertEqual(found, [path])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [Posi[100 chars]pe.d/60-resource-class.conf'), PosixPath('/mnt[113 chars]nf')] != [Posi[100 chars]pe.d/50-session-labwc.conf')]
+
+First differing element 0:
+Posix[65 chars]ktop/.config/systemd/user/app-.scope.d/60-resource-class.conf')
+Posix[65 chars]ktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf')
+
+First list contains 1 additional elements.
+First extra element 1:
+PosixPath('/mnt/data/baseline-tree/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf')
+
+- [PosixPath('/mnt/data/baseline-tree/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/60-resource-class.conf'),
+-  PosixPath('/mnt/data/baseline-tree/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf')]
+? ^
+
++ [PosixPath('/mnt/data/baseline-tree/d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf')]
+? ^
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.039s
+
+FAILED (failures=2, errors=2)

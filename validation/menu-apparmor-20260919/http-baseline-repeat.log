@@ -1,0 +1,11 @@
+test_actual_generated_http_bootstrap_under_busybox_at_every_boundary (test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_http_bootstrap_under_busybox_at_every_boundary) ... HTTP fixture counts: {"/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1, "/short": 1}
+ok
+test_actual_generated_http_bootstrap_under_busybox_at_every_boundary (test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_http_bootstrap_under_busybox_at_every_boundary) ... HTTP fixture counts: {"/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1, "/short": 1}
+ok
+test_actual_generated_http_bootstrap_under_busybox_at_every_boundary (test_bootstrap_portability.GeneratedInstallerShellTests.test_actual_generated_http_bootstrap_under_busybox_at_every_boundary) ... HTTP fixture counts: {"/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1, "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1, "/short": 1}
+ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 24.710s
+
+OK

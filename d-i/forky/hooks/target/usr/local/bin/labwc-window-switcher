@@ -5,6 +5,7 @@ set -eu
   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
   exit 1
 }
-# The native F13 press binding starts cycling with no held modifiers.
-# Never synthesize Alt: releasing it would immediately accept a window.
+# F13 invokes NextWindow in the unmodified Debian compositor. Labwc owns the
+# thumbnail OSD and its input lifecycle; this one-shot launcher holds no modifier
+# and does not implement a separate window list or input helper daemon.
 exec /usr/bin/wtype -k F13

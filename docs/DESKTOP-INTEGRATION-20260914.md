@@ -444,6 +444,13 @@ indexer, background menu daemon or unconfined action launcher.
 
 ### Category icons and terminal management navigation
 
+**Historical 18 September behavior:** the glyph-only/terminal-default design
+in this section is superseded by the [19 September Kanshi/Fuzzel follow-up](KANSHI-FUZZEL-FOLLOWUP-20260919.md).
+The six groups, 23 allowlisted routes and action boundaries remain; default
+presentation now uses graphical Fuzzel and native icon metadata. Explicit
+`--terminal` still uses the terminal adapter.
+
+
 `labwc-main-menu` gives every display category a distinct Font Awesome symbol:
 code, globe, briefcase, image, play-circle, gamepad, graduation cap, wrench,
 display, cog and grid respectively. Search and fixed desktop/settings actions

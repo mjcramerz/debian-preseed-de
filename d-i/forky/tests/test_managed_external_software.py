@@ -24,6 +24,18 @@ SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 class ManagedExternalSoftwareTests(unittest.TestCase):
     def run_perl(self, source: str, *arguments: object) -> subprocess.CompletedProcess[str]:
+        # A missing validation dependency is not a production assertion failure.
+        # Probe file presence only: installed-but-broken modules must still fail.
+        probe = subprocess.run(
+            ['/usr/bin/perl', '-e',
+             'for my $m (qw(Moo.pm MooX/StrictConstructor.pm MooX/Types/MooseLike/Base.pm)) '
+             '{ unless (grep { -f "$_/$m" } @INC) { print "$m\\n"; exit 77; } }'],
+            text=True, capture_output=True, timeout=10,
+        )
+        if probe.returncode == 77:
+            self.skipTest('Perl validation dependency unavailable: ' + probe.stdout.strip()
+                          + '; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl')
+        self.assertEqual(probe.returncode, 0, probe.stderr)
         return subprocess.run(
             ['/usr/bin/perl', '-I', str(PERL_LIB), '-e', source,
              *(str(argument) for argument in arguments)],

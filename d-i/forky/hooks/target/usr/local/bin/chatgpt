@@ -62,11 +62,10 @@ profile_real=$(/usr/bin/readlink -f -- "$profile_path" 2>/dev/null) ||
   chatgpt_fatal "managed DevOps profile must not traverse symlinks: $profile_path"
 
 profile_metadata=$(
-  /usr/bin/stat \
-    --format='%F:%u' \
-    -- "$profile_path" 2>/dev/null
+  /usr/bin/find -P "$profile_path" -maxdepth 0 \
+    -type f -size +0c -printf '%U' 2>/dev/null
 ) || chatgpt_fatal "managed DevOps profile is unavailable: $profile_path"
-[ "$profile_metadata" = "regular file:$(/usr/bin/id -u)" ] ||
+[ "$profile_metadata" = "$(/usr/bin/id -u)" ] ||
   chatgpt_fatal "managed DevOps profile is unsafe: $profile_path"
 [ -r "$profile_path" ] ||
   chatgpt_fatal "managed DevOps profile is unreadable: $profile_path"

@@ -175,7 +175,7 @@ class AtomicHostFileTests(unittest.TestCase):
 
 class HostPolicyTests(unittest.TestCase):
     def test_native_drivers_and_no_unsafe_fallback(self):
-        for filesystem in ('ext2/ext3', 'xfs', 'f2fs', 'btrfs'):
+        for filesystem in ('ext2', 'ext3', 'ext4', 'xfs', 'f2fs', 'btrfs'):
             self.assertEqual(HOST.driver_for(filesystem, 'auto'), 'overlay')
         self.assertEqual(HOST.driver_for('btrfs', 'btrfs'), 'btrfs')
         for filesystem, requested in (('nfs', 'auto'), ('overlayfs', 'auto'), ('xfs', 'btrfs'), ('xfs', 'vfs')):
@@ -462,11 +462,12 @@ class FuzzelTests(unittest.TestCase):
             MENU.create_object('network')
 
     def test_terminal_launch_is_argv_only(self):
-        with mock.patch.object(MENU.subprocess, 'Popen') as popen:
+        with mock.patch.object(MENU.subprocess, 'run') as run:
             MENU.terminal('podman', 'build', '/tmp/path with spaces;literal')
-        argv = popen.call_args.args[0]
+        argv = run.call_args.args[0]
         self.assertEqual(argv[-1], '/tmp/path with spaces;literal')
-        self.assertNotIn('shell', popen.call_args.kwargs)
+        self.assertNotIn('shell', run.call_args.kwargs)
+        self.assertEqual(run.call_args.kwargs['env']['LABWC_MENU_ACTION_WAIT'], '1')
         self.assertNotIn('sudo', argv)
 
     def test_private_runtime_lock_rejects_second_holder(self):

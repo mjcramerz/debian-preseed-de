@@ -1,0 +1,80 @@
+{
+  "repository": "debian-preseed-de",
+  "utc": "2026-09-19T20:42:37.120819+00:00",
+  "stages": [
+    {
+      "stage": "browser-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.668,
+      "log": "browser-check.log"
+    },
+    {
+      "stage": "build-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 3.939,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.776,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 2.387,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "tests",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 464.312,
+      "log": "tests.log",
+      "tests_run": 1784,
+      "skipped": 37
+    },
+    {
+      "stage": "tools-tests",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 34.92,
+      "log": "tools-tests.log",
+      "tests_run": 179,
+      "skipped": 0
+    },
+    {
+      "stage": "audit",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.729,
+      "log": "audit.log"
+    }
+  ],
+  "success": true,
+  "audit_check_counts": {
+    "blocked-dependency": 156,
+    "blocked-tool": 11,
+    "inventory-only": 500,
+    "pass": 461,
+    "structure-pass": 177,
+    "template-needs-render": 2
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "4abd2fd2fb5d03b6864d73bc98c4148014437a81ee96fe39ace75f9f9c7f2083",
+    "payload.manifest": "58cfd05d6385217f672c3e4d34513bcf1b21bf1547e948bb507fd91ec68c623c",
+    "payload.tar.gz": "872068df12ff3a1bfd26df9df4f7761418adf91ca2de20692e747dc381ee5479"
+  },
+  "limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance."
+  ]
+}

@@ -1,0 +1,86 @@
+[
+  {
+    "name": "build",
+    "command": [
+      "make",
+      "build"
+    ],
+    "returncode": 0,
+    "seconds": 4.039
+  },
+  {
+    "name": "check",
+    "command": [
+      "make",
+      "check"
+    ],
+    "returncode": 0,
+    "seconds": 6.407
+  },
+  {
+    "name": "focused",
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_iocost_20260919",
+      "test_metadata_portability_20260919",
+      "test_menu_apparmor_integration_20260919",
+      "test_desktop_fonts_20260918",
+      "test_intel_policy_20260919",
+      "test_policy_alignment_20260919",
+      "test_initrd_target_tools",
+      "test_systemd_resource_policy"
+    ],
+    "returncode": 0,
+    "seconds": 42.443
+  },
+  {
+    "name": "hardware-check",
+    "command": [
+      "python3",
+      "-B",
+      "tools/check_hardware_tuning.py"
+    ],
+    "returncode": 0,
+    "seconds": 10.007
+  },
+  {
+    "name": "test",
+    "command": [
+      "make",
+      "test"
+    ],
+    "returncode": 2,
+    "seconds": 464.072
+  },
+  {
+    "name": "audit",
+    "command": [
+      "make",
+      "audit"
+    ],
+    "returncode": 0,
+    "seconds": 1.931
+  },
+  {
+    "name": "validate",
+    "command": [
+      "make",
+      "validate"
+    ],
+    "returncode": 2,
+    "seconds": 515.692
+  },
+  {
+    "name": "check-after-pipeline",
+    "command": [
+      "make",
+      "check"
+    ],
+    "returncode": 0,
+    "seconds": 6.848
+  }
+]

@@ -1,0 +1,11 @@
+{"module": "test_session_repairs_20260919.py", "returncode": 0, "tests": 11, "skipped": 0, "seconds": 22.031, "log": "test_session_repairs_20260919.log"}
+{"module": "test_native_session_followup_20260919.py", "returncode": 0, "tests": 24, "skipped": 0, "seconds": 1.572, "log": "test_native_session_followup_20260919.log"}
+{"module": "test_systemd_resource_policy.py", "returncode": 1, "tests": 16, "skipped": 0, "seconds": 53.793, "log": "test_systemd_resource_policy.log"}
+{"module": "test_systemd_resource_refinements.py", "returncode": 0, "tests": 9, "skipped": 0, "seconds": 17.122, "log": "test_systemd_resource_refinements.log"}
+{"module": "test_system_desktop_overrides.py", "returncode": 0, "tests": 30, "skipped": 0, "seconds": 0.923, "log": "test_system_desktop_overrides.log"}
+{"module": "test_workspace_no_broker.py", "returncode": 0, "tests": 27, "skipped": 0, "seconds": 72.299, "log": "test_workspace_no_broker.log"}
+{"module": "test_iocost_20260919.py", "returncode": 124, "tests": null, "skipped": 0, "seconds": 90.01, "log": "test_iocost_20260919.log"}
+{"module": "test_resctl_bench_release_20260917.py", "returncode": 0, "tests": 23, "skipped": 0, "seconds": 1.676, "log": "test_resctl_bench_release_20260917.log"}
+{"module": "test_desktop_sandbox.py", "returncode": 1, "tests": 70, "skipped": 1, "seconds": 1.571, "log": "test_desktop_sandbox.log"}
+{"module": "test_bootstrap_portability.py", "returncode": 124, "tests": null, "skipped": 0, "seconds": 90.029, "log": "test_bootstrap_portability.log"}
+{"module": "test_debconf_protocol.py", "returncode": 124, "tests": null, "skipped": 0, "seconds": 90.01, "log": "test_debconf_protocol.log"}

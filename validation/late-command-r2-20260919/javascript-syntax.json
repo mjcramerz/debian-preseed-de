@@ -1,0 +1,62 @@
+{
+  "tool": "/opt/nvm/versions/node/v22.16.0/bin/node",
+  "checks": [
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/00-admin-identities.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/03-labwc-power.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/05-active-local-gate.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/10-greetd-power.rules.tmpl",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/10-pkexec.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/20-login1-power.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/40-networkmanager.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/50-usb-policy.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/55-software-management.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/60-system-services-identity.rules",
+      "returncode": 0,
+      "stderr": ""
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/polkit-1/rules.d/70-hardware-peripherals.rules",
+      "returncode": 0,
+      "stderr": ""
+    }
+  ],
+  "success": true,
+  "scope": "JavaScript syntax only, not Polkit authorization acceptance. Original audit classifications are retained."
+}

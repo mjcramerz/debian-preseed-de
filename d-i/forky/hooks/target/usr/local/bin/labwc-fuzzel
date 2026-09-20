@@ -43,6 +43,7 @@ command -v fuzzel >/dev/null 2>&1 || {
 config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
 fuzzel_config_dir="${config_root}/fuzzel"
 mode=launcher
+main_menu=false
 managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
 managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
 managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
@@ -52,6 +53,7 @@ menu_font_size_override=${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}
 internal_output_prefixes=${LABWC_OUTPUT_INTERNAL_PREFIXES:-eDP LVDS DSI}
 internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}
 internal_menu_lines=${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}
+internal_menu_max_lines=32
 internal_font_size=${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}
 
 require_uint_range() {
@@ -112,6 +114,11 @@ case "$managed_log_scope" in
 esac
 
 case "${1:-}" in
+  main-menu)
+    mode=menu
+    main_menu=true
+    shift
+    ;;
   launcher|menu)
     mode=$1
     shift
@@ -131,6 +138,9 @@ for arg in "$@"; do
   esac
 done
 
+# Native icon enablement belongs to the rendered configurations. Keep the
+# CLI compatible with Debian Fuzzel 1.12 (no --override option) and leave
+# the configured icon-theme intact, including for caller-encoded rows.
 have_config=false
 have_output=false
 managed_prompt=
@@ -189,6 +199,19 @@ case "$mode:$internal_output" in
   *) fatal 'invalid Fuzzel mode or output class' ;;
 esac
 
+# Main/category menus share the launcher's geometry, never the compact
+# management-menu clamp. Their fonts/padding come from the same base files.
+if [ "$main_menu" = true ]; then
+  if [ "$internal_output" = true ]; then
+    config_name=main-menu-internal.ini
+    internal_menu_max_lines=40
+    internal_menu_width=${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}
+    internal_menu_lines=${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}
+  else
+    config_name=main-menu.ini
+  fi
+fi
+
 if [ "$have_config" != true ] && [ -r "${fuzzel_config_dir}/${config_name}" ]; then
   set -- "--config=${fuzzel_config_dir}/${config_name}" "$@"
 fi
@@ -205,7 +228,7 @@ if [ "$mode" = menu ]; then
   fi
   if [ "$internal_output" = true ]; then
     require_uint_range LABWC_FUZZEL_INTERNAL_MENU_WIDTH "$internal_menu_width" 16 200
-    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "$internal_menu_lines" 1 32
+    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "$internal_menu_lines" 1 "$internal_menu_max_lines"
     require_uint_range LABWC_FUZZEL_INTERNAL_FONT_SIZE "$internal_font_size" 8 32
     if [ -n "$menu_width_override" ] &&
        [ "$menu_width_override" -gt "$internal_menu_width" ]; then
@@ -260,6 +283,8 @@ first_selection=
 cleanup() {
   if [ -n "$fuzzel_pid" ]; then
     kill -TERM "$fuzzel_pid" >/dev/null 2>&1 || true
+    wait "$fuzzel_pid" 2>/dev/null || true
+    fuzzel_pid=
   fi
   rm -f -- "$pid_path"
   if [ -n "$managed_dir" ]; then
@@ -267,7 +292,10 @@ cleanup() {
     rmdir -- "$managed_dir" 2>/dev/null || true
   fi
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 run_fuzzel() {
   exec 7<&0
@@ -282,6 +310,15 @@ run_fuzzel() {
   fi
   fuzzel_pid=
   rm -f -- "$pid_path"
+  # Fuzzel uses 2 for dmenu cancellation and 1 for an error.
+  # Keep the managed-picker API (0 selection, 1 cancel, 2 failure) stable;
+  # never conflate a configuration/Wayland error with a cancelled selection.
+  if [ "$mode" = menu ]; then
+    case "$fuzzel_status" in
+      2) fuzzel_status=1 ;;
+      1) fuzzel_status=$MENU_FAILURE_STATUS ;;
+    esac
+  fi
   return "$fuzzel_status"
 }
 
@@ -350,17 +387,77 @@ first_selection="${managed_dir}/selection.first"
 if ! LC_ALL=C awk '
   {
     input_bytes += length($0) + 1
+    if (index($0, sprintf("%c", 0)) || index($0, sprintf("%c", 31)) || index($0, "\r")) exit 1
     if (NR > 1024 || length($0) > 4096 || input_bytes > 1048576) {
       exit 1
     }
     print
   }
 ' >"$raw_choices"; then
-  fatal 'managed Fuzzel input exceeds the menu bounds'
+  fatal 'managed Fuzzel input exceeds bounds or contains protocol controls'
 fi
 
 awk -v root_menu="$managed_root_menu" -v menu_prompt="$managed_prompt" '
 function icon_for(label) {
+  if (label == "System & Recovery") return "computer"
+  if (label == "Network & Remote") return "network-workgroup"
+  if (label == "Security & Accounts") return "security-high"
+  if (label == "Devices & Desktop") return "preferences-desktop-display"
+  if (label == "Containers & AI") return "applications-development"
+  if (label == "Files & Documents") return "folder-documents"
+  if (label == "Maintenance & Health") return "utilities-system-monitor"
+  if (label == "Recovery & Repair") return "document-revert"
+  if (label == "Protection & Firewall") return "security-high"
+  if (label == "Users & Groups") return "system-users"
+  if (label == "Connection Profiles") return "network-wired"
+  if (label == "VPN Connections") return "network-vpn"
+  if (label == "WireGuard Connections") return "network-vpn"
+  if (label == "DNS Configuration") return "network-server"
+  if (label == "Network Discovery") return "network-workgroup"
+  if (label == "Remote Desktop") return "preferences-desktop-remote-desktop"
+  if (label == "Displays & Layout") return "preferences-desktop-display"
+  if (label == "Refresh Display Layout") return "view-refresh"
+  if (label == "Power Profile") return "preferences-system-power-management"
+  if (label == "Hardware Tuning") return "preferences-system"
+  if (label == "Set Single Tuning Profile") return "preferences-system"
+  if (label == "Generate Hardware Tuning Report") return "text-x-generic"
+  if (label == "Start Automatic Tuning") return "media-playback-start"
+  if (label == "Stop Automatic Tuning") return "media-playback-stop"
+  if (label == "Enable Autostart Tuning at Boot") return "system-run"
+  if (label == "Disable Autostart Tuning at Boot") return "process-stop"
+  if (label == "Reset Hardware Tuning" || label == "Reset Profiles [All]") return "edit-undo"
+  if (label ~ /^Set Performance Profile \[(Intel|Nvidia)\]$/) return "utilities-system-monitor"
+  if (label ~ /^Set High Profile \[(Intel|Nvidia)\]$/) return "go-up"
+  if (label ~ /^Set Balanced Profile \[(Intel|Nvidia)\]$/) return "preferences-system-power-management"
+  if (label ~ /^Set Silent Profile \[(Intel|Nvidia)\]$/) return "battery"
+  if (label == "Cancel - leave power policy unchanged") return "dialog-cancel"
+  if (label == "Confirm: stop, disable and mask PPD; start tuning now and at boot" ||
+      label == "Confirm: stop PPD and block its restart until tuning is stopped") return "dialog-warning"
+  if (label == "Keyboard Layout") return "input-keyboard"
+  if (label == "Audio Control") return "multimedia-volume-control"
+  if (label == "Restart Dock") return "view-refresh"
+  if (label == "Android Devices") return "phone"
+  if (label == "Bluetooth Devices") return "bluetooth"
+  if (label == "Brightness") return "display-brightness"
+  if (label == "Containers") return "package-x-generic"
+  if (label == "AI & Copilots") return "applications-development"
+  if (label == "Documents & Media") return "folder-documents"
+  if (label == "Drives & Backups") return "drive-harddisk"
+  if (label == "Overview & Health") return "utilities-system-monitor"
+  if (label == "Services & Logs") return "text-x-log"
+  if (label == "Packages & Firmware") return "package-x-generic"
+  if (label == "Storage & Filesystems") return "drive-harddisk"
+  if (label == "Audio & Desktop") return "multimedia-volume-control"
+  if (label == "Network & DNS") return "network-server"
+  if (label == "Desktop & Services") return "preferences-desktop"
+  if (label == "Packages & Boot") return "package-x-generic"
+  if (label == "Snapshots & Storage") return "drive-harddisk"
+  if (label == "Memory & Cleanup") return "edit-clear"
+  if (label == "Back") return "go-previous"
+  if (label == "← Back") return "go-previous"
+  if (label == "Cancel") return "dialog-cancel"
+  if (label == "Exit") return "system-log-out"
+
   if (label == "New Coding Session" ||
       label == "Resume Last Session" ||
       label == "Implement Task…" ||
@@ -374,176 +471,176 @@ function icon_for(label) {
       label == "Transcribe File…" ||
       label == "Transcribe Last Recording" ||
       label == "Live Captions" ||
-      label == "Voice Note") return "★"
-  if (label == "Open Podbin Guide" || label == "Show FreeRDP Help") return ""
-  if (label == "AppArmor Status") return ""
+      label == "Voice Note") return "applications-development"
+  if (label == "Open Podbin Guide" || label == "Show FreeRDP Help") return "help-browser"
+  if (label == "AppArmor Status") return "security-high"
   if (label == "Kernel Enablement" ||
       label == "Validate Drafts" ||
-      label == "Activate Selected Draft") return ""
-  if (label == "Features ABI") return ""
-  if (label == "Complain Events (24h)") return ""
-  if (label == "Denied Events (24h)") return ""
+      label == "Activate Selected Draft") return "emblem-default"
+  if (label == "Features ABI") return "applications-development"
+  if (label == "Complain Events (24h)") return "document-open-recent"
+  if (label == "Denied Events (24h)") return "dialog-warning"
   if (label == "Easyprof Draft" ||
       label == "Autodep Base Draft" ||
       label == "Logprof Draft Update" ||
-      label == "Genprof Interactive Draft") return ""
-  if (label == "List Drafts") return ""
-  if (label == "Show App Modes" || label == "Set App Mode") return ""
-  if (label == "Generate New Rules") return ""
-  if (label == "Enforce All") return ""
-  if (label == "Complain All") return ""
-  if (label == "Disable All" || label == "Disabled Profiles") return ""
-  if (label == "Set App Audit Logging") return ""
-  if (label == "Preview Unknown Cleanup") return ""
-  if (label == "List Managed Users") return ""
-  if (label == "Show User Environment" || label == "Show Service Environment") return ""
-  if (label == "List Service Networks") return ""
-  if (label == "Show Service Statistics") return ""
-  if (label == "Show Recent Service Logs") return ""
-  if (label == "Aggressive Journal Vacuum") return ""
-  if (label ~ /^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$/) return ""
-  if (label == "Finish selection") return ""
+      label == "Genprof Interactive Draft") return "text-x-generic"
+  if (label == "List Drafts") return "view-list-details"
+  if (label == "Show App Modes" || label == "Set App Mode") return "preferences-system"
+  if (label == "Generate New Rules") return "document-edit"
+  if (label == "Enforce All") return "system-lock-screen"
+  if (label == "Complain All") return "dialog-warning"
+  if (label == "Disable All" || label == "Disabled Profiles") return "process-stop"
+  if (label == "Set App Audit Logging") return "preferences-system"
+  if (label == "Preview Unknown Cleanup") return "system-search"
+  if (label == "List Managed Users") return "system-users"
+  if (label == "Show User Environment" || label == "Show Service Environment") return "preferences-system"
+  if (label == "List Service Networks") return "network-workgroup"
+  if (label == "Show Service Statistics") return "utilities-system-monitor"
+  if (label == "Show Recent Service Logs") return "text-x-generic"
+  if (label == "Aggressive Journal Vacuum") return "edit-delete"
+  if (label ~ /^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$/) return "dialog-warning"
+  if (label == "Finish selection") return "emblem-default"
   if (menu_prompt == "Digital Assets") {
     if (label == "DOCX Actions" ||
         label == "PDF Actions" ||
-        label == "Image Actions") return "⮞"
+        label == "Image Actions") return "go-next"
   }
   if (menu_prompt == "DOCX Actions") {
-    if (label == "Convert DOCX to PDF") return ""
-    if (label == "Convert DOCX to Markdown") return ""
-    if (label == "Convert DOCX to Plain Text") return ""
-    if (label == "Convert DOCX to HTML") return ""
+    if (label == "Convert DOCX to PDF") return "application-pdf"
+    if (label == "Convert DOCX to Markdown") return "text-markdown"
+    if (label == "Convert DOCX to Plain Text") return "text-x-generic"
+    if (label == "Convert DOCX to HTML") return "applications-development"
   }
   if (menu_prompt == "PDF Actions") {
     if (label == "Convert PDF to PNG" ||
         label == "Convert PDF to JPEG" ||
-        label == "Extract Images from PDF") return ""
-    if (label == "Convert PDF to DOCX") return ""
-    if (label == "Convert PDF to Plain Text") return ""
-    if (label == "Convert Markdown to PDF") return ""
-    if (label == "Merge Multiple PDF'\''s") return ""
-    if (label == "Split PDF (Burst to Pages)") return ""
-    if (label == "Extract Specific Pages") return ""
-    if (label == "Remove Specific Pages") return ""
-    if (label == "Rotate Pages") return ""
-    if (label == "Edit PDF Content") return ""
+        label == "Extract Images from PDF") return "image-x-generic"
+    if (label == "Convert PDF to DOCX") return "x-office-document"
+    if (label == "Convert PDF to Plain Text") return "text-x-generic"
+    if (label == "Convert Markdown to PDF") return "text-markdown"
+    if (label == "Merge Multiple PDF'\''s") return "view-grid"
+    if (label == "Split PDF (Burst to Pages)") return "edit-cut"
+    if (label == "Extract Specific Pages") return "help-contents"
+    if (label == "Remove Specific Pages") return "edit-delete"
+    if (label == "Rotate Pages") return "object-rotate-right"
+    if (label == "Edit PDF Content") return "document-edit"
     if (label == "Edit PDF Bookmarks" ||
-        label == "Extract TOC / Bookmarks") return ""
-    if (label == "Edit Hyperlinks and Typos") return ""
-    if (label == "Clean / Repair Corrupted PDF") return ""
-    if (label == "Inspect PDF Structure") return ""
-    if (label == "Encrypt / Password Protect") return ""
-    if (label == "Decrypt / Remove Password") return ""
-    if (label == "Linearize (Optimize size for Web)") return ""
-    if (label == "Add Page Numbers") return ""
-    if (label == "Add Text Watermark") return ""
+        label == "Extract TOC / Bookmarks") return "bookmark-new"
+    if (label == "Edit Hyperlinks and Typos") return "insert-link"
+    if (label == "Clean / Repair Corrupted PDF") return "edit-undo"
+    if (label == "Inspect PDF Structure") return "system-search"
+    if (label == "Encrypt / Password Protect") return "system-lock-screen"
+    if (label == "Decrypt / Remove Password") return "changes-allow"
+    if (label == "Linearize (Optimize size for Web)") return "preferences-system"
+    if (label == "Add Page Numbers") return "format-list-ordered"
+    if (label == "Add Text Watermark") return "color-management"
   }
   if (menu_prompt == "Image Actions") {
     if (label == "Convert Any Image to PNG" ||
         label == "Convert Any Image to JPEG" ||
-        label == "Convert Image to WebP") return ""
-    if (label == "Resize Image") return ""
-    if (label == "Crop Image") return ""
-    if (label == "Rotate Image") return ""
-    if (label == "Flip (Horizontal)") return "↔"
-    if (label == "Flip (Vertical)") return "↕"
-    if (label == "Convert to Grayscale") return ""
+        label == "Convert Image to WebP") return "image-x-generic"
+    if (label == "Resize Image") return "zoom-in"
+    if (label == "Crop Image") return "transform-crop"
+    if (label == "Rotate Image") return "object-rotate-right"
+    if (label == "Flip (Horizontal)") return "object-flip-horizontal"
+    if (label == "Flip (Vertical)") return "object-flip-vertical"
+    if (label == "Convert to Grayscale") return "display-brightness"
     if (label == "Compress / Optimize PNG" ||
-        label == "Compress / Optimize JPEG") return ""
-    if (label == "Create GIF from Images") return ""
-    if (label == "Read Image Metadata") return ""
-    if (label == "Edit Image Metadata") return ""
+        label == "Compress / Optimize JPEG") return "preferences-system"
+    if (label == "Create GIF from Images") return "video-x-generic"
+    if (label == "Read Image Metadata") return "system-search"
+    if (label == "Edit Image Metadata") return "document-edit"
   }
   if (menu_prompt == "DOCX Actions" ||
       menu_prompt == "PDF Actions" ||
       menu_prompt == "Image Actions") {
-    if (label == "Read Metadata") return ""
-    if (label == "Edit Metadata") return ""
-    if (label == "Remove All Metadata") return ""
-    if (menu_prompt == "DOCX Actions") return ""
-    if (menu_prompt == "PDF Actions") return ""
-    if (menu_prompt == "Image Actions") return ""
+    if (label == "Read Metadata") return "system-search"
+    if (label == "Edit Metadata") return "document-edit"
+    if (label == "Remove All Metadata") return "edit-delete"
+    if (menu_prompt == "DOCX Actions") return "x-office-document"
+    if (menu_prompt == "PDF Actions") return "application-pdf"
+    if (menu_prompt == "Image Actions") return "image-x-generic"
   }
-  if (label ~ /(Wi-Fi|WiFi|Wireless|WLAN|Radio)/) return ""
-  if (label ~ /(WireGuard)/) return ""
-  if (label ~ /(VPN)/) return ""
-  if (label ~ /(DNS)/) return ""
-  if (label ~ /(Resolver)/) return ""
-  if (label ~ /(WAN)/) return ""
-  if (label ~ /(LAN|Network)/) return ""
-  if (label ~ /(Packet)/) return ""
-  if (label ~ /(Port|Connection)/) return ""
+  if (label ~ /(Wi-Fi|WiFi|Wireless|WLAN|Radio)/) return "network-wireless"
+  if (label ~ /(WireGuard)/) return "security-high"
+  if (label ~ /(VPN)/) return "network-vpn"
+  if (label ~ /(DNS)/) return "network-wired"
+  if (label ~ /(Resolver)/) return "system-search"
+  if (label ~ /(WAN)/) return "applications-internet"
+  if (label ~ /(LAN|Network)/) return "network-workgroup"
+  if (label ~ /(Packet)/) return "package-x-generic"
+  if (label ~ /(Port|Connection)/) return "network-connect"
   if (menu_prompt == "System") {
-    if (label == "Show System Overview") return ""
-    if (label == "Show Failed Services") return ""
-    if (label == "Show Recent System Errors") return ""
-    if (label == "Show Kernel Warnings") return ""
-    if (label == "Show Memory and Swap") return ""
-    if (label == "Check Package Health") return ""
-    if (label == "List Pending Upgrades") return ""
-    if (label == "Inspect Service and Logs") return ""
-    if (label == "Show Upgradeable Packages" || label == "Show Upgradable Packages") return ""
-    if (label == "Run Unattended Upgrades Now") return ""
-    if (label == "Show Failed System Units") return ""
-    if (label == "Show Failed User Units") return ""
-    if (label == "Show Timers") return ""
-    if (label == "Test Mako Notification" || label == "Test Mako Notifications") return ""
+    if (label == "Show System Overview") return "computer"
+    if (label == "Show Failed Services") return "dialog-warning"
+    if (label == "Show Recent System Errors") return "dialog-error"
+    if (label == "Show Kernel Warnings") return "dialog-warning"
+    if (label == "Show Memory and Swap") return "utilities-system-monitor"
+    if (label == "Check Package Health") return "package-x-generic"
+    if (label == "List Pending Upgrades") return "go-down"
+    if (label == "Inspect Service and Logs") return "text-x-generic"
+    if (label == "Show Upgradeable Packages" || label == "Show Upgradable Packages") return "go-down"
+    if (label == "Run Unattended Upgrades Now") return "view-refresh"
+    if (label == "Show Failed System Units") return "dialog-warning"
+    if (label == "Show Failed User Units") return "system-users"
+    if (label == "Show Timers") return "preferences-system-time"
+    if (label == "Test Mako Notification" || label == "Test Mako Notifications") return "preferences-desktop-notification"
   }
   if (menu_prompt == "ADB Server") {
-    if (label == "Show Server Status") return ""
-    if (label == "Reconnect USB Devices") return ""
-    if (label == "Reconnect Offline Devices") return ""
-    if (label == "Wait for Any Device (60s)") return ""
-    if (label == "List Devices with Details") return ""
-    if (label == "Show Host Features") return ""
+    if (label == "Show Server Status") return "network-server"
+    if (label == "Reconnect USB Devices") return "drive-removable-media-usb"
+    if (label == "Reconnect Offline Devices") return "view-refresh"
+    if (label == "Wait for Any Device (60s)") return "preferences-system-time"
+    if (label == "List Devices with Details") return "phone"
+    if (label == "Show Host Features") return "computer"
   }
-  if (label ~ /(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)/) return ""
-  if (label ~ /(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)/) return ""
-  if (label ~ /(Stop|Disable|Disconnect|Unmount|Hide)/) return ""
-  if (label ~ /(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)/) return ""
-  if (label ~ /(Create|Save|Backup|Snapshot|Manifest)/) return ""
-  if (label ~ /(Download|Pull|Retrieve)/) return ""
-  if (label ~ /(Upload|Push|Send)/) return ""
-  if (label ~ /(File|Folder|Directory|Path)/) return ""
-  if (label ~ /(Open|Console|Shell|Terminal|Interactive)/) return ""
-  if (label ~ /(User|Group|Sudo|Account)/) return ""
-  if (label ~ /(Container|Podman|Image|Volume|Pod|Resource)/) return ""
-  if (label ~ /(Remote Desktop|Display|Screen|Monitor)/) return ""
-  if (label ~ /(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)/) return ""
-  if (label ~ /(Phone|Android|ADB|Fastboot|Firmware)/) return ""
-  if (label ~ /(Recovery|Repair|Timeshift|GRUB|Initramfs)/) return ""
-  if (label ~ /(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)/) return ""
-  if (label ~ /(Bluetooth)/) return ""
-  if (label ~ /(Brightness|Power|Battery|Performance|Balanced)/) return ""
-  if (label ~ /(Audio|PipeWire|WirePlumber)/) return ""
-  if (label ~ /(Keyboard)/) return ""
-  if (label ~ /(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)/) return ""
-  if (label ~ /(Settings|Configuration|System|Service|Unit|Timer)/) return ""
-  if (label ~ /(Exit|Close)/) return ""
-  return ""
+  if (label ~ /(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)/) return "edit-delete"
+  if (label ~ /(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)/) return "object-rotate-right"
+  if (label ~ /(Stop|Disable|Disconnect|Unmount|Hide)/) return "media-playback-stop"
+  if (label ~ /(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)/) return "media-playback-start"
+  if (label ~ /(Create|Save|Backup|Snapshot|Manifest)/) return "document-save"
+  if (label ~ /(Download|Pull|Retrieve)/) return "go-down"
+  if (label ~ /(Upload|Push|Send)/) return "go-up"
+  if (label ~ /(File|Folder|Directory|Path)/) return "folder"
+  if (label ~ /(Open|Console|Shell|Terminal|Interactive)/) return "utilities-terminal"
+  if (label ~ /(User|Group|Sudo|Account)/) return "system-users"
+  if (label ~ /(Container|Podman|Image|Volume|Pod|Resource)/) return "package-x-generic"
+  if (label ~ /(Remote Desktop|Display|Screen|Monitor)/) return "computer"
+  if (label ~ /(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)/) return "system-lock-screen"
+  if (label ~ /(Phone|Android|ADB|Fastboot|Firmware)/) return "phone"
+  if (label ~ /(Recovery|Repair|Timeshift|GRUB|Initramfs)/) return "edit-undo"
+  if (label ~ /(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)/) return "drive-harddisk"
+  if (label ~ /(Bluetooth)/) return "bluetooth"
+  if (label ~ /(Brightness|Power|Battery|Performance|Balanced)/) return "preferences-system-power-management"
+  if (label ~ /(Audio|PipeWire|WirePlumber)/) return "multimedia-volume-control"
+  if (label ~ /(Keyboard)/) return "input-keyboard"
+  if (label ~ /(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)/) return "system-search"
+  if (label ~ /(Settings|Configuration|System|Service|Unit|Timer)/) return "preferences-system"
+  if (label ~ /(Exit|Close)/) return "system-shutdown"
+  return "go-next"
 }
 {
   label = $0
-  if (label == "← Back") {
-    print label
-  }
-  else if (root_menu != "1" &&
-           (label == "Exit" || label == "Close" ||
-            label ~ /^[0-9]+[[:space:]]+Close$/ ||
-            label == "Cancel")) {
-    print "← Back"
-  }
-  else if (label ~ /^(⮞||★)[[:space:]]/) {
-    print label
-  }
-  else {
-    print icon_for(label) "  " label
-  }
+  icon_label = label
+  # Legacy section markers are presentation only, never an app icon.
+  sub(/^(⮞||★)[[:space:]]+/, "", icon_label)
+  shown = icon_label
+  if (root_menu != "1" &&
+      (label == "Exit" || label == "Close" || label == "Cancel" ||
+       label ~ /^[0-9]+[[:space:]]+Close$/)) shown = "← Back"
+  # Distinct raw rows may have identical text after removing legacy markers.
+  # Keep every presented choice unambiguous without changing its raw action.
+  unique = shown
+  serial = 1
+  while (unique in presented) unique = shown " [" NR ":" serial++ "]"
+  presented[unique] = 1
+  printf "%s%cicon%c%s\n", unique, 0, 31, icon_for(shown)
 }
 ' "$raw_choices" >"$display_choices"
 
 if [ "$managed_root_menu" != 1 ] &&
    ! awk '
+     $0 == "Back" ||
      $0 == "← Back" ||
      $0 == "Exit" ||
      $0 == "Close" ||
@@ -554,7 +651,7 @@ if [ "$managed_root_menu" != 1 ] &&
      END { exit found ? 0 : 1 }
    ' "$raw_choices"; then
   printf '\n' >>"$raw_choices"
-  printf '← Back\n' >>"$display_choices"
+  printf '← Back\000icon\037go-previous\n' >>"$display_choices"
 fi
 
 log_fuzzel_lifecycle menu opened 0
@@ -566,6 +663,11 @@ fi
 log_fuzzel_lifecycle menu completed "$fuzzel_status"
 [ "$fuzzel_status" -eq 0 ] || exit "$fuzzel_status"
 
+# A picker result must contain at most one row. Never truncate extra rows
+# into an apparently valid privileged-action selection.
+if ! awk 'END { exit NR > 1 ? 1 : 0 }' "$selection_file"; then
+  fatal 'Fuzzel returned more than one selection'
+fi
 sed -n '1p' "$selection_file" >"$first_selection"
 selection=$(cat "$first_selection")
 [ -n "$selection" ] || exit 0
@@ -576,9 +678,11 @@ matched_line=$(
       selected = $0
       next
     }
-    $0 == selected {
-      print FNR
-      exit
+    {
+      # Fuzzel returns only the text, not the icon metadata after the NUL.
+      shown = $0
+      sub(/\000.*/, "", shown)
+      if (shown == selected) { print FNR; exit }
     }
   ' "$first_selection" "$display_choices"
 )

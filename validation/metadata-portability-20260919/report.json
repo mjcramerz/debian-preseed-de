@@ -1,0 +1,238 @@
+{
+  "date_utc": "2026-09-19T14:05:47.934091+00:00",
+  "input_archive": "debian-preseed-de-fixed.tar.gz",
+  "input_archive_sha256": "1f1512d91fb6f92998a77ccfb2389e2a9d0550ea0f93c09444b0f98224074865",
+  "requested_missing_executable_dependency_removed": true,
+  "complete_test_suite_green": false,
+  "baseline_comparison": {
+    "same_failure_set": true,
+    "baseline": {
+      "tests": 1634,
+      "seconds": 444.965,
+      "outcome": "FAILED (failures=6, errors=2, skipped=31)"
+    },
+    "make_test": {
+      "tests": 1647,
+      "seconds": 442.858,
+      "outcome": "FAILED (failures=6, errors=2, skipped=31)"
+    },
+    "make_validate_tests": {
+      "tests": 1647,
+      "seconds": 438.052,
+      "outcome": "FAILED (failures=6, errors=2, skipped=31)"
+    },
+    "failure_identifiers": [
+      "ERROR: test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+      "ERROR: test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)",
+      "FAIL: test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+      "FAIL: test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)",
+      "FAIL: test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "FAIL: test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "FAIL: test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "FAIL: test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+    ]
+  },
+  "commands": {
+    "make build": 0,
+    "make check": 0,
+    "make test": 2,
+    "make audit": 0,
+    "make validate": 2,
+    "python3 -B tools/check_hardware_tuning.py": 0
+  },
+  "validation_stages": [
+    {
+      "stage": "browser-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.666,
+      "log": "browser-check.log"
+    },
+    {
+      "stage": "build-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 4.149,
+      "log": "build-check.log"
+    },
+    {
+      "stage": "preseed-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 0.82,
+      "log": "preseed-check.log"
+    },
+    {
+      "stage": "shell-check",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 2.475,
+      "log": "shell-check.log"
+    },
+    {
+      "stage": "tests",
+      "returncode": 1,
+      "timed_out": false,
+      "seconds": 439.165,
+      "log": "tests.log",
+      "tests_run": 1647,
+      "skipped": 31
+    },
+    {
+      "stage": "tools-tests",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 35.986,
+      "log": "tools-tests.log",
+      "tests_run": 179,
+      "skipped": 0
+    },
+    {
+      "stage": "audit",
+      "returncode": 0,
+      "timed_out": false,
+      "seconds": 1.786,
+      "log": "audit.log"
+    }
+  ],
+  "focused": {
+    "metadata-tests.log": {
+      "tests": 11,
+      "seconds": 2.324,
+      "outcome": "OK"
+    },
+    "iocost-tests.log": {
+      "tests": 23,
+      "seconds": 6.579,
+      "outcome": "OK"
+    },
+    "target-boundary-tests.log": {
+      "tests": 12,
+      "seconds": 1.011,
+      "outcome": "OK"
+    },
+    "resource-policy-tests.log": {
+      "tests": 16,
+      "seconds": 5.672,
+      "outcome": "OK"
+    },
+    "tools-tests.log": {
+      "tests": 179,
+      "seconds": 36.167,
+      "outcome": "OK"
+    }
+  },
+  "production_scope": "No external stat executable calls or required-command dependencies remain. Native Python/Perl metadata APIs, procfs filenames, negative tests and historical evidence remain; none invokes the missing executable.",
+  "security_review": [
+    "Installer metadata uses the existing checked numeric ls reader, not GNU extensions.",
+    "All target formatting is fixed and limited to one validated path; non-following semantics and explicit open-descriptor following are preserved.",
+    "The target filesystem-name query uses the shared in-target executor for its mount-table requirement.",
+    "The two-level chroot reads a private credential environment and performs native IOCost staging with no stat program in either root.",
+    "AppArmor changes are limited to required executable substitutions/removals. No filesystem, capability, signal or isolation grants were added.",
+    "Historical workload-policy hashes are unchanged. Only exact reviewed command substitutions are reversed by the scope regression test.",
+    "All 13 host profiles and previous font/Intel/theme/modprobe policy sources remain byte-identical to the supplied previous release."
+  ],
+  "development_findings_fixed": [
+    "Original IOCost installer command dependency at line 108 reproduced exactly.",
+    "BusyBox binary grep capability test corrected to match complete NUL-delimited C strings.",
+    "Three whole-file scope assertions updated with exact reversible metadata migrations; original hash fixtures retained."
+  ],
+  "limits": [
+    "No booted unattended installation or actual target hardware acceptance was performed.",
+    "AppArmor parsing does not prove kernel enforcement; no policies were loaded.",
+    "The unchanged baseline has missing historical fixtures, one stale scope assertion, one incompatible Popen mock and missing Perl Moo.",
+    "Archive integrity, deterministic packaging and fresh-extraction checks are recorded in the delivered external verification report."
+  ],
+  "files_added": [
+    "d-i/forky/tests/test_metadata_portability_20260919.py",
+    "docs/INSTALLER-METADATA-PORTABILITY-20260919.md",
+    "validation/metadata-portability-20260919/apparmor.log",
+    "validation/metadata-portability-20260919/baseline-test.log",
+    "validation/metadata-portability-20260919/build.log",
+    "validation/metadata-portability-20260919/check.log",
+    "validation/metadata-portability-20260919/command-audit.json",
+    "validation/metadata-portability-20260919/iocost-tests.log",
+    "validation/metadata-portability-20260919/make-test.log",
+    "validation/metadata-portability-20260919/metadata-tests.log",
+    "validation/metadata-portability-20260919/payload-inspection.json",
+    "validation/metadata-portability-20260919/python-syntax.json",
+    "validation/metadata-portability-20260919/reported-failure-reproduction.log",
+    "validation/metadata-portability-20260919/resource-policy-tests.log",
+    "validation/metadata-portability-20260919/target-boundary-tests.log",
+    "validation/metadata-portability-20260919/tool-versions.json",
+    "validation/metadata-portability-20260919/tools-tests.log"
+  ],
+  "files_modified": [
+    "README.md",
+    "d-i/forky/hooks/target/data/llama/lib/llama",
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+    "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+    "d-i/forky/hooks/target/etc/apparmor/logprof.conf",
+    "d-i/forky/hooks/target/etc/default/grub-profiles.tmpl",
+    "d-i/forky/hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh",
+    "d-i/forky/hooks/target/etc/skel-desktop/.profile.d/72-incus.sh.tmpl",
+    "d-i/forky/hooks/target/etc/skel-desktop/.profile.d/75-firmware-workspace.sh.tmpl",
+    "d-i/forky/hooks/target/usr/local/bin/chatgpt",
+    "d-i/forky/hooks/target/usr/local/bin/codex-standalone-install",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-admin-action",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-autostart",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-capture",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-health-notify",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-lock",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-session.tmpl",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-wallpaper-save",
+    "d-i/forky/hooks/target/usr/local/bin/mullvad-vpn",
+    "d-i/forky/hooks/target/usr/local/libexec/crowdsec-firstboot",
+    "d-i/forky/hooks/target/usr/local/libexec/dbus-broker-check",
+    "d-i/forky/hooks/target/usr/local/libexec/debugsys-initramfs",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-calendar",
+    "d-i/forky/hooks/target/usr/local/libexec/managed-ssh-checks",
+    "d-i/forky/hooks/target/usr/local/libexec/podman-devops-host",
+    "d-i/forky/hooks/target/usr/local/share/debugsys/initramfs/hook",
+    "d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/preseed.cfg",
+    "d-i/forky/scripts/common/lib.sh",
+    "d-i/forky/scripts/common/lifecycle.sh",
+    "d-i/forky/scripts/common/source.sh",
+    "d-i/forky/scripts/common/ssh.sh",
+    "d-i/forky/scripts/desktop/components.sh",
+    "d-i/forky/scripts/desktop/labwc.sh",
+    "d-i/forky/scripts/desktop/verify.sh",
+    "d-i/forky/scripts/firstboot/04-validation.sh",
+    "d-i/forky/scripts/late/account.sh",
+    "d-i/forky/scripts/late/crowdsec.sh",
+    "d-i/forky/scripts/late/devops.sh",
+    "d-i/forky/scripts/late/iocost.sh",
+    "d-i/forky/scripts/late/llama.sh",
+    "d-i/forky/scripts/late/mullvad.sh",
+    "d-i/forky/scripts/late/podman.sh",
+    "d-i/forky/scripts/late/software.sh",
+    "d-i/forky/scripts/late/storage-maintenance.sh",
+    "d-i/forky/scripts/late/whisper.sh",
+    "d-i/forky/tests/test_codex_installer_session.py",
+    "d-i/forky/tests/test_codex_standalone_chroot.py",
+    "d-i/forky/tests/test_desktop_sandbox.py",
+    "d-i/forky/tests/test_hardware_restore.py",
+    "d-i/forky/tests/test_initrd_target_tools.py",
+    "d-i/forky/tests/test_installer_hardening.py",
+    "d-i/forky/tests/test_iocost_20260919.py",
+    "d-i/forky/tests/test_podman_incus_redesign.py",
+    "d-i/forky/tests/test_systemd_resource_policy.py",
+    "docs/MANAGED-GIT-DEBUGSYS-20260914.md",
+    "tools/build.py",
+    "tools/check_shells.py",
+    "validation/audit.json",
+    "validation/shell-check.json",
+    "validation/summary.json",
+    "validation/tests.log",
+    "validation/tools-tests.log"
+  ],
+  "runtime_product_sha256": {
+    "preseed.cfg": "95a0b9264763b3c31d44d8fe08c7c0b73c4eb3e04295a5478305bf46715686b9",
+    "payload.manifest": "15db76db848202ffe981426c88e47ce2efc3f934b67232158e3e70015e5d56f9",
+    "payload.tar.gz": "48500d96eff96a3e9817dd7306bbe54411886da4a2a0cebc53991c7b280cab24"
+  }
+}

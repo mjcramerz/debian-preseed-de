@@ -203,12 +203,12 @@ while IFS= read -r raw_line || [ -n "$raw_line" ]; do
   install -d -m "$entry_mode" -- "$entry_path"
 
   if [ "$entry_owner" = "-" ]; then
-    resolved_owner=$(stat -c "%u" -- "$entry_path")
+    resolved_owner=$(find -P "$entry_path" -maxdepth 0 -printf "%U")
   else
     resolved_owner=$entry_owner
   fi
   if [ "$entry_group" = "-" ]; then
-    resolved_group=$(stat -c "%g" -- "$entry_path")
+    resolved_group=$(find -P "$entry_path" -maxdepth 0 -printf "%G")
   else
     resolved_group=$entry_group
   fi

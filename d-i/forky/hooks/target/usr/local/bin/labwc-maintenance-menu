@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 # Keep the menu hidden until its action window and cgroup have finished.
 export LABWC_MENU_ACTION_WAIT=1
 
@@ -16,8 +23,7 @@ choose_lines() {
   printf '%s\n' "$@" |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "$prompt" 2>/dev/null ||
-    true
+      --prompt "$prompt" || menu_failure "$?"
 }
 
 # UI grouping only. The existing confirmed/privilege-separated dispatch below
@@ -167,8 +173,7 @@ choose_apparmor_draft() {
   printf '%s\n' "$draft_candidates" |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "Select AppArmor draft" 2>/dev/null ||
-    true
+      --prompt "Select AppArmor draft" || menu_failure "$?"
 }
 
 run_firewall_menu() (
@@ -280,8 +285,7 @@ choose_nvme_controller() {
   } |
     awk '!seen[$0]++' |
     sort |
-    labwc-fuzzel menu --dmenu --prompt "NVMe controller" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "NVMe controller" || menu_failure "$?"
 }
 
 choose_journal_vacuum_time() {
@@ -326,8 +330,7 @@ choose_service() {
   } |
     awk '!seen[$0]++' |
     sort |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Inspect service" 2>/dev/null ||
-    true
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Inspect service" || menu_failure "$?"
 }
 
 choose_security_folder() {
@@ -360,8 +363,7 @@ choose_security_folder() {
   } |
     awk '!seen[$0]++' |
     sed -n '1,400p' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
-    true
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" || menu_failure "$?"
 }
 
 choose_security_file() {
@@ -384,8 +386,7 @@ choose_security_file() {
   } |
     awk '!seen[$0]++' |
     sed -n '1,400p' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" 2>/dev/null ||
-    true
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "$selection_prompt" || menu_failure "$?"
 }
 
 security_auditing_menu() {

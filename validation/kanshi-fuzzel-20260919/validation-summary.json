@@ -1,0 +1,132 @@
+{
+  "targeted_latest": [
+    {
+      "module": "test_desktop_navigation_20260918.py",
+      "returncode": 0,
+      "tests": 36,
+      "skipped": 1,
+      "seconds": 0.367,
+      "log": "test_desktop_navigation_20260918.log"
+    },
+    {
+      "module": "test_categorized_menu.py",
+      "returncode": 0,
+      "tests": 40,
+      "skipped": 2,
+      "seconds": 5.089,
+      "log": "test_categorized_menu.log"
+    },
+    {
+      "module": "test_session_repairs_20260919.py",
+      "returncode": 0,
+      "tests": 11,
+      "skipped": 0,
+      "seconds": 22.031,
+      "log": "test_session_repairs_20260919.log"
+    },
+    {
+      "module": "test_native_session_followup_20260919.py",
+      "returncode": 0,
+      "tests": 24,
+      "skipped": 0,
+      "seconds": 1.572,
+      "log": "test_native_session_followup_20260919.log"
+    },
+    {
+      "module": "test_systemd_resource_refinements.py",
+      "returncode": 0,
+      "tests": 9,
+      "skipped": 0,
+      "seconds": 17.122,
+      "log": "test_systemd_resource_refinements.log"
+    },
+    {
+      "module": "test_system_desktop_overrides.py",
+      "returncode": 0,
+      "tests": 30,
+      "skipped": 0,
+      "seconds": 0.923,
+      "log": "test_system_desktop_overrides.log"
+    },
+    {
+      "module": "test_workspace_no_broker.py",
+      "returncode": 0,
+      "tests": 27,
+      "skipped": 0,
+      "seconds": 72.299,
+      "log": "test_workspace_no_broker.log"
+    },
+    {
+      "module": "test_resctl_bench_release_20260917.py",
+      "returncode": 0,
+      "tests": 23,
+      "skipped": 0,
+      "seconds": 1.676,
+      "log": "test_resctl_bench_release_20260917.log"
+    },
+    {
+      "module": "test_desktop_sandbox.py",
+      "returncode": 1,
+      "tests": 70,
+      "skipped": 1,
+      "seconds": 1.571,
+      "log": "test_desktop_sandbox.log"
+    },
+    {
+      "module": "test_bootstrap_portability.py",
+      "returncode": 124,
+      "tests": null,
+      "skipped": 0,
+      "seconds": 90.029,
+      "log": "test_bootstrap_portability.log"
+    },
+    {
+      "module": "test_debconf_protocol.py",
+      "returncode": 124,
+      "tests": null,
+      "skipped": 0,
+      "seconds": 90.01,
+      "log": "test_debconf_protocol.log"
+    },
+    {
+      "module": "test_menu_apparmor_integration_20260919.py",
+      "returncode": 0,
+      "tests": 27,
+      "skipped": 0,
+      "seconds": 39.58,
+      "log": "test_menu_apparmor_integration_20260919.log",
+      "note": "Completed log recovered after the outer tool call ended; not an inferred success."
+    },
+    {
+      "module": "test_kanshi_fuzzel_followup_20260919.py",
+      "returncode": 0,
+      "tests": 37,
+      "skipped": 0,
+      "log": "followup-final.log"
+    },
+    {
+      "module": "test_systemd_resource_policy.py",
+      "returncode": 0,
+      "tests": 16,
+      "skipped": 0,
+      "log": "resource-policy-final.log"
+    },
+    {
+      "module": "test_iocost_20260919.py",
+      "returncode": 0,
+      "tests": 37,
+      "skipped": 0,
+      "log": "iocost-final.log"
+    }
+  ],
+  "targeted_green_discovered": 317,
+  "targeted_green_skipped": 3,
+  "tool_tests_passed": 179,
+  "apparmor_top_level_compiled": 35,
+  "shell_files": 282,
+  "shell_parser_checks": 575,
+  "preseed_files": 59,
+  "payload_files": 1378,
+  "limitations": "No live APT/Wayland/GPU or native package build acceptance. Historical sandbox fixture missing; bootstrap/debconf aggregate budgets expired. Successful standalone HTTP bootstrap is separate diagnostic evidence.",
+  "targeted_green_passed": 314
+}

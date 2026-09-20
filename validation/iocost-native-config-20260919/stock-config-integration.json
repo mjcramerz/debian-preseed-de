@@ -1,0 +1,59 @@
+{
+  "fixture": "d-i/forky/tests/fixtures/iocost/udev-257-iocost.conf",
+  "commands": [
+    {
+      "action": "stage_target_iocost",
+      "profile": "btrfs-de-flex",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "action": "stage_target_iocost",
+      "profile": "btrfs-de-dual-flex",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "action": "native-parser",
+      "command": [
+        "chroot",
+        "<disposable-target>",
+        "/usr/bin/env",
+        "SYSTEMD_LOG_LEVEL=debug",
+        "SYSTEMD_LOG_TARGET=console",
+        "/usr/lib/udev/iocost",
+        "query",
+        "/sys/installer-nonexistent-device"
+      ],
+      "returncode": 1,
+      "stdout": "",
+      "stderr": "Target solution: isolated-bandwidth\nsd-device: Failed to chase symlinks in \"/sys/installer-nonexistent-device\".\nError looking up device: No such device\n"
+    },
+    {
+      "action": "hwdb-query",
+      "command": [
+        "chroot",
+        "<disposable-target>",
+        "/usr/bin/systemd-hwdb",
+        "query",
+        "block::name:KXG6AZNV512G:fwrev:installer-probe:"
+      ],
+      "returncode": 0,
+      "stdout": "IOCOST_MODEL_BANDWIDTH=rbps=1000000000 rseqiops=100000 rrandiops=50000 wbps=500000000 wseqiops=50000 wrandiops=20000\nIOCOST_MODEL_ISOLATED_BANDWIDTH=rbps=1000000000 rseqiops=100000 rrandiops=50000 wbps=500000000 wseqiops=50000 wrandiops=20000\nIOCOST_MODEL_ISOLATION=rbps=1000000000 rseqiops=100000 rrandiops=50000 wbps=500000000 wseqiops=50000 wrandiops=20000\nIOCOST_MODEL_NAIVE=rbps=1000000000 rseqiops=100000 rrandiops=50000 wbps=500000000 wseqiops=50000 wrandiops=20000\nIOCOST_QOS_BANDWIDTH=rpct=90 rlat=5000 wpct=90 wlat=10000 min=75 max=125\nIOCOST_QOS_ISOLATED_BANDWIDTH=rpct=90 rlat=2000 wpct=90 wlat=5000 min=75 max=100\nIOCOST_QOS_ISOLATION=rpct=95 rlat=1000 wpct=95 wlat=2000 min=50 max=80\nIOCOST_QOS_NAIVE=rpct=99 rlat=5000 wpct=99 wlat=10000 min=75 max=100\nIOCOST_SOLUTIONS=isolation isolated-bandwidth bandwidth naive\n",
+      "stderr": ""
+    },
+    {
+      "action": "disable-and-restore",
+      "profile": "f2fs-de",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "compatibility_link": "../systemd/iocost.conf.d/70-unattended-installer.conf",
+  "saved_original_sha256": "39f985861cb49e86be2434029800eca9be9b9704f0ddb6d67465a3e037587c41",
+  "restored_original_sha256": "39f985861cb49e86be2434029800eca9be9b9704f0ddb6d67465a3e037587c41",
+  "limits": "Native parser query deliberately rejects a nonexistent device after parsing the configuration; no apply, cgroup write or live device event was executed."
+}

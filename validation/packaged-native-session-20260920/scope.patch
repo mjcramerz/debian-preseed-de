@@ -1,0 +1,1753 @@
+--- original/NATIVE-SESSION-FOLLOWUP-20260919.md
++++ corrected/NATIVE-SESSION-FOLLOWUP-20260919.md
+@@ -1,4 +1,9 @@
+ # Native desktop follow-up - 19 September 2026
++
++> Historical report: the labwc/KWallet source builds and patches described here
++> were removed on 20 September 2026. Their custom input and Qt behavior is not
++> part of the current installer. See
++> [the replacement report](docs/PACKAGED-NATIVE-SESSION-20260920.md).
+ 
+ ## Release status
+ 
+--- original/README.md
++++ corrected/README.md
+@@ -1,4 +1,16 @@
+ # debian-preseed-de
++
++## Debian packages only; native thumbnail switcher - 20 September 2026
++
++Labwc and KWallet are installed from the existing Debian binary package selection
++(`labwc` and `kwallet6`). The installer no longer fetches, patches or compiles their
++sources. The source-builder, source-patcher and their staging hook are removed,
++not bypassed on failure. The compositor uses its native thumbnail-grid switcher;
++classic-list mode and its fallback fields are rejected. Alt+Tab, Shift+Alt+Tab
++and the Waybar F13 launcher remain native compositor actions.
++
++See [changes, verification and deployment notes](docs/PACKAGED-NATIVE-SESSION-20260920.md).
++Dated source-build reports describe a superseded revision, not this installer.
+ 
+ ## Opt-in Kanshi and native Fuzzel icons - 19 September 2026
+ 
+@@ -12,9 +24,9 @@
+ selection-to-desktop-ID mapping.
+ 
+ See [implementation, validation and deployment notes](docs/KANSHI-FUZZEL-FOLLOWUP-20260919.md).
+-The preceding native-thumbnail/KWallet source repairs and private Zoom/Discord
+-Xwayland boundary are retained. Earlier hardware and full native-build
+-acceptance limitations are not reclassified as passing by this menu change.
++The private Zoom/Discord Xwayland boundary is retained. The earlier labwc/KWallet
++source-build path is removed by the 20 September revision above. Earlier hardware
++acceptance limitations are not reclassified as passing by these changes.
+ 
+ ## Hardware tuning and protected resctl documentation - 17 September 2026
+ 
+--- original/WORKSPACES-NO-BROKER.md
++++ corrected/WORKSPACES-NO-BROKER.md
+@@ -85,9 +85,10 @@
+ LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT=all
+ ```
+ 
+-The metadata label, classic fallback fields, thumbnail/classic geometry,
+-Papirus application-icon theme, current-workspace scope and existing move/follow
+-bindings are retained. Workspace names are generated for all 1--12 workspaces;
++The metadata label, thumbnail geometry, Papirus application-icon theme,
++current-workspace scope and existing move/follow bindings are retained.
++As of 20 September 2026, classic mode and its list fields are no longer supported;
++all managed switchers use native thumbnails from the unmodified Debian package. Workspace names are generated for all 1--12 workspaces;
+ the existing direct numbered keyboard bindings cover 1--9, with the workspace
+ selector providing access to higher-numbered workspaces. No unrelated keyboard
+ binding policy was changed.
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
++++ corrected/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+@@ -85,14 +85,6 @@
+     <osd show="yes" style="__INSTALLER_LABWC_WINDOW_SWITCHER_STYLE__"
+          output="__INSTALLER_LABWC_WINDOW_SWITCHER_OSD_OUTPUT__"
+          thumbnailLabelFormat="%n &#8212; %T  %S  %o" />
+-    <!-- Retained for the supported classic/data-dense fallback. -->
+-    <fields>
+-      <field content="icon" width="7%" />
+-      <field content="desktop_entry_name" width="23%" />
+-      <field content="state" width="8%" />
+-      <field content="output" width="12%" />
+-      <field content="title" width="50%" />
+-    </fields>
+   </windowSwitcher>
+ 
+   <libinput>
+@@ -117,7 +109,7 @@
+     <numlock>on</numlock>
+     <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
+     <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
+-    <!-- The managed compositor fixes pointer routing in native thumbnail mode.
++    <!-- Use the unmodified Debian compositor's native thumbnail OSD.
+          No simulated held modifier and no secondary window-list application. -->
+     <keybind key="F13">
+       <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/themerc-override
++++ corrected/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/themerc-override
+@@ -39,9 +39,6 @@
+ osd.border.color: #ecb860
+ osd.border.width: 1
+ osd.label.text.color: #f5efe3
+-osd.window-switcher.style-classic.width: 76%
+-osd.window-switcher.style-classic.item.active.border.color: #50C878
+-osd.window-switcher.style-classic.item.active.bg.color: #50C87826
+ osd.window-switcher.preview.border.color: #50C878,#0c1017,#50C878
+ 
+ snapping.overlay.region.bg.color: #6dc4ed33
+@@ -61,8 +58,3 @@
+ osd.window-switcher.style-thumbnail.item.active.border.width: 2
+ osd.window-switcher.style-thumbnail.item.icon.size: 48
+ osd.window-switcher.preview.border.width: 2
+-osd.window-switcher.style-classic.padding: 6
+-osd.window-switcher.style-classic.item.padding.x: 10
+-osd.window-switcher.style-classic.item.padding.y: 4
+-osd.window-switcher.style-classic.item.active.border.width: 2
+-osd.window-switcher.style-classic.item.icon.size: 24
+--- original/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
++++ corrected/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
+@@ -5,7 +5,7 @@
+   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
+   exit 1
+ }
+-# The managed native compositor opens its thumbnail OSD on F13, initially
+-# selecting the active window. Pointer events are consumed by that OSD until
+-# selection/cancellation; no held modifier or long-lived input helper is used.
++# F13 invokes NextWindow in the unmodified Debian compositor. Labwc owns the
++# thumbnail OSD and its input lifecycle; this one-shot launcher holds no modifier
++# and does not implement a separate window list or input helper daemon.
+ exec /usr/bin/wtype -k F13
+--- original/d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/build_native.py
++++ corrected/d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/build_native.py
+@@ -1,326 +0,0 @@
+-#!/usr/bin/python3
+-"""Rebuild two installed Debian source packages with reviewed native repairs.
+-
+-Installer-only, root orchestrator. APT authenticates source and dependencies;
+-source unpacking, patching and compilation run as a temporary unprivileged
+-account. No public host Xwayland is retained after the desktop role completes.
+-No package holds or global APT source changes are made. Unknown upstream source
+-contexts stop installation rather than silently installing a broken substitute.
+-"""
+-from __future__ import annotations
+-import argparse
+-import hashlib
+-import json
+-import os
+-from pathlib import Path
+-import pwd
+-import re
+-import shutil
+-import signal
+-import stat
+-import subprocess
+-import sys
+-import tempfile
+-from urllib.parse import urlsplit
+-
+-REVISION = '20260919.2'
+-SUFFIX = '+managed' + REVISION
+-ACCOUNT = '_native-repair'
+-KEYRING = '/usr/share/keyrings/debian-archive-keyring.gpg'
+-ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root',
+-       'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8', 'DEBIAN_FRONTEND': 'noninteractive'}
+-PACKAGES = (('labwc', 'labwc'), ('kwallet6', 'kf6-kwallet'))
+-RECEIPT = Path('/var/lib/managed-native-repairs/receipt.json')
+-
+-
+-def command(args: list[str], *, cwd: Path | None = None, capture: bool = False,
+-            timeout: int = 1800, env: dict[str, str] | None = None) -> str:
+-    print('+ ' + ' '.join(args), file=sys.stderr, flush=True)
+-    # runuser --session-command is deliberately not used: argv stays an array.
+-    proc = subprocess.Popen(args, cwd=cwd, env=env or ENV, start_new_session=True,
+-                            stdout=subprocess.PIPE if capture else None, text=True)
+-    try:
+-        stdout, _ = proc.communicate(timeout=timeout)
+-    except BaseException:
+-        # Signal only this owned command group, not user/global process names.
+-        try:
+-            os.killpg(proc.pid, signal.SIGKILL)
+-        except ProcessLookupError:
+-            pass
+-        proc.communicate()
+-        raise
+-    if proc.returncode:
+-        raise subprocess.CalledProcessError(proc.returncode, args, output=stdout)
+-    return (stdout or '').strip() if capture else ''
+-
+-
+-
+-def safe_root_path(path: Path) -> None:
+-    for part in (path, *path.parents):
+-        if not part.exists() and not part.is_symlink():
+-            continue
+-        st = part.lstat()
+-        if stat.S_ISLNK(st.st_mode) or st.st_uid != 0:
+-            raise ValueError(f'unsafe root-owned path: {part}')
+-        if st.st_mode & 0o022 and not (stat.S_ISDIR(st.st_mode) and st.st_mode & stat.S_ISVTX):
+-            raise ValueError(f'writable root-owned path: {part}')
+-
+-
+-def paragraphs(text: str) -> list[dict[str, str]]:
+-    result = []
+-    for paragraph in re.split(r'\n\s*\n', text):
+-        fields: dict[str, str] = {}
+-        last = ''
+-        for line in paragraph.splitlines():
+-            if not line.strip() or line.lstrip().startswith('#'):
+-                continue
+-            if line[:1].isspace() and last:
+-                fields[last] += ' ' + line.strip()
+-            elif ':' in line:
+-                key, value = line.split(':', 1)
+-                last = key.lower()
+-                if last in fields:
+-                    raise ValueError('duplicate APT source field')
+-                fields[last] = value.strip()
+-            else:
+-                raise ValueError('invalid deb822 source field')
+-        if fields:
+-            result.append(fields)
+-    return result
+-
+-
+-def source_configuration(apt: Path = Path('/etc/apt')) -> str:
+-    """Mirror only configured Debian-keyring-authenticated network sources."""
+-    entries: set[tuple[str, str, str]] = set()
+-    paths = [apt / 'sources.list', *sorted((apt / 'sources.list.d').glob('*.list')),
+-             *sorted((apt / 'sources.list.d').glob('*.sources'))]
+-    for path in paths:
+-        if not path.exists():
+-            continue
+-        safe_root_path(path)
+-        if not path.is_file() or path.stat().st_size > 1_048_576:
+-            raise ValueError('invalid APT source file')
+-        text = path.read_text()
+-        candidates = []
+-        if path.suffix == '.sources':
+-            for fields in paragraphs(text):
+-                if fields.get('enabled', 'yes') == 'no' or 'deb' not in fields.get('types', '').split():
+-                    continue
+-                if fields.get('signed-by') != KEYRING:
+-                    continue
+-                if any(fields.get(k, 'no') != 'no' for k in ('trusted', 'allow-insecure', 'allow-weak', 'allow-downgrade-to-insecure')):
+-                    raise ValueError('refusing insecure Debian source options')
+-                for uri in fields.get('uris', '').split():
+-                    for suite in fields.get('suites', '').split():
+-                        candidates.append((uri, suite, fields.get('components', '')))
+-        else:
+-            for line in text.splitlines():
+-                m = re.fullmatch(r'\s*deb\s+\[([^]]+)\]\s+(\S+)\s+(\S+)\s+([^#]+?)(?:\s*#.*)?\s*', line)
+-                if not m or ('signed-by=' + KEYRING) not in m[1].split():
+-                    continue
+-                if any(re.search(r'(?:^|\s)' + k + r'=', m[1]) for k in ('trusted', 'allow-insecure', 'allow-weak', 'allow-downgrade-to-insecure')):
+-                    raise ValueError('refusing insecure Debian source options')
+-                candidates.append((m[2], m[3], m[4].strip()))
+-        for uri, suite, components in candidates:
+-            parsed = urlsplit(uri)
+-            if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+-                raise ValueError('invalid Debian source URI')
+-            if not re.fullmatch(r'[A-Za-z0-9.+_-]+', suite):
+-                raise ValueError('invalid Debian suite')
+-            parts = components.split()
+-            if 'main' not in parts or any(not re.fullmatch(r'[a-z0-9-]+', p) for p in parts):
+-                raise ValueError('invalid Debian source components')
+-            entries.add((uri, suite, ' '.join(parts)))
+-    if not entries:
+-        raise ValueError('no configured Debian-keyring-authenticated source; refusing an invented mirror')
+-    return '\n'.join(f'Types: deb deb-src\nURIs: {uri}\nSuites: {suite}\nComponents: {components}\nSigned-By: {KEYRING}\n'
+-                     for uri, suite, components in sorted(entries))
+-
+-
+-def installed(package: str) -> tuple[str, str, str]:
+-    value = command(['/usr/bin/dpkg-query', '-W', '-f=${db:Status-Status}\t${source:Package}\t${source:Version}\t${Version}', package], capture=True)
+-    fields = value.split('\t')
+-    if len(fields) != 4 or fields[0] != 'installed':
+-        raise ValueError(f'{package} is not installed')
+-    return fields[1], fields[2], fields[3]
+-
+-
+-def archive_name(path: Path) -> str:
+-    return command(['/usr/bin/dpkg-deb', '-f', str(path), 'Package'], capture=True)
+-
+-
+-def receipt_is_current() -> bool:
+-    if not RECEIPT.exists():
+-        return False
+-    safe_root_path(RECEIPT)
+-    data = json.loads(RECEIPT.read_text())
+-    patcher = Path(__file__).resolve().with_name('patch_sources.py')
+-    if data.get('revision') != REVISION or data.get('patcher_sha256') != hashlib.sha256(patcher.read_bytes()).hexdigest():
+-        return False
+-    for binary, _ in PACKAGES:
+-        if installed(binary)[2] != data.get('versions', {}).get(binary):
+-            return False
+-    for path, digest in data.get('executables', {}).items():
+-        if path not in ('/usr/bin/labwc', '/usr/bin/ksecretd'):
+-            return False
+-        if hashlib.sha256(Path(path).read_bytes()).hexdigest() != digest:
+-            return False
+-    return len(data.get('executables', {})) == 2
+-
+-
+-def main() -> None:
+-    if os.geteuid() != 0:
+-        raise SystemExit('native package installation requires root')
+-    support = Path(__file__).resolve().parent
+-    safe_root_path(support / 'patch_sources.py')
+-    if receipt_is_current():
+-        print('Native session repair packages already match the recorded build.')
+-        return
+-    try:
+-        pwd.getpwnam(ACCOUNT)
+-    except KeyError:
+-        pass
+-    else:
+-        raise ValueError(f'build account {ACCOUNT} already exists; refusing to share a service identity')
+-    sources = source_configuration()
+-    work = Path(tempfile.mkdtemp(prefix='native-session-repairs.', dir='/var/tmp'))
+-    work.chmod(0o755)
+-    user_created = False
+-    succeeded = False
+-    try:
+-        source_file = work / 'debian.sources'
+-        source_file.write_text(sources)
+-        source_file.chmod(0o644)
+-        lists = work / 'lists'
+-        lists.mkdir(mode=0o755)
+-        apt_options = ['-o', f'Dir::Etc::sourcelist={source_file}', '-o', 'Dir::Etc::sourceparts=-',
+-                       '-o', f'Dir::State::lists={lists}',
+-                       '-o', 'APT::Get::AllowUnauthenticated=false',
+-                       '-o', 'Acquire::AllowInsecureRepositories=false',
+-                       '-o', 'Acquire::AllowWeakRepositories=false',
+-                       '-o', 'Acquire::AllowDowngradeToInsecureRepositories=false',
+-                       '-o', 'APT::Update::Error-Mode=any']
+-        command(['/usr/bin/apt-get', *apt_options, 'update'])
+-        command(['/usr/bin/apt-get', *apt_options, '-y', '--no-install-recommends', '--no-remove', 'install',
+-                 'build-essential', 'dpkg-dev', 'fakeroot', 'python3'])
+-        command(['/usr/sbin/useradd', '--system', '--user-group', '--no-create-home',
+-                 '--home-dir', str(work / 'home'), '--shell', '/usr/sbin/nologin', ACCOUNT])
+-        user_created = True
+-        pw = pwd.getpwnam(ACCOUNT)
+-        home = work / 'home'
+-        home.mkdir(mode=0o700)
+-        os.chown(home, pw.pw_uid, pw.pw_gid)
+-        build_env = dict(ENV, HOME=str(home), DEB_BUILD_OPTIONS='parallel=2',
+-                         DEB_BUILD_MAINT_OPTIONS='hardening=+all')
+-        copied = []
+-        provenance = []
+-        for binary, expected_source in PACKAGES:
+-            source, version, _ = installed(binary)
+-            if source != expected_source or not re.fullmatch(r'[0-9A-Za-z.+:~_-]{1,100}', version):
+-                raise ValueError('unexpected installed source identity')
+-            if version.endswith(SUFFIX):
+-                version = version[:-len(SUFFIX)]
+-            spec = source + '=' + version
+-            command(['/usr/bin/apt-get', *apt_options, '-y', '--no-install-recommends', '--no-remove', 'build-dep', spec])
+-            build = work / source
+-            build.mkdir(mode=0o700)
+-            os.chown(build, pw.pw_uid, pw.pw_gid)
+-            as_user = ['/usr/sbin/runuser', '-u', ACCOUNT, '--',
+-                       '/usr/bin/setpriv', '--no-new-privs', '--']
+-            command([*as_user, '/usr/bin/apt-get', *apt_options, '--only-source', 'source', spec], cwd=build, env=build_env)
+-            roots = [p for p in build.iterdir() if p.is_dir() and not p.is_symlink() and (p / 'debian/changelog').is_file()]
+-            if len(roots) != 1:
+-                raise ValueError('source extraction did not produce exactly one Debian source tree')
+-            tree = roots[0]
+-            actual_source = command([*as_user, '/usr/bin/dpkg-parsechangelog', '-S', 'Source'], cwd=tree, env=build_env, capture=True)
+-            actual_version = command([*as_user, '/usr/bin/dpkg-parsechangelog', '-S', 'Version'], cwd=tree, env=build_env, capture=True)
+-            if (actual_source, actual_version) != (source, version):
+-                raise ValueError('authenticated source identity does not match the installed package')
+-            # Copy the trusted patcher into the private tree with no root code
+-            # execution of source content. It is run by the isolated build user.
+-            patcher = build / 'patch_sources.py'
+-            shutil.copyfile(support / 'patch_sources.py', patcher)
+-            os.chown(patcher, pw.pw_uid, pw.pw_gid)
+-            command([*as_user, '/usr/bin/python3', str(patcher), source, str(tree)], cwd=tree, env=build_env)
+-            # The build user, not root, updates files within the source tree.
+-            command([*as_user, '/usr/bin/python3', str(patcher), '--changelog', source,
+-                     str(tree), version + SUFFIX], cwd=tree, env=build_env)
+-            command([*as_user, '/usr/bin/dpkg-buildpackage', '-b', '-us', '-uc', '-j2'], cwd=tree, env=build_env, timeout=7200)
+-            if source == 'labwc':
+-                configs = [p for p in tree.rglob('*.h') if p.is_file() and not p.is_symlink()]
+-                if not any(re.search(r'^#define HAVE_XWAYLAND 0$', p.read_text(), re.M) for p in configs):
+-                    raise ValueError('built host compositor did not disable Xwayland')
+-            artifacts = []
+-            for package in sorted(build.glob('*.deb')):
+-                if package.is_symlink() or not package.is_file() or package.stat().st_nlink != 1:
+-                    raise ValueError('unsafe build artifact')
+-                name = archive_name(package)
+-                if not re.fullmatch(r'[a-z0-9][a-z0-9+.-]+', name):
+-                    raise ValueError('invalid binary package identity')
+-                # Install the main binary and its already-installed companion
+-                # packages, not newly generated development/debug packages.
+-                if name != binary:
+-                    try:
+-                        installed(name)
+-                    except (ValueError, subprocess.CalledProcessError):
+-                        continue
+-                built_source = command(['/usr/bin/dpkg-deb', '-f', str(package), 'Source'], capture=True)
+-                built_version = command(['/usr/bin/dpkg-deb', '-f', str(package), 'Version'], capture=True)
+-                # Source may be omitted when the binary and source names match.
+-                source_name = built_source.split(' ', 1)[0] if built_source else name
+-                if source_name != source or built_version != version + SUFFIX:
+-                    raise ValueError('unexpected built source/version')
+-                destination = work / ('install-' + package.name)
+-                shutil.copyfile(package, destination)
+-                destination.chmod(0o644)
+-                copied.append(destination)
+-                artifacts.append({'name': name, 'filename': package.name,
+-                                  'sha256': hashlib.sha256(destination.read_bytes()).hexdigest()})
+-            if binary not in {entry['name'] for entry in artifacts}:
+-                raise ValueError('the required binary was not built')
+-            provenance.append({'source': source, 'source_version': version, 'artifacts': artifacts})
+-        # One transaction satisfies exact-version dependencies between rebuilt
+-        # KWallet data/library/daemon packages. Do not remove unrelated packages.
+-        command(['/usr/bin/apt-get', '-y', '--reinstall', '--no-install-recommends', '--no-remove', 'install', *map(str, copied)])
+-        data = {'revision': REVISION, 'sources': provenance,
+-                'patcher_sha256': hashlib.sha256((support / 'patch_sources.py').read_bytes()).hexdigest(),
+-                'versions': {binary: installed(binary)[2] for binary, _ in PACKAGES},
+-                'executables': {p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
+-                                for p in ('/usr/bin/labwc', '/usr/bin/ksecretd')}}
+-        safe_root_path(RECEIPT.parent)
+-        RECEIPT.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+-        fd, name = tempfile.mkstemp(prefix='.receipt.', dir=RECEIPT.parent)
+-        temporary = Path(name)
+-        with os.fdopen(fd, 'w') as handle:
+-            handle.write(json.dumps(data, indent=2) + '\n')
+-            handle.flush()
+-            os.fsync(handle.fileno())
+-        temporary.chmod(0o600)
+-        os.replace(temporary, RECEIPT)
+-        succeeded = True
+-    finally:
+-        # Do not let an account-cleanup diagnostic conceal the build failure.
+-        # Keep failed build material root-only before attempting user deletion.
+-        if not succeeded:
+-            work.chmod(0o700)
+-            print(f'Build failed. Root-only source/build evidence retained at {work}', file=sys.stderr)
+-        try:
+-            if user_created:
+-                command(['/usr/sbin/userdel', ACCOUNT], timeout=30)
+-        except (OSError, subprocess.SubprocessError) as exc:
+-            if succeeded:
+-                raise
+-            print(f'Build-account cleanup also failed: {exc}', file=sys.stderr)
+-        if succeeded:
+-            shutil.rmtree(work)
+-
+-
+-if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description=__doc__)
+-    parser.add_argument('--install', action='store_true', required=True)
+-    parser.parse_args()
+-    def stop(signum: int, _frame: object) -> None:
+-        raise KeyboardInterrupt(f'stopped by signal {signum}')
+-    for sig in (signal.SIGTERM, signal.SIGHUP):
+-        signal.signal(sig, stop)
+-    main()
+--- original/d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/patch_sources.py
++++ corrected/d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/patch_sources.py
+@@ -1,210 +0,0 @@
+-#!/usr/bin/python3
+-"""Context-checked source repairs for Debian's labwc and kf6-kwallet.
+-
+-Never downloads source, changes a binary, or patches an unknown layout fuzzily.
+-The installer supplies the source version authenticated by APT. All contexts
+-must match exactly before any file is written. Upstream copyright and licenses
+-remain applicable: labwc GPL-2.0-only; KWallet LGPL-2.0-only or
+-LGPL-2.0-or-later as marked in each upstream file.
+-"""
+-from __future__ import annotations
+-import argparse
+-from pathlib import Path
+-import re
+-import stat
+-
+-REVISION = '20260919.2'
+-
+-# Fragments are also executed by the native state-machine regression harness.
+-CYCLE_INITIAL_OLD = '''\t/* Pre-select the next view in the given direction */
+-\tserver.cycle.selected_view = get_next_selected_view(direction);'''
+-CYCLE_INITIAL_NEW = '''\t/* Panel invocation keeps the current view; Alt-Tab still advances.
+-\t * Ignore lock modifiers (NumLock/CapsLock) for this distinction. */
+-\tuint32_t shortcut_modifiers = keyboard_get_all_modifiers(&server.seat)
+-\t\t& (WLR_MODIFIER_SHIFT | WLR_MODIFIER_CTRL
+-\t\t\t| WLR_MODIFIER_ALT | WLR_MODIFIER_LOGO);
+-\tif (shortcut_modifiers) {
+-\t\tserver.cycle.selected_view = get_next_selected_view(direction);
+-\t}'''
+-CYCLE_PRESS_NEW = '''\t/* The OSD owns both halves of a new click. Never deliver it to
+-\t * the stale client focus retained during native cycling. */
+-\tif (server.input_mode == LAB_INPUT_STATE_CYCLE) {
+-\t\tlab_set_add(&seat->bound_buttons, button);
+-\t\treturn false;
+-\t}
+-'''
+-CYCLE_RELEASE_OLD = '''\tif (server.input_mode == LAB_INPUT_STATE_CYCLE) {
+-\t\tif (ctx.type == LAB_NODE_CYCLE_OSD_ITEM) {
+-\t\t\tcycle_on_cursor_release(ctx.node);
+-\t\t}
+-\t\treturn notify;
+-\t}'''
+-CYCLE_RELEASE_NEW = '''\tif (server.input_mode == LAB_INPUT_STATE_CYCLE) {
+-\t\t/* Finish a client press that predates opening the OSD, without
+-\t\t * interpreting its release as a thumbnail selection. */
+-\t\tif (notify) {
+-\t\t\treturn true;
+-\t\t}
+-\t\tif (button == BTN_LEFT && ctx.type == LAB_NODE_CYCLE_OSD_ITEM) {
+-\t\t\tcycle_on_cursor_release(ctx.node);
+-\t\t} else {
+-\t\t\tcycle_finish(/*switch_focus*/ false);
+-\t\t}
+-\t\treturn false;
+-\t}'''
+-CYCLE_MOTION_NEW = '''\t/* Do not send motion or execute client drag bindings behind the OSD. */
+-\tif (server.input_mode == LAB_INPUT_STATE_CYCLE) {
+-\t\treturn false;
+-\t}
+-'''
+-CYCLE_AXIS_NEW = '''\tif (server.input_mode == LAB_INPUT_STATE_CYCLE) {
+-\t\tif (info.run_action) {
+-\t\t\tcycle_step(info.direction < 0 ? LAB_CYCLE_DIR_BACKWARD
+-\t\t\t\t: LAB_CYCLE_DIR_FORWARD);
+-\t\t}
+-\t\treturn false;
+-\t}
+-'''
+-CYCLE_KEY_NEW = '''\t\tif (keyinfo->translated.syms[i] == XKB_KEY_Return
+-\t\t\t\t|| keyinfo->translated.syms[i] == XKB_KEY_KP_Enter) {
+-\t\t\tcycle_finish(/*switch_focus*/ true);
+-\t\t\treturn true;
+-\t\t}
+-\t\tif (keyinfo->translated.syms[i] == XKB_KEY_F13) {
+-\t\t\tcycle_finish(/*switch_focus*/ false);
+-\t\t\treturn true;
+-\t\t}
+-'''
+-WALLET_SELECTION_OLD = '''    _complete = _ui.listCertificates->currentRow() >= 0;
+-    QVariant varKey = _ui.listCertificates->item(_ui.listCertificates->currentRow(), 0)->data(Qt::UserRole);
+-    setField(QStringLiteral("key"), varKey);'''
+-WALLET_SELECTION_NEW = '''    const auto *item = _ui.listCertificates->selectedItems().isEmpty()
+-        ? nullptr : _ui.listCertificates->item(_ui.listCertificates->currentRow(), 0);
+-    const QVariant varKey = item ? item->data(Qt::UserRole) : QVariant();
+-    _complete = item && varKey.isValid();
+-    // QWizardPage has no default writable value property. Store the selected
+-    // GpgME::Key on this page, including clearing it when selection disappears.
+-    setProperty("managedSelectedKey", varKey);'''
+-WALLET_PARENT_OLD = '''    if (wId != 0) {
+-        // correct, set dialog parent'''
+-WALLET_PARENT_NEW = '''    if (KWindowSystem::isPlatformWayland()) {
+-        // The legacy numeric WId cannot identify another Wayland client's
+-        // surface. Use a native application-modal top-level, not an X11 parent
+-        // import or a fabricated global window id. Consent remains interactive.
+-        dialog->setAttribute(Qt::WA_NativeWindow, true);
+-        dialog->setWindowModality(modal ? Qt::ApplicationModal : Qt::NonModal);
+-    } else if (wId != 0) {
+-        // correct, set dialog parent'''
+-
+-
+-def once(text: str, before: str, after: str, label: str) -> str:
+-    if text.count(before) != 1:
+-        raise ValueError(f'{label}: source context changed or patch already applied; refusing fuzzy repair')
+-    return text.replace(before, after, 1)
+-
+-
+-def patch_labwc(files: dict[str, str]) -> dict[str, str]:
+-    out = dict(files)
+-    path = 'src/cycle/cycle.c'
+-    out[path] = once(out[path], '#include "cycle.h"',
+-                     '#include "cycle.h"\n#include "input/keyboard.h"\n#include <wlr/types/wlr_keyboard.h>', path)
+-    out[path] = once(out[path], CYCLE_INITIAL_OLD, CYCLE_INITIAL_NEW, path)
+-    path = 'src/input/cursor.c'
+-    # Scope insertions to the named function, not every MENU/CYCLE occurrence.
+-    marker = 'cursor_process_button_press(struct seat *seat, uint32_t button, uint32_t time_msec)\n{'
+-    out[path] = once(out[path], marker, marker + '\n' + CYCLE_PRESS_NEW, path)
+-    out[path] = once(out[path], CYCLE_RELEASE_OLD, CYCLE_RELEASE_NEW, path)
+-    marker = 'cursor_process_motion(uint32_t time, double *sx, double *sy)\n{'
+-    out[path] = once(out[path], marker, marker + '\n' + CYCLE_MOTION_NEW, path)
+-    marker = ('\tstruct scroll_info info = compare_delta(delta, delta_discrete,\n'
+-              '\t\t&server.seat.accumulated_scrolls[orientation]);\n')
+-    out[path] = once(out[path], marker, marker + CYCLE_AXIS_NEW, path)
+-    path = 'src/input/keyboard.c'
+-    marker = '\t\tif (keyinfo->translated.syms[i] == XKB_KEY_Escape) {'
+-    out[path] = once(out[path], marker, CYCLE_KEY_NEW + marker, path)
+-    path = 'meson.build'
+-    # Enforce the policy even if the Debian rules explicitly enable Xwayland.
+-    # Private Cage/Xwayland packages are not rebuilt or changed by this patch.
+-    marker = "conf_data = configuration_data()\nconf_data.set10('HAVE_XWAYLAND', have_xwayland)"
+-    out[path] = once(out[path], marker,
+-        "# Managed host session is Wayland-only; private Cage remains independent.\n"
+-        "have_xwayland = false\n" + marker, path)
+-    return out
+-
+-
+-def patch_kwallet(files: dict[str, str]) -> dict[str, str]:
+-    out = dict(files)
+-    path = 'src/runtime/ksecretd/knewwalletdialog.cpp'
+-    out[path] = once(out[path], 'QVariant varKey = field(QStringLiteral("key"));',
+-                     'QVariant varKey = _gpg->property("managedSelectedKey");', path)
+-    out[path] = once(out[path], '    registerField(QStringLiteral("key"), this);\n', '', path)
+-    out[path] = once(out[path], WALLET_SELECTION_OLD, WALLET_SELECTION_NEW, path)
+-    out[path] = once(out[path],
+-        'bool KNewWalletDialogGpg::validateCurrentPage()\n{\n    return false;\n}',
+-        'bool KNewWalletDialogGpg::validateCurrentPage()\n{\n'
+-        '    return _complete && property("managedSelectedKey").isValid();\n}', path)
+-    path = 'src/runtime/ksecretd/knewwalletdialogintro.ui'
+-    # setupUi translates this designer placeholder without the mandatory %1.
+-    # The constructor immediately supplies the real, escaped, translated text.
+-    pattern = r'(<widget class="QLabel" name="labelIntro">.*?<property name="text">\s*)<string>[^<]*%1[^<]*</string>'
+-    out[path], count = re.subn(pattern, r'\1<string notr="true"/>', out[path], flags=re.S)
+-    if count != 1:
+-        raise ValueError(f'{path}: expected exactly one untranslated designer placeholder')
+-    path = 'src/runtime/ksecretd/ksecretd.cpp'
+-    out[path] = once(out[path], WALLET_PARENT_OLD, WALLET_PARENT_NEW, path)
+-    return out
+-
+-
+-PATHS = {
+-    'labwc': ('src/cycle/cycle.c', 'src/input/cursor.c', 'src/input/keyboard.c', 'meson.build'),
+-    'kf6-kwallet': ('src/runtime/ksecretd/knewwalletdialog.cpp',
+-                   'src/runtime/ksecretd/knewwalletdialogintro.ui', 'src/runtime/ksecretd/ksecretd.cpp'),
+-}
+-
+-
+-def patch_tree(package: str, root: Path) -> dict[str, str]:
+-    original: dict[str, str] = {}
+-    for relative in PATHS[package]:
+-        p = root / relative
+-        if p.is_symlink() or not p.is_file() or p.stat().st_size > 2_000_000:
+-            raise ValueError(f'unsafe or missing source: {relative}')
+-        if not p.resolve().is_relative_to(root.resolve()):
+-            raise ValueError(f'source escapes work tree: {relative}')
+-        original[relative] = p.read_text(encoding='utf-8')
+-    result = (patch_labwc if package == 'labwc' else patch_kwallet)(original)
+-    # Validate every expected context first; a mismatch never partially patches.
+-    for relative, content in result.items():
+-        (root / relative).write_text(content, encoding='utf-8')
+-    return original
+-
+-
+-def update_changelog(package: str, root: Path, version: str) -> None:
+-    if not re.fullmatch(r'[0-9A-Za-z.+:~_-]{1,140}', version):
+-        raise ValueError('invalid local package version')
+-    changelog = root / 'debian/changelog'
+-    if changelog.is_symlink() or not changelog.resolve().is_relative_to(root.resolve()):
+-        raise ValueError('unsafe source changelog')
+-    previous = changelog.read_text()
+-    if not previous.startswith(package + ' ('):
+-        raise ValueError('source changelog identity changed')
+-    header = (f'{package} ({version}) unstable; urgency=medium\n\n'
+-              f'  * Managed native session repairs {REVISION}; see installer provenance.\n\n'
+-              ' -- Unattended Installer <root@localhost>  Sat, 19 Sep 2026 00:00:00 +0000\n\n')
+-    changelog.write_text(header + previous)
+-
+-
+-if __name__ == '__main__':
+-    parser = argparse.ArgumentParser(description=__doc__)
+-    parser.add_argument('--changelog', action='store_true')
+-    parser.add_argument('package', choices=tuple(PATHS))
+-    parser.add_argument('source', type=Path)
+-    parser.add_argument('version', nargs='?')
+-    args = parser.parse_args()
+-    if args.changelog:
+-        if args.version is None:
+-            parser.error('--changelog requires the new version')
+-        update_changelog(args.package, args.source, args.version)
+-    else:
+-        if args.version is not None:
+-            parser.error('version is only valid with --changelog')
+-        patch_tree(args.package, args.source)
+--- original/d-i/forky/payload.manifest
++++ corrected/d-i/forky/payload.manifest
+@@ -479,9 +479,9 @@
+ 55572f7214d001042272bfee09e7ab51ca91fe19fbead9da02d5a8e6ea297995  hooks/target/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl
+ 9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704  hooks/target/etc/skel-desktop/.config/labwc/environment.tmpl
+ 6cc50a4a95123cc19b9262781c7a80691b6b63adff27d7d589b3e5e004661bd8  hooks/target/etc/skel-desktop/.config/labwc/menu.xml
+-8b6b90cf2a62b049f2b4f9f7f007ea8a0bb3c707a92fd897e4df54135c6ccd45  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
++27e0b31e6e8fc9d60d0c087cf6a4e94226c3817f609a0635276a73e8d52113cb  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+ 124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e  hooks/target/etc/skel-desktop/.config/labwc/shutdown
+-7d69ecba580e47e4dd6ddcc35673023910d3a6f797a7c79a9f6c2d4ee66c4e78  hooks/target/etc/skel-desktop/.config/labwc/themerc-override
++b584ed84e7d223733cb813f70703f0aac4edbf9fda1a86db2ecb439e410e5ba7  hooks/target/etc/skel-desktop/.config/labwc/themerc-override
+ 16fa3553c5dcc2a1f6bd8d9c24a1751b6afde24cc31c37669356f486dd76c132  hooks/target/etc/skel-desktop/.config/mako/config
+ 0e377ef6a9c9ed2a026828ea51c12bbe5287f9ee27457f74ffe2b839ae4bef9d  hooks/target/etc/skel-desktop/.config/micro/settings.json
+ cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/microsoft-edge/Default/Preferences
+@@ -909,7 +909,7 @@
+ a5da0492faad5885557bc2909a94cab059cdb8ad3e4d9b9ae8ef0e83af084314  hooks/target/usr/local/bin/labwc-wallpaper-save
+ edfa38b6e8e92dc500867ecbc46e555835a126b65312bbb8c40a148f59ce25dd  hooks/target/usr/local/bin/labwc-wayland-app
+ 59b0e3c856f5d5cc32d0a85768b4fc428dd620299e12c77140ab9e23bac1977b  hooks/target/usr/local/bin/labwc-wayscriber-toggle
+-0e7b11fee32053df5b735ec3b2752c095da850b82918c2882fc8e3d0774106e3  hooks/target/usr/local/bin/labwc-window-switcher
++d39621ba5d3df7cd85f82ae92652b64e8a83644ec084f685974001f5e4eb41b6  hooks/target/usr/local/bin/labwc-window-switcher
+ 1ff87730b9c51e77fd14854151fc8a5d0405767465bf7ff34276fbfb4a115325  hooks/target/usr/local/bin/local-apt-init
+ f4c8fbf759025d3af28b5fd4ccc8d60e2d2fbe7a3718871570984ccc550c44ce  hooks/target/usr/local/bin/mullvad-vpn
+ d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f  hooks/target/usr/local/bin/podman
+@@ -1219,8 +1219,6 @@
+ 2b3cc4b5b924732f20d85f103447d0fb7d062cac41197f79581f31b175a79b67  hooks/target/usr/local/share/debugsys/initramfs/hook
+ f3ee82bfcd69033717309ea6b2290c72bc39a7a8028256a7f92b32fc02e48e4b  hooks/target/usr/local/share/doc/managed-git/README.md
+ 53d44c92543194b3965fc0b556958adeb635a24b18cf3902eb4b7e5f89137e56  hooks/target/usr/local/share/icons/hicolor/64x64/apps/show-desktop.png
+-1785d9f35dde989d870bb46e269110fd2163b5c382af14047926fff3873d712b  hooks/target/usr/local/share/labwc/native-repairs/build_native.py
+-8bea87cb5e3619b268f10687bfbb15176c2d364c2536ce69ec1c39d4501be8ca  hooks/target/usr/local/share/labwc/native-repairs/patch_sources.py
+ f3ca82b753a99c7b847f79bfff32b4a2d8764c2fc9af952f75c6acb619f86c79  hooks/target/usr/local/share/labwc-ai-copilots/llama-models.tsv
+ 438e340188f430a0be6423e1549e65682172933088bfc92f72d79638860ca354  hooks/target/usr/local/share/labwc-ai-copilots/whisper-models.tsv
+ 306c6ca7407560340797866e077e053627ad409277d1b9da58106fce4cf717cb  hooks/target/usr/local/share/labwc-greeter/autostart
+@@ -1295,20 +1293,20 @@
+ 94081210336c0931bb614926233932ace6fffbc95877635da503e26a1b05a0b5  scripts/common/ssh.sh
+ 35337f6bbba446d99ad2b5971ea380990fdfc273e5b09a9ea89fe916149a104d  scripts/common/target.sh
+ cee7ee56d8d9130f84d227eb1c55417c631374c7f21fe28212dedbd6754916fe  scripts/desktop/android-platform-tools.sh
+-bee684cebb2db2e2a95ea3a5a1c0ecf7b42312f1f52c37121f5b1fc8e5f2f90d  scripts/desktop/components.sh
+-ab73e4cabeb00f9d8acd070f1a38fb1e14f378aa7d7c61424daf71f1598103d0  scripts/desktop/detect.sh
++242e37d8ab90432e8a42b42dc8ec81f2b2c734db79200b2cd2ee7aa1d697b919  scripts/desktop/components.sh
++2de502da81e207d677b39a7d49ebfc7769b45183417666b39e6f687efffc650e  scripts/desktop/detect.sh
+ 5435396aa5ea051b371b863566800c1e891f1946090e1d09e61f72ecb3fbdcd4  scripts/desktop/digital-assets.sh
+ 70df80ef8f52ca863c4ef2a81418804835f6cfb981ec906e8d979d469a23330e  scripts/desktop/fonts-install.py
+ 5db35b779e1874e287431ed3eaec817f75577aec05a4021ed8ca998ffb1ff6bc  scripts/desktop/fonts.sh
+ b16d5fa97dec6262690c15f96528facc6423ac1def5b2d36a7af6b805f57d750  scripts/desktop/hardware-tuning-config.py
+ b2710b4f4e6bf56eb84f6fd75d06589278c960e023cd958c604dbd6e568d02d7  scripts/desktop/hardware-tuning.sh
+ 013895b76fc43ced821be15ae0a36b07e0fb4715ba1e87f90df2fc06cc7a39b5  scripts/desktop/kanshi-policy.py
+-542f465b042ee93197bed700ac4ae9cedc862c24f92c6ece3d422daa82522a87  scripts/desktop/labwc.sh
++374323a218115db90fad29964aa1dc0aa1e112d66cbcb12684705bddbbbcd1f2  scripts/desktop/labwc.sh
+ 4104a3eb8bfadf981d0d75a18a86cccaecb7e6615631a829555ea38d31dad13f  scripts/desktop/resctl-bench-install.py
+ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/desktop/resctl-bench.sh
+ 258c53d585bb2d0be230de07f68ae0fb63806330a7bdc65cb013f8994d5cc67a  scripts/desktop/samloader.sh
+ 96bdfe253f23eef9b557763a8b9cf98b570e6eb2e1afe394ea41ab8815b9dd6a  scripts/desktop/satty.sh
+-daa6b2c9e881441f877612f0414b3be472014c3b36bd49d2f2e03851df76158c  scripts/desktop/verify.sh
++4d6437b20c04509e2ab4261bf6ca33d21cceac474377304a1783c24880596abd  scripts/desktop/verify.sh
+ ad237fd2352441859a96e1ccf950aac6ed4705dc3d68baa83bf69cf6308142d4  scripts/desktop/waypaper.sh
+ 5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672  scripts/desktop/xwayland.sh
+ 98a7c90c6c56beaefb210ebb05ee0c8cc24ac5ebd9a846d87b0c79238417a09c  scripts/early/dispatch.sh
+--- original/d-i/forky/preseed.cfg
++++ corrected/d-i/forky/preseed.cfg
+@@ -8,7 +8,7 @@
+ d-i clock-setup/ntp seen true
+ 
+ # Resolve the effective URL, validate the complete payload, then include local files.
+-d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; uid_gid) printf '"'"'%s:%s\012'"'"' "$3" "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; if [ -n "${DEBIAN_HAS_FRONTEND:-}" ]; then case "${INSTALLER_DEBCONF_STDIN_SAVED:-}" in 1) ( : <&8 ) 2>/dev/null || installer_lifecycle_abort 125 debconf '"'"'saved frontend reply descriptor is unavailable'"'"'; ;; '"'"''"'"') if ( : <&8 ) 2>/dev/null; then installer_lifecycle_abort 125 debconf '"'"'frontend reply descriptor 8 is already in use'"'"'; fi; ( : <&0 ) 2>/dev/null || installer_lifecycle_abort 125 debconf '"'"'frontend reply stream is unavailable'"'"'; exec 8<&0; INSTALLER_DEBCONF_STDIN_SAVED=1; export INSTALLER_DEBCONF_STDIN_SAVED; ;; *) installer_lifecycle_abort 125 debconf '"'"'invalid saved frontend descriptor state'"'"' ;; esac; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" b420ddecb81a2dcf43cec2617f34490cb23c87bbfc2c53cd673b926b58024e72 b64c09730474b95799fd89bd3bf7e00a5722d1e6fcd593fd0396830b8b87e3e2; installer_lifecycle_complete'
++d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; uid_gid) printf '"'"'%s:%s\012'"'"' "$3" "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; if [ -n "${DEBIAN_HAS_FRONTEND:-}" ]; then case "${INSTALLER_DEBCONF_STDIN_SAVED:-}" in 1) ( : <&8 ) 2>/dev/null || installer_lifecycle_abort 125 debconf '"'"'saved frontend reply descriptor is unavailable'"'"'; ;; '"'"''"'"') if ( : <&8 ) 2>/dev/null; then installer_lifecycle_abort 125 debconf '"'"'frontend reply descriptor 8 is already in use'"'"'; fi; ( : <&0 ) 2>/dev/null || installer_lifecycle_abort 125 debconf '"'"'frontend reply stream is unavailable'"'"'; exec 8<&0; INSTALLER_DEBCONF_STDIN_SAVED=1; export INSTALLER_DEBCONF_STDIN_SAVED; ;; *) installer_lifecycle_abort 125 debconf '"'"'invalid saved frontend descriptor state'"'"' ;; esac; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" 261d40610ff125683290f5287e8e62917ce0e3f7b891598b52a7104f400e4e4e e8b694b9f18017173ac57d3c06937896f0e11d8f557920fb5f8f4d2c8b5539ea; installer_lifecycle_complete'
+ 
+ d-i preseed/run string file:///tmp/install-runtime/bootstrap/preseed-apply.sh
+ 
+--- original/d-i/forky/scripts/desktop/components.sh
++++ corrected/d-i/forky/scripts/desktop/components.sh
+@@ -3035,6 +3035,9 @@
+ }
+ 
+ desktop_render_labwc_rc_xml() {
++  # Rendering is also used independently of the full desktop policy validator.
++  [ "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" = thumbnail ] ||
++    desktop_fatal "LABWC_WINDOW_SWITCHER_STYLE must be thumbnail (native window previews)"
+   workspace_count=${LABWC_WORKSPACE_COUNT:-4}
+   rc_path=/etc/skel-desktop/.config/labwc/rc.xml
+ 
+--- original/d-i/forky/scripts/desktop/detect.sh
++++ corrected/d-i/forky/scripts/desktop/detect.sh
+@@ -550,8 +550,8 @@
+   desktop_validate_uint_range LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS "${LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS:-0}" 0 10
+   desktop_validate_uint_range LABWC_WORKSPACE_COUNT "${LABWC_WORKSPACE_COUNT:-4}" 1 12
+   case "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" in
+-    thumbnail|classic) ;;
+-    *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_STYLE" ;;
++    thumbnail) ;;
++    *) desktop_fatal "LABWC_WINDOW_SWITCHER_STYLE must be thumbnail (native window previews)" ;;
+   esac
+   case "${LABWC_WINDOW_SWITCHER_ORDER:-focus}" in
+     focus|age) ;;
+--- original/d-i/forky/scripts/desktop/labwc.sh
++++ corrected/d-i/forky/scripts/desktop/labwc.sh
+@@ -105,28 +105,6 @@
+     [ -x "$installer_host_path" ] ||
+     fatal "target Codex standalone installer was not retained after installation"
+   desktop_log "installed off-PATH official Codex standalone package for app-server daemon discovery"
+-)
+-
+-# Build reviewed native fixes from the authenticated source of the packages
+-# already selected by this install. Do this BEFORE private-Xwayland staging:
+-# Debian build-dependencies may temporarily require the public development
+-# runtime, which desktop_install_xwayland then purges and verifies absent.
+-desktop_install_native_session_repairs() (
+-  native_support=/root/.installer-native-session-repairs
+-  native_host=$(target_asset_host_path "$native_support")
+-  [ ! -e "$native_host" ] && [ ! -L "$native_host" ] ||
+-    installer_fatal "unexpected native repair staging directory: $native_support"
+-  install -d -m 0700 "$native_host"
+-  for native_helper in build_native.py patch_sources.py; do
+-    desktop_stage_role_asset \
+-      "usr/local/share/labwc/native-repairs/$native_helper" \
+-      "$native_support/$native_helper" 0644
+-  done
+-  run_in_target "build native Labwc thumbnail and KWallet repairs from authenticated Debian source" \
+-    /usr/bin/python3 "$native_support/build_native.py" --install
+-  rm -f "$native_host/build_native.py" "$native_host/patch_sources.py"
+-  rmdir "$native_host"
+-  desktop_log "installed tracked native repair packages; host compositor built without Xwayland"
+ )
+ 
+ desktop_install_kanshi_policy() (
+@@ -195,7 +173,6 @@
+   desktop_configure_fido2_security_key_access
+   desktop_configure_packet_capture_access
+   desktop_log_policy_context
+-  desktop_install_native_session_repairs
+   desktop_install_xwayland
+   desktop_log "installed pinned private Xwayland compatibility runtime"
+   desktop_install_satty
+--- original/d-i/forky/scripts/desktop/verify.sh
++++ corrected/d-i/forky/scripts/desktop/verify.sh
+@@ -1751,11 +1751,10 @@
+     require(all(switcher.get(k) in ("yes", "no") for k in ("preview", "outlines", "unshade")), "invalid switcher boolean")
+     osd = switcher.find("osd")
+     require(osd is not None and osd.get("show") == "yes", "native switcher OSD missing")
+-    require(osd.get("style") in ("thumbnail", "classic"), "invalid switcher style")
++    require(osd.get("style") == "thumbnail", "native thumbnail switcher required; classic lists are not supported")
+     require(osd.get("output") in ("all", "focused", "cursor"), "invalid OSD output")
+     require(osd.get("thumbnailLabelFormat") == "%n \u2014 %T  %S  %o", "invalid switcher label")
+-    require([(f.get("content"), f.get("width")) for f in switcher.findall("fields/field")] ==
+-            [("icon", "7%"), ("desktop_entry_name", "23%"), ("state", "8%"), ("output", "12%"), ("title", "50%")], "invalid classic fallback fields")
++    require(switcher.find("fields") is None, "classic list fields must not be configured")
+     panel = [x for x in rc.findall("keyboard/keybind") if x.get("key") == "F13"]
+     require(len(panel) == 1 and panel[0].get("onRelease") is None, "invalid native panel switcher binding")
+     actions = panel[0].findall("action")
+--- original/d-i/forky/tests/test_native_session_followup_20260919.py
++++ corrected/d-i/forky/tests/test_native_session_followup_20260919.py
+@@ -1,309 +1,19 @@
+-"""Native-session regressions. No GPU, Wayland server, or Qt is mocked as real.
++"""Native-session output-authority and thumbnail-theme regressions.
+ 
+-The C harness executes the shipped patch fragments with small seat/view stubs.
+-The Perl harness executes production main-package functions, replacing external
+-endpoints only. Neither substitutes for a full Debian build or target session.
++The Perl harness executes production functions with external endpoints stubbed.
++It does not start a compositor or claim live Wayland acceptance. Source-builder
++and source-patcher tests were retired with those implementations on 2026-09-20.
+ """
+ from __future__ import annotations
+-import importlib.util
+-import os
+ from pathlib import Path
+-import shutil
+ import subprocess
+ import tempfile
+ import unittest
+-from unittest.mock import patch
+ import xml.etree.ElementTree as ET
+ 
+ ROOT = Path(__file__).resolve().parents[3]
+ FORKY = ROOT / 'd-i/forky'
+ TARGET = FORKY / 'hooks/target'
+-SUPPORT = TARGET / 'usr/local/share/labwc/native-repairs'
+-
+-
+-def load_module(name, path):
+-    spec = importlib.util.spec_from_file_location(name, path)
+-    module = importlib.util.module_from_spec(spec)
+-    spec.loader.exec_module(module)
+-    return module
+-
+-
+-native = load_module('native_patch_test', SUPPORT / 'patch_sources.py')
+-builder = load_module('native_build_test', SUPPORT / 'build_native.py')
+-
+-
+-def labwc_contexts():
+-    return {
+-        'src/cycle/cycle.c': '#include "cycle.h"\n' + native.CYCLE_INITIAL_OLD,
+-        'src/input/cursor.c': (
+-            'cursor_process_button_press(struct seat *seat, uint32_t button, uint32_t time_msec)\n{\n}\n'
+-            + native.CYCLE_RELEASE_OLD + '\n'
+-            'cursor_process_motion(uint32_t time, double *sx, double *sy)\n{\n}\n'
+-            '\tstruct scroll_info info = compare_delta(delta, delta_discrete,\n'
+-            '\t\t&server.seat.accumulated_scrolls[orientation]);\n'),
+-        'src/input/keyboard.c': '\t\tif (keyinfo->translated.syms[i] == XKB_KEY_Escape) {\n}\n',
+-        'meson.build': "conf_data = configuration_data()\nconf_data.set10('HAVE_XWAYLAND', have_xwayland)\n",
+-    }
+-
+-
+-def wallet_contexts():
+-    return {
+-        'src/runtime/ksecretd/knewwalletdialog.cpp': (
+-            'QVariant varKey = field(QStringLiteral("key"));\n'
+-            '    registerField(QStringLiteral("key"), this);\n'
+-            + native.WALLET_SELECTION_OLD + '\nwalletName.toHtmlEscaped());\n'
+-            'bool KNewWalletDialogGpg::validateCurrentPage()\n{\n    return false;\n}'),
+-        'src/runtime/ksecretd/knewwalletdialogintro.ui': (
+-            '<ui><widget class="QLabel" name="labelIntro"><property name="text">'
+-            '<string>&lt;html&gt;new wallet %1&lt;/html&gt;</string></property></widget></ui>'),
+-        'src/runtime/ksecretd/ksecretd.cpp': native.WALLET_PARENT_OLD,
+-    }
+-
+-
+-class SourceRepairTests(unittest.TestCase):
+-    def test_native_contexts_apply_and_preserve_original_dictionary(self):
+-        before = labwc_contexts()
+-        after = native.patch_labwc(before)
+-        self.assertIn(native.CYCLE_INITIAL_OLD, before['src/cycle/cycle.c'])
+-        self.assertIn(native.CYCLE_INITIAL_NEW, after['src/cycle/cycle.c'])
+-        self.assertIn(native.CYCLE_PRESS_NEW, after['src/input/cursor.c'])
+-        self.assertIn(native.CYCLE_RELEASE_NEW, after['src/input/cursor.c'])
+-        self.assertIn('have_xwayland = false\nconf_data', after['meson.build'])
+-        self.assertNotIn('ShowMenu', ''.join(after.values()))
+-
+-    def test_unknown_or_already_patched_layout_is_refused(self):
+-        for package, fixture, function in (
+-                ('labwc', labwc_contexts, native.patch_labwc),
+-                ('kf6-kwallet', wallet_contexts, native.patch_kwallet)):
+-            with self.subTest(package=package):
+-                with self.assertRaises(ValueError):
+-                    function(function(fixture()))
+-        with self.assertRaises(ValueError):
+-            native.once('same same', 'same', 'new', 'ambiguous')
+-
+-    def test_all_contexts_are_validated_before_any_write(self):
+-        with tempfile.TemporaryDirectory() as tmp:
+-            root = Path(tmp)
+-            original = labwc_contexts()
+-            original['meson.build'] = 'unexpected upstream layout\n'
+-            for path, text in original.items():
+-                p = root / path
+-                p.parent.mkdir(parents=True, exist_ok=True)
+-                p.write_text(text)
+-            with self.assertRaises(ValueError):
+-                native.patch_tree('labwc', root)
+-            self.assertEqual({p: (root / p).read_text() for p in original}, original)
+-
+-    def test_symlink_source_is_refused(self):
+-        with tempfile.TemporaryDirectory() as tmp:
+-            root = Path(tmp)
+-            for path, text in labwc_contexts().items():
+-                p = root / path
+-                p.parent.mkdir(parents=True, exist_ok=True)
+-                p.write_text(text)
+-            p = root / 'meson.build'
+-            p.rename(root / 'real-meson')
+-            p.symlink_to('real-meson')
+-            with self.assertRaises(ValueError):
+-                native.patch_tree('labwc', root)
+-
+-    def test_wallet_selection_and_translation_are_repaired_not_disabled(self):
+-        after = native.patch_kwallet(wallet_contexts())
+-        cpp = after['src/runtime/ksecretd/knewwalletdialog.cpp']
+-        self.assertNotIn('registerField', cpp)
+-        self.assertNotIn('setField', cpp)
+-        self.assertIn('_gpg->property("managedSelectedKey")', cpp)
+-        self.assertIn('item ? item->data(Qt::UserRole) : QVariant()', cpp)
+-        self.assertIn('selectedItems().isEmpty()', cpp)
+-        self.assertIn('walletName.toHtmlEscaped()', cpp)
+-        self.assertIn('return _complete && property("managedSelectedKey").isValid();', cpp)
+-        self.assertNotIn('validateCurrentPage()\n{\n    return false;', cpp)
+-        ui = ET.fromstring(after['src/runtime/ksecretd/knewwalletdialogintro.ui'])
+-        placeholder = ui.find('.//string')
+-        self.assertEqual(placeholder.attrib, {'notr': 'true'})
+-        self.assertFalse(placeholder.text)
+-        daemon = after['src/runtime/ksecretd/ksecretd.cpp']
+-        self.assertIn('isPlatformWayland()', daemon)
+-        self.assertIn('else if (wId != 0)', daemon)
+-        self.assertIn('Qt::ApplicationModal', daemon)
+-
+-    def test_local_changelog_keeps_original_history(self):
+-        with tempfile.TemporaryDirectory() as tmp:
+-            root = Path(tmp)
+-            (root / 'debian').mkdir()
+-            old = 'labwc (0.20.2-1) unstable; urgency=medium\n'
+-            (root / 'debian/changelog').write_text(old)
+-            native.update_changelog('labwc', root, '0.20.2-1+managed20260919.2')
+-            text = (root / 'debian/changelog').read_text()
+-            self.assertTrue(text.endswith(old))
+-            self.assertIn('0.20.2-1+managed20260919.2', text)
+-            with self.assertRaises(ValueError):
+-                native.update_changelog('labwc', root, '1\nInjected')
+-
+-
+-class AuthenticatedBuilderTests(unittest.TestCase):
+-    def sources(self, text, name='debian.sources'):
+-        with tempfile.TemporaryDirectory() as tmp:
+-            root = Path(tmp)
+-            (root / 'sources.list.d').mkdir()
+-            (root / 'sources.list.d' / name).write_text(text)
+-            # File ownership is tested separately. This permits non-root CI.
+-            with patch.object(builder, 'safe_root_path'):
+-                return builder.source_configuration(root)
+-
+-    def test_actual_installer_one_line_source_is_supported(self):
+-        output = self.sources('deb [signed-by=' + builder.KEYRING + '] https://deb.debian.org/debian forky main contrib non-free non-free-firmware\n', 'debian.list')
+-        self.assertIn('Types: deb deb-src', output)
+-        self.assertIn('Suites: forky', output)
+-        self.assertIn('Signed-By: ' + builder.KEYRING, output)
+-
+-    def test_deb822_sources_are_authenticated_and_deduplicated(self):
+-        stanza = ('Types: deb\nURIs: https://deb.debian.org/debian\nSuites: forky\n'
+-                  'Components: main\nSigned-By: ' + builder.KEYRING + '\n')
+-        output = self.sources(stanza + '\n' + stanza)
+-        self.assertEqual(output.count('URIs:'), 1)
+-
+-    def test_insecure_or_unrelated_sources_are_not_used(self):
+-        for text in (
+-                'Types: deb\nURIs: https://example.org/repo\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/vendor.gpg\n',
+-                'deb [signed-by=' + builder.KEYRING + ' trusted=yes] https://deb.debian.org/debian forky main\n',
+-                'deb [signed-by=' + builder.KEYRING + '] file:/tmp/repo forky main\n'):
+-            with self.subTest(text=text), self.assertRaises(ValueError):
+-                self.sources(text, 'debian.list' if text.startswith('deb ') else 'debian.sources')
+-
+-    def test_duplicate_deb822_fields_are_rejected(self):
+-        with self.assertRaises(ValueError):
+-            builder.paragraphs('Types: deb\nTypes: deb-src\n')
+-
+-    def test_root_path_rejects_symlink(self):
+-        with tempfile.TemporaryDirectory() as tmp:
+-            p = Path(tmp) / 'link'
+-            p.symlink_to('/etc')
+-            with self.assertRaises(ValueError):
+-                builder.safe_root_path(p)
+-
+-    def test_command_uses_argv_and_propagates_failure(self):
+-        self.assertEqual(builder.command(['/usr/bin/printf', '%s', 'literal;not-shell'], capture=True), 'literal;not-shell')
+-        with self.assertRaises(subprocess.CalledProcessError):
+-            builder.command(['/bin/sh', '-c', 'exit 7'], capture=True)
+-
+-    def test_timeout_reaps_owned_command(self):
+-        with self.assertRaises(subprocess.TimeoutExpired):
+-            builder.command(['/bin/sleep', '20'], timeout=0.05, capture=True)
+-
+-    def test_native_build_precedes_public_xwayland_purge(self):
+-        source = (FORKY / 'scripts/desktop/labwc.sh').read_text()
+-        run = source.split('run_desktop_late_command() {', 1)[1]
+-        self.assertLess(run.index('desktop_install_native_session_repairs'), run.index('desktop_install_xwayland'))
+-        self.assertIn("have_xwayland = false", native.patch_labwc(labwc_contexts())['meson.build'])
+-
+-
+-class NativeCFragmentTests(unittest.TestCase):
+-    @unittest.skipUnless(shutil.which('cc'), 'C compiler required for native fragment harness')
+-    def test_input_state_machine_compiles_and_executes(self):
+-        # The exact NEW fragments embedded in the installer patch are compiled,
+-        # not a separately reimplemented model. Stubs stand in for real wlroots.
+-        source = r'''
+-#include <assert.h>
+-#include <stdbool.h>
+-#include <stdint.h>
+-#include <stdio.h>
+-enum { LAB_INPUT_STATE_PASSTHROUGH, LAB_INPUT_STATE_CYCLE };
+-enum { LAB_NODE_OTHER, LAB_NODE_CYCLE_OSD_ITEM };
+-enum { BTN_LEFT=1, BTN_RIGHT=2, LAB_CYCLE_DIR_FORWARD=1, LAB_CYCLE_DIR_BACKWARD=-1 };
+-enum { WLR_MODIFIER_SHIFT=1, WLR_MODIFIER_CTRL=4, WLR_MODIFIER_ALT=8,
+-       WLR_MODIFIER_LOGO=64, WLR_MODIFIER_CAPS=2, WLR_MODIFIER_MOD2=16 };
+-enum { XKB_KEY_Return=10, XKB_KEY_KP_Enter=11, XKB_KEY_F13=12 };
+-struct seat { uint32_t bound_buttons; };
+-struct { struct seat seat; int input_mode; struct { int selected_view; } cycle; } server;
+-struct context { int type; int node; } ctx;
+-struct scroll_info { int direction; bool run_action; };
+-struct keyinfo { struct { int syms[1]; } translated; };
+-static uint32_t modifiers;
+-static int accepted, cancelled, steps;
+-static uint32_t keyboard_get_all_modifiers(struct seat *seat) { (void)seat; return modifiers; }
+-static int get_next_selected_view(int direction) { return server.cycle.selected_view + direction; }
+-static void lab_set_add(uint32_t *set, uint32_t button) { *set |= 1U << button; }
+-static void cycle_finish(bool select) { accepted += select; cancelled += !select; server.input_mode=LAB_INPUT_STATE_PASSTHROUGH; }
+-static void cycle_on_cursor_release(int node) { server.cycle.selected_view=node; cycle_finish(true); }
+-static void cycle_step(int direction) { steps+=direction; }
+-static void start(int direction) {
+-server.cycle.selected_view=5;
+-@INITIAL@
+-server.input_mode=LAB_INPUT_STATE_CYCLE;
+-}
+-static bool press(struct seat *seat, uint32_t button) {
+-@PRESS@
+-return true;
+-}
+-static bool release(uint32_t button) {
+-bool notify=!(server.seat.bound_buttons & (1U << button));
+-@RELEASE@
+-return notify;
+-}
+-static void finish_release(uint32_t button) { server.seat.bound_buttons &= ~(1U << button); }
+-static bool motion(void) {
+-@MOTION@
+-return true;
+-}
+-static bool scroll(struct scroll_info info) {
+-@AXIS@
+-return true;
+-}
+-static bool key(struct keyinfo *keyinfo) {
+-for(int i=0;i<1;i++) {
+-@KEY@
+-}
+-return false;
+-}
+-int main(void) {
+-/* F13 keeps the current view even with lock modifiers. Alt-Tab advances. */
+-modifiers=0; start(1); assert(server.cycle.selected_view==5);
+-modifiers=WLR_MODIFIER_CAPS|WLR_MODIFIER_MOD2; start(1); assert(server.cycle.selected_view==5);
+-modifiers=WLR_MODIFIER_ALT; start(1); assert(server.cycle.selected_view==6);
+-modifiers=WLR_MODIFIER_ALT|WLR_MODIFIER_SHIFT; start(-1); assert(server.cycle.selected_view==4);
+-modifiers=0; start(1); assert(!motion());
+-assert(!scroll((struct scroll_info){1,false})); assert(steps==0);
+-assert(!scroll((struct scroll_info){1,true})); assert(steps==1);
+-assert(!scroll((struct scroll_info){-1,true})); assert(steps==0);
+-/* A release from the click that opened the OSD must complete the client pair. */
+-ctx=(struct context){LAB_NODE_CYCLE_OSD_ITEM,9};
+-assert(release(BTN_LEFT)); assert(server.input_mode==LAB_INPUT_STATE_CYCLE);
+-assert(accepted==0 && cancelled==0);
+-/* New thumbnail click is wholly owned by the OSD; no client click-through. */
+-assert(!press(&server.seat,BTN_LEFT)); assert(!release(BTN_LEFT)); finish_release(BTN_LEFT);
+-assert(accepted==1 && server.cycle.selected_view==9 && !server.seat.bound_buttons);
+-assert(motion());
+-/* Outside or right click cancels. The following ordinary click works normally. */
+-start(1); ctx=(struct context){LAB_NODE_OTHER,0};
+-assert(!press(&server.seat,BTN_LEFT)); assert(!release(BTN_LEFT)); finish_release(BTN_LEFT);
+-assert(cancelled==1); assert(press(&server.seat,BTN_LEFT)); assert(release(BTN_LEFT));
+-start(1); ctx=(struct context){LAB_NODE_CYCLE_OSD_ITEM,9};
+-assert(!press(&server.seat,BTN_RIGHT)); assert(!release(BTN_RIGHT)); finish_release(BTN_RIGHT);
+-assert(cancelled==2 && accepted==1);
+-struct keyinfo info={{{XKB_KEY_Return}}}; start(1); assert(key(&info)); assert(accepted==2);
+-info.translated.syms[0]=XKB_KEY_KP_Enter; start(1); assert(key(&info)); assert(accepted==3);
+-info.translated.syms[0]=XKB_KEY_F13; start(1); assert(key(&info)); assert(cancelled==3);
+-puts("native input fragments: all assertions passed");
+-return 0;
+-}
+-'''
+-        for key, fragment in {
+-                'INITIAL': native.CYCLE_INITIAL_NEW, 'PRESS': native.CYCLE_PRESS_NEW,
+-                'RELEASE': native.CYCLE_RELEASE_NEW, 'MOTION': native.CYCLE_MOTION_NEW,
+-                'AXIS': native.CYCLE_AXIS_NEW, 'KEY': native.CYCLE_KEY_NEW}.items():
+-            source = source.replace('@' + key + '@', fragment)
+-        with tempfile.TemporaryDirectory() as tmp:
+-            cpp = Path(tmp) / 'native.c'
+-            binary = Path(tmp) / 'native'
+-            cpp.write_text(source)
+-            result = subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror',
+-                                     '-fsanitize=undefined', str(cpp), '-o', str(binary)],
+-                                    capture_output=True, text=True, timeout=30)
+-            self.assertEqual(result.returncode, 0, result.stderr)
+-            result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
+-            self.assertEqual(result.returncode, 0, result.stderr)
+-            self.assertIn('all assertions passed', result.stdout)
+ 
+ 
+ class OutputAuthorityTests(unittest.TestCase):
+--- original/d-i/forky/tests/test_policy_alignment_20260919.py
++++ corrected/d-i/forky/tests/test_policy_alignment_20260919.py
+@@ -19,8 +19,8 @@
+         self.assertIn('@emeraldgreen', block)
+         theme = (TARGET / 'etc/skel-desktop/.config/labwc/themerc-override').read_text()
+         values = dict(line.split(': ', 1) for line in theme.splitlines() if ': ' in line and not line.startswith('#'))
+-        self.assertEqual(values['osd.window-switcher.style-classic.item.active.border.color'].upper(), rgb.upper())
+-        background = values['osd.window-switcher.style-classic.item.active.bg.color']
++        self.assertEqual(values['osd.window-switcher.style-thumbnail.item.active.border.color'].upper(), rgb.upper())
++        background = values['osd.window-switcher.style-thumbnail.item.active.bg.color']
+         self.assertEqual(background[:7].upper(), rgb.upper()); self.assertEqual(background[7:], '26')
+         self.assertEqual(values['osd.window-switcher.preview.border.color'].upper(), f'{rgb},#0c1017,{rgb}'.upper())
+ 
+--- original/d-i/forky/tests/test_systemd_resource_policy.py
++++ corrected/d-i/forky/tests/test_systemd_resource_policy.py
+@@ -204,18 +204,6 @@
+                     self.assertEqual(original.count(current), 1)
+                     original = original.replace(current, previous, 1)
+                 if relative == 'd-i/forky/scripts/desktop/labwc.sh':
+-                    # This incident adds a native-package installer only. Verify
+-                    # that exact added block separately, then retain the original
+-                    # workload-policy hash unchanged (no broad source exclusion).
+-                    native_block = re.search(br'^# Build reviewed native fixes .*?^\)\n\n',
+-                                             original, re.M | re.S)
+-                    self.assertIsNotNone(native_block)
+-                    self.assertEqual(hashlib.sha256(native_block.group(0)).hexdigest(),
+-                                     '3ce567de623f0de9cfcb11f901c883b256fc16fa2a1ef453b5b5ab1e34b91114')
+-                    original = original.replace(native_block.group(0), b'', 1)
+-                    native_call = b'  desktop_install_native_session_repairs\n'
+-                    self.assertEqual(original.count(native_call), 1)
+-                    original = original.replace(native_call, b'', 1)
+                     # Opt-in package reconciliation is independent of workload
+                     # policy. Exclude only the reviewed exact helper and calls,
+                     # preserving the original immutable hash for everything else.
+--- original/d-i/forky/tests/test_workspace_no_broker.py
++++ corrected/d-i/forky/tests/test_workspace_no_broker.py
+@@ -67,75 +67,74 @@
+ 
+ 
+ class NativeWorkspaceRenderingTests(unittest.TestCase):
+-    def test_all_twelve_counts_and_both_switcher_styles(self):
++    def test_all_twelve_counts_use_native_thumbnails(self):
+         for count in range(1, 13):
+-            for style in ('thumbnail', 'classic'):
+-                with self.subTest(workspaces=count, style=style), tempfile.TemporaryDirectory() as temporary:
+-                    root = Path(temporary)
+-                    result = render(root, count, style)
+-                    self.assertEqual(result.returncode, 0, result.stderr)
+-                    if count > 1:
+-                        self.assertIn('task strip omitted', result.stderr)
+-                    else:
+-                        self.assertNotIn('task strip omitted', result.stderr)
+-                    config = root / 'etc/skel-desktop/.config'
+-                    rc = ET.parse(config / 'labwc/rc.xml').getroot()
+-                    self.assertEqual(int(rc.findtext('desktops/number')), count)
+-                    self.assertEqual([n.text for n in rc.findall('desktops/names/name')],
+-                                     [str(i) for i in range(1, count + 1)])
+-                    for key, action in (('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
+-                        binding = rc.findall(f'keyboard/keybind[@key="{key}"]')
+-                        self.assertEqual(len(binding), 1)
+-                        actions = binding[0].findall('action')
+-                        self.assertEqual(len(actions), 1)
+-                        self.assertEqual(actions[0].attrib, dict(name=action, workspace='current',
+-                                                                output='all', identifier='all'))
+-                    self.assertEqual(rc.find("keyboard/keybind[@key='F13']/action").attrib,
+-                                     {'name': 'NextWindow', 'workspace': 'current',
+-                                      'output': 'all', 'identifier': 'all'})
+-                    switchers = rc.findall('windowSwitcher')
+-                    self.assertEqual(len(switchers), 1)
+-                    self.assertEqual(switchers[0].attrib,
+-                                     dict(preview='yes', outlines='yes', unshade='yes', order='focus'))
+-                    self.assertEqual(switchers[0].find('osd').attrib,
+-                                     dict(show='yes', style=style, output='focused',
+-                                          thumbnailLabelFormat='%n \u2014 %T  %S  %o'))
+-                    # Preserve the existing direct keys for workspaces 1--9.
+-                    # Higher workspaces remain reachable through ext/workspaces.
+-                    for index in range(1, min(count, 9) + 1):
+-                        for key, name in ((f'W-{index}', 'GoToDesktop'),
+-                                          (f'W-S-{index}', 'SendToDesktop')):
+-                            action = rc.find(f'keyboard/keybind[@key="{key}"]/action')
+-                            self.assertIsNotNone(action)
+-                            self.assertEqual(action.attrib, dict(name=name, to=str(index)))
+-                    bars = json.loads((config / 'waybar/config').read_text())
+-                    self.assertEqual(len(bars), 2)
+-                    for bar in bars:
+-                        expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'group/apps']
+-                        if count == 1:
+-                            expected += ['wlr/taskbar']
+-                        self.assertEqual(bar['modules-left'], expected)
+-                        self.assertEqual(bar['ext/workspaces']['on-click'], 'activate')
+-                        self.assertTrue(bar['ext/workspaces']['all-outputs'])
+-                        self.assertFalse(bar['ext/workspaces']['active-only'])
+-                        taskbar = bar['wlr/taskbar']
+-                        self.assertEqual(taskbar['format'], '{icon}')
+-                        self.assertEqual(taskbar['icon-theme'], 'Papirus-Dark')
+-                        self.assertFalse(taskbar['all-outputs'])
+-                        self.assertFalse(taskbar['sort-by-app-id'])
+-                        self.assertEqual(taskbar['on-click'], 'minimize-raise')
+-                        self.assertEqual(taskbar['on-click-right'], 'minimize-raise')
+-                        self.assertEqual(taskbar['on-click-middle'], 'close')
+-                        self.assertNotIn('group/workspace-taskbar', bar)
+-                    for name in ('waybar/config', 'waybar/style.css', 'labwc/rc.xml'):
+-                        self.assertNotIn('__INSTALLER_', (config / name).read_text())
++            with self.subTest(workspaces=count), tempfile.TemporaryDirectory() as temporary:
++                root = Path(temporary)
++                result = render(root, count, 'thumbnail')
++                self.assertEqual(result.returncode, 0, result.stderr)
++                if count > 1:
++                    self.assertIn('task strip omitted', result.stderr)
++                else:
++                    self.assertNotIn('task strip omitted', result.stderr)
++                config = root / 'etc/skel-desktop/.config'
++                rc = ET.parse(config / 'labwc/rc.xml').getroot()
++                self.assertEqual(int(rc.findtext('desktops/number')), count)
++                self.assertEqual([n.text for n in rc.findall('desktops/names/name')],
++                                 [str(i) for i in range(1, count + 1)])
++                for key, action in (('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
++                    binding = rc.findall(f'keyboard/keybind[@key="{key}"]')
++                    self.assertEqual(len(binding), 1)
++                    actions = binding[0].findall('action')
++                    self.assertEqual(len(actions), 1)
++                    self.assertEqual(actions[0].attrib, dict(name=action, workspace='current',
++                                                            output='all', identifier='all'))
++                self.assertEqual(rc.find("keyboard/keybind[@key='F13']/action").attrib,
++                                 {'name': 'NextWindow', 'workspace': 'current',
++                                  'output': 'all', 'identifier': 'all'})
++                switchers = rc.findall('windowSwitcher')
++                self.assertEqual(len(switchers), 1)
++                self.assertEqual(switchers[0].attrib,
++                                 dict(preview='yes', outlines='yes', unshade='yes', order='focus'))
++                self.assertEqual(switchers[0].find('osd').attrib,
++                                 dict(show='yes', style='thumbnail', output='focused',
++                                      thumbnailLabelFormat='%n \u2014 %T  %S  %o'))
++                # Preserve the existing direct keys for workspaces 1--9.
++                # Higher workspaces remain reachable through ext/workspaces.
++                for index in range(1, min(count, 9) + 1):
++                    for key, name in ((f'W-{index}', 'GoToDesktop'),
++                                      (f'W-S-{index}', 'SendToDesktop')):
++                        action = rc.find(f'keyboard/keybind[@key="{key}"]/action')
++                        self.assertIsNotNone(action)
++                        self.assertEqual(action.attrib, dict(name=name, to=str(index)))
++                bars = json.loads((config / 'waybar/config').read_text())
++                self.assertEqual(len(bars), 2)
++                for bar in bars:
++                    expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'group/apps']
++                    if count == 1:
++                        expected += ['wlr/taskbar']
++                    self.assertEqual(bar['modules-left'], expected)
++                    self.assertEqual(bar['ext/workspaces']['on-click'], 'activate')
++                    self.assertTrue(bar['ext/workspaces']['all-outputs'])
++                    self.assertFalse(bar['ext/workspaces']['active-only'])
++                    taskbar = bar['wlr/taskbar']
++                    self.assertEqual(taskbar['format'], '{icon}')
++                    self.assertEqual(taskbar['icon-theme'], 'Papirus-Dark')
++                    self.assertFalse(taskbar['all-outputs'])
++                    self.assertFalse(taskbar['sort-by-app-id'])
++                    self.assertEqual(taskbar['on-click'], 'minimize-raise')
++                    self.assertEqual(taskbar['on-click-right'], 'minimize-raise')
++                    self.assertEqual(taskbar['on-click-middle'], 'close')
++                    self.assertNotIn('group/workspace-taskbar', bar)
++                for name in ('waybar/config', 'waybar/style.css', 'labwc/rc.xml'):
++                    self.assertNotIn('__INSTALLER_', (config / name).read_text())
+ 
+     def test_valid_alternative_switcher_profile(self):
+         choices = dict(LABWC_WINDOW_SWITCHER_ORDER='age', LABWC_WINDOW_SWITCHER_PREVIEW='no',
+                        LABWC_WINDOW_SWITCHER_OUTLINES='no', LABWC_WINDOW_SWITCHER_UNSHADE='no',
+                        LABWC_WINDOW_SWITCHER_OSD_OUTPUT='cursor', LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT='focused')
+         with tempfile.TemporaryDirectory() as temporary:
+-            result = subprocess.run(['/bin/sh', str(FIXTURE), str(ROOT), temporary, '4', 'classic'],
++            result = subprocess.run(['/bin/sh', str(FIXTURE), str(ROOT), temporary, '4', 'thumbnail'],
+                                     env=dict(os.environ, **choices), capture_output=True, text=True, timeout=20)
+             self.assertEqual(result.returncode, 0, result.stderr)
+             rc = ET.parse(Path(temporary) / 'etc/skel-desktop/.config/labwc/rc.xml').getroot()
+@@ -151,8 +150,7 @@
+         text = (TARGET / 'etc/skel-desktop/.config/labwc/themerc-override').read_text()
+         for line in ('osd.window-switcher.style-thumbnail.width.max: 82%',
+                      'osd.window-switcher.style-thumbnail.item.width: 300',
+-                     'osd.window-switcher.style-thumbnail.item.height: 230',
+-                     'osd.window-switcher.style-classic.width: 76%'):
++                     'osd.window-switcher.style-thumbnail.item.height: 230'):
+             self.assertIn(line, text)
+ 
+     def test_switcher_enums_reject_invalid_values(self):
+@@ -160,7 +158,7 @@
+         start = source.index('  case "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}"')
+         end = source.index('  desktop_validate_uint_range LABWC_QBITTORRENT_PORT', start)
+         checks = source[start:end]
+-        for key, value in (('STYLE', 'broken'), ('ORDER', 'focus" />'), ('PREVIEW', 'true'),
++        for key, value in (('STYLE', 'broken'), ('STYLE', 'classic'), ('ORDER', 'focus" />'), ('PREVIEW', 'true'),
+                            ('OUTLINES', 'yes; id'), ('UNSHADE', 'YES'), ('OSD_OUTPUT', 'HDMI-A-1'),
+                            ('CYCLE_OUTPUT', 'other')):
+             with self.subTest(key=key):
+@@ -203,7 +201,7 @@
+     def test_accepts_native_single_workspace_configuration(self):
+         with tempfile.TemporaryDirectory() as temporary:
+             root = Path(temporary)
+-            complete_fixture(root, 1, 'classic')
++            complete_fixture(root, 1, 'thumbnail')
+             result = run_code(verifier(root), '/home/test')
+             self.assertEqual(result.returncode, 0, result.stderr)
+             self.assertIn('taskbar=native-single-workspace', result.stdout)
+@@ -236,10 +234,20 @@
+         path.write_text(json.dumps(bars))
+         self.assertIn('native switcher button missing', self.verify().stderr)
+ 
+-    def test_rejects_broken_classic_fallback(self):
++    def test_rejects_classic_list_style(self):
+         path = self.root / 'home/test/.config/labwc/rc.xml'
+-        path.write_text(path.read_text().replace('width="50%"', 'width="60%"', 1))
+-        self.assertIn('invalid classic fallback fields', self.verify().stderr)
++        tree = ET.parse(path)
++        tree.find('windowSwitcher/osd').set('style', 'classic')
++        tree.write(path, encoding='unicode')
++        self.assertIn('native thumbnail switcher required', self.verify().stderr)
++
++    def test_rejects_classic_list_fields(self):
++        path = self.root / 'home/test/.config/labwc/rc.xml'
++        tree = ET.parse(path)
++        fields = ET.SubElement(tree.find('windowSwitcher'), 'fields')
++        ET.SubElement(fields, 'field', content='title', width='100%')
++        tree.write(path, encoding='unicode')
++        self.assertIn('classic list fields must not be configured', self.verify().stderr)
+ 
+     def test_rejects_stale_broker_executable(self):
+         path = self.root / 'usr/local/libexec/labwc-workspace-broker'
+--- /dev/null
++++ corrected/d-i/forky/tests/test_packaged_native_session_20260920.py
+@@ -0,0 +1,182 @@
++"""Regression coverage for packaged labwc/KWallet and native thumbnails.
++
++The installer-flow fixture replaces target mutations with explicit stubs. It
++executes the real shell orchestrator; it does not boot d-i or start Wayland.
++"""
++from __future__ import annotations
++
++from pathlib import Path
++import re
++import shutil
++import subprocess
++import tarfile
++import tempfile
++import unittest
++
++ROOT = Path(__file__).resolve().parents[3]
++FORKY = ROOT / 'd-i/forky'
++TARGET = FORKY / 'hooks/target'
++
++# Only these existing installer steps may run in the flow fixture. An unexpected
++# new helper or target command must fail rather than being automatically stubbed.
++STEPS = (
++    'desktop_resolve_acceleration_availability',
++    'desktop_resolve_managed_app_default_exec',
++    'desktop_resolve_generic_app_defaults',
++    'desktop_validate_managed_app_default_exec',
++    'desktop_preflight_required_cmdline_tokens',
++    'desktop_xwayland_preflight_target_architecture',
++    'desktop_satty_preflight_target_architecture',
++    'desktop_android_platform_tools_preflight_target_architecture',
++    'desktop_samloader_preflight_target_architecture',
++    'desktop_digital_assets_preflight_target_architecture',
++    'desktop_resctl_bench_preflight_target_architecture',
++    'desktop_detect_connected_drm_outputs',
++    'desktop_resolve_greeter_user',
++    'desktop_configure_greeter_access',
++    'desktop_configure_usb_media_access',
++    'desktop_configure_android_debug_bridge_access',
++    'desktop_configure_fido2_security_key_access',
++    'desktop_configure_packet_capture_access',
++    'desktop_install_xwayland',
++    'desktop_install_satty',
++    'desktop_install_android_platform_tools',
++    'desktop_install_samloader',
++    'desktop_install_digital_assets',
++    'desktop_install_resctl_bench',
++    'desktop_install_kanshi_policy',
++    'desktop_stage_target_assets',
++    'desktop_render_greetd_config',
++    'desktop_render_labwc_default_config',
++    'desktop_install_hardware_tuning',
++    'desktop_write_labwc_plans_config',
++    'desktop_install_user_resource_policy',
++    'desktop_install_user_config',
++    'desktop_install_fonts',
++    'desktop_install_waypaper',
++    'desktop_enable_target_services',
++    'desktop_verify_kanshi_policy',
++    'desktop_install_codex_standalone',
++)
++
++
++class PackagedNativeSessionTests(unittest.TestCase):
++    def test_binary_packages_remain_selected_once(self):
++        role = (FORKY / 'classes/class-select/role/desktop.cfg').read_text()
++        packages = re.search(r'^d-i pkgsel/include string (.*)$', role, re.M)[1].split()
++        self.assertEqual(packages.count('labwc'), 1)
++        self.assertEqual(packages.count('kwallet6'), 1)
++        self.assertIn('qt6-wayland', packages)
++        self.assertIn('wtype', packages)
++
++    def test_no_source_builder_patcher_or_staging_path_in_active_payload(self):
++        retired = ('build_native.py', 'patch_sources.py', 'native-repairs',
++                   '.installer-native-session-repairs', 'managed-native-repairs',
++                   'desktop_install_native_session_repairs')
++        for directory in (FORKY / 'scripts', TARGET):
++            for path in directory.rglob('*'):
++                if not path.is_file():
++                    continue
++                data = path.read_bytes()
++                for token in retired:
++                    self.assertNotIn(token, str(path.relative_to(FORKY)))
++                    self.assertNotIn(token.encode(), data, str(path.relative_to(FORKY)))
++
++    def test_published_archive_and_manifest_do_not_restore_deleted_helpers(self):
++        manifest = (FORKY / 'payload.manifest').read_text()
++        self.assertNotIn('native-repairs', manifest)
++        with tarfile.open(FORKY / 'payload.tar.gz', 'r:gz') as archive:
++            self.assertFalse(any('native-repairs' in name for name in archive.getnames()))
++            member = archive.extractfile('scripts/desktop/labwc.sh')
++            self.assertIsNotNone(member)
++            self.assertNotIn(b'desktop_install_native_session_repairs', member.read())
++
++    def test_stock_binary_paths_and_existing_isolation_remain(self):
++        units = TARGET / 'etc/skel-desktop/.config/systemd/user'
++        compositor = (units / 'labwc-compositor.service').read_text()
++        wallet = (units / 'labwc-kwallet-portal.service').read_text()
++        self.assertIn('ExecStart=/usr/bin/labwc ', compositor)
++        self.assertIn('InaccessiblePaths=-/opt/xwayland', compositor)
++        self.assertIn('UnsetEnvironment=DISPLAY XAUTHORITY WLR_XWAYLAND', compositor)
++        self.assertIn('ExecStart=/usr/bin/ksecretd\n', wallet)
++        self.assertIn('Environment=QT_QPA_PLATFORM=wayland', wallet)
++        for unit in (compositor, wallet):
++            self.assertIn('KillMode=control-group', unit)
++            self.assertIn('PartOf=labwc-session.target', unit)
++        policy = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
++        self.assertIn('profile managed-ksecretd /usr/bin/ksecretd', policy)
++
++    def flow(self, shell, failure=''):
++        definitions = ''.join(
++            f'{name}() {{ printf "%s\\n" "{name}"; '
++            f'if [ "${{FAIL_STEP:-}}" = "{name}" ]; then return 71; fi; }}\n'
++            for name in STEPS)
++        script = '''set -eu
++. "$1"
++desktop_log() { :; }
++desktop_log_policy_context() { :; }
++installer_info() { :; }
++desktop_policy_enabled() { return 0; }
++run_in_target() {
++  case "$1" in
++    'verify GIO desktop-entry binding')
++      [ "$2" = /usr/bin/python3 ] && [ "$3" = -I ] && [ "$4" = -c ] || return 90 ;;
++    'wrap installed desktop package launchers')
++      [ "$2" = /usr/local/libexec/labwc-wrap-desktop-files ] && [ "$#" -eq 2 ] || return 90 ;;
++    *) printf 'unexpected target operation: %s\\n' "$1" >&2; return 91 ;;
++  esac
++}
++''' + definitions + '\nrun_desktop_late_command fixture fixture\n'
++        environment = {
++            'PATH': '/usr/bin:/bin', 'LC_ALL': 'C',
++            'INSTALLER_HOST_VARIANT': 'desktop', 'HOST_PROFILE': 'fixture',
++            'LABWC_MANAGED_APP_DEFAULT_EXEC': 'foot', 'ACCOUNT_USERNAME': 'test',
++            'LABWC_GREETER_USER': 'greeter', 'FAIL_STEP': failure,
++            **{name + '_TARGET_ARCHITECTURE': 'amd64' for name in
++               ('XWAYLAND', 'SATTY', 'ANDROID_PLATFORM_TOOLS', 'SAMLOADER', 'DIGITAL_ASSETS')},
++        }
++        return subprocess.run([*shell, '-c', script, 'test', str(FORKY / 'scripts/desktop/labwc.sh')],
++                              env=environment, text=True, capture_output=True, timeout=10)
++
++    def test_desktop_flow_reaches_completion_without_source_build(self):
++        shells = [('/bin/sh',)]
++        if shutil.which('busybox'):
++            shells.append((shutil.which('busybox'), 'sh'))
++        for shell in shells:
++            with self.subTest(shell=shell):
++                result = self.flow(shell)
++                self.assertEqual(result.returncode, 0, result.stderr)
++                self.assertEqual(result.stdout.splitlines(), list(STEPS))
++
++    def test_unrelated_install_failures_are_not_swallowed(self):
++        result = self.flow(('/bin/sh',), 'desktop_install_xwayland')
++        self.assertEqual(result.returncode, 71, result.stderr)
++        self.assertEqual(result.stdout.splitlines()[-1], 'desktop_install_xwayland')
++        self.assertNotIn('desktop_install_satty', result.stdout)
++
++    def test_list_mode_and_injection_fail_before_replacing_rendered_config(self):
++        fixture = FORKY / 'tests/fixtures/workspaces/render.sh'
++        for style in ('classic', 'broken', 'thumbnail" /><action name="Exit', 'thumbnail; id'):
++            with self.subTest(style=style), tempfile.TemporaryDirectory() as tmp:
++                destination = Path(tmp)
++                config = destination / 'etc/skel-desktop/.config/labwc/rc.xml'
++                config.parent.mkdir(parents=True)
++                config.write_text('existing configuration\n')
++                result = subprocess.run(['/bin/sh', str(fixture), str(ROOT), tmp, '4', style],
++                                        text=True, capture_output=True, timeout=10)
++                self.assertNotEqual(result.returncode, 0)
++                self.assertIn('must be thumbnail', result.stderr)
++                self.assertEqual(config.read_text(), 'existing configuration\n')
++
++    def test_no_classic_theme_or_fields_in_managed_switcher(self):
++        directory = TARGET / 'etc/skel-desktop/.config/labwc'
++        self.assertNotIn('<fields>', (directory / 'rc.xml.tmpl').read_text())
++        self.assertNotIn('style-classic', (directory / 'themerc-override').read_text())
++        launcher = (TARGET / 'usr/local/bin/labwc-window-switcher').read_text()
++        self.assertIn('exec /usr/bin/wtype -k F13', launcher)
++        for token in ('fuzzel', 'ShowMenu', '-M alt', 'sleep '):
++            self.assertNotIn(token, launcher)
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ corrected/docs/PACKAGED-NATIVE-SESSION-20260920.md
+@@ -0,0 +1,214 @@
++# Packaged labwc/KWallet and native thumbnail switching
++
++Date: 20 September 2026
++
++## Scope and result
++
++This revision removes the installer-time labwc and KWallet source builds from
++`debian-preseed-de(4).zip`. Both applications continue to come from the existing
++Debian binary package selection: `labwc` and `kwallet6`. No replacement compiler,
++patcher, source repository, local binary, package hold or error-ignore fallback
++has been introduced.
++
++The installer no longer calls the step labelled **build native Labwc thumbnail
++and KWallet repairs from authenticated Debian source**. That step and both of
++its implementation files are deleted. It is not conditional, deferred to first
++boot or suppressed with `|| true`. Consequently, new installations cannot fail
++inside that removed source-build step. The supplied complaint identifies that
++step, but does not include its compiler/build traceback; this report does not
++invent a more specific compiler or dependency diagnosis.
++
++This is an installation/configuration repair, not a claim to have fixed every
++upstream compositor, Qt, driver or hardware defect. Unrelated workload policy,
++KWallet storage, AppArmor rules, output coordination, desktop application
++launchers and systemd services are retained.
++
++## Source-build removal
++
++Removed from `d-i/forky/scripts/desktop/labwc.sh`:
++
++* `desktop_install_native_session_repairs()` and its call in the desktop late
++  command.
++* Creation/staging of `/root/.installer-native-session-repairs`.
++* The Python source-builder invocation and its staging cleanup.
++
++Deleted from `d-i/forky/hooks/target/usr/local/share/labwc/native-repairs/`:
++
++* `build_native.py`.
++* `patch_sources.py`.
++
++The generated payload archive and manifest are rebuilt without those files,
++and the generated preseed contains the corresponding new integrity hashes.
++The build tool used for this regeneration, `tools/build.py`, creates the
++installer's tar archive and preseed: it does **not** compile labwc or KWallet.
++
++The source-package dependency installation, temporary build user, custom
++`+managed20260919.2` package versions, locally generated packages and repair
++receipt are no longer part of the installation path. The ordinary development
++tools already selected by the desktop role remain selected; removing the
++user's development environment would be an unrelated change.
++
++## Native thumbnails, not a window list
++
++The compositor's configuration retains the native `windowSwitcher` OSD with
++`show="yes"` and `style="thumbnail"`. Default preview, outline and unshade settings
++remain enabled. Application icons, thumbnail labels, emerald selection tint,
++thumbnail sizing, current-workspace filtering and output selection are retained.
++
++The two keyboard shortcuts remain native compositor actions:
++
++```xml
++<keybind key="A-Tab">
++  <action name="NextWindow" workspace="current" output="all" identifier="all" />
++</keybind>
++<keybind key="A-S-Tab">
++  <action name="PreviousWindow" workspace="current" output="all" identifier="all" />
++</keybind>
++```
++
++The Waybar button keeps its existing session-bound transient service. Its
++one-shot launcher sends F13 through `/usr/bin/wtype`; F13 invokes native
++`NextWindow`. It does not launch Fuzzel, a `ShowMenu` window list, an external
++thumbnail application, a polling daemon or a held-modifier process.
++
++`LABWC_WINDOW_SWITCHER_STYLE` accepts only `thumbnail`, defaulting to that value
++when unset/empty as before. The full policy validator and the independent XML
++renderer both reject `classic` or malformed values. The renderer rejects these
++values before overwriting an existing configuration. The installed-configuration
++verifier rejects classic OSD mode and classic list fields in either the skeleton
++or account configuration. The now-unused list fields and classic theme entries
++are removed.
++
++Stock compositor behavior replaces the old private C patches. In particular,
++this release does not promise the deleted patch's active-window-first selection,
++F13-as-cancel, Enter-to-accept, wheel handling or outside-click semantics. The
++packaged compositor owns those behaviors. Alt+Tab and Shift+Alt+Tab use its normal
++modifier lifecycle; the documented arrow-key and Escape handling is native.
++No source patch is needed to enable thumbnail rendering itself.
++
++## KWallet and isolation
++
++`kwallet6` remains in the Debian package selection, with `qt6-wayland` and the
++existing session environment. `labwc-kwallet-portal.service` still launches the
++packaged `/usr/bin/ksecretd`, uses the Secret Service D-Bus name, and remains
++bound to the compositor/session with control-group termination. No KWallet
++contents are deleted, no password is cleared and no empty-password wallet is
++created. The former private QWizard/GPG/Wayland-parenting patches are removed,
++not reimplemented as insecure configuration workarounds.
++
++The compositor still launches `/usr/bin/labwc`. The existing private
++Zoom/Discord compatibility boundary is unchanged: public Xwayland is removed
++by the existing installer, inherited X11/Xwayland selectors are cleared for
++the compositor, and `/opt/xwayland` is hidden in its service mount namespace.
++The Debian compositor is **not** claimed to be compiled without Xwayland;
++that compile-time change belonged to the deleted patcher.
++
++The AppArmor profiles and systemd service/drop-in files are byte-for-byte
++unchanged from the supplied archive. The output-authority, batching, no-op
++modeset and Kanshi pause/resume tests from the preceding revision are retained.
++There is no service-disable or confinement-relaxation workaround in this change.
++
++## Regression and publication checks
++
++The new `test_packaged_native_session_20260920.py` checks binary package
++selection, absence of source helpers in the active tree and published payload,
++stock executable paths, retained service isolation, the real shell late-command
++control flow under dash and BusyBox, failure propagation, and refusal to render
++classic/injected switcher settings over an existing configuration.
++
++Existing workspace tests exercise all 12 supported workspace counts, native
++Alt+Tab/Shift+Alt+Tab/F13 actions, both monitor-panel configurations, installed
++configuration rejection and broker retirement. The old tests for the deleted
++source builder and C patch fragments were retired with their implementations;
++output-authority and theme tests remain. The workload-policy preservation test
++now compares against the original native-build-free source without the former
++exception for inserting the build hook.
++
++Current evidence is in `validation/packaged-native-session-20260920/`.
++`summary.json` records the full validation stages, actual test counts, skipped
++tests, audit categories and generated product hashes. Separate scope and
++packaging evidence documents precisely which files changed and verifies the
++published tar archive. Historical validation directories describe older
++revisions and must not be treated as new execution results.
++
++Validation does not boot an unattended installation or create a real Wayland
++session. This execution environment has no labwc display/GPU session; its package
++network DNS is unavailable. Dependency-gated skipped checks are recorded rather
++than silently replaced with fake success. Live thumbnail interaction, wallet
++creation/unlock, AppArmor enforcement under the target kernel, driver behavior
++and a complete installation remain on-host acceptance checks.
++
++### Executed results for this release
++
++All seven validation stages completed with exit status zero. The repository
++suite ran 1,802 tests with 37 explicit skips; the tooling suite ran
++179 tests with 0 skips. Neither suite reported failures or errors.
++The focused output/theme, workspace, package-only and resource-policy runs
++completed 61 tests with no skips. Those focused runs overlap the full suite;
++they are not additional distinct coverage.
++
++The shell checker passed 581 parser checks over 285 shell files. The publication
++check verified all 1,377 payload members against both source bytes and manifest
++hashes, checked the preseed pins, and confirmed byte-identical regeneration.
++The scope audit found 17 modified originals, two deleted source helpers and two
++new source/documentation files; 3,076 original files remain byte-identical.
++All retained original file and directory permissions are preserved. All 79
++AppArmor files and 190 systemd-path files are unchanged.
++
++The static audit reports 156 dependency-blocked checks and
++11 tool-blocked checks, separately from successful checks. Its
++inventory-only, structure-only and unrendered-template categories are not live
++runtime validation. `skipped-tests.json` lists every skipped test and its actual
++reason, including missing tools/dependencies, absent original audit logs and an
++unavailable noexec test condition. These are limitations, not passing tests.
++
++Reproduce the main validation in a suitably provisioned Linux environment:
++
++```sh
++python3 -B tools/validate.py \
++  --output-dir validation/local-packaged-native-session \
++  --test-timeout 1800
++```
++
++## Deployment
++
++Publish the **complete** new `debian-preseed-de/` directory as one release. Do not
++mix an old `preseed.cfg`, `payload.manifest` or `payload.tar.gz` with this tree.
++Extract into a new directory and atomically switch the served release; do not
++overlay individual files over a previously served snapshot. Verify the supplied
++SHA-256 checksum before publishing and keep the existing site-specific/private
++credential handling outside the served tree.
++
++The archive repairs the code served to future installations. It is not an
++in-place package downgrade/repair script for an already partially installed
++machine. A system on which the old builder already installed custom packages
++requires inspection of its package versions and the old repair receipt before
++restoring distribution packages. Existing user wallets must be backed up and
++preserved; no blanket purge, autoremove or wallet deletion is authorized here.
++
++On a disposable target, the remaining acceptance checks are: complete d-i
++through first login without any native source-build step; verify Debian-managed
++labwc/KWallet versions; exercise native thumbnail switching from both keyboard
++and Waybar; verify wallet unlock/Secret Service; and confirm session shutdown,
++AppArmor enforcement and the private Xwayland boundary. These checks are not
++represented as performed by the offline regression suite.
++
++## Primary references checked for this change
++
++* [Debian forky labwc package](https://packages.debian.org/forky/labwc)
++  (the retrieved listing reports 0.20.2-1).
++* [Debian forky kwallet6 package](https://packages.debian.org/forky/kwallet6).
++* [Debian kwallet6 file list](https://packages.debian.org/forky/amd64/kwallet6/filelist)
++  confirms `/usr/bin/ksecretd`.
++* [labwc configuration manual](https://labwc.github.io/labwc-config.5.html),
++  `windowSwitcher/osd`: `thumbnail` is a grid of window previews, icons and titles;
++  `classic` is the vertical information list.
++* [labwc action manual](https://labwc.github.io/labwc-actions.5.html),
++  `NextWindow`/`PreviousWindow`.
++* [labwc theme manual](https://labwc.github.io/labwc-theme.5.html),
++  `osd.window-switcher.style-thumbnail.*`.
++* [labwc 0.20.2 cycling implementation](https://raw.githubusercontent.com/labwc/labwc/0.20.2/src/cycle/cycle.c)
++  and [keyboard handling](https://raw.githubusercontent.com/labwc/labwc/0.20.2/src/input/keyboard.c).
++
++Package listings are a point-in-time reference, not a new version pin or a
++promise about the contents of a future testing-suite mirror.

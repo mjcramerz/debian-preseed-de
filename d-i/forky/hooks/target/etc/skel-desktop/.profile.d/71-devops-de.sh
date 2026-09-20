@@ -91,9 +91,9 @@ devops_de_account_owned_directory_is_mode() (
   devops_de_path_real=$(/usr/bin/readlink -f -- "$devops_de_path_value" 2>/dev/null) ||
     return 1
   [ "$devops_de_path_real" = "$devops_de_path_value" ] || return 1
-  devops_de_path_owner=$(/usr/bin/stat -c '%u' -- "$devops_de_path_value" 2>/dev/null) ||
+  devops_de_path_owner=$(/usr/bin/find -P "$devops_de_path_value" -maxdepth 0 -printf '%U' 2>/dev/null) ||
     return 1
-  devops_de_path_actual_mode=$(/usr/bin/stat -c '%a' -- "$devops_de_path_value" 2>/dev/null) ||
+  devops_de_path_actual_mode=$(/usr/bin/find -P "$devops_de_path_value" -maxdepth 0 -printf '%m' 2>/dev/null) ||
     return 1
   devops_de_path_uid=$(/usr/bin/id -u 2>/dev/null) || return 1
   [ "$devops_de_path_owner" = "$devops_de_path_uid" ] &&
@@ -265,7 +265,7 @@ devops_de_apply_ssh_agent_environment() {
   unset SSH_AGENT_PID
   /usr/local/bin/git-ssh unlock || return 1
   [ -S "$SSH_AUTH_SOCK" ] && [ ! -L "$SSH_AUTH_SOCK" ] || return 1
-  [ "$(/usr/bin/stat -c '%u:%a' -- "$SSH_AUTH_SOCK")" = "$(/usr/bin/id -u):600" ]
+  [ "$(/usr/bin/find -P "$SSH_AUTH_SOCK" -maxdepth 0 -printf '%U:%m')" = "$(/usr/bin/id -u):600" ]
 }
 
 devops_de_apply_environment() {

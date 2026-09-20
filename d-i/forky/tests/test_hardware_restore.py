@@ -22,26 +22,26 @@ SHARED = FORKY / 'hooks/target'
 REQUESTED = {
     'etc/default/grub.d/75-intel-vfio.cfg': 'vfio-pci.ids=8086:02e0',
     'etc/default/grub.d/80-cpu-profile-flags.intel.cfg': 'iommu.strict=1',
-    'etc/modprobe.d/cfg80211.conf': 'ieee80211_regdom=SE',
-    'etc/modprobe.d/e1000e.conf': 'InterruptThrottleRate=3000 RxIntDelay=0 TxIntDelay=0',
-    'etc/modprobe.d/thinkpad-acpi.conf': 'fan_control=1 brightness_enable=1',
-    'etc/modprobe.d/thunderbolt.conf': 'options thunderbolt clx=0',
-    'etc/modprobe.d/vfio-pci.conf': 'ids=8086:02e0',
+    'etc/modprobe.d/75-cfg80211.conf': 'ieee80211_regdom=SE',
+    'etc/modprobe.d/77-e1000e.conf': 'InterruptThrottleRate=3000 RxIntDelay=0 TxIntDelay=0',
+    'etc/modprobe.d/79-thinkpad-acpi.conf': 'fan_control=1 brightness_enable=1',
+    'etc/modprobe.d/71-thunderbolt.conf': 'options thunderbolt xdomain=0 clx=1',
+    'etc/modprobe.d/70-vfio-pci.conf': 'ids=8086:02e0',
     'etc/modules-load.d/35-vfio.conf': 'vfio_pci',
     'etc/udev/rules.d/85-wifi-regdom.rules': '/usr/sbin/iw reg set SE',
     'etc/default/grub.d/72-nvme-platform.cfg': 'nvme_core.default_ps_max_latency_us=3200',
-    'etc/default/grub.d/73-pcie-power.cfg': 'pcie_aspm=off pcie_port_pm=off usbcore.autosuspend=-1',
+    'etc/default/grub.d/73-pcie-power.cfg': 'pcie_aspm.policy=powersave pcie_ports=native usbcore.autosuspend=2',
     'etc/initramfs-tools/modules.nvme.tmpl': 'xxhash_generic',
-    'etc/modprobe.d/nvme.conf': 'default_ps_max_latency_us=3200 io_timeout=30',
-    'etc/modprobe.d/usbcore.conf': 'autosuspend=-1',
+    'etc/modprobe.d/73-nvme.conf': 'default_ps_max_latency_us=3200 io_timeout=30',
+    'etc/modprobe.d/74-usbcore.conf': 'autosuspend=2',
     'etc/modules-load.d/10-btrfs.nvme.conf': 'xxhash_generic',
     'etc/default/grub.d/87-gpu-nvidia.cfg': 'pci=realloc=on',
-    'etc/modprobe.d/nvidia.conf': 'NVreg_PreserveVideoMemoryAllocations=1',
+    'etc/modprobe.d/82-nvidia.conf': 'NVreg_PreserveVideoMemoryAllocations=1',
 }
 
 
 # Payload sources are independent of installed paths.
-DESTINATIONS = {'etc/default/grub.d/75-intel-vfio.cfg': 'etc/default/grub.d/75-intel-vfio.cfg', 'etc/default/grub.d/80-cpu-profile-flags.intel.cfg': 'etc/default/grub.d/80-cpu-profile-flags.cfg', 'etc/modprobe.d/cfg80211.conf': 'etc/modprobe.d/cfg80211.conf', 'etc/modprobe.d/e1000e.conf': 'etc/modprobe.d/e1000e.conf', 'etc/modprobe.d/thinkpad-acpi.conf': 'etc/modprobe.d/thinkpad-acpi.conf', 'etc/modprobe.d/thunderbolt.conf': 'etc/modprobe.d/thunderbolt.conf', 'etc/modprobe.d/vfio-pci.conf': 'etc/modprobe.d/vfio-pci.conf', 'etc/modules-load.d/35-vfio.conf': 'etc/modules-load.d/35-vfio.conf', 'etc/udev/rules.d/85-wifi-regdom.rules': 'etc/udev/rules.d/85-wifi-regdom.rules', 'etc/default/grub.d/72-nvme-platform.cfg': 'etc/default/grub.d/72-nvme-platform.cfg', 'etc/default/grub.d/73-pcie-power.cfg': 'etc/default/grub.d/73-pcie-power.cfg', 'etc/initramfs-tools/modules.nvme.tmpl': 'etc/initramfs-tools/modules', 'etc/modprobe.d/nvme.conf': 'etc/modprobe.d/nvme.conf', 'etc/modprobe.d/usbcore.conf': 'etc/modprobe.d/usbcore.conf', 'etc/modules-load.d/10-btrfs.nvme.conf': 'etc/modules-load.d/10-btrfs.conf', 'etc/default/grub.d/87-gpu-nvidia.cfg': 'etc/default/grub.d/87-gpu-nvidia.cfg', 'etc/modprobe.d/nvidia.conf': 'etc/modprobe.d/nvidia.conf'}
+DESTINATIONS = {'etc/default/grub.d/75-intel-vfio.cfg': 'etc/default/grub.d/75-intel-vfio.cfg', 'etc/default/grub.d/80-cpu-profile-flags.intel.cfg': 'etc/default/grub.d/80-cpu-profile-flags.cfg', 'etc/modprobe.d/75-cfg80211.conf': 'etc/modprobe.d/75-cfg80211.conf', 'etc/modprobe.d/77-e1000e.conf': 'etc/modprobe.d/77-e1000e.conf', 'etc/modprobe.d/79-thinkpad-acpi.conf': 'etc/modprobe.d/79-thinkpad-acpi.conf', 'etc/modprobe.d/71-thunderbolt.conf': 'etc/modprobe.d/71-thunderbolt.conf', 'etc/modprobe.d/70-vfio-pci.conf': 'etc/modprobe.d/70-vfio-pci.conf', 'etc/modules-load.d/35-vfio.conf': 'etc/modules-load.d/35-vfio.conf', 'etc/udev/rules.d/85-wifi-regdom.rules': 'etc/udev/rules.d/85-wifi-regdom.rules', 'etc/default/grub.d/72-nvme-platform.cfg': 'etc/default/grub.d/72-nvme-platform.cfg', 'etc/default/grub.d/73-pcie-power.cfg': 'etc/default/grub.d/73-pcie-power.cfg', 'etc/initramfs-tools/modules.nvme.tmpl': 'etc/initramfs-tools/modules', 'etc/modprobe.d/73-nvme.conf': 'etc/modprobe.d/73-nvme.conf', 'etc/modprobe.d/74-usbcore.conf': 'etc/modprobe.d/74-usbcore.conf', 'etc/modules-load.d/10-btrfs.nvme.conf': 'etc/modules-load.d/10-btrfs.conf', 'etc/default/grub.d/87-gpu-nvidia.cfg': 'etc/default/grub.d/87-gpu-nvidia.cfg', 'etc/modprobe.d/82-nvidia.conf': 'etc/modprobe.d/82-nvidia.conf'}
 
 
 def active(text: str) -> str:
@@ -69,9 +69,10 @@ def copy_binary(root: Path, binary: str, destination=None):
 
 def make_chroot(root: Path):
     copy_binary(root, shutil.which('busybox'), '/bin/busybox')
-    for name in ('sh', 'sed', 'head', 'tr', 'readlink', 'sort', 'stat', 'cat', 'chmod',
+    for name in ('sh', 'sed', 'head', 'tr', 'readlink', 'sort', 'cat', 'chmod',
                  'mkdir', 'install', 'mktemp', 'rm', 'dirname'):
         (root / 'bin' / name).symlink_to('busybox')
+    copy_binary(root, '/usr/bin/find', '/bin/find')
     for directory in ('dev', 'tmp', 'etc/default/grub.d', 'etc/grub.d', 'boot/grub'):
         (root / directory).mkdir(parents=True, exist_ok=True)
     (root / 'tmp').chmod(0o1777)
@@ -88,7 +89,7 @@ class HardwareFilesTests(unittest.TestCase):
                 self.assertIn(expected, active((HARDWARE / relative).read_text()))
 
     def test_vfio_never_enables_unsafe_noiommu(self):
-        for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/vfio-pci.conf'):
+        for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/70-vfio-pci.conf'):
             text = active((HARDWARE / 'etc' / name).read_text())
             self.assertNotIn('enable_unsafe_noiommu_mode=1', text)
             self.assertNotIn('allow_unsafe_interrupts=1', text)
@@ -108,7 +109,7 @@ class HardwareFilesTests(unittest.TestCase):
     def test_nvidia_false_branch_removes_only_target_assets(self):
         for family in ('btrfs-family.sh', 'f2fs-family.sh'):
             text = (FORKY / 'scripts/late' / family).read_text()
-            self.assertIn('remove_target_asset "${DIR_MODPROBE_D}/nvidia.conf"', text)
+            self.assertIn('remove_target_asset "${DIR_MODPROBE_D}/82-nvidia.conf"', text)
             self.assertNotIn('rm -f \\\n      "${DIR_MODPROBE_D}/50-nouveau-blacklist.conf"', text)
 
 
@@ -140,13 +141,13 @@ printf 'vfio=%s\nnvme=%s\nnvidia=%s\nmodules=%s\n' "$FILE_MODPROBE_VFIO" "$FILE_
 
     def test_intel_nvme_enables_entire_vfio_chain(self):
         text = self.policy()
-        self.assertIn('vfio=/etc/modprobe.d/vfio-pci.conf', text)
+        self.assertIn('vfio=/etc/modprobe.d/70-vfio-pci.conf', text)
         self.assertIn('modules=vfio\nvfio_pci\nvfio_iommu_type1', text)
 
     def test_amd_nvme_does_not_get_intel_vfio(self):
         text = self.policy(cpu='amd')
         self.assertIn('vfio=\n', text)
-        self.assertIn('nvme=/etc/modprobe.d/nvme.conf', text)
+        self.assertIn('nvme=/etc/modprobe.d/73-nvme.conf', text)
 
     def test_arm64_has_no_x86_platform_or_microcode_policy(self):
         text = self.policy(cpu='generic-arm64', nvidia=False)
@@ -335,7 +336,7 @@ class GrubGeneratorTests(unittest.TestCase):
         self.assertEqual(len(lines), 4)
         for line in lines:
             for flag in ('vfio-pci.ids=8086:02e0', 'nvme_core.default_ps_max_latency_us=3200',
-                         'pcie_aspm=off', 'usbcore.autosuspend=-1'):
+                         'pcie_aspm.policy=powersave', 'pcie_ports=native', 'usbcore.autosuspend=2'):
                 self.assertIn(flag, line)
         for line in lines[1:]:
             self.assertIn('nvidia-drm.modeset=1', line)

@@ -51,9 +51,9 @@ incus_profile_account_owned_directory_is_mode() (
   incus_profile_real=$(/usr/bin/readlink -f -- "$incus_profile_directory" 2>/dev/null) ||
     return 1
   [ "$incus_profile_real" = "$incus_profile_directory" ] || return 1
-  incus_profile_owner=$(/usr/bin/stat -c '%u' -- "$incus_profile_directory" 2>/dev/null) ||
+  incus_profile_owner=$(/usr/bin/find -P "$incus_profile_directory" -maxdepth 0 -printf '%U' 2>/dev/null) ||
     return 1
-  incus_profile_actual_mode=$(/usr/bin/stat -c '%a' -- "$incus_profile_directory" 2>/dev/null) ||
+  incus_profile_actual_mode=$(/usr/bin/find -P "$incus_profile_directory" -maxdepth 0 -printf '%m' 2>/dev/null) ||
     return 1
   incus_profile_uid=$(/usr/bin/id -u 2>/dev/null) || return 1
   [ "$incus_profile_owner" = "$incus_profile_uid" ] &&

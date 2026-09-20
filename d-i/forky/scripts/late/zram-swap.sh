@@ -218,7 +218,7 @@ stage_target_zram_perl_modules() {
 }
 
 stage_target_zram_assets() {
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/zram.conf)" "${FILE_MODPROBE_ZRAM}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/90-zram.conf)" "${FILE_MODPROBE_ZRAM}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/40-zram.conf)" "${FILE_MODULES_LOAD_ZRAM}" 0644
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/zram-writeback.tmpl)" "${FILE_ZRAM_DEFAULT}" 0644
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/zram-writeback.conf)" "${FILE_ZRAM_CONFIG}" 0644

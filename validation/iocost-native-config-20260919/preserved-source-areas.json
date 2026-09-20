@@ -1,0 +1,37 @@
+[
+  {
+    "area": "d-i/forky/hosts/profiles",
+    "files": 13,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/hooks/target/etc/apparmor.d",
+    "files": 78,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/hooks/target/etc/default/grub.d",
+    "files": 24,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/hooks/target/etc/modprobe.d",
+    "files": 21,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/scripts/desktop",
+    "files": 16,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning",
+    "files": 8,
+    "changed": []
+  },
+  {
+    "area": "d-i/forky/hooks/target/usr/local/bin",
+    "files": 76,
+    "changed": []
+  }
+]

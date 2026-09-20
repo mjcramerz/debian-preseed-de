@@ -32,7 +32,7 @@ desktop_install_hardware_tuning() (
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker 0755
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy 0755
   desktop_stage_role_asset etc/apparmor.d/managed-hardware-tuning /etc/apparmor.d/managed-hardware-tuning 0644
-  for hardware_bridge in desktop-parent fuzzel-parent; do
+  for hardware_bridge in desktop-parent fuzzel-parent management-parent; do
     desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" 0644
   done
   for hardware_vendor in $hardware_vendors; do

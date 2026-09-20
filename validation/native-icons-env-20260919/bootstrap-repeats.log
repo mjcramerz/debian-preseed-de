@@ -1,0 +1,8 @@
+iteration 0 seconds 8.523 counts {'/short': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz': 1}
+stderr ''
+iteration 1 seconds 8.064 counts {'/short': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz': 1}
+stderr ''
+iteration 2 seconds 8.206 counts {'/short': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz': 1}
+stderr ''
+iteration 3 seconds 8.207 counts {'/short': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest': 1, '/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz': 1}
+stderr ''

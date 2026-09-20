@@ -10,8 +10,9 @@ installer_debconf_error() {
 
 # Use the inherited frontend when present. Starting debconf-communicate against
 # its database would introduce a second writer and can lose in-memory changes.
-# The caller must preserve stdin (including inside read loops). FDs 3-6 belong
-# to d-i; stdout here is solely a returned VALUE, never the protocol connection.
+# Lifecycle entry preserves reply stdin on FD 8. Legacy standalone callers
+# without that snapshot must preserve stdin themselves. FDs 3-6 belong to d-i;
+# stdout here is solely a returned VALUE, never the protocol connection.
 installer_debconf_request() (
   set +x
   set +v
@@ -31,6 +32,13 @@ installer_debconf_request() (
     if [ -z "${DEBCONF_REDIR:-}" ]; then
       installer_debconf_error 'frontend descriptors were not initialized'
       exit 125
+    fi
+    if [ "${INSTALLER_DEBCONF_STDIN_SAVED:-}" = 1 ]; then
+      ( : <&8 ) 2>/dev/null || {
+        installer_debconf_error 'saved frontend reply descriptor is unavailable'
+        exit 125
+      }
+      exec 0<&8
     fi
     if ! printf '%s\n' "$idb_request" >&3; then
       installer_debconf_error 'cannot write to inherited frontend'
@@ -94,6 +102,14 @@ installer_debconf_apply_file() (
   idb_work=$(mktemp -d /tmp/installer-debconf.XXXXXX) || exit 125
   # Diagnostics can contain selections. Keep them private; do not echo them.
   # Successful calls clean up. Failed calls retain diagnostics for recovery.
+  if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] &&
+     [ "${INSTALLER_DEBCONF_STDIN_SAVED:-}" = 1 ]; then
+    ( : <&8 ) 2>/dev/null || {
+      installer_debconf_error 'saved frontend reply descriptor is unavailable'
+      exit 125
+    }
+    exec 0<&8
+  fi
   if debconf-set-selections "$idb_file" 2>"$idb_work/stderr"; then
     rm -rf "$idb_work"
   else

@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 PATH=/usr/local/bin:/usr/bin:/bin
 LANG=C.UTF-8
 LC_ALL=C.UTF-8
@@ -49,8 +56,7 @@ choose_lines() {
   printf '%s\n' "$@" |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "$prompt" 2>/dev/null ||
-    true
+      --prompt "$prompt" || menu_failure "$?"
 }
 
 settle_udev() {
@@ -953,8 +959,7 @@ while :; do
     } |
       labwc-fuzzel menu \
         --dmenu \
-        --prompt "External drives" 2>/dev/null ||
-      true
+        --prompt "External drives" || menu_failure "$?"
   )
   [ -n "$selection" ] || exit 0
 

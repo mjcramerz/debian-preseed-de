@@ -72,6 +72,13 @@ narrow policy addition, not a replacement for the existing desktop threat model.
 
 ## 2. Daily SSH/GPG use
 
+Since the 2026-09-19 session repair, login activates the SSH agent socket but
+**does not automatically unlock the encrypted private key**. Unlock is explicit
+through `git-ssh unlock`, or requested by the existing `devops` launcher. This
+avoids a cold-cache pinentry dialog timing out unattended during session startup.
+Existing installer-owned loader wants links are removed on installer reruns;
+the loader service itself, its timeout, encryption and error reporting remain.
+
 From a normal terminal inside the primary user's Labwc session:
 
 ```sh
@@ -118,7 +125,7 @@ Useful nonsecret diagnostics:
 
 ```sh
 printf '%s\n' "$SSH_AUTH_SOCK"
-stat -Lc '%U %a %F' "$XDG_RUNTIME_DIR/openssh_agent"
+find -H "$XDG_RUNTIME_DIR/openssh_agent" -maxdepth 0 -printf '%u %m %y\n'
 ssh-add -l -E sha256
 ssh -G gitlab.com
 ssh -G github.com

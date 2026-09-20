@@ -138,14 +138,15 @@ tooltip label {
   padding: 0 7px;
   color: @royalpurple;
   font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
-  font-weight: 700;
+  font-weight: 900;
 }
 
 #custom-wayscriber {
   min-width: 28px;
   padding: 0 7px;
   color: @marineblue;
-  font-weight: 700;
+  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+  font-weight: 900;
 }
 
 #custom-app-terminal,
@@ -464,4 +465,17 @@ window#waybar.internal #custom-app-sleek {
 #custom-window-switcher:hover {
   color: @emeraldgreen;
   background: alpha(@emeraldgreen, 0.15);
+}
+
+/* Clickable status chips need hover feedback just like launcher buttons. */
+#clock:hover,
+#pulseaudio:hover,
+#custom-backlight:hover,
+#battery:hover,
+#disk:hover,
+#cpu:hover,
+#memory:hover {
+  background: @panel_hover;
+  border-color: @border_strong;
+  box-shadow: inset 0 0 0 1px @border_strong;
 }

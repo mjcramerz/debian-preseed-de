@@ -138,7 +138,7 @@ mullvad_download_target_file() {
   mullvad_download_size=$(
     capture_in_target \
       "measure ${mullvad_download_label}" \
-      /usr/bin/stat -c %s "$mullvad_download_partial"
+      /usr/bin/find -P "$mullvad_download_partial" -maxdepth 0 -printf %s
   )
   case "$mullvad_download_size" in
     ''|*[!0-9]*)
@@ -180,7 +180,7 @@ case "$resolver_maximum_bytes" in ""|*[!0-9]*) exit 1 ;; esac
 [ "$resolver_maximum_bytes" -le 1048576 ]
 [ -r "$resolver_path" ]
 [ -f "$resolver_path" ]
-resolver_size=$(/usr/bin/stat -Lc %s -- "$resolver_path")
+resolver_size=$(/usr/bin/find -H "$resolver_path" -maxdepth 0 -printf %s)
 case "$resolver_size" in
   ""|*[!0-9]*) exit 1 ;;
 esac
@@ -207,8 +207,8 @@ resolver_snapshot_tmp=
 
 [ -f "$resolver_snapshot" ]
 [ ! -L "$resolver_snapshot" ]
-[ "$(/usr/bin/stat -c %u:%g -- "$resolver_snapshot")" = 0:0 ]
-[ "$(/usr/bin/stat -c %a -- "$resolver_snapshot")" = 600 ]
+[ "$(/usr/bin/find -P "$resolver_snapshot" -maxdepth 0 -printf %U:%G)" = 0:0 ]
+[ "$(/usr/bin/find -P "$resolver_snapshot" -maxdepth 0 -printf %m)" = 600 ]
 ' sh "$MULLVAD_RESOLVER_SOURCE" "$MULLVAD_RESOLVER_MAXIMUM_BYTES"
 }
 
@@ -273,9 +273,9 @@ case "$retry_delay_seconds" in ""|*[!0-9]*) exit 1 ;; esac
 [ "$(/usr/bin/readlink -f /usr/sbin/resolvconf)" = /usr/bin/resolvectl ]
 [ -f "$resolver_source" ]
 [ ! -L "$resolver_source" ]
-resolver_owner_group=$(/usr/bin/stat -c %u:%g -- "$resolver_source")
+resolver_owner_group=$(/usr/bin/find -P "$resolver_source" -maxdepth 0 -printf %U:%G)
 [ "$resolver_owner_group" = 0:0 ]
-resolver_size=$(/usr/bin/stat -c %s -- "$resolver_source")
+resolver_size=$(/usr/bin/find -P "$resolver_source" -maxdepth 0 -printf %s)
 case "$resolver_size" in
   ""|*[!0-9]*) exit 1 ;;
 esac
@@ -304,8 +304,8 @@ resolved_stub_tmp=
 [ -f "$resolved_stub" ]
 [ ! -L "$resolved_stub" ]
 [ -s "$resolved_stub" ]
-[ "$(/usr/bin/stat -c %u:%g -- "$resolved_stub")" = 0:0 ]
-[ "$(/usr/bin/stat -c %a -- "$resolved_stub")" = 644 ]
+[ "$(/usr/bin/find -P "$resolved_stub" -maxdepth 0 -printf %U:%G)" = 0:0 ]
+[ "$(/usr/bin/find -P "$resolved_stub" -maxdepth 0 -printf %m)" = 644 ]
 LC_ALL=C /usr/bin/grep -Eq \
   "^[[:space:]]*nameserver[[:space:]]+[^#[:space:]]+" \
   "$resolved_stub"
@@ -396,8 +396,8 @@ mullvad_validate_and_defer_apparmor() {
 profile=/etc/apparmor.d/mullvad
 [ -s /etc/apparmor.d/abi/4.0 ]
 [ -f "$profile" ] && [ ! -L "$profile" ]
-[ "$(stat -c %u:%g:%h "$profile")" = 0:0:1 ]
-case "$(stat -c %a "$profile")" in 600|640|644) ;; *) exit 1 ;; esac
+[ "$(find -P "$profile" -maxdepth 0 -printf %U:%G:%n)" = 0:0:1 ]
+case "$(find -P "$profile" -maxdepth 0 -printf %m)" in 600|640|644) ;; *) exit 1 ;; esac
 cmp -s "$profile" "/opt/Mullvad VPN/resources/apparmor_mullvad"
 apparmor_parser --skip-kernel-load --skip-cache "$profile"
 ' sh || return $?

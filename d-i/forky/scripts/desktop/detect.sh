@@ -13,6 +13,15 @@ desktop_policy_enabled() {
   esac
 }
 
+# Match the common desktop boolean vocabulary; omission is disabled.
+desktop_kanshi_enabled() {
+  case "${LABWC_ENABLE_KANSHI:-false}" in
+    true|yes|1|on) return 0 ;;
+    false|no|0|off) return 1 ;;
+    *) desktop_fatal "invalid LABWC_ENABLE_KANSHI: ${LABWC_ENABLE_KANSHI}" ;;
+  esac
+}
+
 desktop_validate_bool() {
   var_name=$1
   var_value=$2
@@ -407,7 +416,7 @@ desktop_validate_policy_env() {
   desktop_resolve_acceleration_availability
   desktop_resolve_managed_app_default_exec
   desktop_validate_bool LABWC_ENABLE_WAYBAR "${LABWC_ENABLE_WAYBAR:-true}"
-  desktop_validate_bool LABWC_ENABLE_KANSHI "${LABWC_ENABLE_KANSHI:-true}"
+  desktop_validate_bool LABWC_ENABLE_KANSHI "${LABWC_ENABLE_KANSHI:-false}"
   desktop_validate_bool LABWC_ENABLE_MAKO "${LABWC_ENABLE_MAKO:-true}"
   desktop_validate_bool LABWC_ENABLE_SWAYIDLE "${LABWC_ENABLE_SWAYIDLE:-true}"
   desktop_validate_bool LABWC_ENABLE_SWAYBG "${LABWC_ENABLE_SWAYBG:-true}"
@@ -486,6 +495,10 @@ desktop_validate_policy_env() {
   desktop_validate_optional_uint_range LABWC_GREETER_BUTTON_MIN_WIDTH "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}" 80 1024
   desktop_validate_uint_range LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_WIDTH:-36}" 20 200
   desktop_validate_uint_range LABWC_FUZZEL_LINES "${LABWC_FUZZEL_LINES:-15}" 4 40
+  desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}" 20 200
+  desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_LINES "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}" 4 40
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}" 20 200
+  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}" 4 40
   desktop_validate_uint_range LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MENU_WIDTH:-22}" 16 200
   desktop_validate_uint_range LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MENU_LINES:-5}" 1 32
   desktop_validate_uint_range LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_FONT_SIZE:-15}" 8 32
@@ -537,8 +550,8 @@ desktop_validate_policy_env() {
   desktop_validate_uint_range LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS "${LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS:-0}" 0 10
   desktop_validate_uint_range LABWC_WORKSPACE_COUNT "${LABWC_WORKSPACE_COUNT:-4}" 1 12
   case "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" in
-    thumbnail|classic) ;;
-    *) desktop_fatal "invalid LABWC_WINDOW_SWITCHER_STYLE" ;;
+    thumbnail) ;;
+    *) desktop_fatal "LABWC_WINDOW_SWITCHER_STYLE must be thumbnail (native window previews)" ;;
   esac
   case "${LABWC_WINDOW_SWITCHER_ORDER:-focus}" in
     focus|age) ;;

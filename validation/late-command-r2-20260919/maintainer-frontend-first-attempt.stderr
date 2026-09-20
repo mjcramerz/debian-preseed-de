@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/maintainer-frontend.py", line 52, in <module>
+    case.assertIn('maintainer-frontend-ok', result.stdout)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/unittest/case.py", line 1174, in assertIn
+    self.fail(self._formatMessage(msg, standardMsg))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/unittest/case.py", line 732, in fail
+    raise self.failureException(msg)
+AssertionError: 'maintainer-frontend-ok' not found in ''

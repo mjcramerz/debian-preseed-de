@@ -1,0 +1,106 @@
+[
+  {
+    "name": "profile-provenance",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_repository_integrity",
+      "test_resctl_bench_release_20260917"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 18.265,
+    "log": "profile-provenance.log"
+  },
+  {
+    "name": "config-safety",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_config_safety"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.724,
+    "log": "config-safety.log"
+  },
+  {
+    "name": "isolated-harness-retries",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing",
+      "test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker",
+      "test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply"
+    ],
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 51.061,
+    "log": "isolated-harness-retries.log"
+  },
+  {
+    "name": "build-check",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "tools/build.py",
+      "--check"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 5.334,
+    "log": "build-check.log"
+  },
+  {
+    "name": "preseed-check",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "tools/check_preseeds.py"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.075,
+    "log": "preseed-check.log"
+  },
+  {
+    "name": "tool-tests",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-v",
+      "-s",
+      "tools/tests"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 40.75,
+    "log": "tool-tests.log"
+  },
+  {
+    "name": "whole-tree-audit",
+    "command": [
+      "/opt/pyvenv/bin/python3",
+      "-B",
+      "tools/release_audit.py",
+      "--output",
+      "/mnt/data/evidence/final-checks/whole-tree.json"
+    ],
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.63,
+    "log": "whole-tree-audit.log"
+  }
+]

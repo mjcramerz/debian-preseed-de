@@ -38,9 +38,9 @@ require_private_directory() {
     fatal "$private_label cannot be resolved: $private_path"
   [ "$private_real" = "$private_path" ] ||
     fatal "$private_label traverses a symlink: $private_path"
-  private_owner=$(/usr/bin/stat -c '%u' -- "$private_path") ||
+  private_owner=$(/usr/bin/find -P "$private_path" -maxdepth 0 -printf '%U') ||
     fatal "$private_label owner cannot be read"
-  private_mode=$(/usr/bin/stat -c '%a' -- "$private_path") ||
+  private_mode=$(/usr/bin/find -P "$private_path" -maxdepth 0 -printf '%m') ||
     fatal "$private_label mode cannot be read"
   [ "$private_owner" = "$installer_uid" ] && [ "$private_mode" = 700 ] ||
     fatal "$private_label must be account-owned with mode 0700: $private_path"
@@ -112,9 +112,9 @@ verify_managed_install() {
 
   [ -d "$verify_packages_root" ] && [ ! -L "$verify_packages_root" ] ||
     fatal "managed package root is missing or indirect: $verify_packages_root"
-  verify_owner=$(/usr/bin/stat -c '%u' -- "$verify_packages_root") ||
+  verify_owner=$(/usr/bin/find -P "$verify_packages_root" -maxdepth 0 -printf '%U') ||
     fatal "managed package root owner cannot be read"
-  verify_mode=$(/usr/bin/stat -c '%a' -- "$verify_packages_root") ||
+  verify_mode=$(/usr/bin/find -P "$verify_packages_root" -maxdepth 0 -printf '%m') ||
     fatal "managed package root mode cannot be read"
   [ "$verify_owner" = "$installer_uid" ] && [ "$verify_mode" = 700 ] ||
     fatal "managed package root must be account-owned with mode 0700"
@@ -183,8 +183,8 @@ codex_root=${expected_codex_home%/usr/home}
 profile_path=${HOME}/.profile.d/71-devops-de.sh
 [ -f "$profile_path" ] && [ ! -L "$profile_path" ] ||
   fatal "managed DevOps profile is missing or indirect: $profile_path"
-profile_uid=$(/usr/bin/stat -c '%u' -- "$profile_path")
-profile_mode=$(/usr/bin/stat -c '%a' -- "$profile_path")
+profile_uid=$(/usr/bin/find -P "$profile_path" -maxdepth 0 -printf '%U')
+profile_mode=$(/usr/bin/find -P "$profile_path" -maxdepth 0 -printf '%m')
 [ "$profile_uid" = "$installer_uid" ] ||
   fatal 'managed DevOps profile is not account-owned'
 case "$profile_mode" in
@@ -220,7 +220,7 @@ fi
   fatal "managed Codex root is missing or indirect: $codex_root"
 [ "$(/usr/bin/readlink -f -- "$codex_root")" = "$codex_root" ] ||
   fatal "managed Codex root traverses a symlink: $codex_root"
-[ "$(/usr/bin/stat -c '%u:%a' -- "$codex_root")" = 0:3770 ] ||
+[ "$(/usr/bin/find -P "$codex_root" -maxdepth 0 -printf '%U:%m')" = 0:3770 ] ||
   fatal "managed Codex root must remain root-owned with mode 3770"
 [ -w "$codex_root" ] && [ -x "$codex_root" ] ||
   fatal "desktop account cannot stage the standalone package below $codex_root"

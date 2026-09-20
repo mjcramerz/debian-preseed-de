@@ -144,7 +144,7 @@ crowdsec_bouncer_status=$(dpkg-query -W -f="\${Status}" crowdsec-firewall-bounce
   exit 1
 }
 config=/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
-[ -s "$config" ] && [ ! -L "$config" ] && [ "$(stat -c %h "$config")" = 1 ] || {
+[ -s "$config" ] && [ ! -L "$config" ] && [ "$(find -P "$config" -maxdepth 0 -printf %n)" = 1 ] || {
   printf "CrowdSec bouncer configuration is missing or unsafe\n" >&2
   exit 1
 }

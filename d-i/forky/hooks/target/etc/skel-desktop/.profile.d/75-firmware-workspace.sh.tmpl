@@ -48,9 +48,9 @@ fwops_account_owned_directory_is_mode() (
   fwops_directory_real=$(/usr/bin/readlink -f -- "$fwops_directory" 2>/dev/null) ||
     return 1
   [ "$fwops_directory_real" = "$fwops_directory" ] || return 1
-  fwops_directory_owner=$(/usr/bin/stat -c '%u' -- "$fwops_directory" 2>/dev/null) ||
+  fwops_directory_owner=$(/usr/bin/find -P "$fwops_directory" -maxdepth 0 -printf '%U' 2>/dev/null) ||
     return 1
-  fwops_directory_actual_mode=$(/usr/bin/stat -c '%a' -- "$fwops_directory" 2>/dev/null) ||
+  fwops_directory_actual_mode=$(/usr/bin/find -P "$fwops_directory" -maxdepth 0 -printf '%m' 2>/dev/null) ||
     return 1
   fwops_uid=$(/usr/bin/id -u 2>/dev/null) || return 1
 

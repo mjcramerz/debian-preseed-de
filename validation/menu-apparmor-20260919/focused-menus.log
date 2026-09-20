@@ -1,0 +1,17 @@
+..........................fatal: menu picker failed (status 2)
+fatal: menu picker failed (status 127)
+fatal: Prompt contains unsupported control characters
+..s.............................s............................s.............................................fatal: Remote Desktop log is not a private user-owned regular file: /tmp/tmpwnxuj_x2/session.log
+.................................................intel: thermal
+nvidia: thermal
+.nvidia: injected worker error
+........................................intel: thermal
+....................................intel: injected worker error
+.nvidia: injected worker error; recovery still pending: injected worker error
+....intel: injected worker error; recovery still pending: injected worker error
+.........................................................intel: failed write; recovery still pending: injected worker error
+......................
+----------------------------------------------------------------------
+Ran 343 tests in 27.602s
+
+OK (skipped=3)

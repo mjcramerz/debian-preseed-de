@@ -1568,7 +1568,7 @@ for command_name in \
   getcap \
   getent \
   id \
-  stat \
+  find \
   tshark \
   usermod \
   wireshark
@@ -1613,8 +1613,8 @@ done
 IFS=$old_ifs
 
 dumpcap_path=$(command -v dumpcap)
-dumpcap_group=$(stat -c %G "$dumpcap_path")
-dumpcap_mode=$(stat -c %a "$dumpcap_path")
+dumpcap_group=$(find -P "$dumpcap_path" -maxdepth 0 -printf %g)
+dumpcap_mode=$(find -P "$dumpcap_path" -maxdepth 0 -printf %m)
 dumpcap_caps=$(getcap "$dumpcap_path" 2>/dev/null || true)
 dumpcap_mode_value=$((0$dumpcap_mode))
 dumpcap_cap_set=${dumpcap_caps#"$dumpcap_path "}
@@ -1645,8 +1645,8 @@ esac
 
 for frontend_name in tshark wireshark; do
   frontend_path=$(command -v "$frontend_name")
-  frontend_owner=$(stat -c %U "$frontend_path")
-  frontend_mode=$(stat -c %a "$frontend_path")
+  frontend_owner=$(find -P "$frontend_path" -maxdepth 0 -printf %u)
+  frontend_mode=$(find -P "$frontend_path" -maxdepth 0 -printf %m)
   frontend_mode_value=$((0$frontend_mode))
   frontend_caps=$(getcap "$frontend_path" 2>/dev/null || true)
 
@@ -2906,6 +2906,10 @@ desktop_render_labwc_default_config() {
     LABWC_GREETER_ENTRY_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_ENTRY_MIN_WIDTH:-}")" \
     LABWC_GREETER_SHELL_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_SHELL_MIN_WIDTH:-}")" \
     LABWC_GREETER_BUTTON_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}")" \
+    LABWC_FUZZEL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}")" \
+    LABWC_FUZZEL_MAIN_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}")" \
+    LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}")" \
+    LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}")" \
     LABWC_FUZZEL_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_WIDTH:-36}")" \
     LABWC_FUZZEL_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_LINES:-15}")" \
     LABWC_FUZZEL_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MENU_WIDTH:-22}")" \
@@ -2957,7 +2961,7 @@ desktop_render_labwc_default_config() {
     LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE:-15}")" \
     LABWC_CRYSTAL_DOCK_CLOCK_FONT_SCALE_FACTOR "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_CLOCK_FONT_SCALE_FACTOR:-1.0}")" \
     LABWC_ENABLE_WAYBAR "$(desktop_shell_config_value "${LABWC_ENABLE_WAYBAR:-true}")" \
-    LABWC_ENABLE_KANSHI "$(desktop_shell_config_value "${LABWC_ENABLE_KANSHI:-true}")" \
+    LABWC_ENABLE_KANSHI "$(desktop_shell_config_value "${LABWC_ENABLE_KANSHI:-false}")" \
     LABWC_ENABLE_MAKO "$(desktop_shell_config_value "${LABWC_ENABLE_MAKO:-true}")" \
     LABWC_ENABLE_SWAYIDLE "$(desktop_shell_config_value "${LABWC_ENABLE_SWAYIDLE:-true}")" \
     LABWC_ENABLE_SWAYBG "$(desktop_shell_config_value "${LABWC_ENABLE_SWAYBG:-true}")" \
@@ -3031,6 +3035,9 @@ desktop_render_cargo_config() {
 }
 
 desktop_render_labwc_rc_xml() {
+  # Rendering is also used independently of the full desktop policy validator.
+  [ "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" = thumbnail ] ||
+    desktop_fatal "LABWC_WINDOW_SWITCHER_STYLE must be thumbnail (native window previews)"
   workspace_count=${LABWC_WORKSPACE_COUNT:-4}
   rc_path=/etc/skel-desktop/.config/labwc/rc.xml
 
@@ -3266,6 +3273,7 @@ desktop_configure_local_mail_delivery() {
 }
 
 desktop_render_kanshi_config() {
+  desktop_kanshi_enabled || return 0
   desktop_render_role_target_template \
     "etc/skel-desktop/.config/kanshi/config" \
     "/etc/skel-desktop/.config/kanshi/config" \
@@ -3390,6 +3398,20 @@ desktop_render_fuzzel_configs() {
     LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
     LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}" \
     LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}"
+  desktop_render_role_target_template \
+    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/main-menu.ini" \
+    0644 \
+    LABWC_FUZZEL_BASE_CONFIG base.ini \
+    LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}" \
+    LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}"
+  desktop_render_role_target_template \
+    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
+    "/etc/skel-desktop/.config/fuzzel/main-menu-internal.ini" \
+    0644 \
+    LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
+    LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}" \
+    LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}"
   desktop_log "rendered_fuzzel_configs launcher_width=${LABWC_FUZZEL_WIDTH:-54} internal_launcher_width=${LABWC_FUZZEL_INTERNAL_WIDTH:-28} menu_width=${LABWC_FUZZEL_MENU_WIDTH:-28} internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}"
 }
 desktop_render_crystal_dock_appearance() {
@@ -4003,7 +4025,9 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/share/labwc-greeter/rc.xml /usr/local/share/labwc-greeter/rc.xml 0644
   desktop_stage_role_asset usr/local/share/labwc-greeter/autostart /usr/local/share/labwc-greeter/autostart 0644
   desktop_stage_role_asset usr/local/libexec/labwc-output-watch /usr/local/libexec/labwc-output-watch 0755
-  desktop_stage_role_asset usr/local/libexec/labwc-kanshi /usr/local/libexec/labwc-kanshi 0755
+  if desktop_kanshi_enabled; then
+    desktop_stage_role_asset usr/local/libexec/labwc-kanshi /usr/local/libexec/labwc-kanshi 0755
+  fi
   desktop_stage_role_asset usr/local/libexec/labwc-session-check /usr/local/libexec/labwc-session-check 0755
   desktop_stage_role_asset usr/local/libexec/labwc-panel-run /usr/local/libexec/labwc-panel-run 0755
   desktop_stage_role_asset usr/local/libexec/whisper-record-timed /usr/local/libexec/whisper-record-timed 0755
@@ -4089,7 +4113,9 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset etc/default/codex-app-server /etc/default/codex-app-server 0644
   desktop_stage_role_asset usr/local/libexec/codex-app-server-wait-ready /usr/local/libexec/codex-app-server-wait-ready 0755
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/swaybg.service /etc/skel-desktop/.config/systemd/user/swaybg.service 0644
-  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/kanshi.service /etc/skel-desktop/.config/systemd/user/kanshi.service 0644
+  if desktop_kanshi_enabled; then
+    desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/kanshi.service /etc/skel-desktop/.config/systemd/user/kanshi.service 0644
+  fi
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/swayidle.service /etc/skel-desktop/.config/systemd/user/swayidle.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/crystal-dock.service /etc/skel-desktop/.config/systemd/user/crystal-dock.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service 0644
@@ -4229,6 +4255,8 @@ test -x /usr/bin/update-mime-database
     ACCOUNT_HOME "$ACCOUNT_HOME"
   desktop_stage_role_asset etc/skel-desktop/.config/sleek/userData/filters.json /etc/skel-desktop/.config/sleek/userData/filters.json 0600
   desktop_stage_role_asset usr/share/xfce4/helpers/foot.desktop /usr/share/xfce4/helpers/foot.desktop 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf /etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf /etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.profile /etc/skel-desktop/.profile 0644
   desktop_stage_role_asset etc/skel-desktop/.bash_profile /etc/skel-desktop/.bash_profile 0644
   desktop_stage_role_asset etc/skel-desktop/.bashrc /etc/skel-desktop/.bashrc 0644
@@ -4332,6 +4360,7 @@ desktop_install_user_config() {
 set -eu
 account_user=$1
 account_home=$2
+kanshi_enabled=$3
 copied_dirs=0
 copied_files=0
 
@@ -4357,7 +4386,6 @@ gid=$(id -g "$account_user")
     .config/labwc \
     .config/waypaper \
     .config/waybar \
-    .config/kanshi \
     .config/cargo \
     .config/mise \
     .config/featherpad \
@@ -4372,6 +4400,7 @@ gid=$(id -g "$account_user")
     .cache/recoll \
     .config/Recoll.org \
     .recoll \
+    .config/fontconfig \
     .config/kitty \
     .config/micro \
     .config/nano \
@@ -4428,6 +4457,16 @@ do
   chmod 0700 "$user_systemd_dir"
   chown "$uid:$gid" "$user_systemd_dir"
 done
+if [ "$kanshi_enabled" = true ]; then
+  src=/etc/skel-desktop/.config/kanshi
+  dst="$account_home/.config/kanshi"
+  [ -d "$src" ] && [ ! -L "$src" ] || exit 1
+  [ ! -L "$dst" ] || exit 1
+  install -d -m 0700 "$dst"
+  cp -a "$src/." "$dst/"
+  chown -R "$uid:$gid" "$dst"
+  copied_dirs=$((copied_dirs + 1))
+fi
 if [ -d /etc/skel-desktop/.config/bazel ]; then
   src=/etc/skel-desktop/.config/bazel
   dst="${account_home}/.config/bazel"
@@ -4505,7 +4544,7 @@ if [ -n "$zsh_path" ]; then
 fi
 account_shell=$(getent passwd "$account_user" | cut -d: -f7)
 printf "desktop_account_config user=%s home=%s copied_dirs=%s copied_files=%s shell=%s\n" "$account_user" "$account_home" "$copied_dirs" "$copied_files" "$account_shell"
-' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME"
+' sh "$ACCOUNT_USERNAME" "$ACCOUNT_HOME" "$(if desktop_kanshi_enabled; then printf true; else printf false; fi)"
   desktop_install_primary_account_calendar_stack
   desktop_bootstrap_primary_account_gpg_key
   run_in_target "publish private browser imports in primary account Downloads" \
@@ -4635,16 +4674,30 @@ desktop_enable_target_services() {
     systemctl --global disable ssh-agent.socket
   '
 
+  # Unlock is explicitly requested by git-ssh unlock, not by graphical login.
+  # Remove only the exact links installed by older revisions, never admin files.
+  desktop_require_absolute_account_home
+  for ssh_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
+    ssh_units="/target${ssh_home}/.config/systemd/user"
+    ssh_wants="${ssh_units}/labwc-session.target.wants"
+    [ ! -L "$ssh_units" ] && [ ! -L "$ssh_wants" ] ||
+      installer_fatal "unsafe SSH unlock activation directory: ${ssh_wants}"
+    ssh_link="${ssh_wants}/labwc-ssh-key-load.service"
+    if [ -L "$ssh_link" ] && [ "$(readlink "$ssh_link")" = ../labwc-ssh-key-load.service ]; then
+      rm -- "$ssh_link"
+    elif [ -e "$ssh_link" ] || [ -L "$ssh_link" ]; then
+      installer_fatal "unmanaged SSH unlock activation preserved: ${ssh_link}"
+    fi
+  done
+
   for unit in \
     labwc-output-watch.service \
     swaybg.service \
-    kanshi.service \
     swayidle.service \
     crystal-dock.service \
     labwc-mute-default-microphone.service \
     labwc-kwallet-portal.service \
     ssh-agent.socket \
-    labwc-ssh-key-load.service \
     labwc-plans.service \
     foot-server.socket \
     mako.service \
@@ -4661,6 +4714,10 @@ desktop_enable_target_services() {
   do
     desktop_stage_user_unit_wanted_by "$unit" labwc-session.target
   done
+
+  if desktop_kanshi_enabled; then
+    desktop_stage_user_unit_wanted_by kanshi.service labwc-session.target
+  fi
 
   if desktop_whisper_persistent_memory_enabled; then
     desktop_stage_user_unit_wanted_by whisper-server.service labwc-session.target

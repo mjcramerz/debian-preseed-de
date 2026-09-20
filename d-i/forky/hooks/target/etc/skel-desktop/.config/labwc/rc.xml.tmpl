@@ -85,14 +85,6 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <osd show="yes" style="__INSTALLER_LABWC_WINDOW_SWITCHER_STYLE__"
          output="__INSTALLER_LABWC_WINDOW_SWITCHER_OSD_OUTPUT__"
          thumbnailLabelFormat="%n &#8212; %T  %S  %o" />
-    <!-- Retained for the supported classic/data-dense fallback. -->
-    <fields>
-      <field content="icon" width="7%" />
-      <field content="desktop_entry_name" width="23%" />
-      <field content="state" width="8%" />
-      <field content="output" width="12%" />
-      <field content="title" width="50%" />
-    </fields>
   </windowSwitcher>
 
   <libinput>
@@ -117,7 +109,8 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <numlock>on</numlock>
     <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
     <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
-    <!-- Keep Alt+Tab native. F13 stays open; click selects, Escape cancels. -->
+    <!-- Use the unmodified Debian compositor's native thumbnail OSD.
+         No simulated held modifier and no secondary window-list application. -->
     <keybind key="F13">
       <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
     </keybind>
@@ -143,7 +136,7 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
       <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
     </keybind>
     <keybind key="Super_L" onRelease="yes">
-      <action name="Execute" command="labwc-run" />
+      <action name="Execute" command="labwc-main-menu" />
     </keybind>
     <keybind key="Menu">
       <action name="ShowMenu" menu="root-menu" />

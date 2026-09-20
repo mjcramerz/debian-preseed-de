@@ -1,0 +1,1750 @@
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+index 3ff72f2..a39d205 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -515,6 +515,8 @@ profile managed-mullvad-tailscale-coordinator /usr/local/libexec/mullvad-tailsca
+ }
+ 
+ profile managed-labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_disconnected) {
++  # Directory metadata probes only; no recursive home access.
++  owner @{HOME}/ r,
+   #include <abstractions/managed-wrapper-desktop>
+ 
+   /usr/local/bin/labwc-autostart rix,
+@@ -569,6 +571,8 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
+ }
+ 
+ profile managed-labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_disconnected) {
++  # Directory metadata probes only; no recursive home access.
++  owner @{HOME}/ r,
+   #include <abstractions/managed-wrapper-desktop>
+ 
+   /usr/local/libexec/labwc-calendar rix,
+@@ -1426,6 +1430,8 @@ profile managed-labwc-greeter-output /usr/local/bin/labwc-greeter-output flags=(
+ }
+ 
+ profile managed-labwc-greeter-power /usr/local/bin/labwc-greeter-power flags=(attach_disconnected) {
++  # Fontconfig also enumerates Debian TeX Gyre fonts.
++  /usr/share/texmf/fonts/{,**} r,
+   #include <abstractions/managed-wrapper-gui>
+   #include <abstractions/managed-wrapper-python>
+ 
+@@ -3998,6 +4004,8 @@ profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app fl
+ # dpkg post-invoke helper: package metadata and system desktop entries only.
+ # It never reads/sources user profiles and never writes in a user's home.
+ profile managed-labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files flags=(attach_disconnected) {
++  # Reciprocal read-only process inspection by the firstboot diagnostics.
++  ptrace (readby) peer=managed-firstboot,
+   #include <abstractions/managed-wrapper-python>
+   capability chown,
+   capability fowner,
+@@ -4258,6 +4266,6 @@ profile managed-labwc-window-switcher /usr/local/bin/labwc-window-switcher flags
+   /usr/bin/{id,wtype} rix,
+   /usr/share/X11/xkb/{,**} r,
+   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.
+-  owner /tmp/wtype-* rw,
++  owner /tmp/wtype-?????? rw,
+   include if exists <local/usr.local.bin.labwc-window-switcher>
+ }
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session b/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
+index 29a9471..1f95824 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session
+@@ -4,6 +4,9 @@ abi "/usr/share/apparmor-features/features",
+ #include <tunables/global>
+ 
+ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
++  owner @{HOME}/.local/share/icons/{,**} r,
++  # The virtual keyboard transfers its unlinked, user-owned keymap fd.
++  owner /tmp/wtype-?????? rw,
+   # Do not include managed-desktop-graphics: its client policy denies primary
+   # DRM nodes. Only this compositor domain owns the seat/input/card interfaces.
+   #include <abstractions/base>
+diff --git a/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers b/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+index 94f6776..b138f22 100644
+--- a/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
++++ b/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+@@ -12,6 +12,7 @@ abi "/usr/share/apparmor-features/features",
+ #include <tunables/global>
+ 
+ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconnected) {
++  ptrace (read) peer=managed-labwc-wrap-desktop-files,
+   #include <abstractions/managed-wrapper-base>
+ 
+   unix,
+@@ -254,6 +255,8 @@ profile managed-augenrules-quiet /usr/local/libexec/augenrules-quiet flags=(atta
+ }
+ 
+ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(attach_disconnected) {
++  # find uses the filesystem root for metadata checks, not a recursive grant.
++  / r,
+   #include <abstractions/managed-wrapper-python>
+   #include <abstractions/nameservice>
+   #include <abstractions/openssl>
+diff --git a/d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl b/d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl
+index 4d0cb98..588659a 100644
+--- a/d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl
++++ b/d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl
+@@ -119,6 +119,10 @@ LABWC_GREETER_CONTROL_MIN_HEIGHT=__INSTALLER_LABWC_GREETER_CONTROL_MIN_HEIGHT__
+ LABWC_GREETER_ENTRY_MIN_WIDTH=__INSTALLER_LABWC_GREETER_ENTRY_MIN_WIDTH__
+ LABWC_GREETER_SHELL_MIN_WIDTH=__INSTALLER_LABWC_GREETER_SHELL_MIN_WIDTH__
+ LABWC_GREETER_BUTTON_MIN_WIDTH=__INSTALLER_LABWC_GREETER_BUTTON_MIN_WIDTH__
++LABWC_FUZZEL_MAIN_MENU_WIDTH=__INSTALLER_LABWC_FUZZEL_MAIN_MENU_WIDTH__
++LABWC_FUZZEL_MAIN_MENU_LINES=__INSTALLER_LABWC_FUZZEL_MAIN_MENU_LINES__
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH=__INSTALLER_LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH__
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES=__INSTALLER_LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES__
+ LABWC_FUZZEL_WIDTH=__INSTALLER_LABWC_FUZZEL_WIDTH__
+ LABWC_FUZZEL_LINES=__INSTALLER_LABWC_FUZZEL_LINES__
+ LABWC_FUZZEL_MENU_WIDTH=__INSTALLER_LABWC_FUZZEL_MENU_WIDTH__
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl b/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+index d4b978f..e8855ec 100644
+--- a/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+@@ -117,9 +117,10 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
+     <numlock>on</numlock>
+     <repeatRate>__INSTALLER_LABWC_KEYBOARD_REPEAT_RATE__</repeatRate>
+     <repeatDelay>__INSTALLER_LABWC_KEYBOARD_REPEAT_DELAY__</repeatDelay>
+-    <!-- Keep Alt+Tab native. F13 stays open; click selects, Escape cancels. -->
++    <!-- Panel clicks use a dismissible native menu, not modifier-less cycling.
++         Cycling retains stale pointer focus until accepted; keep it on Alt+Tab. -->
+     <keybind key="F13">
+-      <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
++      <action name="ShowMenu" menu="client-list-combined-menu" />
+     </keybind>
+     <keybind key="A-Tab">
+       <action name="NextWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
+@@ -143,7 +144,7 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
+       <action name="Execute" command="wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+     </keybind>
+     <keybind key="Super_L" onRelease="yes">
+-      <action name="Execute" command="labwc-run" />
++      <action name="Execute" command="labwc-main-menu" />
+     </keybind>
+     <keybind key="Menu">
+       <action name="ShowMenu" menu="root-menu" />
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+index 982bcec..ae706a7 100644
+--- a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+@@ -60,47 +60,55 @@
+   },
+   "custom/window-switcher": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+-    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
++    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
+   },
+   "custom/wayscriber": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Applications"
+   },
+   "custom/app-terminal": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Foot",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+   },
+   "custom/app-files": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Thunar",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+   },
+   "custom/app-tuta": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Tuta Mail",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+   },
+   "custom/app-notes": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "FeatherPad",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+   },
+   "custom/app-sleek": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Sleek",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+@@ -202,8 +210,8 @@
+   "pulseaudio": {
+     "format": "🔊 {volume}% {format_source}",
+     "format-muted": "🔇 {volume}% {format_source}",
+-    "format-source": "<span color='#6dc4ed'></span> {volume}%",
+-    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
++    "format-source": "<span font_family='Font Awesome 6 Free' weight='bold' color='#6dc4ed'></span>&#8194;{volume}%",
++    "format-source-muted": "<span font_family='Font Awesome 6 Free' weight='bold' color='#ffb4a2'></span>&#8194;{volume}%",
+     "tooltip-format": "{desc}",
+     "scroll-step": 5,
+     "max-volume": 120,
+@@ -345,47 +353,55 @@
+   },
+   "custom/window-switcher": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+-    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
++    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
+   },
+   "custom/wayscriber": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Applications"
+   },
+   "custom/app-terminal": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Foot",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
+   },
+   "custom/app-files": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Thunar",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
+   },
+   "custom/app-tuta": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Tuta Mail",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
+   },
+   "custom/app-notes": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "FeatherPad",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
+   },
+   "custom/app-sleek": {
+     "format": "",
++    "align": 0.5,
+     "tooltip": true,
+     "tooltip-format": "Sleek",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
+@@ -472,8 +488,8 @@
+   "pulseaudio": {
+     "format": "🔊 {volume}% {format_source}",
+     "format-muted": "🔇 {volume}% {format_source}",
+-    "format-source": "<span color='#6dc4ed'></span> {volume}%",
+-    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
++    "format-source": "<span font_family='Font Awesome 6 Free' weight='bold' color='#6dc4ed'></span>&#8194;{volume}%",
++    "format-source-muted": "<span font_family='Font Awesome 6 Free' weight='bold' color='#ffb4a2'></span>&#8194;{volume}%",
+     "tooltip-format": "{desc}",
+     "scroll-step": 5,
+     "max-volume": 120,
+diff --git a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+index 9496154..7f6e95f 100644
+--- a/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
++++ b/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+@@ -138,14 +138,15 @@ tooltip label {
+   padding: 0 7px;
+   color: @royalpurple;
+   font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+-  font-weight: 700;
++  font-weight: 900;
+ }
+ 
+ #custom-wayscriber {
+   min-width: 28px;
+   padding: 0 7px;
+   color: @marineblue;
+-  font-weight: 700;
++  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
++  font-weight: 900;
+ }
+ 
+ #custom-app-terminal,
+@@ -465,3 +466,16 @@ window#waybar.internal #custom-app-sleek {
+   color: @emeraldgreen;
+   background: alpha(@emeraldgreen, 0.15);
+ }
++
++/* Clickable status chips need hover feedback just like launcher buttons. */
++#clock:hover,
++#pulseaudio:hover,
++#custom-backlight:hover,
++#battery:hover,
++#disk:hover,
++#cpu:hover,
++#memory:hover {
++  background: @panel_hover;
++  border-color: @border_strong;
++  box-shadow: inset 0 0 0 1px @border_strong;
++}
+diff --git a/d-i/forky/hooks/target/etc/systemd/iocost.conf.d/70-unattended-installer.conf.tmpl b/d-i/forky/hooks/target/etc/systemd/iocost.conf.d/70-unattended-installer.conf.tmpl
+deleted file mode 100644
+index 6b34927..0000000
+--- a/d-i/forky/hooks/target/etc/systemd/iocost.conf.d/70-unattended-installer.conf.tmpl
++++ /dev/null
+@@ -1,3 +0,0 @@
+-# Managed by unattended-installer: IOCost.
+-[IOCost]
+-TargetSolution=__INSTALLER_IOCOST_TARGET_SOLUTION__
+diff --git a/d-i/forky/hooks/target/etc/systemd/iocost.conf.tmpl b/d-i/forky/hooks/target/etc/systemd/iocost.conf.tmpl
+deleted file mode 100644
+index aba0470..0000000
+--- a/d-i/forky/hooks/target/etc/systemd/iocost.conf.tmpl
++++ /dev/null
+@@ -1,4 +0,0 @@
+-# Managed by unattended-installer: IOCost.
+-# Device values are profile-specific/provisional until calibrated.
+-# The local drop-in owns TargetSolution; this file owns no duplicate settings.
+-[IOCost]
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel b/d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel
+index 4e0a7e1..f71bac4 100644
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel
+@@ -43,6 +43,7 @@ command -v fuzzel >/dev/null 2>&1 || {
+ config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
+ fuzzel_config_dir="${config_root}/fuzzel"
+ mode=launcher
++main_menu=false
+ managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
+ managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
+ managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
+@@ -52,6 +53,7 @@ menu_font_size_override=${LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE:-}
+ internal_output_prefixes=${LABWC_OUTPUT_INTERNAL_PREFIXES:-eDP LVDS DSI}
+ internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}
+ internal_menu_lines=${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}
++internal_menu_max_lines=32
+ internal_font_size=${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}
+ 
+ require_uint_range() {
+@@ -112,6 +114,11 @@ case "$managed_log_scope" in
+ esac
+ 
+ case "${1:-}" in
++  main-menu)
++    mode=menu
++    main_menu=true
++    shift
++    ;;
+   launcher|menu)
+     mode=$1
+     shift
+@@ -189,6 +196,19 @@ case "$mode:$internal_output" in
+   *) fatal 'invalid Fuzzel mode or output class' ;;
+ esac
+ 
++# Main/category menus share the launcher's geometry, never the compact
++# management-menu clamp. Their fonts/padding come from the same base files.
++if [ "$main_menu" = true ]; then
++  if [ "$internal_output" = true ]; then
++    config_name=main-menu-internal.ini
++    internal_menu_max_lines=40
++    internal_menu_width=${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}
++    internal_menu_lines=${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}
++  else
++    config_name=main-menu.ini
++  fi
++fi
++
+ if [ "$have_config" != true ] && [ -r "${fuzzel_config_dir}/${config_name}" ]; then
+   set -- "--config=${fuzzel_config_dir}/${config_name}" "$@"
+ fi
+@@ -205,7 +225,7 @@ if [ "$mode" = menu ]; then
+   fi
+   if [ "$internal_output" = true ]; then
+     require_uint_range LABWC_FUZZEL_INTERNAL_MENU_WIDTH "$internal_menu_width" 16 200
+-    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "$internal_menu_lines" 1 32
++    require_uint_range LABWC_FUZZEL_INTERNAL_MENU_LINES "$internal_menu_lines" 1 "$internal_menu_max_lines"
+     require_uint_range LABWC_FUZZEL_INTERNAL_FONT_SIZE "$internal_font_size" 8 32
+     if [ -n "$menu_width_override" ] &&
+        [ "$menu_width_override" -gt "$internal_menu_width" ]; then
+@@ -287,6 +307,15 @@ run_fuzzel() {
+   fi
+   fuzzel_pid=
+   rm -f -- "$pid_path"
++  # Fuzzel uses 2 for dmenu cancellation and 1 for an error.
++  # Keep the managed-picker API (0 selection, 1 cancel, 2 failure) stable;
++  # never conflate a configuration/Wayland error with a cancelled selection.
++  if [ "$mode" = menu ]; then
++    case "$fuzzel_status" in
++      2) fuzzel_status=1 ;;
++      1) fuzzel_status=$MENU_FAILURE_STATUS ;;
++    esac
++  fi
+   return "$fuzzel_status"
+ }
+ 
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-main-menu b/d-i/forky/hooks/target/usr/local/bin/labwc-main-menu
+index a0284ad..456c12f 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-main-menu
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-main-menu
+@@ -224,7 +224,7 @@ def choose(choices: dict, prompt: str) -> str | None:
+     displayed = {((MENU_ICONS.get(label, '\uf105') + '  ' + label)
+                   if prompt in ('Main Menu', 'Desktop Settings') else label): label
+                  for label in choices}
+-    result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + ': '],
++    result = subprocess.run([FUZZEL, 'main-menu', '--dmenu', '--prompt', prompt + ': '],
+                             input=''.join(label + '\n' for label in displayed),
+                             text=True, stdout=subprocess.PIPE, env=env, check=False)
+     if result.returncode == 1:
+diff --git a/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher b/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
+index 6a36934..68bd0dc 100755
+--- a/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
++++ b/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
+@@ -5,6 +5,8 @@ set -eu
+   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
+   exit 1
+ }
+-# The native F13 press binding starts cycling with no held modifiers.
+-# Never synthesize Alt: releasing it would immediately accept a window.
++# F13 opens labwc's native client list without changing the active window.
++# Its menu grab is cancelled by Escape or an outside click; unlike cycling,
++# it cannot forward unrelated clicks to Waybar's previously focused button.
++# Never synthesize held modifiers or leave a background input process.
+ exec /usr/bin/wtype -k F13
+diff --git a/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files b/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files
+index 6541bf7..b7d0708 100755
+--- a/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files
++++ b/d-i/forky/hooks/target/usr/local/libexec/labwc-wrap-desktop-files
+@@ -161,6 +161,37 @@ def original_generic_exec(value: str) -> str | None:
+     return match.group(1) if match else None
+ 
+ 
++def repair_known_vendor_entry(name: str, text: str) -> str:
++    """Repair only the two vendor defects observed in the September 19 log.
++
++    Desktop Exec quoting is not shell quoting. Do not run a shell parser over
++    arbitrary entries or relax desktop-file-validate for unknown syntax.
++    """
++    if name not in {'lynis.desktop', 'sdl-freerdp-file.desktop'}:
++        return text
++    lines = text.splitlines(keepends=True)
++    has_edit = any(line.strip() == '[Desktop Action Edit]' for line in lines)
++    section = ''
++    result = []
++    for line in lines:
++        stripped = line.strip()
++        if stripped.startswith('[') and stripped.endswith(']'):
++            section = stripped
++        key, separator, value = line.partition('=')
++        if separator and section == '[Desktop Entry]':
++            ending = '\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else ''
++            if name == 'lynis.desktop' and key.strip() == 'Exec' and value.strip() == (
++                    "su-to-root -c '/usr/sbin/lynis audit system --no-colors'"):
++                line = key + '=su-to-root -c "/usr/sbin/lynis audit system --no-colors"' + ending
++            elif name == 'sdl-freerdp-file.desktop' and key.strip() == 'Actions' and not has_edit:
++                # An undeclared action is unusable; retain every other action.
++                actions = value.strip().split(';')
++                if 'Edit' in actions:
++                    line = key + '=' + ';'.join(action for action in actions if action != 'Edit') + ending
++        result.append(line)
++    return ''.join(result)
++
++
+ def rewrite_desktop(text: str, prefix: str) -> str:
+     lines = text.splitlines(keepends=True)
+     section = ''
+@@ -347,6 +378,7 @@ def generate_overrides(defaults: dict[str, str]) -> bool:
+             name = path.relative_to(directory).as_posix()
+             try:
+                 text, _, _ = read_desktop(path)
++                text = repair_known_vendor_entry(name, text)
+             except UnicodeError as exc:
+                 print(f'labwc desktop hook: skipped malformed {path}: {exc}', file=sys.stderr)
+                 if owned_override(OUTPUT_DIR / name, previous.get(name)):
+diff --git a/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md b/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md
+index 12af834..9e69e5c 100644
+--- a/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md
++++ b/d-i/forky/hooks/target/usr/local/share/doc/managed-git/README.md
+@@ -72,6 +72,13 @@ narrow policy addition, not a replacement for the existing desktop threat model.
+ 
+ ## 2. Daily SSH/GPG use
+ 
++Since the 2026-09-19 session repair, login activates the SSH agent socket but
++**does not automatically unlock the encrypted private key**. Unlock is explicit
++through `git-ssh unlock`, or requested by the existing `devops` launcher. This
++avoids a cold-cache pinentry dialog timing out unattended during session startup.
++Existing installer-owned loader wants links are removed on installer reruns;
++the loader service itself, its timeout, encryption and error reporting remain.
++
+ From a normal terminal inside the primary user's Labwc session:
+ 
+ ```sh
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env b/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+index 2255148..06b8d32 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+@@ -417,6 +417,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="34"
++LABWC_FUZZEL_MAIN_MENU_LINES="14"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="34"
+ LABWC_FUZZEL_LINES="14"
+ LABWC_FUZZEL_MENU_WIDTH="24"
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual-main.env b/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+index 38be014..f6c6ced 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+@@ -415,6 +415,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual.env b/d-i/forky/hosts/profiles/btrfs-de-dual.env
+index 391b5d8..711de33 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual.env
+@@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="86"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-flex.env b/d-i/forky/hosts/profiles/btrfs-de-flex.env
+index 8d519f5..ade1ed9 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de-flex.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-flex.env
+@@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-main.env b/d-i/forky/hosts/profiles/btrfs-de-main.env
+index 388cb03..2902954 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de-main.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-main.env
+@@ -415,6 +415,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="16"
+ LABWC_GREETER_CLOCK_FONT_SIZE="160"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="33"
++LABWC_FUZZEL_MAIN_MENU_LINES="16"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="33"
+ LABWC_FUZZEL_LINES="16"
+ LABWC_FUZZEL_MENU_WIDTH="25"
+diff --git a/d-i/forky/hosts/profiles/btrfs-de.env b/d-i/forky/hosts/profiles/btrfs-de.env
+index a23cc92..972f957 100644
+--- a/d-i/forky/hosts/profiles/btrfs-de.env
++++ b/d-i/forky/hosts/profiles/btrfs-de.env
+@@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/btrfs-desktop.env b/d-i/forky/hosts/profiles/btrfs-desktop.env
+index 26472c5..1745da9 100644
+--- a/d-i/forky/hosts/profiles/btrfs-desktop.env
++++ b/d-i/forky/hosts/profiles/btrfs-desktop.env
+@@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-cbook.env b/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+index 93bf42d..90d9c75 100644
+--- a/d-i/forky/hosts/profiles/f2fs-de-cbook.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+@@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="9"
+ LABWC_QT_FIXED_FONT_SIZE="10"
+ LABWC_GREETER_FONT_SIZE="12"
+ LABWC_GREETER_CLOCK_FONT_SIZE="88"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_MAIN_MENU_LINES="10"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="28"
+ LABWC_FUZZEL_LINES="10"
+ LABWC_FUZZEL_MENU_WIDTH="18"
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env b/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+index 500d46b..960bd4b 100644
+--- a/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+@@ -405,6 +405,11 @@ LABWC_QT_FONT_SIZE="10"
+ LABWC_QT_FIXED_FONT_SIZE="11"
+ LABWC_GREETER_FONT_SIZE="15"
+ LABWC_GREETER_CLOCK_FONT_SIZE="88"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="32"
++LABWC_FUZZEL_MAIN_MENU_LINES="12"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="32"
+ LABWC_FUZZEL_LINES="12"
+ LABWC_FUZZEL_MENU_WIDTH="20"
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-dual.env b/d-i/forky/hosts/profiles/f2fs-de-dual.env
+index 2756764..af487fb 100644
+--- a/d-i/forky/hosts/profiles/f2fs-de-dual.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-dual.env
+@@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
+ LABWC_QT_FIXED_FONT_SIZE="11"
+ LABWC_GREETER_FONT_SIZE="16"
+ LABWC_GREETER_CLOCK_FONT_SIZE="96"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/f2fs-de.env b/d-i/forky/hosts/profiles/f2fs-de.env
+index 4d16b2c..b24c3a3 100644
+--- a/d-i/forky/hosts/profiles/f2fs-de.env
++++ b/d-i/forky/hosts/profiles/f2fs-de.env
+@@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
+ LABWC_QT_FIXED_FONT_SIZE="11"
+ LABWC_GREETER_FONT_SIZE="16"
+ LABWC_GREETER_CLOCK_FONT_SIZE="96"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/f2fs-desktop.env b/d-i/forky/hosts/profiles/f2fs-desktop.env
+index 2756764..af487fb 100644
+--- a/d-i/forky/hosts/profiles/f2fs-desktop.env
++++ b/d-i/forky/hosts/profiles/f2fs-desktop.env
+@@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
+ LABWC_QT_FIXED_FONT_SIZE="11"
+ LABWC_GREETER_FONT_SIZE="16"
+ LABWC_GREETER_CLOCK_FONT_SIZE="96"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/hosts/profiles/vm-desktop.env b/d-i/forky/hosts/profiles/vm-desktop.env
+index f032722..b3e21da 100644
+--- a/d-i/forky/hosts/profiles/vm-desktop.env
++++ b/d-i/forky/hosts/profiles/vm-desktop.env
+@@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
+ LABWC_QT_FIXED_FONT_SIZE="12"
+ LABWC_GREETER_FONT_SIZE="17"
+ LABWC_GREETER_CLOCK_FONT_SIZE="104"
++# Main menu shares application-search geometry; management pickers stay compact.
++LABWC_FUZZEL_MAIN_MENU_WIDTH="36"
++LABWC_FUZZEL_MAIN_MENU_LINES="15"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH="28"
++LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES="10"
+ LABWC_FUZZEL_WIDTH="36"
+ LABWC_FUZZEL_LINES="15"
+ LABWC_FUZZEL_MENU_WIDTH="22"
+diff --git a/d-i/forky/payload.manifest b/d-i/forky/payload.manifest
+index 502da9b..fef9288 100644
+--- a/d-i/forky/payload.manifest
++++ b/d-i/forky/payload.manifest
+@@ -162,11 +162,11 @@ a005f996f2764d85951da636cd92016948c213d2921d146ea944da4ac56a257b  hooks/target/e
+ d9d610533616e614b022f3f56274f6589f0f2bde24b9665213087c87c2a459fc  hooks/target/etc/apparmor.d/local/vivaldi-bin
+ e39fd3ba6c1fbec0b0c718234a60b619086a4847a3fe1f55165c008a8bc419de  hooks/target/etc/apparmor.d/local/vivaldi-stable
+ 0e4e9864e1ef42ad544dd0d98fc9623c24f8650165f47e0e454de75b44ce70f1  hooks/target/etc/apparmor.d/managed-desktop-utilities
+-2e11807a5b2c66f2c565c4ca81b49f1ff20b77f1d570894b5b46e7bc8039cc9e  hooks/target/etc/apparmor.d/managed-desktop-wrappers
++f5598761b53c2c381c6e2ebf943d7e81c8f3aaa1ece5d69f6ba945e5d1e4a394  hooks/target/etc/apparmor.d/managed-desktop-wrappers
+ 931fa0b1174ab50afb34af1503faf087bf1d1d6edfd451a100a05fdfd8fb83a4  hooks/target/etc/apparmor.d/managed-document-applications
+ dcf408dd5ff8d6d9e6d784e6065d5c04f81cf63fa34bb2fcb58a741134116a55  hooks/target/etc/apparmor.d/managed-hardware-tuning
+-fe929c99a19c4fc8215546bbb00016a0dd78e364a6c94749060a2401e70f05a2  hooks/target/etc/apparmor.d/managed-labwc-session
+-a83fd148615b3cedc7fb8fd53ed079cb338c2825527125ae55d6f56f33d53803  hooks/target/etc/apparmor.d/managed-system-wrappers
++826f17f7ce90fa433c123b33cb192e7f17be2e8e48af682e1a33d78417e0529b  hooks/target/etc/apparmor.d/managed-labwc-session
++97df968a51c32249cc36d0f58e15341f648c7f5e103125cc7b57120d0f3e85b8  hooks/target/etc/apparmor.d/managed-system-wrappers
+ d9c8c6731100372a9524f12207fc01aaa8981a00c26335503e3dcc8c581e56a7  hooks/target/etc/apparmor.d/obsidian
+ 552e717a7422270cf3cd910c8f79c1cefbac72f334e47cd53e40d099150d5fae  hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden
+ 67e66dbb15676d0e2bbb65d3aee75752f54e446884de6a0ec5c25f7da5f79557  hooks/target/etc/apparmor.d/opt.Filen.Filen
+@@ -268,7 +268,7 @@ dc51a55199e2de8e1b5dfaec00969473cca0cb57126efea5fbd5c1969520c11d  hooks/target/e
+ d85e664cb143bbc6af4a72091772026da07e61b1df3d2bf2fbc23cd91554dbb6  hooks/target/etc/default/grub.d/86-gpu-amd.cfg
+ 88c7b019ea7ca8fe4553152cf57aa26852b3a4ebbff5f5760140f4fdbde0595f  hooks/target/etc/default/grub.d/87-gpu-nvidia.cfg
+ 03bca5e8cc572ed88494f9cc064cfccd42f2c88b2275daf05de2c593e8d3421a  hooks/target/etc/default/incus-host-managed.tmpl
+-5ce2e64ca743e8e23411dd5a3ab2ce209ab9f76d0a37fc9bc438745e444d1de4  hooks/target/etc/default/labwc-desktop.tmpl
++91a334fb5960f75c94833071ca28079f4523d5c42849209262b43d506ef0477a  hooks/target/etc/default/labwc-desktop.tmpl
+ 9ecc334e912f41b2a113b1cafa04692211e3e77fe4b85bdd99dadca735f6688e  hooks/target/etc/default/labwc-plans.tmpl
+ f989dfea5cf78ef93f50b85ead9997d908888e88d61c0dcea424298df2d69fef  hooks/target/etc/default/nft-policy-generate.tmpl
+ ddaab1defd377ebf7f3d9a29256036d8275d0fc715b306c20b3c5a6b9d842188  hooks/target/etc/default/secure-boot.conf.tmpl
+@@ -478,7 +478,7 @@ b9dfe671082ad086b779862a6ef73410e24a4a840193c3c01d7db1b6649885fb  hooks/target/e
+ 55572f7214d001042272bfee09e7ab51ca91fe19fbead9da02d5a8e6ea297995  hooks/target/etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl
+ 9474a63af5ca9f73ab4cdead93815fd2f89377d4aca413f299f8479df83f3704  hooks/target/etc/skel-desktop/.config/labwc/environment.tmpl
+ 6cc50a4a95123cc19b9262781c7a80691b6b63adff27d7d589b3e5e004661bd8  hooks/target/etc/skel-desktop/.config/labwc/menu.xml
+-014e2229e8ce28b3f40da0f3e46d8b477ae50095283dfb2ada49fef66d0f0168  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
++4f752795a8ebcddc02eb4e9211258de310508574a62ca159a36e5ecb57e9b069  hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl
+ 124722631f375e267a8f3abd344007810064e075a2499725a70d7e123ff2879e  hooks/target/etc/skel-desktop/.config/labwc/shutdown
+ 5badccd82fd8dfb90ba018866013ceb9d707078d5ed839fc40dffd98a7622267  hooks/target/etc/skel-desktop/.config/labwc/themerc-override
+ 16fa3553c5dcc2a1f6bd8d9c24a1751b6afde24cc31c37669356f486dd76c132  hooks/target/etc/skel-desktop/.config/mako/config
+@@ -571,8 +571,8 @@ ca6e8751d41de98947e4fc7c7df484e0d6e26dc4c7bc42599a8ee311e300f2e1  hooks/target/e
+ bdb2de8f2981c5581b40f505691ed69625e6061afee1fdeb7ef4693987fa85d8  hooks/target/etc/skel-desktop/.config/vdirsyncer/config.tmpl
+ 10347788235f43ec55b9f7af48890c40c4222fd4896338add666efd6c8f6889e  hooks/target/etc/skel-desktop/.config/vim/vimrc
+ cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/etc/skel-desktop/.config/vivaldi/Default/Preferences
+-a00cce8fc8bff50dd8ccf93a18b61077e6a097515c4fb084231ebfd8635f0aa2  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+-250583f9fb0cc9b0b6757677276e20396cb8eccee4303ef835887e4658489b40  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
++dadc36a9fa7585dad606ed3680d0f672f9ce9db59822200aff6d2450f92c1b17  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
++c882d62b6d5382a18f69bd479e8f87cf3d1a00cf6c8ba177de65d7a8d1a0df1b  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+ e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492  hooks/target/etc/skel-desktop/.config/waypaper/config.ini
+ 84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5  hooks/target/etc/skel-desktop/.config/waypaper/keybindings.ini
+ 931b45fb19e85f8693a41ec34b064bd7d7e86d429c6c6d8b0a8760eae4c84b3f  hooks/target/etc/skel-desktop/.config/waypaper/style.css
+@@ -643,8 +643,6 @@ dab1add17b4b328cf6bb1009c6b171c86ee2df206b6a8e35beb64ba898799766  hooks/target/e
+ 60bc7184527f5845e1e20678aeabea6fda3f670a4868a563155a06b4190ae526  hooks/target/etc/sysctl.d/profiles/hardened/40-hardened.conf
+ db83cf27f58b0ea2c1327cc249b162294ba8e27fdabc49322168db8d56fb2cf1  hooks/target/etc/sysctl.d/profiles/performance/40-performance.conf
+ 5c848e59e7802c072a92858d5f6e07e5300e9d2cccf8063113a60a1d70827f2a  hooks/target/etc/systemd/coredump.conf.d/60-managed-limits.conf
+-ef57e1b9cc6a6916d80d3cabedecb91feca4456da7135138b2fc66877aa36a1e  hooks/target/etc/systemd/iocost.conf.d/70-unattended-installer.conf.tmpl
+-ab01219716127face72a5bd984293cc1e663aecd87e896264aaffc4e81c354f5  hooks/target/etc/systemd/iocost.conf.tmpl
+ bda249c6ae7f69d57c44e4f379c18ca3d789fbfb938658572d9c723ba72ee5f3  hooks/target/etc/systemd/journald.conf.d/10-storage.conf
+ 88847de3d21d787b8d987447b2e0008fe0404046245b1e7ae8b14ca8cdba7845  hooks/target/etc/systemd/logind.conf.d/override.conf
+ 7328826f34b21e17a623bbf7ba8a3863104dc4bdc1aaa5c5c61ebc5c0d985ca0  hooks/target/etc/systemd/system/NetworkManager-dispatcher.service.d/20-managed-persistent.conf
+@@ -815,6 +813,8 @@ c5643997f0ff54194f2b975f75e13c6b3ffb29fb86a67d743707816f06834014  hooks/target/e
+ bd911f2cadcbdb8666ac2a076b31e97a9df9f809cdd82578d1b57ed8d35dd5a4  hooks/target/etc/tmpfiles.d/tmp.conf
+ 1ca6fa21e94cba9177321ac1af33a867b6c065dd12571cd4031bc589ee54da9b  hooks/target/etc/tpm2-cryptroot.conf.tmpl
+ bd594023d4b9f6cccfc57937f9cd92a8ffe87b07a92e6d35dd20a2b5dfa67c16  hooks/target/etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb.tmpl
++5312b6ab1bb67023154394fc1701d15dce694c7e6d1c8b2a10419e4cc813cfe0  hooks/target/etc/udev/iocost.conf.d/70-unattended-installer.conf.tmpl
++57a2643c5da9bba9702f1a004eb3f19c7e831bd60a5b0f23cb8e02a76084bf1a  hooks/target/etc/udev/iocost.conf.tmpl
+ 46cbc68bbafc5d156418624958c05533f6165146498eb552abfdd11ce9212f95  hooks/target/etc/udev/rules.d/51-android-debug-bridge.rules
+ e83de66ab43d4d67f7cc07f2abcf9cd0c21481e4563a24994662b6a842fbfa58  hooks/target/etc/udev/rules.d/52-samsung-download-mode.rules
+ f67e7714c95846a39c8bcbe417427db6af334f30d612161c7a08ebe85355104e  hooks/target/etc/udev/rules.d/53-ledger-wallet.rules
+@@ -871,7 +871,7 @@ e57f63a8d5d33c84cd8123cf0a71c92bc2f3d5d48a3f07d14fcffa60d16fd244  hooks/target/u
+ 56289ae71f3a22674185f8a80b1c2454999d5920c2e27535d56a50719e08a3b4  hooks/target/usr/local/bin/labwc-firewall-menu
+ 9c2aeba305282418af998d7be4d552686b86f5510c2ddf4baea719ddd52ba65c  hooks/target/usr/local/bin/labwc-focuswriter-import
+ ae97e674e27627010a77ff54174e328572f9ef14e40eed48c8da3b092b8b312b  hooks/target/usr/local/bin/labwc-freerdp-askpass
+-692e881582cd32a7a4f7de5bc914332c86ebcdf5712db05e785769f51f20b463  hooks/target/usr/local/bin/labwc-fuzzel
++c2b49ea1ead68fbb72a3d0506d9e8edf6f59aec6812a44ad03bfc22d81d80dbd  hooks/target/usr/local/bin/labwc-fuzzel
+ 0163c82a18c5df9c7e29febd59d6dc786323af1b4d80a34a1b416145bc1ef679  hooks/target/usr/local/bin/labwc-fuzzel-log
+ aea112caada0f39ef14dc841ea59170c18b9b8137bce046951a5fccf6839547e  hooks/target/usr/local/bin/labwc-fzf-menu
+ 3265d3ef02de50f436e490bd4e2e46b9e4b4dcf76f683e0f1c3ea6763fe03738  hooks/target/usr/local/bin/labwc-greeter-output
+@@ -882,7 +882,7 @@ ea62a5a95feccccee1efa23e8a19cedaed6c24ed3a418f46fced349de3079d25  hooks/target/u
+ be84619849e73c808af1e00fd7f211738322cd5bb106436c7873c1a763a40615  hooks/target/usr/local/bin/labwc-keyboard-layout
+ 4d7ae46c3f8b086dd06e9dd012171cedd1fe93611cd7ad156560dc437de8c295  hooks/target/usr/local/bin/labwc-lock
+ 6d0ff770bf95a6ec0721498c743041c83e5d1a35acea253376e0d047bc634759  hooks/target/usr/local/bin/labwc-logout
+-97a523f4168e6ec03979a9ee65ef841270feda8c3d76ac0f2d787f15e3879eea  hooks/target/usr/local/bin/labwc-main-menu
++2d72e3140a4cb3101889a6f63bfc6ec0af155e75467a00858e6c165a14aa4850  hooks/target/usr/local/bin/labwc-main-menu
+ d3a341683c8423a2830bc228f7769046e421e91e73a9002fb32629d13b42a813  hooks/target/usr/local/bin/labwc-maintenance-menu
+ 03291d72bf2e2bdca2a51bc44529e9262848e1b5018112ddde9b77e6a5071b2b  hooks/target/usr/local/bin/labwc-managed-app
+ 0b87eb9f269e5cb4d880d3fdf80a02a21074326b7188cab28d8d492ef0a128a4  hooks/target/usr/local/bin/labwc-managed-wayland-compat-app
+@@ -908,7 +908,7 @@ dab05fc64ee30b468fb89637c89da905c57785b3ff3ff2937824c924420f0d89  hooks/target/u
+ a5da0492faad5885557bc2909a94cab059cdb8ad3e4d9b9ae8ef0e83af084314  hooks/target/usr/local/bin/labwc-wallpaper-save
+ edfa38b6e8e92dc500867ecbc46e555835a126b65312bbb8c40a148f59ce25dd  hooks/target/usr/local/bin/labwc-wayland-app
+ 59b0e3c856f5d5cc32d0a85768b4fc428dd620299e12c77140ab9e23bac1977b  hooks/target/usr/local/bin/labwc-wayscriber-toggle
+-b34d24d8438a45070bf2d1c4f7ce9325fc20f01733114d7b722bcd354fa7d32d  hooks/target/usr/local/bin/labwc-window-switcher
++5aebab2850dc47c7cdc4a148677f24356b19d767f663812891e5d3eb33877df4  hooks/target/usr/local/bin/labwc-window-switcher
+ 1ff87730b9c51e77fd14854151fc8a5d0405767465bf7ff34276fbfb4a115325  hooks/target/usr/local/bin/local-apt-init
+ f4c8fbf759025d3af28b5fd4ccc8d60e2d2fbe7a3718871570984ccc550c44ce  hooks/target/usr/local/bin/mullvad-vpn
+ d1f0e7f7177afa0bfca93f1998a609dc7b2d4d331ffb75b011bf72609c567c0f  hooks/target/usr/local/bin/podman
+@@ -1162,7 +1162,7 @@ fbb5687752547d4afd8c866296669a57b6ec8e86105d571b7d0ec1c37e8e1ec8  hooks/target/u
+ f9b25930709708a8389680506b589177b32a6d4176a018a73610ea669cf01de0  hooks/target/usr/local/libexec/labwc-swaybg
+ 51e8f53905ab0dcd0c0ae150b4eb400f17082bce42fa3d40cf57bb3e5b9ae193  hooks/target/usr/local/libexec/labwc-swayidle
+ f803dce3b6e55bd34c00c903eb9cd0cccc8929ea4de05f992c1a565abba1e23f  hooks/target/usr/local/libexec/labwc-system-action-root
+-16334da426640952af6f2cbc9813ad9484f1191c86c6fea50ea85171cc526db3  hooks/target/usr/local/libexec/labwc-wrap-desktop-files
++b0b556544489d47fc7cc5ee2e6d039d5dfb9aebc64f550671d273f6d36e1644d  hooks/target/usr/local/libexec/labwc-wrap-desktop-files
+ 71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b  hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime
+ 38f56a49deedcc36dc8197e5fa3bf4e12557048a560d6cfbb56b91df25d60a96  hooks/target/usr/local/libexec/local-apt-normalize-sources
+ 4f37796796639893481717dbb94015ae56dc8026e2861abab71d33970f25b139  hooks/target/usr/local/libexec/local-apt-repository
+@@ -1216,7 +1216,7 @@ ba62cb1815e7f6f68f296c795f60f38bbc86a4df0ce7ede8e330760f586bde1e  hooks/target/u
+ cc876fd1d809d26f9f014b070d54c5b796f3169c7d4dbb64066676ad04ba0594  hooks/target/usr/local/share/browser-imports/my-ubol-settings.json
+ 36602c9061c00dbf4261e761e9c3603cce0b2fea785a91381d40ecead6a12535  hooks/target/usr/local/share/browser-imports/noscript_data.txt
+ 2b3cc4b5b924732f20d85f103447d0fb7d062cac41197f79581f31b175a79b67  hooks/target/usr/local/share/debugsys/initramfs/hook
+-f9782052f0746b3aeebf76e3bacbfe92b01844f410eb846cf2b0f29cb9b259ce  hooks/target/usr/local/share/doc/managed-git/README.md
++f3ee82bfcd69033717309ea6b2290c72bc39a7a8028256a7f92b32fc02e48e4b  hooks/target/usr/local/share/doc/managed-git/README.md
+ 53d44c92543194b3965fc0b556958adeb635a24b18cf3902eb4b7e5f89137e56  hooks/target/usr/local/share/icons/hicolor/64x64/apps/show-desktop.png
+ f3ca82b753a99c7b847f79bfff32b4a2d8764c2fc9af952f75c6acb619f86c79  hooks/target/usr/local/share/labwc-ai-copilots/llama-models.tsv
+ 438e340188f430a0be6423e1549e65682172933088bfc92f72d79638860ca354  hooks/target/usr/local/share/labwc-ai-copilots/whisper-models.tsv
+@@ -1266,19 +1266,19 @@ b9d5311b8ad4b52c8c53703fb6a8c46f48058ff97640ff4f61818f780e006449  hosts/installe
+ a7052fb781fd1c55c4a2347e0c7a02860b51ca855d259d827af37a2cf0748d4b  hosts/installer/layout-f2fs.env
+ d84cec43a06d89d941c5c7249bfa0ee02e83dff019e5ba52cb6b717f5fea4f02  hosts/installer/layout.env
+ da70b4fa8d628ed2480c3926dc095cfaedab73f7ccb29cf13f2832a985e6c6ca  hosts/installer/runtime.env
+-f2461d6444e1d5deca9869c560ddf457d06cd3c9c355e2de530b89134ef605a9  hosts/profiles/btrfs-de-dual-flex.env
+-50616cf4126aae83b9b401c070c3e5c9858e28a00e30ce1ab1c751b4d40a1afb  hosts/profiles/btrfs-de-dual-main.env
+-bf3fbb0502697fef4380dc68629e640fe6907855734489656c824efdea82fd27  hosts/profiles/btrfs-de-dual.env
+-ff4431ea3016c357ec2142a1c3dd0cf5c27c88ed207f7c2a57cebfec70f63b40  hosts/profiles/btrfs-de-flex.env
+-88aa926168227537e24e61bb0ded8feac7aef13c692305b0ab585ee4047996f6  hosts/profiles/btrfs-de-main.env
+-2565b0c61e5881b5fdeda2437c9f6f5c64abf3b80541f9e0488ca4105e5738ca  hosts/profiles/btrfs-de.env
+-4db46a6e800c23715f2d2b8450b9838a9b4d38d525efe3ddb94f3b03b1d3f6fb  hosts/profiles/btrfs-desktop.env
+-1b114103997cf8467067d92314099d17ca796ba9965e04ea8e888568a0170e15  hosts/profiles/f2fs-de-cbook.env
+-9c96c3edcda9e781d7afb1fa5e3a0301cc4b3279f0ab858f47ed9a960866ba4a  hosts/profiles/f2fs-de-dual-cbook.env
+-a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-de-dual.env
+-fcfca374179989108d27889a01728d615a071e48274c446bdce2fe1c9627dea8  hosts/profiles/f2fs-de.env
+-a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-desktop.env
+-8f8a918ff40b5f495900d3e4cdd01dc243e043fc32f859992e64f703313c27ec  hosts/profiles/vm-desktop.env
++1aeeb84dcab6b422326119611e6caae9d84ed525caf7b259470c6808cc917739  hosts/profiles/btrfs-de-dual-flex.env
++5364acb8d4f418bf307dc67120163d2b094523402e0355da84bd77e829c0fef4  hosts/profiles/btrfs-de-dual-main.env
++6508e8be1738808178f41f7c94c477da7510416b588af90e31ba36ba6290cf1e  hosts/profiles/btrfs-de-dual.env
++34e304c2496aa0967883cacec600c27d64169926460c6f6c714f1bc813a3d81a  hosts/profiles/btrfs-de-flex.env
++e6311c7c65f06e6ad46a3adbad497c52a9f01a150321497e89881e33d145eab5  hosts/profiles/btrfs-de-main.env
++5e224ea5c536666b3275897a36ec34b7b06c897fe0405040c305c3c8b2b5329c  hosts/profiles/btrfs-de.env
++da9d7f39444eb1172c3bf81bbfb98eb44e15c27029d26558458a86ffa7ffd46e  hosts/profiles/btrfs-desktop.env
++31bf41a3f184c2a714f47708e5f4c0a6d48cad88bb9ab1efa19976f79de00b29  hosts/profiles/f2fs-de-cbook.env
++410af02459631455a5fff1f0972348f2f07e061cd39ca5d0856205de1c8cc22a  hosts/profiles/f2fs-de-dual-cbook.env
++c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-de-dual.env
++24468daad87dabd74331850efbda9c4d6cb3835544cfd937c739edb8f1389bec  hosts/profiles/f2fs-de.env
++c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-desktop.env
++384fa9585ed1b96cfd99982edc77e9cc859575806b569c5ea31b741c09a07b34  hosts/profiles/vm-desktop.env
+ f047613bef399ffd2d4391a390459e1d7e45ae935e27df756c5ab20039f6bd9b  repo.env
+ 7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3  scripts/common/apt-sources.sh
+ 2c0f4171b816eaabcc4825ffee5ac66a2ee9b0297bc9adf6269f6dc28d3117d0  scripts/common/bootstrap.sh
+@@ -1292,8 +1292,8 @@ f10742a00d82a5aa22dc66f7d208d6e9d2dcfa448ced2c7c6f22b3471010c642  scripts/common
+ 94081210336c0931bb614926233932ace6fffbc95877635da503e26a1b05a0b5  scripts/common/ssh.sh
+ 45ec67bd4e1b38ba9bd705628a460a11e3a0a7ae0d41654a3defbff8982a2776  scripts/common/target.sh
+ cee7ee56d8d9130f84d227eb1c55417c631374c7f21fe28212dedbd6754916fe  scripts/desktop/android-platform-tools.sh
+-b14eaa1a4bd9d53fe56c7e6839356d93d9034b182d4381dceda27a403525c846  scripts/desktop/components.sh
+-109589ee04fec51de5be26f885e6ea4b73cd23da0fd62fac1a99180051c63701  scripts/desktop/detect.sh
++a49d389042954ba7532e982fd00c45c61797ac6095a0b57e45a5f11957c47210  scripts/desktop/components.sh
++efc3a4fc67ba054bac11ae6d6d92c3855d2fb3b52bf9d59ac18aec99978a1c1d  scripts/desktop/detect.sh
+ 5435396aa5ea051b371b863566800c1e891f1946090e1d09e61f72ecb3fbdcd4  scripts/desktop/digital-assets.sh
+ 70df80ef8f52ca863c4ef2a81418804835f6cfb981ec906e8d979d469a23330e  scripts/desktop/fonts-install.py
+ 5db35b779e1874e287431ed3eaec817f75577aec05a4021ed8ca998ffb1ff6bc  scripts/desktop/fonts.sh
+@@ -1304,14 +1304,14 @@ e83567983b03aaa983ea24319990cecc1e433ace4961217c3d3527607935771a  scripts/deskto
+ cfb13c1edd411d1b9cce5d39fd681f9a7d5c6b9ba76ba2c57e9cc94512411159  scripts/desktop/resctl-bench.sh
+ 258c53d585bb2d0be230de07f68ae0fb63806330a7bdc65cb013f8994d5cc67a  scripts/desktop/samloader.sh
+ 96bdfe253f23eef9b557763a8b9cf98b570e6eb2e1afe394ea41ab8815b9dd6a  scripts/desktop/satty.sh
+-28ac858f064211e3c25f5f434013f9bdfa0e3b29ee3ffe169fd3ab34fae19c18  scripts/desktop/verify.sh
++defe267dc39bdbfd45a24a693677a7271724b67a8a177108b1d619b80faf0a63  scripts/desktop/verify.sh
+ ad237fd2352441859a96e1ccf950aac6ed4705dc3d68baa83bf69cf6308142d4  scripts/desktop/waypaper.sh
+ 5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672  scripts/desktop/xwayland.sh
+ 98a7c90c6c56beaefb210ebb05ee0c8cc24ac5ebd9a846d87b0c79238417a09c  scripts/early/dispatch.sh
+ 02c14931d39e6ccfb9af9a5262e304666ac4d036543ae8eee261234968048d14  scripts/firstboot/01-early.sh
+ 7428b48c1e56ef9e1ab3aabac621357ef1b08a68b9e7bc717cc3b21dc6109031  scripts/firstboot/02-collect.sh
+ e7ae5e0ee9d0487774e1ac15406e57c60696c76e0f20e3742127ca4ac0db6690  scripts/firstboot/03-network.sh
+-9c50c88cce296089b46ca7ae08ef0b23973eeb19017d547080d352a0ebeb59c3  scripts/firstboot/04-validation.sh
++380f631d1361f1c98fa43f99ea930f11e2f821b0cb05b21787606cbf655073e8  scripts/firstboot/04-validation.sh
+ ff17433d4c96055c9df1f84e7a8e9ab35685a138a72218bbc3bc7f106cd968a0  scripts/firstboot/05-cleanup.sh
+ 5ba1678ada90176e1e34173a6876b07579000d5a3b98096d3fd82293cb777d8d  scripts/firstboot/firstboot.sh
+ 5c537614e6cf5ffd16a5c5cea86235d213d7f4617717bad111c15f1a084d67ee  scripts/firstboot/logging.sh
+@@ -1335,7 +1335,7 @@ f848ec73ba1b90c16be1e337244098adf1070baa0529f498d8f6c5b1643bf139  scripts/late/c
+ e5ca0a50c3731f30ab0e06cd3c5f5d5c6e6c712d701f6f3478e86658874bca95  scripts/late/enhanced.sh
+ b2d88b401d2c096fd7b1849a2841baad7a3d31d2267a3f338067ff9c84eaa4b0  scripts/late/f2fs-family.sh
+ 4102bc673b6665c9f93697b2e0f44d77bd79884319184f98cd3b05eae159cb71  scripts/late/grub.sh
+-0a7d633a8256e6d6a469e61817a8d2845460de70431b00b829bf0a46a527b225  scripts/late/iocost.sh
++237236bcfaf94ee8d26d3cb34418b1bf98938b18ac9e77e79bb5f391853db62b  scripts/late/iocost.sh
+ 18ff824599d0b1018ac4596a5525dad067576ac9ac428543de76dc78339c76e9  scripts/late/llama.sh
+ 9e17881a4ec19f9ca64e06e43e19d153612829d9cb9cd4dc9f45d63f2e362336  scripts/late/managed-network-generate.pl
+ e972d98237bf5595b341dc276274355966e7f39db1bdfddb716f871ad1f9f439  scripts/late/mullvad.sh
+diff --git a/d-i/forky/payload.tar.gz b/d-i/forky/payload.tar.gz
+index d90d3a4..cf01ff4 100644
+Binary files a/d-i/forky/payload.tar.gz and b/d-i/forky/payload.tar.gz differ
+diff --git a/d-i/forky/preseed.cfg b/d-i/forky/preseed.cfg
+index d0bc284..c467bf6 100644
+--- a/d-i/forky/preseed.cfg
++++ b/d-i/forky/preseed.cfg
+@@ -8,7 +8,7 @@ d-i clock-setup/ntp boolean false
+ d-i clock-setup/ntp seen true
+ 
+ # Resolve the effective URL, validate the complete payload, then include local files.
+-d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; uid_gid) printf '"'"'%s:%s\012'"'"' "$3" "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != 970ef3fa67a7f562e00581bff5ad89601fad3e2ee82b772a3cf03432c2cbbc50 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = 970ef3fa67a7f562e00581bff5ad89601fad3e2ee82b772a3cf03432c2cbbc50 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" f9e19b98aa19b455d9f97a91787a42c91dd15645b53e78c8c160a3d360e41f39 ce2ad54c0e80c545a42fcdd222a7401a6910abcedf0eb04c02fa686c0457776e; installer_lifecycle_complete'
++d-i preseed/include_command string /bin/sh -c 'set -eu; umask 077; installer_metadata_value() ( set -f; lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1; lc_field=$2; set -- $lc_metadata; [ "$#" -ge 4 ] || exit 1; case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac; case "$lc_field" in uid) printf '"'"'%s\012'"'"' "$3" ;; gid) printf '"'"'%s\012'"'"' "$4" ;; uid_gid) printf '"'"'%s:%s\012'"'"' "$3" "$4" ;; links) printf '"'"'%s\012'"'"' "$2" ;; mode|uid_gid_mode|uid_gid_mode_links) lc_mode=$(printf '"'"'%s\012'"'"' "$1" | awk '"'"' length($0) < 10 {exit 1} { special=0; value=0; for (i=2; i<=10; i++) { c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1)); if (c!="-") { if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1; if (c!="S" && c!="T") value+=bit; if (c=="s" || c=="S") special+=(i==4 ? 4 : 2); if (c=="t" || c=="T") special+=1; }; if (i==4 || i==7) value*=8; }; printf "%o\012", special*512+value; }'"'"') || exit 1; case "$lc_field" in mode) printf '"'"'%s\012'"'"' "$lc_mode" ;; uid_gid_mode) printf '"'"'%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" ;; uid_gid_mode_links) printf '"'"'%s:%s:%s:%s\012'"'"' "$3" "$4" "$lc_mode" "$2" ;; esac ;; *) exit 1 ;; esac; ); installer_lifecycle_paths() { LC_ROOT=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; LC_STATE=$LC_ROOT/state; case "$LC_ROOT" in /*) ;; *) return 1 ;; esac; case "/${LC_ROOT#/}/" in *'"'"'/../'"'"'*|*'"'"'/./'"'"'*|*'"'"'//'"'"'*) return 1 ;; esac; [ "$LC_ROOT" != / ] || return 1; lc_path=$LC_STATE; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || return 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; (umask 077; mkdir -p "$LC_STATE") || return 1; [ "$(installer_metadata_value "$LC_ROOT" uid)" = "$(id -u)" ] || return 1; [ "$(installer_metadata_value "$LC_STATE" uid)" = "$(id -u)" ] || return 1; chmod 0700 "$LC_ROOT" "$LC_STATE" || return 1; }; installer_record_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_status=${1:-1}; lc_component=${2:-unknown}; lc_detail=${3:-unspecified}; case "$lc_status" in '"'"''"'"'|*[!0-9]*|0) lc_status=1 ;; esac; rm -f "$LC_STATE/installation.success" "$LC_STATE/target-validated"; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || exit 0; lc_tmp=$(mktemp "$LC_STATE/.failure.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; { printf '"'"'format=1\012state=FATAL\012status=%s\012'"'"' "$lc_status"; printf '"'"'phase=%s\012component=%s\012'"'"' "${INSTALLER_PHASE:-unknown}" "$lc_component"; printf '"'"'timestamp=%s\012'"'"' "$(date -u '"'"'+%Y-%m-%dT%H:%M:%SZ'"'"')"; printf '"'"'detail=%s\012'"'"' "$(printf '"'"'%s'"'"' "$lc_detail" | tr '"'"'\r\012'"'"' '"'"' '"'"')"; } >"$lc_tmp" || exit 1; chmod 0600 "$lc_tmp" || exit 1; ln "$lc_tmp" "$LC_STATE/first-failure" 2>/dev/null || [ -f "$LC_STATE/first-failure" ]; ); installer_preserve_failure() ( set +e; umask 077; installer_lifecycle_paths || exit 1; lc_target=${INSTALLER_TARGET_DIR:-/target}; awk -v p="$lc_target" '"'"'$2==p {found=1} END {exit !found}'"'"' /proc/mounts || exit 0; lc_path=$lc_target/var/log/installer; while [ "$lc_path" != / ]; do [ ! -L "$lc_path" ] || exit 1; lc_path=${lc_path%/*}; [ -n "$lc_path" ] || lc_path=/; done; mkdir -p "$lc_target/var/log/installer" || exit 1; chmod 0700 "$lc_target/var/log/installer" || exit 1; for lc_source in "$LC_STATE/first-failure" /tmp/installer.log /var/log/syslog; do [ -f "$lc_source" ] && [ ! -L "$lc_source" ] || continue; lc_tmp=$(mktemp "$lc_target/var/log/installer/.diagnostic.XXXXXX") || exit 1; if cp "$lc_source" "$lc_tmp" && chmod 0600 "$lc_tmp"; then mv -f "$lc_tmp" "$lc_target/var/log/installer/${lc_source##*/}" || exit 1; else rm -f "$lc_tmp"; exit 1; fi; done; ); installer_terminal_hold() { trap '"'"''"'"' HUP INT TERM; trap - 0; set +e; installer_preserve_failure; printf '"'"'\012INSTALLER TERMINAL FAILURE: no further installation or reboot is permitted.\012Diagnostics: %s/state/first-failure and /tmp/installer.log\012'"'"' "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}" >&2; if [ -c /dev/console ] && [ -w /dev/console ]; then printf '"'"'\012INSTALLER TERMINAL FAILURE. Inspect /tmp/install-runtime/state/first-failure; manual recovery required.\012'"'"' >/dev/console; fi; lc_pid=$$; lc_depth=0; while [ "$lc_pid" -gt 1 ] && [ "$lc_depth" -lt 64 ]; do lc_name=$(cat "/proc/$lc_pid/comm" 2>/dev/null); if [ "$lc_name" = main-menu ]; then kill -STOP "$lc_pid"; break; fi; lc_pid=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_pid/status" 2>/dev/null); case "$lc_pid" in '"'"''"'"'|*[!0-9]*) break ;; esac; lc_depth=$(expr "$lc_depth" + 1) || break; done; sync; while :; do sleep 3600; done; }; installer_stop_tree() ( set +f; lc_stop_pid=$1; lc_stop_depth=${2:-0}; case "$lc_stop_depth" in '"'"''"'"'|*[!0-9]*) exit 1 ;; esac; case "$lc_stop_pid" in '"'"''"'"'|*[!0-9]*|0|1) exit 1 ;; esac; [ "$lc_stop_depth" -lt 128 ] || exit 1; [ -d "/proc/$lc_stop_pid" ] || exit 0; kill -STOP "$lc_stop_pid" 2>/dev/null || exit 0; lc_children=$(cat "/proc/$lc_stop_pid/task/$lc_stop_pid/children" 2>/dev/null) || { lc_children=; for lc_proc_status in /proc/[0-9]*/status; do lc_proc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "$lc_proc_status" 2>/dev/null) || continue; [ "$lc_proc_parent" = "$lc_stop_pid" ] || continue; lc_proc_id=${lc_proc_status%/status}; lc_proc_id=${lc_proc_id##*/}; lc_children="$lc_children $lc_proc_id"; done; }; for lc_child in $lc_children; do case "$lc_child" in '"'"''"'"'|*[!0-9]*) continue ;; esac; lc_parent=$(awk '"'"'/^PPid:/ {print $2}'"'"' "/proc/$lc_child/status" 2>/dev/null); [ "$lc_parent" = "$lc_stop_pid" ] || continue; lc_stop_next_depth=$(expr "$lc_stop_depth" + 1) || exit 1; installer_stop_tree "$lc_child" "$lc_stop_next_depth" || :; done; kill -KILL "$lc_stop_pid" 2>/dev/null || :; ); installer_run_supervised() { "$@" <&9 9<&- & LC_CHILD_PID=$!; if wait "$LC_CHILD_PID"; then lc_child_status=0; else lc_child_status=$?; fi; LC_CHILD_PID=; return "$lc_child_status"; } 9<&0; installer_bounded_seconds() ( lc_seconds=${1-}; case "$lc_seconds" in '"'"''"'"'|*[!0-9]*) exit 125 ;; esac; while [ "${lc_seconds#0}" != "$lc_seconds" ]; do lc_seconds=${lc_seconds#0}; done; [ -n "$lc_seconds" ] && [ "${#lc_seconds}" -le 3 ] || exit 125; [ "$lc_seconds" -ge 1 ] && [ "$lc_seconds" -le 900 ] || exit 125; printf '"'"'%s\012'"'"' "$lc_seconds"; ); installer_run_bounded() ( lc_limit=$(installer_bounded_seconds "${1-}") || exit 125; shift; [ "$#" -gt 0 ] || exit 125; lc_intervals=$(seq 1 "$lc_limit") || exit 125; [ -n "$lc_intervals" ] || exit 125; set -f; "$@" <&9 9<&- & lc_bounded_pid=$!; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 129'"'"' HUP; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 130'"'"' INT; trap '"'"'installer_stop_tree "$lc_bounded_pid"; exit 143'"'"' TERM; for lc_interval in $lc_intervals; do kill -0 "$lc_bounded_pid" 2>/dev/null || break; if ! sleep 1; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 125; fi; done; if kill -0 "$lc_bounded_pid" 2>/dev/null; then installer_stop_tree "$lc_bounded_pid"; wait "$lc_bounded_pid" 2>/dev/null || :; exit 124; fi; if wait "$lc_bounded_pid"; then lc_bounded_status=0; else lc_bounded_status=$?; fi; exit "$lc_bounded_status"; ) 9<&0; installer_lifecycle_signal() { lc_signal_status=$1; trap '"'"''"'"' HUP INT TERM; installer_record_failure "$lc_signal_status" "${INSTALLER_PHASE:-unknown}" '"'"'supervisor received a termination signal'"'"' || :; if [ -n "${LC_CHILD_PID:-}" ]; then installer_stop_tree "$LC_CHILD_PID" || :; wait "$LC_CHILD_PID" 2>/dev/null || :; LC_CHILD_PID=; fi; exit "$lc_signal_status"; }; installer_lifecycle_abort() { installer_record_failure "${1:-1}" "${2:-${INSTALLER_PHASE:-unknown}}" "${3:-mandatory operation failed}" || :; installer_terminal_hold; }; installer_lifecycle_exit() { lc_exit=$1; trap - 0; if [ "$lc_exit" -ne 0 ]; then installer_lifecycle_abort "$lc_exit" "${INSTALLER_PHASE:-unknown}" '"'"'phase exited unsuccessfully'"'"'; fi; if [ -e "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/state/first-failure" ]; then installer_terminal_hold; fi; [ "${INSTALLER_LIFECYCLE_COMPLETE:-0}" = 1 ] || installer_lifecycle_abort 125 "${INSTALLER_PHASE:-unknown}" '"'"'phase exited without explicit completion'"'"'; }; installer_lifecycle_arm() { if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf '"'"'shell confmodule is unavailable'"'"'; . /usr/share/debconf/confmodule; fi; INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0; export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE; case "$INSTALLER_PHASE" in '"'"''"'"'|*[!A-Za-z0-9_.-]*) installer_lifecycle_abort 125 lifecycle '"'"'invalid phase identifier'"'"' ;; esac; installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'unsafe or unavailable lifecycle state directory'"'"'; trap '"'"'installer_lifecycle_exit "$?"'"'"' 0; trap '"'"'installer_lifecycle_signal 129'"'"' HUP; trap '"'"'installer_lifecycle_signal 130'"'"' INT; trap '"'"'installer_lifecycle_signal 143'"'"' TERM; [ ! -e "$LC_STATE/first-failure" ] && [ ! -L "$LC_STATE/first-failure" ] || installer_terminal_hold; }; installer_lifecycle_begin() { installer_lifecycle_arm "$1"; if [ -f "$LC_STATE/$INSTALLER_PHASE.done" ] && [ ! -L "$LC_STATE/$INSTALLER_PHASE.done" ]; then INSTALLER_LIFECYCLE_COMPLETE=1; return 10; fi; mkdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || installer_lifecycle_abort 125 "$INSTALLER_PHASE" '"'"'interrupted or concurrent invocation'"'"'; }; installer_lifecycle_complete() { installer_lifecycle_paths || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; [ ! -e "$LC_STATE/first-failure" ] || installer_terminal_hold; lc_done=$(mktemp "$LC_STATE/.done.XXXXXX") || installer_lifecycle_abort 125 lifecycle '"'"'cannot stage completion'"'"'; printf '"'"'phase=%s\012state=complete\012'"'"' "$INSTALLER_PHASE" >"$lc_done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot write completion'"'"'; chmod 0600 "$lc_done" && mv -f "$lc_done" "$LC_STATE/$INSTALLER_PHASE.done" || installer_lifecycle_abort 125 lifecycle '"'"'cannot publish completion'"'"'; rmdir "$LC_STATE/$INSTALLER_PHASE.running" 2>/dev/null || :; INSTALLER_LIFECYCLE_COMPLETE=1; }; installer_guard_hook() ( set -eu; umask 077; lc_hook=$1; lc_group=$2; installer_lifecycle_paths || exit 1; case "$LC_ROOT" in *[!A-Za-z0-9_./-]*) exit 1 ;; esac; lc_name=${lc_hook##*/}; lc_id=hook-$lc_group-$lc_name; case "$lc_id" in *[!A-Za-z0-9_.-]*) exit 1 ;; esac; [ -f "$lc_hook" ] && [ ! -L "$lc_hook" ] || exit 1; if grep -Fqx '"'"'# INSTALLER_GUARDED_HOOK_V1'"'"' "$lc_hook"; then exit 0; fi; lc_runner=$LC_ROOT/bootstrap/guard-hook.sh; [ -x "$lc_runner" ] && [ ! -L "$lc_runner" ] || exit 1; lc_backup_dir=$LC_ROOT/bootstrap/supervised/$lc_id; lc_backup=$lc_backup_dir/$lc_name; mkdir -p "$lc_backup_dir" || exit 1; chmod 0700 "$lc_backup_dir" || exit 1; if [ -e "$lc_backup" ] || [ -L "$lc_backup" ]; then [ -f "$lc_backup" ] && [ ! -L "$lc_backup" ] && cmp -s "$lc_hook" "$lc_backup" || exit 1; else lc_tmp=$(mktemp "$lc_backup_dir/.original.XXXXXX") || exit 1; cp "$lc_hook" "$lc_tmp" && chmod 0700 "$lc_tmp" && mv "$lc_tmp" "$lc_backup" || exit 1; fi; lc_tmp=$(mktemp "${lc_hook}.guard.XXXXXX") || exit 1; trap '"'"'rm -f "$lc_tmp"'"'"' 0; printf '"'"'#!/bin/sh\012# INSTALLER_GUARDED_HOOK_V1\012exec "%s" "%s" "%s" "$@"\012'"'"' "$lc_runner" "$lc_id" "$lc_backup" >"$lc_tmp" || exit 1; chmod 0755 "$lc_tmp" && mv -f "$lc_tmp" "$lc_hook" || exit 1; ); source_error() { printf '"'"'[repository] fatal: %s\012'"'"' "$*" >&2; if [ -w /dev/tty4 ] && [ -c /dev/tty4 ]; then printf '"'"'[repository] fatal: %s\012'"'"' "$*" >/dev/tty4; fi; if command -v logger >/dev/null 2>&1; then logger -t preseed-repository "fatal: $*" 2>/dev/null || :; fi; return 1; }; source_cmdline() { if [ "${INSTALLER_CMDLINE+x}" = x ]; then printf '"'"'%s\012'"'"' "$INSTALLER_CMDLINE"; else cat /proc/cmdline 2>/dev/null || :; fi; }; source_insecure() ( set -f; answer=; for item in $(source_cmdline); do case "$item" in allow_unauthenticated_ssl|debian-installer/allow_unauthenticated_ssl) answer=true ;; allow_unauthenticated_ssl=*|debian-installer/allow_unauthenticated_ssl=*) answer=${item#*=} ;; esac; done; if [ -z "$answer" ] && command -v debconf-get >/dev/null 2>&1; then answer=$(debconf-get debian-installer/allow_unauthenticated_ssl 2>/dev/null || :); fi; case "$answer" in true|yes|1|on) exit 0 ;; '"'"''"'"'|false|no|0|off) exit 1 ;; *) source_error '"'"'allow_unauthenticated_ssl must be true or false'"'"'; exit 2 ;; esac; ); source_hash() { if command -v sha256sum >/dev/null 2>&1; then sha256sum; elif command -v busybox >/dev/null 2>&1; then busybox sha256sum; else source_error '"'"'sha256sum is required in the installer'"'"'; return 1; fi; }; source_validate_url() { case "$1" in http://?*/*|https://?*/*) ;; *) source_error '"'"'repository URLs must be absolute HTTP or HTTPS URLs with a path'"'"'; return 1 ;; esac; case "$1" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._~:/?#@\!\$\&\(\)\*+,\;=%-]*) source_error '"'"'repository URL contains unsupported characters'"'"'; return 1 ;; esac; source_authority=${1#*://}; source_authority=${source_authority%%/*}; case "$source_authority" in '"'"''"'"'|*@*) source_error '"'"'empty URL authority or embedded credentials are not allowed'"'"'; return 1 ;; esac; }; source_effective_url() { awk -v initial="$1" '"'"'function join(b,l, a,n,i,out,scheme,host,path,q) { if(l ~ /^https?:\/\//) return l; if(l ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) {bad=1; return l}; scheme=b; sub(/:.*/,"",scheme); host=b; sub(/^https?:\/\//,"",host); sub(/\/.*/,"",host); if(l ~ /^\/\//) return scheme ":" l; sub(/[?#].*/,"",b); if(l ~ /^\//) path=l; else if(l ~ /^\?/) return b l; else {path=b; sub(/^https?:\/\/[^\/]+/,"",path); sub(/[^\/]*$/,"",path); path=path l}; q=path; sub(/^[^?#]*/,"",q); sub(/[?#].*/,"",path); n=split(path,a,"/"); out=""; for(i=1;i<=n;i++){if(a[i]=="" || a[i]==".") continue; if(a[i]=="..") sub(/\/[^\/]*$/,"",out); else out=out "/" a[i]}; return scheme "://" host out q } BEGIN {url=initial; bad=0; count=0} {line=$0; sub(/^[ \t]+/,"",line); if(tolower(line) ~ /^location:/) {sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); sub(/[ \t]+\[following\].*$/,"",line); sub(/[ \t]+$/,"",line); nexturl=join(url,line); if(url ~ /^https:/ && nexturl !~ /^https:/) bad=1; url=nexturl; count++}} END {if(bad || count>10) exit 1; print url}'"'"' "$2"; }; source_http_get() ( set -eu; umask 077; url=$1; destination=$2; effective=${3:-}; read_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_TIMEOUT:-45}") || { source_error '"'"'INSTALLER_FETCH_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; wall_timeout=$(installer_bounded_seconds "${INSTALLER_FETCH_WALL_TIMEOUT:-180}") || { source_error '"'"'INSTALLER_FETCH_WALL_TIMEOUT must be 1 through 900 integer seconds'"'"' || :; exit 125; }; source_validate_url "$url" || exit 1; command -v wget >/dev/null 2>&1 || { source_error '"'"'wget is required in the installer'"'"'; exit 1; }; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; headers=${temp}.headers; trap '"'"'rm -f "$temp" "$headers"'"'"' 0; trap '"'"'exit 130'"'"' INT; trap '"'"'exit 143'"'"' TERM; trap '"'"'exit 129'"'"' HUP; help=$(wget --help 2>&1 || :); set -- wget -S -T "$read_timeout" -O "$temp"; case "$help" in *--tries*) set -- "$@" --tries=1 ;; esac; case "$help" in *--max-redirect*) set -- "$@" --max-redirect=10 ;; esac; if source_insecure; then source_error '"'"'TLS authentication bypass is forbidden for executable repository content'"'"'; exit 1; else status=$?; [ "$status" -eq 1 ] || exit "$status"; fi; success=false; fetch_status=1; for attempt in 1 2 3; do if installer_run_bounded "$wall_timeout" "$@" "$url" >"$headers" 2>&1; then success=true; break; else fetch_status=$?; fi; case "$fetch_status" in 2|3|5|6|125|126|127|129|130|143) break ;; esac; if grep -Eq '"'"'HTTP/[0-9.]+ (401|403|404|410)'"'"' "$headers"; then break; fi; [ "$attempt" -eq 3 ] || sleep 1; done; if [ "$success" != true ]; then { printf '"'"'status=%s\012attempts=%s\012'"'"' "$fetch_status" "$attempt"; cat "$headers"; } >"$temp"; chmod 0600 "$temp" && mv -f "$temp" "${destination}.fetch-error" || :; source_error "repository HTTP fetch failed status=$fetch_status attempts=$attempt; response details: ${destination}.fetch-error" || :; exit "$fetch_status"; fi; if grep -qi '"'"'certificate validation not implemented'"'"' "$headers"; then source_error '"'"'wget cannot verify TLS certificates; use a TLS-capable installer image'"'"'; exit 1; fi; resolved=$(source_effective_url "$url" "$headers") || { source_error '"'"'unsafe redirect scheme, HTTPS downgrade, or redirect loop'"'"'; exit 1; }; source_validate_url "$resolved" || exit 1; chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1; if [ -n "$effective" ]; then printf '"'"'%s\012'"'"' "$resolved" >"$effective"; chmod 0600 "$effective"; fi; ); source_validate_relative() { case "${1:-}" in '"'"''"'"'|/*|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/@+-]*) source_error '"'"'unsafe repository-relative path'"'"'; return 1 ;; esac; case "/$1/" in */../*|*/./*|*//*) source_error '"'"'repository path contains traversal or empty components'"'"'; return 1 ;; esac; }; source_transfer() ( set -eu; base=$1; rel=$2; destination=$3; source_validate_relative "$rel" || exit 1; case "$base" in /*) candidate=${base%/}/$rel; [ -f "$candidate" ] && [ ! -L "$candidate" ] || { source_error "missing or non-regular repository file: $rel"; exit 1; }; canonical=$(readlink -f "$candidate") || exit 1; root=$(readlink -f "$base") || exit 1; case "$canonical" in "${root%/}/"*) ;; *) source_error '"'"'repository file escapes source root'"'"'; exit 1 ;; esac; mkdir -p "$(dirname "$destination")" || exit 1; temp=$(mktemp "${destination}.part.XXXXXX") || exit 1; trap '"'"'rm -f "$temp"'"'"' 0; cp "$candidate" "$temp" && chmod 0600 "$temp" && mv -f "$temp" "$destination" || exit 1 ;; http://*|https://*) source_http_get "${base%/}/$rel" "$destination" ;; *) source_error '"'"'unsupported repository source'"'"'; exit 1 ;; esac; ); source_resolve_seed() ( set -eu; set -f; runtime=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}; boot=$runtime/bootstrap; umask 077; mkdir -p "$boot" && chmod 0700 "$runtime" "$boot" || exit 1; if [ -s "$boot/seed.file" ] && [ -s "$boot/seed.url" ]; then source_error '"'"'ambiguous persisted repository source'"'"'; exit 1; fi; for kind in file url; do if [ -s "$boot/seed.$kind" ]; then cat "$boot/seed.$kind"; exit 0; fi; done; url=; file=; for item in $(source_cmdline); do case "$item" in url=*|preseed/url=*) value=${item#*=}; [ -z "$url" ] || [ "$url" = "$value" ] || { source_error '"'"'conflicting url= parameters'"'"'; exit 1; }; url=$value ;; file=*|preseed/file=*) value=${item#*=}; [ -z "$file" ] || [ "$file" = "$value" ] || { source_error '"'"'conflicting file= parameters'"'"'; exit 1; }; file=$value ;; esac; done; if [ -z "$url$file" ] && command -v debconf-get >/dev/null 2>&1; then url=$(debconf-get preseed/url 2>/dev/null || :); file=$(debconf-get preseed/file 2>/dev/null || :); fi; if [ -z "$url$file" ] && [ -r /var/run/preseed.last_location ]; then url=$(cat /var/run/preseed.last_location); fi; [ -z "$url" ] || [ -z "$file" ] || { source_error '"'"'specify either file= or url=, not both'"'"'; exit 1; }; case "$url" in /*) file=$url; url= ;; file://localhost/*) file=/${url#file://localhost/}; url= ;; file:///*) file=${url#file://}; url= ;; esac; if [ -n "$file" ]; then case "$file" in /*) ;; *) source_error '"'"'file= must name an absolute preseed file'"'"'; exit 1 ;; esac; [ -f "$file" ] || { source_error '"'"'file= does not name a readable preseed file'"'"'; exit 1; }; file=$(readlink -f "$file"); base=${file%/*}; [ -n "$base" ] || base=/; case "$base" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) source_error '"'"'unsupported local repository path'"'"'; exit 1 ;; esac; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.file"; elif [ -n "$url" ]; then source_http_get "$url" "$boot/seed.document" "$boot/seed.effective-url" || exit "$?"; resolved=$(cat "$boot/seed.effective-url"); resolved=${resolved%%\#*}; resolved=${resolved%%\?*}; base=${resolved%/*}; source_validate_url "$base/" || exit 1; printf '"'"'%s\012'"'"' "$base" >"$boot/seed.url"; else source_error '"'"'no repository source: pass file=, preseed/file=, url=, or preseed/url='"'"'; exit 1; fi; for state in "$boot/seed.file" "$boot/seed.url" "$boot/seed.effective-url"; do [ ! -f "$state" ] || chmod 0600 "$state"; done; printf '"'"'%s\012'"'"' "$base"; ); installer_lifecycle_arm preflight; base=$(source_resolve_seed) || exit "$?"; boot=${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap; cached_hash=; if [ -f "$boot/source.sh" ]; then cached_hash=$(source_hash <"$boot/source.sh"); fi; if [ "${cached_hash%% *}" != 970ef3fa67a7f562e00581bff5ad89601fad3e2ee82b772a3cf03432c2cbbc50 ]; then source_transfer "$base" scripts/common/source.sh "$boot/source.sh" || exit 1; fi; actual=$(source_hash <"$boot/source.sh"); [ "${actual%% *}" = 970ef3fa67a7f562e00581bff5ad89601fad3e2ee82b772a3cf03432c2cbbc50 ] || { source_error "transport checksum differs from preseed pin"; exit 1; }; . "$boot/source.sh"; source_bootstrap "$base" b33c9b94d93fdf3e55ea461d3a606dea4d7bbe0ca4e7851144264e265a1151c3 aebf69772a7fd9306357742e678ea5f4a145d29f2cd95cd33cee47e9571644e9; installer_lifecycle_complete'
+ 
+ d-i preseed/run string file:///tmp/install-runtime/bootstrap/preseed-apply.sh
+ 
+diff --git a/d-i/forky/scripts/desktop/components.sh b/d-i/forky/scripts/desktop/components.sh
+index 400b63a..fcd211b 100755
+--- a/d-i/forky/scripts/desktop/components.sh
++++ b/d-i/forky/scripts/desktop/components.sh
+@@ -2906,6 +2906,10 @@ desktop_render_labwc_default_config() {
+     LABWC_GREETER_ENTRY_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_ENTRY_MIN_WIDTH:-}")" \
+     LABWC_GREETER_SHELL_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_SHELL_MIN_WIDTH:-}")" \
+     LABWC_GREETER_BUTTON_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}")" \
++    LABWC_FUZZEL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}")" \
++    LABWC_FUZZEL_MAIN_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}")" \
++    LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}")" \
++    LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}")" \
+     LABWC_FUZZEL_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_WIDTH:-36}")" \
+     LABWC_FUZZEL_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_LINES:-15}")" \
+     LABWC_FUZZEL_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MENU_WIDTH:-22}")" \
+@@ -3390,6 +3394,20 @@ desktop_render_fuzzel_configs() {
+     LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
+     LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}" \
+     LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MENU_LINES:-8}"
++  desktop_render_role_target_template \
++    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
++    "/etc/skel-desktop/.config/fuzzel/main-menu.ini" \
++    0644 \
++    LABWC_FUZZEL_BASE_CONFIG base.ini \
++    LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}" \
++    LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}"
++  desktop_render_role_target_template \
++    "etc/skel-desktop/.config/fuzzel/menu.ini.tmpl" \
++    "/etc/skel-desktop/.config/fuzzel/main-menu-internal.ini" \
++    0644 \
++    LABWC_FUZZEL_BASE_CONFIG base-internal.ini \
++    LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}" \
++    LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}"
+   desktop_log "rendered_fuzzel_configs launcher_width=${LABWC_FUZZEL_WIDTH:-54} internal_launcher_width=${LABWC_FUZZEL_INTERNAL_WIDTH:-28} menu_width=${LABWC_FUZZEL_MENU_WIDTH:-28} internal_menu_width=${LABWC_FUZZEL_INTERNAL_MENU_WIDTH:-18}"
+ }
+ desktop_render_crystal_dock_appearance() {
+@@ -4638,6 +4656,22 @@ desktop_enable_target_services() {
+     systemctl --global disable ssh-agent.socket
+   '
+ 
++  # Unlock is explicitly requested by git-ssh unlock, not by graphical login.
++  # Remove only the exact links installed by older revisions, never admin files.
++  desktop_require_absolute_account_home
++  for ssh_home in /etc/skel-desktop "$ACCOUNT_HOME"; do
++    ssh_units="/target${ssh_home}/.config/systemd/user"
++    ssh_wants="${ssh_units}/labwc-session.target.wants"
++    [ ! -L "$ssh_units" ] && [ ! -L "$ssh_wants" ] ||
++      installer_fatal "unsafe SSH unlock activation directory: ${ssh_wants}"
++    ssh_link="${ssh_wants}/labwc-ssh-key-load.service"
++    if [ -L "$ssh_link" ] && [ "$(readlink "$ssh_link")" = ../labwc-ssh-key-load.service ]; then
++      rm -- "$ssh_link"
++    elif [ -e "$ssh_link" ] || [ -L "$ssh_link" ]; then
++      installer_fatal "unmanaged SSH unlock activation preserved: ${ssh_link}"
++    fi
++  done
++
+   for unit in \
+     labwc-output-watch.service \
+     swaybg.service \
+@@ -4647,7 +4681,6 @@ desktop_enable_target_services() {
+     labwc-mute-default-microphone.service \
+     labwc-kwallet-portal.service \
+     ssh-agent.socket \
+-    labwc-ssh-key-load.service \
+     labwc-plans.service \
+     foot-server.socket \
+     mako.service \
+diff --git a/d-i/forky/scripts/desktop/detect.sh b/d-i/forky/scripts/desktop/detect.sh
+index 5113431..43b7380 100755
+--- a/d-i/forky/scripts/desktop/detect.sh
++++ b/d-i/forky/scripts/desktop/detect.sh
+@@ -486,6 +486,10 @@ desktop_validate_policy_env() {
+   desktop_validate_optional_uint_range LABWC_GREETER_BUTTON_MIN_WIDTH "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}" 80 1024
+   desktop_validate_uint_range LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_WIDTH:-36}" 20 200
+   desktop_validate_uint_range LABWC_FUZZEL_LINES "${LABWC_FUZZEL_LINES:-15}" 4 40
++  desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}" 20 200
++  desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_LINES "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}" 4 40
++  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}" 20 200
++  desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}" 4 40
+   desktop_validate_uint_range LABWC_FUZZEL_MENU_WIDTH "${LABWC_FUZZEL_MENU_WIDTH:-22}" 16 200
+   desktop_validate_uint_range LABWC_FUZZEL_MENU_LINES "${LABWC_FUZZEL_MENU_LINES:-5}" 1 32
+   desktop_validate_uint_range LABWC_FUZZEL_FONT_SIZE "${LABWC_FUZZEL_FONT_SIZE:-15}" 8 32
+diff --git a/d-i/forky/scripts/desktop/verify.sh b/d-i/forky/scripts/desktop/verify.sh
+index 2a50524..99d2f38 100755
+--- a/d-i/forky/scripts/desktop/verify.sh
++++ b/d-i/forky/scripts/desktop/verify.sh
+@@ -976,6 +976,8 @@ for path in \
+   /etc/skel-desktop/.config/fuzzel/fuzzel-internal.ini \
+   /etc/skel-desktop/.config/fuzzel/menu.ini \
+   /etc/skel-desktop/.config/fuzzel/menu-internal.ini \
++  /etc/skel-desktop/.config/fuzzel/main-menu.ini \
++  /etc/skel-desktop/.config/fuzzel/main-menu-internal.ini \
+   /etc/skel-desktop/.config/Thunar/uca.xml \
+   /etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf \
+   /etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf \
+@@ -1168,8 +1170,11 @@ check_required_owned_dir "$account_home/.config/gitops"
+ [ "$(find -P "$account_home/.config/gitops" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
+ verify_skeleton_session_link ssh-agent.socket
+ verify_account_session_link ssh-agent.socket
+-verify_skeleton_session_link labwc-ssh-key-load.service
+-verify_account_session_link labwc-ssh-key-load.service
++# Interactive decryption is on demand; do not race wallet/login prompts.
++for ssh_home in /etc/skel-desktop "$account_home"; do
++  ssh_link="$ssh_home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service"
++  [ ! -e "$ssh_link" ] && [ ! -L "$ssh_link" ] || fatal "SSH unlock must not run at login"
++done
+ 
+ for path in \
+   "$account_home/.config/labwc/rc.xml" \
+@@ -1554,6 +1559,8 @@ for path in \
+   "$account_home/.config/fuzzel/fuzzel-internal.ini" \
+   "$account_home/.config/fuzzel/menu.ini" \
+   "$account_home/.config/fuzzel/menu-internal.ini" \
++  "$account_home/.config/fuzzel/main-menu.ini" \
++  "$account_home/.config/fuzzel/main-menu-internal.ini" \
+   "$account_home/.config/Thunar/uca.xml" \
+   "$account_home/.config/crystal-dock/labwc/appearance.conf" \
+   "$account_home/.config/crystal-dock/labwc/panel_1.conf" \
+@@ -1716,7 +1723,7 @@ def require(condition, message):
+     if not condition:
+         raise SystemExit(message)
+ 
+-for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0")):
++for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0"), ("fuzzel", "1.11.0")):
+     version = subprocess.check_output(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package], text=True).strip()
+     subprocess.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", minimum], check=True)
+ root = Path("/")
+@@ -1756,11 +1763,14 @@ for config in config_roots:
+     require(osd.get("thumbnailLabelFormat") == "%n \u2014 %T  %S  %o", "invalid switcher label")
+     require([(f.get("content"), f.get("width")) for f in switcher.findall("fields/field")] ==
+             [("icon", "7%"), ("desktop_entry_name", "23%"), ("state", "8%"), ("output", "12%"), ("title", "50%")], "invalid classic fallback fields")
+-    for key, action in (("F13", "NextWindow"), ("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
++    panel = [x for x in rc.findall("keyboard/keybind") if x.get("key") == "F13"]
++    require(len(panel) == 1 and panel[0].get("onRelease") is None, "invalid panel menu binding")
++    actions = panel[0].findall("action")
++    require(len(actions) == 1 and actions[0].get("name") == "ShowMenu"
++            and actions[0].get("menu") == "client-list-combined-menu", "panel must not enter cycling mode")
++    for key, action in (("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
+         bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
+         require(len(bindings) == 1, "duplicate or absent " + key)
+-        if key == "F13":
+-            require(bindings[0].get("onRelease") is None, "F13 must use native press handling")
+         actions = bindings[0].findall("action")
+         require(len(actions) == 1 and actions[0].get("name") == action, "non-native " + key)
+         require(actions[0].get("workspace") == "current", "non-local " + key)
+diff --git a/d-i/forky/scripts/firstboot/04-validation.sh b/d-i/forky/scripts/firstboot/04-validation.sh
+index 4b898f7..d2d1cce 100755
+--- a/d-i/forky/scripts/firstboot/04-validation.sh
++++ b/d-i/forky/scripts/firstboot/04-validation.sh
+@@ -703,8 +703,9 @@ validate_desktop_role() {
+       [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m")" = "$uid:700" ]
+       [ -L "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
+       [ -e "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
+-      [ -L "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+-      [ -e "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
++      # Unlock is explicit: login must not start an interactive Pinentry timer.
++      [ ! -L "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
++      [ ! -e "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+     ' sh "$desktop_account_home" "$desktop_account_user"
+   fi
+ 
+diff --git a/d-i/forky/scripts/late/iocost.sh b/d-i/forky/scripts/late/iocost.sh
+index 619fb2e..22dffc8 100644
+--- a/d-i/forky/scripts/late/iocost.sh
++++ b/d-i/forky/scripts/late/iocost.sh
+@@ -92,8 +92,8 @@ iocost_placeholder_map() (
+ # The paths below are installer-owned constants, never profile destinations.
+ iocost_assets() {
+   printf '%s\n' \
+-    etc/systemd/iocost.conf \
+-    etc/systemd/iocost.conf.d/70-unattended-installer.conf \
++    etc/udev/iocost.conf \
++    etc/udev/iocost.conf.d/70-unattended-installer.conf \
+     etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb
+ }
+ 
+@@ -177,7 +177,7 @@ iocost_publish_local() (
+   stage_target_asset "$1" "$2" "${3:-0644}"
+ )
+ 
+-iocost_publish_compat_link() (
++iocost_restore_legacy_link() (
+   iocost_link_path=$(target_asset_host_path /etc/udev/iocost.conf) || exit 1
+   ensure_target_asset_parent /etc/udev/iocost.conf || exit 1
+   iocost_link_work=$(mktemp -d "$(dirname "$iocost_link_path")/.installer-iocost-link.XXXXXX") || exit 1
+@@ -204,7 +204,7 @@ iocost_restore() {
+   while IFS= read -r iocost_rel; do
+     iocost_safe_parents "$iocost_rel" || { iocost_restore_failed=1; continue; }
+     if [ -L "$iocost_work/old/$iocost_rel" ]; then
+-      iocost_publish_compat_link || iocost_restore_failed=1
++      iocost_restore_legacy_link || iocost_restore_failed=1
+     elif [ -f "$iocost_work/old/$iocost_rel" ]; then
+       iocost_old_mode=$(installer_metadata_value "$iocost_work/old/$iocost_rel" mode) || { iocost_restore_failed=1; continue; }
+       iocost_publish_local "$iocost_work/old/$iocost_rel" "/$iocost_rel" "$iocost_old_mode" || iocost_restore_failed=1
+@@ -256,6 +256,8 @@ stage_target_iocost() (
+   # Check every final destination before rendering or touching target files.
+   while IFS= read -r iocost_rel; do
+     iocost_safe_parents "$iocost_rel" || exit 1
++    # The native file has separate stock-defaults/legacy-migration handling.
++    [ "$iocost_rel" != etc/udev/iocost.conf ] || continue
+     if [ "$IOCOST_CALIBRATE_ENABLE" = true ]; then
+       if [ -e "$iocost_root/$iocost_rel" ] || [ -L "$iocost_root/$iocost_rel" ]; then
+         iocost_owned_file "$iocost_root/$iocost_rel" || { printf '%s\n' "IOCost: unmanaged target preserved: $iocost_rel" >&2; exit 1; }
+@@ -265,6 +267,14 @@ stage_target_iocost() (
+       printf '%s\n' "$iocost_rel" >>"$iocost_work/actions" || exit 1
+     fi
+   done <"$iocost_work/assets"
++  # Retire only marker-owned legacy assets, transactionally. Administrator
++  # files remain untouched even when another profile disables this policy.
++  for iocost_rel in etc/systemd/iocost.conf etc/systemd/iocost.conf.d/70-unattended-installer.conf; do
++    iocost_safe_parents "$iocost_rel" || exit 1
++    if iocost_owned_file "$iocost_root/$iocost_rel"; then
++      printf '%s\n' "$iocost_rel" >>"$iocost_work/actions" || exit 1
++    fi
++  done
+   iocost_safe_parents etc/udev/iocost.conf || exit 1
+   iocost_compat=$iocost_root/etc/udev/iocost.conf
+   iocost_saved_rel=etc/udev/iocost.conf.unattended-installer-original
+@@ -280,9 +290,12 @@ stage_target_iocost() (
+     chmod 0644 "$iocost_work/native-original" || exit 1
+     iocost_inactive_native_file "$iocost_work/native-original" || exit 1
+   fi
+-  if [ -L "$iocost_compat" ] && \
+-      [ "$(installer_metadata_value "$iocost_compat" uid_gid)" = 0:0 ] && \
+-      [ "$(readlink "$iocost_compat")" = ../systemd/iocost.conf.d/70-unattended-installer.conf ]; then
++  if iocost_owned_file "$iocost_compat" || {
++      [ -L "$iocost_compat" ] &&
++      [ "$(installer_metadata_value "$iocost_compat" uid_gid)" = 0:0 ] &&
++      [ "$(readlink "$iocost_compat")" = ../systemd/iocost.conf.d/70-unattended-installer.conf ] &&
++      iocost_owned_file "$iocost_root/etc/systemd/iocost.conf.d/70-unattended-installer.conf"
++    }; then
+     printf '%s\n' etc/udev/iocost.conf >>"$iocost_work/actions" || exit 1
+     if [ "$IOCOST_CALIBRATE_ENABLE" = false ] && [ "$iocost_have_saved" = true ]; then
+       iocost_restore_native=true
+@@ -293,7 +306,7 @@ stage_target_iocost() (
+       iocost_inactive_native_file "$iocost_compat" || { printf '%s\n' 'IOCost: /etc/udev/iocost.conf has active settings or unsafe metadata; original preserved' >&2; exit 1; }
+       if [ "$iocost_have_saved" = false ]; then
+         iocost_save_native=true
+-        # Preserve defaults BEFORE replacing the native config with our link.
++        # Preserve defaults BEFORE replacing the native config with managed data.
+         printf '%s\n' "$iocost_saved_rel" >>"$iocost_work/actions" || exit 1
+       fi
+     fi
+@@ -322,8 +335,9 @@ stage_target_iocost() (
+     printf '%s\n' etc/udev/hwdb.bin >>"$iocost_work/actions" || exit 1
+   fi
+   if [ "$IOCOST_CALIBRATE_ENABLE" = true ]; then
+-    # systemd 257/261 reads this single legacy pathname, not systemd drop-ins.
+-    # The fixed alias exposes our ONE TargetSolution directive to native udev.
++    # systemd 257/261 reads the single /etc/udev/iocost.conf file; it does
++    # not merge drop-ins. Materialize the same policy there and in its managed
++    # drop-in so both requested paths exist and native udev applies the policy.
+     # Do not silently assume the interface on an unknown future target binary.
+     [ -x "$iocost_root/usr/lib/udev/iocost" ] || exit 1
+     # BusyBox grep cannot search beyond embedded NULs even with text mode.
+@@ -337,15 +351,14 @@ stage_target_iocost() (
+          "/$iocost_rel" 0644 iocost_validated_map) || exit 1
+     done <"$iocost_work/assets"
+     for iocost_name in iocost.conf iocost.conf.d/70-unattended-installer.conf; do
+-      iocost_needs_target=0
+-      [ "$iocost_name" = iocost.conf ] || iocost_needs_target=1
++      iocost_needs_target=1
+       LC_ALL=C awk -v expected="$IOCOST_TARGET_SOLUTION" -v needs="$iocost_needs_target" '
+         /^[[:space:]]*(#|$)/ {next}
+         $0=="[IOCost]" {section++;next}
+         needs && $0=="TargetSolution=" expected {targets++;next}
+         {bad=1;exit 1}
+         END {if(bad || section!=1 || targets!=needs)exit 1}
+-      ' "$iocost_work/new/etc/systemd/$iocost_name" || exit 1
++      ' "$iocost_work/new/etc/udev/$iocost_name" || exit 1
+     done
+     LC_ALL=C awk '/^ IOCOST_/ {print substr($0,2)}' \
+       "$iocost_work/new/etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb" | LC_ALL=C sort >"$iocost_work/expected-properties" || exit 1
+@@ -382,8 +395,9 @@ stage_target_iocost() (
+       else
+         rm -f -- "$iocost_root/$iocost_rel" || exit 1
+       fi
+-    elif [ "$iocost_rel" = etc/udev/iocost.conf ]; then
+-      iocost_publish_compat_link || exit 1
++    elif [ "$iocost_rel" = etc/systemd/iocost.conf ] ||
++         [ "$iocost_rel" = etc/systemd/iocost.conf.d/70-unattended-installer.conf ]; then
++      rm -f -- "$iocost_root/$iocost_rel" || exit 1
+     else
+       iocost_publish_local "$iocost_work/new/$iocost_rel" "/$iocost_rel" || exit 1
+     fi
+diff --git a/d-i/forky/tests/test_categorized_menu.py b/d-i/forky/tests/test_categorized_menu.py
+index 9c0a20f..7f5473d 100644
+--- a/d-i/forky/tests/test_categorized_menu.py
++++ b/d-i/forky/tests/test_categorized_menu.py
+@@ -78,7 +78,7 @@ class MenuUnitTests(unittest.TestCase):
+         with mock.patch.object(self.menu.subprocess, 'run', return_value=result) as run:
+             self.assertEqual(self.menu.choose({'Allowed': 'id'}, 'Main Menu'), 'Allowed')
+         args, kw = run.call_args
+-        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'menu', '--dmenu'])
++        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'main-menu', '--dmenu'])
+         self.assertEqual(kw['input'], '\uf105  Allowed\n')
+         self.assertEqual(kw['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
+         self.assertNotIn('shell', kw)
+@@ -167,7 +167,13 @@ class IntegrationContractTests(unittest.TestCase):
+                              '--setenv=WAYBAR_OUTPUT_NAME'):
+                 self.assertIn(argument, click)
+         rc = (TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text()
+-        self.assertIn('labwc-run', rc); self.assertNotIn('labwc-main-menu', rc)
++        self.assertIn('labwc-run', rc)
++        import xml.etree.ElementTree as ET
++        bindings = {item.get('key'): item for item in ET.fromstring(rc).findall('keyboard/keybind')}
++        self.assertEqual(bindings['Super_L'].get('onRelease'), 'yes')
++        self.assertEqual(bindings['Super_L'].find('action').get('command'), 'labwc-main-menu')
++        for key in ('W-d', 'W-space', 'C-A-space'):
++            self.assertEqual(bindings[key].find('action').get('command'), 'labwc-run')
+ 
+     def test_root_user_watchers_and_shared_thin_dpkg_engine_are_separate(self):
+         root = (TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.path').read_text()
+diff --git a/d-i/forky/tests/test_desktop_navigation_20260918.py b/d-i/forky/tests/test_desktop_navigation_20260918.py
+index 98d22e5..35a2bed 100644
+--- a/d-i/forky/tests/test_desktop_navigation_20260918.py
++++ b/d-i/forky/tests/test_desktop_navigation_20260918.py
+@@ -255,8 +255,9 @@ class DesktopIntegrationTests(unittest.TestCase):
+         root=ET.fromstring((TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text())
+         binds={item.attrib['key']:item for item in root.findall('./keyboard/keybind')}
+         self.assertNotIn('onRelease', binds['F13'].attrib)
+-        self.assertEqual(binds['F13'].find('action').attrib, binds['A-Tab'].find('action').attrib)
+-        self.assertEqual(binds['F13'].find('action').get('name'), 'NextWindow')
++        self.assertEqual(binds['F13'].find('action').attrib,
++                         {'name': 'ShowMenu', 'menu': 'client-list-combined-menu'})
++        self.assertEqual(binds['A-Tab'].find('action').get('name'), 'NextWindow')
+         self.assertEqual(binds['A-S-Tab'].find('action').get('name'), 'PreviousWindow')
+ 
+     def test_button_order_is_between_workspaces_and_wayscriber(self):
+diff --git a/d-i/forky/tests/test_iocost_20260919.py b/d-i/forky/tests/test_iocost_20260919.py
+index 27345fb..3532930 100644
+--- a/d-i/forky/tests/test_iocost_20260919.py
++++ b/d-i/forky/tests/test_iocost_20260919.py
+@@ -16,8 +16,8 @@ from test_metadata_portability_20260919 import minimal_installer_bin
+ 
+ FORKY = Path(__file__).resolve().parents[1]
+ HELPER = FORKY / 'scripts/late/iocost.sh'
+-ASSETS = ('etc/systemd/iocost.conf',
+-          'etc/systemd/iocost.conf.d/70-unattended-installer.conf',
++ASSETS = ('etc/udev/iocost.conf',
++          'etc/udev/iocost.conf.d/70-unattended-installer.conf',
+           'etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb')
+ COMPAT = 'etc/udev/iocost.conf'
+ SAVED = COMPAT + '.unattended-installer-original'
+@@ -91,7 +91,7 @@ class IOCostTests(unittest.TestCase):
+                               capture_output=True, timeout=timeout)
+ 
+     def assert_absent(self):
+-        for relative in (*ASSETS, SAVED):
++        for relative in (*ASSETS[1:], SAVED):
+             self.assertFalse(os.path.lexists(self.target / relative), relative)
+         native = self.target / COMPAT
+         if self.original_native is None:
+@@ -149,8 +149,8 @@ class IOCostTests(unittest.TestCase):
+                     self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+                     self.assertEqual((path.stat().st_uid, path.stat().st_gid), (0, 0))
+                 self.assertFalse(list(self.target.rglob('*.tmpl')))
+-                self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
+-                self.assertNotIn('TargetSolution=', (self.target / ASSETS[0]).read_text())
++                self.assertFalse((self.target / COMPAT).is_symlink())
++                self.assertEqual((self.target / ASSETS[0]).read_text().count('TargetSolution=isolated-bandwidth'), 1)
+                 self.assertIn('TargetSolution=isolated-bandwidth', (self.target / ASSETS[1]).read_text())
+                 self.assertIn('block::name:KXG6AZNV512G*:fwrev:*:', (self.target / ASSETS[2]).read_text())
+                 saved = self.target / SAVED
+@@ -212,8 +212,7 @@ stage_target_iocost
+             self.assertEqual(published.stat().st_mode & 0o7777, 0o644)
+             self.assertNotIn('__INSTALLER_', published.read_text())
+         self.assertTrue((outer / 'target/etc/udev/hwdb.bin').is_file())
+-        self.assertEqual(os.readlink(outer / 'target' / COMPAT),
+-                         '../systemd/iocost.conf.d/70-unattended-installer.conf')
++        self.assertFalse((outer / 'target' / COMPAT).is_symlink())
+         self.assertEqual((outer / 'target' / SAVED).read_bytes(),
+                          SAVED_MARKER + STOCK_NATIVE.read_bytes())
+ 
+@@ -302,12 +301,12 @@ fetch_hook() {
+         self.assertNotIn('IOCOST_', query.stdout)
+ 
+     def test_administrator_file_preserved_disabled_and_enabled_fails(self):
+-        path = self.target / ASSETS[0]; path.parent.mkdir(parents=True)
++        path = self.target / ASSETS[1]; path.parent.mkdir(parents=True)
+         path.write_text('[IOCost]\n# administrator\n')
+         result = self.run_policy(profile('vm-desktop')); self.assertEqual(result.returncode, 0, result.stderr)
+         result = self.run_policy(); self.assertNotEqual(result.returncode, 0)
+         self.assertEqual(path.read_text(), '[IOCost]\n# administrator\n')
+-        self.assertFalse((self.target / ASSETS[1]).exists())
++        self.assertFalse((self.target / ASSETS[0]).exists())
+ 
+     def test_symlink_parent_cannot_escape_target(self):
+         outside = self.base / 'outside'; outside.mkdir()
+@@ -329,7 +328,7 @@ iocost_native_hwdb() {
+         result = self.run_policy(values, before)
+         self.assertNotEqual(result.returncode, 0)
+         self.assertEqual(originals, {rel: (self.target / rel).read_bytes() for rel in originals})
+-        self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
++        self.assertFalse((self.target / COMPAT).is_symlink())
+ 
+     def test_first_install_hwdb_failure_removes_partial_files(self):
+         self.native()
+@@ -441,7 +440,7 @@ iocost_native_hwdb() {
+                 self.assertEqual((before.st_mode, before.st_uid, before.st_gid, before.st_ino),
+                                  (after.st_mode, after.st_uid, after.st_gid, after.st_ino))
+                 self.assertEqual(outside.read_bytes(), STOCK_NATIVE.read_bytes())
+-                for relative in (*ASSETS, SAVED):
++                for relative in (*ASSETS[1:], SAVED):
+                     self.assertFalse(os.path.lexists(self.target / relative), relative)
+                 if kind == 'directory': native.rmdir()
+                 else: native.unlink()
+@@ -457,7 +456,7 @@ iocost_native_hwdb() {
+             self.assertIn('native-defaults backup preserved', result.stderr)
+             self.assertEqual(saved.read_bytes(), content)
+             self.assertEqual((self.target / COMPAT).read_bytes(), self.original_native)
+-            self.assertFalse(any(os.path.lexists(self.target / rel) for rel in ASSETS))
++            self.assertFalse(any(os.path.lexists(self.target / rel) for rel in ASSETS[1:]))
+         saved.unlink()
+         saved.symlink_to(self.target / COMPAT)
+         result = self.run_policy()
+@@ -465,7 +464,7 @@ iocost_native_hwdb() {
+         self.assertTrue(saved.is_symlink())
+         self.assertEqual((self.target / COMPAT).read_bytes(), self.original_native)
+ 
+-    def test_native_default_backup_and_link_publication_failures_rollback(self):
++    def test_native_default_backup_and_config_publication_failures_rollback(self):
+         self.native()
+         before = r"""
+ mv() {
+@@ -485,7 +484,7 @@ mv() {
+                 self.assert_absent()
+                 self.assertFalse((self.target / 'etc/udev/hwdb.bin').exists())
+ 
+-    def test_failed_disable_restores_link_backup_and_prior_generation(self):
++    def test_failed_disable_restores_native_backup_and_prior_generation(self):
+         self.native()
+         result = self.run_policy()
+         self.assertEqual(result.returncode, 0, result.stderr)
+@@ -499,7 +498,7 @@ iocost_native_hwdb() {
+         result = self.run_policy(profile('f2fs-de'), before=before)
+         self.assertNotEqual(result.returncode, 0)
+         self.assertEqual(originals, {rel: (self.target / rel).read_bytes() for rel in originals})
+-        self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
++        self.assertFalse((self.target / COMPAT).is_symlink())
+         self.assertFalse(list(self.target.glob('.installer-iocost*')))
+ 
+     def test_disable_recovers_missing_link_or_already_restored_defaults(self):
+@@ -530,14 +529,69 @@ iocost_native_hwdb() {
+             self.assertEqual(result.returncode, 0, result.stderr)
+             self.assertEqual(native.read_bytes(), administrator)
+             self.assertEqual((self.target / SAVED).read_bytes(), saved)
+-            self.assertFalse(any(os.path.lexists(self.target / rel) for rel in ASSETS))
++            self.assertFalse(any(os.path.lexists(self.target / rel) for rel in ASSETS[1:]))
+ 
+ 
+     def test_lock_prevents_interleaved_publishers(self):
+         lock = self.target / '.installer-iocost.lock'; lock.mkdir(mode=0o700)
+         result = self.run_policy(); self.assertNotEqual(result.returncode, 0)
+         self.assertTrue(lock.is_dir())
+-        self.assertFalse(any((self.target / rel).exists() for rel in ASSETS))
++        self.assertFalse(any((self.target / rel).exists() for rel in ASSETS[1:]))
++
++
++    def legacy_generation(self):
++        self.native()
++        result = self.run_policy(before=ROOT_TOOL)
++        self.assertEqual(result.returncode, 0, result.stderr)
++        old = ('etc/systemd/iocost.conf',
++               'etc/systemd/iocost.conf.d/70-unattended-installer.conf')
++        for current, previous in zip(ASSETS[:2], old):
++            destination = self.target / previous
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            (self.target / current).rename(destination)
++        (self.target / COMPAT).symlink_to('../systemd/iocost.conf.d/70-unattended-installer.conf')
++        return old
++
++    def test_legacy_owned_generation_migrates_to_regular_native_files(self):
++        old = self.legacy_generation()
++        result = self.run_policy(before=ROOT_TOOL)
++        self.assertEqual(result.returncode, 0, result.stderr)
++        for relative in old:
++            self.assertFalse((self.target / relative).exists())
++        for relative in ASSETS[:2]:
++            path = self.target / relative
++            self.assertTrue(path.is_file())
++            self.assertFalse(path.is_symlink())
++            self.assertEqual(path.read_text().count('TargetSolution=isolated-bandwidth'), 1)
++        result = self.run_policy(profile('vm-desktop'), before=ROOT_TOOL)
++        self.assertEqual(result.returncode, 0, result.stderr)
++        self.assert_absent()
++
++    def test_legacy_migration_failure_restores_links_and_original_bytes(self):
++        old = self.legacy_generation()
++        originals = {rel: (self.target / rel).read_bytes() for rel in (*old, SAVED, 'etc/udev/hwdb.bin')}
++        failure = ROOT_TOOL + """
++iocost_native_hwdb() {
++  case "$1" in --root=/) return 73 ;; esac
++  target_exec /usr/bin/systemd-hwdb "$@"
++}
++"""
++        result = self.run_policy(before=failure)
++        self.assertNotEqual(result.returncode, 0)
++        self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
++        for relative, original in originals.items():
++            self.assertEqual((self.target / relative).read_bytes(), original)
++        self.assertFalse((self.target / ASSETS[1]).exists())
++
++    def test_unmanaged_legacy_files_are_never_deleted(self):
++        self.native()
++        old = self.target / 'etc/systemd/iocost.conf'
++        old.parent.mkdir(parents=True)
++        old.write_text('[IOCost]\nTargetSolution=naive\n')
++        for values in (profile(), profile('vm-desktop')):
++            result = self.run_policy(values, before=ROOT_TOOL)
++            self.assertEqual(result.returncode, 0, result.stderr)
++            self.assertEqual(old.read_text(), '[IOCost]\nTargetSolution=naive\n')
+ 
+ 
+ if __name__ == '__main__': unittest.main()
+diff --git a/d-i/forky/tests/test_log_regressions_20260915.py b/d-i/forky/tests/test_log_regressions_20260915.py
+index c5a4f4a..f96cba1 100644
+--- a/d-i/forky/tests/test_log_regressions_20260915.py
++++ b/d-i/forky/tests/test_log_regressions_20260915.py
+@@ -94,7 +94,7 @@ class AccountStagingTests(unittest.TestCase):
+                 path.chmod(0o600)
+             wants = home / '.config/systemd/user/labwc-session.target.wants'
+             wants.mkdir()
+-            for name in ('ssh-agent.socket', 'labwc-ssh-key-load.service'):
++            for name in ('ssh-agent.socket',):
+                 (wants / name).symlink_to('../' + name)
+             for directory in home.rglob('*'):
+                 if directory.is_dir():
+diff --git a/d-i/forky/tests/test_systemd_resource_policy.py b/d-i/forky/tests/test_systemd_resource_policy.py
+index 98bd4a4..d87bbf1 100644
+--- a/d-i/forky/tests/test_systemd_resource_policy.py
++++ b/d-i/forky/tests/test_systemd_resource_policy.py
+@@ -239,6 +239,20 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
+             menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
+             self.assertEqual(profile.read_text().count(menu_policy), 1)
+             profile_text = profile.read_text().replace(menu_policy, 'LABWC_MENU_COMMAND="labwc-fuzzel launcher"', 1)
++            # Session repair adds geometry only, not workload policy. Verify
++            # each new value against its original search setting before removing
++            # precisely this block for the unchanged historical hash fixture.
++            geometry = '# Main menu shares application-search geometry; management pickers stay compact.\n'
++            for added, existing in (
++                    ('MAIN_MENU_WIDTH', 'WIDTH'), ('MAIN_MENU_LINES', 'LINES'),
++                    ('INTERNAL_MAIN_MENU_WIDTH', 'INTERNAL_WIDTH'),
++                    ('INTERNAL_MAIN_MENU_LINES', 'INTERNAL_LINES')):
++                value = re.search(r'^LABWC_FUZZEL_' + existing + r'="([0-9]+)"$',
++                                  profile_text, re.M)
++                self.assertIsNotNone(value)
++                geometry += 'LABWC_FUZZEL_' + added + '="' + value[1] + '"\n'
++            self.assertEqual(profile_text.count(geometry), 1)
++            profile_text = profile_text.replace(geometry, '', 1)
+             # Governor ownership moved to CPU-family fragments on 2026-09-19.
+             # Restore only those three removed tokens for this historical hash;
+             # every other original workload/profile byte must still agree.
+diff --git a/d-i/forky/tests/test_workspace_no_broker.py b/d-i/forky/tests/test_workspace_no_broker.py
+index 7f72fa6..5db988c 100644
+--- a/d-i/forky/tests/test_workspace_no_broker.py
++++ b/d-i/forky/tests/test_workspace_no_broker.py
+@@ -83,13 +83,15 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
+                     self.assertEqual(int(rc.findtext('desktops/number')), count)
+                     self.assertEqual([n.text for n in rc.findall('desktops/names/name')],
+                                      [str(i) for i in range(1, count + 1)])
+-                    for key, action in (('F13', 'NextWindow'), ('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
++                    for key, action in (('A-Tab', 'NextWindow'), ('A-S-Tab', 'PreviousWindow')):
+                         binding = rc.findall(f'keyboard/keybind[@key="{key}"]')
+                         self.assertEqual(len(binding), 1)
+                         actions = binding[0].findall('action')
+                         self.assertEqual(len(actions), 1)
+                         self.assertEqual(actions[0].attrib, dict(name=action, workspace='current',
+                                                                 output='all', identifier='all'))
++                    self.assertEqual(rc.find("keyboard/keybind[@key='F13']/action").attrib,
++                                     {'name': 'ShowMenu', 'menu': 'client-list-combined-menu'})
+                     switchers = rc.findall('windowSwitcher')
+                     self.assertEqual(len(switchers), 1)
+                     self.assertEqual(switchers[0].attrib,
+@@ -139,7 +141,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
+             switcher = rc.find('windowSwitcher')
+             self.assertEqual(switcher.attrib, dict(order='age', preview='no', outlines='no', unshade='no'))
+             self.assertEqual(switcher.find('osd').get('output'), 'cursor')
+-            for key in ('F13', 'A-Tab', 'A-S-Tab'):
++            for key in ('A-Tab', 'A-S-Tab'):
+                 action = rc.find(f'keyboard/keybind[@key="{key}"]/action')
+                 self.assertEqual(action.get('workspace'), 'current')
+                 self.assertEqual(action.get('output'), 'focused')
+@@ -219,12 +221,12 @@ class InstalledVerifierTests(unittest.TestCase):
+         tree.write(path, encoding='unicode')
+         self.assertIn('non-local A-Tab', self.verify().stderr)
+ 
+-    def test_rejects_global_f13_in_account_copy(self):
++    def test_rejects_cycling_f13_in_account_copy(self):
+         path = self.root / 'home/test/.config/labwc/rc.xml'
+         tree = ET.parse(path)
+-        tree.find("./keyboard/keybind[@key='F13']/action").set('workspace', 'all')
++        tree.find("./keyboard/keybind[@key='F13']/action").set('name', 'NextWindow')
+         tree.write(path, encoding='unicode')
+-        self.assertIn('non-local F13', self.verify().stderr)
++        self.assertIn('panel must not enter cycling mode', self.verify().stderr)
+ 
+     def test_rejects_misplaced_window_switcher_button(self):
+         path = self.root / 'etc/skel-desktop/.config/waybar/config'
+diff --git a/docs/MANAGED-GIT-DEBUGSYS-20260914.md b/docs/MANAGED-GIT-DEBUGSYS-20260914.md
+index 8b09665..709d948 100644
+--- a/docs/MANAGED-GIT-DEBUGSYS-20260914.md
++++ b/docs/MANAGED-GIT-DEBUGSYS-20260914.md
+@@ -72,6 +72,13 @@ narrow policy addition, not a replacement for the existing desktop threat model.
+ 
+ ## 2. Daily SSH/GPG use
+ 
++Since the 2026-09-19 session repair, login activates the SSH agent socket but
++**does not automatically unlock the encrypted private key**. Unlock is explicit
++through `git-ssh unlock`, or requested by the existing `devops` launcher. This
++avoids a cold-cache pinentry dialog timing out unattended during session startup.
++Existing installer-owned loader wants links are removed on installer reruns;
++the loader service itself, its timeout, encryption and error reporting remain.
++
+ From a normal terminal inside the primary user's Labwc session:
+ 
+ ```sh
+diff --git a/docs/hardware-tuning/IOCOST.md b/docs/hardware-tuning/IOCOST.md
+index dbf8e19..272007e 100644
+--- a/docs/hardware-tuning/IOCOST.md
++++ b/docs/hardware-tuning/IOCOST.md
+@@ -57,23 +57,28 @@ and [native solution manager](https://github.com/systemd/systemd/blob/v261/src/u
+ 
+ ## Native configuration compatibility and precedence
+ 
+-The installer publishes root:root 0644 files only when enabled:
++The installer publishes root:root 0644 regular files only when enabled:
+ 
+-* `/etc/systemd/iocost.conf` identifies the managed/provisional policy and opens
+-  the `[IOCost]` section; it deliberately contains no duplicate TargetSolution.
+-* `/etc/systemd/iocost.conf.d/70-unattended-installer.conf` owns the sole
+-  `TargetSolution` directive.
++* `/etc/udev/iocost.conf` is the native configuration and contains `[IOCost]`
++  and the active `TargetSolution` directive.
++* `/etc/udev/iocost.conf.d/70-unattended-installer.conf` mirrors that directive
++  from the same validated profile value; the directory is root:root 0755.
+ * `/etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb` adds the narrow device rule.
+ 
+-**Verified upstream difference:** systemd 257 and the inspected v261 source read
+-`/etc/udev/iocost.conf` directly. They do not implement a main/drop-in loader for
+-`/etc/systemd/iocost.conf`. The requested systemd hierarchy alone would therefore
+-be inert. The helper capability-checks the native binary and publishes the fixed
+-root-owned compatibility link `/etc/udev/iocost.conf` to
+-`../systemd/iocost.conf.d/70-unattended-installer.conf`. This keeps one active
+-TargetSolution directive and uses native udev IOCost application. An unknown
+-future native configuration interface fails closed rather than claiming success.
+-No new service or vendor hwdb override is added.
++**Native precedence:** systemd 257 and the inspected v261 source read only
++`/etc/udev/iocost.conf`. They do not merge `iocost.conf.d` files. Consequently,
++editing only a drop-in has no effect on native IOCost; the main file remains
++authoritative. The installer renders both files consistently rather than
++publishing a misleading, inactive drop-in-only configuration. Its native binary
++capability check fails closed on an unknown interface. No additional service or
++vendor hwdb override is introduced.
++
++Reruns migrate the earlier installer-owned `/etc/systemd/iocost.conf` and
++`/etc/systemd/iocost.conf.d/70-unattended-installer.conf` layout, including its
++exact compatibility symlink, to this native regular-file layout. Marker,
++ownership, type and mode checks apply before any legacy asset is removed.
++Unrelated administrator files are retained. Legacy-file removal participates in
++the same rollback transaction as native configuration and hwdb publication.
+ 
+ Debian udev also ships a **regular** `/etc/udev/iocost.conf` containing comments,
+ `[IOCost]`, and the commented example `#TargetSolution=naive`. Its presence is
+@@ -84,7 +89,7 @@ control characters (including embedded NUL), active settings and other sections
+ are rejected. No package checksum, executable metadata tool, or shell evaluation
+ is needed to recognize this inert configuration.
+ 
+-Before replacing that file with the fixed compatibility link, the transaction
++Before replacing that file with the managed native configuration, the transaction
+ saves its exact original bytes after a managed marker in the root:root 0644 file
+ `/etc/udev/iocost.conf.unattended-installer-original`. The first saved original
+ is retained across enabled reruns. The same transaction restores it on failure;
+@@ -96,7 +101,7 @@ remain supported, as does a target where the native file was originally absent.
+ A native configuration with active administrator settings, an unrelated link,
+ unsafe ownership/mode, or multiple hard links is never overwritten. Enabled
+ staging reports the exact native path and the active/unsafe conflict. If an
+-administrator replaces an existing managed link, disabled staging preserves both
++administrator replaces an existing managed file or link, disabled staging preserves both
+ that policy and its saved defaults rather than restoring over the replacement.
+ The backup has a fixed path, marker, metadata checks and inert-content validation;
+ an unsafe or unrelated file at that reserved backup path is not adopted.
+@@ -138,9 +143,9 @@ its safe native mode is preserved, including on rollback.
+ 
+ A fresh disabled profile creates no IOCost files and does not invoke hwdb tools.
+ A true-to-false rerun removes only exact installer-marked files, restores the
+-saved native defaults (or removes only the managed link when no original was
++saved native defaults (or removes only managed configuration when no original was
+ saved), then rebuilds the target database when its hwdb rule was removed. A
+-missing link or an already-restored original is recoverable on a rerun. Vendor
++missing native file or an already-restored original is recoverable on a rerun. Vendor
+ sources and unrelated administrator files are retained.
+ 
+ Tests include the packaged udev conffile, real systemd-hwdb strict compilation
+@@ -149,7 +154,7 @@ chroot with no external metadata executable. A native `iocost query` against an
+ intentionally nonexistent device verifies the selected config before device
+ lookup fails; it never runs the apply operation. Tests cover exact-byte defaults
+ restoration, repeat runs, legacy links, malformed/active content, unsafe metadata,
+-and failures during backup/link publication and final hwdb rebuilding. Sandbox
++and failures during backup/configuration publication and final hwdb rebuilding. Sandbox
+ mounts of proc are denied; rerun fixtures use
+ the byte-identical available tool with explicit alternate-root arguments to test
+ native database replacement without mounting proc or changing the host database.
+diff --git a/docs/migration-map.json b/docs/migration-map.json
+index fc60b51..6999bae 100644
+--- a/docs/migration-map.json
++++ b/docs/migration-map.json
+@@ -7828,8 +7828,8 @@
+       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+       "content_status": "unchanged",
+-      "current_sha256": "4db46a6e800c23715f2d2b8450b9838a9b4d38d525efe3ddb94f3b03b1d3f6fb",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "da9d7f39444eb1172c3bf81bbfb98eb44e15c27029d26558458a86ffa7ffd46e",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
+@@ -7837,8 +7837,8 @@
+       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "content_status": "unchanged",
+-      "current_sha256": "a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
+@@ -7846,8 +7846,8 @@
+       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "content_status": "unchanged",
+-      "current_sha256": "f2461d6444e1d5deca9869c560ddf457d06cd3c9c355e2de530b89134ef605a9",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "1aeeb84dcab6b422326119611e6caae9d84ed525caf7b259470c6808cc917739",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
+@@ -7855,8 +7855,8 @@
+       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "content_status": "unchanged",
+-      "current_sha256": "50616cf4126aae83b9b401c070c3e5c9858e28a00e30ce1ab1c751b4d40a1afb",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "5364acb8d4f418bf307dc67120163d2b094523402e0355da84bd77e829c0fef4",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
+@@ -7864,8 +7864,8 @@
+       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "content_status": "unchanged",
+-      "current_sha256": "bf3fbb0502697fef4380dc68629e640fe6907855734489656c824efdea82fd27",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "6508e8be1738808178f41f7c94c477da7510416b588af90e31ba36ba6290cf1e",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
+@@ -7873,8 +7873,8 @@
+       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "content_status": "unchanged",
+-      "current_sha256": "ff4431ea3016c357ec2142a1c3dd0cf5c27c88ed207f7c2a57cebfec70f63b40",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "34e304c2496aa0967883cacec600c27d64169926460c6f6c714f1bc813a3d81a",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
+@@ -7882,8 +7882,8 @@
+       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "content_status": "unchanged",
+-      "current_sha256": "88aa926168227537e24e61bb0ded8feac7aef13c692305b0ab585ee4047996f6",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)",
++      "current_sha256": "e6311c7c65f06e6ad46a3adbad497c52a9f01a150321497e89881e33d145eab5",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)",
+       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
+     },
+     {
+@@ -7892,8 +7892,8 @@
+       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "content_status": "unchanged",
+-      "current_sha256": "2565b0c61e5881b5fdeda2437c9f6f5c64abf3b80541f9e0488ca4105e5738ca",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "5e224ea5c536666b3275897a36ec34b7b06c897fe0405040c305c3c8b2b5329c",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
+@@ -7901,8 +7901,8 @@
+       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "content_status": "unchanged",
+-      "current_sha256": "1b114103997cf8467067d92314099d17ca796ba9965e04ea8e888568a0170e15",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "31bf41a3f184c2a714f47708e5f4c0a6d48cad88bb9ab1efa19976f79de00b29",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
+@@ -7910,8 +7910,8 @@
+       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "content_status": "unchanged",
+-      "current_sha256": "9c96c3edcda9e781d7afb1fa5e3a0301cc4b3279f0ab858f47ed9a960866ba4a",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "410af02459631455a5fff1f0972348f2f07e061cd39ca5d0856205de1c8cc22a",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
+@@ -7919,8 +7919,8 @@
+       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "content_status": "unchanged",
+-      "current_sha256": "a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
+@@ -7928,8 +7928,8 @@
+       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "content_status": "unchanged",
+-      "current_sha256": "fcfca374179989108d27889a01728d615a071e48274c446bdce2fe1c9627dea8",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "24468daad87dabd74331850efbda9c4d6cb3835544cfd937c739edb8f1389bec",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
+@@ -7937,8 +7937,8 @@
+       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+       "content_status": "unchanged",
+-      "current_sha256": "8f8a918ff40b5f495900d3e4cdd01dc243e043fc32f859992e64f703313c27ec",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts)"
++      "current_sha256": "384fa9585ed1b96cfd99982edc77e9cc859575806b569c5ea31b741c09a07b34",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
+     },
+     {
+       "source": "d-i/forky/hosts/shared/account.env",

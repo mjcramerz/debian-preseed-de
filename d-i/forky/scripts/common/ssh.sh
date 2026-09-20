@@ -273,8 +273,8 @@ account_gid=$(id -g "$account_user")
 [ -r /etc/ssh/sshd_config ]
 [ -d "$(dirname "$authorized_keys_target")" ]
 [ -r "$authorized_keys_target" ]
-[ "$(stat -c %u "$authorized_keys_target")" = "$account_uid" ]
-[ "$(stat -c %g "$authorized_keys_target")" = "$account_gid" ]
+[ "$(find -P "$authorized_keys_target" -maxdepth 0 -printf %U)" = "$account_uid" ]
+[ "$(find -P "$authorized_keys_target" -maxdepth 0 -printf %G)" = "$account_gid" ]
 
 if [ -x /usr/bin/ssh-keygen ]; then
   /usr/bin/ssh-keygen -l -f "$authorized_keys_target" >/dev/null ||

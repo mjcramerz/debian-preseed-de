@@ -1,0 +1,17 @@
+{
+  "baseline_archive": "debian-preseed-de-native-thumbnails-20260919.tar.gz",
+  "baseline_sha256": "4fbd84c2ccdcad3ed922567d2fa0861d375496bf1f13c5ef89b42887660c5ce1",
+  "new_scope": [
+    "conditional Kanshi package and service publication",
+    "graphical Computer Management routing and native themed icons",
+    "effective .desktop native app icons in main/category menus"
+  ],
+  "not_claimed": [
+    "live Debian installation or real package reconciliation",
+    "Wayland rendering and actual installed icon-theme lookup",
+    "complete inherited native labwc/KWallet package builds",
+    "GPU/ELAN failure resolution or live enforced AppArmor workloads"
+  ],
+  "known_historical_fixture_missing": "todo/apparmor.log",
+  "fixture_absence_confirmed_in_baseline_tar": true
+}

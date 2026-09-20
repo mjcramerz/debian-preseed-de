@@ -1,0 +1,15 @@
+[browser-check] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/preseed-check.log
+[preseed-check] PASS (0)
+[shell-check] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/shell-check.log
+[shell-check] PASS (0)
+[tests] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/tests.log
+[tests] PASS (0)
+[tools-tests] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/tools-tests.log
+[tools-tests] PASS (0)
+[audit] running; log: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/late-fix/debian-preseed-de/validation/late-command-r2-20260919/final/summary.json

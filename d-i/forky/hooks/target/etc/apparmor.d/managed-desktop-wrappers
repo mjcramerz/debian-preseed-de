@@ -322,7 +322,7 @@ profile managed-labwc-adb-action /usr/local/bin/labwc-adb-action flags=(attach_d
   /usr/local/bin/labwc-adb-action rix,
   /usr/local/lib/perl5/site_perl/labwc-adb/ r,
   /usr/local/lib/perl5/site_perl/labwc-adb/** r,
-  /usr/bin/{awk,basename,cat,chmod,date,find,gawk,grep,head,id,install,mawk,mkdir,mv,nawk,readlink,rm,rmdir,sed,sha256sum,sleep,stat,systemctl,timeout,tr} rix,
+  /usr/bin/{awk,basename,cat,chmod,date,find,gawk,grep,head,id,install,mawk,mkdir,mv,nawk,readlink,rm,rmdir,sed,sha256sum,sleep,systemctl,timeout,tr} rix,
   /usr/bin/{df,notify-send,ss} pux,
   /{bin,usr/bin}/{adb,fastboot} rPx -> managed-android-platform-tools,
   /usr/local/bin/{adb,fastboot} rPx -> managed-android-platform-tools,
@@ -381,7 +381,7 @@ profile managed-labwc-admin-action /usr/local/bin/labwc-admin-action flags=(atta
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-admin-action rix,
-  /usr/bin/{flock,id,stat} rix,
+  /usr/bin/{flock,id,find} rix,
   /usr/bin/{notify-send,pkexec} PUx,
   /usr/local/libexec/labwc-admin-action-root rix,
   /usr/local/libexec/labwc-logout-root rix,
@@ -480,7 +480,7 @@ profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnecte
   owner /dev/pts/[0-9]* rw,
   @{PROC}/[0-9]*/uid_map r,
   /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
-  /usr/bin/{id,stat} rix,
+  /usr/bin/{id,find} rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
   /usr/bin/timeout rix,
   /usr/bin/{pkexec,systemctl} PUx,
@@ -515,11 +515,13 @@ profile managed-mullvad-tailscale-coordinator /usr/local/libexec/mullvad-tailsca
 }
 
 profile managed-labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_disconnected) {
+  # Directory metadata probes only; no recursive home access.
+  owner @{HOME}/ r,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-autostart rix,
   /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
-  /usr/bin/{sleep,stat,timeout} rix,
+  /usr/bin/{sleep,find,timeout} rix,
   /usr/bin/{dbus-update-activation-environment,systemctl} pux,
   owner /run/user/[0-9]*/bus r,
   owner /run/user/[0-9]*/systemd/ r,
@@ -569,10 +571,12 @@ profile managed-labwc-brightness-control /usr/local/bin/labwc-brightness-control
 }
 
 profile managed-labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_disconnected) {
+  # Directory metadata probes only; no recursive home access.
+  owner @{HOME}/ r,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/libexec/labwc-calendar rix,
-  /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,stat,timeout} rix,
+  /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,find,timeout} rix,
   /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
@@ -601,7 +605,7 @@ profile managed-labwc-capture /usr/local/bin/labwc-capture flags=(attach_disconn
   #include <abstractions/managed-wrapper-wayland>
 
   /usr/local/bin/labwc-capture rix,
-  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,stat,tr,wc} rix,
+  /usr/bin/{awk,date,gawk,grep,install,mawk,mktemp,nawk,rm,sleep,find,tr,wc} rix,
   /usr/bin/{grim,notify-send,slurp,systemctl,systemd-run,wf-recorder,wlr-randr} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/satty rPx -> managed-satty,
@@ -659,6 +663,7 @@ profile managed-labwc-computer-management /usr/local/bin/labwc-computer-manageme
   owner @{HOME}/.config/labwc/ r,
   owner @{HOME}/.config/labwc/** r,
 
+  include if exists <abstractions/managed-hardware-tuning-management-parent>
   include if exists <local/usr.local.bin.labwc-computer-management>
   /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
 
@@ -672,6 +677,9 @@ profile managed-labwc-ai-copilots /usr/local/bin/labwc-ai-copilots flags=(attach
   /dev/tty rw,
   /usr/bin/cat rix,
   /usr/bin/{find,fzf,id,sed,sort} rix,
+  /etc/terminfo/{,**} r,
+  /{,usr/}lib/terminfo/{,**} r,
+  /usr/share/terminfo/{,**} r,
   /usr/local/bin/labwc-ai-copilots-action rPx -> managed-labwc-ai-copilots-action,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
   owner @{PROC}/@{pid}/mountinfo r,
@@ -820,7 +828,7 @@ profile managed-labwc-ai-llama-server /usr/local/libexec/labwc-ai-llama-server f
   /usr/local/libexec/labwc-ai-llama-server rix,
   /usr/local/lib/perl5/site_perl/ai-copilots/ r,
   /usr/local/lib/perl5/site_perl/ai-copilots/** r,
-  /usr/bin/{env,id,perl,stat} rix,
+  /usr/bin/{env,id,perl,find} rix,
   /etc/llama/ r,
   /etc/llama/llama.conf r,
   /data/llama/ r,
@@ -864,7 +872,7 @@ profile managed-labwc-digital-assets /usr/local/bin/labwc-digital-assets {
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-digital-assets rix,
-  /usr/bin/{awk,chmod,find,gawk,grep,id,mawk,mktemp,nawk,rm,sed,sort,stat} rix,
+  /usr/bin/{awk,chmod,find,gawk,grep,id,mawk,mktemp,nawk,rm,sed,sort} rix,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-digital-assets-action rPx -> managed-labwc-digital-assets-action,
   owner @{HOME}/ r,
@@ -897,7 +905,7 @@ profile managed-labwc-digital-assets-action /usr/local/bin/labwc-digital-assets-
   # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
   signal (send) set=(hup, int, term, kill, cont),
   /dev/log w,
-  /usr/bin/{awk,cat,chmod,cp,cut,env,find,gawk,grep,id,install,mawk,mktemp,nawk,pdftoppm,pdfimages,pdfinfo,pdfseparate,pdftotext,readlink,rm,sed,sort,stat,stty,timeout,tr} rix,
+  /usr/bin/{awk,cat,chmod,cp,cut,env,find,gawk,grep,id,install,mawk,mktemp,nawk,pdftoppm,pdfimages,pdfinfo,pdfseparate,pdftotext,readlink,rm,sed,sort,stty,timeout,tr} rix,
   /usr/bin/{exiftool,fix-qdf,focuswriter,gm,jpegoptim,nano,notify-send,optipng,pandoc,qpdf} pix,
   /usr/local/bin/{pdfcpu,typst} rPx -> managed-digital-assets-release-tools,
   /usr/local/lib/{pdfcpu/pdfcpu,typst/typst} rPx -> managed-digital-assets-release-tools,
@@ -1025,7 +1033,7 @@ profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, 
   /usr/bin/slirp4netns rPx -> managed-codex-slirp4netns,
   /usr/local/bin/git-ssh rpx -> managed-git-ssh,
   signal (send) set=(hup int quit kill term) peer=managed-git-ssh,
-  /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
+  /usr/bin/{chmod,id,mkdir,readlink,find} rix,
   /usr/bin/{mise,pwsh,sccache} rix,
   /usr/lib/llvm-24/bin/ r,
   /usr/lib/llvm-24/bin/{clang,clang++,ld.lld,lld,lldb,llvm-config} rix,
@@ -1381,6 +1389,7 @@ profile managed-labwc-fuzzel /usr/local/bin/labwc-fuzzel flags=(attach_disconnec
   /usr/bin/fuzzel rPx,
   /usr/local/bin/labwc-fuzzel-log rPx -> managed-labwc-fuzzel-log,
   signal (send) peer=unconfined,
+  signal (send) set=(term) peer=managed-desktop-launcher,
   owner @{HOME}/.config/fuzzel/ r,
   owner @{HOME}/.config/fuzzel/** r,
   owner /run/user/[0-9]*/labwc-external-drives.lock rw,
@@ -1422,6 +1431,8 @@ profile managed-labwc-greeter-output /usr/local/bin/labwc-greeter-output flags=(
 }
 
 profile managed-labwc-greeter-power /usr/local/bin/labwc-greeter-power flags=(attach_disconnected) {
+  # Fontconfig also enumerates Debian TeX Gyre fonts.
+  /usr/share/texmf/fonts/{,**} r,
   #include <abstractions/managed-wrapper-gui>
   #include <abstractions/managed-wrapper-python>
 
@@ -1480,7 +1491,7 @@ profile managed-labwc-health-notify /usr/local/bin/labwc-health-notify flags=(at
 
   /usr/local/bin/labwc-health-notify rix,
   /usr/bin/sleep rix,
-  /usr/bin/{awk,cat,chmod,df,find,flock,gawk,grep,head,id,mawk,mkdir,mktemp,mv,nawk,rm,sed,stat,timeout,tr,wc} rix,
+  /usr/bin/{awk,cat,chmod,df,find,flock,gawk,grep,head,id,mawk,mkdir,mktemp,mv,nawk,rm,sed,timeout,tr,wc} rix,
   /usr/bin/notify-send rix,
   owner /run/user/[0-9]*/wayland-[0-9]* r,
   dbus send
@@ -1604,6 +1615,10 @@ profile managed-labwc-kanshi /usr/local/libexec/labwc-kanshi flags=(attach_disco
   owner @{HOME}/.config/kanshi/ r,
   owner @{HOME}/.config/kanshi/config r,
 
+  # Read only the coordinator marker; no access to other runtime state.
+  owner /run/user/[0-9]*/labwc/ r,
+  owner /run/user/[0-9]*/labwc/output-authority.paused r,
+
   include if exists <local/usr.local.libexec.labwc-kanshi>
 }
 
@@ -1611,7 +1626,7 @@ profile managed-labwc-lock /usr/local/bin/labwc-lock flags=(attach_disconnected)
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-lock rix,
-  /usr/bin/{flock,id,stat} rix,
+  /usr/bin/{flock,id,find} rix,
   /usr/bin/swaylock pux,
   owner @{HOME}/.config/swaylock/config r,
   /usr/share/backgrounds/login/lock-1920x1080.png r,
@@ -1718,7 +1733,7 @@ profile managed-labwc-chatgpt /usr/local/bin/chatgpt flags=(attach_disconnected,
   /usr/bin/xdg-dbus-proxy rCx -> chatgpt-dbus-proxy,
   /usr/local/bin/git-ssh rpx -> managed-git-ssh,
   signal (send) set=(hup int quit kill term) peer=managed-git-ssh,
-  /usr/bin/{chmod,id,mkdir,readlink,stat} rix,
+  /usr/bin/{chmod,id,mkdir,readlink,find} rix,
   /usr/bin/{mise,pwsh,sccache} rix,
   # Re-enter the user manager; --pipe preserves the private log sink.
   /usr/bin/systemd-run rpux,
@@ -3040,7 +3055,7 @@ profile managed-labwc-security-action /usr/local/bin/labwc-security-action flags
   /dev/log w,
   /run/rsyslog/managed-security-scanners/ r,
   /run/rsyslog/managed-security-scanners/scanner.sock w,
-  /usr/bin/{awk,chmod,clamscan,date,find,gawk,grep,id,mawk,mkdir,mktemp,mv,nawk,readlink,rm,sed,sha256sum,sha512sum,sort,stat,timeout,tr,wc,xargs} rix,
+  /usr/bin/{awk,chmod,clamscan,date,find,gawk,grep,id,mawk,mkdir,mktemp,mv,nawk,readlink,rm,sed,sha256sum,sha512sum,sort,timeout,tr,wc,xargs} rix,
   /usr/bin/{notify-send,pkexec} PUx,
   /usr/sbin/apparmor_parser PUx,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
@@ -3075,7 +3090,7 @@ profile managed-labwc-session /usr/local/bin/labwc-session flags=(attach_disconn
   /usr/local/bin/labwc-session rix,
   /usr/local/libexec/dbus-broker-check rix,
   /usr/bin/busctl rix,
-  /usr/bin/{flock,grep,id,jq,sleep,stat} rix,
+  /usr/bin/{flock,grep,id,jq,sleep,find} rix,
   /usr/bin/{loginctl,systemctl,timeout} pux,
   # The login wrapper retains the one-session lock while it waits on the
   # user-manager-owned compositor service.
@@ -3211,7 +3226,7 @@ profile managed-labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save flags=(
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-wallpaper-save rix,
-  /usr/bin/{cat,chmod,file,find,id,install,mktemp,mv,readlink,rm,stat,wc} rix,
+  /usr/bin/{cat,chmod,file,find,id,install,mktemp,mv,readlink,rm,wc} rix,
   /usr/bin/systemctl pux,
   /etc/magic r,
   /usr/share/backgrounds/desktop/ r,
@@ -3653,7 +3668,7 @@ profile managed-labwc-security-action-root /usr/local/libexec/labwc-security-act
   /run/systemd/journal/dev-log w,
   /run/rsyslog/managed-security-scanners/ r,
   /run/rsyslog/managed-security-scanners/scanner.sock w,
-  /usr/bin/{awk,chmod,chown,cmp,cp,gawk,getent,grep,id,install,ln,mawk,mkdir,mktemp,mv,nawk,readlink,rm,rmdir,sed,sort,stat,tr,wc} rix,
+  /usr/bin/{awk,chmod,chown,cmp,cp,gawk,getent,grep,id,install,ln,mawk,mkdir,mktemp,mv,nawk,readlink,rm,rmdir,sed,sort,tr,wc} rix,
   /usr/bin/ss r,
   /usr/bin/{aa-easyprof,aa-enabled,aa-features-abi} PUx,
   /usr/bin/{debsecan,debsums,fwupdmgr,journalctl,rkhunter,spectre-meltdown-checker,systemctl,systemd-analyze} PUx,
@@ -3830,7 +3845,7 @@ profile managed-managed-external-software-update /usr/local/libexec/managed-exte
   /dev/log w,
   @{PROC}/ r,
   @{PROC}/[0-9]*/exe r,
-  /usr/bin/{awk,brotli,chmod,chown,cp,cut,date,desktop-file-validate,dirname,du,env,file,find,flock,gawk,gpg,gpg-agent,gpgv,grep,head,id,install,logger,mawk,mktemp,mv,nawk,openssl,printf,python3,readlink,rm,sed,sha256sum,sha512sum,sort,stat,tail,tar,tr,wc} rix,
+  /usr/bin/{awk,brotli,chmod,chown,cp,cut,date,desktop-file-validate,dirname,du,env,file,find,flock,gawk,gpg,gpg-agent,gpgv,grep,head,id,install,logger,mawk,mktemp,mv,nawk,openssl,printf,python3,readlink,rm,sed,sha256sum,sha512sum,sort,tail,tar,tr,wc} rix,
   /usr/bin/{ar,gzip,xz,zstd} rix,
   /usr/bin/{apt-get,curl,dpkg,dpkg-deb,dpkg-divert,dpkg-query,gtk-update-icon-cache,update-desktop-database} PUx,
 
@@ -3994,6 +4009,8 @@ profile managed-labwc-generic-app /usr/local/bin/labwc-{electron,wayland}-app fl
 # dpkg post-invoke helper: package metadata and system desktop entries only.
 # It never reads/sources user profiles and never writes in a user's home.
 profile managed-labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files flags=(attach_disconnected) {
+  # Reciprocal read-only process inspection by the firstboot diagnostics.
+  ptrace (readby) peer=managed-firstboot,
   #include <abstractions/managed-wrapper-python>
   capability chown,
   capability fowner,
@@ -4124,7 +4141,7 @@ profile managed-labwc-ssh-key-load /usr/local/libexec/labwc-ssh-key-load flags=(
   #include <abstractions/gnupg>
   /{,usr/}bin/{sh,dash} rix,
   /usr/local/libexec/{managed-ssh-checks,labwc-ssh-key-load,labwc-ssh-gpg-askpass} rix,
-  /usr/bin/{cat,cut,getent,id,stat,ssh-add,ssh-keygen,gpg,gpgconf,gpg-agent} rix,
+  /usr/bin/{cat,cut,getent,id,find,ssh-add,ssh-keygen,gpg,gpgconf,gpg-agent} rix,
   /usr/bin/pinentry-qt rPx -> managed-labwc-ssh-pinentry,
   /etc/{passwd,group,nsswitch.conf,host.conf,hosts} r,
   /etc/gnupg/** r,
@@ -4176,7 +4193,7 @@ profile managed-git-ssh flags=(attach_disconnected) {
   owner @{HOME}/**/ r,
   /usr/local/bin/git-ssh rix,
   /usr/local/libexec/managed-ssh-checks r,
-  /usr/bin/{cut,getent,id,stat,ssh-add,systemctl} rix,
+  /usr/bin/{cut,getent,id,find,ssh-add,systemctl} rix,
   /usr/share/openssh/** r,
   owner @{HOME}/ r,
   owner @{HOME}/.local/ r,
@@ -4204,6 +4221,7 @@ profile managed-labwc-main-menu /usr/local/bin/labwc-main-menu flags=(attach_dis
   #include <abstractions/managed-wrapper-python>
   include if exists <abstractions/dbus-session-strict>
   /usr/local/bin/labwc-main-menu rix,
+  /usr/local/bin/labwc-computer-management rPx -> managed-labwc-computer-management,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-run rPx -> managed-labwc-run,
   /usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,
@@ -4253,6 +4271,6 @@ profile managed-labwc-window-switcher /usr/local/bin/labwc-window-switcher flags
   /usr/bin/{id,wtype} rix,
   /usr/share/X11/xkb/{,**} r,
   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.
-  owner /tmp/wtype-* rw,
+  owner /tmp/wtype-?????? rw,
   include if exists <local/usr.local.bin.labwc-window-switcher>
 }

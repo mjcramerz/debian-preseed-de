@@ -19,6 +19,7 @@ late_command_source_module() {
 for late_module in \
   core \
   target-assets \
+  iocost \
   volatile-storage \
   storage-maintenance \
   mullvad \

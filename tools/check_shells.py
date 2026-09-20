@@ -7,6 +7,7 @@ this checker. Runtime bootstrap tests live in test_bootstrap_portability.py.
 """
 from __future__ import annotations
 import argparse
+import ast
 import json
 from pathlib import Path
 import re
@@ -53,6 +54,63 @@ def shell_sources(root: Path):
             yield path, 'posix'
 
 
+def external_metadata_dependencies(root: Path) -> list[str]:
+    """Reject the external metadata executable, not native language APIs.
+
+    Kernel proc filenames and Python/Perl metadata operations are not programs.
+    Test poisons and historical reports are deliberately outside this scan.
+    """
+    failures = []
+    invocation = re.compile(r"(?<![\w/.-])(?:/(?:usr/)?bin/)?stat\s+(?:\\\s*)?-")
+    dependency = re.compile(r"^\s*(?:/usr/bin/)?stat(?:\s*\\)?\s*$")
+    shell_position = re.compile(
+        r"(?:^|[;|&(`])\s*(?:(?:command|exec|busybox)\s+)?"
+        r"(?:/(?:usr/)?bin/)?stat(?:\s|[;|&)]|$)")
+    for path, _ in shell_sources(root):
+        if 'tests' in path.relative_to(root).parts:
+            continue
+        pending = ''
+        start = 1
+        for number, physical in enumerate(path.read_text().splitlines(), 1):
+            if not pending:
+                start = number
+            pending += physical
+            if physical.endswith('\\'):
+                pending = pending[:-1]
+                continue
+            line, pending = pending, ''
+            if line.lstrip().startswith('#'):
+                continue
+            if (invocation.search(line) or shell_position.search(line) or dependency.search(line)
+                    or (re.search(r"\b(?:for|command|required_command|require_command)\b", line)
+                        and re.search(r"(?<![\w./-])stat(?:[;\s]|$)", line))
+                    or re.search(r"\b\w+_require_command\s+stat\b", line)):
+                failures.append(f'{path.relative_to(root)}:{start}')
+    # Also cover argv-style calls made by Python wrappers. Native os/Path calls
+    # remain unchanged; their ownership/type/descriptor checks need no applet.
+    for directory in ('d-i/forky/hooks/target', 'd-i/forky/scripts', 'tools'):
+        base = root / directory
+        if not base.exists():
+            continue
+        for path in sorted(base.rglob('*')):
+            if (not path.is_file() or 'tests' in path.relative_to(root).parts
+                    or any(part in EXCLUDED for part in path.relative_to(root).parts)):
+                continue
+            data = path.read_bytes()
+            first = data.split(b'\n', 1)[0]
+            if path.suffix != '.py' and not (first.startswith(b'#!') and b'python' in first):
+                continue
+            tree = ast.parse(data, filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.List, ast.Tuple)) or not node.elts:
+                    continue
+                first_arg = node.elts[0]
+                if (isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str)
+                        and first_arg.value.rsplit('/', 1)[-1] == 'stat'):
+                    failures.append(f'{path.relative_to(root)}:{node.lineno}')
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path)
@@ -90,10 +148,13 @@ def main() -> int:
                 check(f'{question}:inner [{name}]', [*executable, '-n', '-c', words[2]])
     except ValueError as error:
         results.append({'source': 'generated preseed', 'returncode': 1, 'detail': str(error)})
+    for source in external_metadata_dependencies(ROOT):
+        results.append({'source': source, 'returncode': 1,
+                        'detail': 'forbidden external metadata executable dependency'})
     failures = [item for item in results if item['returncode']]
     report = {'success': not failures, 'shell_files': len(sources),
               'parser_checks': len(results), 'failures': failures,
-              'scope': 'parse checks only; runtime execution is a separate test stage'}
+              'scope': 'syntax and external metadata dependency checks; runtime execution is a separate test stage'}
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')

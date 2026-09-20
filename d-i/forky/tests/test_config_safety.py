@@ -40,7 +40,7 @@ class ConfigSafetyTests(unittest.TestCase):
 
     def test_cpu_profile_retains_deployed_vfio_reservation(self):
         base = HARDWARE / 'etc'
-        for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/vfio-pci.conf'):
+        for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/70-vfio-pci.conf'):
             active = '\n'.join(x for x in (base / name).read_text().splitlines() if not x.startswith('#'))
             self.assertIn('ids=8086:02e0', active)
 
@@ -51,14 +51,16 @@ class ConfigSafetyTests(unittest.TestCase):
         self.assertIn('iommu.strict=1', default)
         self.assertNotIn('iommu=pt', default)
 
-    def test_nvme_profile_retains_explicit_platform_compatibility_policy(self):
+    def test_pcie_and_usb_requested_power_policy(self):
         path = HARDWARE / 'etc/default/grub.d/73-pcie-power.cfg'
         active = '\n'.join(x for x in path.read_text().splitlines() if not x.startswith('#'))
-        self.assertIn('pcie_aspm=off', active)
-        self.assertIn('autosuspend=-1', active)
+        self.assertIn('pcie_aspm.policy=powersave', active)
+        self.assertIn('pcie_ports=native', active)
+        self.assertIn('usbcore.autosuspend=2', active)
+        self.assertNotIn('pcie_port_pm=off', active)
 
     def test_nvidia_vram_preservation_has_installer_and_storage_integration(self):
-        text = (HARDWARE / 'etc/modprobe.d/nvidia.conf').read_text()
+        text = (HARDWARE / 'etc/modprobe.d/82-nvidia.conf').read_text()
         active = '\n'.join(x for x in text.splitlines() if not x.startswith('#'))
         self.assertIn('modeset=1', active)
         self.assertIn('NVreg_PreserveVideoMemoryAllocations=1', active)

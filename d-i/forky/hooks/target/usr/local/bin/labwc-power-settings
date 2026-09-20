@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 # No arguments retain the existing CPU power-profile menu. Explicit actions
 # use the same authenticated, session-safe path as the Waybar power menu.
 if [ "$#" -ne 0 ]; then
@@ -45,16 +52,15 @@ done
 
 selection=$(
   printf '%s\n' "$choices" |
-    labwc-fuzzel menu --dmenu --prompt "CPU power profile (${current_profile:-unknown})" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "CPU power profile (${current_profile:-unknown})" || menu_failure "$?"
 )
 
 [ -n "$selection" ] || exit 0
 
 case "$selection" in
-  performance*) selected_profile=performance ;;
-  balanced*) selected_profile=balanced ;;
-  power-saver*) selected_profile=power-saver ;;
+  performance|'performance (current)') selected_profile=performance ;;
+  balanced|'balanced (current)') selected_profile=balanced ;;
+  power-saver|'power-saver (current)') selected_profile=power-saver ;;
   *)
     printf 'fatal: unsupported power profile selection: %s\n' "$selection" >&2
     exit 1

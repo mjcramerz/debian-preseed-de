@@ -194,7 +194,7 @@ done
 for path in "$account_home" "$@"; do
   [ -n "$path" ] || continue
   [ -d "$path" ] || fatal "managed home path is not a directory: $path"
-  owner=$(stat -c "%u:%g" "$path")
+  owner=$(find -P "$path" -maxdepth 0 -printf "%U:%G")
   [ "$owner" = "$uid:$gid" ] || fatal "managed home path has owner $owner, expected $uid:$gid: $path"
 done
   ' sh \
@@ -353,12 +353,12 @@ chown root:shadow -- /etc/shadow /usr/sbin/unix_chkpwd
 chmod 0640 -- /etc/shadow
 chmod 2755 -- /usr/sbin/unix_chkpwd
 
-shadow_metadata=$(stat -c "%u:%g:%a" -- /etc/shadow)
+shadow_metadata=$(find -P /etc/shadow -maxdepth 0 -printf "%U:%G:%m")
 [ "$shadow_metadata" = "0:${shadow_gid}:640" ] || {
   printf "fatal: /etc/shadow metadata is unsafe: %s\n" "$shadow_metadata" >&2
   exit 1
 }
-helper_metadata=$(stat -c "%u:%g:%a" -- /usr/sbin/unix_chkpwd)
+helper_metadata=$(find -P /usr/sbin/unix_chkpwd -maxdepth 0 -printf "%U:%G:%m")
 [ "$helper_metadata" = "0:${shadow_gid}:2755" ] || {
   printf "fatal: /usr/sbin/unix_chkpwd metadata is unsafe: %s\n" \
     "$helper_metadata" >&2
@@ -370,7 +370,7 @@ for root_owned_path in / /etc /usr /usr/bin /etc/passwd /etc/group /etc/sudo.con
     printf "fatal: required root-owned target path is missing: %s\n" "$root_owned_path" >&2
     exit 1
   }
-  root_owned_ids=$(stat -c "%u:%g" "$root_owned_path")
+  root_owned_ids=$(find -P "$root_owned_path" -maxdepth 0 -printf "%U:%G")
   [ "$root_owned_ids" = 0:0 ] || {
     printf "fatal: target path must be owned by root:root, found %s: %s\n" \
       "$root_owned_ids" "$root_owned_path" >&2
@@ -378,7 +378,7 @@ for root_owned_path in / /etc /usr /usr/bin /etc/passwd /etc/group /etc/sudo.con
   }
 done
 
-sudo_metadata=$(stat -c "%u:%g:%a" /usr/bin/sudo)
+sudo_metadata=$(find -P /usr/bin/sudo -maxdepth 0 -printf "%U:%G:%m")
 case "$sudo_metadata" in
   0:0:[4567][0-7][0-7][0-7])
     ;;

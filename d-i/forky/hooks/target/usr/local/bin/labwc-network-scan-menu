@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 # Keep this menu behind its independently managed action terminal.
 export LABWC_MENU_ACTION_WAIT=1
 
@@ -14,8 +21,7 @@ choose_lines() {
   shift
 
   printf '%s\n' "$@" |
-    labwc-fuzzel menu --dmenu --prompt "$prompt" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "$prompt" || menu_failure "$?"
 }
 
 run_network_action() {
@@ -42,8 +48,7 @@ choose_interface() {
       awk -F': ' '{ name=$2; sub(/@.*/, "", name); print name }'
   } |
     awk 'NF && !seen[$0]++' |
-    labwc-fuzzel menu --dmenu --prompt "Capture interface" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "Capture interface" || menu_failure "$?"
 }
 
 choose_private_target() {
@@ -54,8 +59,7 @@ choose_private_target() {
     printf '%s\n' 192.168.50.0/24 192.168.50.1
   } |
     awk 'NF && !seen[$0]++' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private IPv4 or /24-/32 CIDR" 2>/dev/null ||
-    true
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private IPv4 or /24-/32 CIDR" || menu_failure "$?"
 }
 
 choose_private_host() {
@@ -74,8 +78,7 @@ choose_private_host() {
     printf '%s\n' 192.168.50.1
   } |
     awk 'NF && !seen[$0]++' |
-    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private or loopback IPv4 host" 2>/dev/null ||
-    true
+    LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt "Private or loopback IPv4 host" || menu_failure "$?"
 }
 
 run_selected_nmap_action() {
@@ -108,7 +111,7 @@ run_selected_nmap_action() {
       [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
         return 0
       target=$(
-        choose_lines \
+        LABWC_MENU_INPUT_MODE=text choose_lines \
           "Authorized public IPv4 address" \
           'Enter an authorized public IPv4 address'
       )
@@ -116,6 +119,7 @@ run_selected_nmap_action() {
         run_network_action "$nmap_action" "$target" authorized-wan-scan
       ;;
   esac
+  return 0
 }
 
 run_specific_wan_scan() {
@@ -128,12 +132,13 @@ run_specific_wan_scan() {
   [ "$confirmation" = 'I am authorized to scan this WAN host' ] ||
     return 0
   target=$(
-    choose_lines \
+    LABWC_MENU_INPUT_MODE=text choose_lines \
       "Authorized public IPv4 address" \
       'Enter an authorized public IPv4 address'
   )
   [ -n "$target" ] &&
     run_network_action nmap-common-ports "$target" authorized-wan-scan
+  return 0
 }
 
 choose_capture_file() {
@@ -147,8 +152,7 @@ choose_capture_file() {
     -printf '%T@ %p\n' 2>/dev/null |
     sort -nr |
     sed -n '1,50{s/^[^ ]* //;p;}' |
-    labwc-fuzzel menu --dmenu --prompt "Capture file" 2>/dev/null ||
-    true
+    labwc-fuzzel menu --dmenu --prompt "Capture file" || menu_failure "$?"
 }
 
 command -v dumpcap >/dev/null 2>&1 || fatal "dumpcap is not installed"

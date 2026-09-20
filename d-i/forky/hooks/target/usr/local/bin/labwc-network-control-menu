@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 # Keep this menu behind its independently managed action terminal.
 export LABWC_MENU_ACTION_WAIT=1
 
@@ -16,8 +23,7 @@ choose_lines() {
   printf '%s\n' "$@" |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "$prompt" 2>/dev/null ||
-    true
+      --prompt "$prompt" || menu_failure "$?"
 }
 
 choose_text() {
@@ -25,8 +31,7 @@ choose_text() {
   printf '\n' |
     LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu \
       --dmenu \
-      --prompt "$prompt" 2>/dev/null ||
-    true
+      --prompt "$prompt" || menu_failure "$?"
 }
 
 choose_adapter() {
@@ -57,8 +62,7 @@ choose_adapter() {
     sort -u |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "${adapter_type} adapter" 2>/dev/null ||
-    true
+      --prompt "${adapter_type} adapter" || menu_failure "$?"
 }
 
 validate_uuid() {
@@ -122,8 +126,7 @@ choose_connection() {
   } |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "Select connection" 2>/dev/null ||
-    true
+      --prompt "Select connection" || menu_failure "$?"
 }
 
 connection_uuid_from_selection() {
@@ -175,8 +178,7 @@ choose_import_file() {
     sed -n '1,300p' |
     labwc-fuzzel menu \
       --dmenu \
-      --prompt "Import ${import_kind} profile" 2>/dev/null ||
-    true
+      --prompt "Import ${import_kind} profile" || menu_failure "$?"
 }
 
 confirm_action() {
@@ -186,7 +188,7 @@ confirm_action() {
       "$prompt" \
       'Cancel' \
       'Continue with network change'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with network change' ]
 }
 

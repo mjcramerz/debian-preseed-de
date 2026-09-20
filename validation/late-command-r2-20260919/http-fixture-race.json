@@ -1,0 +1,34 @@
+{
+  "root_cause": "HTTP/1.0 redirect fixture did not explicitly frame its empty body and connection closure. Wget reused the closing connection, received no data and returned status 4. Production retry then succeeded; source and snapshot files were fetched once.",
+  "evidence": [
+    {
+      "index": 1,
+      "bootstrap_returncode": 0,
+      "counts": {
+        "/short": 2,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+      },
+      "failed_wget_traces": [
+        "--2026-09-19 22:32:46--  http://127.0.0.1:42997/short\nConnecting to 127.0.0.1:42997... connected.\nHTTP request sent, awaiting response... \n  HTTP/1.0 302 Found\n  Server: BaseHTTP/0.6 Python/3.13.5\n  Date: Sat, 19 Sep 2026 22:32:46 GMT\n  Location: /owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1\nLocation: /owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1 [following]\n--2026-09-19 22:32:46--  http://127.0.0.1:42997/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1\nReusing existing connection to 127.0.0.1:42997.\nHTTP request sent, awaiting response... No data received.\nGiving up.\n\n\nstatus=4\n"
+      ]
+    },
+    {
+      "index": 17,
+      "bootstrap_returncode": 0,
+      "counts": {
+        "/short": 2,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/scripts/common/source.sh": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.manifest": 1,
+        "/owner/repository/refs/heads/mcr/main/d-i/forky/payload.tar.gz": 1
+      },
+      "failed_wget_traces": [
+        "--2026-09-19 22:33:42--  http://127.0.0.1:35111/short\nConnecting to 127.0.0.1:35111... connected.\nHTTP request sent, awaiting response... \n  HTTP/1.0 302 Found\n  Server: BaseHTTP/0.6 Python/3.13.5\n  Date: Sat, 19 Sep 2026 22:33:42 GMT\n  Location: /owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1\nLocation: /owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1 [following]\n--2026-09-19 22:33:42--  http://127.0.0.1:35111/owner/repository/refs/heads/mcr/main/d-i/forky/preseed.cfg?fixture=1\nReusing existing connection to 127.0.0.1:35111.\nHTTP request sent, awaiting response... No data received.\nGiving up.\n\n\nstatus=4\n"
+      ]
+    }
+  ],
+  "fix": "Only the loopback test fixture now sends Content-Length: 0 and Connection: close. No production downloader or retry policy changed; strict five-request assertions remain."
+}

@@ -1,0 +1,9 @@
+......................................................................./mnt/data/menu-work/debian-preseed-de/d-i/forky/scripts/desktop/fonts-install.py:425: DeprecationWarning: This process (pid=1367622) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  pid = os.fork()
+...............................
+----------------------------------------------------------------------
+Ran 102 tests in 19.786s
+
+OK
+desktop_font_verification terminal=3 microsoft=2 content=verified
+desktop_font_verification terminal=3 microsoft=2 content=verified

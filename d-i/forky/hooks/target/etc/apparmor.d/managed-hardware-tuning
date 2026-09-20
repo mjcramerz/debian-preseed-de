@@ -78,6 +78,7 @@ profile managed-hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flag
     interface=org.freedesktop.Notifications member={Notify,GetCapabilities,GetServerInformation}
     peer=(name=org.freedesktop.Notifications),
   signal (send) set=(chld) peer=managed-desktop-launcher,
+  signal (send) set=(chld) peer=managed-labwc-computer-management,
   ptrace (read) peer=managed-desktop-launcher,
   /usr/local/bin/labwc-hardware-tuning r,
   /usr/local/lib/hardware_tuning/ r,

@@ -74,12 +74,12 @@ class MenuUnitTests(unittest.TestCase):
         self.assertEqual(len(choices), 4); self.assertNotIn(self.menu.BACK, choices)
 
     def test_fuzzel_is_existing_wrapper_with_exact_allowed_selection(self):
-        result = types.SimpleNamespace(returncode=0, stdout='\uf105  Allowed\n')
+        result = types.SimpleNamespace(returncode=0, stdout='Allowed\n')
         with mock.patch.object(self.menu.subprocess, 'run', return_value=result) as run:
             self.assertEqual(self.menu.choose({'Allowed': 'id'}, 'Main Menu'), 'Allowed')
         args, kw = run.call_args
-        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'menu', '--dmenu'])
-        self.assertEqual(kw['input'], '\uf105  Allowed\n')
+        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'main-menu', '--dmenu'])
+        self.assertEqual(kw['input'], 'Allowed\0icon\x1fapplication-x-executable\n')
         self.assertEqual(kw['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
         self.assertNotIn('shell', kw)
 
@@ -167,7 +167,13 @@ class IntegrationContractTests(unittest.TestCase):
                              '--setenv=WAYBAR_OUTPUT_NAME'):
                 self.assertIn(argument, click)
         rc = (TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text()
-        self.assertIn('labwc-run', rc); self.assertNotIn('labwc-main-menu', rc)
+        self.assertIn('labwc-run', rc)
+        import xml.etree.ElementTree as ET
+        bindings = {item.get('key'): item for item in ET.fromstring(rc).findall('keyboard/keybind')}
+        self.assertEqual(bindings['Super_L'].get('onRelease'), 'yes')
+        self.assertEqual(bindings['Super_L'].find('action').get('command'), 'labwc-main-menu')
+        for key in ('W-d', 'W-space', 'C-A-space'):
+            self.assertEqual(bindings[key].find('action').get('command'), 'labwc-run')
 
     def test_root_user_watchers_and_shared_thin_dpkg_engine_are_separate(self):
         root = (TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.path').read_text()

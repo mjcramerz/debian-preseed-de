@@ -1,0 +1,48 @@
+test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) ... 
+  test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGHUP: 1>) ... ERROR
+  test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGINT: 2>) ... FAIL
+test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker) ... ok
+test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply) ... ok
+
+======================================================================
+ERROR: test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGHUP: 1>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 466, in test_signals_remove_stage_without_publishing
+    process.communicate(timeout=5)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 2129, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1269, in _check_timeout
+    raise TimeoutExpired(
+    ...<2 lines>...
+            stderr=b''.join(stderr_seq) if stderr_seq else None)
+subprocess.TimeoutExpired: Command '['/bin/sh', '-c', '\nset -eu\ntarget_root=$TEST_TARGET\ndevops_fatal() { printf \'fatal: %s\\n\' "$*" >&2; exit 1; }\nmanaged_git_ssh_target_action() {\n  [ "$#" -eq 2 ] && [ "$1" = clone-codex ] || return 64\n  printf \'clone:%s\\n\' "$2" >> "$TEST_RECORD"\n  path="${target_root}${2%/repository}"\n  [ -d "$path" ] && [ ! -L "$path" ] || return 65\n  # Only stub actions assert locally; real actions must reach the production\n  # Python validator, including when run against the broken prior delivery.\n  case "$TEST_ACTION" in\n    stub|clone-fail|wait)\n      case "$(installer_metadata_value "$path" uid_gid_mode)" in\n        0:*:700) ;;\n        *) return 66 ;;\n      esac ;;\n  esac\n  [ ! -e "${target_root}$2" ] && [ ! -L "${target_root}$2" ] || return 67\n  case "$TEST_ACTION" in\n    stub) mkdir "${target_root}$2" ;;\n    clone-fail) mkdir "${target_root}$2"; return 28 ;;\n    wait) printf ready > "$TEST_RECORD.ready"; sleep 30 ;;\n    *) "$TEST_PYTHON" -B "$TEST_BRIDGE" "$TEST_HELPER" "$target_root" "$2" "$TEST_ACTION" ;;\n  esac\n}\ndevops_install_codex_from_clone() {\n  printf \'publish:%s\\n\' "$1" >> "$TEST_RECORD"\n  [ -d "${target_root}$1" ] || return 68\n  [ "$TEST_ACTION" != publisher-fail ] || return 37\n  mv "${target_root}$1" "${target_root}/published"\n}\ninstaller_metadata_value() (\n  set -f;\n  lc_metadata=$(LC_ALL=C ls -ldn "$1" 2>/dev/null) || exit 1;\n  lc_field=$2;\n  set -- $lc_metadata;\n  [ "$#" -ge 4 ] || exit 1;\n  case "$2:$3:$4" in *[!0-9:]*|:*|*:|*::*) exit 1 ;; esac;\n  case "$lc_field" in\n    uid) printf \'%s\\n\' "$3" ;;\n    gid) printf \'%s\\n\' "$4" ;;\n    uid_gid) printf \'%s:%s\\n\' "$3" "$4" ;;\n    links) printf \'%s\\n\' "$2" ;;\n    mode|uid_gid_mode|uid_gid_mode_links)\n      lc_mode=$(printf \'%s\\n\' "$1" | awk \'\n        length($0) < 10 {exit 1}\n        { special=0; value=0;\n          for (i=2; i<=10; i++) {\n            c=substr($0,i,1); bit=(i%3==2 ? 4 : (i%3==0 ? 2 : 1));\n            if (c!="-") {\n              if (c!="r" && c!="w" && c!="x" && c!="s" && c!="S" && c!="t" && c!="T") exit 1;\n              if (c!="S" && c!="T") value+=bit;\n              if (c=="s" || c=="S") special+=(i==4 ? 4 : 2);\n              if (c=="t" || c=="T") special+=1;\n            };\n            if (i==4 || i==7) value*=8;\n          };\n          printf "%o\\n", special*512+value;\n        }\') || exit 1;\n      case "$lc_field" in\n        mode) printf \'%s\\n\' "$lc_mode" ;;\n        uid_gid_mode) printf \'%s:%s:%s\\n\' "$3" "$4" "$lc_mode" ;;\n        uid_gid_mode_links) printf \'%s:%s:%s:%s\\n\' "$3" "$4" "$lc_mode" "$2" ;;\n      esac ;;\n    *) exit 1 ;;\n  esac;\n);\ndevops_install_pinned_codex() (\n  # A separate, short-lived SSH agent authenticates this clone, before the\n  # release publisher runs. No agent capability is passed to Codex itself.\n  umask 077\n  clone_parent=$(mktemp -d "${target_root}/data/codex/.home-clone.XXXXXXXX") ||\n    devops_fatal "unable to allocate private Codex clone staging directory"\n  trap \'rm -rf -- "$clone_parent"\' 0\n  trap \'exit 129\' 1\n  trap \'exit 130\' 2\n  trap \'exit 143\' 15\n  # /data/codex intentionally remains root:devops 3770. mktemp inherits\n  # its setgid bit (2700); GNU chmod 0700 alone preserves that bit. Normalize\n  # ONLY this new private stage, never the shared root or the reader\'s policy.\n  [ -d "$clone_parent" ] && [ ! -L "$clone_parent" ] ||\n    devops_fatal "private Codex clone staging path is not a direct directory"\n  # This function runs in d-i, not inside the target. busybox-udeb has no\n  # stat applet: use the canonical reader loaded by bootstrap_source_common_lib.\n  # Distinguish an inspection failure from observed unsafe ownership/mode.\n  clone_owner=$(installer_metadata_value "$clone_parent" uid) ||\n    devops_fatal "unable to inspect private Codex clone staging directory ownership"\n  [ "$clone_owner" = 0 ] ||\n    devops_fatal "private Codex clone staging directory is not root-owned"\n  chmod 0700 -- "$clone_parent" && chmod a-s -- "$clone_parent" ||\n    devops_fatal "unable to secure private Codex clone staging directory"\n  clone_metadata=$(installer_metadata_value "$clone_parent" uid_gid_mode) ||\n    devops_fatal "unable to inspect private Codex clone staging directory mode"\n  # The inherited devops GID is intentional; only the UID and exact mode are\n  # fixed here. The reader validates all numeric metadata fields before use.\n  case "$clone_metadata" in\n    0:*:700) ;;\n    *) devops_fatal "private Codex clone staging directory must be root-owned mode 0700" ;;\n  esac\n  managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||\n    devops_fatal "failed to clone codex-home over the private installer SSH identity"\n  devops_install_codex_from_clone "${clone_parent#"$target_root"}/repository"\n)\n\ndevops_install_pinned_codex\n']' timed out after 5 seconds
+
+======================================================================
+FAIL: test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGINT: 2>)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 469, in test_signals_remove_stage_without_publishing
+    self.assert_clean()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 191, in assert_clean
+    self.assertEqual(list(self.codex.glob('.home-clone.*')), [])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: [PosixPath('/tmp/codex-clone-stage-rrxkehl[38 chars]xm')] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+PosixPath('/tmp/codex-clone-stage-rrxkehlm/target/data/codex/.home-clone.N7DRpkxm')
+
+- [PosixPath('/tmp/codex-clone-stage-rrxkehlm/target/data/codex/.home-clone.N7DRpkxm')]
++ []
+
+----------------------------------------------------------------------
+Ran 3 tests in 50.222s
+
+FAILED (failures=1, errors=1)

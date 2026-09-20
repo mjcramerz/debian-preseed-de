@@ -26,7 +26,7 @@ ICONS = {
     'WireGuard Connections': '\uf023', 'DNS Configuration': '\uf0e8',
     'Network Discovery': '\uf002', 'Remote Desktop': '\uf108',
     'Displays & Layout': '\uf26c', 'Refresh Display Layout': '\uf021',
-    'Power Profile': '\uf0e7', 'Keyboard Layout': '\uf11c',
+    'Power Profile': '\uf0e7', 'Hardware Tuning': '\uf085', 'Keyboard Layout': '\uf11c',
     'Audio Control': '\uf028', 'Restart Dock': '\uf021',
     'Android Devices': '\uf17b', 'Bluetooth Devices': '\uf293',
     'Brightness': '\uf185', 'Containers': '\uf1b3', 'AI & Copilots': '\uf121',
@@ -144,8 +144,12 @@ def main(argv: list[str]) -> int:
         raise ValueError('menu input limit exceeded')
     # Reject line controls in text suggestions; ordinary choices are escaped
     # and mapped back losslessly instead (including NUL-delimited filenames).
-    text_input = os.environ.get('LABWC_MENU_INPUT_MODE', 'choice') == 'text'
-    if text_input and any(any(not c.isprintable() for c in row) for row in rows):
+    input_mode = os.environ.get('LABWC_MENU_INPUT_MODE', 'choice')
+    if input_mode not in ('choice', 'text'):
+        raise ValueError('LABWC_MENU_INPUT_MODE must be choice or text')
+    text_input = input_mode == 'text'
+    if text_input and any(any(not c.isprintable() or unicodedata.category(c) == 'Cf'
+                              for c in row) for row in rows):
         raise ValueError('control character in input suggestion')
     with open('/dev/tty', 'w', encoding='utf-8') as tty:
         status, selected = select(rows, args.prompt, text_input=text_input, tty=tty)

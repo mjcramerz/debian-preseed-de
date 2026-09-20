@@ -1,0 +1,164 @@
+{
+  "native_vendor_sources": [
+    {
+      "file": "20-OUI.hwdb",
+      "sha256": "27e496c655aefe6a7b4d3f5ec527608f36a22300f497a781aa451013c80e311b"
+    },
+    {
+      "file": "20-acpi-vendor.hwdb",
+      "sha256": "a6ef2d77f66ca8a787f05687382c96865b6f37613a3fcc9ceeb9911775ac0e07"
+    },
+    {
+      "file": "20-bluetooth-vendor-product.hwdb",
+      "sha256": "6a6ad8bd08e79a995f11459f6191d922126b4cc2452ca685c2c874b7839caae6"
+    },
+    {
+      "file": "20-dmi-id.hwdb",
+      "sha256": "e4e800b39b69290eac42bd1fb3292244c30d621b8a1b820d373cc815610efa8e"
+    },
+    {
+      "file": "20-net-ifname.hwdb",
+      "sha256": "f59c9967b3c6665b1abc1ad115d1afe8ed18d451571476a5d14b9aff4d0e1488"
+    },
+    {
+      "file": "20-pci-classes.hwdb",
+      "sha256": "d6caca9e12dc80215e583b33d08b3d28397478b82cb7da681040e33d0f5a5847"
+    },
+    {
+      "file": "20-pci-vendor-model.hwdb",
+      "sha256": "e68dd0ca546fd787a4e6ba5845faab56a9c649cea4a37f3b924022b390b35e11"
+    },
+    {
+      "file": "20-sdio-classes.hwdb",
+      "sha256": "acd02dcf5b5abfb44a46deabe5b0c038da1e7e4172a85f4f60d2d3b887adfbce"
+    },
+    {
+      "file": "20-sdio-vendor-model.hwdb",
+      "sha256": "9eb89fc7a64772697cf84fb588197c057c3a8bb4ed2be7552b5a9dc48de2774a"
+    },
+    {
+      "file": "20-usb-classes.hwdb",
+      "sha256": "f09efef95fbf7693da263f4aa71e5d9140697534f0f5ffc1124608ffa38e90ea"
+    },
+    {
+      "file": "20-usb-vendor-model.hwdb",
+      "sha256": "c6a04401507423e76949c2eec63664785bdb9678aa842279c9f54720821308cb"
+    },
+    {
+      "file": "20-vmbus-class.hwdb",
+      "sha256": "08e7bdd8e85d9cbaa0cb8c44bda9bad6a784f316eb64fbd839d02588ae68c925"
+    },
+    {
+      "file": "60-autosuspend-chromiumos.hwdb",
+      "sha256": "0cb1803ded893c92cec6e4d78deff1bb147fc32c0712ad41bc7294d3b790d7ff"
+    },
+    {
+      "file": "60-autosuspend-fingerprint-reader.hwdb",
+      "sha256": "1eb46d502c8c3480cc61d10a9ff6b3f9493d601f2f684e92e1601132df8c7642"
+    },
+    {
+      "file": "60-autosuspend.hwdb",
+      "sha256": "dfa6d85cdc00b2cbfed6d8e63d16bd92f3875623b6ac1fe84d993481818e5d1a"
+    },
+    {
+      "file": "60-evdev.hwdb",
+      "sha256": "8d7d11d2b3385d12b16e7d725d6b104bac8f1379afe7832a0ee8390051d17619"
+    },
+    {
+      "file": "60-input-id.hwdb",
+      "sha256": "9fbf1ff2ce58086844848616b1722b2c128731aa62a76a717a60e9d83ab8877f"
+    },
+    {
+      "file": "60-keyboard.hwdb",
+      "sha256": "21701f5867ff02492e04b7ba1aff74ba1bbea17275f6013af03a289ddef9b276"
+    },
+    {
+      "file": "60-seat.hwdb",
+      "sha256": "dcf105b747fddc8f0d70bc653e78e09fb92e4c2c3e156fd1bd068f9dcc712501"
+    },
+    {
+      "file": "60-sensor.hwdb",
+      "sha256": "91acd5d0e948079bb497d5b97329f6c1db0ca9253a8ff9c24ed8b33b11c71646"
+    },
+    {
+      "file": "65-libwacom.hwdb",
+      "sha256": "d4da4f50b9452e0f0790d17e66b1553262234fd5fd75bba52f36829b8559c312"
+    },
+    {
+      "file": "70-analyzers.hwdb",
+      "sha256": "77e4fb24168f78a7635acbe870cdb158c3bd4608544c3533ba835d5fbbe987f0"
+    },
+    {
+      "file": "70-av-production.hwdb",
+      "sha256": "1a674d15603aa3fea0fecbbc071968724dc54815cd2a587f0295f247cd5852f5"
+    },
+    {
+      "file": "70-cameras.hwdb",
+      "sha256": "126c817553924120bea09451f4711f1dee770b63d88fa3dcd503b55f430888e2"
+    },
+    {
+      "file": "70-hardware-wallets.hwdb",
+      "sha256": "5cb5ffb4a71614463d0b5776fc8bfb6e0e38b927dbb358def27fe39d5600d1bc"
+    },
+    {
+      "file": "70-joystick.hwdb",
+      "sha256": "a43331fc7f5b5d6cde9904eddab3112a0add20ece01535cf805a9ebf49c01d7f"
+    },
+    {
+      "file": "70-maker-tools.hwdb",
+      "sha256": "003a100aea4f24f14f96cba471ec6c2f77a3f2b86bc5d0220aa16abe1bcefd38"
+    },
+    {
+      "file": "70-mouse.hwdb",
+      "sha256": "59fb58a85d07ac18fff945137c15a3b2465890e4be03d28f1cd4bcbd81708dfb"
+    },
+    {
+      "file": "70-pda.hwdb",
+      "sha256": "e63bdbcaab2ee101a5007e6428ce9cdcd67cd27ec7c4c120789869d8ea45b1c4"
+    },
+    {
+      "file": "70-pointingstick.hwdb",
+      "sha256": "2f896f73c4eeacd0380e674b2edc924245a9aa7cced17b67a8be85003343c674"
+    },
+    {
+      "file": "70-software-radio.hwdb",
+      "sha256": "068736687d51f8aa51eea77bf9413bb4561ba302758111ddb1161dc25e053ce7"
+    },
+    {
+      "file": "70-sound-card.hwdb",
+      "sha256": "bcfd994f4380e75f77be8e33ab6f0d7ffa33d48d32dbc4e9496f91f29f388dce"
+    },
+    {
+      "file": "70-touchpad.hwdb",
+      "sha256": "0657f38520d6eb9daf078932b66464feb00b79902a85c6232bd90a733453890f"
+    },
+    {
+      "file": "80-ieee1394-unit-function.hwdb",
+      "sha256": "302b78f3f1f405790899ac186bfff5e7e9d7ec2780ad7f4dab56cd5c8ed5fed4"
+    }
+  ],
+  "results": [
+    {
+      "profile": "btrfs-de-flex",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "profile": "btrfs-de-dual-flex",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "profile": "f2fs-de",
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "vendor_sources_unchanged": true,
+  "stock_config_restored_exactly": true,
+  "full_vendor_hwdb_compilation": "pass",
+  "limits": "Available systemd/udev 257.9 vendor sources and executable; disposable target root, not a physical boot."
+}

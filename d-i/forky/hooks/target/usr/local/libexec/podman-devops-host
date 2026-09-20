@@ -423,7 +423,7 @@ def require_pool_root(gid: int) -> None:
 def driver_for(filesystem: str, requested: str) -> str:
     if requested not in ('auto', 'overlay', 'btrfs'):
         raise Failure('supported storage drivers: auto, overlay, btrfs')
-    if filesystem not in ('btrfs', 'ext2/ext3', 'xfs', 'f2fs'):
+    if filesystem not in ('btrfs', 'ext2', 'ext3', 'ext4', 'xfs', 'f2fs'):
         raise Failure(f'unsupported local backing filesystem: {filesystem}; no fallback store is created')
     if requested == 'btrfs' and filesystem != 'btrfs':
         raise Failure('btrfs storage driver requires a Btrfs filesystem')
@@ -506,7 +506,7 @@ def setup(args: argparse.Namespace) -> None:
     # The shared storage policy is authoritative; do not silently repair drift.
     require_pool_root(gid)
     directory(POOL, 0o711)
-    filesystem = run(['/usr/bin/stat', '-f', '-c', '%T', '--', str(POOL)])
+    filesystem = run(['/usr/bin/find', '-P', str(POOL), '-maxdepth', '0', '-printf', '%F'])
     driver = driver_for(filesystem, args.storage_driver)
     identity = {'version': 3, 'uid': uid, 'gid': gid, 'home': str(HOME),
                 'pool': str(POOL), 'runtime': str(RUNTIME),

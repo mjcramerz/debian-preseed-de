@@ -187,15 +187,18 @@ def run_fuzzel(prompt: str, choices: list[str], *, text_input: bool = False) -> 
         input="\n".join(bounded_choices) + ("\n" if bounded_choices else ""),
         text=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
         check=False,
     )
+    if completed.returncode == 1:
+        return None
     if completed.returncode != 0:
+        fail(f"menu picker failed (status {completed.returncode})")
+    selected = completed.stdout.removesuffix("\n")
+    if not selected:
         return None
-    output_lines = completed.stdout.splitlines()
-    if not output_lines or not output_lines[0].strip():
+    if not text_input and selected not in bounded_choices:
         return None
-    return clean_text(prompt, output_lines[0], maximum=1024)
+    return clean_text(prompt, selected, maximum=1024)
 
 
 def choose_value(prompt: str, choices: dict[str, object], default_label: str | None = None) -> object | None:

@@ -52,15 +52,15 @@ runtime_dir=${XDG_RUNTIME_DIR:-}
 if [ "$runtime_dir" != "/run/user/$current_uid" ] ||
    [ ! -d "$runtime_dir" ] ||
    [ -L "$runtime_dir" ] ||
-   [ "$(/usr/bin/stat -c '%u' -- "$runtime_dir" 2>/dev/null || true)" != "$current_uid" ] ||
-   [ "$(/usr/bin/stat -c '%a' -- "$runtime_dir" 2>/dev/null || true)" != 700 ]; then
+   [ "$(/usr/bin/find -P "$runtime_dir" -maxdepth 0 -printf '%U' 2>/dev/null || true)" != "$current_uid" ] ||
+   [ "$(/usr/bin/find -P "$runtime_dir" -maxdepth 0 -printf '%m' 2>/dev/null || true)" != 700 ]; then
   fatal "XDG_RUNTIME_DIR is unavailable or unsafe for the desktop power request"
 fi
 
 power_lock="${runtime_dir%/}/labwc-admin-action.lock"
 [ ! -L "$power_lock" ] || fatal "unsafe desktop power lock"
 exec 9>>"$power_lock"
-[ "$(/usr/bin/stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$current_uid:1:600" ] ||
+[ "$(/usr/bin/find -H /proc/self/fd/9 -maxdepth 0 -printf '%U:%n:%m')" = "$current_uid:1:600" ] ||
   fatal "unsafe desktop power lock metadata"
 if ! /usr/bin/flock --nonblock 9; then
   fatal "another desktop power request is already awaiting authorization"

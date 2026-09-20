@@ -27,7 +27,7 @@ role_hook_path=$(installer_repo_join_var DIR_SCRIPTS_LATE desktop.sh)
 role_hook_dest="${RUNTIME_DIR}/bootstrap/role-late.sh"
 helper_dir="${RUNTIME_DIR}/bootstrap/late-helpers"
 shared_module_dir="${RUNTIME_DIR}/bootstrap/late-modules"
-shared_modules="core target-assets volatile-storage storage-maintenance mullvad templates network grub security dbus-broker podman zram-swap btrfs-family f2fs-family account"
+shared_modules="core target-assets iocost volatile-storage storage-maintenance mullvad templates network grub security dbus-broker podman zram-swap btrfs-family f2fs-family account"
 if installer_selected_class_reference_is_selected addon/cuda-legacy 2>/dev/null; then
   shared_modules="${shared_modules} cuda-legacy"
 fi

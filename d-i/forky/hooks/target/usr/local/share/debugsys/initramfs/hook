@@ -5,7 +5,7 @@ PREREQ=""
 case "${1:-}" in prereqs) echo "$PREREQ"; exit 0 ;; esac
 . /usr/share/initramfs-tools/hook-functions
 copy_file script /usr/local/libexec/debugsys-initramfs /usr/local/libexec/debugsys-initramfs
-for binary in cat chmod date dmesg head id ip mkdir sed stat timeout uname; do
+for binary in cat chmod date dmesg head id ip mkdir sed find timeout uname; do
     executable=$(command -v "$binary") || continue
     copy_exec "$executable"
 done

@@ -14,6 +14,7 @@ import os
 import tempfile
 from pathlib import Path
 import re
+import runpy
 import shlex
 import shutil
 import subprocess
@@ -82,6 +83,10 @@ def payload_files() -> list[Path]:
     return paths
 
 def validate(paths: list[Path]) -> None:
+    metadata_checker = runpy.run_path(str(ROOT / 'tools/check_shells.py'))
+    forbidden = metadata_checker['external_metadata_dependencies'](ROOT)
+    if forbidden:
+        raise ValueError("forbidden external metadata executable: " + ", ".join(forbidden))
     repo = (SEED / 'repo.env').read_text()
     role_match = re.search(r'^REPOSITORY_ROLE="(desktop|server)"$', repo, re.M)
     if not role_match:
@@ -318,6 +323,25 @@ def build() -> dict[str, bytes]:
     return {'payload.tar.gz': payload, 'payload.manifest': manifest,
             'preseed.cfg': generate_preseed(sha(payload), sha(manifest), sha((SEED / 'scripts/common/source.sh').read_bytes()))}
 
+def validate_iocost_profiles() -> None:
+    """Validate literal profile data using the exact target-side scalar policy."""
+    helper = SEED / 'scripts/late/iocost.sh'
+    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
+        values = {}
+        for line in profile.read_text().splitlines():
+            if not line.startswith(('IOCOST_', 'IO_COST_')):
+                continue
+            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
+            if not match or match[1] in values:
+                raise ValueError(f'{profile.name}: malformed or duplicate IOCost input')
+            values[match[1]] = match[2]
+        result = subprocess.run(['/bin/sh', '-eu', '-c', '. "$1"; iocost_placeholder_map',
+                                 'iocost-profile-check', str(helper)],
+                                env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', **values},
+                                text=True, capture_output=True, timeout=15)
+        if result.returncode or set(values) != {line.split('=', 1)[0] for line in result.stdout.splitlines()}:
+            raise ValueError(f'{profile.name}: invalid IOCost policy: {result.stderr.strip()}')
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='fail if generated files are stale')
@@ -328,6 +352,7 @@ def main() -> int:
         # ANY release products. Shell syntax alone cannot detect invalid pins.
         subprocess.run([resolve_python_interpreter(), '-I', '-B',
                         str(ROOT / 'tools/check_resctl_bench.py')], check=True)
+        validate_iocost_profiles()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
         sync_credential_helpers(args.check)

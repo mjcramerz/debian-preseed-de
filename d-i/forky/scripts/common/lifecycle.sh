@@ -13,6 +13,7 @@ installer_metadata_value() (
   case "$lc_field" in
     uid) printf '%s\n' "$3" ;;
     gid) printf '%s\n' "$4" ;;
+    uid_gid) printf '%s:%s\n' "$3" "$4" ;;
     links) printf '%s\n' "$2" ;;
     mode|uid_gid_mode|uid_gid_mode_links)
       lc_mode=$(printf '%s\n' "$1" | awk '
@@ -242,6 +243,27 @@ installer_lifecycle_arm() {
   if [ -n "${DEBIAN_HAS_FRONTEND:-}" ] && [ -z "${DEBCONF_REDIR:-}" ]; then
     [ -r /usr/share/debconf/confmodule ] || installer_lifecycle_abort 125 debconf 'shell confmodule is unavailable';
     . /usr/share/debconf/confmodule;
+  fi;
+  # Keep one phase-owned copy of the frontend reply stream. Target-command
+  # wrappers, pipelines and class-helper loops may legitimately replace stdin.
+  # FDs 3-6 belong to d-i; FD 7 is used by record readers and FD 9 is launch-local.
+  # Never overwrite an unrelated open FD or silently recapture redirected stdin.
+  if [ -n "${DEBIAN_HAS_FRONTEND:-}" ]; then
+    case "${INSTALLER_DEBCONF_STDIN_SAVED:-}" in
+      1)
+        ( : <&8 ) 2>/dev/null || installer_lifecycle_abort 125 debconf 'saved frontend reply descriptor is unavailable';
+        ;;
+      '')
+        if ( : <&8 ) 2>/dev/null; then
+          installer_lifecycle_abort 125 debconf 'frontend reply descriptor 8 is already in use';
+        fi;
+        ( : <&0 ) 2>/dev/null || installer_lifecycle_abort 125 debconf 'frontend reply stream is unavailable';
+        exec 8<&0;
+        INSTALLER_DEBCONF_STDIN_SAVED=1;
+        export INSTALLER_DEBCONF_STDIN_SAVED;
+        ;;
+      *) installer_lifecycle_abort 125 debconf 'invalid saved frontend descriptor state' ;;
+    esac;
   fi;
   INSTALLER_PHASE=$1; INSTALLER_LIFECYCLE_ACTIVE=1; INSTALLER_LIFECYCLE_COMPLETE=0;
   export INSTALLER_PHASE INSTALLER_LIFECYCLE_ACTIVE;

@@ -28,14 +28,14 @@ for path in "$CROWDSEC_STATE_DIR" "$CROWDSEC_LOG_FILE" "$CROWDSEC_STATUS_FILE" "
   while [ "$parent" != / ]; do
     [ ! -L "$parent" ] || exit 1
     if [ -e "$parent" ]; then
-      [ "$(stat -c %u "$parent")" = 0 ] || exit 1
-      case "$(stat -c %a "$parent")" in *[2367][0-7]|*[0-7][2367]) exit 1 ;; esac
+      [ "$(find -P "$parent" -maxdepth 0 -printf %U)" = 0 ] || exit 1
+      case "$(find -P "$parent" -maxdepth 0 -printf %m)" in *[2367][0-7]|*[0-7][2367]) exit 1 ;; esac
     fi
     parent=${parent%/*}; [ -n "$parent" ] || parent=/
   done
 done
 install -d -m 0700 "$(dirname "$CROWDSEC_LOG_FILE")" "$CROWDSEC_STATE_DIR"
-[ ! -e "$CROWDSEC_LOG_FILE" ] || [ "$(stat -c %h "$CROWDSEC_LOG_FILE")" = 1 ]
+[ ! -e "$CROWDSEC_LOG_FILE" ] || [ "$(find -P "$CROWDSEC_LOG_FILE" -maxdepth 0 -printf %n)" = 1 ]
 : >>"$CROWDSEC_LOG_FILE"
 chmod 0600 "$CROWDSEC_LOG_FILE"
 work_dir=$(mktemp -d "$CROWDSEC_STATE_DIR/.firstboot.XXXXXX")
@@ -248,7 +248,7 @@ ensure_capi_registration() {
 read_token() {
   [ -s "$CROWDSEC_ENROLL_TOKEN_FILE" ] || return 1
   [ ! -L "$CROWDSEC_ENROLL_TOKEN_FILE" ] &&
-    [ "$(stat -c %u:%a:%h "$CROWDSEC_ENROLL_TOKEN_FILE")" = 0:600:1 ] || return 1
+    [ "$(find -P "$CROWDSEC_ENROLL_TOKEN_FILE" -maxdepth 0 -printf %U:%m:%n)" = 0:600:1 ] || return 1
   IFS= read -r crowdsec_token <"$CROWDSEC_ENROLL_TOKEN_FILE" || crowdsec_token=
   crowdsec_token=$(normalize_crowdsec_token "$crowdsec_token") || return 1
   tmp_token=$(mktemp "${CROWDSEC_ENROLL_TOKEN_FILE}.XXXXXX") || return $?

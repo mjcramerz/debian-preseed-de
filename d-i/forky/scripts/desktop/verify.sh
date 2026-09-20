@@ -185,7 +185,6 @@ for cmd in \
   wlopm \
   wdisplays \
   waybar \
-  kanshi \
   bwrap \
   eglinfo \
   es2_info \
@@ -264,7 +263,7 @@ require_executable() {
 require_mode() {
   path=$1
   expected_mode=$2
-  actual_mode=$(stat -c "%a" "$path")
+  actual_mode=$(find -P "$path" -maxdepth 0 -printf "%m")
   [ "$actual_mode" = "$expected_mode" ] ||
     fatal "staged desktop path mode mismatch: $path expected=$expected_mode actual=$actual_mode"
 }
@@ -291,6 +290,11 @@ require_mode /etc/skel-desktop/.config/fontconfig/conf.d/60-labwc-terminal-fonts
 require_readable /etc/skel-desktop/.local/share/icons/terminal-fonts/current/release-manifest.json
 [ -L /etc/skel-desktop/.local/share/icons/terminal-fonts/current ] ||
   fatal "skeleton font generation is not activated"
+require_readable /etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf
+require_mode /etc/skel-desktop/.config/fontconfig/conf.d/61-microsoft-fonts.conf 644
+require_readable /etc/skel-desktop/.local/share/fonts/microsoft-fonts/current/release-manifest.json
+[ -L /etc/skel-desktop/.local/share/fonts/microsoft-fonts/current ] ||
+  fatal "skeleton Microsoft font generation is not activated"
 require_absent /usr/local/libexec/installer-desktop-fonts
 
 # Managed Git and diagnostics assets: no credential decryption during verification.
@@ -335,7 +339,7 @@ require_readable /etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.servi
 desktop_skeleton=/etc/skel-desktop
 [ -d "$desktop_skeleton" ] && [ ! -L "$desktop_skeleton" ] ||
   fatal "desktop skeleton root is missing or unsafe: $desktop_skeleton"
-[ "$(stat -c "%u:%g" "$desktop_skeleton")" = 0:0 ] ||
+[ "$(find -P "$desktop_skeleton" -maxdepth 0 -printf "%U:%G")" = 0:0 ] ||
   fatal "desktop skeleton root must be owned by root:root: $desktop_skeleton"
 require_mode "$desktop_skeleton" 755
 legacy_skeleton_parent=/etc/skel
@@ -479,7 +483,6 @@ for path in \
   /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service \
   /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service \
   /etc/skel-desktop/.config/systemd/user/swaybg.service \
-  /etc/skel-desktop/.config/systemd/user/kanshi.service \
   /etc/skel-desktop/.config/systemd/user/swayidle.service \
   /etc/skel-desktop/.config/systemd/user/crystal-dock.service \
   /etc/skel-desktop/.config/systemd/user/labwc-plans.service \
@@ -559,7 +562,7 @@ do
   [ -d "$background_directory" ] && [ ! -L "$background_directory" ] ||
     fatal "managed background directory is missing or unsafe: $background_directory"
   require_mode "$background_directory" 755
-  [ "$(stat -c "%u:%g" "$background_directory")" = 0:0 ] ||
+  [ "$(find -P "$background_directory" -maxdepth 0 -printf "%U:%G")" = 0:0 ] ||
     fatal "managed background directory is not root-owned: $background_directory"
 done
 unset background_directory
@@ -588,9 +591,9 @@ for authentication_path in /etc/shadow /usr/sbin/unix_chkpwd; do
   [ -f "$authentication_path" ] && [ ! -L "$authentication_path" ] ||
     fatal "authentication path is missing or unsafe: $authentication_path"
 done
-[ "$(stat -c "%u:%g:%a" /etc/shadow)" = "0:$shadow_gid:640" ] ||
+[ "$(find -P /etc/shadow -maxdepth 0 -printf "%U:%G:%m")" = "0:$shadow_gid:640" ] ||
   fatal "/etc/shadow must be root:shadow mode 0640"
-[ "$(stat -c "%u:%g:%a" /usr/sbin/unix_chkpwd)" = "0:$shadow_gid:2755" ] ||
+[ "$(find -P /usr/sbin/unix_chkpwd -maxdepth 0 -printf "%U:%G:%m")" = "0:$shadow_gid:2755" ] ||
   fatal "/usr/sbin/unix_chkpwd must be root:shadow mode 2755"
 helper_mount_options=$(findmnt -n -o OPTIONS -T /usr/sbin/unix_chkpwd) ||
   fatal "cannot resolve unix_chkpwd mount options"
@@ -770,7 +773,6 @@ for path in \
   /usr/local/libexec/bluetooth-controller-init \
   /usr/local/bin/labwc-power-settings \
   /usr/local/libexec/labwc-output-watch \
-  /usr/local/libexec/labwc-kanshi \
   /usr/local/libexec/labwc-swaybg \
   /usr/local/libexec/labwc-swayidle \
   /usr/local/bin/labwc-health-notify \
@@ -930,7 +932,6 @@ for path in \
   /usr/share/backgrounds/other/wp2653774-black-and-blue-wallpaper-hd.png \
   /etc/skel-desktop/.config/waybar/config \
   /etc/skel-desktop/.config/waybar/style.css \
-  /etc/skel-desktop/.config/kanshi/config \
   /etc/skel-desktop/.config/featherpad/fp.conf \
   /etc/skel-desktop/.config/foot/foot.ini \
   /etc/skel-desktop/.config/gnote/addins/global.ini \
@@ -971,6 +972,8 @@ for path in \
   /etc/skel-desktop/.config/fuzzel/fuzzel-internal.ini \
   /etc/skel-desktop/.config/fuzzel/menu.ini \
   /etc/skel-desktop/.config/fuzzel/menu-internal.ini \
+  /etc/skel-desktop/.config/fuzzel/main-menu.ini \
+  /etc/skel-desktop/.config/fuzzel/main-menu-internal.ini \
   /etc/skel-desktop/.config/Thunar/uca.xml \
   /etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf \
   /etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf \
@@ -1061,7 +1064,7 @@ check_required_owned() {
     printf "fatal: missing account desktop file: %s\n" "$path" >&2
     exit 1
   }
-  owner=$(stat -c "%u:%g" "$path")
+  owner=$(find -P "$path" -maxdepth 0 -printf "%U:%G")
   [ "$owner" = "$uid:$gid" ] || {
     printf "fatal: account desktop file owner mismatch for %s: %s\n" "$path" "$owner" >&2
     exit 1
@@ -1075,7 +1078,7 @@ check_required_owned_dir() {
     printf "fatal: missing account desktop directory: %s\n" "$path" >&2
     exit 1
   }
-  owner=$(stat -c "%u:%g" "$path")
+  owner=$(find -P "$path" -maxdepth 0 -printf "%U:%G")
   [ "$owner" = "$uid:$gid" ] || {
     printf "fatal: account desktop directory owner mismatch for %s: %s\n" "$path" "$owner" >&2
     exit 1
@@ -1108,7 +1111,7 @@ verify_skeleton_session_link() {
     "../${unit}"|/usr/lib/systemd/user/*|/lib/systemd/user/*) ;;
     *) fatal "skeleton user session enablement link is unsafe for ${unit}: ${link_target}" ;;
   esac
-  owner=$(stat -c "%u:%g" "$link")
+  owner=$(find -P "$link" -maxdepth 0 -printf "%U:%G")
   [ "$owner" = 0:0 ] ||
     fatal "skeleton user session enablement link owner mismatch for ${unit}: ${owner}"
   required_checked=$((required_checked + 1))
@@ -1123,7 +1126,7 @@ verify_account_session_link() {
     "../${unit}"|/usr/lib/systemd/user/*|/lib/systemd/user/*) ;;
     *) fatal "primary account user session enablement link is unsafe for ${unit}: ${link_target}" ;;
   esac
-  owner=$(stat -c "%u:%g" "$link")
+  owner=$(find -P "$link" -maxdepth 0 -printf "%U:%G")
   [ "$owner" = "$uid:$gid" ] ||
     fatal "primary account user session enablement link owner mismatch for ${unit}: ${owner}"
   required_checked=$((required_checked + 1))
@@ -1133,38 +1136,41 @@ verify_account_session_link() {
 # The encrypted identity and sealed passphrase are both private account files.
 check_required_owned "$account_home/.local/share/managed-ssh/private/id_git_ed25519"
 [ ! -L "$account_home/.local/share/managed-ssh/private/id_git_ed25519" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.local/share/managed-ssh/private/id_git_ed25519")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.local/share/managed-ssh/private/id_git_ed25519" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg"
 [ ! -L "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.local/share/managed-ssh/git-key-passphrase.gpg" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned "$account_home/.ssh/id_git_ed25519.pub"
 [ ! -L "$account_home/.ssh/id_git_ed25519.pub" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.ssh/id_git_ed25519.pub")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.ssh/id_git_ed25519.pub" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned "$account_home/.config/gitops/gitops.env"
 [ ! -L "$account_home/.config/gitops/gitops.env" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.config/gitops/gitops.env")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.config/gitops/gitops.env" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned "$account_home/.config/git/config"
 [ ! -L "$account_home/.config/git/config" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.config/git/config")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.config/git/config" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned "$account_home/.config/systemd/user/labwc-ssh-key-load.service"
 [ ! -L "$account_home/.config/systemd/user/labwc-ssh-key-load.service" ] || fatal "symlinked managed Git file"
-[ "$(stat -c "%a:%h" "$account_home/.config/systemd/user/labwc-ssh-key-load.service")" = 600:1 ] || fatal "unsafe managed Git file metadata"
+[ "$(find -P "$account_home/.config/systemd/user/labwc-ssh-key-load.service" -maxdepth 0 -printf "%m:%n")" = 600:1 ] || fatal "unsafe managed Git file metadata"
 check_required_owned_dir "$account_home/.local/share/managed-ssh"
 [ ! -L "$account_home/.local/share/managed-ssh" ] || fatal "symlinked managed Git directory"
-[ "$(stat -c "%a" "$account_home/.local/share/managed-ssh")" = 700 ] || fatal "unsafe managed Git directory"
+[ "$(find -P "$account_home/.local/share/managed-ssh" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 check_required_owned_dir "$account_home/.local/share/managed-ssh/private"
 [ ! -L "$account_home/.local/share/managed-ssh/private" ] || fatal "symlinked managed Git directory"
-[ "$(stat -c "%a" "$account_home/.local/share/managed-ssh/private")" = 700 ] || fatal "unsafe managed Git directory"
+[ "$(find -P "$account_home/.local/share/managed-ssh/private" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 check_required_owned_dir "$account_home/.ssh"
 [ ! -L "$account_home/.ssh" ] || fatal "symlinked managed Git directory"
-[ "$(stat -c "%a" "$account_home/.ssh")" = 700 ] || fatal "unsafe managed Git directory"
+[ "$(find -P "$account_home/.ssh" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 check_required_owned_dir "$account_home/.config/gitops"
 [ ! -L "$account_home/.config/gitops" ] || fatal "symlinked managed Git directory"
-[ "$(stat -c "%a" "$account_home/.config/gitops")" = 700 ] || fatal "unsafe managed Git directory"
+[ "$(find -P "$account_home/.config/gitops" -maxdepth 0 -printf "%m")" = 700 ] || fatal "unsafe managed Git directory"
 verify_skeleton_session_link ssh-agent.socket
 verify_account_session_link ssh-agent.socket
-verify_skeleton_session_link labwc-ssh-key-load.service
-verify_account_session_link labwc-ssh-key-load.service
+# Interactive decryption is on demand; do not race wallet/login prompts.
+for ssh_home in /etc/skel-desktop "$account_home"; do
+  ssh_link="$ssh_home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service"
+  [ ! -e "$ssh_link" ] && [ ! -L "$ssh_link" ] || fatal "SSH unlock must not run at login"
+done
 
 for path in \
   "$account_home/.config/labwc/rc.xml" \
@@ -1226,7 +1232,6 @@ for path in \
   "$account_home/.config/systemd/user/labwc-output-watch.service" \
   "$account_home/.config/systemd/user/swaybg.service" \
   "$account_home/.config/systemd/user/swayidle.service" \
-  "$account_home/.config/systemd/user/kanshi.service" \
   "$account_home/.config/systemd/user/crystal-dock.service" \
   "$account_home/.config/systemd/user/waybar.service" \
   "$account_home/.config/systemd/user/waybar.service.d/20-tray-compat.conf" \
@@ -1238,7 +1243,10 @@ for path in \
   "$account_home/.local/share/applications/waypaper.desktop" \
   "$account_home/.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf" \
   "$account_home/.local/share/icons/terminal-fonts/current/release-manifest.json" \
-  "$account_home/.local/share/icons/terminal-fonts/.cache-ready"
+  "$account_home/.local/share/icons/terminal-fonts/.cache-ready" \
+  "$account_home/.config/fontconfig/conf.d/61-microsoft-fonts.conf" \
+  "$account_home/.local/share/fonts/microsoft-fonts/current/release-manifest.json" \
+  "$account_home/.local/share/fonts/microsoft-fonts/.cache-ready"
 do
   check_required_owned "$path"
 done
@@ -1285,7 +1293,6 @@ done
 for session_unit in \
   labwc-output-watch.service \
   swaybg.service \
-  kanshi.service \
   swayidle.service \
   crystal-dock.service \
   labwc-mute-default-microphone.service \
@@ -1411,93 +1418,93 @@ if command -v vivaldi-stable >/dev/null 2>&1; then
   done
 fi
 
-[ "$(stat -c "%a" "$account_home/.config/keepassxc")" = 700 ] || {
+[ "$(find -P "$account_home/.config/keepassxc" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: KeePassXC config directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.config/keepassxc/keepassxc.ini")" = 600 ] || {
+[ "$(find -P "$account_home/.config/keepassxc/keepassxc.ini" -maxdepth 0 -printf "%m")" = 600 ] || {
   printf "fatal: KeePassXC config file mode is not 0600\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.config/Recoll.org")" = 700 ] || {
+[ "$(find -P "$account_home/.config/Recoll.org" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Recoll GUI configuration directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.config/Recoll.org/recoll.ini")" = 600 ] || {
+[ "$(find -P "$account_home/.config/Recoll.org/recoll.ini" -maxdepth 0 -printf "%m")" = 600 ] || {
   printf "fatal: Recoll GUI configuration file mode is not 0600\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.recoll")" = 700 ] || {
+[ "$(find -P "$account_home/.recoll" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Recoll index configuration directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.cache")" = 700 ] || {
+[ "$(find -P "$account_home/.cache" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: XDG cache directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.config/systemd")" = 700 ] || {
+[ "$(find -P "$account_home/.config/systemd" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: systemd user configuration directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.config/systemd/user")" = 700 ] || {
+[ "$(find -P "$account_home/.config/systemd/user" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: systemd user unit directory mode is not 0700\n" >&2
   exit 1
 }
 for user_dropin_dir in "$account_home/.config/systemd/user"/*.d; do
   [ -d "$user_dropin_dir" ] || continue
-  [ "$(stat -c "%a" "$user_dropin_dir")" = 700 ] || {
+  [ "$(find -P "$user_dropin_dir" -maxdepth 0 -printf "%m")" = 700 ] || {
     printf "fatal: systemd user drop-in directory mode is not 0700: %s\n" "$user_dropin_dir" >&2
     exit 1
   }
 done
-[ "$(stat -c "%a" "$account_home/.gnupg")" = 700 ] || {
+[ "$(find -P "$account_home/.gnupg" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: GnuPG directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.gnupg/gpg-agent.conf")" = 600 ] || {
+[ "$(find -P "$account_home/.gnupg/gpg-agent.conf" -maxdepth 0 -printf "%m")" = 600 ] || {
   printf "fatal: GnuPG agent configuration mode is not 0600\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.local/share/dbus-1")" = 700 ] || {
+[ "$(find -P "$account_home/.local/share/dbus-1" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: D-Bus user data directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.local/share/dbus-1/services")" = 700 ] || {
+[ "$(find -P "$account_home/.local/share/dbus-1/services" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: D-Bus user activation directory mode is not 0700\n" >&2
   exit 1
 }
 for service_file in "$account_home/.local/share/dbus-1/services"/*.service; do
   [ -f "$service_file" ] || continue
-  [ "$(stat -c "%a" "$service_file")" = 600 ] || {
+  [ "$(find -P "$service_file" -maxdepth 0 -printf "%m")" = 600 ] || {
     printf "fatal: D-Bus user activation file mode is not 0600: %s\n" "$service_file" >&2
     exit 1
   }
 done
-[ "$(stat -c "%a" "$account_home/.config/systemd/user/labwc-session.target.wants")" = 700 ] || {
+[ "$(find -P "$account_home/.config/systemd/user/labwc-session.target.wants" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Labwc session user-unit enablement directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.cache/recoll")" = 700 ] || {
+[ "$(find -P "$account_home/.cache/recoll" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Recoll cache directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.local/share/task")" = 700 ] || {
+[ "$(find -P "$account_home/.local/share/task" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Taskwarrior data directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/.local/share/task/hooks")" = 700 ] || {
+[ "$(find -P "$account_home/.local/share/task/hooks" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Taskwarrior hooks directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/Syncthing/keepassxc")" = 700 ] || {
+[ "$(find -P "$account_home/Syncthing/keepassxc" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: KeePassXC database directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/Syncthing/obsidian-md")" = 700 ] || {
+[ "$(find -P "$account_home/Syncthing/obsidian-md" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Obsidian vault directory mode is not 0700\n" >&2
   exit 1
 }
-[ "$(stat -c "%a" "$account_home/Syncthing/obsidian-md/.obsidian")" = 700 ] || {
+[ "$(find -P "$account_home/Syncthing/obsidian-md/.obsidian" -maxdepth 0 -printf "%m")" = 700 ] || {
   printf "fatal: Obsidian vault configuration directory mode is not 0700\n" >&2
   exit 1
 }
@@ -1510,7 +1517,7 @@ for private_file in \
   "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/manifest.json" \
   "$account_home/Syncthing/obsidian-md/.obsidian/themes/evergreen-notes/theme.css"
 do
-  [ "$(stat -c "%a" "$private_file")" = 600 ] || {
+  [ "$(find -P "$private_file" -maxdepth 0 -printf "%m")" = 600 ] || {
     printf "fatal: managed Obsidian file mode is not 0600: %s\n" "$private_file" >&2
     exit 1
   }
@@ -1546,11 +1553,12 @@ for path in \
   "$account_home/.config/fuzzel/fuzzel-internal.ini" \
   "$account_home/.config/fuzzel/menu.ini" \
   "$account_home/.config/fuzzel/menu-internal.ini" \
+  "$account_home/.config/fuzzel/main-menu.ini" \
+  "$account_home/.config/fuzzel/main-menu-internal.ini" \
   "$account_home/.config/Thunar/uca.xml" \
   "$account_home/.config/crystal-dock/labwc/appearance.conf" \
   "$account_home/.config/crystal-dock/labwc/panel_1.conf" \
   "$account_home/.config/mako/config" \
-  "$account_home/.config/kanshi/config" \
   "$account_home/.config/swaylock/config" \
   "$account_home/.profile" \
   "$account_home/.profile.d" \
@@ -1708,7 +1716,7 @@ def require(condition, message):
     if not condition:
         raise SystemExit(message)
 
-for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0")):
+for package, minimum in (("labwc", "0.20.2"), ("waybar", "0.15.0"), ("fuzzel", "1.11.0")):
     version = subprocess.check_output(["/usr/bin/dpkg-query", "-W", "-f=${Version}", package], text=True).strip()
     subprocess.run(["/usr/bin/dpkg", "--compare-versions", version, "ge", minimum], check=True)
 root = Path("/")
@@ -1743,16 +1751,21 @@ for config in config_roots:
     require(all(switcher.get(k) in ("yes", "no") for k in ("preview", "outlines", "unshade")), "invalid switcher boolean")
     osd = switcher.find("osd")
     require(osd is not None and osd.get("show") == "yes", "native switcher OSD missing")
-    require(osd.get("style") in ("thumbnail", "classic"), "invalid switcher style")
+    require(osd.get("style") == "thumbnail", "native thumbnail switcher required; classic lists are not supported")
     require(osd.get("output") in ("all", "focused", "cursor"), "invalid OSD output")
     require(osd.get("thumbnailLabelFormat") == "%n \u2014 %T  %S  %o", "invalid switcher label")
-    require([(f.get("content"), f.get("width")) for f in switcher.findall("fields/field")] ==
-            [("icon", "7%"), ("desktop_entry_name", "23%"), ("state", "8%"), ("output", "12%"), ("title", "50%")], "invalid classic fallback fields")
-    for key, action in (("F13", "NextWindow"), ("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
+    require(switcher.find("fields") is None, "classic list fields must not be configured")
+    panel = [x for x in rc.findall("keyboard/keybind") if x.get("key") == "F13"]
+    require(len(panel) == 1 and panel[0].get("onRelease") is None, "invalid native panel switcher binding")
+    actions = panel[0].findall("action")
+    require(len(actions) == 1 and actions[0].get("name") == "NextWindow"
+            and actions[0].get("workspace") == "current"
+            and actions[0].get("output") in ("all", "focused", "cursor")
+            and actions[0].get("identifier") == "all"
+            and actions[0].get("menu") is None, "panel must use the native thumbnail switcher")
+    for key, action in (("A-Tab", "NextWindow"), ("A-S-Tab", "PreviousWindow")):
         bindings = [x for x in rc.findall("keyboard/keybind") if x.get("key") == key]
         require(len(bindings) == 1, "duplicate or absent " + key)
-        if key == "F13":
-            require(bindings[0].get("onRelease") is None, "F13 must use native press handling")
         actions = bindings[0].findall("action")
         require(len(actions) == 1 and actions[0].get("name") == action, "non-native " + key)
         require(actions[0].get("workspace") == "current", "non-local " + key)
@@ -1791,10 +1804,180 @@ print("desktop_workspace_config_verification native=current broker=absent taskba
 ' "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}"
 }
 
+desktop_verify_font_publications() {
+  run_in_target "verify both pinned font publication trees" /usr/bin/python3 -I -c '
+import hashlib
+import json
+import os
+from pathlib import Path
+import pwd
+import stat
+import sys
+import xml.etree.ElementTree as ET
+
+# BEGIN FONT PUBLICATION VERIFICATION
+home, username, skel, cache = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4])
+account = pwd.getpwnam(username)
+if account.pw_uid == 0 or str(home) != account.pw_dir:
+    raise ValueError("font verification account/home mismatch")
+names = ("FiraCode", "NerdFontsSymbolsOnly", "ProFont", "MicrosoftAptosFonts", "MicrosoftLocalFonts")
+policy = sorted([dict(name=name, url=sys.argv[5 + 2*i], sha256=sys.argv[6 + 2*i])
+                 for i, name in enumerate(names)], key=lambda row: row["name"])
+identity = hashlib.sha256(json.dumps({"schema": 1, "archives": policy}, sort_keys=True).encode()).hexdigest()
+manifest = "release-manifest.json"
+groups = (("icons/terminal-fonts", names[:3], "60-labwc-terminal-fonts.conf"),
+          ("fonts/microsoft-fonts", names[3:], "61-microsoft-fonts.conf"))
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+def checked(path, uid, gid, directory=False, mode=None):
+    info = path.lstat()
+    require((stat.S_ISDIR(info.st_mode) if directory else stat.S_ISREG(info.st_mode))
+            and (info.st_uid, info.st_gid) == (uid, gid)
+            and not info.st_mode & 0o022, "unsafe font path: " + str(path))
+    if not directory:
+        require(info.st_nlink == 1, "hardlinked font file")
+    if mode is not None:
+        require(stat.S_IMODE(info.st_mode) in (mode if isinstance(mode, tuple) else (mode,)), "font mode mismatch: " + str(path))
+
+def read(path):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, "rb") as stream:
+        return stream.read()
+
+def inventory(root, uid, gid):
+    # The existing home privacy pass may tighten a previous user release.
+    directory_mode = 0o755 if uid == 0 else (0o755, 0o700)
+    file_mode = 0o644 if uid == 0 else (0o644, 0o600)
+    checked(root, uid, gid, True, directory_mode)
+    records = {}
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        for name in dirs:
+            checked(Path(directory) / name, uid, gid, True, directory_mode)
+        for name in files:
+            path = Path(directory) / name
+            checked(path, uid, gid, mode=file_mode)
+            if path != root / manifest:
+                records[path.relative_to(root).as_posix()] = hashlib.sha256(read(path)).hexdigest()
+    return records
+
+source = cache / "releases" / identity
+checked(cache, 0, 0, True)
+checked(cache / "releases", 0, 0, True)
+source_files = inventory(source, 0, 0)
+source_record = json.loads(read(source / manifest))
+require(source_record == {"schema": 1, "archives": policy, "files": source_files}, "root font cache mismatch")
+for target_home, uid, gid in ((skel, 0, 0), (home, account.pw_uid, account.pw_gid)):
+    checked(target_home, uid, gid, True)
+    for relative, archive_names, config_name in groups:
+        base = target_home / ".local/share" / relative
+        cursor = target_home
+        for part in base.relative_to(target_home).parts:
+            cursor /= part
+            checked(cursor, uid, gid, True)
+        checked(base / "releases", uid, gid, True, 0o755 if uid == 0 else (0o755, 0o700))
+        current = base / "current"
+        info = current.lstat()
+        require(stat.S_ISLNK(info.st_mode) and (info.st_uid, info.st_gid) == (uid, gid), "unsafe current link")
+        require(os.readlink(current) == "releases/" + identity, "wrong or escaping font generation")
+        release = base / "releases" / identity
+        require({p.name for p in release.iterdir()} == set(archive_names) | {manifest}, "wrong font archive group")
+        records = inventory(release, uid, gid)
+        expected = {name: digest for name, digest in source_files.items() if name.split("/", 1)[0] in archive_names}
+        subset = [row for row in policy if row["name"] in archive_names]
+        require(records == expected and json.loads(read(release / manifest)) ==
+                {"schema": 1, "archives": subset, "files": expected}, "font content/manifest mismatch")
+        for name in archive_names:
+            require(any(path.startswith(name + "/") and Path(path).suffix.lower() in (".ttf", ".otf", ".ttc", ".otc")
+                        for path in records), "font archive has no readable font")
+        marker = base / ".cache-ready"
+        checked(marker, uid, gid, mode=0o600)
+        require(read(marker) == (identity + "\n").encode(), "font cache generation mismatch")
+        config = target_home / ".config/fontconfig/conf.d" / config_name
+        cursor = target_home
+        for part in config.parent.relative_to(target_home).parts:
+            cursor /= part
+            checked(cursor, uid, gid, True)
+        checked(config, uid, gid, mode=0o644 if uid == 0 else 0o600)
+        content = read(config)
+        require(content == read(skel / ".config/fontconfig/conf.d" / config_name), "fontconfig differs from managed skeleton")
+        xml = ET.fromstring(content)
+        require(xml.tag == "fontconfig" and len(xml) == 1 and xml[0].tag == "dir"
+                and xml[0].attrib == {"prefix": "xdg"} and xml[0].text == relative + "/current", "wrong fontconfig directory")
+print("desktop_font_verification terminal=3 microsoft=2 content=verified")
+# END FONT PUBLICATION VERIFICATION
+' "${ACCOUNT_HOME:?ACCOUNT_HOME must be set}" "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}" \
+    /etc/skel-desktop /var/cache/installer-desktop-fonts \
+    "${LABWC_FONT_FIRACODE_URL:?}" "${LABWC_FONT_FIRACODE_SHA256:?}" \
+    "${LABWC_FONT_SYMBOLS_URL:?}" "${LABWC_FONT_SYMBOLS_SHA256:?}" \
+    "${LABWC_FONT_PROFONT_URL:?}" "${LABWC_FONT_PROFONT_SHA256:?}" \
+    "${LABWC_FONT_APTOS_URL:?}" "${LABWC_FONT_APTOS_SHA256:?}" \
+    "${LABWC_FONT_MICROSOFT_URL:?}" "${LABWC_FONT_MICROSOFT_SHA256:?}"
+}
+
+desktop_verify_kanshi_policy() {
+  # shellcheck disable=SC2016
+  run_in_target "verify conditional Kanshi package, files and activation" /bin/sh -eu -c '
+
+set -eu
+. /etc/default/labwc-desktop
+home=$1
+case "$home" in /*) ;; *) exit 1 ;; esac
+case "${LABWC_ENABLE_KANSHI:-false}" in
+  true|yes|1|on) enabled=true ;;
+  false|no|0|off) enabled=false ;;
+  *) printf "fatal: invalid Kanshi policy\n" >&2; exit 1 ;;
+esac
+absent() { [ ! -e "$1" ] && [ ! -L "$1" ]; }
+if state=$(dpkg-query -W -f="\${db:Status-Status}" kanshi 2>/dev/null); then
+  :
+else
+  query_status=$?
+  [ "$query_status" -eq 1 ] || exit "$query_status"
+  state=not-installed
+fi
+if [ "$enabled" = true ]; then
+  [ "$state" = installed ]
+  [ -x /usr/bin/kanshi ]
+  [ -x /usr/local/libexec/labwc-kanshi ]
+  for base in /etc/skel-desktop "$home"; do
+    [ -f "$base/.config/kanshi/config" ]
+    [ ! -L "$base/.config/kanshi/config" ]
+    units="$base/.config/systemd/user"
+    [ -f "$units/kanshi.service" ] && [ ! -L "$units/kanshi.service" ]
+    [ -d "$units/kanshi.service.d" ] && [ ! -L "$units/kanshi.service.d" ]
+    [ -f "$units/kanshi.service.d/60-resource-class.conf" ]
+    [ ! -L "$units/kanshi.service.d/60-resource-class.conf" ]
+    link="$units/labwc-session.target.wants/kanshi.service"
+    [ -L "$link" ] && [ "$(readlink "$link")" = ../kanshi.service ]
+    [ -e "$link" ]
+  done
+else
+  case "$state" in not-installed) ;; *) exit 1 ;; esac
+  for path in /usr/local/bin/kanshi /usr/bin/kanshi /bin/kanshi /usr/local/libexec/labwc-kanshi; do
+    absent "$path"
+  done
+  for units in /etc/systemd/user /etc/skel-desktop/.config/systemd/user "$home/.config/systemd/user"; do
+    absent "$units/kanshi.service"
+    absent "$units/kanshi.service.d"
+    for link in "$units"/*.wants/kanshi.service "$units"/*.requires/kanshi.service; do
+      absent "$link"
+    done
+  done
+fi
+printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
+
+' sh "$ACCOUNT_HOME"
+}
+
 desktop_verify_target_staging() {
+  desktop_verify_kanshi_policy
   desktop_verify_required_commands
   desktop_verify_staged_files
   desktop_verify_native_workspace_config
+  desktop_verify_font_publications
   desktop_verify_optional_staged_files
   desktop_verify_greeter_access
   desktop_verify_primary_user_files

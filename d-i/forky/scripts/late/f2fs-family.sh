@@ -186,20 +186,20 @@ prepare_target_deferred_tmpfs_roots() {
 
 write_target_kernel_tunables() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/60-ses-blacklist.conf)" "${FILE_MODPROBE_SES_BLACKLIST}" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modprobe.d/nvme-blacklist.conf")" "${FILE_MODPROBE_NVME_BLACKLIST:-}" "${DIR_MODPROBE_D}/nvme-blacklist.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modprobe.d/72-nvme-blacklist.conf")" "${FILE_MODPROBE_NVME_BLACKLIST:-}" "${DIR_MODPROBE_D}/72-nvme-blacklist.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/05-mei-blacklist.conf")" "${FILE_MODPROBE_MEI_BLACKLIST:-}" "${DIR_MODPROBE_D}/05-mei-blacklist.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/thinkpad-acpi.conf")" "${FILE_MODPROBE_THINKPAD_ACPI:-}" "${DIR_MODPROBE_D}/thinkpad-acpi.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path gpu intel-uhd etc/modprobe.d/i915.conf)" "${FILE_MODPROBE_I915:-}" "${DIR_MODPROBE_D}/i915.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path gpu amd-radeon etc/modprobe.d/amdgpu.conf)" "${FILE_MODPROBE_AMDGPU:-}" "${DIR_MODPROBE_D}/amdgpu.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/79-thinkpad-acpi.conf")" "${FILE_MODPROBE_THINKPAD_ACPI:-}" "${DIR_MODPROBE_D}/79-thinkpad-acpi.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path gpu intel-uhd etc/modprobe.d/80-i915.conf)" "${FILE_MODPROBE_I915:-}" "${DIR_MODPROBE_D}/80-i915.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path gpu amd-radeon etc/modprobe.d/81-amdgpu.conf)" "${FILE_MODPROBE_AMDGPU:-}" "${DIR_MODPROBE_D}/81-amdgpu.conf" 0644
   if [ "$target_enable_nvidia" = true ]; then
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/50-nouveau-blacklist.conf)" "${DIR_MODPROBE_D}/50-nouveau-blacklist.conf" 0644
-    stage_target_asset "$(installer_hardware_asset_path gpu nvidia etc/modprobe.d/nvidia.conf)" "${FILE_MODPROBE_NVIDIA}" 0644
+    stage_target_asset "$(installer_hardware_asset_path gpu nvidia etc/modprobe.d/82-nvidia.conf)" "${FILE_MODPROBE_NVIDIA}" 0644
   else
     remove_target_asset "${DIR_MODPROBE_D}/50-nouveau-blacklist.conf"
-    remove_target_asset "${DIR_MODPROBE_D}/nvidia.conf"
+    remove_target_asset "${DIR_MODPROBE_D}/82-nvidia.conf"
   fi
-  stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modprobe.d/usbcore.conf")" "${FILE_MODPROBE_USBCORE:-}" "${DIR_MODPROBE_D}/usbcore.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/cfg80211.conf")" "${FILE_MODPROBE_CFG80211:-}" "${DIR_MODPROBE_D}/cfg80211.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modprobe.d/74-usbcore.conf")" "${FILE_MODPROBE_USBCORE:-}" "${DIR_MODPROBE_D}/74-usbcore.conf" 0644
+  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/75-cfg80211.conf")" "${FILE_MODPROBE_CFG80211:-}" "${DIR_MODPROBE_D}/75-cfg80211.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modules-load.d/20-emmc-storage.conf")" "${FILE_MODULES_LOAD_EMMC_STORAGE:-}" "${DIR_MODULES_LOAD}/20-emmc-storage.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/30-storage-memory.conf)" "${FILE_MODULES_LOAD_STORAGE_MEMORY}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/32-tpm.conf)" "${FILE_MODULES_LOAD_TPM}" 0644

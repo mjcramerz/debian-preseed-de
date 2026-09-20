@@ -304,10 +304,10 @@ for destination in "$@"; do
   chmod "$mode" "$destination"
 done
 ''')
-        self.write_command('stat', '''
-path=
-for argument in "$@"; do path=$argument; done
-mode=$(/usr/bin/stat -c %a -- "$path")
+        self.write_command('find', '''
+[ "$#" = 6 ] && [ "$1" = -P ] && [ "$3" = -maxdepth ] && [ "$4" = 0 ] && [ "$5" = -printf ] && [ "$6" = "%U:%G:%m" ] || exit 81
+path=$2
+mode=$(/usr/bin/find -P "$path" -maxdepth 0 -printf %m)
 case "$path" in
   "$TEST_CODEX_ROOT")
     if [ -n "${TEST_CODEX_ROOT_STAT:-}" ]; then

@@ -1,0 +1,27 @@
+[
+  {
+    "scope": "d-i/forky/hosts/profiles",
+    "unchanged_files": 13,
+    "modified": []
+  },
+  {
+    "scope": "d-i/forky/hooks/target/etc/modprobe.d",
+    "unchanged_files": 21,
+    "modified": []
+  },
+  {
+    "scope": "d-i/forky/hooks/target/etc/default/grub.d",
+    "unchanged_files": 24,
+    "modified": []
+  },
+  {
+    "scope": "d-i/forky/scripts/desktop",
+    "unchanged_files": 16,
+    "modified": []
+  },
+  {
+    "scope": "d-i/forky/hooks/installer",
+    "unchanged_files": 28,
+    "modified": []
+  }
+]

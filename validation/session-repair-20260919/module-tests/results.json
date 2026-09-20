@@ -1,0 +1,741 @@
+[
+  {
+    "module": "test_boot_runtime_20260913.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.167,
+    "tests": 31,
+    "log": "test_boot_runtime_20260913.log",
+    "failures": [],
+    "skips": 23
+  },
+  {
+    "module": "test_boot_runtime_second_pass.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.678,
+    "tests": 6,
+    "log": "test_boot_runtime_second_pass.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_bootstrap_portability.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 85.107,
+    "tests": 18,
+    "log": "test_bootstrap_portability.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_btrfs_locale_boundary.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 5.295,
+    "tests": 19,
+    "log": "test_btrfs_locale_boundary.log",
+    "failures": [],
+    "skips": 1
+  },
+  {
+    "module": "test_categorized_menu.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.128,
+    "tests": 40,
+    "log": "test_categorized_menu.log",
+    "failures": [],
+    "skips": 2
+  },
+  {
+    "module": "test_codex_clone_staging.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 8.572,
+    "tests": 33,
+    "log": "test_codex_clone_staging.log",
+    "failures": [
+      "test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) (signal=<Signals.SIGINT: 2>)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_codex_installer_session.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.636,
+    "tests": 22,
+    "log": "test_codex_installer_session.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_codex_standalone_chroot.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.572,
+    "tests": 3,
+    "log": "test_codex_standalone_chroot.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_computer_management_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.025,
+    "tests": 33,
+    "log": "test_computer_management_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_config_safety.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 0.165,
+    "tests": 1,
+    "log": "test_config_safety.log",
+    "failures": [
+      "test_config_safety (unittest.loader._FailedTest.test_config_safety)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_cuda_legacy_apt.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 5.297,
+    "tests": 40,
+    "log": "test_cuda_legacy_apt.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_dbus_broker.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.216,
+    "tests": 16,
+    "log": "test_dbus_broker.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_debconf_protocol.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 259.38,
+    "tests": 22,
+    "log": "test_debconf_protocol.log",
+    "failures": [
+      "test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_desktop_fonts_20260918.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 4.906,
+    "tests": 38,
+    "log": "test_desktop_fonts_20260918.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_desktop_integration_20260914.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.669,
+    "tests": 28,
+    "log": "test_desktop_integration_20260914.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_desktop_navigation_20260918.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.168,
+    "tests": 36,
+    "log": "test_desktop_navigation_20260918.log",
+    "failures": [],
+    "skips": 1
+  },
+  {
+    "module": "test_desktop_sandbox.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 1.177,
+    "tests": 70,
+    "log": "test_desktop_sandbox.log",
+    "failures": [
+      "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)"
+    ],
+    "skips": 1
+  },
+  {
+    "module": "test_environment.py",
+    "returncode": 5,
+    "timed_out": false,
+    "seconds": 0.115,
+    "tests": 0,
+    "log": "test_environment.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_gitops_mirrors.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.835,
+    "tests": 16,
+    "log": "test_gitops_mirrors.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_gpg_recipient_integration.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 7.083,
+    "tests": 29,
+    "log": "test_gpg_recipient_integration.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_hardware_restore.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 3.893,
+    "tests": 25,
+    "log": "test_hardware_restore.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_hardware_tuning_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.923,
+    "tests": 74,
+    "log": "test_hardware_tuning_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_hardware_tuning_followup_20260917.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.279,
+    "tests": 5,
+    "log": "test_hardware_tuning_followup_20260917.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_hardware_tuning_handover_20260917.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.826,
+    "tests": 52,
+    "log": "test_hardware_tuning_handover_20260917.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_hardware_tuning_refactor_20260917.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.434,
+    "tests": 37,
+    "log": "test_hardware_tuning_refactor_20260917.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_initrd_credentials.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 7.691,
+    "tests": 24,
+    "log": "test_initrd_credentials.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_initrd_target_tools.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 3.247,
+    "tests": 12,
+    "log": "test_initrd_target_tools.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_installation_fixes_20260912.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.418,
+    "tests": 34,
+    "log": "test_installation_fixes_20260912.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_installed_failures_20260911.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 0.316,
+    "tests": 21,
+    "log": "test_installed_failures_20260911.log",
+    "failures": [
+      "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_installer_hardening.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 5.102,
+    "tests": 56,
+    "log": "test_installer_hardening.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_intel_policy_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.327,
+    "tests": 8,
+    "log": "test_intel_policy_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_iocost_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 80.765,
+    "tests": 37,
+    "log": "test_iocost_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_lifecycle.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.333,
+    "tests": 22,
+    "log": "test_lifecycle.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_lifecycle_review_20260914.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.628,
+    "tests": 30,
+    "log": "test_lifecycle_review_20260914.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_log_followup_20260915.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 2.2,
+    "tests": 9,
+    "log": "test_log_followup_20260915.log",
+    "failures": [],
+    "skips": 1
+  },
+  {
+    "module": "test_log_launchers_20260915_r3.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.517,
+    "tests": 29,
+    "log": "test_log_launchers_20260915_r3.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_log_regressions_20260915.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 1.933,
+    "tests": 23,
+    "log": "test_log_regressions_20260915.log",
+    "failures": [
+      "test_scope_dropin_covers_all_app_prefixes_and_is_staged (test_log_regressions_20260915.DesktopAssetTests.test_scope_dropin_covers_all_app_prefixes_and_is_staged)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_managed_external_software.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 1.018,
+    "tests": 6,
+    "log": "test_managed_external_software.log",
+    "failures": [
+      "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+      "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+      "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+      "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_managed_git_debugsys.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 6.211,
+    "tests": 56,
+    "log": "test_managed_git_debugsys.log",
+    "failures": [],
+    "skips": 1
+  },
+  {
+    "module": "test_management_perl_methods_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.248,
+    "tests": 11,
+    "log": "test_management_perl_methods_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_menu_apparmor_integration_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 28.078,
+    "tests": 27,
+    "log": "test_menu_apparmor_integration_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_metadata_portability_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 5.931,
+    "tests": 11,
+    "log": "test_metadata_portability_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_nvidia_580_recovery.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.641,
+    "tests": 10,
+    "log": "test_nvidia_580_recovery.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_nvidia_72_interfaces.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 3.099,
+    "tests": 19,
+    "log": "test_nvidia_72_interfaces.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_nvidia_legacy_dkms.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.772,
+    "tests": 14,
+    "log": "test_nvidia_legacy_dkms.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_nvidia_power.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.492,
+    "tests": 13,
+    "log": "test_nvidia_power.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_package_power_guard.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.377,
+    "tests": 38,
+    "log": "test_package_power_guard.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_podman_incus_redesign.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 1.775,
+    "tests": 88,
+    "log": "test_podman_incus_redesign.log",
+    "failures": [
+      "test_terminal_launch_is_argv_only (test_podman_incus_redesign.FuzzelTests.test_terminal_launch_is_argv_only)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_policy_alignment_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.075,
+    "tests": 6,
+    "log": "test_policy_alignment_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_policy_review_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 13.169,
+    "tests": 15,
+    "log": "test_policy_review_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_power_io_policy_r6.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 118.711,
+    "tests": 14,
+    "log": "test_power_io_policy_r6.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_power_keyboard_20260913.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 3.351,
+    "tests": 36,
+    "log": "test_power_keyboard_20260913.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_power_quiescence_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.376,
+    "tests": 16,
+    "log": "test_power_quiescence_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_process_capture.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 1.847,
+    "tests": 10,
+    "log": "test_process_capture.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_repository_integrity.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 13.108,
+    "tests": 10,
+    "log": "test_repository_integrity.log",
+    "failures": [
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env')",
+      "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_repository_transport.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 62.12,
+    "tests": 27,
+    "log": "test_repository_transport.log",
+    "failures": [
+      "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_resctl_bench_20260916.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.772,
+    "tests": 28,
+    "log": "test_resctl_bench_20260916.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_resctl_bench_docs_20260917.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.319,
+    "tests": 5,
+    "log": "test_resctl_bench_docs_20260917.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_resctl_bench_noexec_20260917.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.674,
+    "tests": 12,
+    "log": "test_resctl_bench_noexec_20260917.log",
+    "failures": [],
+    "skips": 1
+  },
+  {
+    "module": "test_resctl_bench_release_20260917.py",
+    "returncode": 1,
+    "timed_out": false,
+    "seconds": 1.04,
+    "tests": 23,
+    "log": "test_resctl_bench_release_20260917.log",
+    "failures": [
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-flex.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-main.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-flex.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-main.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-desktop.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-cbook.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual-cbook.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-desktop.env')",
+      "test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='vm-desktop.env')"
+    ],
+    "skips": 0
+  },
+  {
+    "module": "test_retained_package_bounds.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 17.194,
+    "tests": 26,
+    "log": "test_retained_package_bounds.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_root_login.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 54.048,
+    "tests": 32,
+    "log": "test_root_login.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_security_refactor.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 7.391,
+    "tests": 28,
+    "log": "test_security_refactor.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_session_repairs_20260919.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 6.134,
+    "tests": 11,
+    "log": "test_session_repairs_20260919.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_shutdown_policy_r5.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 10.301,
+    "tests": 8,
+    "log": "test_shutdown_policy_r5.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_system_desktop_overrides.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 0.769,
+    "tests": 30,
+    "log": "test_system_desktop_overrides.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_systemd_resource_policy.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 13.194,
+    "tests": 16,
+    "log": "test_systemd_resource_policy.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_systemd_resource_refinements.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 4.401,
+    "tests": 9,
+    "log": "test_systemd_resource_refinements.log",
+    "failures": [],
+    "skips": 0
+  },
+  {
+    "module": "test_workspace_no_broker.py",
+    "returncode": 0,
+    "timed_out": false,
+    "seconds": 15.035,
+    "tests": 27,
+    "log": "test_workspace_no_broker.log",
+    "failures": [],
+    "skips": 0
+  }
+]

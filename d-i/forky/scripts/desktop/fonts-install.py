@@ -1,11 +1,11 @@
 #!/usr/bin/python3 -I
 """Install profile-pinned font data; never execute archive contents.
 
-Fonts deliberately live below .local/share/icons/terminal-fonts as requested.
-A narrow fontconfig declaration makes that otherwise nonstandard location a
-font source. Immutable generations plus an atomic current link avoid partial
-font sets. Root prepares trusted cache/skel paths and two fixed XDG parent owners;
-HOME publication/cache run after permanently dropping to the account's uid/gid.
+Terminal/icon fonts and Microsoft desktop fonts have separate, fixed XDG trees.
+Both immutable generations are verified before either current link is changed;
+failed link publication rolls back under the existing installation lock.
+Fontconfig belongs to the managed desktop skeleton, not this data installer.
+Root seals the cache; HOME publication/cache permanently drops to the account.
 """
 import argparse
 import fcntl
@@ -26,19 +26,20 @@ from pathlib import Path, PurePosixPath
 
 CACHE = Path('/var/cache/installer-desktop-fonts')
 SKEL = Path('/etc/skel-desktop')
-NAMES = ('FiraCode', 'NerdFontsSymbolsOnly', 'ProFont', 'MicrosoftAptosFonts', 'microsoft-fonts')
+NAMES = ('FiraCode', 'NerdFontsSymbolsOnly', 'ProFont', 'MicrosoftAptosFonts', 'MicrosoftLocalFonts')
 MAX_ARCHIVE = 256 * 1024 * 1024
 MAX_EXPANDED = 1024 * 1024 * 1024
 MAX_MEMBER = 128 * 1024 * 1024
 MAX_MEMBERS = 12000
 MANIFEST = 'release-manifest.json'
-FONT_CONFIG = b'''<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
-<!-- Managed by unattended-installer: pinned terminal-fonts, read-only source. -->
-<fontconfig>
-  <dir prefix="xdg">icons/terminal-fonts/current</dir>
-</fontconfig>
-'''
+GROUPS = {
+    "terminal": ("FiraCode", "NerdFontsSymbolsOnly", "ProFont"),
+    "microsoft": ("MicrosoftAptosFonts", "MicrosoftLocalFonts"),
+}
+PUBLICATION_ROOTS = {
+    "terminal": ".local/share/icons/terminal-fonts",
+    "microsoft": ".local/share/fonts/microsoft-fonts",
+}
 
 
 def digest(path: Path) -> str:
@@ -192,11 +193,12 @@ def extract_archive(archive: Path, destination: Path, sha: str) -> None:
         raise ValueError('font archive contains no supported font files')
 
 
-def file_inventory(root: Path) -> dict[str, str]:
+def file_inventory(root: Path, uid: int | None = None) -> dict[str, str]:
+    uid = os.geteuid() if uid is None else uid
     records = {}
     for directory, directories, files in os.walk(root, followlinks=False):
         for name in directories:
-            checked_directory(Path(directory) / name, os.geteuid())
+            checked_directory(Path(directory) / name, uid)
         for name in files:
             path = Path(directory) / name
             relative = path.relative_to(root).as_posix()
@@ -204,7 +206,7 @@ def file_inventory(root: Path) -> dict[str, str]:
                 continue
             info = path.lstat()
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
-                    or info.st_uid != os.geteuid() or info.st_mode & 0o022):
+                    or info.st_uid != uid or info.st_mode & 0o022):
                 raise ValueError('non-regular/hardlinked file in font generation')
             records[relative] = digest(path)
     return dict(sorted(records.items()))
@@ -221,16 +223,21 @@ def seal(root: Path, policy: list[dict[str, str]]) -> None:
     flush_tree(root)
 
 
-def verify_generation(root: Path, policy: list[dict[str, str]]) -> None:
-    checked_directory(root, os.geteuid())
+def verify_generation(root: Path, policy: list[dict[str, str]], uid: int | None = None,
+                      expected_files: dict[str, str] | None = None) -> None:
+    uid = os.geteuid() if uid is None else uid
+    checked_directory(root, uid)
+    if {p.name for p in root.iterdir()} != {p["name"] for p in policy} | {MANIFEST}:
+        raise ValueError("unexpected archive group in font generation")
     marker = root / MANIFEST
     info = marker.lstat()
     if (not stat.S_ISREG(info.st_mode) or info.st_size > 8 * 1024 * 1024
-            or info.st_uid != os.geteuid() or info.st_mode & 0o022 or info.st_nlink != 1):
+            or info.st_uid != uid or info.st_mode & 0o022 or info.st_nlink != 1):
         raise ValueError('invalid font generation manifest')
     record = json.loads(marker.read_text())
     if (record.get('schema') != 1 or record.get('archives') != policy or
-            record.get('files') != file_inventory(root)):
+            record.get('files') != file_inventory(root, uid) or
+            (expected_files is not None and record.get('files') != expected_files)):
         raise ValueError(f'modified/incomplete font generation preserved: {root}')
 
 
@@ -267,65 +274,112 @@ def prepare_generation(cache: Path, policy: list[dict[str, str]]) -> Path:
     return generation
 
 
-def publish(home: Path, source: Path, policy: list[dict[str, str]]) -> tuple[Path, bool]:
+def publication_group(name: str) -> str:
+    for group, names in GROUPS.items():
+        if name in names:
+            return group
+    raise ValueError("unknown font archive name")
+
+
+def replace_current(current: Path, target: str) -> None:
+    temporary = current.parent / (".current-" + secrets.token_hex(12))
+    try:
+        os.symlink(target, temporary)
+        os.replace(temporary, current)
+        sync_dir(current.parent)
+    finally:
+        if os.path.lexists(temporary):
+            temporary.unlink()
+
+
+def publish(home: Path, source: Path, policy: list[dict[str, str]]) -> tuple[tuple[Path, ...], bool]:
+    # Callers hold CACHE/install.lock for cache, skeleton and user publications.
+    # Source data remains root-owned in production, even after the uid drop.
+    checked = validate_policy([[p["name"], p["url"], p["sha256"]] for p in policy])
+    if checked != policy:
+        raise ValueError("noncanonical font policy")
     uid = os.geteuid()
-    base = mkdir_below(home, '.local/share/icons/terminal-fonts', uid)
-    releases = mkdir_below(base, 'releases', uid)
+    source_uid = source.lstat().st_uid
+    if source_uid not in (0, uid):
+        raise ValueError("untrusted font cache owner")
+    verify_generation(source, policy, source_uid)
+    source_files = file_inventory(source, source_uid)
     identity = policy_id(policy)
-    destination = releases / identity
-    current = base / 'current'
-    expected = 'releases/' + identity
-    config_dir = mkdir_below(home, '.config/fontconfig/conf.d', uid)
-    config = config_dir / '60-labwc-terminal-fonts.conf'
-    # Check all existing publication targets before changing either pointer
-    # or configuration. An administrator override must not be partially used.
-    if os.path.lexists(config):
-        if not stat.S_ISREG(config.lstat().st_mode) or config.read_bytes() != FONT_CONFIG:
-            raise ValueError('unmanaged fontconfig entry preserved')
-    if os.path.lexists(current):
-        if not current.is_symlink() or not re.fullmatch(r'releases/[0-9a-f]{64}', os.readlink(current)):
-            raise ValueError('unmanaged font current entry preserved')
-        previous = base / os.readlink(current)
-        if not previous.is_dir() or previous.is_symlink():
-            raise ValueError('broken or indirect font current entry preserved')
-    if os.path.lexists(destination):
-        verify_generation(destination, policy)
-    else:
-        with tempfile.TemporaryDirectory(prefix='.copy-', dir=base) as temporary:
-            staging = Path(temporary) / 'generation'
-            shutil.copytree(source, staging, symlinks=False)
-            verify_generation(staging, policy)
-            flush_tree(staging)
-            os.rename(staging, destination)
-            sync_dir(releases)
-    changed = False
-    if not config.exists():
-        atomic_bytes(config, FONT_CONFIG)
-        changed = True
-    if not current.is_symlink() or os.readlink(current) != expected:
-        temporary_link = base / ('.current-' + secrets.token_hex(12))
-        try:
-            os.symlink(expected, temporary_link)
-            os.replace(temporary_link, current)
-            sync_dir(base)
-        finally:
-            if os.path.lexists(temporary_link):
-                temporary_link.unlink()
-        changed = True
-    return current, changed
+    expected = "releases/" + identity
+    prepared = []
+    # Prepare and verify BOTH complete trees before exposing either new link.
+    for group, names in GROUPS.items():
+        subset = [p for p in policy if publication_group(p["name"]) == group]
+        files = {name: sha for name, sha in source_files.items() if name.split("/", 1)[0] in names}
+        base = mkdir_below(home, PUBLICATION_ROOTS[group], uid)
+        releases = mkdir_below(base, "releases", uid)
+        current = base / "current"
+        previous = None
+        if os.path.lexists(current):
+            info = current.lstat()
+            if not stat.S_ISLNK(info.st_mode) or info.st_uid != uid:
+                raise ValueError("unmanaged font current entry preserved")
+            previous = os.readlink(current)
+            if not re.fullmatch(r"releases/[0-9a-f]{64}", previous):
+                raise ValueError("unmanaged font current entry preserved")
+            checked_directory(base / previous, uid)
+        destination = releases / identity
+        if os.path.lexists(destination):
+            verify_generation(destination, subset, expected_files=files)
+        else:
+            with tempfile.TemporaryDirectory(prefix=".copy-", dir=base) as temporary:
+                staging = Path(temporary) / "generation"
+                staging.mkdir(mode=0o700)
+                for item in subset:
+                    # The verified cache cannot be changed by the account.
+                    # Never copy a whole mixed archive set to either tree.
+                    shutil.copytree(source / item["name"], staging / item["name"], symlinks=False)
+                seal(staging, subset)
+                verify_generation(staging, subset, expected_files=files)
+                os.rename(staging, destination)
+                sync_dir(releases)
+        prepared.append((current, previous))
+    attempted = []
+    try:
+        for current, previous in prepared:
+            if previous != expected:
+                # Record BEFORE replace: fsync can fail after a successful swap.
+                attempted.append((current, previous))
+                replace_current(current, expected)
+    except BaseException:
+        errors = []
+        for current, previous in reversed(attempted):
+            try:
+                actual = os.readlink(current) if current.is_symlink() else None
+                if actual == previous and (previous is not None or not os.path.lexists(current)):
+                    continue
+                if actual != expected:
+                    raise ValueError("font pointer changed outside the installation lock")
+                if previous is None:
+                    current.unlink()
+                    sync_dir(current.parent)
+                else:
+                    replace_current(current, previous)
+            except BaseException as error:
+                errors.append(str(error))
+        if errors:
+            raise RuntimeError("font publication rollback failed: " + "; ".join(errors))
+        raise
+    return tuple(current for current, _ in prepared), bool(attempted)
 
 
-def font_cache(home: Path, current: Path, cache_home: Path, identity: str,
+def font_cache(home: Path, currents: tuple[Path, ...], cache_home: Path, identity: str,
                changed: bool) -> None:
-    marker = current.parent / '.cache-ready'
-    if (not changed and marker.is_file() and not marker.is_symlink()
-            and marker.read_text() == identity + '\n'):
+    markers = [current.parent / ".cache-ready" for current in currents]
+    if (not changed and all(marker.is_file() and not marker.is_symlink()
+                            and marker.read_text() == identity + "\n" for marker in markers)):
         return
-    env = {'HOME': str(home), 'PATH': '/usr/bin:/bin', 'LC_ALL': 'C.UTF-8',
-           'XDG_CONFIG_HOME': str(home / '.config'),
-           'XDG_DATA_HOME': str(home / '.local/share'), 'XDG_CACHE_HOME': str(cache_home)}
-    subprocess.run(['/usr/bin/fc-cache', '--force', str(current)], env=env, check=True)
-    atomic_bytes(marker, (identity + '\n').encode(), 0o600)
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "LC_ALL": "C.UTF-8",
+           "XDG_CONFIG_HOME": str(home / ".config"),
+           "XDG_DATA_HOME": str(home / ".local/share"), "XDG_CACHE_HOME": str(cache_home)}
+    subprocess.run(["/usr/bin/fc-cache", "--force", *(str(p) for p in currents)], env=env, check=True)
+    for marker in markers:
+        atomic_bytes(marker, (identity + "\n").encode(), 0o600)
 
 
 def prepare_user_parents(account) -> None:
@@ -366,7 +420,7 @@ def prepare_user_parents(account) -> None:
 
 def install_user(account, source: Path, policy: list[dict[str, str]]) -> None:
     # Only fixed XDG parent ownership is prepared via no-follow directory fds.
-    # Font copying, configuration and cache execution are always unprivileged.
+    # Font copying and cache execution are always unprivileged.
     prepare_user_parents(account)
     pid = os.fork()
     if pid == 0:

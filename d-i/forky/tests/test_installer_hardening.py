@@ -284,6 +284,8 @@ render_target_asset() {{
  printf '%s|%s|%s\n' "$INSTALLER_GRUB_EFI_TARGET" "$INSTALLER_GRUB_MOK_MANAGER_EFI_PATH" "$INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH"
  return 37
 }}
+# IOCost is now the first shared rendering stage; retain the architecture/failure assertion.
+stage_target_iocost() {{ render_target_asset; }}
 stage_target_asset() {{ echo UNSAFE; return 0; }}
 install_target_wpa_supplicant_runtime_policy() {{ echo UNSAFE; return 0; }}
 {invoke}
@@ -667,8 +669,8 @@ printf '%s' 'install ok installed'
                 'cscli': r'''#!/bin/sh
 [ "$*" = 'config show --key Config.Common.LogMedia -o raw' ] || exit 82
 ''',
-                'stat': r'''#!/bin/sh
-[ "$1" = -c ] && [ "$2" = %h ] && [ "$3" = "$EXPECTED_CONFIG" ] || exit 83
+                'find': r'''#!/bin/sh
+[ "$#" = 6 ] && [ "$1" = -P ] && [ "$2" = "$EXPECTED_CONFIG" ] && [ "$3" = -maxdepth ] && [ "$4" = 0 ] && [ "$5" = -printf ] && [ "$6" = %n ] || exit 83
 printf '%s\n' 1
 ''',
                 'chown': r'''#!/bin/sh

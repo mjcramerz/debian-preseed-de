@@ -63,15 +63,15 @@ esac
 expected_runtime_dir="/run/user/${LABWC_SESSION_UID}"
 if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] &&
    [ -d "$expected_runtime_dir" ] &&
-   [ "$(stat -c '%u' "$expected_runtime_dir" 2>/dev/null || true)" = "$LABWC_SESSION_UID" ]; then
+   [ "$(find -P "$expected_runtime_dir" -maxdepth 0 -printf '%U' 2>/dev/null || true)" = "$LABWC_SESSION_UID" ]; then
   XDG_RUNTIME_DIR=$expected_runtime_dir
   export XDG_RUNTIME_DIR
 fi
 if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
    [ ! -d "$XDG_RUNTIME_DIR" ] ||
    [ -L "$XDG_RUNTIME_DIR" ] ||
-   [ "$(stat -c '%u' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != "$LABWC_SESSION_UID" ] ||
-   [ "$(stat -c '%a' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != 700 ]; then
+   [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U' 2>/dev/null || true)" != "$LABWC_SESSION_UID" ] ||
+   [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%m' 2>/dev/null || true)" != 700 ]; then
   printf 'fatal: XDG_RUNTIME_DIR is unsafe or does not belong to the active Labwc session user\n' >&2
   exit 1
 fi

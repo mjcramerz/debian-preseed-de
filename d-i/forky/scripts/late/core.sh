@@ -188,27 +188,30 @@ late_command_fetch_common_assets() {
 late_command_load_runtime_env() {
   capture_dualboot_layout=${1:-false}
 
+  # Propagate each failure even under an if/OR caller (which disables errexit).
+
   late_command_load_profile_env || return $?
   RUNTIME_COMMON_LIB="$TMP_ENV_DIR/runtime-common.sh"
   export RUNTIME_COMMON_LIB
   # shellcheck disable=SC1090,SC1091
-  . "$TMP_ENV_DIR/runtime.sh"
+  . "$TMP_ENV_DIR/runtime.sh" || return $?
+  late_command_runtime_state_env="$(installer_runtime_state_dir)/runtime.env" || return $?
   if [ -r /tmp/install-env/runtime.env ]; then
     # shellcheck disable=SC1090,SC1091
-    . /tmp/install-env/runtime.env
-  elif [ -r /tmp/install-runtime/state/runtime.env ]; then
+    . /tmp/install-env/runtime.env || return $?
+  elif [ -r "$late_command_runtime_state_env" ]; then
     # shellcheck disable=SC1090,SC1091
-    . /tmp/install-runtime/state/runtime.env
+    . "$late_command_runtime_state_env" || return $?
   else
-    runtime_apply_layout_from_cmdline
+    runtime_apply_layout_from_cmdline || return $?
     if [ "$capture_dualboot_layout" = true ]; then
       command -v runtime_capture_dualboot_partition_sizes >/dev/null 2>&1 || installer_fatal "runtime_capture_dualboot_partition_sizes is unavailable in ${TMP_ENV_DIR}/runtime.sh"
-      runtime_capture_dualboot_partition_sizes
+      runtime_capture_dualboot_partition_sizes || return $?
     fi
-    runtime_write_runtime_env "$(installer_runtime_state_dir)/runtime.env"
+    runtime_write_runtime_env "$late_command_runtime_state_env" || return $?
   fi
-  installer_ensure_context_loaded "${SEED_BASE:-}"
-  runtime_ensure_system_identity
+  installer_ensure_context_loaded "${SEED_BASE:-}" || return $?
+  runtime_ensure_system_identity || return $?
   validate_tmpfs_policy_env
 }
 
@@ -254,6 +257,8 @@ late_command_load_host_env() {
 
 install_target_runtime_defaults() {
   : "${FILE_LOGIND_OVERRIDE_CONF:?FILE_LOGIND_OVERRIDE_CONF must be set}"
+
+  stage_target_iocost || return $?
 
   validate_installed_log_levels || return $?
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/system-runtime.tmpl)" /etc/default/system-runtime 0644 || return $?

@@ -1,0 +1,19 @@
+test_existing_application_and_wireplumber_classes_are_explicit (test_power_io_policy_r6.FixedPowerUnitTests.test_existing_application_and_wireplumber_classes_are_explicit) ... ok
+test_production_publisher_removes_only_retired_units_idempotently (test_power_io_policy_r6.FixedPowerUnitTests.test_production_publisher_removes_only_retired_units_idempotently) ... ok
+test_retired_barrier_units_are_not_distributed (test_power_io_policy_r6.FixedPowerUnitTests.test_retired_barrier_units_are_not_distributed) ... ok
+test_both_actions_submit_exactly_one_force_after_quiescence (test_power_io_policy_r6.HandoffTests.test_both_actions_submit_exactly_one_force_after_quiescence) ... ok
+test_saving_and_other_account_recheck_precede_handoff (test_power_io_policy_r6.HandoffTests.test_saving_and_other_account_recheck_precede_handoff) ... ok
+test_unaccepted_actions_cannot_form_a_unit_name (test_power_io_policy_r6.HandoffTests.test_unaccepted_actions_cannot_form_a_unit_name) ... ok
+test_uncertain_submission_never_retries_or_cancels (test_power_io_policy_r6.HandoffTests.test_uncertain_submission_never_retries_or_cancels) ... ok
+test_unquiesced_desktop_never_submits_power (test_power_io_policy_r6.HandoffTests.test_unquiesced_desktop_never_submits_power) ... ok
+test_all_profiles_all_four_switch_combinations_and_republication (test_power_io_policy_r6.IndependentIOTests.test_all_profiles_all_four_switch_combinations_and_republication) ... ok
+test_all_profiles_declare_both_switches_once_and_default_off (test_power_io_policy_r6.IndependentIOTests.test_all_profiles_declare_both_switches_once_and_default_off) ... ok
+test_both_switches_are_portable_in_all_combinations (test_power_io_policy_r6.IndependentIOTests.test_both_switches_are_portable_in_all_combinations) ... ok
+test_desktop_stage_alone_replaces_stale_manager_defaults (test_power_io_policy_r6.IndependentIOTests.test_desktop_stage_alone_replaces_stale_manager_defaults) ... ok
+test_literal_weight_lines_are_also_omitted_without_touching_cpu (test_power_io_policy_r6.IndependentIOTests.test_literal_weight_lines_are_also_omitted_without_touching_cpu) ... ok
+test_new_flag_invalid_or_missing_is_fail_closed (test_power_io_policy_r6.IndependentIOTests.test_new_flag_invalid_or_missing_is_fail_closed) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 118.510s
+
+OK

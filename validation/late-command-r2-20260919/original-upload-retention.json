@@ -1,0 +1,7 @@
+{
+  "source": "debian-preseed-de.tar.gz",
+  "regular_files": 2975,
+  "all_retained": true,
+  "missing_files": [],
+  "mode_changes": []
+}

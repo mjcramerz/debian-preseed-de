@@ -60,47 +60,55 @@
   },
   "custom/window-switcher": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
-    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
+    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
   },
   "custom/wayscriber": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
   },
   "custom/apps": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Applications"
   },
   "custom/app-terminal": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Foot",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
   },
   "custom/app-files": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Thunar",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
   },
   "custom/app-tuta": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Tuta Mail",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
   },
   "custom/app-notes": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "FeatherPad",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
   },
   "custom/app-sleek": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Sleek",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
@@ -202,8 +210,8 @@
   "pulseaudio": {
     "format": "🔊 {volume}% {format_source}",
     "format-muted": "🔇 {volume}% {format_source}",
-    "format-source": "<span color='#6dc4ed'></span> {volume}%",
-    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
+    "format-source": "<span font_family='Font Awesome 6 Free' weight='bold' color='#6dc4ed'></span>&#8194;{volume}%",
+    "format-source-muted": "<span font_family='Font Awesome 6 Free' weight='bold' color='#ffb4a2'></span>&#8194;{volume}%",
     "tooltip-format": "{desc}",
     "scroll-step": 5,
     "max-volume": 120,
@@ -345,47 +353,55 @@
   },
   "custom/window-switcher": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
-    "tooltip-format": "Windows (F13) - click a window to select; Escape cancels",
+    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
   },
   "custom/wayscriber": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Wayscriber",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
   },
   "custom/apps": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Applications"
   },
   "custom/app-terminal": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Foot",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-terminal"
   },
   "custom/app-files": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Thunar",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_FILE_MANAGER_COMMAND__"
   },
   "custom/app-tuta": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Tuta Mail",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ tutanota"
   },
   "custom/app-notes": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "FeatherPad",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayland-app auto -- /usr/bin/featherpad"
   },
   "custom/app-sleek": {
     "format": "",
+    "align": 0.5,
     "tooltip": true,
     "tooltip-format": "Sleek",
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__ sleek"
@@ -472,8 +488,8 @@
   "pulseaudio": {
     "format": "🔊 {volume}% {format_source}",
     "format-muted": "🔇 {volume}% {format_source}",
-    "format-source": "<span color='#6dc4ed'></span> {volume}%",
-    "format-source-muted": "<span color='#ffb4a2'></span> {volume}%",
+    "format-source": "<span font_family='Font Awesome 6 Free' weight='bold' color='#6dc4ed'></span>&#8194;{volume}%",
+    "format-source-muted": "<span font_family='Font Awesome 6 Free' weight='bold' color='#ffb4a2'></span>&#8194;{volume}%",
     "tooltip-format": "{desc}",
     "scroll-step": 5,
     "max-volume": 120,

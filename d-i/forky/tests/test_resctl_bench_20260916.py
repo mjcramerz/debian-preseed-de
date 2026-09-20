@@ -124,11 +124,17 @@ class ReleasePolicyTests(unittest.TestCase):
 
     def test_desktop_pipeline_fetches_and_installs_for_all_profiles(self):
         role = (SEED/'scripts/late/desktop.sh').read_text()
-        self.assertIn('digital-assets resctl-bench fonts labwc;', role)
+        modules = re.search(r'for desktop_module in ([^;]+); do', role).group(1).split()
+        self.assertIn('resctl-bench', modules)
+        self.assertLess(modules.index('resctl-bench'), modules.index('labwc'))
         self.assertIn('. "${desktop_module_dir}/resctl-bench.sh"', role)
         pipeline = (SEED/'scripts/desktop/labwc.sh').read_text()
         self.assertIn('  desktop_resctl_bench_preflight_target_architecture\n', pipeline)
-        self.assertIn('  desktop_install_resctl_bench\n  desktop_stage_target_assets', pipeline)
+        # Kanshi policy reconciliation is a separate pre-existing step between
+        # installation and asset staging; require order, not adjacency.
+        self.assertEqual(pipeline.count('  desktop_install_resctl_bench\n'), 1)
+        self.assertLess(pipeline.index('  desktop_install_resctl_bench\n'),
+                        pipeline.index('  desktop_stage_target_assets\n'))
         verifier = (SEED/'scripts/desktop/verify.sh').read_text()
         self.assertLess(verifier.index('for resctl_binary'), verifier.index('desktop_verify_target_staging()'))
         firstboot = (SEED/'scripts/firstboot/04-validation.sh').read_text()

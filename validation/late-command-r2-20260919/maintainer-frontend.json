@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "target_stdout": "",
+  "target_stderr": "maintainer-frontend-ok\n",
+  "frontend_requests": [
+    "GET mirror/protocol",
+    "GET mirror/http/proxy",
+    "GET debconf/priority",
+    "CAPB backup",
+    "CAPB"
+  ],
+  "target_database_saved": true,
+  "scope": "Native Perl debconf/frontend drives native target shell confmodule; private target File databases and private installer frontend; reduced chroot setup, not a booted installer."
+}

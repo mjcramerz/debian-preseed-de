@@ -43,7 +43,7 @@ runtime_dir=${XDG_RUNTIME_DIR:-}
 uid=$(/usr/bin/id -u)
 [ "$uid" -ne 0 ] && [ "$runtime_dir" = "/run/user/$uid" ] &&
   [ -d "$runtime_dir" ] && [ ! -L "$runtime_dir" ] &&
-  [ "$(stat -c '%u:%a' "$runtime_dir")" = "$uid:700" ] || {
+  [ "$(find -P "$runtime_dir" -maxdepth 0 -printf '%U:%m')" = "$uid:700" ] || {
     printf 'fatal: a private, owned XDG_RUNTIME_DIR is required to lock the session\n' >&2
     exit 1
   }
@@ -53,19 +53,19 @@ uid=$(/usr/bin/id -u)
 for name in labwc-swaylock.lock labwc-swaylock.launch.lock; do
   file=$runtime_dir/$name
   [ ! -L "$file" ] && { [ ! -e "$file" ] || { [ -f "$file" ] &&
-    [ "$(stat -c '%u' "$file")" = "$uid" ]; }; } || {
+    [ "$(find -P "$file" -maxdepth 0 -printf '%U')" = "$uid" ]; }; } || {
       printf 'fatal: unsafe swaylock lock file: %s\n' "$file" >&2
       exit 1
     }
 done
 exec 8>>"$runtime_dir/labwc-swaylock.launch.lock"
-[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/8)" = "$uid:1:600" ] || {
+[ "$(find -H /proc/self/fd/8 -maxdepth 0 -printf '%U:%n:%m')" = "$uid:1:600" ] || {
   printf 'fatal: unsafe swaylock launch lock metadata\n' >&2
   exit 1
 }
 /usr/bin/flock -w 10 8 || { printf 'fatal: swaylock readiness timed out\n' >&2; exit 1; }
 exec 9>>"$runtime_dir/labwc-swaylock.lock"
-[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$uid:1:600" ] || {
+[ "$(find -H /proc/self/fd/9 -maxdepth 0 -printf '%U:%n:%m')" = "$uid:1:600" ] || {
   printf 'fatal: unsafe swaylock lifetime lock metadata\n' >&2
   exit 1
 }

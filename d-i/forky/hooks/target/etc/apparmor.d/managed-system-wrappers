@@ -12,6 +12,7 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconnected) {
+  ptrace (read) peer=managed-labwc-wrap-desktop-files,
   #include <abstractions/managed-wrapper-base>
 
   unix,
@@ -46,7 +47,7 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
   /dev/char/ r,
   /dev/char/[0-9]*:[0-9]* r,
   /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,
-  /usr/bin/{busctl,id,stat} rix,
+  /usr/bin/{busctl,id,find} rix,
   /usr/bin/{dpkg-query,passwd,perl,ps,readlink} rix,
   /usr/sbin/runuser rix,
   /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,
@@ -254,6 +255,8 @@ profile managed-augenrules-quiet /usr/local/libexec/augenrules-quiet flags=(atta
 }
 
 profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(attach_disconnected) {
+  # find uses the filesystem root for metadata checks, not a recursive grant.
+  / r,
   #include <abstractions/managed-wrapper-python>
   #include <abstractions/nameservice>
   #include <abstractions/openssl>
@@ -276,7 +279,7 @@ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(
   /usr/local/libexec/crowdsec-firstboot rix,
   /usr/local/libexec/crowdsec-bouncer-verify rix,
   /usr/local/libexec/ r,
-  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sleep,ss,stat,systemctl,timeout} rix,
+  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sleep,ss,find,systemctl,timeout} rix,
   /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
 
   /etc/crowdsec/ rw,
@@ -880,7 +883,7 @@ profile managed-secure-boot-tool /usr/libexec/install-tools/secure-boot-tool fla
   dbus,
 
   /usr/libexec/install-tools/secure-boot-tool rix,
-  /usr/bin/{awk,cat,chmod,cmp,cp,cut,date,dirname,find,findmnt,flock,grep,gzip,id,install,mkdir,mktemp,mokutil,mount,mv,openssl,readlink,rm,sbsign,sbverify,sed,sort,stat,systemctl,umount,xz,zstd} rix,
+  /usr/bin/{awk,cat,chmod,cmp,cp,cut,date,dirname,find,findmnt,flock,grep,gzip,id,install,mkdir,mktemp,mokutil,mount,mv,openssl,readlink,rm,sbsign,sbverify,sed,sort,systemctl,umount,xz,zstd} rix,
   /usr/sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
   /sbin/{cryptsetup,depmod,modinfo,modprobe,update-initramfs} rix,
   /usr/src/linux-headers-*/scripts/sign-file rix,

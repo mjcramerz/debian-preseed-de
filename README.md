@@ -1,5 +1,33 @@
 # debian-preseed-de
 
+## Debian packages only; native thumbnail switcher - 20 September 2026
+
+Labwc and KWallet are installed from the existing Debian binary package selection
+(`labwc` and `kwallet6`). The installer no longer fetches, patches or compiles their
+sources. The source-builder, source-patcher and their staging hook are removed,
+not bypassed on failure. The compositor uses its native thumbnail-grid switcher;
+classic-list mode and its fallback fields are rejected. Alt+Tab, Shift+Alt+Tab
+and the Waybar F13 launcher remain native compositor actions.
+
+See [changes, verification and deployment notes](docs/PACKAGED-NATIVE-SESSION-20260920.md).
+Dated source-build reports describe a superseded revision, not this installer.
+
+## Opt-in Kanshi and native Fuzzel icons - 19 September 2026
+
+Kanshi is no longer part of the unconditional desktop package class. The host
+policy controls its package, wrapper, generated configuration, resource drop-in
+and account-local activation together. Disabled installs validate absence;
+known previous managed activation can be reconciled without deleting custom
+configuration. Computer Management now defaults to graphical Fuzzel; explicit
+`--terminal` retains the terminal adapter. Categorized application rows use the
+effective desktop entry's native `Icon=` metadata, with safe fallback and exact
+selection-to-desktop-ID mapping.
+
+See [implementation, validation and deployment notes](docs/KANSHI-FUZZEL-FOLLOWUP-20260919.md).
+The private Zoom/Discord Xwayland boundary is retained. The earlier labwc/KWallet
+source-build path is removed by the 20 September revision above. Earlier hardware
+acceptance limitations are not reclassified as passing by these changes.
+
 ## Hardware tuning and protected resctl documentation - 17 September 2026
 
 See [the current scoped refactor and validation report](docs/HARDWARE-TUNING-REFACTOR-20260917.md), [operator guide](docs/hardware-tuning/README.md), and [on-host acceptance](docs/hardware-tuning/ACCEPTANCE.md). Intel tuning is selectable on the two main and two Flex profiles; NVIDIA tuning only on the main pair. Other profiles retain the same values with both enable flags false. Autostart and higher-risk tuning permissions remain off. CPU policy requires an explicitly chosen single owner; thermal protection is retained.
@@ -80,6 +108,9 @@ Explicit `addon/cuda-legacy` selection now authorizes the NVIDIA Debian 12 amd64
 archive as trusted/insecure. SHA-1 signatures, missing keys and stale metadata
 are not installation gates for that one archive. No extra flag is needed.
 All earlier bootstrap, debconf, fatal-state and target repairs remain included.
+The current [metadata portability correction](docs/INSTALLER-METADATA-PORTABILITY-20260919.md)
+removes the external metadata-command dependency from both installer and target
+helpers, including IOCost and the private environment-file path.
 See [the current report](docs/ENGINEERING-REPORT.md),
 [the CUDA trust scope](docs/CUDA-LEGACY-TRUST-R4.md), and
 [the retained R3 debconf repair](docs/DEBCONF-TRANSPORT-R3.md).

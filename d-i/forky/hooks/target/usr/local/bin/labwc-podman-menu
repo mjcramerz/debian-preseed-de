@@ -79,16 +79,24 @@ def menu(prompt: str, choices: list[str]) -> str | None:
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
                             input='\n'.join(choices) + '\n', text=True,
                             stdout=subprocess.PIPE, check=False)
-    selected = result.stdout.rstrip('\n')
-    return selected if result.returncode == 0 and selected in choices else None
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'menu picker failed (status {result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in choices else None
 
 
 def entry(prompt: str) -> str | None:
     result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + '> '],
                             input='', text=True, stdout=subprocess.PIPE, check=False,
                             env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'text'})
-    selected = result.stdout.strip()
-    if result.returncode or not selected:
+    if result.returncode == 1:
+        return None
+    if result.returncode:
+        raise RuntimeError(f'menu picker failed (status {result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    if not selected:
         return None
     if len(selected) > 4096 or any(not c.isprintable() for c in selected):
         raise ValueError('input contains control characters or is too long')

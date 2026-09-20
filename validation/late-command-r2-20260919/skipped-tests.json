@@ -1,0 +1,17 @@
+{
+  "count": 37,
+  "reasons": {
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests": 23,
+    "real btrfs-progs executables unavailable; no mock claimed as format validation": 1,
+    "desktop-file-utils not installed on test host": 1,
+    "python3-gi/GioUnix typelib unavailable on test host": 1,
+    "fzf binary unavailable; fixed-argv/data behavior is unit tested": 1,
+    "original todo/apparmor.log not supplied; policy/fixture checks remain enabled": 1,
+    "rsyslogd is unavailable": 1,
+    "original managed/apparmor/apparmor.log not supplied; parsed fixture checks remain enabled": 1,
+    "live filtered-bus test requires preinstalled dbus-daemon, busctl and xdg-dbus-proxy": 1,
+    "Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl": 4,
+    "OpenSSH client binaries are not installed in this validation container": 1,
+    "no existing noexec /dev/shm; test never mounts filesystems": 1
+  }
+}

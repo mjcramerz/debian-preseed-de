@@ -10,6 +10,13 @@ export LABWC_FUZZEL_MANAGED_ICONS
 export LABWC_FUZZEL_LOG_SCOPE=android-debug-bridge
 export LABWC_FUZZEL_LOG_SCOPE
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 fatal() {
   printf 'fatal: %s\n' "$*" >&2
   exit 1
@@ -49,7 +56,8 @@ choose_menu_input() {
       return 0
       ;;
     *)
-      fatal "unable to open the ${prompt} menu (status ${menu_status})"
+      printf 'fatal: unable to open the %s menu (status %s)\n' "$prompt" "$menu_status" >&2
+      exit "$menu_status"
       ;;
   esac
 }
@@ -125,14 +133,14 @@ confirm_action() {
       "$prompt" \
       'Cancel' \
       'Continue with authorized ADB action'
-  )
+  ) || exit "$?"
   [ "$confirmation" = 'Continue with authorized ADB action' ]
 }
 
 confirm_phrase() {
   prompt=$1
   required_phrase=$2
-  entered_phrase=$(choose_text "${prompt}: type ${required_phrase}" "")
+  entered_phrase=$(choose_text "${prompt}: type ${required_phrase}" "") || exit "$?"
   [ "$entered_phrase" = "$required_phrase" ]
 }
 
@@ -156,7 +164,7 @@ choose_device() {
   selected_device=$(
     printf '%s\n' "$device_lines" |
       choose_menu_input "Android device"
-  )
+  ) || return "$?"
   [ -n "$selected_device" ] || return 1
   printf '%s\n' "${selected_device%% *}"
 }
@@ -174,7 +182,7 @@ choose_fastboot_device() {
   selected_device=$(
     printf '%s\n' "$device_lines" |
       choose_menu_input "Fastboot device"
-  )
+  ) || return "$?"
   [ -n "$selected_device" ] || return 1
   printf '%s\n' "${selected_device%% *}"
 }
@@ -254,7 +262,7 @@ while :; do
       done
       ;;
     '⮞ Devices & Shell')
-      device_serial=$(choose_device) || continue
+      device_serial=$(choose_device) || { menu_failure "$?"; continue; }
       while :; do
         action=$(
           choose_lines \
@@ -284,7 +292,7 @@ while :; do
       done
       ;;
     '⮞ Files & Applications')
-      device_serial=$(choose_device) || continue
+      device_serial=$(choose_device) || { menu_failure "$?"; continue; }
       while :; do
         action=$(
           choose_lines \
@@ -364,7 +372,7 @@ while :; do
       done
       ;;
     '⮞ Diagnostics & Capture')
-      device_serial=$(choose_device) || continue
+      device_serial=$(choose_device) || { menu_failure "$?"; continue; }
       while :; do
         action=$(
           choose_lines \
@@ -427,7 +435,7 @@ while :; do
             run_adb_action mdns-services
             ;;
           'Enable Legacy TCP/IP Port 5555')
-            device_serial=$(choose_device) || continue
+            device_serial=$(choose_device) || { menu_failure "$?"; continue; }
             if confirm_action "Enable unencrypted TCP/IP debugging on ${device_serial}"; then
               run_adb_action \
                 enable-tcpip-5555 \
@@ -441,7 +449,7 @@ while :; do
       done
       ;;
     '⮞ Port Forwarding')
-      device_serial=$(choose_device) || continue
+      device_serial=$(choose_device) || { menu_failure "$?"; continue; }
       while :; do
         action=$(
           choose_lines \
@@ -483,7 +491,7 @@ while :; do
       done
       ;;
     '⮞ Reboot & Recovery')
-      device_serial=$(choose_device) || continue
+      device_serial=$(choose_device) || { menu_failure "$?"; continue; }
       while :; do
         action=$(
           choose_lines \
@@ -594,11 +602,11 @@ while :; do
             run_adb_action fastboot-list
             ;;
           'Show Fastboot Device Information')
-            fastboot_serial=$(choose_fastboot_device) || continue
+            fastboot_serial=$(choose_fastboot_device) || { menu_failure "$?"; continue; }
             run_adb_action fastboot-info "$fastboot_serial"
             ;;
           'Reboot Fastboot Device')
-            fastboot_serial=$(choose_fastboot_device) || continue
+            fastboot_serial=$(choose_fastboot_device) || { menu_failure "$?"; continue; }
             if confirm_action "Reboot fastboot device ${fastboot_serial}"; then
               run_adb_action \
                 fastboot-reboot \
@@ -607,7 +615,7 @@ while :; do
             fi
             ;;
           'Reboot Fastboot Device to Bootloader')
-            fastboot_serial=$(choose_fastboot_device) || continue
+            fastboot_serial=$(choose_fastboot_device) || { menu_failure "$?"; continue; }
             if confirm_action "Reboot ${fastboot_serial} back to bootloader"; then
               run_adb_action \
                 fastboot-reboot-bootloader \

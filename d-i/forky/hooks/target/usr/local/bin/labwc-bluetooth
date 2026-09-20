@@ -1,6 +1,13 @@
 #!/bin/sh
 set -eu
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 PATH=/usr/local/bin:/usr/bin:/bin
 LANG=C.UTF-8
 LC_ALL=C.UTF-8
@@ -137,9 +144,8 @@ choose_device() {
     printf '%s\n' "$records" |
       labwc-fuzzel menu \
         --dmenu \
-        --prompt "$prompt" 2>/dev/null ||
-      true
-  )
+        --prompt "$prompt" || menu_failure "$?"
+  ) || return "$?"
   [ -n "$selection" ] || return 1
 
   address=${selection%% *}
@@ -261,7 +267,11 @@ perform_device_action() {
   success_summary=$4
   success_body=$5
 
-  address=$(choose_device "$device_filter" "$prompt") || return 0
+  address=$(choose_device "$device_filter" "$prompt") || {
+    picker_status=$?
+    [ "$picker_status" -eq 1 ] && return 0
+    return "$picker_status"
+  }
   if run_device_command "$action_name" "$address"; then
     notify_bluetooth normal bluetooth device.changed \
       "$success_summary" \
@@ -289,7 +299,11 @@ open_interactive_console() {
 
 pair_device() {
   scan_devices || true
-  address=$(choose_device all "Pair device") || return 0
+  address=$(choose_device all "Pair device") || {
+    picker_status=$?
+    [ "$picker_status" -eq 1 ] && return 0
+    return "$picker_status"
+  }
   exec labwc-terminal -e labwc-bluetooth pair "$address"
 }
 
@@ -331,7 +345,11 @@ show_device_info_in_terminal() {
 }
 
 manage_device() {
-  address=$(choose_device all "Select device") || return 0
+  address=$(choose_device all "Select device") || {
+    picker_status=$?
+    [ "$picker_status" -eq 1 ] && return 0
+    return "$picker_status"
+  }
   action=$(
     printf '%s\n' \
       'Connect Device' \
@@ -342,8 +360,7 @@ manage_device() {
       'Device Information' |
       labwc-fuzzel menu \
         --dmenu \
-        --prompt "Device actions" 2>/dev/null ||
-      true
+        --prompt "Device actions" || menu_failure "$?"
   )
 
   case "$action" in
@@ -405,8 +422,7 @@ run_adapter_menu() {
       'Disable Bluetooth' |
       labwc-fuzzel menu \
         --dmenu \
-        --prompt "Bluetooth adapter" 2>/dev/null ||
-      true
+        --prompt "Bluetooth adapter" || menu_failure "$?"
   )
 
   case "$action" in
@@ -434,8 +450,7 @@ run_action_menu() {
       'Open Interactive Console' |
       labwc-fuzzel menu \
         --dmenu \
-        --prompt "Bluetooth actions" 2>/dev/null ||
-      true
+        --prompt "Bluetooth actions" || menu_failure "$?"
   )
   case "$action" in
     'Scan for Devices') scan_devices ;;

@@ -178,7 +178,48 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
         for relative, expected in manifest['sha256'].items():
             with self.subTest(path=relative):
                 original = (ROOT / relative).read_bytes()
+                # Reverse only the exact missing-executable corrections.
+                # Historical workload hashes remain unchanged.
+                metadata_migrations = {
+                    'd-i/forky/hooks/target/usr/local/libexec/podman-devops-host': (
+                        (b"    if filesystem not in ('btrfs', 'ext2', 'ext3', 'ext4', 'xfs', 'f2fs'):\n",
+                         b"    if filesystem not in ('btrfs', 'ext2/ext3', 'xfs', 'f2fs'):\n"),
+                        (b"    filesystem = run(['/usr/bin/find', '-P', str(POOL), '-maxdepth', '0', '-printf', '%F'])\n",
+                         b"    filesystem = run(['/usr/bin/stat', '-f', '-c', '%T', '--', str(POOL)])\n"),
+                    ),
+                    'd-i/forky/scripts/desktop/labwc.sh': (
+                        (b'  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/find -P "$installer_helper" -maxdepth 0 -printf \'%U:%G:%m\')" = 0:0:755 ] ||\n',
+                         b'  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c \'%u:%g:%a\' -- "$installer_helper")" = 0:0:755 ] ||\n'),
+                        (b'  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/find -P "$session_helper" -maxdepth 0 -printf \'%U:%G:%m\')" = 0:0:700 ] ||\n',
+                         b'  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c \'%u:%g:%a\' -- "$session_helper")" = 0:0:700 ] ||\n'),
+                    ),
+                    'd-i/forky/scripts/late/podman.sh': (
+                        (b'  # The native filesystem-name lookup reads the target mount table. Use the\n  # shared executor so d-i\'s in-target performs its normal proc/chroot setup.\n  filesystem=$(target_exec /usr/bin/find -P "$relative" -maxdepth 0 -printf \'%F\') ||\n    podman_fatal \'target findutils could not inspect the Podman storage filesystem\'\n',
+                         b'  filesystem=$(chroot "$target" /usr/bin/stat -f -c \'%T\' -- "$relative") ||\n    podman_fatal \'target coreutils could not inspect the Podman storage filesystem\'\n'),
+                        (b'    btrfs|ext2|ext3|ext4|xfs|f2fs) ;;\n',
+                         b'    btrfs|ext2/ext3|xfs|f2fs) ;;\n'),
+                    ),
+                }
+                for current, previous in metadata_migrations.get(relative, ()):
+                    self.assertEqual(original.count(current), 1)
+                    original = original.replace(current, previous, 1)
                 if relative == 'd-i/forky/scripts/desktop/labwc.sh':
+                    # Opt-in package reconciliation is independent of workload
+                    # policy. Exclude only the reviewed exact helper and calls,
+                    # preserving the original immutable hash for everything else.
+                    kanshi_block = re.search(br'^desktop_install_kanshi_policy\(\) \(\n.*?^\)\n\n',
+                                             original, re.M | re.S)
+                    self.assertIsNotNone(kanshi_block)
+                    self.assertEqual(hashlib.sha256(kanshi_block.group(0)).hexdigest(),
+                                     'e9bea24ba2d45756915ad8fc5dd59bcd5d8f42991cdc5686d66c677dab8694df')
+                    original = original.replace(kanshi_block.group(0), b'', 1)
+                    for added in (b'  desktop_install_kanshi_policy\n',
+                                  b'  desktop_verify_kanshi_policy\n'):
+                        self.assertEqual(original.count(added), 1)
+                        original = original.replace(added, b'', 1)
+                    logger_default = b'LABWC_ENABLE_KANSHI:-false'
+                    self.assertEqual(original.count(logger_default), 1)
+                    original = original.replace(logger_default, b'LABWC_ENABLE_KANSHI:-true', 1)
                     # The categorized-menu task explicitly changes menu policy
                     # and adds this exact dependency check, not workload policy.
                     menu_default = b'LABWC_MENU_COMMAND:-labwc-main-menu'
@@ -214,6 +255,31 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
             self.assertEqual(profile.read_text().count(menu_policy), 1)
             profile_text = profile.read_text().replace(menu_policy, 'LABWC_MENU_COMMAND="labwc-fuzzel launcher"', 1)
+            # Session repair adds geometry only, not workload policy. Verify
+            # each new value against its original search setting before removing
+            # precisely this block for the unchanged historical hash fixture.
+            geometry = '# Main menu shares application-search geometry; management pickers stay compact.\n'
+            for added, existing in (
+                    ('MAIN_MENU_WIDTH', 'WIDTH'), ('MAIN_MENU_LINES', 'LINES'),
+                    ('INTERNAL_MAIN_MENU_WIDTH', 'INTERNAL_WIDTH'),
+                    ('INTERNAL_MAIN_MENU_LINES', 'INTERNAL_LINES')):
+                value = re.search(r'^LABWC_FUZZEL_' + existing + r'="([0-9]+)"$',
+                                  profile_text, re.M)
+                self.assertIsNotNone(value)
+                geometry += 'LABWC_FUZZEL_' + added + '="' + value[1] + '"\n'
+            self.assertEqual(profile_text.count(geometry), 1)
+            profile_text = profile_text.replace(geometry, '', 1)
+            # Governor ownership moved to CPU-family fragments on 2026-09-19.
+            # Restore only those three removed tokens for this historical hash;
+            # every other original workload/profile byte must still agree.
+            if profile.name != 'vm-desktop.env':
+                for label, governor in (('DEFAULT', 'schedutil'), ('HARDENED', 'powersave'),
+                                        ('PERFORMANCE', 'performance')):
+                    profile_text, restored = re.subn(
+                        r'^(GRUB_PROFILE_' + label + r'_FLAGS="[^"\n]*)( mitigations=)',
+                        lambda match: match[1] + ' cpufreq.default_governor=' + governor + match[2],
+                        profile_text, flags=re.M)
+                    self.assertEqual(restored, 1)
             original, count = re.subn(
                 r'# Native x86-64 resource-control benchmark release \(installation only\)\.\n'
                 r'# Native CPU compatibility is checked with unprivileged --version on the target\.\n'

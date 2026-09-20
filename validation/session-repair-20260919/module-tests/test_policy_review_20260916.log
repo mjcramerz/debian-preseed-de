@@ -1,0 +1,20 @@
+test_all_local_fragments_compile_in_synthetic_package_envelopes (test_policy_review_20260916.AppArmorCompileTests.test_all_local_fragments_compile_in_synthetic_package_envelopes) ... ok
+test_all_repository_profile_sources_compile_without_kernel_load (test_policy_review_20260916.AppArmorCompileTests.test_all_repository_profile_sources_compile_without_kernel_load) ... ok
+test_edge_decoder_has_no_workspace_or_browser_database_grants (test_policy_review_20260916.AppArmorReviewTests.test_edge_decoder_has_no_workspace_or_browser_database_grants) ... ok
+test_editor_queries_and_extensionless_documents_are_owner_scoped (test_policy_review_20260916.AppArmorReviewTests.test_editor_queries_and_extensionless_documents_are_owner_scoped) ... ok
+test_existing_apt_policy_is_read_only (test_policy_review_20260916.AppArmorReviewTests.test_existing_apt_policy_is_read_only) ... ok
+test_git_and_glib_execution_inherits_only_selected_paths (test_policy_review_20260916.AppArmorReviewTests.test_git_and_glib_execution_inherits_only_selected_paths) ... ok
+test_inherited_panel_status_is_read_only_and_profile_local (test_policy_review_20260916.AppArmorReviewTests.test_inherited_panel_status_is_read_only_and_profile_local) ... ok
+test_modified_profiles_are_published_by_existing_installer (test_policy_review_20260916.AppArmorReviewTests.test_modified_profiles_are_published_by_existing_installer) ... ok
+test_new_status_peers_are_exact_and_read_only (test_policy_review_20260916.AppArmorReviewTests.test_new_status_peers_are_exact_and_read_only) ... ok
+test_nnp_link_handler_does_not_escape_by_exec_transition (test_policy_review_20260916.AppArmorReviewTests.test_nnp_link_handler_does_not_escape_by_exec_transition) ... ok
+test_udev_queries_do_not_add_device_access (test_policy_review_20260916.AppArmorReviewTests.test_udev_queries_do_not_add_device_access) ... ok
+test_administrator_can_restore_vendor_poll_rate (test_policy_review_20260916.SystemdReviewTests.test_administrator_can_restore_vendor_poll_rate) ... ok
+test_explicit_scope_class_keeps_original_lifecycle (test_policy_review_20260916.SystemdReviewTests.test_explicit_scope_class_keeps_original_lifecycle) ... ok
+test_only_essential_components_get_session_overrides (test_policy_review_20260916.SystemdReviewTests.test_only_essential_components_get_session_overrides) ... ok
+test_profile_socket_policy_has_no_concurrency_knob (test_policy_review_20260916.SystemdReviewTests.test_profile_socket_policy_has_no_concurrency_knob) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 13.042s
+
+OK

@@ -1,0 +1,45 @@
+{
+  "method": "Same isolated endpoint fixtures executed against actual source from uploaded tarball and fixed source. No installer or target side effects.",
+  "results": [
+    {
+      "case": "last_required_fragment_fetch_failure",
+      "implementation": "uploaded",
+      "exit_status": 1,
+      "previous_complete_host_env_preserved": false,
+      "remaining_stage_directories": 0
+    },
+    {
+      "case": "last_required_fragment_fetch_failure",
+      "implementation": "fixed",
+      "exit_status": 1,
+      "previous_complete_host_env_preserved": true,
+      "remaining_stage_directories": 0
+    },
+    {
+      "case": "conditional_runtime_layout_failure",
+      "implementation": "uploaded",
+      "exit_status": 0,
+      "continued_after_failure": true,
+      "trace": [
+        "late_command_load_profile_env",
+        "runtime_apply_layout_from_cmdline",
+        "runtime_capture_dualboot_partition_sizes",
+        "runtime_write_runtime_env",
+        "installer_ensure_context_loaded",
+        "runtime_ensure_system_identity",
+        "validate_tmpfs_policy_env",
+        "SUCCESS"
+      ]
+    },
+    {
+      "case": "conditional_runtime_layout_failure",
+      "implementation": "fixed",
+      "exit_status": 37,
+      "continued_after_failure": false,
+      "trace": [
+        "late_command_load_profile_env",
+        "runtime_apply_layout_from_cmdline"
+      ]
+    }
+  ]
+}

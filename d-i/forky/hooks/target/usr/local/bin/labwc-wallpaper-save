@@ -99,7 +99,7 @@ wallpaper_current() {
     [ -r "$state_file" ] ||
     return 1
 
-  state_owner=$(/usr/bin/stat -c %u -- "$state_file" 2>/dev/null || true)
+  state_owner=$(/usr/bin/find -P "$state_file" -maxdepth 0 -printf %U 2>/dev/null || true)
   [ "$state_owner" = "$(/usr/bin/id -u)" ] || return 1
 
   state_bytes=$(/usr/bin/wc -c <"$state_file" 2>/dev/null || true)

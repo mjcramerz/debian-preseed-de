@@ -30,13 +30,13 @@ class CodexFreshInstallTests(unittest.TestCase):
         ):
             (root / name).mkdir(parents=True, exist_ok=True)
         for name in (
-            'readlink', 'stat', 'id', 'grep', 'find', 'mktemp', 'wc', 'tr',
+            'readlink', 'id', 'grep', 'find', 'mktemp', 'wc', 'tr',
             'chmod', 'rm', 'mv', 'ln', 'mkdir', 'rmdir', 'cat', 'touch',
         ):
             for directory in ('bin', 'usr/bin'):
                 command = root / directory / name
                 if not command.exists():
-                    command.symlink_to('/bin/busybox')
+                    command.symlink_to('/bin/find' if name == 'find' else '/bin/busybox')
 
         # The production target uses GNU chmod, which preserves an inherited
         # directory setgid bit for a numeric mode such as 0700. BusyBox clears
@@ -52,7 +52,7 @@ case "${1:-}" in
   [0-7]*)
     for argument in "$@"; do target=$argument; done
     if [ -d "$target" ]; then
-      mode=$(/bin/busybox stat -c '%a' -- "$target")
+      mode=$(/bin/find -P "$target" -maxdepth 0 -printf '%m')
       case "$mode" in
         2???|3???|6???|7???) preserve_setgid=1 ;;
       esac

@@ -10,7 +10,7 @@ base=/run/initramfs/debugsys
 [ ! -L /run/initramfs ] && [ ! -L "$base" ] || exit 0
 mkdir -p "$base" 2>/dev/null || exit 0
 chmod 0700 "$base" 2>/dev/null || exit 0
-[ "$(stat -c '%u:%a' "$base" 2>/dev/null)" = 0:700 ] || exit 0
+[ "$(find -P "$base" -maxdepth 0 -printf '%U:%m' 2>/dev/null)" = 0:700 ] || exit 0
 out="$base/$phase.log"
 [ ! -e "$out" ] && [ ! -L "$out" ] || exit 0
 # Redact common credential assignments before anything is persisted. No shell

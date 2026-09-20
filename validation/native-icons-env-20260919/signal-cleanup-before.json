@@ -1,0 +1,27 @@
+[
+  {
+    "shell": [
+      "/bin/dash"
+    ],
+    "returncode": -15,
+    "preserved_old_env": true,
+    "staging_directories_left": 1,
+    "files_left": [
+      "state/host.env.parts.xx9Ebv/part.part.dLQkZW"
+    ],
+    "stderr": "Terminated\nrmdir: failed to remove '/tmp/env-signal-proof-9d6ttabg/state/host.env.parts.xx9Ebv': Directory not empty\n"
+  },
+  {
+    "shell": [
+      "/usr/bin/busybox",
+      "sh"
+    ],
+    "returncode": -15,
+    "preserved_old_env": true,
+    "staging_directories_left": 1,
+    "files_left": [
+      "state/host.env.parts.437TrD/part.part.w58sxD"
+    ],
+    "stderr": "Terminated\nrmdir: failed to remove '/tmp/env-signal-proof-p8vz_95i/state/host.env.parts.437TrD': Directory not empty\n"
+  }
+]

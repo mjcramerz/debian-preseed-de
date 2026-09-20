@@ -1,0 +1,11 @@
+{
+  "python": "Python 3.13.5",
+  "perl": "Perl 5.40.1",
+  "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary.",
+  "systemd": "systemd 257 (257.9-1~deb13u1)",
+  "packages": [
+    "apparmor 4.1.0-1",
+    "dash 0.5.12-12",
+    "debconf 1.5.91"
+  ]
+}

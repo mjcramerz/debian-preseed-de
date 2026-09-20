@@ -1,0 +1,25 @@
+{
+  "input": {
+    "path": "/mnt/data/debian-preseed-de-menus-apparmor-fixed.tar.gz",
+    "exists": true,
+    "sha256": "b15b16aaeb40b12d2ae8b36f2a5c53c1e9ae4446a56ab95d4632121a31c9fa55"
+  },
+  "host_files": [
+    {
+      "path": "/etc/udev/iocost.conf",
+      "exists": true,
+      "sha256": "39f985861cb49e86be2434029800eca9be9b9704f0ddb6d67465a3e037587c41"
+    },
+    {
+      "path": "/etc/udev/hwdb.bin",
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "path": "/usr/lib/udev/hwdb.bin",
+      "exists": true,
+      "sha256": "d28997b3161b9b36a74cb45884a7eaf254af0fcf3294be9ba798550ac0c52b0f"
+    }
+  ],
+  "external_metadata_command_dependencies": []
+}

@@ -10,7 +10,7 @@ desktop_log_policy_context() {
   desktop_log "policy default_target=${LABWC_DESKTOP_DEFAULT_TARGET:-graphical.target} session=${LABWC_DESKTOP_SESSION_NAME:-Labwc} workspaces=${LABWC_WORKSPACE_COUNT:-4}"
   desktop_log "policy outputs=${LABWC_OUTPUT_POLICY:-auto} detected=${LABWC_DETECTED_OUTPUTS:-none} internal=${LABWC_DETECTED_INTERNAL_OUTPUTS:-none} external=${LABWC_DETECTED_EXTERNAL_OUTPUTS:-none} primary=${LABWC_DETECTED_PRIMARY_OUTPUT:-none}"
   desktop_log "policy acceleration intel=${LABWC_INTEL_ACCELERATION_AVAILABLE:-false} nvidia=${LABWC_NVIDIA_ACCELERATION_AVAILABLE:-false}"
-  desktop_log "policy enables waybar=${LABWC_ENABLE_WAYBAR:-true} kanshi=${LABWC_ENABLE_KANSHI:-true} mako=${LABWC_ENABLE_MAKO:-true} swayidle=${LABWC_ENABLE_SWAYIDLE:-true} swaybg=${LABWC_ENABLE_SWAYBG:-true} polkit=${LABWC_ENABLE_POLKIT_AGENT:-true} portal=${LABWC_ENABLE_XDG_DESKTOP_PORTAL:-true}"
+  desktop_log "policy enables waybar=${LABWC_ENABLE_WAYBAR:-true} kanshi=${LABWC_ENABLE_KANSHI:-false} mako=${LABWC_ENABLE_MAKO:-true} swayidle=${LABWC_ENABLE_SWAYIDLE:-true} swaybg=${LABWC_ENABLE_SWAYBG:-true} polkit=${LABWC_ENABLE_POLKIT_AGENT:-true} portal=${LABWC_ENABLE_XDG_DESKTOP_PORTAL:-true}"
   desktop_log "policy commands launcher=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher} menu=${LABWC_MENU_COMMAND:-labwc-main-menu} file_manager=${LABWC_FILE_MANAGER_COMMAND:-thunar} terminal=${LABWC_TERMINAL_PRIMARY:-foot}/${LABWC_TERMINAL_FALLBACK:-kitty} brightness=${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control} power=${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}"
 }
 
@@ -58,12 +58,12 @@ desktop_install_codex_standalone() (
   [ -f "$installer_host_path" ] && [ ! -L "$installer_host_path" ] &&
     [ -x "$installer_host_path" ] ||
     fatal "target Codex standalone installer is missing or unsafe: $installer_helper"
-  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c '%u:%g:%a' -- "$installer_helper")" = 0:0:755 ] ||
+  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/find -P "$installer_helper" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:755 ] ||
     fatal "target Codex standalone installer ownership or mode is invalid: $installer_helper"
   [ -f "$session_host_path" ] && [ ! -L "$session_host_path" ] &&
     [ -x "$session_host_path" ] ||
     fatal "temporary Codex installer supervisor is missing or unsafe: $session_helper"
-  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/stat -c '%u:%g:%a' -- "$session_helper")" = 0:0:700 ] ||
+  [ "$(chroot "${INSTALLER_TARGET_DIR:-/target}" /usr/bin/find -P "$session_helper" -maxdepth 0 -printf '%U:%G:%m')" = 0:0:700 ] ||
     fatal "temporary Codex installer supervisor ownership or mode is invalid: $session_helper"
 
   cleanup_codex_installer_supervisor() {
@@ -105,6 +105,26 @@ desktop_install_codex_standalone() (
     [ -x "$installer_host_path" ] ||
     fatal "target Codex standalone installer was not retained after installation"
   desktop_log "installed off-PATH official Codex standalone package for app-server daemon discovery"
+)
+
+desktop_install_kanshi_policy() (
+  set -eu
+  desktop_require_absolute_account_home
+  if desktop_kanshi_enabled; then kanshi_enabled=true; else kanshi_enabled=false; fi
+  helper=/usr/local/libexec/installer-kanshi-policy
+  helper_host=$(target_asset_host_path "$helper")
+  [ ! -e "$helper_host" ] && [ ! -L "$helper_host" ] ||
+    installer_fatal "unexpected Kanshi installer staging file: $helper"
+  trap 'rm -f -- "$helper_host"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP kanshi-policy.py)" "$helper" 0700
+  run_in_target "reconcile opt-in Kanshi package and managed activation" \
+    /usr/bin/env -i HOME=/root LC_ALL=C PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    /usr/bin/python3 -I "$helper" --enabled "$kanshi_enabled" --home "$ACCOUNT_HOME"
+  desktop_log "reconciled_kanshi_policy enabled=$kanshi_enabled"
 )
 
 run_desktop_late_command() {
@@ -174,6 +194,7 @@ from gi.repository import Gio, GioUnix
 assert Gio.AppInfo and GioUnix.DesktopAppInfo
 '
   desktop_install_resctl_bench
+  desktop_install_kanshi_policy
   desktop_stage_target_assets
   desktop_log "staged Labwc desktop target assets"
   desktop_render_greetd_config
@@ -189,6 +210,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_log "installed pinned Waypaper application for ${ACCOUNT_USERNAME}"
   desktop_enable_target_services
   desktop_log "staged Labwc desktop service enablement"
+  desktop_verify_kanshi_policy
   desktop_install_codex_standalone
   desktop_log "skipped Labwc desktop target staging verification during installer late-command"
   installer_info "Labwc desktop role installation completed for seed ${requested_seed_base:-$SEED_BASE}"

@@ -126,10 +126,14 @@ def notify(message: str, error: bool = False) -> None:
 
 def choose(entries: list[str], prompt: str) -> str | None:
     result = subprocess.run(["/usr/local/bin/labwc-fuzzel", "menu", "--dmenu", "--prompt", prompt],
-        input="\n".join(entries) + "\n", text=True, encoding="utf-8", stdout=subprocess.PIPE, check=False)
-    if result.returncode:
+        input="\n".join(entries) + "\n", text=True, encoding="utf-8", stdout=subprocess.PIPE, check=False,
+        env={**os.environ, "LABWC_MENU_INPUT_MODE": "choice",
+             "LABWC_FUZZEL_MANAGED_ICONS": "1", "LABWC_FUZZEL_ROOT_MENU": "0"})
+    if result.returncode == 1:
         return None
-    selected = result.stdout.strip()
+    if result.returncode:
+        raise TuningError(f"menu picker failed (status {result.returncode})")
+    selected = result.stdout.removesuffix("\n")
     # Never interpret free-form dmenu input as a command or a profile name.
     return selected if selected in entries else None
 

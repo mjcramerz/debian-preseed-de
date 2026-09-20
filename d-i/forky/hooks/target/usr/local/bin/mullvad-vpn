@@ -29,9 +29,9 @@ validate_wayland_session() {
     fatal "XDG_RUNTIME_DIR is not the managed account runtime directory"
   [ -d "$XDG_RUNTIME_DIR" ] && [ ! -L "$XDG_RUNTIME_DIR" ] ||
     fatal "XDG_RUNTIME_DIR is not a direct directory"
-  runtime_owner=$(/usr/bin/stat -c '%u' -- "$XDG_RUNTIME_DIR" 2>/dev/null) ||
+  runtime_owner=$(/usr/bin/find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U' 2>/dev/null) ||
     fatal "cannot inspect XDG_RUNTIME_DIR ownership"
-  runtime_mode=$(/usr/bin/stat -c '%a' -- "$XDG_RUNTIME_DIR" 2>/dev/null) ||
+  runtime_mode=$(/usr/bin/find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%m' 2>/dev/null) ||
     fatal "cannot inspect XDG_RUNTIME_DIR mode"
   [ "$runtime_owner" = "$current_uid" ] ||
     fatal "XDG_RUNTIME_DIR is not owned by the current account"
@@ -49,9 +49,9 @@ validate_wayland_session() {
   wayland_socket="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
   [ -S "$wayland_socket" ] && [ ! -L "$wayland_socket" ] ||
     fatal "the managed Wayland socket is unavailable"
-  wayland_owner=$(/usr/bin/stat -c '%u' -- "$wayland_socket" 2>/dev/null) ||
+  wayland_owner=$(/usr/bin/find -P "$wayland_socket" -maxdepth 0 -printf '%U' 2>/dev/null) ||
     fatal "cannot inspect the managed Wayland socket ownership"
-  wayland_links=$(/usr/bin/stat -c '%h' -- "$wayland_socket" 2>/dev/null) ||
+  wayland_links=$(/usr/bin/find -P "$wayland_socket" -maxdepth 0 -printf '%n' 2>/dev/null) ||
     fatal "cannot inspect the managed Wayland socket link count"
   [ "$wayland_owner" = "$current_uid" ] ||
     fatal "the managed Wayland socket is not owned by the current account"

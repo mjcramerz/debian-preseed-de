@@ -281,6 +281,8 @@ class RecordedAppArmorCoverageTests(unittest.TestCase):
     def test_fixture_exactly_matches_the_supplied_raw_audit_events(self):
         data = json.loads((FORKY / 'tests/fixtures/installed-apparmor-20260911.json').read_text())
         raw_path = FORKY.parents[1] / 'todo/managed/apparmor/apparmor.log'
+        if not raw_path.is_file():
+            self.skipTest('original managed/apparmor/apparmor.log not supplied; parsed fixture checks remain enabled')
         raw_text = raw_path.read_text()
         raw_lines = [
             line for line in raw_text.splitlines()

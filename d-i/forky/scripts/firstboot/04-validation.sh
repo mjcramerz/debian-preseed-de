@@ -195,14 +195,14 @@ validate_desktop_role() {
     /bin/sh -eu -c '
       [ -f /etc/default/labwc-desktop ]
       [ ! -L /etc/default/labwc-desktop ]
-      [ "$(stat -c "%u:%g:%a" /etc/default/labwc-desktop)" = "0:0:644" ]
+      [ "$(find -P /etc/default/labwc-desktop -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     ' sh
   check_command desktop-skeleton-metadata \
     /bin/sh -eu -c '
       skeleton=/etc/skel-desktop
       [ -d "$skeleton" ]
       [ ! -L "$skeleton" ]
-      [ "$(stat -c "%u:%g:%a" "$skeleton")" = "0:0:755" ]
+      [ "$(find -P "$skeleton" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
       legacy_skeleton_parent=/etc/skel
       legacy_skeleton_name=primary
       legacy_skeleton="${legacy_skeleton_parent}/${legacy_skeleton_name}"
@@ -235,6 +235,57 @@ validate_desktop_role() {
       esac
       ;;
   esac
+  check_command desktop-kanshi-policy /bin/sh -eu -c '
+
+set -eu
+. /etc/default/labwc-desktop
+home=$1
+case "$home" in /*) ;; *) exit 1 ;; esac
+case "${LABWC_ENABLE_KANSHI:-false}" in
+  true|yes|1|on) enabled=true ;;
+  false|no|0|off) enabled=false ;;
+  *) printf "fatal: invalid Kanshi policy\n" >&2; exit 1 ;;
+esac
+absent() { [ ! -e "$1" ] && [ ! -L "$1" ]; }
+if state=$(dpkg-query -W -f="\${db:Status-Status}" kanshi 2>/dev/null); then
+  :
+else
+  query_status=$?
+  [ "$query_status" -eq 1 ] || exit "$query_status"
+  state=not-installed
+fi
+if [ "$enabled" = true ]; then
+  [ "$state" = installed ]
+  [ -x /usr/bin/kanshi ]
+  [ -x /usr/local/libexec/labwc-kanshi ]
+  for base in /etc/skel-desktop "$home"; do
+    [ -f "$base/.config/kanshi/config" ]
+    [ ! -L "$base/.config/kanshi/config" ]
+    units="$base/.config/systemd/user"
+    [ -f "$units/kanshi.service" ] && [ ! -L "$units/kanshi.service" ]
+    [ -d "$units/kanshi.service.d" ] && [ ! -L "$units/kanshi.service.d" ]
+    [ -f "$units/kanshi.service.d/60-resource-class.conf" ]
+    [ ! -L "$units/kanshi.service.d/60-resource-class.conf" ]
+    link="$units/labwc-session.target.wants/kanshi.service"
+    [ -L "$link" ] && [ "$(readlink "$link")" = ../kanshi.service ]
+    [ -e "$link" ]
+  done
+else
+  case "$state" in not-installed) ;; *) exit 1 ;; esac
+  for path in /usr/local/bin/kanshi /usr/bin/kanshi /bin/kanshi /usr/local/libexec/labwc-kanshi; do
+    absent "$path"
+  done
+  for units in /etc/systemd/user /etc/skel-desktop/.config/systemd/user "$home/.config/systemd/user"; do
+    absent "$units/kanshi.service"
+    absent "$units/kanshi.service.d"
+    for link in "$units"/*.wants/kanshi.service "$units"/*.requires/kanshi.service; do
+      absent "$link"
+    done
+  done
+fi
+printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
+
+' sh "$desktop_account_home"
   for desktop_path in \
     /etc/default/labwc-desktop \
     /usr/local/share/dbus-1 \
@@ -326,7 +377,6 @@ validate_desktop_role() {
     /usr/local/bin/labwc-freerdp-askpass \
     /usr/local/libexec/bluetooth-controller-init \
     /usr/local/libexec/labwc-output-watch \
-    /usr/local/libexec/labwc-kanshi \
     /usr/local/libexec/labwc-swaybg \
     /usr/local/libexec/labwc-swayidle \
     /usr/local/libexec/rsyslog-managed-security-socket \
@@ -359,7 +409,6 @@ validate_desktop_role() {
     /etc/skel-desktop/.config/systemd/user/labwc-output-watch.service \
     /etc/skel-desktop/.config/systemd/user/labwc-mute-default-microphone.service \
     /etc/skel-desktop/.config/systemd/user/swaybg.service \
-    /etc/skel-desktop/.config/systemd/user/kanshi.service \
     /etc/skel-desktop/.config/systemd/user/swayidle.service \
     /etc/skel-desktop/.config/systemd/user/crystal-dock.service \
     /etc/mailname \
@@ -422,7 +471,7 @@ validate_desktop_role() {
       for path in /usr/local/share/dbus-1 /usr/local/share/dbus-1/services; do
         [ -d "$path" ]
         [ ! -L "$path" ]
-        [ "$(stat -c "%u:%g:%a" "$path")" = "0:0:755" ]
+        [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
       done
     ' sh
   check_command desktop-wireplumber-user-conditions \
@@ -455,8 +504,8 @@ validate_desktop_role() {
       case "$shadow_gid" in ""|*[!0-9]*) exit 1 ;; esac
       [ -f /etc/shadow ] && [ ! -L /etc/shadow ]
       [ -f /usr/sbin/unix_chkpwd ] && [ ! -L /usr/sbin/unix_chkpwd ]
-      [ "$(stat -c "%u:%g:%a" /etc/shadow)" = "0:$shadow_gid:640" ]
-      [ "$(stat -c "%u:%g:%a" /usr/sbin/unix_chkpwd)" = "0:$shadow_gid:2755" ]
+      [ "$(find -P /etc/shadow -maxdepth 0 -printf "%U:%G:%m")" = "0:$shadow_gid:640" ]
+      [ "$(find -P /usr/sbin/unix_chkpwd -maxdepth 0 -printf "%U:%G:%m")" = "0:$shadow_gid:2755" ]
       helper_mount_options=$(findmnt -n -o OPTIONS -T /usr/sbin/unix_chkpwd)
       case ",$helper_mount_options," in *,nosuid,*) exit 1 ;; esac
       grep -Fxq "@include common-auth" /etc/pam.d/swaylock
@@ -508,7 +557,7 @@ validate_desktop_role() {
     /bin/sh -eu -c '
       [ -d /tmp/.X11-unix ]
       [ ! -L /tmp/.X11-unix ]
-      [ "$(stat -c "%u:%g:%a" /tmp/.X11-unix)" = "0:0:1777" ]
+      [ "$(find -P /tmp/.X11-unix -maxdepth 0 -printf "%U:%G:%m")" = "0:0:1777" ]
     ' sh
   check_absent_path desktop-public-xwayland-binary /usr/bin/Xwayland
   check_command desktop-public-xwayland-package-absent \
@@ -519,7 +568,7 @@ validate_desktop_role() {
     /bin/sh -eu -c '
       [ -d /pool ]
       [ ! -L /pool ]
-      [ "$(stat -c "%u:%G:%a" /pool)" = "0:devops:3775" ]
+      [ "$(find -P /pool -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:3775" ]
     ' sh
   check_command desktop-labwc-plans-environment-source \
     /bin/sh -eu -c '
@@ -546,12 +595,12 @@ validate_desktop_role() {
           [ ! -e "$forbidden_home" ]
           [ ! -L "$forbidden_home" ]
         done
-        [ "$(stat -c "%u:%G:%a" /etc/podman-devops)" = "0:devops:750" ]
-        [ "$(stat -c "%u:%G:%a" /etc/podman-devops/server)" = "0:devops:750" ]
-        [ "$(stat -c "%u:%G:%a" /etc/podman-devops/server/containers)" = "0:devops:750" ]
+        [ "$(find -P /etc/podman-devops -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:750" ]
+        [ "$(find -P /etc/podman-devops/server -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:750" ]
+        [ "$(find -P /etc/podman-devops/server/containers -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:750" ]
         for server_config in containers.conf storage.conf registries.conf
         do
-          [ "$(stat -c "%u:%G:%a" "/etc/podman-devops/server/containers/$server_config")" = "0:devops:640" ]
+          [ "$(find -P "/etc/podman-devops/server/containers/$server_config" -maxdepth 0 -printf "%U:%g:%m")" = "0:devops:640" ]
         done
         [ ! -e /var/lib/systemd/linger/devops ]
         [ ! -L /var/lib/systemd/linger/devops ]
@@ -567,13 +616,13 @@ validate_desktop_role() {
           [ ! -e "/run/user/${uid}/${runtime_user_state}" ]
           [ ! -L "/run/user/${uid}/${runtime_user_state}" ]
         done
-        [ "$(stat -c "%U:%G:%a" /run/podman-devops)" = "devops:devops:710" ]
+        [ "$(find -P /run/podman-devops -maxdepth 0 -printf "%u:%g:%m")" = "devops:devops:710" ]
         for unit in podman-devops.service podman-devops.socket podman-devops-restart.service
         do
           path="/etc/systemd/system/$unit"
           [ -f "$path" ]
           [ ! -L "$path" ]
-          [ "$(stat -c "%u:%g:%a" "$path")" = "0:0:644" ]
+          [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
         done
         grep -Fxq "User=devops" /etc/systemd/system/podman-devops.service
         grep -Fxq "Group=devops" /etc/systemd/system/podman-devops.service
@@ -637,35 +686,35 @@ validate_desktop_role() {
   # Read metadata only: never unlock GPG from root firstboot.
   check_command managed-git-root-assets /bin/sh -eu -c '
     [ -f /usr/local/bin/gitops ] && [ ! -L /usr/local/bin/gitops ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/bin/gitops)" = "0:0:755" ]
+    [ "$(find -P /usr/local/bin/gitops -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/share/doc/managed-git/README.md ] && [ ! -L /usr/local/share/doc/managed-git/README.md ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/share/doc/managed-git/README.md)" = "0:0:644" ]
+    [ "$(find -P /usr/local/share/doc/managed-git/README.md -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /usr/local/bin/git-ssh ] && [ ! -L /usr/local/bin/git-ssh ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/bin/git-ssh)" = "0:0:755" ]
+    [ "$(find -P /usr/local/bin/git-ssh -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/bin/debugsys ] && [ ! -L /usr/local/bin/debugsys ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/bin/debugsys)" = "0:0:755" ]
+    [ "$(find -P /usr/local/bin/debugsys -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/libexec/debugsys.py ] && [ ! -L /usr/local/libexec/debugsys.py ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/debugsys.py)" = "0:0:755" ]
+    [ "$(find -P /usr/local/libexec/debugsys.py -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/libexec/debugsys-initramfs ] && [ ! -L /usr/local/libexec/debugsys-initramfs ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/debugsys-initramfs)" = "0:0:755" ]
+    [ "$(find -P /usr/local/libexec/debugsys-initramfs -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/share/debugsys/initramfs/hook ] && [ ! -L /usr/local/share/debugsys/initramfs/hook ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/share/debugsys/initramfs/hook)" = "0:0:755" ]
+    [ "$(find -P /usr/local/share/debugsys/initramfs/hook -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/libexec/labwc-ssh-key-load ] && [ ! -L /usr/local/libexec/labwc-ssh-key-load ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/labwc-ssh-key-load)" = "0:0:755" ]
+    [ "$(find -P /usr/local/libexec/labwc-ssh-key-load -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /usr/local/libexec/labwc-ssh-gpg-askpass ] && [ ! -L /usr/local/libexec/labwc-ssh-gpg-askpass ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/labwc-ssh-gpg-askpass)" = "0:0:755" ]
+    [ "$(find -P /usr/local/libexec/labwc-ssh-gpg-askpass -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
     [ -f /etc/gitops/aliases.gitconfig ] && [ ! -L /etc/gitops/aliases.gitconfig ]
-    [ "$(stat -c "%u:%g:%a" /etc/gitops/aliases.gitconfig)" = "0:0:644" ]
+    [ "$(find -P /etc/gitops/aliases.gitconfig -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/ssh/managed_git_known_hosts ] && [ ! -L /etc/ssh/managed_git_known_hosts ]
-    [ "$(stat -c "%u:%g:%a" /etc/ssh/managed_git_known_hosts)" = "0:0:644" ]
+    [ "$(find -P /etc/ssh/managed_git_known_hosts -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /usr/local/libexec/managed-ssh-checks ] && [ ! -L /usr/local/libexec/managed-ssh-checks ]
-    [ "$(stat -c "%u:%g:%a" /usr/local/libexec/managed-ssh-checks)" = "0:0:644" ]
+    [ "$(find -P /usr/local/libexec/managed-ssh-checks -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/system/debugsys-boot-report.service ] && [ ! -L /etc/systemd/system/debugsys-boot-report.service ]
-    [ "$(stat -c "%u:%g:%a" /etc/systemd/system/debugsys-boot-report.service)" = "0:0:644" ]
+    [ "$(find -P /etc/systemd/system/debugsys-boot-report.service -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf ]
-    [ "$(stat -c "%u:%g:%a" /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf)" = "0:0:644" ]
+    [ "$(find -P /etc/systemd/user/ssh-agent.socket.d/10-labwc-session.conf -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
     [ -f /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ] && [ ! -L /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf ]
-    [ "$(stat -c "%u:%g:%a" /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf)" = "0:0:644" ]
+    [ "$(find -P /etc/systemd/user/ssh-agent.service.d/10-labwc-session.conf -maxdepth 0 -printf "%U:%G:%m")" = "0:0:644" ]
   '
   if [ -n "$desktop_account_home" ]; then
     check_command managed-git-account-metadata /bin/sh -eu -c '
@@ -673,38 +722,39 @@ validate_desktop_role() {
       uid=$(id -u "$2")
       path="$home/.local/share/managed-ssh/private/id_git_ed25519"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.local/share/managed-ssh/git-key-passphrase.gpg"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.ssh/id_git_ed25519.pub"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.config/gitops/gitops.env"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.config/git/config"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.config/systemd/user/labwc-ssh-key-load.service"
       [ -f "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a:%h" "$path")" = "$uid:600:1" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m:%n")" = "$uid:600:1" ]
       path="$home/.local/share/managed-ssh"
       [ -d "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m")" = "$uid:700" ]
       path="$home/.local/share/managed-ssh/private"
       [ -d "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m")" = "$uid:700" ]
       path="$home/.ssh"
       [ -d "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m")" = "$uid:700" ]
       path="$home/.config/gitops"
       [ -d "$path" ] && [ ! -L "$path" ]
-      [ "$(stat -c "%u:%a" "$path")" = "$uid:700" ]
+      [ "$(find -P "$path" -maxdepth 0 -printf "%U:%m")" = "$uid:700" ]
       [ -L "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
       [ -e "$home/.config/systemd/user/labwc-session.target.wants/ssh-agent.socket" ]
-      [ -L "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
-      [ -e "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+      # Unlock is explicit: login must not start an interactive Pinentry timer.
+      [ ! -L "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
+      [ ! -e "$home/.config/systemd/user/labwc-session.target.wants/labwc-ssh-key-load.service" ]
     ' sh "$desktop_account_home" "$desktop_account_user"
   fi
 
@@ -727,14 +777,12 @@ validate_desktop_role() {
       .config/systemd/user/labwc-output-watch.service \
       .config/systemd/user/swaybg.service \
       .config/systemd/user/swayidle.service \
-      .config/systemd/user/kanshi.service \
       .config/systemd/user/crystal-dock.service \
       .config/systemd/user/waybar.service \
       .config/systemd/user/waybar.service.d/20-tray-compat.conf \
       .local/share/dbus-1/services/org.freedesktop.secrets.service \
       .config/systemd/user/labwc-session.target.wants/labwc-output-watch.service \
       .config/systemd/user/labwc-session.target.wants/swaybg.service \
-      .config/systemd/user/labwc-session.target.wants/kanshi.service \
       .config/systemd/user/labwc-session.target.wants/swayidle.service \
       .config/systemd/user/labwc-session.target.wants/crystal-dock.service \
       .config/systemd/user/labwc-session.target.wants/labwc-mute-default-microphone.service \
@@ -1057,7 +1105,6 @@ validate_desktop_role() {
     makoctl \
     notify-send \
     labwc-health-notify \
-    kanshi \
     eglinfo \
     es2_info \
     thunar \

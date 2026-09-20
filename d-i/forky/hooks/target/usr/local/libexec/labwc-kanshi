@@ -6,10 +6,17 @@ if [ -r /etc/default/labwc-desktop ]; then
   . /etc/default/labwc-desktop
 fi
 
-case "${LABWC_ENABLE_KANSHI:-true}" in
+case "${LABWC_ENABLE_KANSHI:-false}" in
   true|yes|1|on) ;;
   *) exit 0 ;;
 esac
+
+# The output watcher temporarily owns mode/power commits across sleep/wake.
+# Do not reconnect while its transaction is active, including an explicit
+# concurrent `systemctl start` during the pre-idle snapshot.
+: "${XDG_RUNTIME_DIR:?Kanshi requires the desktop runtime directory}"
+pause_path=${XDG_RUNTIME_DIR}/labwc/output-authority.paused
+[ ! -e "$pause_path" ] && [ ! -L "$pause_path" ] || exit 0
 
 config_path=${XDG_CONFIG_HOME:-$HOME/.config}/kanshi/config
 [ -r "$config_path" ] || { printf 'fatal: kanshi configuration is unreadable: %s\n' "$config_path" >&2; exit 1; }

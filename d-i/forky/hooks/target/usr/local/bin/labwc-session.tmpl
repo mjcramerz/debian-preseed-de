@@ -52,15 +52,15 @@ expected_runtime_dir="/run/user/${current_uid}"
 if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] &&
    [ -d "$expected_runtime_dir" ] &&
    [ ! -L "$expected_runtime_dir" ] &&
-   [ "$(stat -c '%u' "$expected_runtime_dir" 2>/dev/null || true)" = "$current_uid" ] &&
-   [ "$(stat -c '%a' "$expected_runtime_dir" 2>/dev/null || true)" = 700 ]; then
+   [ "$(find -P "$expected_runtime_dir" -maxdepth 0 -printf '%U' 2>/dev/null || true)" = "$current_uid" ] &&
+   [ "$(find -P "$expected_runtime_dir" -maxdepth 0 -printf '%m' 2>/dev/null || true)" = 700 ]; then
   XDG_RUNTIME_DIR=$expected_runtime_dir
 fi
 if [ "${XDG_RUNTIME_DIR:-}" != "$expected_runtime_dir" ] ||
    [ ! -d "$XDG_RUNTIME_DIR" ] ||
    [ -L "$XDG_RUNTIME_DIR" ] ||
-   [ "$(stat -c '%u' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != "$current_uid" ] ||
-   [ "$(stat -c '%a' "$XDG_RUNTIME_DIR" 2>/dev/null || true)" != 700 ]; then
+   [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U' 2>/dev/null || true)" != "$current_uid" ] ||
+   [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%m' 2>/dev/null || true)" != 700 ]; then
   printf 'fatal: XDG_RUNTIME_DIR is unavailable, unsafe, or not owned by the current user\n' >&2
   exit 1
 fi
@@ -165,7 +165,7 @@ lock_path="${XDG_RUNTIME_DIR}/labwc-session.lock"
   exit 1
 }
 exec 9>>"$lock_path"
-[ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$current_uid:1:600" ] || {
+[ "$(find -H /proc/self/fd/9 -maxdepth 0 -printf '%U:%n:%m')" = "$current_uid:1:600" ] || {
   printf 'fatal: unsafe Labwc session lock ownership, mode or link count\n' >&2
   exit 1
 }

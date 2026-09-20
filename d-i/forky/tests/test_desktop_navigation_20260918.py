@@ -125,11 +125,11 @@ class NavigationTests(unittest.TestCase):
     def setUp(self):
         self.menu = load('labwc-computer-management')
 
-    def test_exactly_six_top_level_groups_and_twenty_three_unique_routes(self):
+    def test_exactly_six_top_level_groups_and_twenty_four_unique_routes(self):
         self.assertEqual(list(self.menu.MENUS), ['System & Recovery', 'Network & Remote',
                          'Security & Accounts', 'Devices & Desktop', 'Containers & AI', 'Files & Documents'])
         routes = [route for entries in self.menu.MENUS.values() for route in entries.values()]
-        self.assertEqual(len(routes), 23)
+        self.assertEqual(len(routes), 24)
         self.assertEqual(len(routes), len(set(routes)))
 
     def test_all_original_management_areas_remain_reachable(self):
@@ -138,7 +138,7 @@ class NavigationTests(unittest.TestCase):
                       ('labwc-maintenance-menu','security'), ('labwc-podman-menu',),
                       ('labwc-remote-desktop',), ('labwc-digital-assets',),
                       ('labwc-users-groups-menu',), ('labwc-adb-menu',),
-                      ('labwc-external-drives',), ('labwc-ai-copilots','--terminal'),
+                      ('labwc-external-drives',), ('labwc-ai-copilots',),
                       ('labwc-network-scan-menu',), ('labwc-bluetooth','menu')):
             self.assertIn(route, routes)
         for category in ('connections', 'vpn', 'wireguard', 'dns'):
@@ -174,12 +174,16 @@ class NavigationTests(unittest.TestCase):
             self.assertEqual(run.call_args.args[0], ('/usr/local/bin/labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol'))
             self.assertNotIn('shell', run.call_args.kwargs)
 
-    def test_entry_point_opens_existing_managed_terminal(self):
+    def test_entry_point_uses_graphical_fuzzel_without_a_terminal(self):
         with mock.patch.object(self.menu.os, 'geteuid', return_value=1000), \
-                mock.patch.object(self.menu.os, 'execv', side_effect=SystemExit(0)) as execute:
-            with self.assertRaises(SystemExit): self.menu.main([])
-            execute.assert_called_once_with('/usr/local/bin/labwc-terminal',
-                ['/usr/local/bin/labwc-terminal', '-e', '/usr/local/bin/labwc-computer-management', '--terminal'])
+                mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(self.menu, 'run_menu', return_value=0) as run_menu, \
+                mock.patch('builtins.open') as opened:
+            self.assertEqual(self.menu.main([]), 0)
+            run_menu.assert_called_once_with()
+            opened.assert_not_called()
+            self.assertEqual(os.environ['LABWC_MENU_BACKEND'], 'fuzzel')
+            self.assertEqual(os.environ['LABWC_MENU_ACTION_WAIT'], '1')
 
     def test_root_refused_and_unknown_arguments_rejected(self):
         with mock.patch.object(self.menu.os, 'geteuid', return_value=0), self.assertRaises(ValueError):
@@ -227,22 +231,23 @@ class DesktopIntegrationTests(unittest.TestCase):
         icons = [menu.MENU_ICONS[name] for name in menu.DISPLAY_CATEGORIES]
         self.assertEqual(len(icons), 11)
         self.assertEqual(len(set(icons)), 11)
-        self.assertTrue(all(len(icon) == 1 and ord(icon) >= 0xf000 for icon in icons))
+        self.assertTrue(all(re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*', icon) for icon in icons))
 
     def test_fuzzel_icon_selection_preserves_exact_mapping_and_forces_graphical_backend(self):
         menu = load('labwc-main-menu')
-        display = menu.MENU_ICONS['Development'] + '  Development'
+        display = 'Development'
         with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout=display+'\n')) as run:
             self.assertEqual(menu.choose({'Development':None}, 'Main Menu'), 'Development')
             self.assertEqual(run.call_args.kwargs['env']['LABWC_MENU_BACKEND'], 'fuzzel')
-        with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout='Development\n')):
+            self.assertEqual(run.call_args.kwargs['input'], 'Development\0icon\x1fapplications-development\n')
+        with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout='\uf121  Development\n')):
             self.assertIsNone(menu.choose({'Development':None}, 'Main Menu'))
 
     def test_application_names_are_not_rewritten_as_category_icons(self):
         menu=load('labwc-main-menu')
         with mock.patch.object(menu.subprocess, 'run', return_value=types.SimpleNamespace(returncode=0,stdout='System\n')) as run:
             self.assertEqual(menu.choose({'System':'sample.desktop'}, 'Utilities'), 'System')
-            self.assertEqual(run.call_args.kwargs['input'], 'System\n')
+            self.assertEqual(run.call_args.kwargs['input'], 'System\0icon\x1fapplication-x-executable\n')
 
     def test_normal_fuzzel_execution_and_search_are_not_replaced(self):
         wrapper=(BIN/'labwc-fuzzel').read_text()
@@ -255,8 +260,11 @@ class DesktopIntegrationTests(unittest.TestCase):
         root=ET.fromstring((TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text())
         binds={item.attrib['key']:item for item in root.findall('./keyboard/keybind')}
         self.assertNotIn('onRelease', binds['F13'].attrib)
-        self.assertEqual(binds['F13'].find('action').attrib, binds['A-Tab'].find('action').attrib)
-        self.assertEqual(binds['F13'].find('action').get('name'), 'NextWindow')
+        self.assertEqual(binds['F13'].find('action').attrib,
+                         {'name': 'NextWindow', 'workspace': 'current',
+                          'output': '__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__',
+                          'identifier': 'all'})
+        self.assertEqual(binds['A-Tab'].find('action').get('name'), 'NextWindow')
         self.assertEqual(binds['A-S-Tab'].find('action').get('name'), 'PreviousWindow')
 
     def test_button_order_is_between_workspaces_and_wayscriber(self):

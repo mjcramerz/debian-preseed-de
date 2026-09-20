@@ -32,6 +32,6 @@ desktop_install_fonts() (
     --archive NerdFontsSymbolsOnly "$LABWC_FONT_SYMBOLS_URL" "$LABWC_FONT_SYMBOLS_SHA256" \
     --archive ProFont "$LABWC_FONT_PROFONT_URL" "$LABWC_FONT_PROFONT_SHA256" \
     --archive MicrosoftAptosFonts "$LABWC_FONT_APTOS_URL" "$LABWC_FONT_APTOS_SHA256" \
-    --archive microsoft-fonts "$LABWC_FONT_MICROSOFT_URL" "$LABWC_FONT_MICROSOFT_SHA256"
-  desktop_log "installed_pinned_fonts user=${ACCOUNT_USERNAME} location=.local/share/icons/terminal-fonts"
+    --archive MicrosoftLocalFonts "$LABWC_FONT_MICROSOFT_URL" "$LABWC_FONT_MICROSOFT_SHA256"
+  desktop_log "installed_pinned_fonts user=${ACCOUNT_USERNAME} terminal=.local/share/icons/terminal-fonts microsoft=.local/share/fonts/microsoft-fonts"
 )

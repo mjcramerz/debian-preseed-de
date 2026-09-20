@@ -1,9 +1,9 @@
 #!/usr/bin/python3 -I
 """Computer Management: six task-oriented groups, existing action boundaries.
 
-The no-argument entry point opens one managed terminal, like AI & Copilots.
-All child dmenu pickers opt into the terminal-only fzf data adapter; their
-existing allowlisted dispatch, confirmations and privileged helpers remain.
+The no-argument entry point and child dmenu pickers use graphical Fuzzel.
+Explicit --terminal mode retains the terminal-only fzf adapter. Existing
+allowlisted dispatch, confirmations and privileged helpers remain.
 """
 import json
 import os
@@ -38,6 +38,7 @@ MENUS = {
         'Displays & Layout': ('labwc-display-configuration',),
         'Refresh Display Layout': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
         'Power Profile': ('labwc-power-settings',),
+        'Hardware Tuning': ('labwc-hardware-tuning', 'menu'),
         'Keyboard Layout': ('labwc-keyboard-layout',),
         'Audio Control': ('labwc-wayland-app', 'auto', '--', '/usr/bin/pavucontrol'),
         'Restart Dock': ('/usr/bin/systemctl', '--user', '--no-block', 'restart', 'crystal-dock.service'),
@@ -47,7 +48,7 @@ MENUS = {
     },
     'Containers & AI': {
         'Containers': ('labwc-podman-menu',),
-        'AI & Copilots': ('labwc-ai-copilots', '--terminal'),
+        'AI & Copilots': ('labwc-ai-copilots',),
     },
     'Files & Documents': {
         'Documents & Media': ('labwc-digital-assets',),
@@ -60,7 +61,9 @@ def choose(labels: list[str], prompt: str) -> str | None:
     result = subprocess.run([PICKER, 'menu', '--dmenu', '--prompt', prompt],
                             input=''.join(label + '\n' for label in labels), text=True,
                             stdout=subprocess.PIPE, check=False,
-                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice'})
+                            env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice',
+                                 'LABWC_FUZZEL_MANAGED_ICONS': '1',
+                                 'LABWC_FUZZEL_ROOT_MENU': '1' if prompt == 'Computer Management' else '0'})
     if result.returncode == 1:
         return None
     if result.returncode:
@@ -74,6 +77,10 @@ def run_action(arguments: tuple[str, ...]) -> int:
     if not executable.startswith('/'):
         executable = '/usr/local/bin/' + executable
     command = (executable, *arguments[1:])
+    # Only the explicit terminal UI already owns a tty. Graphical invocation
+    # uses the AI launcher's normal managed-terminal entry point instead.
+    if executable == '/usr/local/bin/labwc-ai-copilots' and os.environ.get('LABWC_MENU_BACKEND') == 'fzf':
+        command += ('--terminal',)
     try:
         status = subprocess.run(command, check=False).returncode
     except OSError as error:
@@ -91,7 +98,12 @@ def run_menu() -> int:
         group = choose([*MENUS, 'Exit'], 'Computer Management')
         if group is None or group == 'Exit':
             return 0
-        entries = MENUS[group]
+        entries = dict(MENUS[group])
+        # The tuning installer is hardware/class gated. Do not offer a dead
+        # route on hosts on which its confined client was not installed.
+        if not (Path('/usr/local/bin/labwc-hardware-tuning').is_file()
+                and os.access('/usr/local/bin/labwc-hardware-tuning', os.X_OK)):
+            entries.pop('Hardware Tuning', None)
         while True:
             selected = choose([*entries, 'Back'], 'Computer Management / ' + group)
             if selected is None or selected == 'Back':
@@ -105,20 +117,20 @@ def main(argv: list[str]) -> int:
         return 0
     if os.geteuid() == 0:
         raise ValueError('Computer Management must run as the desktop user')
-    if not argv:
-        os.execv(TERMINAL, [TERMINAL, '-e', SELF, '--terminal'])
-    if argv != ['--terminal']:
-        raise ValueError('usage: labwc-computer-management [--terminal|--catalog]')
-    with open('/dev/tty', 'r+'):
-        pass
-    # Set this only after entering the managed terminal. No global session
-    # export: application menus remain Fuzzel and GUI actions remain isolated.
-    os.environ.update(LABWC_MENU_BACKEND='fzf', LABWC_MENU_ACTION_WAIT='1',
+    if argv not in ([], ['--graphical'], ['--terminal']):
+        raise ValueError('usage: labwc-computer-management [--graphical|--terminal|--catalog]')
+    backend = 'fzf' if argv == ['--terminal'] else 'fuzzel'
+    if backend == 'fzf':
+        with open('/dev/tty', 'r+'):
+            pass
+        for key in list(os.environ):
+            if key.startswith('FZF_'):
+                del os.environ[key]
+    # These exports belong only to this process tree, never the user manager.
+    # A child action must finish before the next menu can take keyboard focus.
+    os.environ.update(LABWC_MENU_BACKEND=backend, LABWC_MENU_ACTION_WAIT='1',
+                      LABWC_FUZZEL_MANAGED_ICONS='1', LABWC_FUZZEL_ROOT_MENU='0',
                       LABWC_FUZZEL_LOG_SCOPE='computer-management')
-    # Direct AI & Copilots fzf invocations receive the same safe defaults.
-    for key in list(os.environ):
-        if key.startswith('FZF_'):
-            del os.environ[key]
     return run_menu()
 
 

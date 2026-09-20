@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "payload_files": 1379,
+  "all_manifest_hashes_match": true,
+  "all_payload_bytes_match_source": true,
+  "all_payload_modes_match_build_policy": true,
+  "duplicates": [],
+  "unexpected_entries": [],
+  "sha256": {
+    "preseed.cfg": "5069496d0b053f0e1bd31f52a364e78b143d747a3ed3da318dcf34bdfd4927cc",
+    "payload.manifest": "b64c09730474b95799fd89bd3bf7e00a5722d1e6fcd593fd0396830b8b87e3e2",
+    "payload.tar.gz": "b420ddecb81a2dcf43cec2617f34490cb23c87bbfc2c53cd673b926b58024e72"
+  }
+}

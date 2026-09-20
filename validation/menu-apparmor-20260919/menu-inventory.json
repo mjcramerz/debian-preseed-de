@@ -1,0 +1,568 @@
+[
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-adb-menu",
+    "sha256": "555e52a202071686953974875e1c0c4e2b8368b71dece5f2d52d40f06868e98f",
+    "references": [
+      [
+        28,
+        "if menu_selection=$(labwc-fuzzel menu --dmenu --prompt \"$prompt\"); then"
+      ],
+      [
+        45,
+        "if menu_selection=$(labwc-fuzzel menu --dmenu --prompt \"$prompt\"); then"
+      ],
+      [
+        99,
+        "[ -x /usr/local/bin/labwc-fuzzel-log ] || return 0"
+      ],
+      [
+        100,
+        "if ! /usr/local/bin/labwc-fuzzel-log \\"
+      ],
+      [
+        116,
+        "[ -x /usr/local/bin/labwc-fuzzel-log ] || return 0"
+      ],
+      [
+        117,
+        "if ! /usr/local/bin/labwc-fuzzel-log \\"
+      ],
+      [
+        207,
+        "command -v labwc-fuzzel >/dev/null 2>&1 ||"
+      ],
+      [
+        208,
+        "fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-ai-copilots",
+    "sha256": "0c3ea8dbc86e18b4f8f26b4e4430379453fdfaa2819f815fab4b4d477efab727",
+    "references": [
+      [
+        33,
+        "/usr/bin/fzf \\"
+      ],
+      [
+        1226,
+        "command -v fzf >/dev/null 2>&1 ||"
+      ],
+      [
+        1227,
+        "fatal \"fzf is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-bluetooth",
+    "sha256": "c00113703485bfc17ab4ce78aad4d4f923b8ea2d7ff6151ed72ead7c52519837",
+    "references": [
+      [
+        145,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        361,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        423,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        437,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || {"
+      ],
+      [
+        438,
+        "printf 'fatal: labwc-fuzzel is not installed\\n' >&2"
+      ],
+      [
+        451,
+        "labwc-fuzzel menu \\"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-brightness-control",
+    "sha256": "60806f6726ee5b1535ef6d605f4cf29625675816bce1153a46d27fbf2a198807",
+    "references": [
+      [
+        115,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || {"
+      ],
+      [
+        116,
+        "printf 'fatal: labwc-fuzzel is not installed\\n' >&2"
+      ],
+      [
+        135,
+        "labwc-fuzzel menu --dmenu --prompt \"Brightness (${current_label})\" || menu_failure \"$?\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-capture",
+    "sha256": "42834dac37c64054659ff119ee54a67e7d03ac1a7667b97120be08745202bd51",
+    "references": [
+      [
+        269,
+        "require_command labwc-fuzzel"
+      ],
+      [
+        275,
+        "labwc-fuzzel menu --dmenu --prompt 'Recording format' || menu_failure \"$?\""
+      ],
+      [
+        308,
+        "require_command labwc-fuzzel"
+      ],
+      [
+        311,
+        "labwc-fuzzel menu --dmenu --prompt 'Recording output' || menu_failure \"$?\""
+      ],
+      [
+        538,
+        "require_command labwc-fuzzel"
+      ],
+      [
+        549,
+        "labwc-fuzzel menu --dmenu --prompt 'Screen capture' || menu_failure \"$?\""
+      ],
+      [
+        559,
+        "labwc-fuzzel menu --dmenu --prompt 'Screen capture' || menu_failure \"$?\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-computer-management",
+    "sha256": "65358543b88732954fe032153cc92ca2f669546ad9e05dac8ddf5f0b2ef33f75",
+    "references": [
+      [
+        5,
+        "All child dmenu pickers opt into the terminal-only fzf data adapter; their"
+      ],
+      [
+        15,
+        "PICKER = '/usr/local/bin/labwc-fuzzel'"
+      ],
+      [
+        17,
+        "LOG = '/usr/local/bin/labwc-fuzzel-log'"
+      ],
+      [
+        116,
+        "os.environ.update(LABWC_MENU_BACKEND='fzf', LABWC_MENU_ACTION_WAIT='1',"
+      ],
+      [
+        118,
+        "# Direct AI & Copilots fzf invocations receive the same safe defaults."
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-digital-assets",
+    "sha256": "2e79916ac5c3f3cfd8848f46cd6a681501d2b0c71d0048a45f3ce4c27d4c5a66",
+    "references": [
+      [
+        37,
+        "if menu_selection=$(labwc-fuzzel menu --dmenu --prompt \"$prompt\"); then"
+      ],
+      [
+        423,
+        "require_command labwc-fuzzel"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-external-drives",
+    "sha256": "424cca88e9c4297b8b5f1cb84dce58b120d5451160f094f8dfb78300f32892df",
+    "references": [
+      [
+        57,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        888,
+        "for required_command in awk flock id labwc-fuzzel lsblk mktemp sleep sync timeout udisksctl; do"
+      ],
+      [
+        960,
+        "labwc-fuzzel menu \\"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-firewall-menu",
+    "sha256": "56289ae71f3a22674185f8a80b1c2454999d5920c2e27535d56a50719e08a3b4",
+    "references": [
+      [
+        23,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        31,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu \\"
+      ],
+      [
+        73,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        242,
+        "command -v labwc-fuzzel >/dev/null 2>&1 ||"
+      ],
+      [
+        243,
+        "fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel",
+    "sha256": "692e881582cd32a7a4f7de5bc914332c86ebcdf5712db05e785769f51f20b463",
+    "references": [
+      [
+        8,
+        "if [ \"${LABWC_MENU_BACKEND:-fuzzel}\" = fzf ]; then"
+      ],
+      [
+        11,
+        "exec /usr/local/bin/labwc-fzf-menu \"$@\""
+      ],
+      [
+        19,
+        "if [ -x /usr/local/bin/labwc-fuzzel-log ]; then"
+      ],
+      [
+        20,
+        "/usr/local/bin/labwc-fuzzel-log \\"
+      ],
+      [
+        36,
+        "command -v fuzzel >/dev/null 2>&1 || {"
+      ],
+      [
+        37,
+        "fatal 'fuzzel is not installed'"
+      ],
+      [
+        44,
+        "fuzzel_config_dir=\"${config_root}/fuzzel\""
+      ],
+      [
+        185,
+        "launcher:true) config_name=fuzzel-internal.ini ;;"
+      ],
+      [
+        186,
+        "launcher:false) config_name=fuzzel.ini ;;"
+      ],
+      [
+        246,
+        "lock_path=\"${runtime_root%/}/labwc-fuzzel.lock\""
+      ],
+      [
+        247,
+        "pid_path=\"${runtime_root%/}/labwc-fuzzel.pid\""
+      ],
+      [
+        279,
+        "fuzzel \"$@\" <&7 >&1 2>&2 8>&- &"
+      ],
+      [
+        297,
+        "[ -x /usr/local/bin/labwc-fuzzel-log ] || return 0"
+      ],
+      [
+        302,
+        "if ! /usr/local/bin/labwc-fuzzel-log \\"
+      ],
+      [
+        319,
+        "[ -x /usr/local/bin/labwc-fuzzel-log ] || return 0"
+      ],
+      [
+        320,
+        "/usr/local/bin/labwc-fuzzel-log \\"
+      ],
+      [
+        347,
+        "managed_dir=$(mktemp -d \"${runtime_root%/}/labwc-fuzzel-menu.XXXXXX\") || {"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel-log",
+    "sha256": "0163c82a18c5df9c7e29febd59d6dc786323af1b4d80a34a1b416145bc1ef679",
+    "references": [
+      [
+        8,
+        "die \"usage: labwc-fuzzel-log <menu|action> <event> [key=value ...]\\n\";"
+      ],
+      [
+        35,
+        "openlog(\"labwc-fuzzel-$kind\", 'pid,nowait', LOG_USER);"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fzf-menu",
+    "sha256": "aea112caada0f39ef14dc841ea59170c18b9b8137bce046951a5fccf6839547e",
+    "references": [
+      [
+        6,
+        "only action authority. Graphical menus continue using labwc-fuzzel normally."
+      ],
+      [
+        15,
+        "FZF = '/usr/bin/fzf'"
+      ],
+      [
+        88,
+        "# fzf defaults may contain execute/become/reload/preview shell bindings."
+      ],
+      [
+        103,
+        "# These are internal fzf actions, never shell-based transform/become."
+      ],
+      [
+        165,
+        "print('labwc-fzf-menu: ' + str(error), file=sys.stderr)"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-main-menu",
+    "sha256": "97a523f4168e6ec03979a9ee65ef841270feda8c3d76ac0f2d787f15e3879eea",
+    "references": [
+      [
+        23,
+        "FUZZEL = '/usr/local/bin/labwc-fuzzel'"
+      ],
+      [
+        223,
+        "env = dict(os.environ, LABWC_FUZZEL_MANAGED_ICONS='0', LABWC_MENU_BACKEND='fuzzel')"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-maintenance-menu",
+    "sha256": "d3a341683c8423a2830bc228f7769046e421e91e73a9002fb32629d13b42a813",
+    "references": [
+      [
+        24,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        174,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        288,
+        "labwc-fuzzel menu --dmenu --prompt \"NVMe controller\" || menu_failure \"$?\""
+      ],
+      [
+        333,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt \"Inspect service\" || menu_failure \"$?\""
+      ],
+      [
+        366,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt \"$selection_prompt\" || menu_failure \"$?\""
+      ],
+      [
+        389,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt \"$selection_prompt\" || menu_failure \"$?\""
+      ],
+      [
+        1031,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-network-control-menu",
+    "sha256": "a1a69d67b607808632893d224be13c9240a6dfc1b6adb42342d5b69ca6dbac8f",
+    "references": [
+      [
+        24,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        32,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu \\"
+      ],
+      [
+        63,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        127,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        179,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        424,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-network-scan-menu",
+    "sha256": "dbcbfd4c4534a2eed2a6f082c5eb069d0ac601aabcead44154aaa25933ae8209",
+    "references": [
+      [
+        24,
+        "labwc-fuzzel menu --dmenu --prompt \"$prompt\" || menu_failure \"$?\""
+      ],
+      [
+        51,
+        "labwc-fuzzel menu --dmenu --prompt \"Capture interface\" || menu_failure \"$?\""
+      ],
+      [
+        62,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt \"Private IPv4 or /24-/32 CIDR\" || menu_failure \"$?\""
+      ],
+      [
+        81,
+        "LABWC_MENU_INPUT_MODE=text labwc-fuzzel menu --dmenu --prompt \"Private or loopback IPv4 host\" || menu_failure \"$?\""
+      ],
+      [
+        155,
+        "labwc-fuzzel menu --dmenu --prompt \"Capture file\" || menu_failure \"$?\""
+      ],
+      [
+        160,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-podman-menu",
+    "sha256": "5273da5ce40cce4966fc258b356a61ba8afaf1b36011fbeb23b5de1f310a359b",
+    "references": [
+      [
+        22,
+        "FUZZEL = '/usr/local/bin/labwc-fuzzel'"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-power-menu",
+    "sha256": "4ad254036c3aa181a332368b04c5c336a26c707dade67dc15ed8d707398ed142",
+    "references": [
+      [
+        13,
+        "labwc-fuzzel menu --dmenu --prompt power || menu_failure \"$?\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-power-settings",
+    "sha256": "574f44bc11b7d48298ad957f87c0b6685f8278d20328fe820dff8350dcecf2bf",
+    "references": [
+      [
+        23,
+        "command -v labwc-fuzzel >/dev/null 2>&1 || {"
+      ],
+      [
+        24,
+        "printf 'fatal: labwc-fuzzel is not installed\\n' >&2"
+      ],
+      [
+        55,
+        "labwc-fuzzel menu --dmenu --prompt \"CPU power profile (${current_profile:-unknown})\" || menu_failure \"$?\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-remote-desktop",
+    "sha256": "a279ae5909051f5f15e5ed7992128dbf34b8128c409cdb8e687815f4301e1b41",
+    "references": [
+      [
+        174,
+        "fuzzel = shutil.which(\"labwc-fuzzel\")"
+      ],
+      [
+        175,
+        "if fuzzel is None:"
+      ],
+      [
+        176,
+        "fail(\"labwc-fuzzel is not installed\")"
+      ],
+      [
+        180,
+        "fuzzel,"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-run",
+    "sha256": "584e7f01e2a39a0771765234dbc137d97a7defa22c424b35d7bbcbfa4f27a351",
+    "references": [
+      [
+        9,
+        "launcher_command=${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/bin/labwc-users-groups-menu",
+    "sha256": "34609b6d9f4b6c770d6c90db9060167ab4f6163a8b16aac8c1b90a232127591a",
+    "references": [
+      [
+        24,
+        "labwc-fuzzel menu \\"
+      ],
+      [
+        41,
+        "command -v labwc-fuzzel >/dev/null 2>&1 ||"
+      ],
+      [
+        42,
+        "fatal \"labwc-fuzzel is not installed\""
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/client.py",
+    "sha256": "c1942d3b89eb2a8f245ac637fa30f46d9bd76144a16622461ad24426655ddf5c",
+    "references": [
+      [
+        128,
+        "result = subprocess.run([\"/usr/local/bin/labwc-fuzzel\", \"menu\", \"--dmenu\", \"--prompt\", prompt],"
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+    "sha256": "e3194af7db568b07ca33ef101f48c8de16c71e478e6fb8a608d817e92d56f848",
+    "references": [
+      [
+        510,
+        "\".config/fzf\","
+      ]
+    ]
+  },
+  {
+    "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-calendar",
+    "sha256": "61938c8a6de7c868d112062b215ab09024a8068588b66ede82c2dc75f46693b6",
+    "references": [
+      [
+        346,
+        "require_command labwc-fuzzel"
+      ],
+      [
+        347,
+        "selection=$(labwc-fuzzel menu --dmenu --prompt Calendar <<'EOF' || menu_failure \"$?\""
+      ]
+    ]
+  }
+]

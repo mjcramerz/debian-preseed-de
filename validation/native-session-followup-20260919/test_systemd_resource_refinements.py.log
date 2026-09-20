@@ -1,0 +1,14 @@
+test_all_available_vendor_units_get_only_their_dropins (test_systemd_resource_refinements.ResourceRefinementTests.test_all_available_vendor_units_get_only_their_dropins) ... ok
+test_all_policy_dropins_parse_in_both_io_modes (test_systemd_resource_refinements.ResourceRefinementTests.test_all_policy_dropins_parse_in_both_io_modes) ... ok
+test_offline_manager_effective_prefixes_weights_and_core_limits (test_systemd_resource_refinements.ResourceRefinementTests.test_offline_manager_effective_prefixes_weights_and_core_limits) ... ok
+test_optional_service_assets_run_through_existing_publishers (test_systemd_resource_refinements.ResourceRefinementTests.test_optional_service_assets_run_through_existing_publishers) ... ok
+test_optional_system_service_policies_have_staging_owners (test_systemd_resource_refinements.ResourceRefinementTests.test_optional_system_service_policies_have_staging_owners) ... ok
+test_runtime_service_prefixes_match_existing_launchers (test_systemd_resource_refinements.ResourceRefinementTests.test_runtime_service_prefixes_match_existing_launchers) ... ok
+test_scopes_and_helpers_do_not_get_execution_or_weight_policy (test_systemd_resource_refinements.ResourceRefinementTests.test_scopes_and_helpers_do_not_get_execution_or_weight_policy) ... ok
+test_storage_and_socket_controls_are_independent (test_systemd_resource_refinements.ResourceRefinementTests.test_storage_and_socket_controls_are_independent) ... ok
+test_vendor_policy_does_not_install_unavailable_services (test_systemd_resource_refinements.ResourceRefinementTests.test_vendor_policy_does_not_install_unavailable_services) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 1.815s
+
+OK

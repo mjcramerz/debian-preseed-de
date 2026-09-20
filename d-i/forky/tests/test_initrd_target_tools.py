@@ -30,6 +30,8 @@ class TargetToolTests(unittest.TestCase):
         env={'PATH':os.environ['PATH'], 'LC_ALL':'C', 'INSTALLER_TARGET_DIR':str(self.target),
              'CALL':str(self.call), 'FSTYPE':fs}
         script='set -eu\n. '+shlex.quote(str(SEED/'scripts/late/podman.sh'))+'\n'
+        script+='. '+shlex.quote(str(SEED/'scripts/common/target.sh'))+'\n'
+        script+='target_root_dir() { printf "%s\\n" "$INSTALLER_TARGET_DIR"; }\n'
         script+='installer_fatal() { printf "%s\\n" "$*" >&2; exit 1; }\n'
         script+='stat() { echo HOST_STAT_MUST_NOT_RUN >&2; return 127; }\n'
         script+='chroot() { printf "%s\\n" "$@" >"$CALL"; '
@@ -37,21 +39,46 @@ class TargetToolTests(unittest.TestCase):
         script+='podman_resolve_native_storage_driver '+shlex.quote(requested)+' '+shlex.quote(str(storage or self.storage))+'\n'
         return subprocess.run((shell or ['/bin/sh'])+['-c',script],env=env,text=True,capture_output=True,timeout=5)
 
-    def test_podman_uses_target_stat_without_host_applet(self):
+    def test_podman_uses_target_metadata_without_host_applet(self):
         for shell in SHELLS:
-            for fs,expected in [('btrfs','overlay'),('xfs','overlay'),('ext2/ext3','overlay'),('f2fs','overlay')]:
+            for fs,expected in [('btrfs','overlay'),('xfs','overlay'),('ext2','overlay'),('ext3','overlay'),('ext4','overlay'),('f2fs','overlay')]:
                 with self.subTest(shell=shell,fs=fs):
                     p=self.run_driver(fs=fs,shell=shell)
                     self.assertEqual(p.returncode,0,p.stderr)
                     self.assertEqual(p.stdout,expected+'\n')
-                    self.assertEqual(self.call.read_text().splitlines(),
-                                     [str(self.target),'/usr/bin/stat','-f','-c','%T','--','/var/lib/rootless-podman'])
+                    self.assertEqual([self.call.read_text().splitlines()[0], *self.call.read_text().splitlines()[-7:]],
+                                     [str(self.target),'/usr/bin/find','-P','/var/lib/rootless-podman','-maxdepth','0','-printf','%F'])
                     self.assertNotIn('HOST_STAT',p.stderr)
 
-    def test_podman_rejects_target_stat_failure(self):
+    def test_podman_filesystem_lookup_uses_installer_target_setup(self):
+        # Native findutils needs the target mount table for filesystem names.
+        # The shared d-i bridge arranges that; never silently inspect the host.
+        bridge = self.path / 'in-target'
+        bridge.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" >"$CALL"\nprintf \'%s\\n\' ext4\n')
+        bridge.chmod(0o755)
+        script = 'set -eu\n'
+        for name in ('scripts/common/target.sh', 'scripts/late/podman.sh'):
+            script += '. ' + shlex.quote(str(SEED / name)) + '\n'
+        script += r'''
+target_root_dir() { printf '%s\n' /target; }
+installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
+chroot() { printf '%s\n' 'wrong direct chroot boundary' >&2; return 127; }
+podman_resolve_native_storage_driver auto /target/pool/podman
+'''
+        result = subprocess.run(['/bin/sh', '-c', script], text=True, capture_output=True,
+                                env={'PATH': str(self.path) + ':' + os.environ['PATH'], 'CALL': str(self.call),
+                                     'INSTALLER_TARGET_DIR': '/target'}, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, 'overlay\n')
+        call = self.call.read_text().splitlines()
+        self.assertEqual(call[0], '--pass-stdout')
+        self.assertEqual(call[-7:], ['/usr/bin/find', '-P', '/pool/podman',
+                                    '-maxdepth', '0', '-printf', '%F'])
+
+    def test_podman_rejects_target_metadata_failure(self):
         p=self.run_driver(fail=True)
         self.assertNotEqual(p.returncode,0)
-        self.assertIn('target coreutils could not inspect',p.stderr)
+        self.assertIn('target findutils could not inspect',p.stderr)
         self.assertEqual(p.stdout,'')
 
     def test_podman_preserves_approved_filesystem_policy(self):
@@ -65,12 +92,12 @@ class TargetToolTests(unittest.TestCase):
         self.assertIn('outside the installation target',p.stderr)
         self.assertFalse(self.call.exists())
 
-    def test_codex_checks_invoke_target_stat_with_target_relative_paths(self):
+    def test_codex_checks_invoke_target_metadata_with_target_relative_paths(self):
         # Execute the four metadata expressions themselves, not the installer.
         expressions=[]
         for name in ('scripts/desktop/labwc.sh','scripts/late/devops.sh'):
             text=(SEED/name).read_text()
-            found=re.findall(r'\$\((chroot [^\n]+?/usr/bin/stat -c \'%u:%g:%a\' -- [^\n]+?)\)',text)
+            found=re.findall(r'\$\((chroot [^\n]+?/usr/bin/find -P [^\n]+? -maxdepth 0 -printf \'%U:%G:%m\')\)',text)
             self.assertEqual(len(found),2,name)
             expressions.extend(found)
         helper='/usr/local/bin/codex-standalone-install'
@@ -85,10 +112,11 @@ class TargetToolTests(unittest.TestCase):
             p=subprocess.run(['/bin/sh','-c',script],env=env,text=True,capture_output=True,timeout=5)
             self.assertEqual(p.returncode,0,p.stderr)
             args=self.call.read_text().splitlines()
-            self.assertEqual(args[:5],[str(self.target),'/usr/bin/stat','-c','%u:%g:%a','--'])
-            self.assertIn(args[5],(helper,session))
+            self.assertEqual(args[:3],[str(self.target),'/usr/bin/find','-P'])
+            self.assertIn(args[3],(helper,session))
+            self.assertEqual(args[4:],['-maxdepth','0','-printf','%U:%G:%m'])
 
-    def test_codex_app_server_metadata_uses_target_stat_without_host_applet(self):
+    def test_codex_app_server_metadata_uses_target_metadata_without_host_applet(self):
         text=(SEED/'scripts/late/devops.sh').read_text()
         stage=text.split('devops_stage_codex_app_server() {',1)[1].split(
             '\n}\n\ndevops_install_pinned_codex() (',1)[0]
@@ -118,7 +146,7 @@ class TargetToolTests(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr)
                 self.assertNotIn('HOST_STAT',p.stderr)
                 self.assertEqual(self.call.read_text().splitlines(),[
-                    str(self.target),'/usr/bin/stat','-c','%u:%g:%a','--','/etc/default'])
+                    str(self.target),'/usr/bin/find','-P','/etc/default','-maxdepth','0','-printf','%U:%G:%m'])
 
                 mismatch=subprocess.run(shell+['-c',script],
                     env={**env,'TEST_METADATA':'0:0:775'},text=True,

@@ -110,12 +110,12 @@ ensure_private_directory() (
       mkdir -m 0700 -- "$current" || fatal "cannot create directory: $current"
     fi
     [ -d "$current" ] && [ ! -L "$current" ] || fatal "unsafe directory: $current"
-    owner=$(stat -c %u -- "$current")
-    permissions=$(stat -c %a -- "$current")
+    owner=$(find -P "$current" -maxdepth 0 -printf %U)
+    permissions=$(find -P "$current" -maxdepth 0 -printf %m)
     { [ "$owner" = 0 ] || [ "$owner" = "$uid" ]; } &&
       [ "$((0$permissions & 0022))" -eq 0 ] || fatal "unsafe directory permissions: $current"
   done
-  [ "$(stat -c %u -- "$path")" = "$uid" ] || fatal "directory is not owned by this user: $path"
+  [ "$(find -P "$path" -maxdepth 0 -printf %U)" = "$uid" ] || fatal "directory is not owned by this user: $path"
   chmod 0700 -- "$path" || fatal "cannot protect directory: $path"
 )
 
@@ -140,7 +140,7 @@ sync_calendar() {
   if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
     [ "$XDG_RUNTIME_DIR" = "/run/user/$(id -u)" ] && [ -d "$XDG_RUNTIME_DIR" ] &&
       [ ! -L "$XDG_RUNTIME_DIR" ] &&
-      [ "$(stat -c '%u:%a' -- "$XDG_RUNTIME_DIR")" = "$(id -u):700" ] ||
+      [ "$(find -P "$XDG_RUNTIME_DIR" -maxdepth 0 -printf '%U:%m')" = "$(id -u):700" ] ||
       fatal "unsafe XDG_RUNTIME_DIR"
   else
     ensure_private_directory "$calendar_sync_lock_dir"
@@ -152,7 +152,7 @@ sync_calendar() {
     { [ ! -e "$calendar_sync_lock" ] || [ -f "$calendar_sync_lock" ]; } ||
     fatal "unsafe or legacy directory lock: $calendar_sync_lock (stop old sync processes before removing a legacy empty lock directory)"
   exec 9>>"$calendar_sync_lock"
-  [ "$(stat -Lc '%u:%h:%a' /proc/self/fd/9)" = "$(id -u):1:600" ] ||
+  [ "$(find -H /proc/self/fd/9 -maxdepth 0 -printf '%U:%n:%m')" = "$(id -u):1:600" ] ||
     fatal "calendar lock ownership, link count or mode is unsafe"
   if flock --nonblock --conflict-exit-code 75 9; then
     :
@@ -335,9 +335,16 @@ sync_terminal() {
   exit "$status"
 }
 
+# Picker cancellation is not a backend/configuration failure.
+menu_failure() {
+  [ "$1" -eq 1 ] && return 0
+  printf 'fatal: menu picker failed (status %s)\n' "$1" >&2
+  exit "$1"
+}
+
 open_menu() {
   require_command labwc-fuzzel
-  selection=$(labwc-fuzzel menu --dmenu --prompt Calendar 2>/dev/null <<'EOF' || true
+  selection=$(labwc-fuzzel menu --dmenu --prompt Calendar <<'EOF' || menu_failure "$?"
 Open Calendar
 Upcoming Agenda
 Open Tasks
