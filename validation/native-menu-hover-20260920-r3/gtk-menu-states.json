@@ -1,0 +1,20 @@
+{
+  "profiles": 13,
+  "themes": [
+    "Adwaita",
+    "Adwaita-dark"
+  ],
+  "menu_roots": 520,
+  "activations": 4160,
+  "center_activations": 104,
+  "highlight_states": 14820,
+  "disabled_states": 5096,
+  "submenu_headers": 624,
+  "orange_rgba": [
+    242,
+    159,
+    103,
+    0.24
+  ],
+  "callback_errors": []
+}

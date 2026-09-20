@@ -4,7 +4,7 @@
   <object class="GtkMenu" id="menu">
     <child>
       <object class="GtkMenuItem" id="notifications_center">
-        <property name="label">Open notification center</property>
+        <property name="label">Open notifications center</property>
       </object>
     </child>
     <child>

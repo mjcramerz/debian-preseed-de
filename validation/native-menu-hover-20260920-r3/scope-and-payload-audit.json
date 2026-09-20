@@ -1,0 +1,51 @@
+{
+  "baseline_archive": "debian-preseed-de-refactored-20260920-r2.tar.gz",
+  "baseline_sha256": "8157270c02647d39a74208235b86f7fd0cc21284fc6ae2fa7ca78cf1e72ace62",
+  "baseline_files": 3378,
+  "preserved_original_files": 3378,
+  "byte_identical_original_files": 3372,
+  "changed_original_files": [
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-notifications",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/preseed.cfg"
+  ],
+  "missing_original_files": [],
+  "original_mode_changes": [],
+  "production_source_changes": [
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-notifications"
+  ],
+  "regenerated_products": [
+    "d-i/forky/payload.tar.gz",
+    "d-i/forky/payload.manifest",
+    "d-i/forky/preseed.cfg"
+  ],
+  "non_menu_css_unchanged": true,
+  "notifications_xml_only_label_changed": true,
+  "helper_unchanged_definitions": [
+    "Error",
+    "environment",
+    "mako",
+    "notification_text",
+    "notification_list",
+    "snapshot",
+    "show_center"
+  ],
+  "payload_file_count": 1401,
+  "payload_source_and_manifest_match": true,
+  "payload_modes_and_safe_paths_checked": true,
+  "preseed_contains_current_pins": true,
+  "pins": {
+    "payload.tar.gz": "4936765ec194bbba91d2fcbd669614413c01b60cf6197fe0d7b11f1cf73d0641",
+    "payload.manifest": "28acce7909355461b5c49423e444b2bffb0d9837e19066b8496f48b15c574441",
+    "scripts/common/source.sh": "eceabe640d1ef2599fdd9165e1553a652105a744bd1eadbc91ef0cf9bf71554c"
+  },
+  "new_tests": [
+    "d-i/forky/tests/test_native_menu_hover_20260920.py",
+    "d-i/forky/tests/fixtures/native-menus-hover-gtk.py"
+  ]
+}

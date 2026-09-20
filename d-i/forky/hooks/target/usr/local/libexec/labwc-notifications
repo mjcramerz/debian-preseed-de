@@ -24,6 +24,7 @@ APP_ID = "org.labwc.NotificationCenter"
 REQUEST_TIMEOUT = 4.0
 MAX_VISIBLE = 100
 DND_MODE = "do-not-disturb"
+MOUSE_HINT = "Left: menu | Middle: DND | Right: notification center"
 # Only fixed Mako control operations; never notification-provided commands.
 ACTIONS = {
     "dnd": ("mode", "-t", DND_MODE),
@@ -328,7 +329,7 @@ def main(argv: list[str]) -> int:
     if action == "status":
         dnd = "do-not-disturb" in mako(["mode"], env).splitlines()
         print(json.dumps({"text": "\U0001f515" if dnd else "\U0001f514", "class": "dnd" if dnd else "normal",
-                          "tooltip": "Do not disturb: " + ("on" if dnd else "off") + "\nLeft: menu | Middle: DND | Right: notification center"}))
+                          "tooltip": "Do not disturb: " + ("on" if dnd else "off") + "\n" + MOUSE_HINT}))
     elif action in ACTIONS:
         mako(list(ACTIONS[action]), env)
     else:
@@ -342,5 +343,10 @@ if __name__ == "__main__":
     except (Error, OSError, ValueError, ImportError, subprocess.SubprocessError) as exc:
         print(f"labwc-notifications: {exc}", file=sys.stderr)
         if sys.argv[1:] == ["status"]:
-            print(json.dumps({"text": "\U0001f515", "class": "error", "tooltip": str(exc)[:1024]}))
+            # Waybar hides a custom module on nonzero exit, even with valid
+            # JSON. Keep the menu/center reachable while Mako is unavailable;
+            # this reports a degraded status, not a successful control action.
+            print(json.dumps({"text": "\U0001f515", "class": "error",
+                              "tooltip": "Notifications unavailable: " + str(exc)[:1024] + "\n" + MOUSE_HINT}))
+            raise SystemExit(0)
         raise SystemExit(1)

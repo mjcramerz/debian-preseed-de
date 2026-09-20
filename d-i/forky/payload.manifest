@@ -584,9 +584,9 @@ cf09238e3d43aa14506b2dff223927fe4ac4d18eb6887bc1cd6b348fea158e46  hooks/target/e
 d245c2534b2818c3ca7faebe511d4f1416f70dd9a251f1134c5b64d01ba27ac5  hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
 df28aead73697abeeb41fcd21e221a3eb07eb4e927ccf14406f65177af68caf4  hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg
 067fc8ef68e2ba708312da9cac028f87bb91fb0156775f94e343039c050eed07  hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg
-7d47d8f5fecdfe8c860acbce2dc10ef5185ffa78b6e863791e59317678116d87  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml
+7ba95cab87594c61e3ea83d9ae68230c67d647264e480fa3a6224fa42c64e2fd  hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml
 dee7727d5054328586bc73b8694a93bcbfc0ed4c92c5df077706ef4ac5bca591  hooks/target/etc/skel-desktop/.config/waybar/power-menu.xml
-3846216bb67dd0976e8e1b4f88089664c336a8bab9fb1850cb46178a6790339a  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+6c4412d9a7f5ebbfc65e84ead1f9878642d517c584f388afa3cb81c5cd681d37  hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
 797d233230f44a7a0762393c71331c389e0be7d7bd9f37cd3422ce6ca2462f17  hooks/target/etc/skel-desktop/.config/waybar/tomat-menu.xml
 e380e5316d8de316d9b0fd7daeec3bc69a0d9aeb5350483346f0a0e976841492  hooks/target/etc/skel-desktop/.config/waypaper/config.ini
 84382107f2579e44746eed2e5148649e476904cf56fad0bb573abf6b7a15b8f5  hooks/target/etc/skel-desktop/.config/waypaper/keybindings.ini
@@ -1170,7 +1170,7 @@ a7a4b43ba657cd9ccfb52381fc0344287033f5229f37a541747c640d29bf4812  hooks/target/u
 15cc6eae593df38d00d0bb30a1d3913bcd4d54207de79de25776147e11abfc77  hooks/target/usr/local/libexec/labwc-network-control-action-root
 111b84f24aa61dbad02c047f9e38fe9fa514f5ba4535060b789e4257cdfde2f7  hooks/target/usr/local/libexec/labwc-network-scan-action-root.tmpl
 814b949a218cdbf2c1bf6aa52832c02cdea6b63564483deac49482160f9337b9  hooks/target/usr/local/libexec/labwc-notification-send
-47d186135dff478d770d906f11d28774fbdcdda1b4b491c7b4038df06c72518a  hooks/target/usr/local/libexec/labwc-notifications
+e5a14c7dcd33deee84e072052ec2ced304d1ce86d167f94c4de0853967a1028b  hooks/target/usr/local/libexec/labwc-notifications
 fa25f7c4e60bd75058b8d790622ef2b35e92265a092185e5e2cda1266cf53154  hooks/target/usr/local/libexec/labwc-output-watch
 7ca2d03ff346156408231db4d05d5d7f8077d38efda1a1b04a67b9f52d6eea21  hooks/target/usr/local/libexec/labwc-panel-run
 e69d03b1d42da582e20e1444878292a66b2460cdbfd696a907e6e40b22817257  hooks/target/usr/local/libexec/labwc-plans.pl
@@ -1295,7 +1295,7 @@ d84cec43a06d89d941c5c7249bfa0ee02e83dff019e5ba52cb6b717f5fea4f02  hosts/installe
 3218a5a965902b76584c93a26c3e23b0182887c065839c51ebad300d45c1737c  hosts/profiles/btrfs-de-dual-main.env
 9e5833de4fec523ff0884ea6ea1e825ac74c6e2e57c7101020df2f67a62a16db  hosts/profiles/btrfs-de-dual.env
 1f6e83d3e86c5e5951972777cabc4245a4f334ff01df1ad0306be4f85dbaa4bc  hosts/profiles/btrfs-de-flex.env
-fb29f81a19d5f6a3b7ade1ac8b1f2aa5bb8e542c985d1b239323bbe0067a0533  hosts/profiles/btrfs-de-main.env
+1883a67b9876a97662dda0f7c190f073730b1b20a674b37dca4c445556d4b9d0  hosts/profiles/btrfs-de-main.env
 06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4bc  hosts/profiles/btrfs-de.env
 eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e457  hosts/profiles/btrfs-desktop.env
 d0b9e038e0dd29015566c8a31213e6ab0a123e70ae13cf51b2e9435d74dcea8f  hosts/profiles/f2fs-de-cbook.env

@@ -549,6 +549,23 @@ window#waybar.internal #custom-app-sleek {
   color: #08111f;
   box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
 }
+/* Native GTK popups are separate windows, not descendants of window#waybar.
+ * Share one orange highlight across all five menus and their submenus. GTK
+ * uses :hover (PRELIGHT) for pointer and keyboard menu selection; :selected
+ * also covers themes exposing that state. Disabled actions stay subdued. */
 menu { background: @panel; color: @text; border: 1px solid @border; }
 menuitem { padding: 6px 12px; }
-menuitem:hover { background: @panel_hover; }
+menuitem:hover:not(:disabled),
+menuitem:selected:not(:disabled) {
+  background: rgba(242, 159, 103, 0.24);
+  color: @text;
+}
+menuitem:hover:not(:disabled) label,
+menuitem:selected:not(:disabled) label {
+  color: @text;
+}
+menuitem:disabled {
+  background: transparent;
+  color: @muted;
+}
+menuitem:disabled label { color: @muted; }
