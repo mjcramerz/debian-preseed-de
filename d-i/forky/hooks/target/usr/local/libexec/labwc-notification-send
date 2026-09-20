@@ -1,0 +1,78 @@
+#!/usr/bin/python3 -I
+"""Bounded, headless notification transport for the managed health checker.
+
+Only report success after the notification daemon returns a notification ID.
+No GUI toolkit initialisation, shell expansion, synchronous action wait or log
+contents are needed. A lost reply can cause an at-least-once retry, not data loss.
+"""
+from __future__ import annotations
+
+import argparse
+from datetime import datetime
+import html
+import re
+import subprocess
+import sys
+import time
+
+BUSCTL = '/usr/bin/busctl'
+
+
+def command(args: argparse.Namespace) -> list[str]:
+    urgency = {'low': '0', 'normal': '1', 'critical': '2'}[args.urgency]
+    category = args.category or 'system.health'
+    if not re.fullmatch(r'[a-zA-Z0-9_.-]{1,128}', category):
+        raise ValueError('invalid notification category')
+    if any('\x00' in value for value in (args.app_name, args.icon, args.summary, args.body)):
+        raise ValueError('NUL in notification')
+    observed = datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S %Z')
+    body = html.escape(args.body[:4096])
+    body += '\n<small>' + html.escape(f'{observed} | {category}') + '</small>'
+    return [BUSCTL, '--user', '--timeout=5s', 'call',
+            'org.freedesktop.Notifications', '/org/freedesktop/Notifications',
+            'org.freedesktop.Notifications', 'Notify', 'susssasa{sv}i',
+            args.app_name[:128], '0', args.icon[:256], html.escape(args.summary[:256]), body,
+            '0', '2', 'urgency', 'y', urgency, 'category', 's', category, str(args.expire_time)]
+
+
+def deliver(argv: list[str]) -> bool:
+    for attempt in range(2):
+        try:
+            result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True, timeout=6, check=False,
+                                    close_fds=True)
+            if result.returncode == 0 and re.fullmatch(r'u [1-9][0-9]*\s*', result.stdout):
+                return True
+            # Bound and flatten diagnostics; do not put notification contents in logs.
+            detail = ' '.join(result.stderr.split())[:512]
+            print(f'health-notify: notification transport attempt {attempt + 1} failed '
+                  f'(status={result.returncode}): {detail or "missing daemon acknowledgement"}', file=sys.stderr)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            print(f'health-notify: notification transport attempt {attempt + 1}: {error.__class__.__name__}',
+                  file=sys.stderr)
+        if attempt == 0:
+            time.sleep(0.5)
+    return False
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-a', '--app-name', default='Desktop Health')
+    parser.add_argument('-u', '--urgency', choices=('low', 'normal', 'critical'), default='normal')
+    parser.add_argument('-i', '--icon', default='dialog-information')
+    parser.add_argument('-c', '--category', default='system.health')
+    parser.add_argument('-t', '--expire-time', type=int, default=12000)
+    parser.add_argument('summary')
+    parser.add_argument('body', nargs='?', default='')
+    args = parser.parse_args()
+    if not 0 <= args.expire_time <= 2147483647:
+        parser.error('expire time is outside the D-Bus int32 range')
+    try:
+        return 0 if deliver(command(args)) else 1
+    except ValueError as error:
+        print(f'health-notify: {error}', file=sys.stderr)
+        return 64
+
+
+if __name__ == '__main__':
+    sys.exit(main())

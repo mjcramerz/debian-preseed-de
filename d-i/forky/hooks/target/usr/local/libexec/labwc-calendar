@@ -78,6 +78,17 @@ run_terminal_action() {
   exec labwc-terminal -e "$0" "$@"
 }
 
+# Preserve backend errors/results in the terminal instead of flashing a window.
+run_and_hold() {
+  action_status=0
+  "$@" || action_status=$?
+  if [ "$action_status" -ne 0 ]; then
+    printf '\nCalendar command failed (status %s).\n' "$action_status" >&2
+  fi
+  prompt_close
+  return "$action_status"
+}
+
 prompt_close() {
   printf '\nPress Enter to close...'
   IFS= read -r _ || true
@@ -252,8 +263,7 @@ show_agenda_terminal() {
   ensure_calendar_environment
   require_command khal
   require_file "$KHAL_CONFIG"
-  khal list today 14d
-  prompt_close
+  run_and_hold khal list today 14d
 }
 
 show_tasks() {
@@ -267,8 +277,7 @@ show_tasks_terminal() {
   ensure_calendar_environment
   require_command todoman
   require_file "$TODOMAN_CONFIG"
-  todoman list
-  prompt_close
+  run_and_hold todoman list
 }
 
 create_event() {
@@ -276,7 +285,7 @@ create_event() {
   require_command labwc-terminal
   require_command khal
   require_file "$KHAL_CONFIG"
-  exec labwc-terminal -e khal new -i
+  run_terminal_action new-event-terminal
 }
 
 edit_event() {
@@ -293,7 +302,7 @@ edit_event_terminal() {
   printf 'Search event to edit: '
   IFS= read -r query || exit 0
   [ -n "$query" ] || exit 0
-  exec khal edit --show-past "$query"
+  run_and_hold khal edit --show-past -- "$query"
 }
 
 create_task() {
@@ -301,7 +310,7 @@ create_task() {
   require_command labwc-terminal
   require_command todoman
   require_file "$TODOMAN_CONFIG"
-  exec labwc-terminal -e todoman new -i
+  run_terminal_action new-task-terminal
 }
 
 edit_task() {
@@ -311,15 +320,86 @@ edit_task() {
   run_terminal_action edit-task-terminal
 }
 
+# Numeric IDs are the only accepted task operands. Never let a pasted option
+# become --raw/--yes, or let a shell evaluate task input. Empty input cancels.
+read_task_id() {
+  printf '\nTask id (Enter cancels): '
+  IFS= read -r task_id || exit 0
+  [ -n "$task_id" ] || exit 0
+  case "$task_id" in
+    *[!0-9]*|0*)
+      printf 'Task id must be a positive decimal integer.\n' >&2
+      prompt_close
+      exit 64
+      ;;
+  esac
+  [ "${#task_id}" -le 18 ] || {
+    printf 'Task id is too long.\n' >&2
+    prompt_close
+    exit 64
+  }
+}
+
 edit_task_terminal() {
+  task_terminal edit
+}
+
+task_terminal() {
+  task_action=$1
   ensure_calendar_environment
   require_command todoman
   require_file "$TODOMAN_CONFIG"
-  todoman list
-  printf '\nTask id to edit: '
-  IFS= read -r task_id || exit 0
-  [ -n "$task_id" ] || exit 0
-  exec todoman edit -i "$task_id"
+  # All tasks permits inspecting/editing completed items too. Completion uses
+  # only the pending list; deletion still delegates confirmation to Todoman.
+  if [ "$task_action" = done ]; then
+    set -- todoman list
+  else
+    set -- todoman list --status ANY
+  fi
+  if "$@"; then
+    :
+  else
+    task_status=$?
+    prompt_close
+    return "$task_status"
+  fi
+  read_task_id
+  case "$task_action" in
+    edit) run_and_hold todoman edit -i -- "$task_id" ;;
+    show) run_and_hold todoman show -- "$task_id" ;;
+    done)
+      # Preview the selected item before an explicit, default-no confirmation.
+      if todoman show -- "$task_id"; then :; else
+        task_status=$?; prompt_close; return "$task_status"
+      fi
+      printf '\nMark this task completed? [y/N] '
+      IFS= read -r answer || exit 0
+      case "$answer" in y|Y|yes|YES) run_and_hold todoman done -- "$task_id" ;; esac
+      ;;
+    delete) run_and_hold todoman delete -- "$task_id" ;;
+    *) fatal "unsupported task action" ;;
+  esac
+}
+
+new_event_terminal() {
+  ensure_calendar_environment
+  require_command khal
+  require_file "$KHAL_CONFIG"
+  run_and_hold khal new -i
+}
+
+new_task_terminal() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  run_and_hold todoman new -i
+}
+
+all_tasks_terminal() {
+  ensure_calendar_environment
+  require_command todoman
+  require_file "$TODOMAN_CONFIG"
+  run_and_hold todoman list --status ANY
 }
 
 sync_terminal() {
@@ -348,10 +428,14 @@ open_menu() {
 Open Calendar
 Upcoming Agenda
 Open Tasks
+All Tasks
 Create new Event
 Edit Event
 Create new Task
 Edit Task
+Task Details
+Complete Task
+Delete Task
 Sync Calendar
 EOF
 )
@@ -360,16 +444,25 @@ EOF
     'Open Calendar') exec "$0" browse ;;
     'Upcoming Agenda') exec "$0" agenda ;;
     'Open Tasks') exec "$0" tasks ;;
+    'All Tasks') exec "$0" all-tasks ;;
     'Create new Event') exec "$0" new-event ;;
     'Edit Event') exec "$0" edit-event ;;
     'Create new Task') exec "$0" new-task ;;
     'Edit Task') exec "$0" edit-task ;;
+    'Task Details') exec "$0" show-task ;;
+    'Complete Task') exec "$0" done-task ;;
+    'Delete Task') exec "$0" delete-task ;;
     'Sync Calendar')
       run_terminal_action sync-terminal
       ;;
   esac
   exit 0
 }
+
+if [ "${1:-browse}" != sync ] && [ "$#" -gt 1 ]; then
+  printf 'usage: labwc-calendar ACTION (sync accepts --quiet)\n' >&2
+  exit 64
+fi
 
 case "${1:-browse}" in
   browse|open)
@@ -387,6 +480,15 @@ case "${1:-browse}" in
   tasks-terminal)
     show_tasks_terminal
     ;;
+  all-tasks)
+    run_terminal_action all-tasks-terminal
+    ;;
+  all-tasks-terminal)
+    all_tasks_terminal
+    ;;
+  new-event-terminal)
+    new_event_terminal
+    ;;
   new-event)
     create_event
     ;;
@@ -396,6 +498,9 @@ case "${1:-browse}" in
   edit-event-terminal)
     edit_event_terminal
     ;;
+  new-task-terminal)
+    new_task_terminal
+    ;;
   new-task)
     create_task
     ;;
@@ -404,6 +509,21 @@ case "${1:-browse}" in
     ;;
   edit-task-terminal)
     edit_task_terminal
+    ;;
+  show-task|done-task|delete-task)
+    run_terminal_action "$1-terminal"
+    ;;
+  show-task-terminal)
+    task_terminal show
+    ;;
+  done-task-terminal)
+    task_terminal done
+    ;;
+  delete-task-terminal)
+    task_terminal delete
+    ;;
+  sync-ui)
+    run_terminal_action sync-terminal
     ;;
   sync-terminal)
     sync_terminal

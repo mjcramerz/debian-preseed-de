@@ -191,8 +191,23 @@ def inspect_deb(path: Path, architectures: set[str]) -> dict[str, str]:
     if fields["Architecture"] not in architectures | {"all"}:
         raise Error(f"unsupported architecture: {fields['Architecture']}")
     # This walks/decompresses the complete payload but never extracts or runs it.
-    run(["/usr/bin/dpkg-deb", "--contents", str(path)], timeout=240)
+    contents = run(["/usr/bin/dpkg-deb", "--contents", str(path)], timeout=240)
+    if fields["Package"] == "tomat":
+        # Tomat is deliberately CLI-only. Require the exact regular executable,
+        # not a symlink, world-writable file or a privileged mode. Never extract it.
+        executable = re.findall(
+            rb"^(-[rwxstST-]{9})[ \t]+(?:root/root|0/0)[ \t]+[0-9]+[ \t]+"
+            rb"[0-9]{4}-[0-9]{2}-[0-9]{2}[ \t]+[0-9]{2}:[0-9]{2}[ \t]+\./usr/bin/tomat$",
+            contents, re.M)
+        if fields["Architecture"] != "amd64" or executable not in ([b"-rwxr-xr-x"], [b"-r-xr-xr-x"]):
+            raise Error("Tomat package must contain a regular root-owned amd64 /usr/bin/tomat")
     return fields
+
+
+def verify_tomat_release_version(fields: dict[str, str], version: str) -> None:
+    if (fields["Package"] != "tomat" or fields["Architecture"] != "amd64"
+            or not re.fullmatch(re.escape(version) + r"(?:-[0-9][A-Za-z0-9.+~]*)?", fields["Version"])):
+        raise Error("Tomat package identity/version does not match its verified release")
 
 
 def remove_dependencies(depends: str, names: list[str]) -> str:
@@ -874,6 +889,14 @@ class Discovery:
                     links.append(entry)
                 candidate = select_asset(links, source, package, architecture)
                 if candidate:
+                    if source["url"] == "https://api.github.com/repos/jolars/tomat/releases?per_page=100":
+                        if (package != "tomat" or architecture != "amd64"
+                                or not re.fullmatch(r"v[0-9]+(?:\.[0-9]+)+", tag)
+                                or candidate["name"] != "tomat_amd64.deb"
+                                or candidate["url"] != f"https://github.com/jolars/tomat/releases/download/{tag}/tomat_amd64.deb"
+                                or not 65_536 <= candidate.get("size", 0) <= 134_217_728
+                                or not re.fullmatch(r"[0-9a-f]{64}", candidate.get("sha256", ""))):
+                            raise Error("Tomat release lacks the approved identity, size or SHA-256")
                     candidates.append(candidate)
         if not candidates:
             raise Error("no unique stable matching .deb in the latest release metadata; nothing downloaded")
@@ -1846,6 +1869,8 @@ class Repository:
                         # Direct URLs can legitimately only change HTTP validators;
                         # ingest still rejects downgrades and same-version new bytes.
                         fields = inspect_deb(partial, self.architectures)
+                        if source.get("url") == "https://api.github.com/repos/jolars/tomat/releases?per_page=100":
+                            verify_tomat_release_version(fields, candidate["version"])
                         if candidate["kind"] != "direct" and not newer(fields["Version"], record.get("upstream_version", record["version"])):
                             raise Error("new release metadata returned a package without a newer Version")
                         committed_candidate.pop("observed_only", None)

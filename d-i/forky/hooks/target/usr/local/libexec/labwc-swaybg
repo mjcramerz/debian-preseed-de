@@ -12,31 +12,6 @@ case "${LABWC_ENABLE_SWAYBG:-true}" in
 esac
 
 wallpaper_path=${LABWC_WALLPAPER_PATH:-/usr/share/backgrounds/desktop/wallpaper-1920x1080.png}
-saved_wallpaper_path=$(
-  /usr/local/bin/labwc-wallpaper-save --current 2>/dev/null || true
-)
-if [ -n "$saved_wallpaper_path" ]; then
-  resolved_saved_wallpaper=$(readlink -e -- "$saved_wallpaper_path" 2>/dev/null || true)
-  case "$resolved_saved_wallpaper" in
-    /usr/share/backgrounds/desktop/*)
-      if [ -f "$resolved_saved_wallpaper" ] && [ -r "$resolved_saved_wallpaper" ]; then
-        wallpaper_path=$resolved_saved_wallpaper
-      fi
-      ;;
-  esac
-fi
-
-wallpaper_path=$(readlink -e -- "$wallpaper_path") || {
-  printf 'fatal: the configured wallpaper does not exist\n' >&2
-  exit 1
-}
-case "$wallpaper_path" in
-  /usr/share/backgrounds/desktop/*) ;;
-  *) printf 'fatal: wallpaper escaped the managed directory\n' >&2; exit 1 ;;
-esac
-[ -f "$wallpaper_path" ] && [ -r "$wallpaper_path" ] || exit 1
-
-swaybg_cmd=$(command -v swaybg 2>/dev/null || true)
-[ -n "$swaybg_cmd" ] || { printf 'fatal: swaybg is unavailable\n' >&2; exit 1; }
-
-exec "$swaybg_cmd" -m fill -i "$wallpaper_path"
+# One supervisor owns the background for the whole graphical session. Changes
+# arrive through the validated state file; selections never restart the unit.
+exec /usr/local/libexec/labwc-wallpaper-control supervise "$wallpaper_path"

@@ -2,7 +2,7 @@ anchor=top-right
 layer=overlay
 font=Noto Sans 11
 width=420
-height=220
+height=320
 outer-margin=14,14,0,14
 margin=8
 padding=12,14
@@ -19,7 +19,7 @@ max-history=100
 max-visible=5
 group-by=summary,app-name,urgency
 sort=-time
-format=<b>%s</b>\n%b
+format=<b>%s</b>\n%b\n<small>%a</small>
 default-timeout=8000
 ignore-timeout=0
 background-color=#08111ff2
@@ -32,7 +32,7 @@ on-button-right=dismiss
 on-touch=invoke-default-action
 
 [grouped]
-format=<b>%s</b>\n%b\n<small>%g notifications</small>
+format=<b>%s</b>\n%b\n<small>%a</small>\n<small>%g notifications</small>
 
 [hidden]
 format=<b>%h hidden</b> (%t total)

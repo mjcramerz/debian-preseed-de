@@ -1,0 +1,15 @@
+[browser-check] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/browser-check.log
+[browser-check] PASS (0)
+[build-check] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/build-check.log
+[build-check] PASS (0)
+[preseed-check] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/preseed-check.log
+[preseed-check] PASS (0)
+[shell-check] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/shell-check.log
+[shell-check] PASS (0)
+[tests] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/tests.log
+[tests] FAIL (1)
+[tools-tests] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/tools-tests.log
+[tools-tests] PASS (0)
+[audit] running; log: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/audit.log
+[audit] PASS (0)
+Summary: /mnt/data/revision-work/debian-preseed-de/validation/notifications-followup-20260920/final/summary.json

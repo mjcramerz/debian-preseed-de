@@ -912,8 +912,11 @@ class InstalledFailureRegressionTests(unittest.TestCase):
         self.assertEqual(struct.unpack('>II', fallback_bytes[16:24]), (1920, 1080))
         helper = (DESKTOP / 'usr/local/libexec/labwc-swaybg').read_text()
         self.assertIn(f'LABWC_WALLPAPER_PATH:-{expected}', helper)
-        self.assertIn('resolved_saved_wallpaper=$(readlink -e', helper)
-        self.assertIn('if [ -f "$resolved_saved_wallpaper" ]', helper)
+        self.assertIn('exec /usr/local/libexec/labwc-wallpaper-control supervise', helper)
+        controller = (DESKTOP / 'usr/local/libexec/labwc-wallpaper-control').read_text()
+        self.assertIn('candidate.resolve(strict=True)', controller)
+        self.assertIn('candidate.relative_to(ROOT)', controller)
+        self.assertIn('os.O_NOFOLLOW', controller)
         self.assertIn(f'wallpaper = {expected}',
                       (DESKTOP / 'etc/skel-desktop/.config/waypaper/config.ini').read_text())
 

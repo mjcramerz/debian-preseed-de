@@ -1,0 +1,7 @@
+test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker) ... DIAGNOSTIC ONLY: file=first-failure; original deadline=8s; diagnostic deadline=30s; elapsed=13.096s; observed=True
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 13.130s
+
+OK

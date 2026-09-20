@@ -3,10 +3,15 @@
 abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
-profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected) {
+profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_deleted) {
+  owner /tmp/.org.chromium.Chromium.* rw,
+  /opt/postman/app/resources/app/assets/icon.png r,
   owner @{HOME}/.local/share/icons/{,**} r,
   # The virtual keyboard transfers its unlinked, user-owned keymap fd.
   owner /tmp/wtype-?????? rw,
+  # Upstream passes its unlinked O_RDWR gamma-ramp FD through SCM_RIGHTS.
+  # AppArmor file_receive checks BOTH open modes, even though wlroots reads it.
+  owner /tmp/wlsunset-shared-?????? rw,
   # Do not include managed-desktop-graphics: its client policy denies primary
   # DRM nodes. Only this compositor domain owns the seat/input/card interfaces.
   #include <abstractions/base>
@@ -106,6 +111,7 @@ profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
 }
 
 profile managed-crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, mediate_deleted) {
+  /opt/postman/app/resources/app/assets/icon.png r,
   #include <abstractions/managed-session-client>
   owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
   owner "@{HOME}/.config/Crystal Dock*" rwkl,
@@ -152,7 +158,14 @@ profile managed-ksecretd /usr/bin/ksecretd flags=(attach_disconnected, mediate_d
   include if exists <local/usr.bin.ksecretd>
 }
 
-profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,gammastep,wayscriber,mako,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected) {
+profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,wayscriber,mako,makoctl,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected, mediate_deleted) {
+  /dev/tty rw,
+  /proc/version r,
+  /etc/magic r,
+  owner @{PROC}/[0-9]*/mountinfo r,
+  signal (receive) set=(hup) peer=managed-desktop-launcher,
+  signal (receive) set=(term kill) peer=managed-labwc-swaybg,
+  signal (send) set=(chld) peer=managed-labwc-swaybg,
   # Read-only inherited Bluetooth status descriptor; never rfkill writes.
   /dev/rfkill r,
   #include <abstractions/managed-session-client>
@@ -165,8 +178,8 @@ profile managed-session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-r
   deny network inet,
   deny network inet6,
   # authentication abstraction supplies the dedicated unix_chkpwd transition.
-  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/ rw,
-  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,gammastep,wayscriber,mako,nwg-look}/** rwkl,
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,wayscriber,mako,nwg-look}/ rw,
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,wayscriber,mako,nwg-look}/** rwkl,
   owner @{HOME}/.config/{pavucontrol.ini,qt6ct.conf,gtkrc-2.0}* rwkl,
   owner @{HOME}/.local/share/{labwc,wayscriber}/ rw,
   owner @{HOME}/.local/share/{labwc,wayscriber}/** rwkl,
@@ -247,4 +260,75 @@ profile managed-labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach
   signal (receive) set=(chld) peer=managed-crystal-dock,
   signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-waybar,
   signal (send) set=(int, term, hup, usr1, usr2, kill) peer=managed-crystal-dock,
+}
+
+profile managed-wpctl /usr/bin/wpctl flags=(attach_disconnected) {
+  #include <abstractions/base>
+  / r,
+  #include <abstractions/managed-pipewire-audio>
+  unix,
+  /usr/bin/wpctl mr,
+  /usr/lib/** mr,
+  /usr/share/wireplumber/{,**} r,
+  /etc/wireplumber/{,**} r,
+  /etc/{passwd,group,nsswitch.conf,machine-id} r,
+  /sys/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,
+  /proc/self/comm rw,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  owner /run/user/[0-9]*/ r,
+  /dev/tty rw,
+  owner /dev/pts/[0-9]* rw,
+  signal (receive) peer=managed-labwc-compositor,
+  signal (send) set=(chld) peer=managed-labwc-compositor,
+}
+
+# Short-lived user-manager controller. systemd-run/systemctl inherit this
+# profile; an environment-scrubbing exec transition would break secure_getenv.
+profile managed-labwc-wlsunset /usr/local/bin/labwc-wlsunset flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  #include <abstractions/dbus-session-strict>
+  /usr/local/bin/labwc-wlsunset rix,
+  / r,
+  /etc/ r,
+  /usr/bin/{systemctl,systemd-run} rix,
+  /etc/default/ r,
+  /etc/default/labwc-wlsunset r,
+  /etc/machine-id r,
+  /run/ r,
+  /run/user/ r,
+  /run/systemd/system/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-[0-9]*} rw,
+  owner /run/user/[0-9]*/labwc-wlsunset.lock rwk,
+  unix (create, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
+  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session peer=(label=unconfined),
+  signal (send, receive) peer=managed-labwc-wlsunset,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=managed-labwc-autostart,
+  signal (send) set=(chld) peer=managed-labwc-autostart,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/usr.local.bin.labwc-wlsunset>
+}
+
+# Native gamma client: no GPU device, system/session D-Bus, home data or network.
+# Executable attachment is used because user systemd cannot set AppArmorProfile=.
+profile managed-wlsunset /usr/bin/wlsunset flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  /usr/bin/wlsunset mr,
+  /etc/localtime r,
+  /usr/share/zoneinfo/{,**} r,
+  owner /run/user/[0-9]*/wayland-[0-9]* rw,
+  owner /tmp/wlsunset-shared-?????? rw,
+  unix (create, shutdown, getattr, getopt, setopt) type=stream,
+  unix (connect, send, receive) type=stream peer=(label=managed-labwc-compositor),
+  signal (receive) set=(term int kill) peer=unconfined,
+  signal (receive) set=(alrm) peer=managed-wlsunset,
+  signal (send) set=(chld) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+  deny /dev/dri/** rw,
+  deny /dev/nvidia* rw,
+  include if exists <local/usr.bin.wlsunset>
 }

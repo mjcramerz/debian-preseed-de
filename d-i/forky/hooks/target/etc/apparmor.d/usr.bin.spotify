@@ -5,6 +5,8 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile spotify /usr/bin/spotify flags=(attach_disconnected) {
+  /usr/lib/@{multiarch}/glib-2.0/gio-launch-desktop rix,
+  /usr/local/bin/labwc-managed-app rPx -> managed-labwc-managed-app,
   #include <abstractions/managed-electron-application>
   #include <abstractions/managed-pipewire-audio>
   include if exists <abstractions/user-tmp>

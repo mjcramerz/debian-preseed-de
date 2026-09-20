@@ -32,7 +32,6 @@ btrfs_family_fstab_record_for_mount() {
 select_btrfs_hardware_policy() {
 default_file_modprobe_snd_hda_intel=$FILE_MODPROBE_SND_HDA_INTEL
 default_file_modprobe_iwlwifi=$FILE_MODPROBE_IWLWIFI
-default_file_modprobe_thinkpad_acpi=$FILE_MODPROBE_THINKPAD_ACPI
 default_file_modprobe_e1000e=$FILE_MODPROBE_E1000E
 default_file_modprobe_vfio=$FILE_MODPROBE_VFIO
 default_file_modprobe_i915=$FILE_MODPROBE_I915
@@ -100,7 +99,6 @@ case "${HOOK_FAMILY}:${DISK_CLASS:-}" in
       target_enable_vfio=true
       INITRAMFS_PLATFORM_MODULES=$(cat <<'EOF'
 intel_wmi_thunderbolt
-thinkpad_acpi
 EOF
 )
     fi
@@ -136,7 +134,6 @@ GRAPHICS_INITRAMFS_MODULES=$(late_command_graphics_initramfs_modules "$GPU_CLASS
 
 set_optional_path FILE_MODPROBE_SND_HDA_INTEL "$target_enable_baremetal_intel" "$default_file_modprobe_snd_hda_intel"
 set_optional_path FILE_MODPROBE_IWLWIFI "$target_enable_baremetal_intel" "$default_file_modprobe_iwlwifi"
-set_optional_path FILE_MODPROBE_THINKPAD_ACPI "$target_enable_baremetal_intel" "$default_file_modprobe_thinkpad_acpi"
 set_optional_path FILE_MODPROBE_E1000E "$target_enable_baremetal_intel" "$default_file_modprobe_e1000e"
 set_optional_path FILE_MODPROBE_VFIO "$target_enable_vfio" "$default_file_modprobe_vfio"
 set_optional_path FILE_MODPROBE_I915 "$target_enable_intel_gpu" "$default_file_modprobe_i915"
@@ -634,7 +631,7 @@ prepare_target_deferred_tmpfs_roots() {
 write_target_kernel_tunables() {
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/78-snd-hda-intel.conf")" "${FILE_MODPROBE_SND_HDA_INTEL:-}" "${DIR_MODPROBE_D}/78-snd-hda-intel.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/76-iwlwifi.conf")" "${FILE_MODPROBE_IWLWIFI:-}" "${DIR_MODPROBE_D}/76-iwlwifi.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/79-thinkpad-acpi.conf")" "${FILE_MODPROBE_THINKPAD_ACPI:-}" "${DIR_MODPROBE_D}/79-thinkpad-acpi.conf" 0644
+  stage_target_hardware_spec
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/77-e1000e.conf")" "${FILE_MODPROBE_E1000E:-}" "${DIR_MODPROBE_D}/77-e1000e.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/70-vfio-pci.conf")" "${FILE_MODPROBE_VFIO:-}" "${DIR_MODPROBE_D}/70-vfio-pci.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path gpu intel-uhd etc/modprobe.d/80-i915.conf)" "${FILE_MODPROBE_I915:-}" "${DIR_MODPROBE_D}/80-i915.conf" 0644

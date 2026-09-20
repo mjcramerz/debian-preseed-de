@@ -1,0 +1,34 @@
+...F.F...............................
+======================================================================
+FAIL: test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/baseline/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 116, in test_all_profiles_complete_and_exact_enable_matrix
+    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+First differing element 0:
+'btrfs-de-flex.env'
+'btrfs-de-dual-flex.env'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'btrfs-de-flex.env'
+
+- ['btrfs-de-flex.env']
++ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+======================================================================
+FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/baseline/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 147, in test_both_enabled_profiles_native_staging_and_query
+    self.assertTrue(path.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 37 tests in 24.022s
+
+FAILED (failures=2)

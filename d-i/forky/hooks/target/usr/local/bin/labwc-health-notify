@@ -6,6 +6,7 @@ PATH=/usr/local/bin:/usr/bin:/bin
 export PATH
 
 coalesce_pid=
+notification_pid=
 
 # Invoked indirectly by the signal trap installed below.
 # shellcheck disable=SC2329
@@ -14,6 +15,10 @@ cancel_coalescing() {
   if [ -n "$coalesce_pid" ]; then
     kill -TERM "$coalesce_pid" 2>/dev/null || true
     wait "$coalesce_pid" 2>/dev/null || true
+  fi
+  if [ -n "$notification_pid" ]; then
+    kill -TERM "$notification_pid" 2>/dev/null || true
+    wait "$notification_pid" 2>/dev/null || true
   fi
   exit 0
 }
@@ -47,9 +52,9 @@ case "$#" in
 esac
 
 APP_NAME="Desktop Health"
-NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+NOTIFY_SEND=${NOTIFY_SEND:-/usr/local/libexec/labwc-notification-send}
 
-[ -n "$NOTIFY_SEND" ] || exit 0
+[ -x "$NOTIFY_SEND" ] || { printf "health-notify: transport is missing or not executable\n" >&2; exit 1; }
 [ "${LABWC_SESSION_OWNER:-}" = desktop ] || exit 0
 [ "${XDG_SESSION_TYPE:-}" = wayland ] || exit 0
 [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ] || exit 0
@@ -91,7 +96,7 @@ case "$CURRENT_USER" in
   ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-]*) exit 0 ;;
 esac
 MAILBOX="${MAIL:-/var/mail/${CURRENT_USER}}"
-NOTIFY_SEND=${NOTIFY_SEND:-$(command -v notify-send 2>/dev/null || true)}
+NOTIFY_SEND=${NOTIFY_SEND:-/usr/local/libexec/labwc-notification-send}
 TIMESHIFT_EVENT_DIR=${TIMESHIFT_EVENT_DIR:-/var/lib/labwc-notifications/timeshift}
 TIMESHIFT_SEEN_DIR=${TIMESHIFT_SEEN_DIR:-"${STATE_DIR}/timeshift-seen"}
 TIMESHIFT_EVENT_OWNER_UID=${TIMESHIFT_EVENT_OWNER_UID:-0}
@@ -190,8 +195,22 @@ read_state() (
   /usr/bin/head -c 4096 -- "$source"
 )
 
+notification_transport_failed=false
 notify() {
-  /usr/bin/timeout --kill-after=1s 3s "$NOTIFY_SEND" "$@" 9>&-
+  # One bounded two-attempt delivery per cycle when the bus is unavailable.
+  # Leave all unsent records unacknowledged for the next timer/path activation.
+  [ "$notification_transport_failed" = false ] || return 1
+  /usr/bin/timeout --kill-after=1s 14s "$NOTIFY_SEND" "$@" 9>&- &
+  notification_pid=$!
+  if wait "$notification_pid"; then
+    notification_pid=
+    return 0
+  fi
+  notification_pid=
+  notification_transport_failed=true
+  notification_failures=1
+  printf 'health-notify: delivery unavailable; pending events retained for retry\n' >&2
+  return 1
 }
 
 prune_seen() (
@@ -221,12 +240,12 @@ send_notification() {
   [ "$previous_notification_payload" = "$notification_payload" ] && return 0
 
   if [ -n "$category" ]; then
-    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -c "$category" -t "$timeout_ms" -- "$summary" "$body" >/dev/null 2>&1 || return 1
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -c "$category" -t "$timeout_ms" -- "$summary" "$body" || return 1
   else
-    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -t "$timeout_ms" -- "$summary" "$body" >/dev/null 2>&1 || return 1
+    notify -a "$APP_NAME" -u "$urgency" -i "$icon" -t "$timeout_ms" -- "$summary" "$body" || return 1
   fi
 
-  printf '%s' "$notification_payload" | atomic_state "$notification_state_file"
+  printf '%s' "$notification_payload" | atomic_state "$notification_state_file" || return 1
 }
 
 clear_notification_state() {
@@ -237,7 +256,7 @@ clear_notification_state() {
 
   [ -s "$notification_state_file" ] || return 0
   if [ -n "$summary" ]; then
-    notify -a "$APP_NAME" -u normal -i dialog-information -t 8000 -- "$summary" "$body" >/dev/null 2>&1 || return 1
+    notify -a "$APP_NAME" -u normal -i dialog-information -t 8000 -- "$summary" "$body" || return 1
   fi
   rm -f -- "$notification_state_file"
 }
@@ -276,7 +295,7 @@ check_disk_usage() {
     send_notification \
       "$key" critical dialog-error device.error 0 \
       "Critical disk pressure on ${mount_point}" \
-      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free."
+      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free." || return 1
     return 0
   fi
 
@@ -284,7 +303,7 @@ check_disk_usage() {
     send_notification \
       "$key" normal dialog-warning device.error 12000 \
       "Disk pressure warning on ${mount_point}" \
-      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free."
+      "${mount_point} is ${usage_percent}% used with ${available_gib} GiB free." || return 1
     return 0
   fi
 
@@ -314,7 +333,7 @@ check_temperature() {
     send_notification \
       thermal critical dialog-error device.error 0 \
       "Critical system temperature" \
-      "The hottest thermal zone is reporting ${max_temp_c}C."
+      "The hottest thermal zone is reporting ${max_temp_c}C." || return 1
     return 0
   fi
 
@@ -322,7 +341,7 @@ check_temperature() {
     send_notification \
       thermal normal dialog-warning device.error 12000 \
       "High system temperature" \
-      "The hottest thermal zone is reporting ${max_temp_c}C."
+      "The hottest thermal zone is reporting ${max_temp_c}C." || return 1
     return 0
   fi
 
@@ -362,7 +381,7 @@ check_memory_pressure() {
     send_notification \
       memory critical dialog-error system.memory 0 \
       "Critical memory pressure" \
-      "Only ${available_mib} MiB (${available_percent}%) of memory is available."
+      "Only ${available_mib} MiB (${available_percent}%) of memory is available." || return 1
     return 0
   fi
 
@@ -370,7 +389,7 @@ check_memory_pressure() {
     send_notification \
       memory normal dialog-warning system.memory 12000 \
       "High memory pressure" \
-      "Only ${available_mib} MiB (${available_percent}%) of memory is available."
+      "Only ${available_mib} MiB (${available_percent}%) of memory is available." || return 1
     return 0
   fi
 
@@ -411,7 +430,7 @@ check_battery() {
     send_notification \
       battery critical battery-caution system.battery 0 \
       "Critical battery level" \
-      "Battery charge is ${minimum_discharging_capacity}% and still discharging."
+      "Battery charge is ${minimum_discharging_capacity}% and still discharging." || return 1
     return 0
   fi
 
@@ -419,7 +438,7 @@ check_battery() {
     send_notification \
       battery normal battery-low system.battery 12000 \
       "Low battery level" \
-      "Battery charge is ${minimum_discharging_capacity}% and still discharging."
+      "Battery charge is ${minimum_discharging_capacity}% and still discharging." || return 1
     return 0
   fi
 
@@ -441,7 +460,7 @@ check_reboot_required() {
     send_notification \
       reboot-required normal system-reboot system.reboot 0 \
       "System restart required" \
-      "Installed package or maintenance changes require a restart to take full effect."
+      "Installed package or maintenance changes require a restart to take full effect." || return 1
     return 0
   fi
 
@@ -467,10 +486,10 @@ check_mailbox() {
     send_notification \
       mailbox normal mail-unread email.arrived 10000 \
       "New local mail for ${CURRENT_USER}" \
-      "${MAILBOX} now contains ${mail_count} message(s)."
+      "${MAILBOX} now contains ${mail_count} message(s)." || return 1
   fi
 
-  printf '%s\n' "$mail_count" | atomic_state "$mail_count_state_file"
+  printf '%s\n' "$mail_count" | atomic_state "$mail_count_state_file" || return 1
 }
 
 check_timeshift_events() {
@@ -567,7 +586,7 @@ check_timeshift_events() {
       -c system.backup \
       -t "$timeout_ms" \
       -- "$summary" \
-      "$body" >/dev/null 2>&1
+      "$body"
     then
       atomic_state "$marker_path" </dev/null
     else
@@ -689,7 +708,7 @@ check_unattended_upgrade_events() {
       -c system.software-update \
       -t "$timeout_ms" \
       -- "$summary" \
-      "$body" >/dev/null 2>&1
+      "$body"
     then
       atomic_state "$marker_path" </dev/null
     else
@@ -835,7 +854,7 @@ check_system_events() {
       -t "$event_timeout_ms" \
       -- \
       "$event_summary" \
-      "$event_body" >/dev/null 2>&1
+      "$event_body"
     then
       atomic_state "$marker_path" </dev/null
     else
@@ -899,7 +918,7 @@ check_security_signal() {
     previous_count=0
   fi
   if [ "$current_count" -le "$previous_count" ]; then
-    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path"
+    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path" || return 1
     return 0
   fi
 
@@ -917,9 +936,9 @@ check_security_signal() {
     -c "$category" \
     -t "$timeout_ms" \
     -- "$summary" \
-    "$body" >/dev/null 2>&1
+    "$body"
   then
-    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path"
+    printf '%s|%s\n' "$current_identity" "$current_count" | atomic_state "$state_path" || return 1
   else
     notification_failures=1
   fi
@@ -961,17 +980,17 @@ check_security_signals() {
     /var/log/managed/nftables/firewall.log
 }
 
-check_system_events
-check_timeshift_events
-check_unattended_upgrade_events
-check_security_signals
-check_disk_usage disk-home "$HOME" 90 95
-check_disk_usage disk-data /data 90 95
-check_disk_usage disk-pool /pool 90 95
-check_temperature
-check_memory_pressure
-check_battery
-check_reboot_required
-check_mailbox
+check_system_events || notification_failures=1
+check_timeshift_events || notification_failures=1
+check_unattended_upgrade_events || notification_failures=1
+check_security_signals || notification_failures=1
+check_disk_usage disk-home "$HOME" 90 95 || notification_failures=1
+check_disk_usage disk-data /data 90 95 || notification_failures=1
+check_disk_usage disk-pool /pool 90 95 || notification_failures=1
+check_temperature || notification_failures=1
+check_memory_pressure || notification_failures=1
+check_battery || notification_failures=1
+check_reboot_required || notification_failures=1
+check_mailbox || notification_failures=1
 
 exit "$notification_failures"

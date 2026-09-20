@@ -39,7 +39,6 @@ fi
 info "late installer context: host_profile=${INSTALLER_HOST_PROFILE:-unset} selected_groups=${INSTALLER_SELECTED_GROUPS:-unset} selected_classes=${INSTALLER_SELECTED_CLASSES:-unset} cpu=${CPU_CLASS:-unset} disk=${DISK_CLASS:-unset} gpu=${GPU_CLASSES:-none} nvidia_addon=${NVIDIA_ADDON_SELECTED} nvidia_gpu=${NVIDIA_GPU_DETECTED} podman_addon=${PODMAN_ADDON_SELECTED}"
 
 default_file_modprobe_mei_blacklist=$FILE_MODPROBE_MEI_BLACKLIST
-default_file_modprobe_thinkpad_acpi=$FILE_MODPROBE_THINKPAD_ACPI
 default_file_modprobe_i915=$FILE_MODPROBE_I915
 default_file_modprobe_amdgpu=$FILE_MODPROBE_AMDGPU
 default_file_modprobe_nvidia=$FILE_MODPROBE_NVIDIA
@@ -97,7 +96,6 @@ done
 GRAPHICS_INITRAMFS_MODULES=$(late_command_graphics_initramfs_modules "$GPU_CLASSES" "$target_enable_nvidia")
 
 set_optional_path FILE_MODPROBE_MEI_BLACKLIST false "$default_file_modprobe_mei_blacklist"
-set_optional_path FILE_MODPROBE_THINKPAD_ACPI "$target_enable_intel_platform" "$default_file_modprobe_thinkpad_acpi"
 set_optional_path FILE_MODPROBE_I915 "$target_enable_intel_gpu" "$default_file_modprobe_i915"
 set_optional_path FILE_MODPROBE_AMDGPU "$target_enable_amd_gpu" "$default_file_modprobe_amdgpu"
 set_optional_path FILE_MODPROBE_NVIDIA "$target_enable_nvidia" "$default_file_modprobe_nvidia"
@@ -188,7 +186,7 @@ write_target_kernel_tunables() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/60-ses-blacklist.conf)" "${FILE_MODPROBE_SES_BLACKLIST}" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path disk "${DISK_CLASS}" "etc/modprobe.d/72-nvme-blacklist.conf")" "${FILE_MODPROBE_NVME_BLACKLIST:-}" "${DIR_MODPROBE_D}/72-nvme-blacklist.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/05-mei-blacklist.conf")" "${FILE_MODPROBE_MEI_BLACKLIST:-}" "${DIR_MODPROBE_D}/05-mei-blacklist.conf" 0644
-  stage_target_asset_if_path "$(installer_hardware_asset_path cpu "${CPU_CLASS}" "etc/modprobe.d/79-thinkpad-acpi.conf")" "${FILE_MODPROBE_THINKPAD_ACPI:-}" "${DIR_MODPROBE_D}/79-thinkpad-acpi.conf" 0644
+  stage_target_hardware_spec
   stage_target_asset_if_path "$(installer_hardware_asset_path gpu intel-uhd etc/modprobe.d/80-i915.conf)" "${FILE_MODPROBE_I915:-}" "${DIR_MODPROBE_D}/80-i915.conf" 0644
   stage_target_asset_if_path "$(installer_hardware_asset_path gpu amd-radeon etc/modprobe.d/81-amdgpu.conf)" "${FILE_MODPROBE_AMDGPU:-}" "${DIR_MODPROBE_D}/81-amdgpu.conf" 0644
   if [ "$target_enable_nvidia" = true ]; then

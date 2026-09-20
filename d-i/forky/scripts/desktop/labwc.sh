@@ -211,6 +211,7 @@ assert Gio.AppInfo and GioUnix.DesktopAppInfo
   desktop_enable_target_services
   desktop_log "staged Labwc desktop service enablement"
   desktop_verify_kanshi_policy
+  desktop_verify_native_drawer_icons
   desktop_install_codex_standalone
   desktop_log "skipped Labwc desktop target staging verification during installer late-command"
   installer_info "Labwc desktop role installation completed for seed ${requested_seed_base:-$SEED_BASE}"

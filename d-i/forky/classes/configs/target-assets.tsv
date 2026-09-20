@@ -9,7 +9,6 @@ cpu	intel	etc/modprobe.d/75-cfg80211.conf	etc/modprobe.d/75-cfg80211.conf
 cpu	intel	etc/modprobe.d/77-e1000e.conf	etc/modprobe.d/77-e1000e.conf
 cpu	intel	etc/modprobe.d/76-iwlwifi.conf	etc/modprobe.d/76-iwlwifi.conf
 cpu	intel	etc/modprobe.d/78-snd-hda-intel.conf	etc/modprobe.d/78-snd-hda-intel.conf
-cpu	intel	etc/modprobe.d/79-thinkpad-acpi.conf	etc/modprobe.d/79-thinkpad-acpi.conf
 cpu	intel	etc/modprobe.d/71-thunderbolt.conf	etc/modprobe.d/71-thunderbolt.conf
 cpu	intel	etc/modprobe.d/70-vfio-pci.conf	etc/modprobe.d/70-vfio-pci.conf
 cpu	intel	etc/modules-load.d/35-vfio.conf	etc/modules-load.d/35-vfio.conf

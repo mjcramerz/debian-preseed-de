@@ -5,6 +5,7 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile keepassxc /usr/bin/keepassxc flags=(attach_disconnected, mediate_deleted) {
+  owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/managed-desktop-application>
   include if exists <abstractions/user-tmp>
 

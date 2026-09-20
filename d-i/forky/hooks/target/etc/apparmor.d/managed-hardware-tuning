@@ -65,6 +65,8 @@ profile managed-hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker
 }
 
 profile managed-hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flags=(attach_disconnected, mediate_deleted) {
+  owner /dev/pts/[0-9]* rw,
+  ptrace (readby) peer=managed-desktop-launcher,
   # Deliberately NOT managed-wrapper-python: that abstraction permits shells.
   #include <abstractions/base>
   #include <abstractions/python>

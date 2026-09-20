@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="3.22" />
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="notifications_center">
+        <property name="label">Open notification center</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="notifications_restore">
+        <property name="label">Restore most recent notification</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" />
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="label">Do not disturb</property>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <child>
+              <object class="GtkMenuItem" id="notifications_dnd_on">
+                <property name="label">Enable</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="notifications_dnd_off">
+                <property name="label">Disable</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="notifications_dnd">
+                <property name="label">Toggle</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" />
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="notifications_dismiss">
+        <property name="label">Dismiss active (save to history)</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="notifications_clear">
+        <property name="label">Clear active (do not save)</property>
+      </object>
+    </child>
+  </object>
+</interface>

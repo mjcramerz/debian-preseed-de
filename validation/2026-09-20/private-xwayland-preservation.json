@@ -1,0 +1,83 @@
+{
+  "all_unchanged": true,
+  "files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+      "unchanged": true,
+      "sha256": "95888395653f3709e7a4d38a5135934427074959d059173c8c36d945aff78783"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+      "unchanged": true,
+      "sha256": "7dd18b7d64d84b0f0c9b47debbda690a4cbbb9058eb9bdd849412c9c87a0fff3"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf",
+      "unchanged": true,
+      "sha256": "23453840cf0ed2d4649a1abd05538b040ea504001fb97f67bf926e996eb91b51"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/discord",
+      "unchanged": true,
+      "sha256": "8340c62ef1d9c240ea82a66d45d58bb4c27cf3ad4e79c0abc61851ae423bd724"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/zoom",
+      "unchanged": true,
+      "sha256": "c37653fd2e1a13c218abc06a40e119d20631a8444012c8b461a739865f79228e"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Discord.pm",
+      "unchanged": true,
+      "sha256": "abf6df87e28c2c85bc80f670a03c80e2b864bd69cf4a0577bae18c8fa4fc676b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+      "unchanged": true,
+      "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+      "unchanged": true,
+      "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+      "unchanged": true,
+      "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/managed-discord-distro",
+      "unchanged": true,
+      "sha256": "d2b28146168ff43ebd247386a2a5dd1d6ffa60299d531f381c0ce97f71c18e95"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/share/applications/discord.desktop",
+      "unchanged": true,
+      "sha256": "ad654f636ae162f3e7079abc2a89a3a73fbb86414b82645eff1bedfb1728458c"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/xwayland.sh",
+      "unchanged": true,
+      "sha256": "5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+      "unchanged": true,
+      "sha256": "e3194af7db568b07ca33ef101f48c8de16c71e478e6fb8a608d817e92d56f848"
+    }
+  ],
+  "unchanged_electron_argument_profiles": [
+    "bitwarden",
+    "code",
+    "discord",
+    "filen",
+    "ledger-live",
+    "obsidian",
+    "postman",
+    "sleek",
+    "spotify",
+    "tutanota"
+  ],
+  "note": "Only four read-only CPU base_frequency rules were added to the existing compatibility AppArmor child. No Xwayland code, launch args, namespaces, sockets, or ownership changed."
+}

@@ -1,0 +1,73 @@
+{
+  "scope": "eleven requested desktop/session repair areas",
+  "full_suite": {
+    "tests": {
+      "run": 1852,
+      "failures": 13,
+      "skipped": 47,
+      "passed": 1792
+    },
+    "tools-tests": {
+      "run": 179,
+      "failures": 1,
+      "skipped": 0,
+      "passed": 178
+    }
+  },
+  "final_scoped_review": {
+    "change": "Removed the added Labwc XF86Sleep binding to retain logind as sole power/suspend handler; added assertions preventing duplicate handlers.",
+    "validation_sequence": "Full candidate suites completed first. After the final XML/test-only hotkey review, the payload was rebuilt and all 26 new regression tests plus 42 directly affected integration/rendering tests passed.",
+    "post_review_tests": {
+      "new_regressions": 26,
+      "affected_integration_and_rendering": 42,
+      "all_passed": true
+    },
+    "logs": [
+      "hotkey-final-build.log",
+      "hotkey-final-build-check.log",
+      "hotkey-new-tests.log",
+      "hotkey-new-edges.log",
+      "hotkey-final-integration.log"
+    ],
+    "final_runtime_products": {
+      "preseed.cfg": "0c6deb21cc93f6ce75b6887fd4f1af5fdd2caa4c60b95bb0815c39e848d44f3f",
+      "payload.manifest": "3887983dfcd29d15f40268a42134e7041856ebc3a33bcac8658e20abcf31494c",
+      "payload.tar.gz": "4cec73f971ef11f091088625e8fd6cf4729f53ec07d63a1063658ba541b8029c"
+    }
+  },
+  "new_regression_tests": {
+    "run": 26,
+    "passed": 26
+  },
+  "unexpected_full_suite_failures": [],
+  "inherited_failures_reproduced_on_untouched_input": [
+    "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+    "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)",
+    "test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)",
+    "test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)",
+    "test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields)",
+    "test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style)",
+    "test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement)",
+    "test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy)",
+    "test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group)",
+    "test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option)",
+    "test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy)",
+    "test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency)",
+    "test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services)"
+  ],
+  "apparmor_changed_policy_files_compiled_offline": 9,
+  "original_files_retained": 3165,
+  "original_files_byte_identical": 3118,
+  "payload_files": 1391,
+  "target_runtime_verified": false,
+  "atomic_kms_ebusy_resolved": "not established; consistency change only",
+  "all_tests_green": false,
+  "limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance."
+  ]
+}

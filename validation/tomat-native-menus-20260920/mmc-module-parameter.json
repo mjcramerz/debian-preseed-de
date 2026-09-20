@@ -1,0 +1,7 @@
+{
+  "module_file": "/lib/modules/6.12.96+deb13-amd64/kernel/drivers/mmc/core/mmc_block.ko.xz",
+  "check": "Exact registered parameter string exists in the preinstalled Debian module and matches the new policy. No module was loaded or compiled.",
+  "parameter": "mmcblk.perdev_minors",
+  "success": true,
+  "limit": "This corroborates the source review; it is not a Forky kernel or physical eMMC acceptance test."
+}

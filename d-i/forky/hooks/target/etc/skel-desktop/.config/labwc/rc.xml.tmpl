@@ -120,6 +120,32 @@ __INSTALLER_LABWC_WORKSPACE_NAME_LINES__
     <keybind key="A-S-Tab">
       <action name="PreviousWindow" workspace="current" output="__INSTALLER_LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT__" identifier="all" />
     </keybind>
+    <!-- Native ThinkPad evdev keys; firmware-owned brightness/volume remain unchanged. -->
+    <keybind key="XF86AudioMicMute" onRelease="yes">
+      <action name="Execute" command="/usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle" />
+    </keybind>
+    <keybind key="XF86ScreenSaver" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-lock" />
+    </keybind>
+    <!-- Sleep/power keys remain owned by logind; do not handle them twice. -->
+    <keybind key="XF86Display" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-display-configuration" />
+    </keybind>
+    <keybind key="XF86WLAN" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-network-control-menu" />
+    </keybind>
+    <keybind key="XF86Battery" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-power-menu" />
+    </keybind>
+    <keybind key="XF86Launch1" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-computer-management" />
+    </keybind>
+    <keybind key="XF86Launch3" onRelease="yes">
+      <action name="Execute" command="/usr/local/bin/labwc-main-menu" />
+    </keybind>
+    <keybind key="XF86NotificationCenter" onRelease="yes">
+      <action name="Execute" command="/usr/bin/makoctl restore" />
+    </keybind>
     <keybind key="W-Return">
       <action name="Execute" command="labwc-terminal" />
     </keybind>

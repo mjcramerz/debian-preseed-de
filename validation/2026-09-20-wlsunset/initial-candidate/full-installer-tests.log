@@ -1,0 +1,630 @@
+ssssssssssssssss........sssssss..........................s.................s.............................s.................................................codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-sg5qnl5n/runtime/65534.3w06s63f
+codex-installer-session: installer finished with status=0
+.codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-von1mf6b/runtime/65534.xf46vpeo
+codex-installer-session: installer finished with status=37
+..codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-c1axrmjd/runtime/65534.d4fqxo_a
+codex-installer-session: installer deadline exceeded; stopping installer process group
+codex-installer-session: installer finished with status=124
+..codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-9dv377ob/runtime/65534.y09sid83
+codex-installer-session: installer finished with status=0
+..codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-9wh_mlnl/runtime/65534.17r2vntv
+codex-installer-session: installer finished with status=0
+..codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-fo6yqn2u/runtime/65534.4yjs2e44
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-fo6yqn2u/runtime/65534.16zqzmqb
+codex-installer-session: installer finished with status=0
+.codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-9fpk3hzj/runtime/65534.p6qjf_4p
+official Codex standalone package 1.2.3 is already installed
+codex-installer-session: installer finished with status=0
+codex-installer-session: starting uid=65534 with private runtime /tmp/codex-session-test-9fpk3hzj/runtime/65534.39x9x0mt
+official Codex standalone package 1.2.3 is already installed
+codex-installer-session: installer finished with status=0
+.....................................fatal: Remote Desktop log is not a private user-owned regular file: /tmp/tmpk3lr0fp1/session.log
+.........................................................................................................................../mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/scripts/desktop/fonts-install.py:425: DeprecationWarning: This process (pid=10866) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  pid = os.fork()
+...........................fatal: invalid desktop activation token
+fatal: invalid desktop activation token
+..............fatal: HOME-relative file must not traverse symlinks: /tmp/tuta-integration-4ip1go2_/.config/mimeapps.list
+.fatal: persistent runtime directory must be a real directory owned by the current user: /tmp/tuta-integration-doyndbc9/bad
+.....................s.....................................................s.s.....................................................gitops: main/staging/release branches cannot be deleted
+.................................................................intel: thermal
+nvidia: thermal
+.nvidia: injected worker error
+........................................intel: thermal
+....................................intel: injected worker error
+.nvidia: injected worker error; recovery still pending: injected worker error
+....intel: injected worker error; recovery still pending: injected worker error
+.........................................................intel: failed write; recovery still pending: injected worker error
+..........................................................fatal: ChatGPT launcher forbids ambient environment variable: LD_PRELOAD
+fatal: ChatGPT launcher forbids ambient environment variable: LD_LIBRARY_PATH
+fatal: ChatGPT launcher forbids ambient environment variable: PYTHONPATH
+fatal: ChatGPT launcher forbids ambient environment variable: BASH_ENV
+.....fatal: ChatGPT DevOps profile has unsafe ownership, type or mode: /tmp/tmpdy0e3o6s/.profile.d/71-devops-de.sh
+................fatal: desktop env assignment cannot replace the account identity: HOME
+fatal: desktop env assignment conflicts with launch isolation: DISPLAY
+fatal: desktop env assignment conflicts with launch isolation: LD_PRELOAD
+fatal: desktop env assignment cannot replace the account identity: DBUS_SESSION_BUS_ADDRESS
+...fatal: Electron launcher refuses sandbox-disabling switch: --disable-gpu-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-namespace-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --disable-seccomp-filter-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --in-process-gpu
+fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+fatal: Electron launcher refuses sandbox-disabling switch: --no-zygote
+fatal: Electron launcher refuses sandbox-disabling switch: --single-process
+.fatal: Electron desktop Exec must name the executable, not a shell -c script
+......................s.fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+fatal: tool must be a root-owned executable regular file: /usr/bin/tool
+..fatal: LABWC_NATIVE_APP_SESSION_UNIT has an invalid value
+.fatal: managed application user manager still hides host ownership
+......................................................................F.F................................................................................................................................s......................fatal: Electron launcher refuses sandbox-disabling switch: --no-sandbox
+..............................ss..ss.........................dbus_broker_compatibility=refreshed
+dbus_broker_compatibility=refreshed
+dbus_broker_compatibility=refreshed
+desktop_font_verification terminal=3 microsoft=2 content=verified
+desktop_font_verification terminal=3 microsoft=2 content=verified
+[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] branch mcr/staging mcr/main
+[git] completed (exit 0)
+[git] branch mcr/release mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+[git] switch -q upstream
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.[git] switch -qc upstream
+[git] completed (exit 0)
+[git] switch -q mcr/main
+[git] completed (exit 0)
+.........s.......................................fatal: menu picker failed (status 2)
+fatal: menu picker failed (status 127)
+fatal: Prompt contains unsupported control characters
+......................................................................................nvidia-vram-check: disk backing ready; need=9019431322 available=17179869184
+.......................................................................................podman-devops: system-service preflight verified
+...........incus-host-managed: install-time storage prepared; no Incus daemon activation
+....incus-host-managed: static configuration verified; no daemon calls or filesystem changes
+............................................................................................................................................FFFFFFFFFFFFF............................................ssssssssss.......................................s....................FFFFFFFFFFFFF.......................................................................................................................................................................................................................F...........................................FFFFFFFFF..F................
+======================================================================
+FAIL: test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 116, in test_all_profiles_complete_and_exact_enable_matrix
+    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+First differing element 0:
+'btrfs-de-flex.env'
+'btrfs-de-dual-flex.env'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'btrfs-de-flex.env'
+
+- ['btrfs-de-flex.env']
++ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+======================================================================
+FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 147, in test_both_enabled_profiles_native_staging_and_query
+    self.assertTrue(path.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4bc' != 'a382c1dd99013d8eeb57bfc2102d59ba63eeb04ff1ba4b3c229a573ec6eb7402'
+- 06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4bc
++ a382c1dd99013d8eeb57bfc2102d59ba63eeb04ff1ba4b3c229a573ec6eb7402
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9e5833de4fec523ff0884ea6ea1e825ac74c6e2e57c7101020df2f67a62a16db' != '57f846907f741095c87969c51e612f9a72c8275ae329d6b8bf3d40b11477820e'
+- 9e5833de4fec523ff0884ea6ea1e825ac74c6e2e57c7101020df2f67a62a16db
++ 57f846907f741095c87969c51e612f9a72c8275ae329d6b8bf3d40b11477820e
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '6837353b34963b817771c33f360841009904b9c15f07581256e198fedba347e1' != '26c5c5f1b84fab1a69dc805b2481bd2bcb6537beb9758a766f8854919ef0d136'
+- 6837353b34963b817771c33f360841009904b9c15f07581256e198fedba347e1
++ 26c5c5f1b84fab1a69dc805b2481bd2bcb6537beb9758a766f8854919ef0d136
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'f97964a6ea0776d2e2799301b2aca299c60b7e9fbaedadac6354e96214978e7d' != '3eeae51ff709253ab1bb7b7fa67e0417d5db708a4a4c8f20d15b66857f594841'
+- f97964a6ea0776d2e2799301b2aca299c60b7e9fbaedadac6354e96214978e7d
++ 3eeae51ff709253ab1bb7b7fa67e0417d5db708a4a4c8f20d15b66857f594841
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e457' != '5e3298d4f1c94715a42ce18f5978722c3f8995051b0863dc5b8717ffe2d6c052'
+- eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e457
++ 5e3298d4f1c94715a42ce18f5978722c3f8995051b0863dc5b8717ffe2d6c052
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565' != 'e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256'
+- 667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565
++ e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9a87714fe62b9e645dc517259307d6ee53267a5de0aabf5f16eebb9596ad939c' != '1d98f41054dab12dbd3c2efbb117da25e52dc1728d8d99e8604d9fb4700fcd42'
+- 9a87714fe62b9e645dc517259307d6ee53267a5de0aabf5f16eebb9596ad939c
++ 1d98f41054dab12dbd3c2efbb117da25e52dc1728d8d99e8604d9fb4700fcd42
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '8c9777ed39cbe9edd1f75653ccab0331503321572a2671c61b75323b536b713f' != '9de295e9ed76b5eb1a81226dcce98ad24285e34ecec30e2ebc445fc5b41d2a80'
+- 8c9777ed39cbe9edd1f75653ccab0331503321572a2671c61b75323b536b713f
++ 9de295e9ed76b5eb1a81226dcce98ad24285e34ecec30e2ebc445fc5b41d2a80
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '6358b5a948474d64008dac1af04821dcca9339b369b140821172d9d86cd2a06d' != '66e9d4853aa3d04c8d06026808c3e8ea9f4c6968cf7af091ccaa2849a7afd9d1'
+- 6358b5a948474d64008dac1af04821dcca9339b369b140821172d9d86cd2a06d
++ 66e9d4853aa3d04c8d06026808c3e8ea9f4c6968cf7af091ccaa2849a7afd9d1
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '02e622a34006205e7e3005ea1442c1bc39673b7f7fb016a4390aaafa56f15205' != 'fbb577058173dba079b0141e5b4d47b8248b8b94ea3132fdf7d3290b5e336231'
+- 02e622a34006205e7e3005ea1442c1bc39673b7f7fb016a4390aaafa56f15205
++ fbb577058173dba079b0141e5b4d47b8248b8b94ea3132fdf7d3290b5e336231
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '27034be4214272493ceccb4dde8624b7c1f7b2c8ba7df1dd997333845d1759ff' != '497fe5abff09a8f7411d8f2b0ad464c4b60b367e0f5b9c0bca52515f12089d49'
+- 27034be4214272493ceccb4dde8624b7c1f7b2c8ba7df1dd997333845d1759ff
++ 497fe5abff09a8f7411d8f2b0ad464c4b60b367e0f5b9c0bca52515f12089d49
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565' != 'e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256'
+- 667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565
++ e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '194e246ec340af9641353277201c74b2826cda65489700160d3ca22c1a8cfbc3' != '4c9e81e430fbd9485b62fdbd9af32cc312d69c61bfdb1b187db35c5ea31d5769'
+- 194e246ec340af9641353277201c74b2826cda65489700160d3ca22c1a8cfbc3
++ 4c9e81e430fbd9485b62fdbd9af32cc312d69c61bfdb1b187db35c5ea31d5769
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fbb577058173dba079b0141e5b4d47b8248b8b94ea3132fdf7d3290b5e336231' != '02e622a34006205e7e3005ea1442c1bc39673b7f7fb016a4390aaafa56f15205'
+- fbb577058173dba079b0141e5b4d47b8248b8b94ea3132fdf7d3290b5e336231
++ 02e622a34006205e7e3005ea1442c1bc39673b7f7fb016a4390aaafa56f15205
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '66e9d4853aa3d04c8d06026808c3e8ea9f4c6968cf7af091ccaa2849a7afd9d1' != '6358b5a948474d64008dac1af04821dcca9339b369b140821172d9d86cd2a06d'
+- 66e9d4853aa3d04c8d06026808c3e8ea9f4c6968cf7af091ccaa2849a7afd9d1
++ 6358b5a948474d64008dac1af04821dcca9339b369b140821172d9d86cd2a06d
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '57f846907f741095c87969c51e612f9a72c8275ae329d6b8bf3d40b11477820e' != '9e5833de4fec523ff0884ea6ea1e825ac74c6e2e57c7101020df2f67a62a16db'
+- 57f846907f741095c87969c51e612f9a72c8275ae329d6b8bf3d40b11477820e
++ 9e5833de4fec523ff0884ea6ea1e825ac74c6e2e57c7101020df2f67a62a16db
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '26c5c5f1b84fab1a69dc805b2481bd2bcb6537beb9758a766f8854919ef0d136' != '6837353b34963b817771c33f360841009904b9c15f07581256e198fedba347e1'
+- 26c5c5f1b84fab1a69dc805b2481bd2bcb6537beb9758a766f8854919ef0d136
++ 6837353b34963b817771c33f360841009904b9c15f07581256e198fedba347e1
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-main.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3eeae51ff709253ab1bb7b7fa67e0417d5db708a4a4c8f20d15b66857f594841' != 'f97964a6ea0776d2e2799301b2aca299c60b7e9fbaedadac6354e96214978e7d'
+- 3eeae51ff709253ab1bb7b7fa67e0417d5db708a4a4c8f20d15b66857f594841
++ f97964a6ea0776d2e2799301b2aca299c60b7e9fbaedadac6354e96214978e7d
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'a382c1dd99013d8eeb57bfc2102d59ba63eeb04ff1ba4b3c229a573ec6eb7402' != '06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4bc'
+- a382c1dd99013d8eeb57bfc2102d59ba63eeb04ff1ba4b3c229a573ec6eb7402
++ 06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4bc
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5e3298d4f1c94715a42ce18f5978722c3f8995051b0863dc5b8717ffe2d6c052' != 'eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e457'
+- 5e3298d4f1c94715a42ce18f5978722c3f8995051b0863dc5b8717ffe2d6c052
++ eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e457
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '497fe5abff09a8f7411d8f2b0ad464c4b60b367e0f5b9c0bca52515f12089d49' != '27034be4214272493ceccb4dde8624b7c1f7b2c8ba7df1dd997333845d1759ff'
+- 497fe5abff09a8f7411d8f2b0ad464c4b60b367e0f5b9c0bca52515f12089d49
++ 27034be4214272493ceccb4dde8624b7c1f7b2c8ba7df1dd997333845d1759ff
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual-cbook.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '1d98f41054dab12dbd3c2efbb117da25e52dc1728d8d99e8604d9fb4700fcd42' != '9a87714fe62b9e645dc517259307d6ee53267a5de0aabf5f16eebb9596ad939c'
+- 1d98f41054dab12dbd3c2efbb117da25e52dc1728d8d99e8604d9fb4700fcd42
++ 9a87714fe62b9e645dc517259307d6ee53267a5de0aabf5f16eebb9596ad939c
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256' != '667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565'
+- e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256
++ 667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9de295e9ed76b5eb1a81226dcce98ad24285e34ecec30e2ebc445fc5b41d2a80' != '8c9777ed39cbe9edd1f75653ccab0331503321572a2671c61b75323b536b713f'
+- 9de295e9ed76b5eb1a81226dcce98ad24285e34ecec30e2ebc445fc5b41d2a80
++ 8c9777ed39cbe9edd1f75653ccab0331503321572a2671c61b75323b536b713f
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256' != '667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565'
+- e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256
++ 667b14b7fb686d567c8c7500cc11f73606c7953edecee72645176be3a2918565
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='vm-desktop.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '4c9e81e430fbd9485b62fdbd9af32cc312d69c61bfdb1b187db35c5ea31d5769' != '194e246ec340af9641353277201c74b2826cda65489700160d3ca22c1a8cfbc3'
+- 4c9e81e430fbd9485b62fdbd9af32cc312d69c61bfdb1b187db35c5ea31d5769
++ 194e246ec340af9641353277201c74b2826cda65489700160d3ca22c1a8cfbc3
+
+
+======================================================================
+FAIL: test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_target_debconf_boundary.py", line 331, in test_reported_profile_native_iocost_transaction_through_real_bridge
+            result, requests = self.assert_ok('''
+                               ~~~~~~~~~~~~~~^^^^
+    . /tmp/lib.sh
+    ^^^^^^^^^^^^^
+    ...<3 lines>...
+    stage_target_iocost
+    ^^^^^^^^^^^^^^^^^^^
+    ''', env=env, timeout=15)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_target_debconf_boundary.py", line 96, in assert_ok
+    self.assertIn(b'GET mirror/protocol', requests)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'GET mirror/protocol' not found in []
+
+======================================================================
+FAIL: test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 198, in test_accepts_native_multi_workspace_configuration
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : native switcher launch contract changed
+
+
+======================================================================
+FAIL: test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 206, in test_accepts_native_single_workspace_configuration
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : native switcher launch contract changed
+
+
+======================================================================
+FAIL: test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 250, in test_rejects_classic_list_fields
+    self.assertIn('classic list fields must not be configured', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'classic list fields must not be configured' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 242, in test_rejects_classic_list_style
+    self.assertIn('native thumbnail switcher required', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'native thumbnail switcher required' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 262, in test_rejects_dangling_broker_enablement
+    self.assertIn('retired taskbar unit remains', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'retired taskbar unit remains' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 221, in test_rejects_global_alt_tab_in_account_copy
+    self.assertIn('non-local A-Tab', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'non-local A-Tab' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 214, in test_rejects_global_taskbar_in_nested_group
+    self.assertIn('global task list enabled', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'global task list enabled' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 274, in test_rejects_invented_workspace_option
+    self.assertIn('unsupported taskbar workspace option', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'unsupported taskbar workspace option' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 228, in test_rejects_list_f13_in_account_copy
+    self.assertIn('panel must use the native thumbnail switcher', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'panel must use the native thumbnail switcher' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/wlsunset-work/debian-preseed-de/d-i/forky/tests/test_workspace_no_broker.py", line 267, in test_rejects_stale_service_dependency
+    self.assertIn('retired dependency', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'retired dependency' not found in 'native switcher launch contract changed\n'
+
+----------------------------------------------------------------------
+Ran 1896 tests in 497.677s
+
+FAILED (failures=39, skipped=47)
+Installed resctl-bench 2.2.6; docs: /var/lib/resctl-noexec-test-aa_lfkvx/data/docs/resctl-bench; no benchmark executed
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: disabled by policy
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: already running; use restart after a policy change
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status
+labwc-wlsunset: stopped
+labwc-wlsunset: stopped

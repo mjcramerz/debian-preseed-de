@@ -80,6 +80,7 @@ def browser_args(app_name: str, mode: str) -> list[str]:
                 disable_features=profile["launch_disable_features"],
             ),
             *ANGLE_GL_ARGS,
+            "--use-webgpu-adapter=opengles",
         ]
 
     features = profile[f"{mode}_features"]
@@ -92,5 +93,6 @@ def browser_args(app_name: str, mode: str) -> list[str]:
         "--ignore-gpu-blocklist",
         "--enable-gpu-rasterization",
         *ANGLE_GL_ARGS,
+        "--use-webgpu-adapter=opengles",
         *profile[f"{mode}_extra_args"],
     ]

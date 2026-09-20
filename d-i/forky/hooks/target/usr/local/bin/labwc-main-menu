@@ -127,6 +127,22 @@ def visible(app) -> bool:
                 and not app.get_is_hidden() and app.should_show())
 
 
+# Curated desktop identities override conflicting vendor categories (for
+# example RetroArch's Emulator secondary category is not a System app here).
+CATEGORY_OVERRIDES = {
+    'qoredb.desktop': 'Development',
+    'QoreDB.desktop': 'Development',
+    'com.qoredb.qoredb.desktop': 'Development',
+    'qalculate-qt.desktop': 'Office & Productivity',
+    'qalculate-gtk.desktop': 'Office & Productivity',
+    'retroarch.desktop': 'Games',
+    'org.libretro.RetroArch.desktop': 'Games',
+}
+# The fixed Desktop Settings action already represents this executable.
+# Filter desktop IDs, never arbitrary localized display names.
+TWEAKS_DESKTOP_IDS = frozenset({'labwc-tweaks.desktop', 'labwc-tweaks-gtk.desktop'})
+
+
 def enumerate_apps() -> list[dict[str, str]]:
     Gio, DesktopAppInfo = gio_api()
     apps = {}
@@ -134,10 +150,10 @@ def enumerate_apps() -> list[dict[str, str]]:
         if not isinstance(app, DesktopAppInfo) or not visible(app):
             continue
         desktop_id = app.get_id()
-        if desktop_id:
+        if desktop_id and desktop_id not in TWEAKS_DESKTOP_IDS:
             apps[desktop_id] = {'id': desktop_id,
                                 'name': app.get_display_name() or desktop_id,
-                                'category': category_for(app.get_categories()),
+                                'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
                                 'icon': safe_icon(app.get_string('Icon')),
                                 'filename': app.get_filename() or ''}
     return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id']))

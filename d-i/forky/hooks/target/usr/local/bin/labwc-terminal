@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+export PYTHONDONTWRITEBYTECODE=1
+
 effective_ctype=${LC_ALL:-${LC_CTYPE:-${LANG:-}}}
 case "$effective_ctype" in
   ''|C|POSIX)

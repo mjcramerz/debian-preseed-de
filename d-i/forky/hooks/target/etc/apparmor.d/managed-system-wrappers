@@ -315,6 +315,7 @@ profile managed-crowdsec-firstboot /usr/local/libexec/crowdsec-firstboot flags=(
 }
 
 profile managed-grub-btrfs-refresh /usr/local/libexec/grub-btrfs-refresh flags=(attach_disconnected) {
+  / r,
   #include <abstractions/managed-wrapper-perl>
 
   capability dac_override,

@@ -1,0 +1,12 @@
+usage: labwc-wlsunset [-h] [{start,stop,restart,status,check}]
+
+Own one native colour daemon through a transient systemd user service. No
+shell evaluation, fork-to-background, geolocation, polling daemon or X11. The
+short-lived controller validates root-owned policy and the active compositor;
+/usr/bin/wlsunset itself is the long-running, independently confined service.
+
+positional arguments:
+  {start,stop,restart,status,check}
+
+options:
+  -h, --help            show this help message and exit

@@ -1,0 +1,61 @@
+{
+  "source": "apparmor.log",
+  "sha256": "addbd1be452c481c143fc9b3c5a503e29ac9ac7a6ea9ab6c95c0cc8ade7d68d6",
+  "physical_newline_records": 10817,
+  "classification": {
+    "context": 2,
+    "STATUS": 392,
+    "ALLOWED": 10419,
+    "DENIED": 4,
+    "empty": 1
+  },
+  "audit_records": 10423,
+  "by_class": {
+    "file": 9330,
+    "mount": 3,
+    "cap": 357,
+    "ptrace": 81,
+    "net": 635,
+    "signal": 17
+  },
+  "by_original_profile": {
+    "managed-grub-btrfs-refresh": 140,
+    "managed-mullvad-vpn": 16,
+    "managed-desktop-editors": 513,
+    "managed-labwc-lock": 3,
+    "managed-hardware-tuning-client": 4,
+    "managed-codex-wrapper": 59,
+    "managed-labwc-compositor": 11,
+    "managed-labwc-compositor//null-/usr/bin/wpctl": 262,
+    "managed-crystal-dock": 6,
+    "managed-desktop-media": 902,
+    "managed-desktop-media//null-/usr/bin/iconv": 14,
+    "managed-desktop-launcher": 188,
+    "managed-desktop-media//null-/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitNetworkProcess": 771,
+    "managed-desktop-media//null-/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1/WebKitWebProcess": 1448,
+    "managed-desktop-media//null-/usr/bin/bwrap": 5196,
+    "telegram-desktop": 2,
+    "managed-labwc-managed-wayland-compat-app//managed-wayland-compat-app-bwrap": 4,
+    "managed-desktop-editors//editor-glycin-bwrap": 1,
+    "managed-zathura": 1,
+    "spotify": 1,
+    "spotify//null-/usr/lib/x86_64-linux-gnu/glib-2.0/gio-launch-desktop": 9,
+    "spotify//null-/usr/lib/x86_64-linux-gnu/glib-2.0/gio-launch-desktop//null-/usr/local/bin/labwc-managed-app": 792,
+    "spotify//null-/usr/lib/x86_64-linux-gnu/glib-2.0/gio-launch-desktop//null-/usr/local/bin/labwc-managed-app//null-/usr/bin/systemd-run": 17,
+    "managed-session-controls": 38,
+    "keepassxc": 1,
+    "managed-waypaper": 24
+  },
+  "file_dispositions": {
+    "candidate-covered": 9183,
+    "intentional-deny": 147
+  },
+  "method": "Every physical line was parsed; audit record separators are not newline boundaries. File rules were cross-checked using preprocessed AppArmor policy and a conservative AARE/owner approximation. Non-file records were individually grouped and reviewed. This is not kernel enforcement verification.",
+  "null_profiles": "Complain-mode generated descendants are attributed to the corrected explicit executable transition, not installed as profile names.",
+  "intentional_denials": [
+    "Packaged Python bytecode writes (131 records): PYTHONDONTWRITEBYTECODE where honored; otherwise optional write failure must fall back to reading installed code.",
+    "Direct DRM primary-node probes by media clients (14): render-node access retained; compositor retains primary-node ownership.",
+    "Generic application probes of private compatibility modules (2): preserve Zoom/Discord-only import boundary.",
+    "One direct unprivileged FUSE mount probe: permit only the scoped setuid clipboard helper, not SYS_ADMIN in the network client."
+  ]
+}

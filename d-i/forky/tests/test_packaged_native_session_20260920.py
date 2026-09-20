@@ -56,6 +56,7 @@ STEPS = (
     'desktop_install_waypaper',
     'desktop_enable_target_services',
     'desktop_verify_kanshi_policy',
+    'desktop_verify_native_drawer_icons',
     'desktop_install_codex_standalone',
 )
 

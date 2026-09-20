@@ -1,0 +1,12 @@
+test_management_context_is_inherited_without_rewriting_child_log_scope (test_session_repair_edges.GeometryTests.test_management_context_is_inherited_without_rewriting_child_log_scope) ... ok
+test_real_wrapper_enforces_main_geometry_for_every_management_context (test_session_repair_edges.GeometryTests.test_real_wrapper_enforces_main_geometry_for_every_management_context) ... ok
+test_failed_delivery_retains_pending_record_and_success_commits_it_once (test_session_repair_edges.HealthTransactionTests.test_failed_delivery_retains_pending_record_and_success_commits_it_once) ... ok
+test_policy_is_idempotent_and_false_revokes_geoclue_access (test_session_repair_edges.InstallerPolicyTests.test_policy_is_idempotent_and_false_revokes_geoclue_access) ... ok
+test_redirected_pam_stack_is_rejected (test_session_repair_edges.InstallerPolicyTests.test_redirected_pam_stack_is_rejected) ... ok
+test_unknown_pam_stack_fails_without_replacing_it (test_session_repair_edges.InstallerPolicyTests.test_unknown_pam_stack_fails_without_replacing_it) ... ok
+test_enumeration_categorizes_exact_identities_and_removes_only_duplicate_tweaks (test_session_repair_edges.MenuIdentityTests.test_enumeration_categorizes_exact_identities_and_removes_only_duplicate_tweaks) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.392s
+
+OK

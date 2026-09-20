@@ -1,0 +1,1121 @@
+--- original/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ refactored/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -584,6 +584,10 @@
+ 
+   /usr/local/libexec/labwc-calendar rix,
+   /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,find,timeout} rix,
++  /{,usr/}bin/{kill,sleep} rix,
++  # timeout/cancel_sync terminate only the sync process group they created;
++  # vdirsyncer may use the existing pux fallback and leave this profile.
++  signal (send) set=(term, kill) peer=unconfined,
+   /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
+   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
+   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
++++ refactored/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+@@ -87,16 +87,16 @@
+     "menu": "on-click-right",
+     "menu-file": "~/.config/waybar/tomat-menu.xml",
+     "menu-actions": {
+-      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
+-      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
+-      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
+-      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
+-      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+-      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+-      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
+-      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
+-      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
+-      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
++      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
++      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
++      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
++      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
++      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
++      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
++      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
++      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
++      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
++      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
+     }
+   },
+   "custom/apps": {
+@@ -157,7 +157,22 @@
+     },
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
+     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
+-    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar menu"
++    "menu": "on-click-right",
++    "menu-file": "~/.config/waybar/calendar-menu.xml",
++    "menu-actions": {
++      "calendar_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar browse",
++      "calendar_agenda": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar agenda",
++      "calendar_new_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-event",
++      "calendar_edit_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-event",
++      "calendar_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar tasks",
++      "calendar_all_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar all-tasks",
++      "calendar_new_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-task",
++      "calendar_show_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar show-task",
++      "calendar_edit_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-task",
++      "calendar_done_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar done-task",
++      "calendar_delete_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar delete-task",
++      "calendar_sync": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar sync-ui"
++    }
+   },
+   "group/quick-controls": {
+     "orientation": "inherit",
+@@ -250,14 +265,14 @@
+     "menu": "on-click-right",
+     "menu-file": "~/.config/waybar/audio-menu.xml",
+     "menu-actions": {
+-      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+-      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+-      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+-      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
+-      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
+-      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
+-      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
+-      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
++      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
++      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
++      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
++      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
++      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
++      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
++      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
++      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
+     }
+   },
+   "custom/backlight": {
+@@ -337,9 +352,13 @@
+     "menu": "on-click",
+     "menu-file": "~/.config/waybar/notifications-menu.xml",
+     "menu-actions": {
+-      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+-      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear",
+-      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center"
++      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
++      "notifications_restore": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications restore",
++      "notifications_dnd_on": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-on",
++      "notifications_dnd_off": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-off",
++      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
++      "notifications_dismiss": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dismiss",
++      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear"
+     }
+   },
+   "custom/power": {
+@@ -348,11 +367,11 @@
+     "menu": "on-click",
+     "menu-file": "~/.config/waybar/power-menu.xml",
+     "menu-actions": {
+-      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
+-      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
+-      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
+-      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
+-      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
++      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
++      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
++      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
++      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
++      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+     }
+   }
+ },
+@@ -444,16 +463,16 @@
+     "menu": "on-click-right",
+     "menu-file": "~/.config/waybar/tomat-menu.xml",
+     "menu-actions": {
+-      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
+-      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
+-      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
+-      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
+-      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
+-      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
+-      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
+-      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
+-      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
+-      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
++      "tomat_default": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start default",
++      "tomat_25": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 25",
++      "tomat_50": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 50",
++      "tomat_90": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat start 90",
++      "tomat_toggle": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat toggle",
++      "tomat_skip": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat skip",
++      "tomat_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat stop",
++      "tomat_config": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat config",
++      "tomat_notifications": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings notifications",
++      "tomat_sounds": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-tomat settings sounds"
+     }
+   },
+   "custom/apps": {
+@@ -514,7 +533,22 @@
+     },
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_CALENDAR_COMMAND__",
+     "on-click-middle": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar tasks",
+-    "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-calendar menu"
++    "menu": "on-click-right",
++    "menu-file": "~/.config/waybar/calendar-menu.xml",
++    "menu-actions": {
++      "calendar_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar browse",
++      "calendar_agenda": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar agenda",
++      "calendar_new_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-event",
++      "calendar_edit_event": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-event",
++      "calendar_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar tasks",
++      "calendar_all_tasks": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar all-tasks",
++      "calendar_new_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar new-task",
++      "calendar_show_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar show-task",
++      "calendar_edit_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar edit-task",
++      "calendar_done_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar done-task",
++      "calendar_delete_task": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar delete-task",
++      "calendar_sync": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-calendar sync-ui"
++    }
+   },
+   "group/quick-controls": {
+     "orientation": "inherit",
+@@ -592,14 +626,14 @@
+     "menu": "on-click-right",
+     "menu-file": "~/.config/waybar/audio-menu.xml",
+     "menu-actions": {
+-      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
+-      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+-      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+-      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
+-      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
+-      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
+-      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
+-      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
++      "audio_open": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- __INSTALLER_LABWC_AUDIO_CONTROL_COMMAND__",
++      "audio_mute": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
++      "audio_mic": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
++      "audio_40": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 40% --limit 1.2",
++      "whisper_record": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle start",
++      "whisper_transcribe": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user --no-block start whisper-transcribe.service",
++      "whisper_stop": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/whisper-record-toggle stop",
++      "whisper_cancel": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/bin/systemctl --user stop whisper-transcribe.service"
+     }
+   },
+   "custom/backlight": {
+@@ -679,9 +713,13 @@
+     "menu": "on-click",
+     "menu-file": "~/.config/waybar/notifications-menu.xml",
+     "menu-actions": {
+-      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
+-      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear",
+-      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center"
++      "notifications_center": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications center",
++      "notifications_restore": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications restore",
++      "notifications_dnd_on": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-on",
++      "notifications_dnd_off": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd-off",
++      "notifications_dnd": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dnd",
++      "notifications_dismiss": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications dismiss",
++      "notifications_clear": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/libexec/labwc-notifications clear"
+     }
+   },
+   "custom/power": {
+@@ -690,11 +728,11 @@
+     "menu": "on-click",
+     "menu-file": "~/.config/waybar/power-menu.xml",
+     "menu-actions": {
+-      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
+-      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
+-      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
+-      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
+-      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
++      "power_lock": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings lock",
++      "power_suspend": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings suspend",
++      "power_reboot": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings reboot",
++      "power_logout": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings logout",
++      "power_shutdown": "/usr/bin/systemd-run --user --quiet --collect --no-block --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=10s --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-power-settings poweroff"
+     }
+   }
+ }
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml
++++ refactored/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml
+@@ -1,20 +1,56 @@
+-<?xml version='1.0' encoding='UTF-8'?>
++<?xml version="1.0" encoding="UTF-8"?>
+ <interface>
++  <requires lib="gtk+" version="3.22" />
+   <object class="GtkMenu" id="menu">
+-    <child>
+-      <object class="GtkMenuItem" id="notifications_dnd">
+-        <property name="label">Do not disturb (toggle)</property>
+-      </object>
+-    </child>
+-    <child>
+-      <object class="GtkMenuItem" id="notifications_clear">
+-        <property name="label">Clear notifications</property>
+-      </object>
+-    </child>
+     <child>
+       <object class="GtkMenuItem" id="notifications_center">
+         <property name="label">Open notification center</property>
+       </object>
+     </child>
++    <child>
++      <object class="GtkMenuItem" id="notifications_restore">
++        <property name="label">Restore most recent notification</property>
++      </object>
++    </child>
++    <child>
++      <object class="GtkSeparatorMenuItem" />
++    </child>
++    <child>
++      <object class="GtkMenuItem">
++        <property name="label">Do not disturb</property>
++        <child type="submenu">
++          <object class="GtkMenu">
++            <child>
++              <object class="GtkMenuItem" id="notifications_dnd_on">
++                <property name="label">Enable</property>
++              </object>
++            </child>
++            <child>
++              <object class="GtkMenuItem" id="notifications_dnd_off">
++                <property name="label">Disable</property>
++              </object>
++            </child>
++            <child>
++              <object class="GtkMenuItem" id="notifications_dnd">
++                <property name="label">Toggle</property>
++              </object>
++            </child>
++          </object>
++        </child>
++      </object>
++    </child>
++    <child>
++      <object class="GtkSeparatorMenuItem" />
++    </child>
++    <child>
++      <object class="GtkMenuItem" id="notifications_dismiss">
++        <property name="label">Dismiss active (save to history)</property>
++      </object>
++    </child>
++    <child>
++      <object class="GtkMenuItem" id="notifications_clear">
++        <property name="label">Clear active (do not save)</property>
++      </object>
++    </child>
+   </object>
+ </interface>
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-calendar
++++ refactored/d-i/forky/hooks/target/usr/local/libexec/labwc-calendar
+@@ -76,6 +76,17 @@
+ run_terminal_action() {
+   require_command labwc-terminal
+   exec labwc-terminal -e "$0" "$@"
++}
++
++# Preserve backend errors/results in the terminal instead of flashing a window.
++run_and_hold() {
++  action_status=0
++  "$@" || action_status=$?
++  if [ "$action_status" -ne 0 ]; then
++    printf '\nCalendar command failed (status %s).\n' "$action_status" >&2
++  fi
++  prompt_close
++  return "$action_status"
+ }
+ 
+ prompt_close() {
+@@ -252,8 +263,7 @@
+   ensure_calendar_environment
+   require_command khal
+   require_file "$KHAL_CONFIG"
+-  khal list today 14d
+-  prompt_close
++  run_and_hold khal list today 14d
+ }
+ 
+ show_tasks() {
+@@ -267,8 +277,7 @@
+   ensure_calendar_environment
+   require_command todoman
+   require_file "$TODOMAN_CONFIG"
+-  todoman list
+-  prompt_close
++  run_and_hold todoman list
+ }
+ 
+ create_event() {
+@@ -276,7 +285,7 @@
+   require_command labwc-terminal
+   require_command khal
+   require_file "$KHAL_CONFIG"
+-  exec labwc-terminal -e khal new -i
++  run_terminal_action new-event-terminal
+ }
+ 
+ edit_event() {
+@@ -293,7 +302,7 @@
+   printf 'Search event to edit: '
+   IFS= read -r query || exit 0
+   [ -n "$query" ] || exit 0
+-  exec khal edit --show-past "$query"
++  run_and_hold khal edit --show-past -- "$query"
+ }
+ 
+ create_task() {
+@@ -301,7 +310,7 @@
+   require_command labwc-terminal
+   require_command todoman
+   require_file "$TODOMAN_CONFIG"
+-  exec labwc-terminal -e todoman new -i
++  run_terminal_action new-task-terminal
+ }
+ 
+ edit_task() {
+@@ -311,15 +320,86 @@
+   run_terminal_action edit-task-terminal
+ }
+ 
+-edit_task_terminal() {
+-  ensure_calendar_environment
+-  require_command todoman
+-  require_file "$TODOMAN_CONFIG"
+-  todoman list
+-  printf '\nTask id to edit: '
++# Numeric IDs are the only accepted task operands. Never let a pasted option
++# become --raw/--yes, or let a shell evaluate task input. Empty input cancels.
++read_task_id() {
++  printf '\nTask id (Enter cancels): '
+   IFS= read -r task_id || exit 0
+   [ -n "$task_id" ] || exit 0
+-  exec todoman edit -i "$task_id"
++  case "$task_id" in
++    *[!0-9]*|0*)
++      printf 'Task id must be a positive decimal integer.\n' >&2
++      prompt_close
++      exit 64
++      ;;
++  esac
++  [ "${#task_id}" -le 18 ] || {
++    printf 'Task id is too long.\n' >&2
++    prompt_close
++    exit 64
++  }
++}
++
++edit_task_terminal() {
++  task_terminal edit
++}
++
++task_terminal() {
++  task_action=$1
++  ensure_calendar_environment
++  require_command todoman
++  require_file "$TODOMAN_CONFIG"
++  # All tasks permits inspecting/editing completed items too. Completion uses
++  # only the pending list; deletion still delegates confirmation to Todoman.
++  if [ "$task_action" = done ]; then
++    set -- todoman list
++  else
++    set -- todoman list --status ANY
++  fi
++  if "$@"; then
++    :
++  else
++    task_status=$?
++    prompt_close
++    return "$task_status"
++  fi
++  read_task_id
++  case "$task_action" in
++    edit) run_and_hold todoman edit -i -- "$task_id" ;;
++    show) run_and_hold todoman show -- "$task_id" ;;
++    done)
++      # Preview the selected item before an explicit, default-no confirmation.
++      if todoman show -- "$task_id"; then :; else
++        task_status=$?; prompt_close; return "$task_status"
++      fi
++      printf '\nMark this task completed? [y/N] '
++      IFS= read -r answer || exit 0
++      case "$answer" in y|Y|yes|YES) run_and_hold todoman done -- "$task_id" ;; esac
++      ;;
++    delete) run_and_hold todoman delete -- "$task_id" ;;
++    *) fatal "unsupported task action" ;;
++  esac
++}
++
++new_event_terminal() {
++  ensure_calendar_environment
++  require_command khal
++  require_file "$KHAL_CONFIG"
++  run_and_hold khal new -i
++}
++
++new_task_terminal() {
++  ensure_calendar_environment
++  require_command todoman
++  require_file "$TODOMAN_CONFIG"
++  run_and_hold todoman new -i
++}
++
++all_tasks_terminal() {
++  ensure_calendar_environment
++  require_command todoman
++  require_file "$TODOMAN_CONFIG"
++  run_and_hold todoman list --status ANY
+ }
+ 
+ sync_terminal() {
+@@ -348,10 +428,14 @@
+ Open Calendar
+ Upcoming Agenda
+ Open Tasks
++All Tasks
+ Create new Event
+ Edit Event
+ Create new Task
+ Edit Task
++Task Details
++Complete Task
++Delete Task
+ Sync Calendar
+ EOF
+ )
+@@ -360,10 +444,14 @@
+     'Open Calendar') exec "$0" browse ;;
+     'Upcoming Agenda') exec "$0" agenda ;;
+     'Open Tasks') exec "$0" tasks ;;
++    'All Tasks') exec "$0" all-tasks ;;
+     'Create new Event') exec "$0" new-event ;;
+     'Edit Event') exec "$0" edit-event ;;
+     'Create new Task') exec "$0" new-task ;;
+     'Edit Task') exec "$0" edit-task ;;
++    'Task Details') exec "$0" show-task ;;
++    'Complete Task') exec "$0" done-task ;;
++    'Delete Task') exec "$0" delete-task ;;
+     'Sync Calendar')
+       run_terminal_action sync-terminal
+       ;;
+@@ -371,6 +459,11 @@
+   exit 0
+ }
+ 
++if [ "${1:-browse}" != sync ] && [ "$#" -gt 1 ]; then
++  printf 'usage: labwc-calendar ACTION (sync accepts --quiet)\n' >&2
++  exit 64
++fi
++
+ case "${1:-browse}" in
+   browse|open)
+     open_calendar
+@@ -387,6 +480,15 @@
+   tasks-terminal)
+     show_tasks_terminal
+     ;;
++  all-tasks)
++    run_terminal_action all-tasks-terminal
++    ;;
++  all-tasks-terminal)
++    all_tasks_terminal
++    ;;
++  new-event-terminal)
++    new_event_terminal
++    ;;
+   new-event)
+     create_event
+     ;;
+@@ -396,6 +498,9 @@
+   edit-event-terminal)
+     edit_event_terminal
+     ;;
++  new-task-terminal)
++    new_task_terminal
++    ;;
+   new-task)
+     create_task
+     ;;
+@@ -404,6 +509,21 @@
+     ;;
+   edit-task-terminal)
+     edit_task_terminal
++    ;;
++  show-task|done-task|delete-task)
++    run_terminal_action "$1-terminal"
++    ;;
++  show-task-terminal)
++    task_terminal show
++    ;;
++  done-task-terminal)
++    task_terminal done
++    ;;
++  delete-task-terminal)
++    task_terminal delete
++    ;;
++  sync-ui)
++    run_terminal_action sync-terminal
+     ;;
+   sync-terminal)
+     sync_terminal
+--- original/d-i/forky/hooks/target/usr/local/libexec/labwc-notifications
++++ refactored/d-i/forky/hooks/target/usr/local/libexec/labwc-notifications
+@@ -17,9 +17,23 @@
+ import subprocess
+ import sys
+ import time
++from threading import Event
+ 
+ MAX_OUTPUT = 1_048_576
+ APP_ID = "org.labwc.NotificationCenter"
++REQUEST_TIMEOUT = 4.0
++MAX_VISIBLE = 100
++DND_MODE = "do-not-disturb"
++# Only fixed Mako control operations; never notification-provided commands.
++ACTIONS = {
++    "dnd": ("mode", "-t", DND_MODE),
++    "dnd-on": ("mode", "-a", DND_MODE),
++    "dnd-off": ("mode", "-r", DND_MODE),
++    "dismiss": ("dismiss", "--all"),
++    "clear": ("dismiss", "--all", "--no-history"),
++    "restore": ("restore",),
++}
++REQUESTS = {("mode",), ("list", "-j"), ("history", "-j"), *ACTIONS.values()}
+ 
+ 
+ class Error(RuntimeError):
+@@ -47,49 +61,108 @@
+     return env
+ 
+ 
+-def mako(args: list[str], env: dict[str, str]) -> str:
+-    # Mako content is untrusted input from desktop applications. Bound bytes as
+-    # they arrive, not after communicate() has already allocated arbitrary RAM.
++def mako(args: list[str], env: dict[str, str], *, cancel: Event | None = None) -> str:
++    if tuple(args) not in REQUESTS:
++        raise Error("unsupported Mako request")
++    if cancel is not None and cancel.is_set():
++        raise Error("Mako request cancelled")
++    # Bound BOTH streams during capture. stderr must never corrupt JSON or
++    # leak notification content into the journal or a GTK error message.
+     with subprocess.Popen(["/usr/bin/makoctl", *args], env=env, stdin=subprocess.DEVNULL,
+-                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+-        output = bytearray()
+-        deadline = time.monotonic() + 4
++                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
++        buffers = {process.stdout: bytearray(), process.stderr: bytearray()}
++        streams = list(buffers)
++        received = 0
++        deadline = time.monotonic() + REQUEST_TIMEOUT
+         try:
+-            while True:
++            while streams:
++                if cancel is not None and cancel.is_set():
++                    raise Error("Mako request cancelled")
+                 remaining = deadline - time.monotonic()
+                 if remaining <= 0:
+-                    raise Error("Mako did not respond within four seconds")
+-                readable, _, _ = select.select([process.stdout], [], [], remaining)
+-                if not readable:
+-                    raise Error("Mako request timed out")
+-                chunk = os.read(process.stdout.fileno(), 16_384)
+-                if not chunk:
+-                    break
+-                if len(output) + len(chunk) > MAX_OUTPUT:
+-                    raise Error("Mako response exceeds one MiB")
+-                output.extend(chunk)
+-            code = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+-            text = output.decode("utf-8")
+-            if code:
+-                raise Error("Mako request failed: " + text.strip()[:512])
+-            return text
++                    raise Error("Mako request timed out; check mako.service in the user journal")
++                readable, _, _ = select.select(streams, [], [], min(0.1, remaining))
++                for stream in readable:
++                    chunk = os.read(stream.fileno(), 16_384)
++                    if not chunk:
++                        streams.remove(stream)
++                        continue
++                    received += len(chunk)
++                    if received > MAX_OUTPUT:
++                        raise Error("Mako response exceeds one MiB")
++                    buffers[stream].extend(chunk)
++            # A process can close its pipes and still hang. Continue checking
++            # cancellation and the same deadline until its exact PID exits.
++            while process.poll() is None:
++                if cancel is not None and cancel.is_set():
++                    raise Error("Mako request cancelled")
++                remaining = deadline - time.monotonic()
++                if remaining <= 0:
++                    raise Error("Mako request timed out; check mako.service in the user journal")
++                try:
++                    process.wait(timeout=min(0.1, remaining))
++                except subprocess.TimeoutExpired:
++                    pass
++            if process.returncode:
++                raise Error(f"Mako request failed (exit {process.returncode}); check mako.service in the user journal")
++            try:
++                return buffers[process.stdout].decode("utf-8")
++            except UnicodeDecodeError as exc:
++                raise Error("Mako returned invalid UTF-8") from exc
+         finally:
+             if process.poll() is None:
+                 process.kill()
+-                process.wait()
++            process.wait()
++
++
++def notification_text(value, default: str, limit: int) -> str:
++    # Mako 1.11 emits JSON null for empty strings. Do not display Python's None,
++    # stringify objects, or pass NUL/surrogates/control sequences to GTK/Pango.
++    if value is None:
++        return default
++    if not isinstance(value, str):
++        raise Error("Mako returned a non-text notification field")
++    return "".join(character if character in "\n\t" or
++                   (ord(character) >= 32 and not 0x7f <= ord(character) <= 0x9f
++                    and not 0xd800 <= ord(character) <= 0xdfff) else "\ufffd"
++                   for character in value[:limit]) or default
+ 
+ 
+ def notification_list(text: str) -> list[dict[str, str]]:
+-    data = json.loads(text)
++    if len(text) > MAX_OUTPUT:
++        raise Error("Mako response exceeds one MiB")
++    try:
++        data = json.loads(text)
++    except (ValueError, RecursionError) as exc:
++        raise Error("Mako returned invalid notification JSON (requires mako-notifier >= 1.11)") from exc
+     if not isinstance(data, list) or len(data) > 1024 or any(not isinstance(item, dict) for item in data):
+         raise Error("Mako returned an invalid notification list")
+-    result = []
+-    for item in data:
+-        result.append({
+-            "summary": str(item.get("summary", "Notification"))[:512],
+-            "body": str(item.get("body", ""))[:8192],
+-            "app": str(item.get("app-name", item.get("app_name", "")))[:256],
+-        })
++    return [{
++        "summary": notification_text(item.get("summary"), "Notification", 512),
++        "body": notification_text(item.get("body"), "", 8192),
++        "app": notification_text(item.get("app_name", item.get("app-name")), "", 256),
++    } for item in data]
++
++
++def snapshot(env: dict[str, str], action: str | None = None, *, cancel: Event | None = None) -> dict:
++    """Independent page failures must not hide a working Current or History view."""
++    result = {"active": None, "history": None, "dnd": None, "errors": []}
++    if action is not None and action not in ACTIONS:
++        raise Error("unsupported notification action")
++    if action is not None:
++        try:
++            mako(list(ACTIONS[action]), env, cancel=cancel)
++        except (Error, OSError, subprocess.SubprocessError) as exc:
++            result["errors"].append("Action: " + str(exc))
++    for name, command in (("active", ["list", "-j"]), ("history", ["history", "-j"]),
++                          ("dnd", ["mode"])):
++        if cancel is not None and cancel.is_set():
++            break
++        try:
++            text = mako(command, env, cancel=cancel)
++            result[name] = DND_MODE in text.splitlines() if name == "dnd" else notification_list(text)
++        except (Error, OSError, subprocess.SubprocessError) as exc:
++            result["errors"].append(name.capitalize() + ": " + str(exc))
+     return result
+ 
+ 
+@@ -102,7 +175,7 @@
+     os.environ.update(env)
+     import gi
+     gi.require_version("Gtk", "3.0")
+-    from gi.repository import Gio, GLib, Gtk
++    from gi.repository import Gdk, Gio, GLib, Gtk
+ 
+     class Center(Gtk.Application):
+         def __init__(self):
+@@ -112,21 +185,29 @@
+             self.busy = False
+             self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mako-view")
+             self.timeout_id = None
++            self.cancel = Event()
++            self.page_cache = [object(), object()]
+ 
+         def do_activate(self):
+             if self.window is not None:
+                 self.window.present()
+                 return
+             self.window = Gtk.ApplicationWindow(application=self, title="Notifications")
+-            self.window.set_default_size(640, 520)
++            self.window.set_default_size(720, 520)
++            self.window.connect("key-press-event", self.key_pressed)
+             self.window.connect("destroy", self.closed)
+             root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+             root.set_border_width(12)
+             self.window.add(root)
+             self.controls = Gtk.Box(spacing=8)
+             root.pack_start(self.controls, False, False, 0)
+-            for label, action in (("Refresh", None), ("DND on / off", "dnd"), ("Clear active", "clear")):
++            for label, action, hint in (
++                    ("Refresh", None, "Refresh current notifications and Mako history"),
++                    ("DND on / off", "dnd", "Toggle only the do-not-disturb mode"),
++                    ("Dismiss active", "dismiss", "Save active notifications to history where Mako policy permits"),
++                    ("Restore latest", "restore", "Restore the most recent entry from Mako history")):
+                 button = Gtk.Button(label=label)
++                button.set_tooltip_text(hint)
+                 button.connect("clicked", lambda _button, action=action: self.refresh(action))
+                 self.controls.pack_start(button, False, False, 0)
+             self.status = Gtk.Label(label="Loading notifications...", xalign=0)
+@@ -143,15 +224,23 @@
+                 scroll.add(box)
+                 notebook.append_page(scroll, Gtk.Label(label=title))
+                 self.pages.append(box)
+-            note = Gtk.Label(label="Clear dismisses active notifications; saved Mako history remains.", xalign=0)
++            note = Gtk.Label(label=("Mako keeps session history, not a permanent archive. Low-urgency messages may not be saved.\n"
++                                   "DND hides popups; restore does not turn DND off. Notification content is read-only."), xalign=0)
+             note.set_line_wrap(True)
+             root.pack_start(note, False, False, 0)
+             self.window.show_all()
+             self.refresh()
+             self.timeout_id = GLib.timeout_add_seconds(5, self.tick)
+ 
++        def key_pressed(self, _window, event):
++            if event.keyval == Gdk.KEY_Escape:
++                self.window.close()
++                return True
++            return False
++
+         def closed(self, *_):
+             self.alive = False
++            self.cancel.set()
+             if self.timeout_id is not None:
+                 GLib.source_remove(self.timeout_id)
+                 self.timeout_id = None
+@@ -167,19 +256,12 @@
+                 return
+             self.busy = True
+             self.controls.set_sensitive(False)
+-            future = self.executor.submit(self.snapshot, action)
+-            future.add_done_callback(lambda done: GLib.idle_add(self.completed, done))
+-
+-        @staticmethod
+-        def snapshot(action):
+-            if action == "dnd":
+-                mako(["mode", "-t", "do-not-disturb"], env)
+-            elif action == "clear":
+-                mako(["dismiss", "--all", "--no-history"], env)
+-            active = notification_list(mako(["list", "-j"], env))
+-            history = notification_list(mako(["history", "-j"], env))
+-            modes = mako(["mode"], env).splitlines()
+-            return active, history, "do-not-disturb" in modes
++            future = self.executor.submit(snapshot, env, action, cancel=self.cancel)
++            future.add_done_callback(self.queue_completed)
++
++        def queue_completed(self, future):
++            if not self.cancel.is_set():
++                GLib.idle_add(self.completed, future)
+ 
+         def completed(self, future):
+             self.busy = False
+@@ -187,29 +269,44 @@
+                 return False
+             self.controls.set_sensitive(True)
+             try:
+-                active, history, dnd = future.result()
+-                self.status.set_text(f"Do not disturb: {'on' if dnd else 'off'} | {len(active)} active | {len(history)} in history")
+-                for box, entries in zip(self.pages, (active, history)):
++                result = future.result()
++                dnd = result["dnd"]
++                state = "unavailable" if dnd is None else "on" if dnd else "off"
++                counts = ["unavailable" if result[name] is None else str(len(result[name]))
++                          for name in ("active", "history")]
++                status = f"Do not disturb: {state} | {counts[0]} active | {counts[1]} in history"
++                if result["errors"]:
++                    status += "\n" + "\n".join(result["errors"])
++                self.status.set_text(status[:2048])
++                for index, (box, name) in enumerate(zip(self.pages, ("active", "history"))):
++                    entries = result[name]
++                    if entries == self.page_cache[index]:
++                        continue  # Do not rebuild labels or interrupt selection every five seconds.
++                    self.page_cache[index] = entries
+                     for child in box.get_children():
+                         box.remove(child)
+                         child.destroy()
+-                    if not entries:
++                    if entries is None:
++                        box.pack_start(Gtk.Label(label="This view is unavailable; see status above.", xalign=0), False, False, 0)
++                    elif not entries:
+                         box.pack_start(Gtk.Label(label="No notifications", xalign=0), False, False, 0)
+-                    for item in entries:
+-                        frame = Gtk.Frame()
+-                        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+-                        content.set_border_width(8)
+-                        frame.add(content)
+-                        # Always plain text. No markup, links, images or commands
+-                        # supplied by a notification are executed or interpreted.
+-                        for text in (item["app"], item["summary"], item["body"]):
+-                            if text:
+-                                label = Gtk.Label(label=text, xalign=0)
+-                                label.set_line_wrap(True)
+-                                label.set_selectable(True)
+-                                label.set_max_width_chars(72)
+-                                content.pack_start(label, False, False, 0)
+-                        box.pack_start(frame, False, False, 0)
++                    else:
++                        if len(entries) > MAX_VISIBLE:
++                            box.pack_start(Gtk.Label(label=f"Showing the first {MAX_VISIBLE} of {len(entries)} notifications.", xalign=0), False, False, 0)
++                        for item in entries[:MAX_VISIBLE]:
++                            frame = Gtk.Frame()
++                            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
++                            content.set_border_width(8)
++                            frame.add(content)
++                            # No markup, URI handlers, images, or commands from notifications.
++                            for text in (item["app"], item["summary"], item["body"]):
++                                if text:
++                                    label = Gtk.Label(label=text, xalign=0)
++                                    label.set_line_wrap(True)
++                                    label.set_selectable(True)
++                                    label.set_max_width_chars(72)
++                                    content.pack_start(label, False, False, 0)
++                            box.pack_start(frame, False, False, 0)
+                     box.show_all()
+             except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+                 self.status.set_text(str(exc)[:1024])
+@@ -217,25 +314,23 @@
+ 
+         def do_shutdown(self):
+             self.closed()
+-            self.executor.shutdown(wait=False, cancel_futures=True)
++            self.executor.shutdown(wait=True, cancel_futures=True)
+             Gtk.Application.do_shutdown(self)
+ 
+     return Center().run(["labwc-notifications"])
+ 
+ 
+ def main(argv: list[str]) -> int:
+-    if len(argv) != 1 or argv[0] not in {"status", "dnd", "clear", "center"}:
+-        raise Error("usage: labwc-notifications status|dnd|clear|center")
++    if len(argv) != 1 or argv[0] not in {"status", "center", *ACTIONS}:
++        raise Error("usage: labwc-notifications status|center|dnd|dnd-on|dnd-off|dismiss|clear|restore")
+     env = environment()
+     action = argv[0]
+     if action == "status":
+         dnd = "do-not-disturb" in mako(["mode"], env).splitlines()
+         print(json.dumps({"text": "\U0001f515" if dnd else "\U0001f514", "class": "dnd" if dnd else "normal",
+                           "tooltip": "Do not disturb: " + ("on" if dnd else "off") + "\nLeft: menu | Middle: DND | Right: notification center"}))
+-    elif action == "dnd":
+-        mako(["mode", "-t", "do-not-disturb"], env)
+-    elif action == "clear":
+-        mako(["dismiss", "--all", "--no-history"], env)
++    elif action in ACTIONS:
++        mako(list(ACTIONS[action]), env)
+     else:
+         return show_center(env)
+     return 0
+--- original/d-i/forky/scripts/desktop/components.sh
++++ refactored/d-i/forky/scripts/desktop/components.sh
+@@ -3955,10 +3955,36 @@
+ }
+ 
+ desktop_stage_waybar_native_menus() {
+-  for menu_name in tomat audio notifications power; do
++  for menu_name in tomat audio notifications power calendar; do
+     desktop_stage_role_asset "etc/skel-desktop/.config/waybar/${menu_name}-menu.xml" \
+       "/etc/skel-desktop/.config/waybar/${menu_name}-menu.xml" 0644
+   done
++  # Keep optional voice actions visible but disabled when their services are
++  # not selected. IDs stay stable, so both Waybar layouts use the same mapping.
++  native_menu_whisper=0
++  if desktop_whisper_addon_selected; then native_menu_whisper=1; fi
++  run_in_target "configure optional native audio menu" /usr/bin/python3 -I -c '
++from pathlib import Path
++import sys
++import xml.etree.ElementTree as ET
++path = Path("/etc/skel-desktop/.config/waybar/audio-menu.xml")
++tree = ET.parse(path)
++items = [item for item in tree.iter("object") if item.get("class") == "GtkMenuItem"
++         and item.find(".//object[@id=\"whisper_record\"]") is not None]
++if len(items) != 1:
++    raise SystemExit("native audio menu has no unique Whisper submenu")
++item = items[0]
++prop = item.find("./property[@name=\"sensitive\"]")
++if prop is None:
++    prop = ET.Element("property", {"name": "sensitive"})
++    # GtkBuilder constructs the parent when it encounters its first child.
++    # Properties added after that child are not reliably applied by GTK3.
++    item.insert(0, prop)
++prop.text = "True" if sys.argv[1] == "1" else "False"
++item.find("./property[@name=\"label\"]").text = "Whisper" if sys.argv[1] == "1" else "Whisper (not installed)"
++ET.indent(tree, space="  ")
++tree.write(path, encoding="utf-8", xml_declaration=True)
++' "$native_menu_whisper"
+   desktop_stage_role_asset etc/skel-desktop/.config/tomat/config.toml \
+     /etc/skel-desktop/.config/tomat/config.toml 0600
+   for menu_helper in labwc-tomat labwc-tomat-hook labwc-notifications; do
+--- original/d-i/forky/scripts/desktop/verify.sh
++++ refactored/d-i/forky/scripts/desktop/verify.sh
+@@ -1987,6 +1987,7 @@
+ from pathlib import Path
+ import pwd
+ import runpy
++import shlex
+ import stat
+ import subprocess
+ import sys
+@@ -1996,7 +1997,13 @@
+     if not ok:
+         raise SystemExit(message)
+ 
+-for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications"):
++# Import the GTK typelib without requiring a display in the installer chroot.
++import gi
++gi.require_version("Gtk", "3.0")
++from gi.repository import Gtk
++require(Gtk.get_major_version() == 3, "notification center requires GTK3")
++
++for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications", "labwc-calendar"):
+     path = Path("/usr/local/libexec") / name
+     info = path.lstat()
+     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
+@@ -2030,9 +2037,12 @@
+         for module, name, event in (("custom/tomat", "tomat", "on-click-right"),
+                                     ("pulseaudio", "audio", "on-click-right"),
+                                     ("custom/notifications", "notifications", "on-click"),
+-                                    ("custom/power", "power", "on-click")):
++                                    ("custom/power", "power", "on-click"),
++                                    ("clock", "calendar", "on-click-right")):
+             entry = bar[module]
+-            require(entry.get("menu") == event and event not in entry, "native menu event conflict: " + name)
++            require(entry.get("menu") == event and event not in entry
++                    and event + "-release" not in entry
++                    and event not in entry.get("actions", {}), "native menu event conflict: " + name)
+             require(entry.get("menu-file") == "~/.config/waybar/" + name + "-menu.xml", "wrong menu path")
+             path = config / "waybar" / (name + "-menu.xml")
+             info = path.lstat()
+@@ -2041,13 +2051,56 @@
+             tree = ET.parse(path).getroot()
+             menus = tree.findall("./object[@class=\"GtkMenu\"][@id=\"menu\"]")
+             require(len(menus) == 1, "native menu root is missing")
+-            ids = [item.get("id") for item in tree.iter("object") if item.get("class") == "GtkMenuItem" and item.get("id")]
++            objects = list(tree.iter("object"))
++            all_ids = [item.get("id") for item in objects if item.get("id")]
++            require(len(all_ids) == len(set(all_ids)), "duplicate GtkBuilder IDs: " + name)
++            leaves = [item for item in objects if item.get("class") == "GtkMenuItem"
++                      and item.find("./child[@type=\"submenu\"]") is None]
++            require(all(item.get("id") for item in leaves), "unwired native menu leaf: " + name)
++            ids = [item.get("id") for item in leaves]
+             actions = entry.get("menu-actions", {})
+             require(len(ids) == len(set(ids)) and set(ids) == set(actions), "menu/action IDs differ: " + name)
++            required_options = {
++                "--user", "--collect", "--no-block", "--service-type=exec", "--expand-environment=no",
++                "--slice=app.slice", "--property=Requisite=labwc-session.target",
++                "--property=After=labwc-session.target", "--property=PartOf=labwc-session.target",
++                "--property=ExitType=cgroup", "--property=KillMode=control-group",
++                "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s"}
+             for action in actions.values():
+-                require("--property=PartOf=labwc-session.target" in action
+-                        and "--property=KillMode=control-group" in action
+-                        and "__INSTALLER_" not in action, "unscoped/unresolved menu action")
++                argv = shlex.split(action)
++                require(argv and argv[0] == "/usr/bin/systemd-run" and "--" in argv,
++                        "native menu action must use the user manager")
++                require(required_options <= set(argv[1:argv.index("--")])
++                        and "__INSTALLER_" not in action, "blocking/unscoped/unresolved menu action")
++            if name == "calendar":
++                expected = {"calendar_open": "browse", "calendar_agenda": "agenda",
++                            "calendar_new_event": "new-event", "calendar_edit_event": "edit-event",
++                            "calendar_tasks": "tasks", "calendar_all_tasks": "all-tasks",
++                            "calendar_new_task": "new-task", "calendar_show_task": "show-task",
++                            "calendar_edit_task": "edit-task", "calendar_done_task": "done-task",
++                            "calendar_delete_task": "delete-task", "calendar_sync": "sync-ui"}
++                require(set(actions) == set(expected), "calendar menu action set differs")
++                for key, value in expected.items():
++                    argv = shlex.split(actions[key])
++                    require(argv[argv.index("--") + 1:] == ["/usr/local/bin/labwc-calendar", value],
++                            "wrong calendar menu backend: " + key)
++            elif name == "notifications":
++                expected = {"notifications_center": "center", "notifications_restore": "restore",
++                            "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
++                            "notifications_dnd": "dnd", "notifications_dismiss": "dismiss",
++                            "notifications_clear": "clear"}
++                require(set(actions) == set(expected), "notification menu action set differs")
++                for key, value in expected.items():
++                    argv = shlex.split(actions[key])
++                    require(argv[argv.index("--") + 1:] == ["/usr/local/libexec/labwc-notifications", value],
++                            "wrong notification menu backend: " + key)
++            elif name == "audio":
++                whisper = [item for item in objects if item.get("class") == "GtkMenuItem"
++                           and item.find(".//object[@id=\"whisper_record\"]") is not None]
++                require(len(whisper) == 1, "audio menu has no unique Whisper submenu")
++                enabled = whisper[0].findtext("./property[@name=\"sensitive\"]", "True") == "True"
++                installed = (config / "systemd/user/whisper-transcribe.service").is_file()
++                require(enabled == installed, "optional Whisper menu/service availability differs")
+             require("labwc-power-menu" not in json.dumps(entry), "Waybar still invokes the fuzzel power picker")
+ 
+ arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True).strip()
+@@ -2058,7 +2111,7 @@
+     for relative in ("etc/systemd/system/tomat.service", "etc/systemd/user/tomat.service"):
+         path = Path("/") / relative
+         require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
+-print("desktop_native_menu_verification menus=4 tomat=isolated power=native")
++print("desktop_native_menu_verification menus=5 tomat=isolated power=native calendar=native")
+ ' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME"
+ }
+ 
+--- original/d-i/forky/tests/test_native_tomat_20260920.py
++++ refactored/d-i/forky/tests/test_native_tomat_20260920.py
+@@ -292,7 +292,8 @@
+         import xml.etree.ElementTree as ET
+         for bar in bars():
+             for module, name, event in [('custom/tomat','tomat','on-click-right'), ('pulseaudio','audio','on-click-right'),
+-                                       ('custom/notifications','notifications','on-click'), ('custom/power','power','on-click')]:
++                                       ('custom/notifications','notifications','on-click'), ('custom/power','power','on-click'),
++                                       ('clock','calendar','on-click-right')]:
+                 entry = bar[module]
+                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
+                 tree = ET.parse(SKEL / 'waybar' / (name + '-menu.xml'))
+@@ -306,7 +307,7 @@
+             self.assertEqual(bar['custom/tomat']['restart-interval'], 5)
+             self.assertFalse(bar['custom/tomat']['exec-on-event'])
+ 
+-    def test_gtk_builder_accepts_all_four_nested_native_menus(self):
++    def test_gtk_builder_accepts_all_five_nested_native_menus(self):
+         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
+             self.skipTest('native GTK3 / Xvfb unavailable')
+         code = r'''
+@@ -324,10 +325,10 @@
+     for obj in ET.parse(path).iter("object"):
+         if obj.get("id"): assert G.gtk_builder_get_object(builder,obj.get("id").encode()), obj.get("id")
+     O.g_object_unref(builder)
+-print("GTK3 native menu builders: 4 passed")
++print("GTK3 native menu builders: 5 passed")
+ '''
+         result = subprocess.run(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-c', code,
+-                                 *(str(SKEL / 'waybar' / (name + '-menu.xml')) for name in ('tomat','audio','notifications','power'))],
++                                 *(str(SKEL / 'waybar' / (name + '-menu.xml')) for name in ('tomat','audio','notifications','power','calendar'))],
+                                 text=True, capture_output=True, timeout=15)
+         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+ 
+--- original/d-i/forky/tests/test_notifications_followup_20260920.py
++++ refactored/d-i/forky/tests/test_notifications_followup_20260920.py
+@@ -60,7 +60,8 @@
+             self.assertEqual(entry['return-type'], 'json')
+             self.assertEqual(entry['menu-file'], '~/.config/waybar/notifications-menu.xml')
+             self.assertEqual(set(entry['menu-actions']), {
+-                'notifications_dnd', 'notifications_clear', 'notifications_center'})
++                'notifications_dnd', 'notifications_clear', 'notifications_center',
++                'notifications_dnd_on', 'notifications_dnd_off', 'notifications_restore', 'notifications_dismiss'})
+             for action in entry['menu-actions'].values():
+                 for option in ('--user', '--service-type=exec', '--expand-environment=no',
+                                '--property=Requisite=labwc-session.target',
+--- original/tools/tests/test_installed_session_failures_20260913.py
++++ refactored/tools/tests/test_installed_session_failures_20260913.py
+@@ -267,9 +267,14 @@
+                 self.assertIn(option, args)
+             self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
+             count += 1
+-        # Native menus consume their own events; Tomat and notifications add
+-        # a net one remaining click callback per bar to the previous 58.
+-        self.assertEqual(count, 60)
++        # Native calendar menus now consume the two clock right-clicks.
++        # Retain exact coverage of ordinary callbacks, and require both native
++        # menu assets instead of silently accepting removed calendar actions.
++        self.assertEqual(count, 58)
++        self.assertEqual(len(re.findall(
++            r'"menu-file"\s*:\s*"[^"\n]+/calendar-menu\.xml"', content)), 2)
++        self.assertNotRegex(content,
++            r'"on-click-right"\s*:\s*"[^"\n]*/labwc-calendar menu"')
+ 
+     def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
+         text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()

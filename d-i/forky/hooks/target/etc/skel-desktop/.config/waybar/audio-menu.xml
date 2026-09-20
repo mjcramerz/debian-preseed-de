@@ -1,0 +1,57 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<interface>
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="audio_open">
+        <property name="label">Open Pavucontrol</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="audio_mute">
+        <property name="label">Sound Mute / Unmute</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="audio_mic">
+        <property name="label">Mic Mute / Unmute</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="audio_40">
+        <property name="label">Volume 40%</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" />
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="label">Whisper</property>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <child>
+              <object class="GtkMenuItem" id="whisper_record">
+                <property name="label">Record</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="whisper_transcribe">
+                <property name="label">Transcribe saved recording</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="whisper_stop">
+                <property name="label">Stop recording (and transcribe)</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="whisper_cancel">
+                <property name="label">Stop transcription</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

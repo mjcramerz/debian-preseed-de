@@ -20,6 +20,7 @@ use ExternalSoftware::Servicing::Postman;
 use ExternalSoftware::Servicing::Process;
 use ExternalSoftware::Servicing::Repository;
 use ExternalSoftware::Servicing::Sleek;
+use ExternalSoftware::Servicing::Tomat;
 use ExternalSoftware::Servicing::State;
 use ExternalSoftware::Servicing::Tuta;
 
@@ -171,6 +172,15 @@ sub _release_deb_specs {
             in_use_roots => ['/opt/sleek'],
             desktop    => '/usr/share/applications/sleek.desktop',
             library    => '/opt/sleek/libffmpeg.so',
+        },
+        {
+            name       => 'tomat',
+            label      => 'Tomat',
+            packages   => ['tomat'],
+            executable => '/usr/bin/tomat',
+            in_use_roots => ['/usr/bin/tomat'],
+            desktop    => q{},
+            required_executables => ['/usr/bin/tomat'],
         },
     );
 }
@@ -439,6 +449,7 @@ sub _run_download {
     my @release_modules = (
         ExternalSoftware::Servicing::Obsidian->new(http => $http, deb => $deb),
         ExternalSoftware::Servicing::Sleek->new(http => $http, deb => $deb),
+        ExternalSoftware::Servicing::Tomat->new(http => $http, deb => $deb),
     );
     for my $index (0 .. $#release_specs) {
         my $app = $release_specs[$index];

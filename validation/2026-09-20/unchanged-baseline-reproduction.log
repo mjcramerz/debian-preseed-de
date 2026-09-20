@@ -1,0 +1,172 @@
+test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix) ... FAIL
+test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) ... 
+  test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex') ... FAIL
+test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge) ... FAIL
+test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration) ... FAIL
+test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration) ... FAIL
+test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields) ... FAIL
+test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style) ... FAIL
+test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement) ... FAIL
+test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy) ... FAIL
+test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group) ... FAIL
+test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option) ... FAIL
+test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy) ... FAIL
+test_rejects_misplaced_window_switcher_button (test_workspace_no_broker.InstalledVerifierTests.test_rejects_misplaced_window_switcher_button) ... ok
+test_rejects_stale_broker_executable (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_broker_executable) ... ok
+test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency) ... FAIL
+test_rejects_unresolved_template (test_workspace_no_broker.InstalledVerifierTests.test_rejects_unresolved_template) ... ok
+test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services) ... FAIL
+
+======================================================================
+FAIL: test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_iocost_20260919.py", line 116, in test_all_profiles_complete_and_exact_enable_matrix
+    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+First differing element 0:
+'btrfs-de-flex.env'
+'btrfs-de-dual-flex.env'
+
+Second list contains 1 additional elements.
+First extra element 1:
+'btrfs-de-flex.env'
+
+- ['btrfs-de-flex.env']
++ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+
+======================================================================
+FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_iocost_20260919.py", line 147, in test_both_enabled_profiles_native_staging_and_query
+    self.assertTrue(path.is_file())
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+======================================================================
+FAIL: test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_target_debconf_boundary.py", line 331, in test_reported_profile_native_iocost_transaction_through_real_bridge
+            result, requests = self.assert_ok('''
+                               ~~~~~~~~~~~~~~^^^^
+    . /tmp/lib.sh
+    ^^^^^^^^^^^^^
+    ...<3 lines>...
+    stage_target_iocost
+    ^^^^^^^^^^^^^^^^^^^
+    ''', env=env, timeout=15)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_target_debconf_boundary.py", line 96, in assert_ok
+    self.assertIn(b'GET mirror/protocol', requests)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'GET mirror/protocol' not found in []
+
+======================================================================
+FAIL: test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 198, in test_accepts_native_multi_workspace_configuration
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : native switcher launch contract changed
+
+
+======================================================================
+FAIL: test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 206, in test_accepts_native_single_workspace_configuration
+    self.assertEqual(result.returncode, 0, result.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : native switcher launch contract changed
+
+
+======================================================================
+FAIL: test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 250, in test_rejects_classic_list_fields
+    self.assertIn('classic list fields must not be configured', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'classic list fields must not be configured' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 242, in test_rejects_classic_list_style
+    self.assertIn('native thumbnail switcher required', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'native thumbnail switcher required' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 262, in test_rejects_dangling_broker_enablement
+    self.assertIn('retired taskbar unit remains', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'retired taskbar unit remains' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 221, in test_rejects_global_alt_tab_in_account_copy
+    self.assertIn('non-local A-Tab', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'non-local A-Tab' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 214, in test_rejects_global_taskbar_in_nested_group
+    self.assertIn('global task list enabled', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'global task list enabled' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 274, in test_rejects_invented_workspace_option
+    self.assertIn('unsupported taskbar workspace option', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'unsupported taskbar workspace option' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 228, in test_rejects_list_f13_in_account_copy
+    self.assertIn('panel must use the native thumbnail switcher', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'panel must use the native thumbnail switcher' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/d-i/forky/tests/test_workspace_no_broker.py", line 267, in test_rejects_stale_service_dependency
+    self.assertIn('retired dependency', self.verify().stderr)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'retired dependency' not found in 'native switcher launch contract changed\n'
+
+======================================================================
+FAIL: test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/original-baseline/tools/tests/test_installed_session_failures_20260913.py", line 271, in test_all_panel_click_commands_use_session_bound_user_services
+    self.assertEqual(count, 58)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+AssertionError: 56 != 58
+
+----------------------------------------------------------------------
+Ran 17 tests in 13.635s
+
+FAILED (failures=14)

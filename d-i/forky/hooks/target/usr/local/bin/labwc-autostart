@@ -207,6 +207,11 @@ wait_for_wayland_output
 wait_for_required_session_units
 start_waybar_if_enabled
 start_health_notifier_if_enabled
+# This controller submits a single long-running transient user service. It does
+# not daemonize or parent wlsunset in the compositor cgroup. Failure is visible
+# in the journal but optional colour adjustment must not destroy the session.
+/usr/local/bin/labwc-wlsunset start ||
+  printf 'warning: wlsunset startup failed; inspect journalctl --user -b -u labwc-wlsunset.service\n' >&2
 session_systemctl --no-block start labwc-session-restore.service >/dev/null 2>&1 ||
   printf 'warning: unable to start desktop session restoration\n' >&2
 

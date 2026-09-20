@@ -4,10 +4,12 @@ from __future__ import annotations
 import contextlib
 import errno
 import fcntl
+import json
 import os
 from pathlib import Path
 import pwd
 import re
+import selectors
 import signal
 import socket
 import stat
@@ -25,6 +27,11 @@ COMPOSITOR = "labwc-compositor.service"
 # Only repository-managed guest shutdown hooks. Leave their engines and both
 # D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
 GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
+# Fixed system units only. User managers own their broker and (sd-pam) child;
+# killing their cgroups avoids PID/name races and requires no CAP_KILL here.
+RUNTIME_FIXED_UNITS = ("greetd.service", "dbus-broker.service", "dbus.socket")
+RUNTIME_PROPERTIES = "Id,LoadState,ActiveState,Job,MainPID,ControlPID,ControlGroup"
+CGROUP_ROOT = Path("/sys/fs/cgroup")
 
 
 class Error(Exception):
@@ -198,7 +205,38 @@ def sleep_guard() -> int:
     return 0
 
 
-def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,)) -> str:
+def bounded_output(proc, timeout: float, limit: int) -> tuple[str, str]:
+    """Drain both transport pipes with a deadline and an enforced memory bound."""
+    deadline = time.monotonic() + timeout
+    buffers = {proc.stdout: bytearray(), proc.stderr: bytearray()}
+    with selectors.DefaultSelector() as poller:
+        for stream in buffers:
+            poller.register(stream, selectors.EVENT_READ)
+        while poller.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(proc.args, timeout)
+            for key, _ in poller.select(remaining):
+                stream = key.fileobj
+                chunk = os.read(stream.fileno(), 16_384)
+                if not chunk:
+                    poller.unregister(stream)
+                    continue
+                # stderr is diagnostic only; neither pipe may grow without bound.
+                maximum = limit if stream is proc.stdout else 16_384
+                if len(buffers[stream]) + len(chunk) > maximum:
+                    raise Error("power transport output exceeded its size limit")
+                buffers[stream].extend(chunk)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(proc.args, timeout)
+    proc.wait(timeout=remaining)
+    return tuple(bytes(buffers[stream]).decode("utf-8", errors="replace")
+                 for stream in (proc.stdout, proc.stderr))
+
+
+def run(argv: list[str], *, timeout: float = 25, accepted: tuple[int, ...] = (0,),
+        max_output: int | None = None) -> str:
     # Each local transport gets its own process group. On a timeout, reap the
     # whole transport rather than leaving a stdio bridge holding our pipes open.
     proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
@@ -207,7 +245,10 @@ def run(argv: list[str], *, timeout: int = 25, accepted: tuple[int, ...] = (0,))
     communicated = False
     try:
         try:
-            output, error = proc.communicate(timeout=timeout)
+            if max_output is None:
+                output, error = proc.communicate(timeout=timeout)
+            else:
+                output, error = bounded_output(proc, timeout, max_output)
             communicated = True
         except subprocess.TimeoutExpired:
             raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
@@ -247,6 +288,119 @@ def ready() -> None:
         notifier.sendall(b"READY=1\nSTATUS=Authorized desktop power request accepted")
 
 
+def check_shutdown_inhibitors() -> None:
+    """Keep blocking inhibitors meaningful before the explicit single-force path.
+
+    Query while the system bus is alive. This is a veto check, not logind's
+    PrepareForShutdown/delay-inhibitor protocol, which --force bypasses.
+    """
+    raw = run(["/usr/bin/busctl", "--system", "--json=short", "--timeout=5s",
+               "call", "org.freedesktop.login1", "/org/freedesktop/login1",
+               "org.freedesktop.login1.Manager", "ListInhibitors"], timeout=7, max_output=1_048_576)
+    try:
+        if len(raw) > 1_048_576:
+            raise ValueError("oversized inhibitor response")
+        result = json.loads(raw)
+        if not isinstance(result, dict) or result.get("type") != "a(ssssuu)":
+            raise ValueError("unexpected inhibitor signature")
+        data = result.get("data")
+        if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], list) or len(data[0]) > 1024:
+            raise ValueError("invalid inhibitor array")
+        for item in data[0]:
+            if (not isinstance(item, list) or len(item) != 6
+                    or any(not isinstance(value, str) or len(value) > 4096 for value in item[:4])
+                    or any(type(value) is not int or not 0 <= value < 2**32 for value in item[4:])):
+                raise ValueError("invalid inhibitor record")
+            if "shutdown" in item[0].split(":") and item[3] != "delay":
+                # Includes block-weak: do not use root to bypass another user's
+                # veto. Unknown shutdown modes also fail closed.
+                raise Error("shutdown is inhibited; release the inhibitor before retrying")
+    except (ValueError, RecursionError) as exc:
+        raise Error("cannot verify shutdown inhibitors") from exc
+
+
+def runtime_cgroup(name: str) -> str:
+    """Only canonical repository/vendor cgroups may be inspected or signalled."""
+    if name in {"greetd.service", "dbus-broker.service"}:
+        return "/system.slice/" + name
+    if name == "dbus.socket":
+        return ""
+    match = re.fullmatch(r"user@(0|[1-9][0-9]{0,9})\.service", name)
+    if not match or int(match[1]) >= 2**32 - 1:
+        raise Error("unexpected unit in final power cleanup")
+    uid = match[1]
+    return f"/user.slice/user-{uid}.slice/user@{uid}.service"
+
+
+def runtime_snapshot(*, timeout: float = 5) -> dict[str, dict[str, str]]:
+    # show is the machine-readable interface; the glob is passed as an argv
+    # operand, never expanded by a shell and never supplied by the caller.
+    raw = run(["/usr/bin/systemctl", "--no-pager", "show", "--all",
+               "--property=" + RUNTIME_PROPERTIES, "--",
+               *RUNTIME_FIXED_UNITS, "user@*.service"], timeout=timeout, accepted=(0, 1), max_output=131_072)
+    if not raw.strip() or len(raw) > 131_072:
+        raise Error("missing or oversized final cleanup snapshot")
+    units = {}
+    for block in raw.strip().split("\n\n"):
+        props = {}
+        for line in block.splitlines():
+            key, separator, value = line.partition("=")
+            if not separator or key not in RUNTIME_PROPERTIES.split(",") or key in props:
+                raise Error("malformed final cleanup properties")
+            props[key] = value
+        name = props.get("Id", "")
+        expected = runtime_cgroup(name)
+        if name in units or len(units) >= 128:
+            raise Error("duplicate or excessive final cleanup units")
+        if (props.get("LoadState") not in {"loaded", "not-found"}
+                or props.get("ActiveState") not in {"active", "inactive", "failed", "activating",
+                                                     "deactivating", "reloading", "refreshing"}
+                or not re.fullmatch(r"[0-9]{0,10}", props.get("Job", "invalid"))):
+            raise Error("unverifiable final cleanup unit state")
+        if name != "dbus.socket" and props["LoadState"] == "loaded":
+            if (any(not re.fullmatch(r"[0-9]{1,10}", props.get(key, ""))
+                    for key in ("MainPID", "ControlPID")) or "ControlGroup" not in props):
+                raise Error("incomplete final cleanup service state")
+        if props.get("ControlGroup", "") not in {"", expected}:
+            raise Error("unexpected final cleanup cgroup placement")
+        if props["LoadState"] == "not-found" and props["ActiveState"] != "inactive":
+            raise Error("inconsistent missing final cleanup unit")
+        units[name] = props
+    if not set(RUNTIME_FIXED_UNITS) <= units.keys():
+        raise Error("incomplete final cleanup snapshot")
+    for name in ("dbus.socket", "dbus-broker.service"):
+        if units[name]["LoadState"] != "loaded":
+            raise Error("managed D-Bus broker/socket is not loaded")
+    return units
+
+
+def cgroup_populated(cgroup: str) -> bool:
+    """Read recursive cgroup-v2 population, not just a possibly-zero MainPID."""
+    if not cgroup:
+        return False
+    # Revalidate the complete path even for direct internal callers/tests.
+    name = cgroup.rsplit("/", 1)[-1]
+    if cgroup != runtime_cgroup(name):
+        raise Error("unsafe final cleanup cgroup path")
+    path = CGROUP_ROOT / cgroup.lstrip("/") / "cgroup.events"
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return False  # PID 1 already removed the empty cgroup.
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise Error("invalid cgroup events file")
+        raw = os.read(fd, 4097)
+    finally:
+        os.close(fd)
+    if len(raw) > 4096:
+        raise Error("oversized cgroup events file")
+    values = re.findall(rb"^populated ([01])$", raw, re.MULTILINE)
+    if len(values) != 1:
+        raise Error("cannot verify final cleanup cgroup population")
+    return values[0] == b"1"
+
+
 class Worker:
     def __init__(self, uid: int, user: str, action: str, *, greeter: bool = False):
         self.uid, self.user, self.action = uid, user, action
@@ -256,6 +410,7 @@ class Worker:
         self.committed = False
         self.quiesced = False
         self.handoff_attempted = False
+        self.runtime_teardown_started = False
 
     def userctl(self, *args: str, **kwargs) -> str:
         return run(["/usr/bin/systemctl", "--user", "--machine=" + self.machine,
@@ -280,7 +435,7 @@ class Worker:
             if int(fields[1]) == self.uid:
                 continue
             session_class = run(["/usr/bin/loginctl", "show-session", fields[0], "--property=Class", "--value"]).strip()
-            if session_class in {"user", "user-early", "user-light"}:
+            if session_class in {"user", "user-early", "user-light", "user-early-light"}:
                 raise Error("another interactive account is logged in; ask that user to save and log out first")
 
     def lock(self) -> None:
@@ -417,19 +572,84 @@ class Worker:
                 if props.get("ActiveState") != "inactive" or props.get("Result") != "success":
                     raise Error(f"guest shutdown did not complete cleanly: {name}")
 
+    def stop_shutdown_runtime(self) -> None:
+        """Final, bounded broker/PAM teardown; no user bus is used afterwards.
+
+        All loaded user@UID.service cgroups are selected only after checking
+        other interactive accounts. This includes their brokers and sd-pam,
+        including greeter/lingering managers. No PID scan, pkill, direct
+        cross-profile signals, persistent mask or global timeout change.
+        """
+        if self.action not in {"reboot", "poweroff"} or not (self.quiesced or self.greeter):
+            raise Error("runtime teardown requires a prepared machine power action")
+        if self.runtime_teardown_started:
+            raise Error("runtime teardown may run only once; inspect the worker journal")
+        self.require_package_reservation()
+        self.protect_other_sessions()
+        check_shutdown_inhibitors()
+        if not (CGROUP_ROOT / "cgroup.controllers").is_file():
+            raise Error("final power cleanup requires the unified cgroup-v2 hierarchy")
+        before = runtime_snapshot()
+        groups = {runtime_cgroup(name) for name, props in before.items()
+                  if name.endswith(".service") and props["LoadState"] == "loaded"}
+        for group in groups:
+            cgroup_populated(group)  # Check read access before committing.
+        selected = sorted(name for name, props in before.items() if props["LoadState"] == "loaded")
+        self.require_package_reservation()
+        self.committed = self.runtime_teardown_started = True
+        # Queue stop jobs before SIGKILL so Restart= cannot relaunch a killed
+        # service. Stop the system bus listener too, preventing socket
+        # activation. Stop greetd to prevent a fresh greeter/login loop.
+        # Root systemctl uses PID 1's private socket, not the broker being killed.
+        run(["/usr/bin/systemctl", "--no-ask-password", "--no-block",
+             "--job-mode=replace-irreversibly", "stop", "--", *selected], timeout=10)
+        services = [name for name in selected if name == "dbus-broker.service" or name.startswith("user@")]
+        try:
+            run(["/usr/bin/systemctl", "--no-ask-password", "kill", "--kill-whom=all",
+                 "--signal=SIGKILL", "--", *services], timeout=10)
+        except (Error, OSError, subprocess.SubprocessError) as exc:
+            # A stop can win the race. Accept this only if the independent
+            # verification below proves every selected cgroup is empty.
+            print(f"power cleanup signal result requires verification: {exc}", file=sys.stderr, flush=True)
+        deadline = time.monotonic() + 10
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise Error("broker/PAM cleanup did not finish; forced power was not submitted")
+            after = runtime_snapshot(timeout=min(5, remaining))
+            if set(after) - set(before):
+                raise Error("a new user manager appeared during power cleanup; forced power cancelled")
+            stopped = all(props["ActiveState"] in {"inactive", "failed"}
+                          and props["Job"] in {"", "0"}
+                          and props.get("MainPID", "0") == "0"
+                          and props.get("ControlPID", "0") == "0"
+                          for props in after.values())
+            groups.update(props["ControlGroup"] for props in after.values() if props.get("ControlGroup"))
+            # Check saved cgroups even when a unit disappears or clears its
+            # ControlGroup property. A surviving sd-pam must not be missed.
+            empty = not any(cgroup_populated(group) for group in sorted(groups))
+            if stopped and empty:
+                print("power cleanup: user brokers/PAM and system broker stopped; cgroups empty",
+                      file=sys.stderr, flush=True)
+                return
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+
     def final_power_action(self) -> None:
         if self.action not in {"reboot", "poweroff"}:
             raise Error("invalid machine shutdown action")
-        if not self.quiesced or self.handoff_attempted:
+        if not (self.quiesced or self.greeter) or self.handoff_attempted:
             raise Error("forced handoff requires a quiesced desktop and may run only once")
+        self.require_package_reservation()
+        self.stop_shutdown_runtime()
         self.require_package_reservation()
         self.committed = True
         self.handoff_attempted = True
-        print(f"power handoff: systemctl --force {self.action}; desktop stop verified",
+        print(f"power handoff: systemctl --force {self.action}; runtime stop verified",
               file=sys.stderr, flush=True)
         # Exactly ONE --force contacts PID 1; two would bypass its final
         # process/filesystem teardown. No target is started as an intermediate
-        # barrier. Keep logind, the user manager and both brokers alive here.
+        # barrier. All remaining requests go directly to PID 1; the user
+        # managers and brokers have already been stopped and verified empty.
         try:
             run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)
         except (Error, OSError, subprocess.SubprocessError) as exc:
@@ -471,11 +691,12 @@ class Worker:
                     if self.action not in {"poweroff", "reboot"}:
                         raise Error("invalid greeter power action")
                     self.require_package_reservation()
-                    self.committed = self.handoff_attempted = True
-                    # Preserve the greeter's normal logind shutdown path; do
-                    # not grant it an inhibitor override or a force fallback.
-                    run(["/usr/bin/systemctl", "--check-inhibitors=yes",
-                         "--no-ask-password", self.action], timeout=20)
+                    check_shutdown_inhibitors()
+                    # No desktop belongs to this greeter request; the account
+                    # guard above has excluded other interactive users. Share
+                    # the guest-stop and single-force finalization path.
+                    self.stop_optional_guests()
+                    self.final_power_action()
                     hold_reservation()
                     return
                 if self.action == "suspend":
@@ -495,6 +716,7 @@ class Worker:
                     self.committed = True
                     self.terminate_user()
                 else:
+                    check_shutdown_inhibitors()
                     self.quiesce_desktop()
                     self.stop_optional_guests()
                     self.final_power_action()

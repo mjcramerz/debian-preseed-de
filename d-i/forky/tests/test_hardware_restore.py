@@ -188,6 +188,8 @@ printf 'vfio=%s\nnvme=%s\nnvidia=%s\nmodules=%s\n' "$FILE_MODPROBE_VFIO" "$FILE_
             q = shlex.quote
             code = self.preamble() + f'''
 INSTALLER_TARGET_DIR={q(str(target))}; TMP_ENV_DIR={q(str(work))}
+# Hardware family is explicit; Intel CPU detection is no longer a ThinkPad selector.
+SYSTEM_HARDWARE_SPEC=79-thinkpad-acpi.conf
 DIR_HOOKS_TARGET={q(str(SHARED))}; INSTALLER_SOURCE_ROOT={q(str(FORKY))}
 . {q(str(FORKY / 'scripts/late/target-assets.sh'))}
 . {q(str(FORKY / 'scripts/late/templates.sh'))}

@@ -181,6 +181,12 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                 # Reverse only the exact missing-executable corrections.
                 # Historical workload hashes remain unchanged.
                 metadata_migrations = {
+                    # Wallpaper child supervision changes only these comments;
+                    # retain the original immutable workload-policy hash.
+                    'd-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service': (
+                        (b'# The persistent supervisor coalesces selections and reaps its own children.\n# Restart only the supervisor after an unexpected failure.\n',
+                         b'# Waypaper applies validated selections through an explicit service restart.\n# Keep automatic restarts for unexpected exits only.\n'),
+                    ),
                     'd-i/forky/hooks/target/usr/local/libexec/podman-devops-host': (
                         (b"    if filesystem not in ('btrfs', 'ext2', 'ext3', 'ext4', 'xfs', 'f2fs'):\n",
                          b"    if filesystem not in ('btrfs', 'ext2/ext3', 'xfs', 'f2fs'):\n"),
@@ -214,7 +220,8 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                                      'e9bea24ba2d45756915ad8fc5dd59bcd5d8f42991cdc5686d66c677dab8694df')
                     original = original.replace(kanshi_block.group(0), b'', 1)
                     for added in (b'  desktop_install_kanshi_policy\n',
-                                  b'  desktop_verify_kanshi_policy\n'):
+                                  b'  desktop_verify_kanshi_policy\n',
+                                  b'  desktop_verify_native_drawer_icons\n'):
                         self.assertEqual(original.count(added), 1)
                         original = original.replace(added, b'', 1)
                     logger_default = b'LABWC_ENABLE_KANSHI:-false'

@@ -96,6 +96,10 @@ profile managed-labwc-shutdown-hook /{etc/skel-desktop,home/*}/.config/labwc/shu
 }
 
 profile managed-waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper/pipx/venvs/waypaper/bin/waypaper} flags=(attach_disconnected) {
+  owner @{HOME}/.config/fontconfig/conf.d/{,*.conf} r,
+  owner @{HOME}/.local/share/fonts/{,**} r,
+  owner @{HOME}/.local/share/icons/{,terminal-fonts/releases/**} r,
+  /usr/share/texmf/fonts/{,**} r,
   #include <abstractions/managed-wrapper-gui>
   #include <abstractions/managed-wrapper-python>
   include if exists <abstractions/nameservice-strict>
@@ -117,7 +121,7 @@ profile managed-waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/
   /usr/sbin/ldconfig rCx -> waypaper-ldconfig,
   /usr/libexec/glycin-loaders/2+/glycin-image-rs rPx -> waypaper-glycin-loader,
   /usr/libexec/glycin-loaders/2+/glycin-svg rPx -> waypaper-glycin-loader,
-  # Waypaper is a selector only; the state helper owns controlled service restarts.
+  # Waypaper is a selector only; the state helper atomically publishes requests.
   /usr/local/bin/labwc-wallpaper-save rPx -> managed-labwc-wallpaper-save,
 
   / r,
@@ -412,7 +416,7 @@ profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-
   # NoNewPrivileges=yes is intentional: these fixed utilities inherit this
   # profile instead of requiring a privilege-widening PUx transition. The
   # user@.host transport spawns its PAM/stdio bridge through PID 1, not here.
-  /usr/bin/{systemctl,systemd-run,loginctl,sync} rix,
+  /usr/bin/{systemctl,systemd-run,loginctl,busctl,sync} rix,
   # Readiness is emitted by this main process. No user-controlled notifier.
   network unix dgram,
   /run/systemd/notify w,
@@ -426,6 +430,10 @@ profile managed-labwc-admin-action-worker /usr/local/libexec/labwc-admin-action-
   dbus (receive) bus=system peer=(label=unconfined),
   # PID 1/logind signal the selected UID's cgroups. No cross-profile ptrace
   # grants or unconfined pkill subprocesses are needed by this controller.
+  # Read-only recursive population checks; never cgroup.procs or /proc scans.
+  /sys/fs/cgroup/cgroup.controllers r,
+  /sys/fs/cgroup/system.slice/{dbus-broker,greetd}.service/cgroup.events r,
+  /sys/fs/cgroup/user.slice/user-[0-9]*.slice/user@[0-9]*.service/cgroup.events r,
   /run/labwc-power/ r,
   /run/labwc-power/action.lock rwk,
   signal (send, receive) set=(kill) peer=managed-labwc-admin-action-worker,
@@ -474,6 +482,7 @@ profile managed-labwc-session-state /usr/local/libexec/labwc-session-state flags
 }
 
 profile managed-mullvad-vpn /usr/local/bin/mullvad-vpn flags=(attach_disconnected) {
+  owner @{HOME}/ r,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/mullvad-vpn rix,
@@ -520,6 +529,8 @@ profile managed-labwc-autostart /usr/local/bin/labwc-autostart flags=(attach_dis
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-autostart rix,
+  /usr/local/bin/labwc-wlsunset rPx -> managed-labwc-wlsunset,
+  signal (receive) set=(chld) peer=managed-labwc-wlsunset,
   /usr/local/libexec/labwc-output-watch rPx -> managed-labwc-output-watch,
   /usr/bin/{sleep,find,timeout} rix,
   /usr/bin/{dbus-update-activation-environment,systemctl} pux,
@@ -577,6 +588,10 @@ profile managed-labwc-calendar /usr/local/libexec/labwc-calendar flags=(attach_d
 
   /usr/local/libexec/labwc-calendar rix,
   /usr/bin/{cat,chmod,flock,grep,id,install,mkdir,mktemp,rm,rmdir,find,timeout} rix,
+  /{,usr/}bin/{kill,sleep} rix,
+  # timeout/cancel_sync terminate only the sync process group they created;
+  # vdirsyncer may use the existing pux fallback and leave this profile.
+  signal (send) set=(term, kill) peer=unconfined,
   /usr/bin/{ikhal,khal,notify-send,todoman,vdirsyncer} pux,
   /usr/local/bin/labwc-fuzzel rPx -> managed-labwc-fuzzel,
   /usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,
@@ -992,6 +1007,7 @@ profile managed-digital-assets-python-runtime /usr/local/lib/digital-assets/{bin
 }
 
 profile managed-codex-wrapper /data/codex/lib/codex flags=(attach_disconnected, mediate_deleted) {
+  owner @{HOME}/Workspace/{,**/} r,
   #include <abstractions/managed-wrapper-python>
 
   unix,
@@ -1483,6 +1499,12 @@ profile managed-labwc-greeter-session /usr/local/bin/labwc-greeter-session flags
 }
 
 profile managed-labwc-health-notify /usr/local/bin/labwc-health-notify flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-notification-send rix,
+  /usr/bin/busctl rix,
+  owner /run/user/[0-9]*/bus rw,
+  /etc/localtime r,
+  /usr/share/zoneinfo/{,**} r,
   #include <abstractions/managed-wrapper-desktop>
   include if exists <abstractions/dbus-session-strict>
 
@@ -1623,6 +1645,7 @@ profile managed-labwc-kanshi /usr/local/libexec/labwc-kanshi flags=(attach_disco
 }
 
 profile managed-labwc-lock /usr/local/bin/labwc-lock flags=(attach_disconnected) {
+  owner @{HOME}/ r,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-lock rix,
@@ -2063,6 +2086,13 @@ profile managed-chatgpt-slirp4netns flags=(attach_disconnected) {
 }
 
 profile managed-labwc-managed-app /usr/local/bin/labwc-managed-app flags=(attach_disconnected) {
+  # Ancestor metadata used by Python's import/path validation (directories only).
+  / r,
+  /home/ r,
+  /usr/ r,
+  /usr/local/ r,
+  /usr/local/lib/ r,
+  /usr/local/lib/python3.[0-9]*/ r,
   owner /run/user/[0-9]*/labwc-session-closing r,
   #include <abstractions/managed-wrapper-wayland>
   #include <abstractions/managed-wrapper-python>
@@ -2472,6 +2502,7 @@ profile managed-labwc-managed-wayland-compat-app /usr/local/bin/labwc-managed-wa
   }
 
   profile managed-wayland-compat-app-bwrap flags=(attach_disconnected, mediate_deleted) {
+    /sys/devices/system/cpu/cpufreq/policy[0-9]*/base_frequency r,
     #include <abstractions/managed-bwrap-common>
     #include <abstractions/managed-bwrap-desktop-runtime>
     #include <abstractions/managed-pipewire-audio>
@@ -3108,6 +3139,18 @@ profile managed-labwc-session /usr/local/bin/labwc-session flags=(attach_disconn
 }
 
 profile managed-labwc-swaybg /usr/local/libexec/labwc-swaybg flags=(attach_disconnected) {
+  signal (send) set=(term kill) peer=managed-session-controls,
+  signal (receive) set=(chld) peer=managed-session-controls,
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-wallpaper-control rix,
+  # Ancestors are opened with O_DIRECTORY/O_NOFOLLOW and checked via dirfds.
+  / r,
+  /home/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/state/ r,
+  owner @{HOME}/.local/state/labwc/ rw,
+  owner @{HOME}/.local/state/labwc/{wallpaper,.wallpaper.lock,.wallpaper.*,.swaybg.lock} rwk,
   #include <abstractions/managed-wrapper-wayland>
 
   /usr/local/libexec/labwc-swaybg rix,
@@ -3223,11 +3266,27 @@ profile managed-labwc-users-groups-menu /usr/local/bin/labwc-users-groups-menu f
 }
 
 profile managed-labwc-wallpaper-save /usr/local/bin/labwc-wallpaper-save flags=(attach_disconnected) {
+  #include <abstractions/managed-wrapper-python>
+  /usr/local/libexec/labwc-wallpaper-control rix,
+  # Ancestors are opened with O_DIRECTORY/O_NOFOLLOW and checked via dirfds.
+  / r,
+  /home/ r,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ r,
+  owner @{HOME}/.local/state/ r,
+  owner @{HOME}/.local/state/labwc/ rw,
+  owner @{HOME}/.local/state/labwc/{wallpaper,.wallpaper.lock,.wallpaper.*,.swaybg.lock} rwk,
   #include <abstractions/managed-wrapper-desktop>
 
   /usr/local/bin/labwc-wallpaper-save rix,
   /usr/bin/{cat,chmod,file,find,id,install,mktemp,mv,readlink,rm,wc} rix,
-  /usr/bin/systemctl pux,
+  /usr/bin/systemctl rix,
+  include if exists <abstractions/dbus-session-strict>
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  /run/systemd/system/ r,
+  dbus (send) bus=session path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager member=StartUnit
+    peer=(name=org.freedesktop.systemd1),
   /etc/magic r,
   /usr/share/backgrounds/desktop/ r,
   /usr/share/backgrounds/desktop/** r,

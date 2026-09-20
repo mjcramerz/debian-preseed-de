@@ -17,8 +17,8 @@ Type=exec
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecCondition=/usr/local/libexec/labwc-session-check session-ready
 ExecStart=/usr/local/libexec/labwc-swaybg
-# Waypaper applies validated selections through an explicit service restart.
-# Keep automatic restarts for unexpected exits only.
+# The persistent supervisor coalesces selections and reaps its own children.
+# Restart only the supervisor after an unexpected failure.
 Restart=on-failure
 RestartSec=2s
 TimeoutStopSec=10s

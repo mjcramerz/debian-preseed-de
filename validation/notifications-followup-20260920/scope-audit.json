@@ -1,0 +1,211 @@
+{
+  "baseline_archive": "debian-preseed-de-refactored-2026-09-20.tar.gz",
+  "baseline_archive_sha256": "6337d8c84b09ce0daea4b69eec8b881d26e5756343989789deff004e2beeeb07",
+  "baseline_regular_files": 3292,
+  "unchanged_regular_files": 3276,
+  "modified": [
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+      "old": {
+        "sha256": "dd99e4a5d5a3bc5197203ee28c6227d405f9baecdf3442c6d12b0cbcc61b4c0c",
+        "mode": 384
+      },
+      "new": {
+        "sha256": "dcdf0601214a565e7050517343da2b81d25ef2c84907a8b9be4169503e10af67",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl",
+      "old": {
+        "sha256": "fda57c1dc0d540416a707e6aa3e3b815c62dac53d4110306b08c82bdc7d24aa9",
+        "mode": 384
+      },
+      "new": {
+        "sha256": "ce2f2889139e95c9d82f3db0976adf21c5d09a06cba98d7758c5d944c1f5175d",
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-notifications",
+      "old": {
+        "sha256": "509e3dbccfa1c472ad4a137886583882b5a4b8c49bfb7d56cb9faba0324d30e7",
+        "mode": 493
+      },
+      "new": {
+        "sha256": "024304d3970661e52b0413c547e658bbd1f49cd081caf644cbb1c12df7420460",
+        "mode": 493
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "old": {
+        "sha256": "e138b54406b6dc2bc0b9e951ae1c2c86c6469364dcd7bca7544e2b3dcac22944",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "7dc3dcd28b1cf09d547b0ea48f742b20a3c376dab32dc453d13ffc195e2d45d1",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "old": {
+        "sha256": "5767fb5f67ac926d88839398b73e40f62ab9594da266e9cdae8649d480b1d841",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "52691d292fb25685b92be7e360146fc9ef008fffbf69401f0de645fc4e918842",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "old": {
+        "sha256": "b546fca5056578a06444220d4413fc7faa79ae47e27fc61c7e7714468c62256b",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "96ee6dee4a011717ae6132c319668a05cea66ec98372d3fafdf0db688cd1b11d",
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "old": {
+        "sha256": "a2cd53edfc49afd50478fee0bcec6cb0bba9a38e7a64f72de7332906aa31a71f",
+        "mode": 448
+      },
+      "new": {
+        "sha256": "c1519d42798c04b0197dfe7012eed340c55cfdbcb9444213b70c6ebea20b5fb5",
+        "mode": 448
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/verify.sh",
+      "old": {
+        "sha256": "f8b86fa4c72a361f7c57ab082dc8637d64816ebba8b9ddd8e3a3b520a514c84e",
+        "mode": 488
+      },
+      "new": {
+        "sha256": "0c4acd0174ff3dcfa7f2ce235182f96a7e8e31d991ed9a85bdb7f298a40fe968",
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/software.sh",
+      "old": {
+        "sha256": "9addd082a9af0365dd7cda81ab09709fd3d3b836f94324e9499668b04cb1ebdf",
+        "mode": 488
+      },
+      "new": {
+        "sha256": "3c2ca82590a111e91df837f02d78b67ac1a7f755afef9f40139aac9b449fa165",
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_native_tomat_20260920.py",
+      "old": {
+        "sha256": "befe26707a96331bfafd297c0d2cc117eb046ed64d9a486d5d5ac7b9e6ea495d",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "33db54f4b142cf1b6c523fd76374508616af904b564969176edfd047996c294b",
+        "mode": 420
+      }
+    },
+    {
+      "path": "docs/HARDWARE-TOMAT-NATIVE-MENUS-2026-09-20.md",
+      "old": {
+        "sha256": "5ba271d9528611912a773138fb69b21a128d2583ab2944756a1ba1e20dba75d9",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "15ec9430f4f1d101085c34a640db97086a7fa1e0057d971f936c45cbe1048270",
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/tomat-native-menus-20260920/README.md",
+      "old": {
+        "sha256": "4b34b5a380cb36cca5a9d62df06eb49fb0f3ac7d3978cc1fc485ae9877acc94e",
+        "mode": 420
+      },
+      "new": {
+        "sha256": "9ad5254e4651ee85c6d06f3aa37fca5c7ca5bdec49871a9206116fe11e1f45f9",
+        "mode": 420
+      }
+    }
+  ],
+  "added": [
+    {
+      "path": "d-i/forky/tests/fixtures/waybar-session-buttons-gtk.py",
+      "sha256": "253e75b7ab69a3b7e11aa7d03b7f1d93d4f0b6c39d335db5fbeef537516d7b6e",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/tests/test_notifications_followup_20260920.py",
+      "sha256": "289cfc93de5b7d41f05b000c2d4de4dba81d42de62beb7c45b157e3b3423673e",
+      "mode": 420
+    },
+    {
+      "path": "docs/NOTIFICATIONS-FOLLOWUP-2026-09-20.md",
+      "sha256": "3848218ceacf705809e31d40ad121e2595e3092e30bd30a1382ec95a472053c2",
+      "mode": 420
+    }
+  ],
+  "removed": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apt/tomat-unattended.conf",
+      "sha256": "f7528d8f8cd88348ed432cf416de2b7ab72e191f3647f0d8344ee8af67c98932",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/local-apt-refresh.service.d/70-tomat-upgrade.conf",
+      "sha256": "727cf78ff22e3ba92173ebda181aabd9818fbe7c5369ed315a70fa1c5aeb1012",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/local-apt-tomat-upgrade.service",
+      "sha256": "0a7d37b245104255629a36ac56a587d392105625bdb5ae06858ddac0d91b1ba0",
+      "mode": 420
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/software/tomat/apt.conf",
+      "sha256": "c3a698c3b17a1722d5fb1f66487364c8356de6b0a76cb01b20cd0cd74d8e58b6",
+      "mode": 420
+    }
+  ],
+  "protected_paths_unchanged": [
+    "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+    "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/crystal-dock/labwc/appearance.conf.tmpl",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/crystal-dock/labwc/panel_1.conf",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/crystal-dock.service.d/60-resource-class.conf",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf",
+    "d-i/forky/hooks/target/usr/local/bin/discord",
+    "d-i/forky/hooks/target/usr/local/bin/zoom",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Discord.pm",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+    "d-i/forky/hooks/target/usr/local/libexec/managed-discord-distro",
+    "d-i/forky/hooks/target/usr/share/applications/discord.desktop",
+    "d-i/forky/scripts/desktop/xwayland.sh",
+    "validation/2026-09-20/private-xwayland-preservation.json",
+    "validation/log-followup-20260915/xwayland-preservation.json",
+    "validation/log-launchers-20260915-r3/xwayland-preservation.json",
+    "validation/log-remediation-20260915/xwayland-preservation.json"
+  ],
+  "maintenance_and_runtime_paths_unchanged": [
+    "d-i/forky/hooks/target/etc/apt/apt.conf.d/20auto-upgrades",
+    "d-i/forky/hooks/target/etc/apt/apt.conf.d/52unattended-upgrades",
+    "d-i/forky/hooks/target/etc/systemd/system/local-apt-refresh.service",
+    "d-i/forky/hooks/target/etc/systemd/system/local-apt-refresh.timer",
+    "d-i/forky/hooks/target/usr/local/libexec/local-apt-repository",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-tomat",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-tomat-hook",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/notifications-menu.xml"
+  ],
+  "outside_declared_scope_changes": [],
+  "validation_directory_excluded": "validation/notifications-followup-20260920/"
+}

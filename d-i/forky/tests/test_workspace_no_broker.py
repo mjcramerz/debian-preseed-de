@@ -110,7 +110,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                 bars = json.loads((config / 'waybar/config').read_text())
                 self.assertEqual(len(bars), 2)
                 for bar in bars:
-                    expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'group/apps']
+                    expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'custom/tomat', 'group/apps']
                     if count == 1:
                         expected += ['wlr/taskbar']
                     self.assertEqual(bar['modules-left'], expected)

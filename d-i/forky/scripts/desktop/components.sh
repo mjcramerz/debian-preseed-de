@@ -1919,18 +1919,18 @@ desktop_waybar_modules_left_json() {
   # expose a global window list as a supposedly workspace-local taskbar.
   # With one configured workspace its native per-window buttons are safe.
   desktop_validate_uint_range LABWC_WORKSPACE_COUNT "${LABWC_WORKSPACE_COUNT:-4}" 1 12
-  printf '"custom/launcher", "ext/workspaces", "custom/window-switcher", "custom/wayscriber", "group/apps"'
+  printf '"custom/launcher", "ext/workspaces", "custom/window-switcher", "custom/wayscriber", "custom/tomat", "group/apps"'
   if [ "${LABWC_WORKSPACE_COUNT:-4}" -eq 1 ]; then
     printf ', "wlr/taskbar"'
   fi
 }
 
 desktop_waybar_modules_right_json() {
-  printf '"pulseaudio", "custom/backlight", "battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/lock", "custom/power"'
+  printf '"pulseaudio", "custom/backlight", "battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
 }
 
 desktop_waybar_modules_right_internal_json() {
-  printf '"pulseaudio", "custom/backlight", "battery", "disk", "cpu", "memory", "tray", "group/quick-controls-internal", "custom/lock", "custom/power"'
+  printf '"pulseaudio", "custom/backlight", "battery", "disk", "cpu", "memory", "tray", "group/quick-controls-internal", "custom/notifications", "custom/lock", "custom/power"'
 }
 
 desktop_waybar_output_selectors_json() {
@@ -2906,6 +2906,10 @@ desktop_render_labwc_default_config() {
     LABWC_GREETER_ENTRY_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_ENTRY_MIN_WIDTH:-}")" \
     LABWC_GREETER_SHELL_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_SHELL_MIN_WIDTH:-}")" \
     LABWC_GREETER_BUTTON_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}")" \
+    LABWC_FUZZEL_COMPUTER_MANAGEMENT_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}}")" \
+    LABWC_FUZZEL_COMPUTER_MANAGEMENT_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}}")" \
+    LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_WIDTH:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}}")" \
+    LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_LINES:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}}")" \
     LABWC_FUZZEL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}")" \
     LABWC_FUZZEL_MAIN_MENU_LINES "$(desktop_shell_config_value "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}")" \
     LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "$(desktop_shell_config_value "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}")" \
@@ -3911,7 +3915,87 @@ done
   desktop_log "staged_logging_policy audit=/var/log/managed/audit/kernel-audit.log auth=/var/log/managed/auth/auth.log usb=/var/log/managed/hardware/usb.log apparmor=/var/log/managed/apparmor/apparmor.log apparmor_modes=/var/log/managed/apparmor/managed-modes.log apparmor_source=/var/log/audit/audit.log storage=/var/log/managed/storage/storage.log whisper=/var/log/managed/whisper/whisper.log adb=/var/log/managed/adb/adb.log nftables=/var/log/managed/nftables/firewall.log fuzzel_menu=/var/log/managed/fuzzel/menu.log fuzzel_actions=/var/log/managed/fuzzel/actions.log managed_apps=/var/log/managed/desktop/applications.log scanner_socket=/run/rsyslog/managed-security-scanners/scanner.sock scanner_group=securitylogger retention=4 maxage_days=7 rotation_check=15m log_group=adm signal_group=logreader mako_signals=/var/lib/labwc-notifications/security"
 }
 
+desktop_stage_session_repairs() {
+  for public_directory in /etc/udev /etc/udev/hwdb.d; do
+    ensure_target_asset_parent "${public_directory}/.installer-parent"
+    public_host=$(target_asset_host_path "$public_directory")
+    [ ! -L "$public_host" ] || installer_fatal "unsafe system configuration directory: $public_directory"
+    chown root:root "$public_host"
+    chmod 0755 "$public_host"
+  done
+  # Retire the old key remap, including reruns on an existing target. The strict
+  # hwdb rebuild below also removes its entries from the compiled database.
+  remove_target_asset /etc/udev/hwdb.d/90-managed-thinkpad-extra-buttons.hwdb
+  desktop_stage_role_asset usr/local/libexec/labwc-wallpaper-control /usr/local/libexec/labwc-wallpaper-control 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-notification-send /usr/local/libexec/labwc-notification-send 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-configure-session-repairs /usr/local/libexec/labwc-configure-session-repairs 0755
+  desktop_stage_role_asset etc/security/managed-sudo-i.conf /etc/security/managed-sudo-i.conf 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml /etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml 0644
+  run_in_target "build target keyboard hardware database" /usr/bin/systemd-hwdb --strict update
+  run_in_target "configure managed session repairs" /usr/local/libexec/labwc-configure-session-repairs \
+    "$ACCOUNT_USERNAME"
+}
+
+desktop_stage_wlsunset() {
+  desktop_stage_role_asset usr/local/bin/labwc-wlsunset /usr/local/bin/labwc-wlsunset 0755
+  desktop_render_role_target_template \
+    etc/default/labwc-wlsunset.tmpl /etc/default/labwc-wlsunset 0644 \
+    WLSUNSET_ENABLED "$(desktop_shell_config_value "${WLSUNSET_ENABLED-true}")" \
+    WLSUNSET_LATITUDE "$(desktop_shell_config_value "${WLSUNSET_LATITUDE-55.60587}")" \
+    WLSUNSET_LONGITUDE "$(desktop_shell_config_value "${WLSUNSET_LONGITUDE-13.00073}")" \
+    WLSUNSET_TEMPERATURE_DAY "$(desktop_shell_config_value "${WLSUNSET_TEMPERATURE_DAY-6500}")" \
+    WLSUNSET_TEMPERATURE_NIGHT "$(desktop_shell_config_value "${WLSUNSET_TEMPERATURE_NIGHT-4500}")" \
+    WLSUNSET_GAMMA "$(desktop_shell_config_value "${WLSUNSET_GAMMA-1.0}")" \
+    WLSUNSET_SUNRISE "$(desktop_shell_config_value "${WLSUNSET_SUNRISE-}")" \
+    WLSUNSET_SUNSET "$(desktop_shell_config_value "${WLSUNSET_SUNSET-}")" \
+    WLSUNSET_TRANSITION_SECONDS "$(desktop_shell_config_value "${WLSUNSET_TRANSITION_SECONDS-1800}")" \
+    WLSUNSET_OUTPUTS "$(desktop_shell_config_value "${WLSUNSET_OUTPUTS-}")"
+
+  run_in_target "validate managed wlsunset configuration" /usr/local/bin/labwc-wlsunset check
+}
+
+desktop_stage_waybar_native_menus() {
+  for menu_name in tomat audio notifications power calendar; do
+    desktop_stage_role_asset "etc/skel-desktop/.config/waybar/${menu_name}-menu.xml" \
+      "/etc/skel-desktop/.config/waybar/${menu_name}-menu.xml" 0644
+  done
+  # Keep optional voice actions visible but disabled when their services are
+  # not selected. IDs stay stable, so both Waybar layouts use the same mapping.
+  native_menu_whisper=0
+  if desktop_whisper_addon_selected; then native_menu_whisper=1; fi
+  run_in_target "configure optional native audio menu" /usr/bin/python3 -I -c '
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+path = Path("/etc/skel-desktop/.config/waybar/audio-menu.xml")
+tree = ET.parse(path)
+items = [item for item in tree.iter("object") if item.get("class") == "GtkMenuItem"
+         and item.find(".//object[@id=\"whisper_record\"]") is not None]
+if len(items) != 1:
+    raise SystemExit("native audio menu has no unique Whisper submenu")
+item = items[0]
+prop = item.find("./property[@name=\"sensitive\"]")
+if prop is None:
+    prop = ET.Element("property", {"name": "sensitive"})
+    # GtkBuilder constructs the parent when it encounters its first child.
+    # Properties added after that child are not reliably applied by GTK3.
+    item.insert(0, prop)
+prop.text = "True" if sys.argv[1] == "1" else "False"
+item.find("./property[@name=\"label\"]").text = "Whisper" if sys.argv[1] == "1" else "Whisper (not installed)"
+ET.indent(tree, space="  ")
+tree.write(path, encoding="utf-8", xml_declaration=True)
+' "$native_menu_whisper"
+  desktop_stage_role_asset etc/skel-desktop/.config/tomat/config.toml \
+    /etc/skel-desktop/.config/tomat/config.toml 0600
+  for menu_helper in labwc-tomat labwc-tomat-hook labwc-notifications; do
+    desktop_stage_role_asset "usr/local/libexec/$menu_helper" "/usr/local/libexec/$menu_helper" 0755
+  done
+}
+
 desktop_stage_target_assets() {
+  desktop_stage_waybar_native_menus
+  desktop_stage_session_repairs
+  desktop_stage_wlsunset
   desktop_normalize_system_dbus_service_directories
   desktop_stage_logging_policy
   desktop_stage_primary_account_pool_storage_policy
@@ -4388,6 +4472,7 @@ gid=$(id -g "$account_user")
     .config/labwc \
     .config/waypaper \
     .config/waybar \
+    .config/tomat \
     .config/cargo \
     .config/mise \
     .config/featherpad \

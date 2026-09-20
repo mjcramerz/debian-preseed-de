@@ -33,6 +33,7 @@ class PowerWorkerTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
         self.failure = None
+        self.runtime_stopped = False
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(mock.patch.object(power, 'run', side_effect=self.mock_run))
@@ -41,11 +42,25 @@ class PowerWorkerTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(power, 'hold_reservation'))
         self.stack.enter_context(mock.patch.object(power, 'PackageLocks'))
         self.stack.enter_context(mock.patch.object(power.Worker, 'session_identity', return_value='a' * 32))
+        hierarchy = self.stack.enter_context(mock.patch.object(power, 'CGROUP_ROOT'))
+        (hierarchy / 'cgroup.controllers').is_file.return_value = True
+        self.stack.enter_context(mock.patch.object(power, 'cgroup_populated', return_value=False))
 
     def mock_run(self, argv, **kwargs):
         self.calls.append(argv)
         if self.failure and self.failure(argv):
             raise power.Error('injected failure')
+        if argv[0] == '/usr/bin/busctl':
+            return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
+        if 'kill' in argv and '--signal=SIGKILL' in argv:
+            self.runtime_stopped = True
+        if '--property=' + power.RUNTIME_PROPERTIES in argv:
+            return '\n\n'.join('\n'.join((
+                'Id=' + name, 'LoadState=loaded',
+                'ActiveState=' + ('inactive' if self.runtime_stopped else 'active'),
+                'Job=0', 'MainPID=' + ('0' if self.runtime_stopped or name.endswith('.socket') else '123'),
+                'ControlPID=0', 'ControlGroup=' + power.runtime_cgroup(name)))
+                for name in (*power.RUNTIME_FIXED_UNITS, 'user@1000.service'))
         if '--property=ConsistsOf' in argv:
             return ''
         if '--property=Id,ActiveState,Job,MainPID,ControlPID' in argv:
@@ -62,16 +77,23 @@ class PowerWorkerTests(unittest.TestCase):
         worker.execute()
         return worker
 
-    def test_reboot_and_poweroff_wait_for_quiescence_without_account_wide_kills(self):
+    def test_reboot_and_poweroff_wait_for_quiescence_then_clean_runtime_cgroups(self):
         for action in ('reboot', 'poweroff'):
             with self.subTest(action=action):
                 self.calls.clear()
+                self.runtime_stopped = False
                 self.execute(action)
                 prepare = next(i for i, c in enumerate(self.calls) if c[-2:] == ['start', 'labwc-session-state@prepare.service'])
                 stop = next(i for i, c in enumerate(self.calls) if c[-3:] == ['stop', 'labwc-session.target', 'labwc-compositor.service'])
                 final = self.calls.index(['/usr/bin/systemctl', '--force', '--no-ask-password', action])
                 self.assertLess(prepare, stop)
                 self.assertLess(stop, final)
+                runtime = next(i for i,c in enumerate(self.calls) if '--job-mode=replace-irreversibly' in c)
+                kill = next(i for i,c in enumerate(self.calls) if '--signal=SIGKILL' in c)
+                self.assertLess(stop, runtime)
+                self.assertLess(runtime, kill)
+                self.assertLess(kill, final)
+                self.assertFalse(any(c[0] != '/usr/bin/systemctl' or '--user' in c for c in self.calls[kill:]))
                 self.assertFalse(any('terminate-user' in c or c[0].endswith(('/pkill','/pgrep')) for c in self.calls))
                 self.assertFalse(any(command.count('--force') > 1 for command in self.calls))
 
@@ -255,7 +277,7 @@ class WiringTests(unittest.TestCase):
         self.assertIn('CapabilityBoundingSet=\n', unit)
         profiles = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
         worker = profiles.split('profile managed-labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
-        self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,sync} rix,', worker)
+        self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,busctl,sync} rix,', worker)
         self.assertIn('/var/lib/dpkg/{lock,lock-frontend} rk,', worker)
         self.assertNotIn('} PUx,', worker)
         self.assertIn('/run/systemd/private rw,', worker)

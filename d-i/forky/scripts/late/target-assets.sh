@@ -160,6 +160,32 @@ stage_target_asset_if_path() {
   fi
 }
 
+# Chassis policy is explicit and fail-closed. Do not accept arbitrary filenames,
+# use CPU vendor as a chassis proxy, or delete administrator-owned 79-* files.
+stage_target_hardware_spec() (
+  set -eu
+  hardware_spec=${SYSTEM_HARDWARE_SPEC:-}
+  case "$hardware_spec" in
+    ''|79-thinkpad-acpi.conf|79-ideapad-acpi.conf|79-chromebook.conf) ;;
+    *) installer_fatal "unsupported SYSTEM_HARDWARE_SPEC: $hardware_spec"; exit 1 ;;
+  esac
+  # Validate the parent before both publication and stale-policy removal.
+  ensure_target_asset_parent /etc/modprobe.d/.installer-parent || exit 1
+  hardware_parent=$(target_asset_host_path /etc/modprobe.d) || exit 1
+  [ ! -L "$hardware_parent" ] || {
+    installer_fatal "hardware policy directory must not be a symlink"; exit 1;
+  }
+  # Fetch successfully before removing the old policy. A failed installation
+  # must not silently leave a newly selected machine without its requested file.
+  if [ -n "$hardware_spec" ]; then
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/modprobe.d/$hardware_spec")" \
+      "/etc/modprobe.d/$hardware_spec" 0644 || exit 1
+  fi
+  for managed_spec in 79-thinkpad-acpi.conf 79-ideapad-acpi.conf 79-chromebook.conf; do
+    [ "$managed_spec" = "$hardware_spec" ] || remove_target_asset "/etc/modprobe.d/$managed_spec" || exit 1
+  done
+)
+
 stage_target_docs_index() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET data/docs/README.md)" "${DIR_DATA_DOCS}/README.md" 0644
   target_chown_helper_doc_path "${DIR_DATA_DOCS}/README.md"

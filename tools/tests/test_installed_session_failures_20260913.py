@@ -267,8 +267,14 @@ class PanelAndWiringTests(unittest.TestCase):
                 self.assertIn(option, args)
             self.assertNotIn('--scope', args); self.assertNotIn('--pipe', args)
             count += 1
-        # Two new native-switcher clicks, one per rendered bar.
+        # Native calendar menus now consume the two clock right-clicks.
+        # Retain exact coverage of ordinary callbacks, and require both native
+        # menu assets instead of silently accepting removed calendar actions.
         self.assertEqual(count, 58)
+        self.assertEqual(len(re.findall(
+            r'"menu-file"\s*:\s*"[^"\n]+/calendar-menu\.xml"', content)), 2)
+        self.assertNotRegex(content,
+            r'"on-click-right"\s*:\s*"[^"\n]*/labwc-calendar menu"')
 
     def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
         text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()

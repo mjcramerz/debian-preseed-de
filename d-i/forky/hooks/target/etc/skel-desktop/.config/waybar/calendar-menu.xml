@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk+" version="3.22" />
+  <object class="GtkMenu" id="menu">
+    <child>
+      <object class="GtkMenuItem" id="calendar_open">
+        <property name="label">Open calendar</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="calendar_agenda">
+        <property name="label">Upcoming agenda (14 days)</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="label">Events</property>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <child>
+              <object class="GtkMenuItem" id="calendar_new_event">
+                <property name="label">Create event...</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_edit_event">
+                <property name="label">Edit or delete event...</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkMenuItem">
+        <property name="label">Tasks</property>
+        <child type="submenu">
+          <object class="GtkMenu">
+            <child>
+              <object class="GtkMenuItem" id="calendar_tasks">
+                <property name="label">Pending tasks</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_all_tasks">
+                <property name="label">All tasks (including completed)</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparatorMenuItem" />
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_new_task">
+                <property name="label">Create task...</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_show_task">
+                <property name="label">Task details...</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_edit_task">
+                <property name="label">Edit task...</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_done_task">
+                <property name="label">Mark task completed...</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparatorMenuItem" />
+            </child>
+            <child>
+              <object class="GtkMenuItem" id="calendar_delete_task">
+                <property name="label">Delete task (confirmation required)...</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem" />
+    </child>
+    <child>
+      <object class="GtkMenuItem" id="calendar_sync">
+        <property name="label">Sync calendar and tasks...</property>
+      </object>
+    </child>
+  </object>
+</interface>

@@ -556,8 +556,12 @@ sub validate {
             or die "$args{label} package payload listing is unavailable\n";
         $self->_listing_contains($listing, $args{executable})
             or die "$args{label} package is missing its expected executable\n";
-        $self->_listing_contains($listing, $args{desktop})
-            or die "$args{label} package is missing its expected desktop entry\n";
+        # Explicitly empty desktop is reserved for CLI-only distributions.
+        defined $args{desktop} or die "$args{label} desktop specification is undefined\n";
+        if ($args{desktop} ne q{}) {
+            $self->_listing_contains($listing, $args{desktop})
+                or die "$args{label} package is missing its expected desktop entry\n";
+        }
         if (defined $args{library} && $args{library} ne q{}) {
             $self->_listing_contains($listing, $args{library})
                 or die "$args{label} package is missing its expected runtime library\n";
@@ -644,7 +648,8 @@ sub installed_payload_valid {
     ref $spec eq 'HASH'
         or die "managed Debian package specification is invalid\n";
     return 0 if !$self->_installed_executable_valid($spec->{executable});
-    return 0 if !-r $spec->{desktop};
+    return 0 if !defined $spec->{desktop};
+    return 0 if $spec->{desktop} ne q{} && !-r $spec->{desktop};
     return 0 if defined $spec->{library} && $spec->{library} ne q{} && !-r $spec->{library};
     for my $required_path (@{$spec->{required_paths} // []}) {
         return 0 if !-r $required_path;

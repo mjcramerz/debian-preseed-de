@@ -1,0 +1,28 @@
+{
+  "test": "isolated apt-config parse of the two unchanged checked-in normal policies; not a live upgrade dry run",
+  "periodic_unattended_upgrade_enabled": true,
+  "origin_patterns": [
+    "site=deb.debian.org",
+    "site=security.debian.org",
+    "site=deb.xanmod.org",
+    "site=developer.download.nvidia.com",
+    "site=downloadcontent.opensuse.org",
+    "site=packagecloud.io",
+    "site=packages.gitlab.com",
+    "site=packages.microsoft.com",
+    "site=pkgs.tailscale.com",
+    "site=pkgs.zabbly.com",
+    "site=repo.mysql.com",
+    "site=repo.vivaldi.com",
+    "site=repository.mullvad.net",
+    "site=repository.spotify.com",
+    "site=storage.googleapis.com"
+  ],
+  "managed_local_file_repository_allowed_by_shipped_patterns": false,
+  "dedicated_tomat_package_whitelist_present": false,
+  "host_administrator_overrides_not_observed": true,
+  "normal_policy_sha256": {
+    "20auto-upgrades": "ac581ea16254c9ef71eac84820fc448e5a6cd5096eeffc7d0d9702451e9f4bd0",
+    "52unattended-upgrades": "b223aa68e6924a419db9f6031a090e40fb5dd3db464a5d79346ffc68e557fbe1"
+  }
+}

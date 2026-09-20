@@ -679,6 +679,8 @@ apparmor_managed_desktop_profile_files() {
 managed-desktop-wrappers
 managed-document-applications
 managed-labwc-session
+managed-tomat
+managed-waybar-menus
 managed-desktop-utilities
 whisper-local-transcription
 usr.bin.totem

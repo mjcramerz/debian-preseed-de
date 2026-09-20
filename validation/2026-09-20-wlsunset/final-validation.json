@@ -1,0 +1,121 @@
+{
+  "scope": "Gammastep/GeoClue replacement with managed transient native wlsunset, plus shared Waybar window-switcher hover",
+  "full_suites": {
+    "full-installer-tests": {
+      "run": 1897,
+      "failures": 13,
+      "errors": 0,
+      "skipped": 47,
+      "seconds": 500.749,
+      "passed": 1837,
+      "failure_names": [
+        "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+        "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+        "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)",
+        "test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)",
+        "test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)",
+        "test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields)",
+        "test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style)",
+        "test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement)",
+        "test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy)",
+        "test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group)",
+        "test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option)",
+        "test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy)",
+        "test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency)"
+      ],
+      "error_names": []
+    },
+    "full-tools-tests": {
+      "run": 179,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 35.515,
+      "passed": 178,
+      "failure_names": [
+        "test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services)"
+      ],
+      "error_names": []
+    }
+  },
+  "totals": {
+    "run": 2076,
+    "passed": 2015,
+    "failures": 14,
+    "errors": 0,
+    "skipped": 47
+  },
+  "scoped_suites": {
+    "wlsunset-tests": {
+      "run": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 0.519,
+      "passed": 41,
+      "failure_names": [],
+      "error_names": []
+    },
+    "session-repairs": {
+      "run": 41,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 14.73,
+      "passed": 41,
+      "failure_names": [],
+      "error_names": []
+    },
+    "repository-integrity": {
+      "run": 10,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 7.408,
+      "passed": 10,
+      "failure_names": [],
+      "error_names": []
+    }
+  },
+  "new_test_methods": 45,
+  "unexpected_full_suite_failures": [],
+  "all_tests_green": false,
+  "baseline_failure_assertions_unchanged": {
+    "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)": true,
+    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')": true,
+    "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)": true,
+    "test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)": true,
+    "test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)": true,
+    "test_rejects_classic_list_fields (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_fields)": true,
+    "test_rejects_classic_list_style (test_workspace_no_broker.InstalledVerifierTests.test_rejects_classic_list_style)": true,
+    "test_rejects_dangling_broker_enablement (test_workspace_no_broker.InstalledVerifierTests.test_rejects_dangling_broker_enablement)": true,
+    "test_rejects_global_alt_tab_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_alt_tab_in_account_copy)": true,
+    "test_rejects_global_taskbar_in_nested_group (test_workspace_no_broker.InstalledVerifierTests.test_rejects_global_taskbar_in_nested_group)": true,
+    "test_rejects_invented_workspace_option (test_workspace_no_broker.InstalledVerifierTests.test_rejects_invented_workspace_option)": true,
+    "test_rejects_list_f13_in_account_copy (test_workspace_no_broker.InstalledVerifierTests.test_rejects_list_f13_in_account_copy)": true,
+    "test_rejects_stale_service_dependency (test_workspace_no_broker.InstalledVerifierTests.test_rejects_stale_service_dependency)": true,
+    "test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services)": true
+  },
+  "baseline_reproduction_evidence": "validation/2026-09-20/unchanged-baseline-reproduction.log (retained prior-release evidence; no claim of another original-tree rerun)",
+  "validation_sequence": "Initial full run identified stale current profile checksums. All thirteen current checksums were refreshed; historical source/destination checksums preserved. Final O_RDWR gamma-FD receive review and peer rule completed, payload rebuilt, and final complete suites rerun without subsequent runtime/test edits.",
+  "frozen_runtime_and_test_tree_sha256": "22356b9257fe10ccd1cccdedf07ebc30c6e4ba03d7a643dde54d4192dcb2fa20",
+  "apparmor_policy_files_compiled_offline": 2,
+  "systemd_unit_structure_verified_offline": true,
+  "preseed_files_checked": 59,
+  "build_check": "passed",
+  "shell_check": "passed",
+  "payload_files": 1388,
+  "profiles": 13,
+  "xwayland_protected_files_unchanged": 13,
+  "managed_application_browser_sources_unchanged": 24,
+  "live_target_runtime_tested": false,
+  "limits": [
+    "Container is Debian 13/systemd 257.9, not a booted Forky/systemd 261.2 desktop.",
+    "User-manager command behavior is fixture-tested; actual AF_UNIX credentials, file locking and SCM_RIGHTS FD transfer were exercised.",
+    "Offline unit verification uses /bin/true and stub dependency units; it does not start wlsunset.",
+    "AppArmor policy compilation does not load/enforce policy; the container kernel interface is unavailable.",
+    "The Debian wlsunset binary was not run in this container; no live sunrise/gamma/DPMS/hotplug/Waybar visual test occurred.",
+    "Publishing an installer does not upgrade or purge packages from an already-running host.",
+    "Pre-existing atomic KMS EBUSY resolution remains unestablished; no compositor, driver or Xwayland workaround introduced."
+  ]
+}

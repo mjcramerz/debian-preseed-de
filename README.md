@@ -1,5 +1,17 @@
 # debian-preseed-de
 
+## Native wlsunset and matching switcher hover - 20 September 2026
+
+The managed Gammastep indicator and its GeoClue dependency are replaced by
+Debian's packaged wlsunset in a guarded, session-bound transient user service.
+All thirteen profiles include configurable coordinates, temperatures and output
+selection, enabled with Malmo defaults. The Waybar window-switcher now shares
+the other action buttons' existing hover style. Private Zoom/Discord Xwayland
+and unrelated desktop repairs are unchanged.
+
+See [design, settings and target checks](docs/WLSUNSET-FOLLOWUP-20260920.md)
+and `validation/2026-09-20-wlsunset/` for this revision's evidence.
+
 ## Debian packages only; native thumbnail switcher - 20 September 2026
 
 Labwc and KWallet are installed from the existing Debian binary package selection

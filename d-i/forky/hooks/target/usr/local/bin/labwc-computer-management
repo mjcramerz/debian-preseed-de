@@ -130,7 +130,8 @@ def main(argv: list[str]) -> int:
     # A child action must finish before the next menu can take keyboard focus.
     os.environ.update(LABWC_MENU_BACKEND=backend, LABWC_MENU_ACTION_WAIT='1',
                       LABWC_FUZZEL_MANAGED_ICONS='1', LABWC_FUZZEL_ROOT_MENU='0',
-                      LABWC_FUZZEL_LOG_SCOPE='computer-management')
+                      LABWC_FUZZEL_LOG_SCOPE='computer-management',
+                      LABWC_FUZZEL_GEOMETRY='computer-management')
     return run_menu()
 
 

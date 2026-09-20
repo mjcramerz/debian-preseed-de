@@ -51,6 +51,8 @@ for cmd in \
   labwc-greeter-session \
   labwc-session \
   labwc-autostart \
+  labwc-wlsunset \
+  wlsunset \
   labwc-admin-action \
   labwc-calendar \
   labwc-ocr \
@@ -97,6 +99,8 @@ for cmd in \
   labwc-keyboard-layout \
   labwc-capture \
   labwc-wayscriber-toggle \
+  playerctl \
+  makoctl \
   satty \
   wayscriber \
   systemctl \
@@ -360,6 +364,7 @@ readable_count=0
 executable_count=0
 for path in \
   /etc/default/labwc-desktop \
+  /etc/default/labwc-wlsunset \
   /etc/pam.d/polkit-1 \
   /etc/pam.d/systemd-user \
   /etc/pam.d/greetd \
@@ -725,6 +730,7 @@ for path in \
   /usr/local/sbin/greetd-power-action \
   /usr/local/bin/labwc-session \
   /usr/local/bin/labwc-autostart \
+  /usr/local/bin/labwc-wlsunset \
   /usr/local/bin/labwc-wallpaper-save \
   /usr/local/bin/labwc-admin-action \
   /usr/local/libexec/labwc-admin-action-root \
@@ -1778,8 +1784,8 @@ for config in config_roots:
         require(all(name in left for name in ("ext/workspaces", "custom/window-switcher", "custom/wayscriber")), "native switcher button missing")
         require(left.index("custom/window-switcher") == left.index("ext/workspaces") + 1
                 and left.index("custom/wayscriber") == left.index("custom/window-switcher") + 1, "native switcher button order changed")
-        click = bar["custom/window-switcher"].get("on-click", "")
-        require(click.endswith(" -- labwc-window-switcher") and "--property=KillMode=control-group" in click
+        click = bar["custom/window-switcher"].get("on-click-release", "")
+        require(click.endswith(" -- /usr/local/bin/labwc-window-switcher") and "--property=KillMode=control-group" in click
                 and "--property=PartOf=labwc-session.target" in click, "native switcher launch contract changed")
         selected = list(bar.get("modules-left", [])) + list(bar.get("modules-center", [])) + list(bar.get("modules-right", []))
         seen = set()
@@ -1972,11 +1978,209 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
 ' sh "$ACCOUNT_HOME"
 }
 
+desktop_verify_native_drawer_icons() {
+  # Software addons run before the desktop role. Do not make an optional
+  # amd64-only bundle mandatory on hosts which did not select it.
+  desktop_drawer_software=0
+  if installer_selected_class_reference_is_selected addon/software 2>/dev/null; then
+    desktop_drawer_software=1
+  fi
+  # This narrow check is display-independent. Keep the broad staging verifier
+  # disabled; validate only the native artwork and its actual drawer wiring.
+  # shellcheck disable=SC2016
+  run_in_target "verify native Waybar drawer artwork" /usr/bin/python3 -I -B -c '
+import json
+from pathlib import Path
+import pwd
+import subprocess
+import sys
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+
+def require(ok, message):
+    if not ok:
+        raise SystemExit(message)
+
+require(sys.argv[3] in {"0", "1"}, "invalid drawer software policy")
+arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True, timeout=10).strip()
+drawer_icons = {"custom/app-terminal": "foot", "custom/app-files": "org.xfce.thunar",
+                "custom/app-tuta": "tuta-mail", "custom/app-notes": "featherpad",
+                "custom/app-sleek": "sleek"}
+icon_theme = Gtk.IconTheme.new()
+icon_theme.set_custom_theme("hicolor")
+for module, icon in drawer_icons.items():
+    if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}:
+        continue
+    require(icon_theme.has_icon(icon), "native drawer icon is not installed: " + icon)
+    require(icon_theme.load_icon(icon, 32, Gtk.IconLookupFlags.FORCE_SIZE) is not None,
+            "native drawer icon cannot be decoded: " + icon)
+account = pwd.getpwnam(sys.argv[2])
+require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "drawer account/home mismatch")
+for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
+    config = base / ".config" / "waybar"
+    bars = json.loads((config / "config").read_text())
+    style = (config / "style.css").read_text()
+    require(len(bars) == 2 and {bar.get("name") for bar in bars} == {"internal", "external"},
+            "native drawer requires both managed bar layouts")
+    for icon in drawer_icons.values():
+        require(style.count("-gtk-icontheme(\"" + icon + "\")") == 2,
+                "native drawer icon must survive hover: " + icon)
+    for bar in bars:
+        for module in drawer_icons:
+            require(module in bar["group/apps"]["modules"]
+                    and bar[module].get("format") == " " and bar[module].get("on-click"),
+                    "native drawer icon/click target is misconfigured: " + module)
+print("desktop_native_drawer_verification layouts=2 icons=hicolor")
+' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "$desktop_drawer_software"
+}
+
+desktop_verify_native_menus() {
+  desktop_verify_native_drawer_icons
+  # Parse installed files, without launching a daemon or requiring a display.
+  # shellcheck disable=SC2016
+  run_in_target "verify native Waybar menus and Tomat integration" /usr/bin/python3 -I -B -c '
+import json
+import os
+from pathlib import Path
+import pwd
+import runpy
+import shlex
+import stat
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+
+def require(ok, message):
+    if not ok:
+        raise SystemExit(message)
+
+# Import the GTK typelib without requiring a display in the installer chroot.
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+require(Gtk.get_major_version() == 3, "notification center requires GTK3")
+
+for name in ("labwc-tomat", "labwc-tomat-hook", "labwc-notifications", "labwc-calendar"):
+    path = Path("/usr/local/libexec") / name
+    info = path.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and stat.S_IMODE(info.st_mode) == 0o755,
+            "unsafe or missing native menu helper: " + str(path))
+# The native Current/History window requires the JSON API introduced in 1.11.
+mako_version = subprocess.check_output(
+    ["/usr/bin/dpkg-query", "-W", "-f=${Version}", "mako-notifier"],
+    text=True, timeout=10).strip()
+require(subprocess.run(["/usr/bin/dpkg", "--compare-versions", mako_version, "ge", "1.11"],
+                       timeout=10, check=False).returncode == 0,
+        "native notification history requires mako-notifier >= 1.11")
+controller = runpy.run_path("/usr/local/libexec/labwc-tomat")
+account = pwd.getpwnam(sys.argv[2])
+require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "menu account/home mismatch")
+for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw_uid)):
+    config = base / ".config"
+    toml = config / "tomat/config.toml"
+    info = toml.lstat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and stat.S_IMODE(info.st_mode) == 0o600,
+            "unsafe Tomat configuration: " + str(toml))
+    controller["validate_config"](toml.read_text())
+    bars = json.loads((config / "waybar/config").read_text())
+    for bar in bars:
+        left = bar["modules-left"]
+        require(left.index("custom/tomat") == left.index("custom/wayscriber") + 1
+                and left.index("group/apps") == left.index("custom/tomat") + 1, "wrong Tomat button order")
+        right = bar["modules-right"]
+        controls = "group/quick-controls-internal" if bar.get("name") == "internal" else "group/quick-controls"
+        require(right[-4:] == [controls, "custom/notifications", "custom/lock", "custom/power"]
+                and right.count("custom/notifications") == 1, "wrong notification button order")
+        for module, name, event in (("custom/tomat", "tomat", "on-click-right"),
+                                    ("pulseaudio", "audio", "on-click-right"),
+                                    ("custom/notifications", "notifications", "on-click"),
+                                    ("custom/power", "power", "on-click"),
+                                    ("clock", "calendar", "on-click-right")):
+            entry = bar[module]
+            require(entry.get("menu") == event and event not in entry
+                    and event + "-release" not in entry
+                    and event not in entry.get("actions", {}), "native menu event conflict: " + name)
+            require(entry.get("menu-file") == "~/.config/waybar/" + name + "-menu.xml", "wrong menu path")
+            path = config / "waybar" / (name + "-menu.xml")
+            info = path.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == uid and not info.st_mode & 0o022,
+                    "unsafe menu file: " + str(path))
+            tree = ET.parse(path).getroot()
+            menus = tree.findall("./object[@class=\"GtkMenu\"][@id=\"menu\"]")
+            require(len(menus) == 1, "native menu root is missing")
+            objects = list(tree.iter("object"))
+            all_ids = [item.get("id") for item in objects if item.get("id")]
+            require(len(all_ids) == len(set(all_ids)), "duplicate GtkBuilder IDs: " + name)
+            leaves = [item for item in objects if item.get("class") == "GtkMenuItem"
+                      and item.find("./child[@type=\"submenu\"]") is None]
+            require(all(item.get("id") for item in leaves), "unwired native menu leaf: " + name)
+            ids = [item.get("id") for item in leaves]
+            actions = entry.get("menu-actions", {})
+            require(len(ids) == len(set(ids)) and set(ids) == set(actions), "menu/action IDs differ: " + name)
+            required_options = {
+                "--user", "--collect", "--no-block", "--service-type=exec", "--expand-environment=no",
+                "--slice=app.slice", "--property=Requisite=labwc-session.target",
+                "--property=After=labwc-session.target", "--property=PartOf=labwc-session.target",
+                "--property=ExitType=cgroup", "--property=KillMode=control-group",
+                "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s"}
+            for action in actions.values():
+                argv = shlex.split(action)
+                require(argv and argv[0] == "/usr/bin/systemd-run" and "--" in argv,
+                        "native menu action must use the user manager")
+                require(required_options <= set(argv[1:argv.index("--")])
+                        and "__INSTALLER_" not in action, "blocking/unscoped/unresolved menu action")
+            if name == "calendar":
+                expected = {"calendar_open": "browse", "calendar_agenda": "agenda",
+                            "calendar_new_event": "new-event", "calendar_edit_event": "edit-event",
+                            "calendar_tasks": "tasks", "calendar_all_tasks": "all-tasks",
+                            "calendar_new_task": "new-task", "calendar_show_task": "show-task",
+                            "calendar_edit_task": "edit-task", "calendar_done_task": "done-task",
+                            "calendar_delete_task": "delete-task", "calendar_sync": "sync-ui"}
+                require(set(actions) == set(expected), "calendar menu action set differs")
+                for key, value in expected.items():
+                    argv = shlex.split(actions[key])
+                    require(argv[argv.index("--") + 1:] == ["/usr/local/bin/labwc-calendar", value],
+                            "wrong calendar menu backend: " + key)
+            elif name == "notifications":
+                expected = {"notifications_center": "center", "notifications_restore": "restore",
+                            "notifications_dnd_on": "dnd-on", "notifications_dnd_off": "dnd-off",
+                            "notifications_dnd": "dnd", "notifications_dismiss": "dismiss",
+                            "notifications_clear": "clear"}
+                require(set(actions) == set(expected), "notification menu action set differs")
+                for key, value in expected.items():
+                    argv = shlex.split(actions[key])
+                    require(argv[argv.index("--") + 1:] == ["/usr/local/libexec/labwc-notifications", value],
+                            "wrong notification menu backend: " + key)
+            elif name == "audio":
+                whisper = [item for item in objects if item.get("class") == "GtkMenuItem"
+                           and item.find(".//object[@id=\"whisper_record\"]") is not None]
+                require(len(whisper) == 1, "audio menu has no unique Whisper submenu")
+                enabled = whisper[0].findtext("./property[@name=\"sensitive\"]", "True") == "True"
+                installed = (config / "systemd/user/whisper-transcribe.service").is_file()
+                require(enabled == installed, "optional Whisper menu/service availability differs")
+            require("labwc-power-menu" not in json.dumps(entry), "Waybar still invokes the fuzzel power picker")
+
+arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True).strip()
+if arch == "amd64":
+    require(Path("/usr/bin/tomat").is_file(), "Tomat executable is missing")
+    subprocess.run(["/usr/bin/tomat", "daemon", "run", "--help"], check=True, stdout=subprocess.DEVNULL, timeout=10)
+    subprocess.run(["/usr/bin/tomat", "watch", "--help"], check=True, stdout=subprocess.DEVNULL, timeout=10)
+    for relative in ("etc/systemd/system/tomat.service", "etc/systemd/user/tomat.service"):
+        path = Path("/") / relative
+        require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
+print("desktop_native_menu_verification menus=5 tomat=isolated power=native calendar=native")
+' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME"
+}
+
 desktop_verify_target_staging() {
+  run_in_target "verify managed wlsunset policy" /usr/local/bin/labwc-wlsunset check
   desktop_verify_kanshi_policy
   desktop_verify_required_commands
   desktop_verify_staged_files
   desktop_verify_native_workspace_config
+  desktop_verify_native_menus
   desktop_verify_font_publications
   desktop_verify_optional_staged_files
   desktop_verify_greeter_access

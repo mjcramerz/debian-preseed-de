@@ -153,6 +153,7 @@ sleek_url="https://github.com/ransome1/sleek/releases/download/v${sleek_version}
 sleek_sha256=f2531c41b70c04bbafc27af83e195aa9268845a58d3ead4b58fa58b301223fcb
 sleek_size=107065664
 sleek_deb="${work_dir}/sleek-${sleek_version}-linux-amd64.deb"
+tomat_deb="${work_dir}/tomat.deb"
 zoom_deb="${work_dir}/zoom-latest.deb"
 filen_deb="${work_dir}/filen-latest.deb"
 discord_install_dir=/opt/discord
@@ -284,6 +285,7 @@ for managed_path in \
   "$postman_desktop_file" \
   "$postman_icon_file" \
   "$sleek_deb" \
+  "$tomat_deb" \
   "$zoom_deb" \
   "$filen_deb" \
   "$discord_install_dir" \
@@ -452,6 +454,7 @@ ExternalSoftware/Servicing/Postman.pm
 ExternalSoftware/Servicing/Process.pm
 ExternalSoftware/Servicing/Repository.pm
 ExternalSoftware/Servicing/Sleek.pm
+ExternalSoftware/Servicing/Tomat.pm
 ExternalSoftware/Servicing/State.pm
 ExternalSoftware/Servicing/Tuta.pm
 EOF
@@ -1128,7 +1131,10 @@ software_install_deb() {
 
   software_validate_abs_path "$label package path" "$deb_path"
   software_validate_abs_path "$label executable path" "$expected_executable"
-  software_validate_abs_path "$label desktop file path" "$expected_desktop_file"
+  # An explicitly empty desktop path denotes a CLI-only package (Tomat).
+  if [ -n "$expected_desktop_file" ]; then
+    software_validate_abs_path "$label desktop file path" "$expected_desktop_file"
+  fi
   if [ -n "$expected_runtime_library" ]; then
     software_validate_abs_path "$label runtime library path" "$expected_runtime_library"
   fi
@@ -1145,8 +1151,10 @@ software_install_deb() {
     software_fatal "$label download is not a valid Debian binary package"
   software_deb_contains_path "$deb_path" "$expected_executable" ||
     software_fatal "$label package payload is missing executable: $expected_executable"
-  software_deb_contains_path "$deb_path" "$expected_desktop_file" ||
-    software_fatal "$label package payload is missing desktop entry: $expected_desktop_file"
+  if [ -n "$expected_desktop_file" ]; then
+    software_deb_contains_path "$deb_path" "$expected_desktop_file" ||
+      software_fatal "$label package payload is missing desktop entry: $expected_desktop_file"
+  fi
   if [ -n "$expected_runtime_library" ]; then
     software_deb_contains_path "$deb_path" "$expected_runtime_library" ||
       software_fatal "$label package payload is missing runtime library: $expected_runtime_library"
@@ -1226,8 +1234,10 @@ software_install_deb() {
     software_fatal "$label package is not fully installed and configured: ${installed_package_status:-missing}"
   chroot "$target_root" /usr/bin/test -x "$expected_executable" ||
     software_fatal "$label executable is missing after package installation: $expected_executable"
-  chroot "$target_root" /usr/bin/test -r "$expected_desktop_file" ||
-    software_fatal "$label desktop entry is missing after package installation: $expected_desktop_file"
+  if [ -n "$expected_desktop_file" ]; then
+    chroot "$target_root" /usr/bin/test -r "$expected_desktop_file" ||
+      software_fatal "$label desktop entry is missing after package installation: $expected_desktop_file"
+  fi
   if [ -n "$expected_runtime_library" ]; then
     chroot "$target_root" /usr/bin/test -r "$expected_runtime_library" ||
       software_fatal "$label runtime library is missing after package installation: $expected_runtime_library"
@@ -1786,6 +1796,36 @@ obsidian_installed_version=$(
 chroot "$target_root" /usr/bin/desktop-file-validate \
   /usr/share/applications/obsidian.desktop >/dev/null 2>&1
 chroot "$target_root" /usr/bin/update-desktop-database /usr/share/applications
+
+# Resolve the supplied latest-release endpoint once, then download the exact
+# immutable tag asset with its advertised byte length and mandatory SHA-256.
+# No source checkout, compiler, global pip installation or unverified fallback.
+chroot "$target_root" /usr/bin/perl \
+  -I/usr/local/lib/perl5/site_perl/external-managed-software \
+  -MExternalSoftware::Servicing::Tomat \
+  -MExternalSoftware::Servicing::HTTP \
+  -MExternalSoftware::Servicing::Deb \
+  -MExternalSoftware::Servicing::Repository \
+  -e 'use strict; use warnings;
+      @ARGV == 1 or die "expected private workspace\n";
+      my $repository = ExternalSoftware::Servicing::Repository->new();
+      my $deb = ExternalSoftware::Servicing::Deb->new(repository => $repository);
+      ExternalSoftware::Servicing::Tomat->new(
+          http => ExternalSoftware::Servicing::HTTP->new(), deb => $deb,
+      )->download($ARGV[0]);' -- "$work_dir" ||
+  software_fatal "Tomat verified binary download failed"
+# Neither a packaged system daemon nor a default.target user daemon may compete
+# with the session-scoped transient daemon. Persistent admin masks survive dpkg
+# upgrades without editing vendor unit files or touching Xwayland.
+chroot "$target_root" /usr/bin/systemctl --root=/ mask tomat.service ||
+  software_fatal "cannot mask the unscoped Tomat system service"
+chroot "$target_root" /usr/bin/systemctl --global mask tomat.service ||
+  software_fatal "cannot mask the unscoped Tomat user service"
+software_install_deb "Tomat" "$tomat_deb" tomat amd64 /usr/bin/tomat ""
+chroot "$target_root" /usr/bin/tomat daemon run --help >/dev/null ||
+  software_fatal "Tomat does not support the required foreground daemon interface"
+chroot "$target_root" /usr/bin/tomat watch --help >/dev/null ||
+  software_fatal "Tomat does not support the required Waybar watcher interface"
 
 software_download \
   "Postman" \

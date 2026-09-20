@@ -1,0 +1,26 @@
+{
+  "installer_tests": {
+    "total": 1925,
+    "passed": 1874,
+    "skipped": 48,
+    "baseline_failures": [
+      "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
+    ]
+  },
+  "tools_tests_passed": 179,
+  "focused_tests": {
+    "total": 28,
+    "passed": 27,
+    "skipped": 1
+  },
+  "source_complete_except_requested_hwdb": true,
+  "runtime_product_sha256": {
+    "preseed.cfg": "b546fca5056578a06444220d4413fc7faa79ae47e27fc61c7e7714468c62256b",
+    "payload.manifest": "e138b54406b6dc2bc0b9e951ae1c2c86c6469364dcd7bca7544e2b3dcac22944",
+    "payload.tar.gz": "5767fb5f67ac926d88839398b73e40f62ab9594da266e9cdae8649d480b1d841"
+  },
+  "full_validation_success": false,
+  "live_host_qualification": false
+}

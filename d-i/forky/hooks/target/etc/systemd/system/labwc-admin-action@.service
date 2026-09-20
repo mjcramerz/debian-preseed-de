@@ -37,7 +37,8 @@ ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
-# PID 1/logind perform cgroup cleanup; this controller does not scan other PIDs.
+# PID 1 performs final broker/PAM cgroup cleanup; this controller only reads
+# cgroup.events and never scans other PIDs or sends their signals.
 ProtectProc=default
 ProtectSystem=strict
 ProcSubset=pid

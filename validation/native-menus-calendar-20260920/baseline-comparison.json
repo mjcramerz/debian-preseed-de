@@ -1,0 +1,33 @@
+{
+  "baseline": {
+    "run": 1930,
+    "failures": 4,
+    "errors": 0,
+    "skipped": 48,
+    "failure_names": [
+      "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)",
+      "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
+    ]
+  },
+  "refactored_full_suite": {
+    "run": 1964,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 48,
+    "failure_names": [
+      "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
+    ]
+  },
+  "all_final_failures_reproduced_in_baseline": true,
+  "new_failure_names": [],
+  "baseline_only_failure_names": [
+    "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)"
+  ],
+  "iocost_explanation": "Three existing tests expect IOCOST_CALIBRATE_ENABLE=true for btrfs-de-dual-flex.env; the supplied profile has false. No hardware policy or unrelated test expectations were changed.",
+  "bootstrap_explanation": "The unchanged opposite-role test waits 8 seconds. An extended diagnostic reached the correct FATAL hold after 8.394 seconds, with no preflight.ok marker and a still-running hold process. The test passes in the final full suite, but failed in the baseline and an isolated final-tree run; those outcomes are preserved separately.",
+  "bootstrap_extended_log": "bootstrap-extended-diagnostic.log"
+}

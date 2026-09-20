@@ -1,0 +1,77 @@
+{
+  "installer_tests": {
+    "run": 1930,
+    "passed": 1878,
+    "skipped": 48,
+    "failures": 4,
+    "errors": 0
+  },
+  "tools_tests": {
+    "run": 179,
+    "passed": 179,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "native_tomat_tests": {
+    "run": 28,
+    "passed": 27,
+    "skipped": 1,
+    "failures": 0,
+    "errors": 0
+  },
+  "notifications_tests": {
+    "run": 5,
+    "passed": 5,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0
+  },
+  "native_gtk_profile_state_layout_cases": 104,
+  "full_validation_success": false,
+  "failures_reproduced_in_earlier_code": true,
+  "full_run_failure_names": [
+    "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+    "test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)",
+    "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
+  ],
+  "previous_report_iocost_failure_names": [
+    "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
+    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+    "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
+  ],
+  "bootstrap_deadline_diagnosis": {
+    "test": "test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker",
+    "test_source_unchanged_from_previous_archive": true,
+    "test_source_sha256": "99daa604e101d94df700571bcff6beba4698ccd8730c8eab528cc2169750ac9b",
+    "production_bootstrap_sources_unchanged": true,
+    "observations": {
+      "current": {
+        "unchanged_test_failed_at_seconds": 8,
+        "diagnostic_only_deadline_seconds": 30,
+        "fatal_record_observed_after_seconds": 10.812,
+        "all_remaining_original_assertions_passed": true
+      },
+      "previous": {
+        "unchanged_test_failed_at_seconds": 8,
+        "diagnostic_only_deadline_seconds": 30,
+        "fatal_record_observed_after_seconds": 13.096,
+        "all_remaining_original_assertions_passed": true
+      }
+    },
+    "repository_test_deadline_modified": false,
+    "conclusion": "The unchanged eight-second observation deadline is too short in this environment for both revisions. A separate diagnostic harness allowed thirty seconds and confirmed the fatal record, process hold and missing preflight marker. The original full-run failure is retained, not converted into a passing test."
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "96ee6dee4a011717ae6132c319668a05cea66ec98372d3fafdf0db688cd1b11d",
+    "payload.manifest": "7dc3dcd28b1cf09d547b0ea48f742b20a3c376dab32dc453d13ffc195e2d45d1",
+    "payload.tar.gz": "52691d292fb25685b92be7e360146fc9ef008fffbf69401f0de645fc4e918842"
+  },
+  "limits": [
+    "No booted Forky/systemd 261.2 or live Waybar/labwc session.",
+    "GTK3 CSS geometry/hover tests run under Xvfb, not the target compositor.",
+    "Missing Perl dependencies are reported as skips.",
+    "Normal unattended-upgrade policy is unchanged; local-origin eligibility depends on host policy."
+  ]
+}

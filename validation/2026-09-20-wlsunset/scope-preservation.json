@@ -1,0 +1,281 @@
+{
+  "baseline_archive_sha256": "7572eb8bc6b62f298f5ddec6b51eeb01e0120a35918ed3739706f9debfcbeafa",
+  "protected_xwayland_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+      "unchanged": true,
+      "sha256": "95888395653f3709e7a4d38a5135934427074959d059173c8c36d945aff78783"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+      "unchanged": true,
+      "sha256": "7dd18b7d64d84b0f0c9b47debbda690a4cbbb9058eb9bdd849412c9c87a0fff3"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf",
+      "unchanged": true,
+      "sha256": "23453840cf0ed2d4649a1abd05538b040ea504001fb97f67bf926e996eb91b51"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/discord",
+      "unchanged": true,
+      "sha256": "8340c62ef1d9c240ea82a66d45d58bb4c27cf3ad4e79c0abc61851ae423bd724"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/zoom",
+      "unchanged": true,
+      "sha256": "c37653fd2e1a13c218abc06a40e119d20631a8444012c8b461a739865f79228e"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Discord.pm",
+      "unchanged": true,
+      "sha256": "abf6df87e28c2c85bc80f670a03c80e2b864bd69cf4a0577bae18c8fa4fc676b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+      "unchanged": true,
+      "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+      "unchanged": true,
+      "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+      "unchanged": true,
+      "sha256": "71924415f611006700e6f65daab47d77dd81f73b17be0a47928c1e35f85d940b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/managed-discord-distro",
+      "unchanged": true,
+      "sha256": "d2b28146168ff43ebd247386a2a5dd1d6ffa60299d531f381c0ce97f71c18e95"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/share/applications/discord.desktop",
+      "unchanged": true,
+      "sha256": "ad654f636ae162f3e7079abc2a89a3a73fbb86414b82645eff1bedfb1728458c"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/xwayland.sh",
+      "unchanged": true,
+      "sha256": "5a78923022e33ef616383305eb998ff777a31eb247632d16ae087064e33f7672"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+      "unchanged": true,
+      "sha256": "e3194af7db568b07ca33ef101f48c8de16c71e478e6fb8a608d817e92d56f848"
+    }
+  ],
+  "profile_assignments": [
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "old_indicator_boolean_removed": true,
+      "ten_wlsunset_assignments_added": true,
+      "all_other_assignments_unchanged": true
+    }
+  ],
+  "compatibility_apparmor_sections_unchanged": true,
+  "deleted_only_five_obsolete_assets": [
+    "d-i/forky/hooks/target/etc/gammastep/config.ini",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-gammastep-indicator.service",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-gammastep-indicator",
+    "d-i/forky/hooks/target/usr/local/share/applications/gammastep-indicator.desktop",
+    "d-i/forky/hooks/target/usr/local/share/applications/gammastep.desktop"
+  ],
+  "all_checks_passed": true,
+  "managed_app_and_browser_argument_sources": [
+    {
+      "path": "d-i/forky/hooks/target/etc/chromium.d/90-performance-flags.tmpl",
+      "unchanged": true,
+      "sha256": "8e8fd09c788f61454972afbcef84876917376b3c3b46f1ad067311f1ce9498ac"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/__init__.py",
+      "unchanged": true,
+      "sha256": "71a732c5641d07111a1259dd73159c8a2224dfe9147701ea976c3c46333330a4"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bootstrap.py",
+      "unchanged": true,
+      "sha256": "0488970772825dd2a4252d19429a95610956e1e0f7c5dba3e7241bf390124131"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py",
+      "unchanged": true,
+      "sha256": "812d813b72c1d2acca405c5fc8560585f66204cd486482a2a1fcd15c60a10848"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/bubblewrap.py",
+      "unchanged": true,
+      "sha256": "f89632f47ab25bc303bedbbb4f92ccc5f7eddd435c56c2b6126f39240fee6659"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/cli.py",
+      "unchanged": true,
+      "sha256": "c9447852f4bf9ad696db8ad6d6e9b538a6d44c8f99ed74b2409fac1f309211ab"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/commands.py",
+      "unchanged": true,
+      "sha256": "78bd97acd5f7fad9a7806e6d86f6605a22921f8849aab9832d9c35c325fe4dab"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/dbus_proxy.py",
+      "unchanged": true,
+      "sha256": "540863adc762d9b1f177641ffc69abd32bd3c950a321cdfd8a0ed5cc84e670e4"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py",
+      "unchanged": true,
+      "sha256": "3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/environment.py",
+      "unchanged": true,
+      "sha256": "2a2c18d1c598eb92a26d62f3e4696d4c996e9e58aea8b3b862aed6e82175fbb4"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/events.py",
+      "unchanged": true,
+      "sha256": "183bbc003204edf766a268aa95ea07064f786264f1381ca10c1eda2f2ea44afa"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py",
+      "unchanged": true,
+      "sha256": "9e50377a75646054c30fcfc42f602b8569ccbf7bc74a8db042ff1149365339cb"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/identity.py",
+      "unchanged": true,
+      "sha256": "3c7b0ea876a0fd5b2cd6fe6824025f8d38ed4c8a311c3d73e3b6048a8fa6a22b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/integrity.py",
+      "unchanged": true,
+      "sha256": "aeeab4e328bcbc4b9c95e64f2154d1648e122612d66e0c67ee00633b0b430001"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/mounts.py",
+      "unchanged": true,
+      "sha256": "7b871043df09c576fc948f33774b11362b978dd4afc178fee6d56bb0aa6d4d97"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/network_namespace.py",
+      "unchanged": true,
+      "sha256": "57dd5cabb262e4b3dc952a4b58f5ea8c1736c47ee2d9f59ccf4c078442ec16a9"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py",
+      "unchanged": true,
+      "sha256": "e3194af7db568b07ca33ef101f48c8de16c71e478e6fb8a608d817e92d56f848"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/recovery.py",
+      "unchanged": true,
+      "sha256": "7fa92bf26e88e9711c18cfa692f62f1c69566dc824ba118249da274e2b78c08d"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/runtime.py",
+      "unchanged": true,
+      "sha256": "9b56af38465dbeb3a92ccd01bb153580a7017eb92f0a86c7a41d6ddc0f835217"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/sandbox.py",
+      "unchanged": true,
+      "sha256": "4dd64551fade16090ec699e210da9f953aebc2b41748dcb0ba0a872f1d5f4dfe"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py",
+      "unchanged": true,
+      "sha256": "c3a1f2b333c25182c9cd6fc15871c21cda45f2001f65129ee7eb07838fda4739"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/user_state.py",
+      "unchanged": true,
+      "sha256": "0ae299de8986962908010f5bb7e664762221d5f935bc92fe82a4ab54007824af"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat.py",
+      "unchanged": true,
+      "sha256": "d975c575ff90d215731039a768dcc0f66d4a48d5b9b293620d76a41a93d0a77a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/wayland_compat_runtime.py",
+      "unchanged": true,
+      "sha256": "d2a5eb45025f6ca4dbecbcc598ea51d0244de71d6106941d1852fe32d4e2ffdc"
+    }
+  ]
+}

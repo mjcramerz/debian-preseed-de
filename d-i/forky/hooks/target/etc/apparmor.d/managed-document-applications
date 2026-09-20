@@ -3,6 +3,7 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile managed-zathura /usr/bin/zathura flags=(attach_disconnected, mediate_deleted) {
+  /etc/magic r,
   #include <abstractions/managed-document-runtime>
   /usr/bin/zathura mr,
   /usr/lib{,/@{multiarch}}/zathura/ r,

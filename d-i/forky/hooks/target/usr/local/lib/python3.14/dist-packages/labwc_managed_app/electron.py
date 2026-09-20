@@ -49,8 +49,11 @@ ELECTRON_PROFILES = {
     "chatgpt": {
         "background_activity": True,
         "features": ("WebRTCPipeWireCapturer",),
-        "intel_extra_args": ("--enable-zero-copy",),
-        "nvidia_extra_args": (),
+        # WGPU_BACKEND controls Rust wgpu, not Chromium's Dawn. Select the
+        # GL-compatible adapter explicitly; keep the existing GPU sandbox.
+        "launch_extra_args": ("--use-webgpu-adapter=opengles",),
+        "intel_extra_args": ("--enable-zero-copy", "--use-webgpu-adapter=opengles"),
+        "nvidia_extra_args": ("--use-webgpu-adapter=opengles",),
     },
     "code": {
         "background_activity": True,

@@ -53,8 +53,8 @@ unset desktop_module
 . "${desktop_module_dir}/hardware-tuning.sh"
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/fonts.sh"
-# Load definitions only; the role calls the narrow Kanshi check, not the
-# intentionally skipped broad staging verifier.
+# Load definitions only; the role calls narrow Kanshi and native-icon checks,
+# not the intentionally skipped broad staging verifier.
 # shellcheck disable=SC1090,SC1091
 . "${desktop_module_dir}/verify.sh"
 # shellcheck disable=SC1090,SC1091

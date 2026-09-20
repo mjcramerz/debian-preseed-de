@@ -42,6 +42,7 @@ if ($action eq 'defaults') {
     }
     $defaults{obsidian} = { automatic => JSON::PP::true, url => 'https://github.com/obsidianmd/obsidian-releases/releases/latest' };
     $defaults{sleek} = { automatic => JSON::PP::true, url => 'https://github.com/ransome1/sleek/releases/latest' };
+    $defaults{tomat} = { automatic => JSON::PP::true, url => 'https://github.com/jolars/tomat/releases/latest/download/tomat_amd64.deb' };
     $defaults{'qore-db'} = { automatic => JSON::PP::true, url => 'https://github.com/QoreDB/QoreDB/releases/latest' };
     result(\%defaults);
     exit 0;

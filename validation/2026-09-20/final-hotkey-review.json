@@ -1,0 +1,21 @@
+{
+  "change": "Removed the added Labwc XF86Sleep binding to retain logind as sole power/suspend handler; added assertions preventing duplicate handlers.",
+  "validation_sequence": "Full candidate suites completed first. After the final XML/test-only hotkey review, the payload was rebuilt and all 26 new regression tests plus 42 directly affected integration/rendering tests passed.",
+  "post_review_tests": {
+    "new_regressions": 26,
+    "affected_integration_and_rendering": 42,
+    "all_passed": true
+  },
+  "logs": [
+    "hotkey-final-build.log",
+    "hotkey-final-build-check.log",
+    "hotkey-new-tests.log",
+    "hotkey-new-edges.log",
+    "hotkey-final-integration.log"
+  ],
+  "final_runtime_products": {
+    "preseed.cfg": "0c6deb21cc93f6ce75b6887fd4f1af5fdd2caa4c60b95bb0815c39e848d44f3f",
+    "payload.manifest": "3887983dfcd29d15f40268a42134e7041856ebc3a33bcac8658e20abcf31494c",
+    "payload.tar.gz": "4cec73f971ef11f091088625e8fd6cf4729f53ec07d63a1063658ba541b8029c"
+  }
+}

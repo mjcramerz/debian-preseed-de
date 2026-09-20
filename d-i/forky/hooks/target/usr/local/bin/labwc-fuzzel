@@ -191,6 +191,22 @@ if [ -n "$fuzzel_output" ] && fuzzel_output_is_internal "$fuzzel_output"; then
   internal_output=true
 fi
 
+# A management action may set a legacy compact-menu override. The root
+# context wins for the entire tree, so every form/confirmation keeps the Main
+# Menu geometry. Do not export this into the systemd user manager.
+if [ "$mode" = menu ] && [ "${LABWC_FUZZEL_GEOMETRY:-${LABWC_FUZZEL_LOG_SCOPE:-desktop}}" = computer-management ]; then
+  main_menu=true
+  if [ "$internal_output" = true ]; then
+    menu_width_override=${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_WIDTH:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}}
+    menu_lines_override=${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_LINES:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-${LABWC_FUZZEL_INTERNAL_LINES:-10}}}
+    menu_font_size_override=${LABWC_FUZZEL_INTERNAL_FONT_SIZE:-9}
+  else
+    menu_width_override=${LABWC_FUZZEL_COMPUTER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}}
+    menu_lines_override=${LABWC_FUZZEL_COMPUTER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}}
+    menu_font_size_override=${LABWC_FUZZEL_FONT_SIZE:-15}
+  fi
+fi
+
 case "$mode:$internal_output" in
   launcher:true) config_name=fuzzel-internal.ini ;;
   launcher:false) config_name=fuzzel.ini ;;
@@ -221,7 +237,7 @@ if [ "$mode" = menu ]; then
     require_uint_range LABWC_FUZZEL_MENU_WIDTH_OVERRIDE "$menu_width_override" 16 200
   fi
   if [ -n "$menu_lines_override" ]; then
-    require_uint_range LABWC_FUZZEL_MENU_LINES_OVERRIDE "$menu_lines_override" 1 32
+    require_uint_range LABWC_FUZZEL_MENU_LINES_OVERRIDE "$menu_lines_override" 1 40
   fi
   if [ -n "$menu_font_size_override" ]; then
     require_uint_range LABWC_FUZZEL_MENU_FONT_SIZE_OVERRIDE "$menu_font_size_override" 8 32

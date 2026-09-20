@@ -278,6 +278,8 @@ class WorkerFlowTests(LockFixture):
     def worker(self, action, *, greeter=False):
         worker = self.power.Worker(1000, 'desktop', action, greeter=greeter)
         self.events = []
+        self.stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
+            side_effect=lambda: self.events.append(('inhibitors', ()))))
         for name in ('lock', 'protect_other_sessions', 'helper', 'terminate_user',
                      'quiesce_desktop', 'stop_optional_guests', 'final_power_action'):
             self.stack.enter_context(mock.patch.object(worker, name,
@@ -322,7 +324,13 @@ class WorkerFlowTests(LockFixture):
                 worker.execute()
             worker.helper.assert_not_called(); worker.quiesce_desktop.assert_not_called()
             worker.terminate_user.assert_not_called(); worker.session_identity.assert_not_called()
-            run.assert_called_once_with(['/usr/bin/systemctl', '--check-inhibitors=yes', '--no-ask-password', action], timeout=20)
+            run.assert_not_called()  # Guest/final helpers are boundary mocks here.
+            worker.stop_optional_guests.assert_called_once_with()
+            worker.final_power_action.assert_called_once_with()
+            self.assertLess(self.events.index(('inhibitors', ())),
+                            self.events.index(('stop_optional_guests', ())))
+            self.assertLess(self.events.index(('stop_optional_guests', ())),
+                            self.events.index(('final_power_action', ())))
             self.assertEqual(self.events[-1], ('hold', ()))
 
     def test_session_replacement_during_wait_cancels_without_closing_new_session(self):

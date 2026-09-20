@@ -1,0 +1,120 @@
+#!/usr/bin/python3 -I
+"""Installer-only reconciliation of small, root-owned system policies."""
+import os
+from pathlib import Path
+import pwd
+import re
+import stat
+import sys
+import tempfile
+
+
+def replace(path, data):
+    if path.is_symlink():
+        raise RuntimeError(f'refusing symlink: {path}')
+    fd, name = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fchmod(stream.fileno(), 0o644)
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def retire_colour_assets(account):
+    """Remove only the superseded managed colour implementation, never recurse.
+
+    Called by the offline installer inside /target, not by a desktop process.
+    Directory descriptors prevent a redirected user configuration tree from
+    turning this cleanup into a privileged deletion outside the named paths.
+    Package-owned /usr files and unrelated GeoClue policy are not touched.
+    """
+    def remove(path):
+        fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        try:
+            for part in path.parts[1:-1]:
+                try:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                                    dir_fd=fd)
+                except FileNotFoundError:
+                    return
+                os.close(fd)
+                fd = child
+                meta = os.fstat(fd)
+                if meta.st_uid not in (0, account.pw_uid) or meta.st_mode & 0o022:
+                    raise RuntimeError('unsafe obsolete colour asset parent: ' + str(path))
+            try:
+                meta = os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            if (not (stat.S_ISREG(meta.st_mode) or stat.S_ISLNK(meta.st_mode))
+                    or meta.st_uid not in (0, account.pw_uid)):
+                raise RuntimeError('unsafe obsolete colour asset: ' + str(path))
+            os.unlink(path.name, dir_fd=fd)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    for name in (
+        '/usr/local/bin/labwc-gammastep-indicator',
+        '/usr/local/share/applications/gammastep-indicator.desktop',
+        '/usr/local/share/applications/gammastep.desktop',
+        '/etc/gammastep/config.ini',
+        '/etc/geoclue/conf.d/90-managed-gammastep.conf',
+    ):
+        remove(Path(name))
+    home = Path(account.pw_dir)
+    if not home.is_absolute() or '..' in home.parts or str(home) == '/':
+        raise RuntimeError('unsafe desktop home for obsolete colour cleanup')
+    for base in (Path('/etc/skel-desktop'), home):
+        remove(base / '.config/autostart/gammastep-indicator.desktop')
+        remove(base / '.config/systemd/user/labwc-gammastep-indicator.service')
+        remove(base / '.local/share/applications/gammastep-indicator.desktop')
+        remove(base / '.local/share/applications/gammastep.desktop')
+    for base in (Path('/etc/systemd/user'), Path('/etc/skel-desktop/.config/systemd/user'),
+                 home / '.config/systemd/user'):
+        for target in ('labwc-session.target.wants', 'graphical-session.target.wants', 'default.target.wants'):
+            for unit in ('labwc-gammastep-indicator.service', 'gammastep-indicator.service', 'gammastep.service'):
+                remove(base / target / unit)
+
+
+def main():
+    if os.getuid() != 0 or len(sys.argv) != 2:
+        raise RuntimeError('expected root: helper ACCOUNT')
+    account = pwd.getpwnam(sys.argv[1])
+    if account.pw_uid == 0:
+        raise RuntimeError('the desktop account cannot be root')
+    retire_colour_assets(account)
+    path = Path('/etc/pam.d/sudo-i')
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+        meta = os.fstat(stream.fileno())
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
+            raise RuntimeError('unsafe sudo-i PAM configuration')
+        text = stream.read(65537)
+    if len(text) > 65536:
+        raise RuntimeError('oversized sudo-i PAM configuration')
+    line = 'session optional pam_env.so conffile=/etc/security/managed-sudo-i.conf readenv=0 user_readenv=0'
+    if line not in text.splitlines():
+        pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
+        if len(re.findall(pattern, text)) != 1:
+            raise RuntimeError('unexpected sudo-i session stack; refusing to change PAM')
+        text = re.sub(pattern, '# Managed: sudo-i retains the caller session (systemd >=258).\n' + line + '\n' + r'\1', text)
+        replace(path, text)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, KeyError, RuntimeError) as error:
+        print(f'session-repairs: {error}', file=sys.stderr)
+        sys.exit(1)

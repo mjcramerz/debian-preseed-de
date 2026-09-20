@@ -25,7 +25,7 @@ class PolicyAlignmentTests(unittest.TestCase):
         self.assertEqual(values['osd.window-switcher.preview.border.color'].upper(), f'{rgb},#0c1017,{rgb}'.upper())
 
     def test_exact_numeric_modprobe_set_and_references_exist(self):
-        expected = set('05-mei-blacklist 10-net-proto-blacklist 20-virtualization-blacklist 30-legacy-bus-blacklist 40-filesystem-blacklist 50-nouveau-blacklist 60-ses-blacklist 70-vfio-pci 71-thunderbolt 72-nvme-blacklist 73-nvme 74-usbcore 75-cfg80211 76-iwlwifi 77-e1000e 78-snd-hda-intel 79-thinkpad-acpi 80-i915 81-amdgpu 82-nvidia 90-zram'.split())
+        expected = set('05-mei-blacklist 10-net-proto-blacklist 20-virtualization-blacklist 30-legacy-bus-blacklist 40-filesystem-blacklist 50-nouveau-blacklist 60-ses-blacklist 70-vfio-pci 71-thunderbolt 72-nvme-blacklist 73-nvme 74-usbcore 75-cfg80211 76-iwlwifi 77-e1000e 78-snd-hda-intel 79-thinkpad-acpi 79-ideapad-acpi 79-chromebook 80-i915 81-amdgpu 82-nvidia 90-zram'.split())
         directory = TARGET / 'etc/modprobe.d'
         self.assertEqual({p.stem for p in directory.glob('*.conf')}, expected)
         for path in directory.glob('*.conf'):

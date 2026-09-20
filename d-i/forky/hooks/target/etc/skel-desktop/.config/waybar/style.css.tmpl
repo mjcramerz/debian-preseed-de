@@ -61,6 +61,7 @@ tooltip label {
 #custom-launcher,
 #custom-window-switcher,
 #custom-wayscriber,
+#custom-tomat,
 #custom-apps,
 #custom-app-terminal,
 #custom-app-files,
@@ -77,6 +78,7 @@ tooltip label {
 #cpu,
 #memory,
 #tray,
+#custom-notifications,
 #custom-lock,
 #custom-power {
   margin: 5px 3px;
@@ -96,9 +98,11 @@ tooltip label {
 #workspaces button.active,
 #taskbar button.active,
 #custom-launcher:hover,
+#custom-window-switcher:hover,
 #workspaces button:hover,
 #taskbar button:hover,
 #custom-wayscriber:hover,
+#custom-tomat:hover,
 #custom-apps:hover,
 #custom-app-terminal:hover,
 #custom-app-files:hover,
@@ -172,31 +176,58 @@ tooltip label {
 #custom-app-files,
 #custom-app-tuta,
 #custom-app-notes,
-#custom-app-sleek {
+#custom-app-sleek,
+#custom-app-terminal:hover,
+#custom-app-files:hover,
+#custom-app-tuta:hover,
+#custom-app-notes:hover,
+#custom-app-sleek:hover {
   min-width: 28px;
   padding: 0 7px;
-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
-  font-weight: 900;
+  /* Full-color application artwork from the installed hicolor theme, not
+   * a generic font glyph or a recolored symbolic replacement. */
+  -gtk-icon-theme: "hicolor";
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 1.2em 1.2em, 100% 100%;
 }
 
 #custom-app-terminal {
-  color: @emeraldgreen;
+  background-image: -gtk-icontheme("foot");
 }
 
 #custom-app-files {
-  color: @cinnamon;
+  background-image: -gtk-icontheme("org.xfce.thunar");
 }
 
 #custom-app-tuta {
-  color: @tutamagenta;
+  background-image: -gtk-icontheme("tuta-mail");
 }
 
 #custom-app-notes {
-  color: @notescyan;
+  background-image: -gtk-icontheme("featherpad");
 }
 
 #custom-app-sleek {
-  color: @mint;
+  background-image: -gtk-icontheme("sleek");
+}
+
+/* A background shorthand in the shared hover rule resets its image layer.
+ * Keep the native artwork above that highlight, at the same size/position. */
+#custom-app-terminal:hover {
+  background-image: -gtk-icontheme("foot"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+}
+#custom-app-files:hover {
+  background-image: -gtk-icontheme("org.xfce.thunar"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+}
+#custom-app-tuta:hover {
+  background-image: -gtk-icontheme("tuta-mail"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+}
+#custom-app-notes:hover {
+  background-image: -gtk-icontheme("featherpad"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+}
+#custom-app-sleek:hover {
+  background-image: -gtk-icontheme("sleek"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 
 #taskbar {
@@ -272,6 +303,7 @@ tooltip label {
 #cpu,
 #memory,
 #tray,
+#custom-notifications,
 #custom-lock,
 #custom-power {
   margin-left: 1px;
@@ -289,9 +321,14 @@ tooltip label {
   min-width: 56px;
 }
 
+/* Session buttons share geometry and icon sizing on both output layouts. */
+#custom-notifications,
 #custom-lock,
 #custom-power {
   min-width: 28px;
+  font-weight: 700;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 window#waybar.internal #pulseaudio,
@@ -301,6 +338,7 @@ window#waybar.internal #disk,
 window#waybar.internal #cpu,
 window#waybar.internal #memory,
 window#waybar.internal #tray,
+window#waybar.internal #custom-notifications,
 window#waybar.internal #custom-lock,
 window#waybar.internal #custom-power {
   margin-left: 0;
@@ -334,6 +372,7 @@ window#waybar.internal #quick-controls-internal #custom-screenshot {
   font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
 }
 
+window#waybar.internal #custom-notifications,
 window#waybar.internal #custom-lock,
 window#waybar.internal #custom-power {
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
@@ -362,6 +401,7 @@ window#waybar.internal #taskbar button {
 window#waybar.internal #custom-apps,
 window#waybar.internal #custom-window-switcher,
 window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-tomat,
 window#waybar.internal #custom-app-terminal,
 window#waybar.internal #custom-app-files,
 window#waybar.internal #custom-app-tuta,
@@ -408,13 +448,17 @@ window#waybar.internal #custom-app-sleek {
   color: @mint;
 }
 
+/* Notifications, lock and power share the same tinted session-chip language. */
+#custom-notifications {
+  background: rgba(236, 184, 96, 0.14);
+  border-color: rgba(236, 184, 96, 0.46);
+  color: @amber;
+}
+
 #custom-lock {
   background: rgba(203, 213, 225, 0.14);
   border-color: rgba(203, 213, 225, 0.46);
   color: #d8dee9;
-  font-weight: 700;
-  padding-left: 8px;
-  padding-right: 8px;
 }
 
 #custom-lock:hover {
@@ -428,13 +472,10 @@ window#waybar.internal #custom-app-sleek {
   background: rgba(248, 113, 113, 0.16);
   border-color: rgba(248, 113, 113, 0.66);
   color: @red;
-  font-weight: 700;
-  padding-left: 8px;
-  padding-right: 8px;
 }
 
 #custom-power:hover {
-  background: linear-gradient(135deg, rgba(248, 113, 113, 0.92), rgba(246, 160, 154, 0.92));
+  background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92), rgba(248, 113, 113, 0.92));
   border-color: rgba(248, 113, 113, 0.86);
   color: #08111f;
   box-shadow: 0 10px 26px rgba(248, 113, 113, 0.22);
@@ -481,10 +522,6 @@ window#waybar.internal #custom-app-sleek {
   font-family: "Font Awesome 6 Free", "Symbols Nerd Font Mono", "Noto Sans";
   font-weight: 700;
 }
-#custom-window-switcher:hover {
-  color: @emeraldgreen;
-  background: alpha(@emeraldgreen, 0.15);
-}
 
 /* Clickable status chips need hover feedback just like launcher buttons. */
 #clock:hover,
@@ -498,3 +535,20 @@ window#waybar.internal #custom-app-sleek {
   border-color: @border_strong;
   box-shadow: inset 0 0 0 1px @border_strong;
 }
+
+/* Native menu affordances, without changing the existing panel layout/theme. */
+#custom-tomat { min-width: 24px; padding-left: 8px; padding-right: 8px; }
+#custom-tomat.work-paused, #custom-tomat.break-paused, #custom-tomat.long-break-paused { color: @amber; }
+#custom-tomat.break, #custom-tomat.long-break { color: @mint; }
+#custom-tomat.error { color: @red; }
+#custom-notifications.dnd { color: @muted; }
+/* Warm gold also wins over the DND text color while hovered. */
+#custom-notifications:hover {
+  background: @amber;
+  border-color: @border_strong;
+  color: #08111f;
+  box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
+}
+menu { background: @panel; color: @text; border: 1px solid @border; }
+menuitem { padding: 6px 12px; }
+menuitem:hover { background: @panel_hover; }

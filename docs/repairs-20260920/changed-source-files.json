@@ -1,0 +1,312 @@
+{
+  "baseline": "uploaded debian-preseed-de.zip; unchanged files retained",
+  "changes": [
+    {
+      "path": "d-i/forky/classes/class-select/role/desktop.cfg",
+      "before_sha256": "fc838043d46933bb8d0931da374852db7032965c8551965a886ab0fc4597d32b",
+      "after_sha256": "d53e5db5022cd650bc7741e9d3ba4ee31ac78c0d59608fb19a426000a44b9c3c"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "before_sha256": "0e4e9864e1ef42ad544dd0d98fc9623c24f8650165f47e0e454de75b44ce70f1",
+      "after_sha256": "1527f5b8762a73c76037779c42948cad5879356e6102fc2439a8131d4cf910d1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "before_sha256": "ab524879f2ebe09eef27fb0f226baa4060cea0ca25d9146d039c3eb05a9ef80e",
+      "after_sha256": "1cdfa3699a9c4977f86656aa5143eb118c6a9090ca2ebbab89df26bddebf88f8"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications",
+      "before_sha256": "931fa0b1174ab50afb34af1503faf087bf1d1d6edfd451a100a05fdfd8fb83a4",
+      "after_sha256": "9be2fd5eaac36d18c251f24555333931f13b664966cf556f6c8c97d9acad4165"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-hardware-tuning",
+      "before_sha256": "39ccbc637e2c416a56ee3115a92846f686ef7785ded3b2686342dcb5d9e874b3",
+      "after_sha256": "70e347db4aaaf8016dd724bd079966d70514ca835d5b043fce609a654fad0154"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
+      "before_sha256": "826f17f7ce90fa433c123b33cb192e7f17be2e8e48af682e1a33d78417e0529b",
+      "after_sha256": "cdee7bb4cba2397335361af9f2a902ee6187244cb17126e0d0ee0db770e022ca"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "before_sha256": "11c9073dff1a9b140222bd7c598713e040cebc875394cec936bbf128fe9bb669",
+      "after_sha256": "81676ac474f9311f06a33ff1b37da19b80edd832d0f042524557c17985d22df1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.keepassxc",
+      "before_sha256": "251c8bb0ca41752ed914cce916e4ceb9208a4c09323db6ee051a0415103f157f",
+      "after_sha256": "42deff6c841a44a59dfd1e7036685404daa6c28b37eae7f3545b28bd398fef7c"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.spotify",
+      "before_sha256": "d69bc9b9321b218fff56b7fd43dab3bc09d73df8de2117c1a3ee27916aec7fe9",
+      "after_sha256": "b467f7e560906c3698b7267ae920e1648c384c0df427679b87050874fd1e94a6"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.telegram-desktop",
+      "before_sha256": "c3fc16ed1def5681cc4b7ecde6a04d85cc4b51df13a43d639f6a698e00af8a4f",
+      "after_sha256": "1292821f5f43fbcab20d087d014e1d0027f02339cd4fecf49ff4f93c35585286"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/default/labwc-desktop.tmpl",
+      "before_sha256": "91a334fb5960f75c94833071ca28079f4523d5c42849209262b43d506ef0477a",
+      "after_sha256": "75ef6cca100e823a0f7a91dc27bcaf4fe86d65a865aa0ee49f45f72ee1e1652b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/gtk-3.0/settings.ini.tmpl",
+      "before_sha256": "02bc3d6e80dc5a848efdc30a4e3b2cf9a7263f88810d2e24eea57c37a7f2ed92",
+      "after_sha256": "026f3f9562d967ac653078f4e016897344cd9301b236a38d10b0803c564dec8f"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/labwc/rc.xml.tmpl",
+      "before_sha256": "27e0b31e6e8fc9d60d0c087cf6a4e94226c3817f609a0635276a73e8d52113cb",
+      "after_sha256": "cff81a399ae03356c2c160611f1383b3ac567a4c825f4733d1f1374badbfb2e1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/mako/config",
+      "before_sha256": "16fa3553c5dcc2a1f6bd8d9c24a1751b6afde24cc31c37669356f486dd76c132",
+      "after_sha256": "5ed1d28c39b107627521bff0fe8cafcdb5f9ffda98769d0acc57700bc38c144e"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service",
+      "before_sha256": "18b73be9f09e858833b24c40ff426eb6e1fc33fbfd6981ca21e20cd3356251f0",
+      "after_sha256": "c2af21daa6548c6545edde215e05c23fa3ba6b3fbb7379a2e50c1ba3b19905c8"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-computer-management",
+      "before_sha256": "c36ca6b56bfafa68ea16e1c1b8916626d34ac06c8f7338da19c328092e769027",
+      "after_sha256": "27e5b4aa8cf0efcf3dcb7412fbbe61fad8e0f833f59ed0dc3cb4a769844ead8b"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-fuzzel",
+      "before_sha256": "8cef87533d56534b399754a8ee5c8eb99590a595d1eb9617413da44515a59466",
+      "after_sha256": "3d3efaf30fce7d202538ce2a504d826a09f9ebcaf82a8e6553e52948acf3bea1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-health-notify",
+      "before_sha256": "3e47232cb112c89b8c5473ee007ae0c55cbb37980567cd18cf7e0b1fa2fac120",
+      "after_sha256": "99273fc66d1fd010a84d7fc44f563e365a31e3e2ed8c240eb0aaa92ff634ff25"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-main-menu",
+      "before_sha256": "f541cf0e5a79348ce184bfdd8f00bbec7fb6474f918115bae6b99d6941e930f1",
+      "after_sha256": "40d1fd55a6e9943fbda4eba9bf1e7488dfd8f92fb25fab212d9356b7c9f83429"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-terminal",
+      "before_sha256": "89afd029ca9fc865150890d185029cecfc92569fe1bb736900ed2fdbca72690b",
+      "after_sha256": "52159caece028c480ff49fab6be638c1b0a10e218c9841e32155dbb97c2bfa99"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-wallpaper-save",
+      "before_sha256": "a5da0492faad5885557bc2909a94cab059cdb8ad3e4d9b9ae8ef0e83af084314",
+      "after_sha256": "0400d9b98f0fb917d05ddcd3cf8d40a06609b6b236b38fac622207e91948be79"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/browsers.py",
+      "before_sha256": "4093ad7769cb2cd4f46fd49a6459962f985c1fd6d18359881a6529d48467882e",
+      "after_sha256": "812d813b72c1d2acca405c5fc8560585f66204cd486482a2a1fcd15c60a10848"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py",
+      "before_sha256": "f4e0099bedf297949c705f08741c271e80d92537fb279032a4778310aca1c967",
+      "after_sha256": "3e9f1a2ba7f009912c461f31034c0f0d80da7fd7c2929fad4bbf7f7afe786592"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-swaybg",
+      "before_sha256": "f9b25930709708a8389680506b589177b32a6d4176a018a73610ea669cf01de0",
+      "after_sha256": "d3fc68b4ccd0eae4724dbf613fb5e5a2073e2927a26deae760bfd64b001ab01a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/applications/labwc-tweaks.desktop",
+      "before_sha256": "73beaa608c12a8903dae2118d65b25749fdae2c662ac7e74d154db385874e855",
+      "after_sha256": "66704cf5ad6e3f37fda80d110ad6b233fa9f413a3b3750d74bc696602917e5fd"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "before_sha256": "01dd669277362f4f8e03c17cd51f697dbfd501ce54a06807e0f845e48a07f3d2",
+      "after_sha256": "fbb577058173dba079b0141e5b4d47b8248b8b94ea3132fdf7d3290b5e336231"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "before_sha256": "5364acb8d4f418bf307dc67120163d2b094523402e0355da84bd77e829c0fef4",
+      "after_sha256": "66e9d4853aa3d04c8d06026808c3e8ea9f4c6968cf7af091ccaa2849a7afd9d1"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "before_sha256": "6508e8be1738808178f41f7c94c477da7510416b588af90e31ba36ba6290cf1e",
+      "after_sha256": "57f846907f741095c87969c51e612f9a72c8275ae329d6b8bf3d40b11477820e"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "before_sha256": "34e304c2496aa0967883cacec600c27d64169926460c6f6c714f1bc813a3d81a",
+      "after_sha256": "26c5c5f1b84fab1a69dc805b2481bd2bcb6537beb9758a766f8854919ef0d136"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "before_sha256": "e6311c7c65f06e6ad46a3adbad497c52a9f01a150321497e89881e33d145eab5",
+      "after_sha256": "3eeae51ff709253ab1bb7b7fa67e0417d5db708a4a4c8f20d15b66857f594841"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "before_sha256": "5e224ea5c536666b3275897a36ec34b7b06c897fe0405040c305c3c8b2b5329c",
+      "after_sha256": "a382c1dd99013d8eeb57bfc2102d59ba63eeb04ff1ba4b3c229a573ec6eb7402"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "before_sha256": "da9d7f39444eb1172c3bf81bbfb98eb44e15c27029d26558458a86ffa7ffd46e",
+      "after_sha256": "5e3298d4f1c94715a42ce18f5978722c3f8995051b0863dc5b8717ffe2d6c052"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "before_sha256": "31bf41a3f184c2a714f47708e5f4c0a6d48cad88bb9ab1efa19976f79de00b29",
+      "after_sha256": "497fe5abff09a8f7411d8f2b0ad464c4b60b367e0f5b9c0bca52515f12089d49"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "before_sha256": "410af02459631455a5fff1f0972348f2f07e061cd39ca5d0856205de1c8cc22a",
+      "after_sha256": "1d98f41054dab12dbd3c2efbb117da25e52dc1728d8d99e8604d9fb4700fcd42"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "before_sha256": "c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4",
+      "after_sha256": "e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "before_sha256": "24468daad87dabd74331850efbda9c4d6cb3835544cfd937c739edb8f1389bec",
+      "after_sha256": "9de295e9ed76b5eb1a81226dcce98ad24285e34ecec30e2ebc445fc5b41d2a80"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "before_sha256": "c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4",
+      "after_sha256": "e8c5a8f0cb21f9ce93594c2f8be8acfa86ad9ad4482f5a2287443413f6f94256"
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+      "before_sha256": "384fa9585ed1b96cfd99982edc77e9cc859575806b569c5ea31b741c09a07b34",
+      "after_sha256": "4c9e81e430fbd9485b62fdbd9af32cc312d69c61bfdb1b187db35c5ea31d5769"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before_sha256": "f18988d519d45e6120fbdd384961f75b8c4a4f734c294cb2701f0f9be1a53adc",
+      "after_sha256": "3887983dfcd29d15f40268a42134e7041856ebc3a33bcac8658e20abcf31494c"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before_sha256": "820a019a38c1376b06e522385cf7ec307e02c3497f6df925d11e4b4feca4106c",
+      "after_sha256": "4cec73f971ef11f091088625e8fd6cf4729f53ec07d63a1063658ba541b8029c"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before_sha256": "bd538b91ec8ab9887ebef897b0bc72416fc0352c026b0178c214f2b0e65a8183",
+      "after_sha256": "0c6deb21cc93f6ce75b6887fd4f1af5fdd2caa4c60b95bb0815c39e848d44f3f"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "before_sha256": "119ce8e31f59ac8d812de462cfca0d89c1486781a312aa3d2ff198b249249281",
+      "after_sha256": "3a9140b7ade37d18f3ffe4391ac2a9634d66deba81e55f3b3388d1e4fafefb85"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/detect.sh",
+      "before_sha256": "2de502da81e207d677b39a7d49ebfc7769b45183417666b39e6f687efffc650e",
+      "after_sha256": "35e9e066242301fd26c059c5b9b22ed0985ade58218e7b40893dd05d56ebc946"
+    },
+    {
+      "path": "d-i/forky/tests/test_categorized_menu.py",
+      "before_sha256": "d5dfa158db295476ac3129a54d9e9b1f90b72b7a510e39bae9aaeb22ed9cc8e3",
+      "after_sha256": "546cddf7bbd35c9faf1097e67bc70915f740776bde12d43197f3e8132a8affa7"
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_sandbox.py",
+      "before_sha256": "daf0dbdc4e5aef186a7f8af8659876ed1e8fb0af02318f610d04871bed048437",
+      "after_sha256": "f8e88a9b9b18b585182f25967ef8f3cf08fa4a771465bce484e84b12f6a6e169"
+    },
+    {
+      "path": "d-i/forky/tests/test_systemd_resource_policy.py",
+      "before_sha256": "85a29ad5c1b3367df2b663d0843a9c6f30c9129664a3f8a95bc7c884973a79e6",
+      "after_sha256": "af58ec20aef15cc355a14c5879086f2de0bdc57fa656fd1916391c361b58f7dc"
+    },
+    {
+      "path": "docs/migration-map.json",
+      "before_sha256": "3e5e0f08067de53b7576c90a4f88ed26f21c08c1bb223dfb81af0651a43e2410",
+      "after_sha256": "cad8b05e640432c728a01e5899b7eed922efda4ebd73bcdefbe6a3efd4952bd3"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/gammastep/config.ini",
+      "before_sha256": null,
+      "after_sha256": "907aec8f41eecfdf64e671157fc1fff5d3bf42ecc9a6e34aa81941968aebe849"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/security/managed-sudo-i.conf",
+      "before_sha256": null,
+      "after_sha256": "56923018fcdd9e77dce2e4badb21aed54778a0cb76cfff420c8da59e81cdd4e6"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-gammastep-indicator.service",
+      "before_sha256": null,
+      "after_sha256": "a5242986f961cc1bc4261dfe67ed5708bb30d4c279dd2a5080a270a0c3f14e7a"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml",
+      "before_sha256": null,
+      "after_sha256": "0ba2cff02143c334cd7f2623bb851180e30eafb38c40fda80c0398e4cd74b149"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/udev/hwdb.d/90-managed-thinkpad-extra-buttons.hwdb",
+      "before_sha256": null,
+      "after_sha256": "0846ac0ffb43b4769d1021f9c7c84649b556801fc296735145548ad42cd0ff2f"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-gammastep-indicator",
+      "before_sha256": null,
+      "after_sha256": "90e924ab9304af9c2db1bed222136c2177f6fca1a8024b94153dcedb7691f31c"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-configure-session-repairs",
+      "before_sha256": null,
+      "after_sha256": "45bd60a9ad712aa8922fe9b18623f1d31665d903873cd1842e150127b0f84fcc"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-notification-send",
+      "before_sha256": null,
+      "after_sha256": "814b949a218cdbf2c1bf6aa52832c02cdea6b63564483deac49482160f9337b9"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-wallpaper-control",
+      "before_sha256": null,
+      "after_sha256": "dca77154276b82e641f6c41351edac499017abf2f131f862ad1dcb478b3af863"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/applications/gammastep-indicator.desktop",
+      "before_sha256": null,
+      "after_sha256": "a8c114ec2484f9f6de29b794205579b07f6f9c9745c98caf1133dd0f53cced33"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/share/applications/gammastep.desktop",
+      "before_sha256": null,
+      "after_sha256": "38e7949f2ce0fc19fc5d6a828f61887b7018d9057f896eede670fff84d68e33d"
+    },
+    {
+      "path": "d-i/forky/tests/notification_bus_fixture.py",
+      "before_sha256": null,
+      "after_sha256": "f8c1a9da833b73ac559ccf43941fbcfbf28589ad245cc85e7bd594a7dc3ef305"
+    },
+    {
+      "path": "d-i/forky/tests/test_session_repair_edges.py",
+      "before_sha256": null,
+      "after_sha256": "8560339aadc8c01f6734796903fdeee34989aa1aa2c2f2a1dd13a8fe74beb6ff"
+    },
+    {
+      "path": "d-i/forky/tests/test_session_repairs_20260920.py",
+      "before_sha256": null,
+      "after_sha256": "821d3279782eeedcb02626797e03bb670ed09e144191f51507d797f59beec504"
+    }
+  ],
+  "note": "Documentation and validation outputs added in this revision are separately located in docs/repairs-20260920 and validation/2026-09-20.",
+  "input_archive_sha256": "fc68d73c9c2ecc77b8e5555e29a7d4ef9f9cab82d6966a0644ae00193e05f481"
+}

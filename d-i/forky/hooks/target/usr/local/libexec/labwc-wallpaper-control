@@ -1,0 +1,313 @@
+#!/usr/bin/python3 -I
+"""Atomic wallpaper requests and a single, session-owned swaybg supervisor.
+
+No shell interpretation, process-name killing, upstream patch or compilation.
+The short candidate liveness check is not a Wayland first-frame acknowledgement.
+"""
+from __future__ import annotations
+
+import argparse
+import ctypes
+import fcntl
+import os
+from pathlib import Path
+import selectors
+import signal
+import stat
+import struct
+import subprocess
+import sys
+import time
+import uuid
+
+ROOT = Path('/usr/share/backgrounds/desktop')
+LIMIT = 4096
+DEBOUNCE = 0.25
+PROBE = 0.5
+DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+
+
+def image_path(value: str) -> str:
+    if not value or any(c in value for c in '\x00\r\n') or len(os.fsencode(value)) >= LIMIT:
+        raise ValueError('invalid wallpaper path')
+    candidate = Path(value)
+    if not candidate.is_absolute():
+        raise ValueError('wallpaper path must be absolute')
+    candidate = candidate.resolve(strict=True)
+    candidate.relative_to(ROOT)
+    fd = os.open(candidate, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o133:
+            raise ValueError('wallpaper must be a non-executable, root-owned, immutable-to-users regular file')
+        signature = os.read(fd, 8)
+        if not (signature == b'\x89PNG\r\n\x1a\n' or signature.startswith(b'\xff\xd8\xff')):
+            raise ValueError('wallpaper must be PNG or JPEG')
+    finally:
+        os.close(fd)
+    return str(candidate)
+
+
+class State:
+    """Keep directory descriptors pinned; never follow state-file symlinks."""
+    def __init__(self, home: str):
+        p = Path(home)
+        if not p.is_absolute() or p == Path('/') or any(c in home for c in '\x00\r\n'):
+            raise ValueError('invalid HOME')
+        if '..' in p.parts:
+            raise ValueError('non-canonical HOME')
+        self.path = p / '.local/state/labwc'
+        fd = os.open('/', DIRECTORY_FLAGS)
+        try:
+            for component in self.path.parts[1:]:
+                try:
+                    child = os.open(component, DIRECTORY_FLAGS, dir_fd=fd)
+                except FileNotFoundError:
+                    try:
+                        os.mkdir(component, 0o700, dir_fd=fd)
+                    except FileExistsError:
+                        pass  # A concurrent request created it; validate below.
+                    child = os.open(component, DIRECTORY_FLAGS, dir_fd=fd)
+                os.close(fd)
+                fd = child
+                meta = os.fstat(fd)
+                if meta.st_uid not in (0, os.getuid()) or meta.st_mode & 0o022:
+                    raise ValueError('unsafe wallpaper state directory ancestor')
+            if os.fstat(fd).st_uid != os.getuid():
+                raise ValueError('wallpaper state must belong to the session user')
+            os.fchmod(fd, 0o700)
+            self.fd = fd
+        except BaseException:
+            os.close(fd)
+            raise
+
+    def close(self) -> None:
+        os.close(self.fd)
+
+    def current(self) -> str | None:
+        try:
+            fd = os.open('wallpaper', os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=self.fd)
+        except FileNotFoundError:
+            return None
+        try:
+            meta = os.fstat(fd)
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid()
+                    or meta.st_nlink != 1 or meta.st_mode & 0o077 or not 0 < meta.st_size <= LIMIT):
+                raise ValueError('unsafe wallpaper state file')
+            value = os.read(fd, LIMIT + 1).decode('utf-8').removesuffix('\n')
+        finally:
+            os.close(fd)
+        return image_path(value)
+
+    def save(self, value: str) -> None:
+        value = image_path(value)
+        lock = os.open('.wallpaper.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+                       0o600, dir_fd=self.fd)
+        temporary = '.wallpaper.' + uuid.uuid4().hex
+        try:
+            meta = os.fstat(lock)
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid()
+                    or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o600):
+                raise ValueError('unsafe wallpaper request lock')
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            # Reject hostile destination links even though replace would not follow them.
+            try:
+                meta = os.stat('wallpaper', dir_fd=self.fd, follow_symlinks=False)
+                if not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid() or meta.st_nlink != 1:
+                    raise ValueError('unsafe wallpaper destination')
+            except FileNotFoundError:
+                pass
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+                         0o600, dir_fd=self.fd)
+            with os.fdopen(fd, 'wb') as stream:
+                stream.write((value + '\n').encode('utf-8'))
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, 'wallpaper', src_dir_fd=self.fd, dst_dir_fd=self.fd)
+            os.fsync(self.fd)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=self.fd)
+            except FileNotFoundError:
+                pass
+            os.close(lock)
+
+
+def stop(child: subprocess.Popen | None) -> None:
+    if child is None:
+        return
+    if child.poll() is None:
+        try:
+            child.terminate()
+            try:
+                child.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                child.kill()
+        except ProcessLookupError:
+            pass  # It exited between poll and signal; always reap below.
+    child.wait()
+
+
+def changed(fd: int) -> bool:
+    data = os.read(fd, 65536)
+    relevant = False
+    offset = 0
+    while offset + 16 <= len(data):
+        _wd, mask, _cookie, length = struct.unpack_from('iIII', data, offset)
+        name = data[offset + 16:offset + 16 + length].split(b'\0', 1)[0]
+        relevant |= name == b'wallpaper' or bool(mask & 0x00004000)  # IN_Q_OVERFLOW
+        if mask & (0x00000400 | 0x00000800 | 0x00008000):  # deleted/moved/unwatched directory
+            raise RuntimeError('wallpaper state directory was replaced; refusing redirected state')
+        offset += 16 + length
+    return relevant
+
+
+def supervise(state: State, default: str) -> int:
+    # Prevent a second direct invocation from competing with the systemd owner.
+    lock = os.open('.swaybg.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                   0o600, dir_fd=state.fd)
+    try:
+        meta = os.fstat(lock)
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != os.getuid()
+                or meta.st_nlink != 1 or stat.S_IMODE(meta.st_mode) != 0o600):
+            raise ValueError('unsafe wallpaper supervisor lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return supervise_locked(state, default)
+    finally:
+        os.close(lock)
+
+
+def supervise_locked(state: State, default: str) -> int:
+    default = image_path(default)
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.inotify_init1.argtypes = [ctypes.c_int]
+    libc.inotify_init1.restype = ctypes.c_int
+    libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+    libc.inotify_add_watch.restype = ctypes.c_int
+    watch = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+    if watch < 0:
+        raise OSError(ctypes.get_errno(), 'inotify_init1')
+    # Pin the inode already validated through State, rather than re-resolve HOME.
+    mask = 0x00000008 | 0x00000080 | 0x00000200 | 0x00000400 | 0x00000800 | 0x01000000
+    if libc.inotify_add_watch(watch, os.fsencode(f'/proc/self/fd/{state.fd}'), mask) < 0:
+        error = ctypes.get_errno()
+        os.close(watch)
+        raise OSError(error, 'inotify_add_watch')
+    wake_read, wake_write = os.pipe2(os.O_NONBLOCK | os.O_CLOEXEC)
+    previous_wakeup = signal.set_wakeup_fd(wake_write)
+    stopping = False
+    def shutdown(_signum, _frame):
+        nonlocal stopping
+        stopping = True
+    old_handlers = {sig: signal.signal(sig, shutdown) for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)}
+    active = candidate = None
+    active_path = pending_path = None
+    due = time.monotonic()
+    retry = 2.0
+    probe_until = 0.0
+    try:
+        with selectors.DefaultSelector() as events:
+            events.register(watch, selectors.EVENT_READ)
+            events.register(wake_read, selectors.EVENT_READ)
+            while not stopping:
+                now = time.monotonic()
+                if active is not None and active.poll() is not None:
+                    print(f'wallpaper: backend exited with status {active.returncode}; retrying', file=sys.stderr)
+                    stop(active)
+                    active, active_path = None, None
+                    due = now + retry
+                    retry = min(retry * 2, 30.0)
+                if candidate is not None and (candidate.poll() is not None or now >= probe_until):
+                    if candidate.poll() is None:
+                        stop(active)
+                        active, active_path = candidate, pending_path
+                        retry = 2.0
+                    else:
+                        print(f'wallpaper: replacement failed ({candidate.returncode}); retaining previous background', file=sys.stderr)
+                        stop(candidate)
+                        due = now + retry
+                        retry = min(retry * 2, 30.0)
+                    candidate = None
+                if now >= due and candidate is None:
+                    due = float('inf')
+                    try:
+                        try:
+                            desired = state.current() or default
+                        except (OSError, ValueError, UnicodeError) as error:
+                            if active is not None:
+                                raise
+                            # A corrupt persisted request must not leave a new
+                            # session blank. Keep it untouched for diagnosis.
+                            print(f'wallpaper: invalid saved request: {error}; using system default', file=sys.stderr)
+                            desired = default
+                        if desired != active_path:
+                            pending_path = desired
+                            candidate = subprocess.Popen(['/usr/bin/swaybg', '-m', 'fill', '-i', desired],
+                                                         stdin=subprocess.DEVNULL, close_fds=True)
+                            probe_until = now + PROBE
+                    except (OSError, ValueError, UnicodeError) as error:
+                        print(f'wallpaper: request rejected: {error}; keeping previous background', file=sys.stderr)
+                        due = now + retry
+                        retry = min(retry * 2, 30.0)
+                # No filesystem polling: inotify wakes selections. The slow heartbeat
+                # detects a dead native backend even when the user is idle.
+                deadline = min(due, probe_until if candidate is not None else now + 5)
+                for key, _ in events.select(max(0, min(5, deadline - time.monotonic()))):
+                    if key.fd == wake_read:
+                        os.read(wake_read, 4096)
+                    elif changed(watch):
+                        due = time.monotonic() + DEBOUNCE
+    finally:
+        stop(candidate)
+        stop(active)
+        signal.set_wakeup_fd(previous_wakeup)
+        for sig, handler in old_handlers.items():
+            signal.signal(sig, handler)
+        for fd in (watch, wake_read, wake_write):
+            os.close(fd)
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('mode', choices=('save', 'supervise'))
+    parser.add_argument('--quiet', action='store_true')
+    parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--current', action='store_true')
+    parser.add_argument('image', nargs='?')
+    args = parser.parse_intermixed_args()
+    state = None
+    try:
+        state = State(os.environ['HOME'])
+        if args.mode == 'supervise':
+            if not args.image or args.apply or args.current:
+                parser.error('supervise requires one default image')
+            return supervise(state, args.image)
+        if args.current:
+            if args.image or args.apply:
+                parser.error('--current cannot be combined with an image or --apply')
+            value = state.current()
+            if value is None:
+                return 1
+            print(value)
+        else:
+            if not args.image:
+                parser.error('save requires one image')
+            state.save(args.image)
+            if args.apply and os.environ.get('LABWC_SESSION_OWNER') == 'desktop':
+                # Idempotent start, never restart/reset-failed. This neither kills
+                # the current background nor consumes restart-rate-limit tokens.
+                subprocess.run(['/usr/bin/systemctl', '--user', '--no-block', 'start', 'swaybg.service'],
+                               check=True, timeout=5, stdin=subprocess.DEVNULL, close_fds=True)
+        return 0
+    except (OSError, ValueError, UnicodeError, KeyError, subprocess.SubprocessError) as error:
+        if not args.quiet:
+            print(f'wallpaper: {error}', file=sys.stderr)
+        return 1
+    finally:
+        if state is not None:
+            state.close()
+
+
+if __name__ == '__main__':
+    sys.exit(main())

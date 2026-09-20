@@ -2,18 +2,34 @@
 abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
-profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected) {
+profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
+  # September 20 audit: Qt atomic saves require both the published file and
+  # the temporary inode, with mediate_deleted on this profile (not a home wildcard).
+  owner @{HOME}/.{profile,bash_profile,bashrc,bash_aliases,zshenv,zprofile,zshrc,zlogout,zsh_aliases,dircolors,vimrc,sudo_as_admin_successful} r,
+  owner @{HOME}/.config/QtProject.conf{,.lock,.*} rwkl,
+  owner "@{HOME}/.config/#[0-9]*" rwkl,
+  owner @{HOME}/.local/state/kdiff3staterc{,.lock,.*} rwkl,
+  owner "@{HOME}/.local/state/#[0-9]*" rwkl,
+  /etc/alsa/conf.d/ r,
+  /etc/pipewire/client.conf.d/{,20-managed-volume-ceiling.conf} r,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  @{PROC}/sys/kernel/core_pattern r,
+  @{PROC}/sys/vm/nr_hugepages r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
   #include <abstractions/managed-document-runtime>
   /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} mr,
   /usr/lib/** mr,
   /usr/share/** r,
-  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate}/ rw,
-  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/ rw,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/** rwklm,
   owner @{HOME}/.config/{kdiff3rc,qalculaterc}* rwkl,
+  # Tomat menu opens only this application-specific configuration directory.
+  owner @{HOME}/.config/tomat/ rw,
+  owner @{HOME}/.config/tomat/** rwkl,
   owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/ rw,
   owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
-  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/ rw,
-  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,thumbnails}/** rwklm,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/ rw,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/** rwklm,
   /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
   # GLib/glycin CPU quota probes and its separately confined image decoder.
   owner @{PROC}/[0-9]*/cgroup r,
@@ -38,6 +54,7 @@ profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xourn
     /usr/share/mime/mime.cache r,
     /usr/{,local/}share/icons/{,**} r,
     /usr/share/backgrounds/{,**} r,
+    /usr/share/xournalpp/ui/pixmaps/com.github.xournalpp.xournalpp.svg r,
     owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
     owner @{HOME}/.cache/fontconfig/{,**} r,
     owner @{HOME}/.cache/glycin/{,**} rwkl,
@@ -46,6 +63,35 @@ profile managed-desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xourn
 }
 
 profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(attach_disconnected, mediate_deleted) {
+  # Missing exec transitions created thousands of null learning descendants.
+  # Keep WebKit in the application domain; isolate glycin's namespace builder.
+  #include <abstractions/managed-webkit-runtime>
+  /usr/bin/iconv rix,
+  network inet dgram,
+  /usr/local/lib/python3.[0-9]*/dist-packages/ r,
+  /dev/tty rw,
+  owner @{HOME}/.local/share/net.sourceforge.liferea/{,**} rwkl,
+  owner @{HOME}/.cache/net.sourceforge.liferea/{,**} rwkl,
+  signal (send) set=(kill term) peer=managed-desktop-media//media-glycin-bwrap,
+  /usr/bin/bwrap rCx -> media-glycin-bwrap,
+  profile media-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/managed-bwrap-common>
+    include if exists <abstractions/fonts>
+    signal (receive) set=(kill term) peer=managed-desktop-media,
+    ptrace (read, readby) peer=managed-desktop-media//media-glycin-bwrap,
+    /usr/bin/true rix,
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/lib/** mr,
+    /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+    /usr/share/mime/mime.cache r,
+    /usr/{,local/}share/icons/{,**} r,
+    /usr/share/liferea/{,**} r,
+    owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+    owner @{HOME}/.cache/fontconfig/{,**} r,
+    owner @{HOME}/.cache/glycin/{,**} rwkl,
+    owner @{HOME}/.local/share/{liferea,net.sourceforge.liferea}/{,**} r,
+  }
   #include <abstractions/managed-document-runtime>
   #include <abstractions/managed-pipewire-audio>
   /usr/bin/{mpv,recoll,recollindex,recollq,liferea} mrix,
@@ -94,7 +140,14 @@ profile managed-desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} 
 # These are intentional user-command launchers/file managers, not document
 # parsers. An existing narrower profile wins; otherwise children stay in this
 # developer domain. There is no general unconfined execution fallback.
-profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected) {
+profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected, mediate_deleted) {
+  # btop reads statistics; this does not authorize ptrace attachment/writes.
+  ptrace (read) peer=managed-hardware-tuning-client,
+  signal (send) set=(hup) peer=managed-session-controls,
+  # Embedded Python may ignore the caller environment. Failed optional bytecode
+  # cache writes are harmless: never grant writes to the packaged interpreter.
+  deny /usr/lib/python3{,.[0-9]*}/{,**/}__pycache__/*.pyc* w,
+  deny /usr/lib/kitty/{,**/}__pycache__/*.pyc* w,
   include if exists <abstractions/managed-hardware-tuning-desktop-parent>
   # The tracked Fuzzel child must accept its wrapper's cancellation cleanup.
   signal (receive) set=(term) peer=managed-labwc-fuzzel,
@@ -210,4 +263,59 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
     #include <abstractions/managed-devops-toolchain-runtime>
   }
   include if exists <local/managed-desktop-launcher>
+}
+
+# FreeRDP's file clipboard uses libfuse. Its privileged fallback is isolated
+# from the terminal/file-manager domain and may mount only cliprdr directories.
+profile managed-freerdp-client /usr/bin/{sdl-freerdp,sdl-freerdp3} flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/managed-document-runtime>
+  #include <abstractions/managed-pipewire-audio>
+  include if exists <abstractions/nameservice-strict>
+  network inet dgram,
+  network inet6 dgram,
+  unix,
+  /usr/bin/{sdl-freerdp,sdl-freerdp3} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /etc/{freerdp,ssl}/** r,
+  /etc/krb5.conf r,
+  /etc/krb5.conf.d/{,**} r,
+  /dev/tty rw,
+  owner /dev/pts/[0-9]* rw,
+  /dev/fuse rw,
+  /proc/filesystems r,
+  owner @{PROC}/[0-9]*/{mountinfo,mounts,cgroup,stat,status} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  /sys/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  owner @{HOME}/.config/freerdp/{,**} rwkl,
+  owner @{HOME}/.local/share/freerdp/{,**} rwkl,
+  owner @{HOME}/.cache/freerdp/{,**} rwkl,
+  owner /tmp/com.freerdp.client.cliprdr.[0-9]*/{,**} rwkl,
+  # libfuse first tries an unprivileged mount, then the setuid package helper.
+  # Do not grant sys_admin to the network client merely to satisfy that probe.
+  deny mount fstype=fuse /dev/fuse -> /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+  /usr/bin/fusermount3 rCx -> clipboard-fuse,
+  /usr/bin/umount rCx -> clipboard-fuse,
+  /usr/local/bin/labwc-freerdp-askpass rPx -> managed-labwc-freerdp-askpass,
+  /{,usr/}bin/{sh,dash} rix,
+  signal (send, receive) peer=managed-freerdp-client//clipboard-fuse,
+  profile clipboard-fuse flags=(attach_disconnected) {
+    #include <abstractions/base>
+    include if exists <abstractions/nameservice-strict>
+    capability sys_admin,
+    capability dac_override,
+    capability dac_read_search,
+    capability setuid,
+    /usr/bin/{fusermount3,umount} rix,
+    /dev/fuse rw,
+    /etc/{fuse.conf,mtab} r,
+    /proc/filesystems r,
+    owner @{PROC}/[0-9]*/{mountinfo,mounts,status} r,
+    /run/mount/{utab,utab.lock,utab.act,utab.event} rwk,
+    owner /tmp/com.freerdp.client.cliprdr.[0-9]*/{,**} rwkl,
+    mount fstype=fuse options=(rw,nosuid,nodev) /dev/fuse -> /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+    umount /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+    signal (send, receive) peer=managed-freerdp-client,
+  }
+  include if exists <local/managed-freerdp-client>
 }

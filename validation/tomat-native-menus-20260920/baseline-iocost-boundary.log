@@ -1,0 +1,24 @@
+F
+======================================================================
+FAIL: test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/baseline/debian-preseed-de/d-i/forky/tests/test_target_debconf_boundary.py", line 331, in test_reported_profile_native_iocost_transaction_through_real_bridge
+            result, requests = self.assert_ok('''
+                               ~~~~~~~~~~~~~~^^^^
+    . /tmp/lib.sh
+    ^^^^^^^^^^^^^
+    ...<3 lines>...
+    stage_target_iocost
+    ^^^^^^^^^^^^^^^^^^^
+    ''', env=env, timeout=15)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/work/baseline/debian-preseed-de/d-i/forky/tests/test_target_debconf_boundary.py", line 96, in assert_ok
+    self.assertIn(b'GET mirror/protocol', requests)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: b'GET mirror/protocol' not found in []
+
+----------------------------------------------------------------------
+Ran 1 test in 0.356s
+
+FAILED (failures=1)

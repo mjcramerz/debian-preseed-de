@@ -1,0 +1,378 @@
+#!/usr/bin/python3 -I
+"""Own one native colour daemon through a transient systemd user service.
+
+No shell evaluation, fork-to-background, geolocation, polling daemon or X11.
+The short-lived controller validates root-owned policy and the active compositor;
+/usr/bin/wlsunset itself is the long-running, independently confined service.
+"""
+from __future__ import annotations
+
+import argparse
+from contextlib import contextmanager
+from decimal import Decimal
+import fcntl
+import os
+from pathlib import Path
+import pwd
+import re
+import shlex
+import socket
+import stat
+import struct
+import subprocess
+import sys
+import time
+from typing import Iterator
+
+CONFIG = Path('/etc/default/labwc-wlsunset')
+UNIT = 'labwc-wlsunset.service'
+TARGET = 'labwc-session.target'
+COMPOSITOR = 'labwc-compositor.service'
+DESCRIPTION = 'Managed wlsunset colour adjustment'
+KEYS = frozenset((
+    'WLSUNSET_ENABLED', 'WLSUNSET_LATITUDE', 'WLSUNSET_LONGITUDE',
+    'WLSUNSET_TEMPERATURE_DAY', 'WLSUNSET_TEMPERATURE_NIGHT', 'WLSUNSET_GAMMA',
+    'WLSUNSET_SUNRISE', 'WLSUNSET_SUNSET', 'WLSUNSET_TRANSITION_SECONDS',
+    'WLSUNSET_OUTPUTS',
+))
+SESSION_KEYS = frozenset(('LABWC_SESSION_OWNER', 'LABWC_PID', 'XDG_SESSION_TYPE',
+                          'XDG_RUNTIME_DIR', 'WAYLAND_DISPLAY'))
+PROPERTIES = (
+    'PartOf=' + TARGET,
+    'Requisite=' + TARGET,
+    'BindsTo=' + COMPOSITOR,
+    'After=' + TARGET + ' ' + COMPOSITOR,
+    'Restart=always',  # Upstream also exits successfully on display disconnection.
+    'RestartSec=10s', 'StartLimitIntervalSec=300s', 'StartLimitBurst=3',
+    'KillMode=control-group', 'TimeoutStartSec=10s', 'TimeoutStopSec=5s',
+    'StandardInput=null', 'StandardOutput=journal', 'StandardError=journal',
+    'SyslogIdentifier=labwc-wlsunset', 'WorkingDirectory=/', 'UMask=0077',
+    'NoNewPrivileges=yes', 'CapabilityBoundingSet=', 'AmbientCapabilities=',
+    'RestrictAddressFamilies=AF_UNIX', 'RestrictNamespaces=yes',
+    'RestrictRealtime=yes', 'LockPersonality=yes', 'MemoryDenyWriteExecute=yes',
+    'SystemCallArchitectures=native', 'SystemCallFilter=@system-service',
+    'SystemCallErrorNumber=EPERM', 'LimitCORE=0', 'LimitNOFILE=128',
+    'TasksMax=8', 'MemoryMax=64M',
+    # File isolation is provided by the executable's AppArmor attachment.
+    # Do not silently rely on root-only user-manager sandbox directives or
+    # require additional user/mount namespaces just to connect to Wayland.
+    'UnsetEnvironment=DISPLAY XAUTHORITY WAYLAND_SOCKET WAYLAND_DEBUG LD_PRELOAD '
+    'LD_LIBRARY_PATH LD_AUDIT GCONV_PATH LOCPATH TZDIR TZ DBUS_SESSION_BUS_ADDRESS '
+    'DBUS_SYSTEM_BUS_ADDRESS XWAYLAND WLR_XWAYLAND PYTHONPATH PYTHONHOME',
+)
+
+
+class PolicyError(ValueError):
+    """Invalid configuration, ownership or active-session identity."""
+
+
+def secure_directory(path: Path, uid: int = 0) -> int:
+    """Open every ancestor without symlink traversal; return an owned dirfd."""
+    if not path.is_absolute() or '..' in path.parts or '\x00' in str(path):
+        raise PolicyError('directory must be absolute and normalized')
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in path.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                            dir_fd=fd)
+            os.close(fd)
+            fd = child
+            meta = os.fstat(fd)
+            if meta.st_uid not in (0, uid) or meta.st_mode & 0o022:
+                raise PolicyError(f'unsafe directory ownership or permissions: {path}')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def read_config(path: Path = CONFIG) -> dict[str, str]:
+    parent = secure_directory(path.parent)
+    try:
+        fd = os.open(path.name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     dir_fd=parent)
+    finally:
+        os.close(parent)
+    with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+        meta = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0
+                or meta.st_mode & 0o022 or meta.st_nlink != 1):
+            raise PolicyError('configuration must be a root-owned, non-writable regular file')
+        text = stream.read(8193)
+    if len(text) > 8192:
+        raise PolicyError('configuration exceeds 8192 characters')
+    result: dict[str, str] = {}
+    for number, line in enumerate(text.splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        key, sep, raw = line.partition('=')
+        if not sep or key not in KEYS or key in result:
+            raise PolicyError(f'unknown, duplicate or malformed setting on line {number}')
+        # Tokenization only: $, backticks, functions and command substitutions
+        # are never evaluated. Subsequent type validation rejects them.
+        tokens = shlex.split(raw, comments=False, posix=True) if raw.strip() else ['']
+        if len(tokens) != 1 or len(tokens[0]) > 1024:
+            raise PolicyError(f'expected one literal value on line {number}')
+        result[key] = tokens[0]
+    validate_config(result)
+    return result
+
+
+def decimal_value(value: str, name: str, low: str, high: str) -> Decimal:
+    if len(value) > 32 or not re.fullmatch(r'[+-]?[0-9]+(?:\.[0-9]+)?', value):
+        raise PolicyError(f'{name} must be a finite decimal, not an expression')
+    number = Decimal(value)
+    if not Decimal(low) <= number <= Decimal(high):
+        raise PolicyError(f'{name} must be in [{low}, {high}]')
+    return number
+
+
+def integer_value(value: str, name: str, low: int, high: int) -> int:
+    if not re.fullmatch(r'[0-9]{1,5}', value) or not low <= int(value) <= high:
+        raise PolicyError(f'{name} must be an integer in [{low}, {high}]')
+    return int(value)
+
+
+def validate_config(cfg: dict[str, str]) -> None:
+    if set(cfg) != KEYS:
+        raise PolicyError('configuration must define every documented WLSUNSET setting exactly once')
+    if cfg['WLSUNSET_ENABLED'] not in ('true', 'false'):
+        raise PolicyError('WLSUNSET_ENABLED must be true or false')
+    decimal_value(cfg['WLSUNSET_LATITUDE'], 'WLSUNSET_LATITUDE', '-90', '90')
+    decimal_value(cfg['WLSUNSET_LONGITUDE'], 'WLSUNSET_LONGITUDE', '-180', '180')
+    decimal_value(cfg['WLSUNSET_GAMMA'], 'WLSUNSET_GAMMA', '0.1', '10')
+    day = integer_value(cfg['WLSUNSET_TEMPERATURE_DAY'], 'WLSUNSET_TEMPERATURE_DAY', 1000, 10000)
+    night = integer_value(cfg['WLSUNSET_TEMPERATURE_NIGHT'], 'WLSUNSET_TEMPERATURE_NIGHT', 1000, 10000)
+    if day <= night:
+        raise PolicyError('day temperature must be strictly greater than night temperature')
+    duration = integer_value(cfg['WLSUNSET_TRANSITION_SECONDS'], 'WLSUNSET_TRANSITION_SECONDS', 1, 21600)
+    sunrise, sunset = cfg['WLSUNSET_SUNRISE'], cfg['WLSUNSET_SUNSET']
+    if sunrise or sunset:
+        if not all(re.fullmatch(r'(?:[01][0-9]|2[0-3]):[0-5][0-9]', value)
+                   for value in (sunrise, sunset)):
+            raise PolicyError('set both manual times as HH:MM, or leave both empty')
+        rise, setting = (int(value[:2]) * 3600 + int(value[3:]) * 60
+                         for value in (sunrise, sunset))
+        # wlsunset's manual timeline is dawn < sunrise < sunset < dusk.
+        # Keep transitions within that local day rather than accept wraparound.
+        if not 0 <= rise - duration < rise < setting < setting + duration < 86400:
+            raise PolicyError('manual times/transitions must be ordered within one local day')
+    outputs = cfg['WLSUNSET_OUTPUTS']
+    if len(outputs) > 1024 or not re.fullmatch(r'[A-Za-z0-9_. -]*', outputs):
+        raise PolicyError('WLSUNSET_OUTPUTS must contain space-separated connector names')
+    names = outputs.split()
+    if (len(names) > 16 or len(set(names)) != len(names)
+            or any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,63}', name) for name in names)):
+        raise PolicyError('invalid, duplicate or excessive output names')
+
+
+def daemon_argv(cfg: dict[str, str]) -> list[str]:
+    validate_config(cfg)
+    args = ['/usr/bin/wlsunset', '-T', str(int(cfg['WLSUNSET_TEMPERATURE_DAY'])),
+            '-t', str(int(cfg['WLSUNSET_TEMPERATURE_NIGHT'])), '-g', cfg['WLSUNSET_GAMMA']]
+    if cfg['WLSUNSET_SUNRISE']:
+        args += ['-S', cfg['WLSUNSET_SUNRISE'], '-s', cfg['WLSUNSET_SUNSET'],
+                 '-d', str(int(cfg['WLSUNSET_TRANSITION_SECONDS']))]
+    else:
+        args += ['-l', cfg['WLSUNSET_LATITUDE'], '-L', cfg['WLSUNSET_LONGITUDE']]
+    for output in cfg['WLSUNSET_OUTPUTS'].split():
+        args += ['-o', output]
+    return args
+
+
+def command(args: list[str], env: dict[str, str], timeout: float = 12) -> subprocess.CompletedProcess:
+    return subprocess.run(args, env=env, stdin=subprocess.DEVNULL, capture_output=True,
+                          text=True, encoding='utf-8', errors='replace', timeout=timeout, check=False)
+
+
+def systemctl(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess:
+    return command(['/usr/bin/systemctl', '--user', '--no-pager', '--no-ask-password', *args], env)
+
+
+def properties(unit: str, env: dict[str, str]) -> dict[str, str]:
+    result = systemctl(['show', '--property=LoadState,ActiveState,SubState,MainPID,Transient,Description', unit], env)
+    fields = dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+    if fields.get('LoadState') == 'not-found':
+        return fields
+    if result.returncode or not fields.get('LoadState'):
+        raise RuntimeError(f'cannot inspect {unit}: {result.stderr.strip()}')
+    return fields
+
+
+def managed_unit(env: dict[str, str]) -> dict[str, str]:
+    state = properties(UNIT, env)
+    if state.get('LoadState') != 'not-found' and (
+            state.get('Transient') != 'yes' or state.get('Description') != DESCRIPTION):
+        raise PolicyError(f'{UNIT} is not the managed transient service; refusing to replace it')
+    return state
+
+
+def manager_environment(env: dict[str, str]) -> dict[str, str]:
+    result = systemctl(['show-environment'], env)
+    if result.returncode:
+        raise RuntimeError('cannot read the user manager environment: ' + result.stderr.strip())
+    values: dict[str, str] = {}
+    for line in result.stdout.splitlines():
+        if line.split('=', 1)[0] not in SESSION_KEYS:
+            continue
+        items = shlex.split(line)
+        if len(items) != 1 or '=' not in items[0]:
+            raise PolicyError('malformed session activation environment')
+        key, value = items[0].split('=', 1)
+        if key in values:
+            raise PolicyError('duplicate session activation variable')
+        values[key] = value
+    return values
+
+
+def active_session(env: dict[str, str], uid: int) -> dict[str, str]:
+    values = manager_environment(env)
+    if (values.get('LABWC_SESSION_OWNER') != 'desktop'
+            or values.get('XDG_SESSION_TYPE') != 'wayland'
+            or values.get('XDG_RUNTIME_DIR') != env['XDG_RUNTIME_DIR']):
+        raise PolicyError('no matching managed Wayland activation environment')
+    if properties(TARGET, env).get('ActiveState') != 'active':
+        raise PolicyError('Labwc session target is not active')
+    compositor = properties(COMPOSITOR, env)
+    pid = compositor.get('MainPID', '')
+    if (compositor.get('ActiveState') != 'active' or not re.fullmatch(r'[0-9]+', pid)
+            or int(pid) <= 1 or values.get('LABWC_PID') != pid):
+        raise PolicyError('stale or inactive compositor identity')
+    display = values.get('WAYLAND_DISPLAY', '')
+    runtime = Path(env['XDG_RUNTIME_DIR'])
+    if display.startswith(str(runtime) + '/'):
+        display = display[len(str(runtime)) + 1:]
+    if not re.fullmatch(r'wayland-[0-9]+', display):
+        raise PolicyError('WAYLAND_DISPLAY must name a managed socket in XDG_RUNTIME_DIR')
+    path = runtime / display
+    meta = path.lstat()
+    if not stat.S_ISSOCK(meta.st_mode) or meta.st_uid != uid:
+        raise PolicyError('Wayland socket is not owned by the session user')
+    # Confirm the socket belongs to the actual managed compositor, not merely
+    # to another process of this uid (for example a private nested compositor).
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.settimeout(2)
+        connection.connect(str(path))
+        peer_pid, peer_uid, _ = struct.unpack('3i', connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+    if peer_pid != int(pid) or peer_uid != uid:
+        raise PolicyError('Wayland socket peer differs from the managed compositor')
+    return {'WAYLAND_DISPLAY': display, 'XDG_RUNTIME_DIR': str(runtime),
+            'XDG_SESSION_TYPE': 'wayland', 'LABWC_SESSION_OWNER': 'desktop',
+            'LABWC_PID': pid, 'LC_ALL': 'C', 'PATH': '/usr/bin:/bin'}
+
+
+def start_argv(cfg: dict[str, str], session: dict[str, str]) -> list[str]:
+    args = ['/usr/bin/systemd-run', '--user', '--quiet', '--collect', '--no-ask-password',
+            '--unit=' + UNIT, '--description=' + DESCRIPTION, '--service-type=exec',
+            '--expand-environment=no', '--slice=app.slice']
+    args += ['--property=' + value for value in PROPERTIES]
+    args += ['--setenv=' + key + '=' + value for key, value in sorted(session.items())]
+    return args + ['--', *daemon_argv(cfg)]
+
+
+@contextmanager
+def locked_runtime(uid: int) -> Iterator[dict[str, str]]:
+    if uid == 0:
+        raise PolicyError('start/stop/status must run as the desktop user, never root')
+    path = Path(f'/run/user/{uid}')
+    if os.environ.get('XDG_RUNTIME_DIR', str(path)) != str(path):
+        raise PolicyError('XDG_RUNTIME_DIR does not match the current user')
+    directory = secure_directory(path, uid)
+    try:
+        meta = os.fstat(directory)
+        if meta.st_uid != uid or stat.S_IMODE(meta.st_mode) != 0o700:
+            raise PolicyError('runtime directory must be user-owned and mode 0700')
+        bus = os.stat('bus', dir_fd=directory, follow_symlinks=False)
+        if not stat.S_ISSOCK(bus.st_mode) or bus.st_uid != uid:
+            raise PolicyError('user D-Bus socket is missing or unsafe')
+        lock = os.open('labwc-wlsunset.lock', os.O_RDWR | os.O_CREAT | os.O_CLOEXEC
+                       | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600, dir_fd=directory)
+        try:
+            meta = os.fstat(lock)
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != uid or meta.st_nlink != 1
+                    or stat.S_IMODE(meta.st_mode) != 0o600):
+                raise PolicyError('unsafe wlsunset controller lock')
+            # The fixed unit name is a second singleton guard. Never unlink the
+            # lock: replacing its inode would let two callers bypass flock.
+            deadline = time.monotonic() + 10
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError('another colour-service operation is still in progress')
+                    time.sleep(0.05)
+            account = pwd.getpwuid(uid)
+            yield {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'HOME': account.pw_dir,
+                   'USER': account.pw_name, 'LOGNAME': account.pw_name,
+                   'XDG_RUNTIME_DIR': str(path), 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=' + str(path / 'bus')}
+        finally:
+            os.close(lock)
+    finally:
+        os.close(directory)
+
+
+def stop_unit(env: dict[str, str]) -> None:
+    state = managed_unit(env)
+    if state.get('LoadState') == 'not-found':
+        return
+    result = systemctl(['stop', UNIT], env)
+    if result.returncode:
+        raise RuntimeError('cannot stop colour service: ' + result.stderr.strip())
+    # --collect releases the transient name after stop. Wait only for garbage
+    # collection; no periodic client or background polling is installed.
+    deadline = time.monotonic() + 5
+    while managed_unit(env).get('LoadState') != 'not-found':
+        if time.monotonic() >= deadline:
+            raise RuntimeError('transient colour service has not yet been collected')
+        time.sleep(0.05)
+
+
+def operate(action: str, cfg: dict[str, str] | None, env: dict[str, str], uid: int) -> int:
+    state = managed_unit(env)
+    if action == 'status':
+        print(f"{UNIT}: {state.get('ActiveState', 'inactive')} ({state.get('SubState', 'not loaded')})")
+        return 0 if state.get('ActiveState') in ('active', 'activating') else 3
+    if action == 'stop' or (cfg is not None and cfg['WLSUNSET_ENABLED'] == 'false'):
+        stop_unit(env)
+        print('labwc-wlsunset: stopped' if action == 'stop' else 'labwc-wlsunset: disabled by policy')
+        return 0
+    if cfg is None:
+        raise PolicyError('configuration is required to start the daemon')
+    # Validate *before* stopping an existing instance, including on restart.
+    session = active_session(env, uid)
+    argv = start_argv(cfg, session)
+    if action == 'start' and state.get('ActiveState') in ('active', 'activating'):
+        print('labwc-wlsunset: already running; use restart after a policy change')
+        return 0
+    stop_unit(env)
+    result = command(argv, env)
+    if result.returncode:
+        raise RuntimeError('cannot start colour service: ' + result.stderr.strip())
+    print('labwc-wlsunset: transient service submitted; inspect its journal for output/gamma status')
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('action', choices=('start', 'stop', 'restart', 'status', 'check'),
+                        nargs='?', default='status')
+    action = parser.parse_args().action
+    cfg = read_config() if action in ('start', 'restart', 'check') else None
+    if action == 'check':
+        assert cfg is not None
+        print(shlex.join(daemon_argv(cfg)))
+        print('enabled=' + cfg['WLSUNSET_ENABLED'])
+        return 0
+    with locked_runtime(os.getuid()) as env:
+        return operate(action, cfg, env, os.getuid())
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
+        print(f'labwc-wlsunset: {error}', file=sys.stderr)
+        sys.exit(1)

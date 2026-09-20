@@ -168,9 +168,11 @@ class HandoffTests(unittest.TestCase):
             worker = self.power.Worker(1000, 'desktop', action)
             worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
             worker.quiesced = True
-            with mock.patch.object(self.power, 'run', return_value='') as run, \
+            with mock.patch.object(worker, 'stop_shutdown_runtime') as cleanup, \
+                    mock.patch.object(self.power, 'run', return_value='') as run, \
                     contextlib.redirect_stderr(io.StringIO()) as output:
                 worker.final_power_action()
+            cleanup.assert_called_once_with()
             run.assert_called_once_with(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)
             self.assertTrue(worker.committed)
             self.assertTrue(worker.handoff_attempted)
@@ -185,7 +187,8 @@ class HandoffTests(unittest.TestCase):
 
     def test_uncertain_submission_never_retries_or_cancels(self):
         self.worker.quiesced = True
-        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run, \
+        with mock.patch.object(self.worker, 'stop_shutdown_runtime'), \
+                mock.patch.object(self.power, 'run', side_effect=self.power.Error('lost reply')) as run, \
                 contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaisesRegex(self.power.Error, 'status uncertain'):
                 self.worker.final_power_action()
@@ -208,13 +211,14 @@ class HandoffTests(unittest.TestCase):
              mock.patch.object(self.power, 'PackageLocks'), \
              mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append('hold')), \
              mock.patch.object(self.worker, 'protect_other_sessions', side_effect=lambda: events.append('accounts')), \
+             mock.patch.object(self.power, 'check_shutdown_inhibitors', side_effect=lambda: events.append('inhibitors')), \
              mock.patch.object(self.power, 'ready', side_effect=lambda: events.append('ready')), \
              mock.patch.object(self.worker, 'helper', side_effect=lambda a: events.append(a)), \
              mock.patch.object(self.worker, 'quiesce_desktop', side_effect=lambda: events.append('quiesce')), \
              mock.patch.object(self.worker, 'stop_optional_guests', side_effect=lambda: events.append('guests')), \
              mock.patch.object(self.worker, 'final_power_action', side_effect=lambda: events.append('handoff')):
             self.worker.execute()
-        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'quiesce', 'guests', 'handoff', 'hold'])
+        self.assertEqual(events, ['active', 'accounts', 'ready', 'active', 'accounts', 'prepare', 'accounts', 'inhibitors', 'quiesce', 'guests', 'handoff', 'hold'])
 
 
 if __name__ == '__main__':

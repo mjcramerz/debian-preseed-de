@@ -280,6 +280,8 @@ class PowerWorkerTests(unittest.TestCase):
         self.addCleanup(stack.close)
         events = []
         stack.enter_context(mock.patch.object(self.power, 'PackageLocks'))
+        stack.enter_context(mock.patch.object(self.power, 'check_shutdown_inhibitors',
+            side_effect=lambda: events.append(('inhibitors', ()))))
         stack.enter_context(mock.patch.object(self.power, 'hold_reservation', side_effect=lambda: events.append(('hold', ()))))
         stack.enter_context(mock.patch.object(self.worker, 'session_identity',
             side_effect=lambda: (self.worker.userctl('identity'), 'a' * 32)[1]))
@@ -299,7 +301,7 @@ class PowerWorkerTests(unittest.TestCase):
         events = self.execution()
         self.worker.execute()
         self.assertEqual([e[0] for e in events], ['userctl', 'protect_other_sessions', 'ready', 'userctl', 'protect_other_sessions',
-                         'helper', 'protect_other_sessions', 'quiesce_desktop', 'stop_optional_guests', 'final_power_action', 'hold'])
+                         'helper', 'protect_other_sessions', 'inhibitors', 'quiesce_desktop', 'stop_optional_guests', 'final_power_action', 'hold'])
         self.assertEqual(events[5][1], ('prepare',))
         self.assertTrue(self.worker.committed)
 
@@ -388,9 +390,11 @@ class PowerWorkerTests(unittest.TestCase):
                 self.worker = self.power.Worker(1000, 'testuser', action)
                 self.worker.package_locks = mock.Mock()  # acquired gate fixture; real locks tested separately
                 self.worker.quiesced = True
-                with mock.patch.object(self.power, 'run', return_value='') as run, \
+                with mock.patch.object(self.worker, 'stop_shutdown_runtime') as cleanup, \
+                     mock.patch.object(self.power, 'run', return_value='') as run, \
                      contextlib.redirect_stderr(io.StringIO()) as output:
                     self.worker.final_power_action()
+                cleanup.assert_called_once_with()
                 run.assert_called_once_with(
                     ['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)
                 self.assertIn('systemctl --force ' + action, output.getvalue())
@@ -398,7 +402,8 @@ class PowerWorkerTests(unittest.TestCase):
 
     def test_uncertain_final_submission_is_not_retried_or_cancelled(self):
         self.worker.quiesced = True
-        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')) as run, \
+        with mock.patch.object(self.worker, 'stop_shutdown_runtime'), \
+             mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus failed')) as run, \
              contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaisesRegex(self.power.Error, 'handoff status uncertain'):
                 self.worker.final_power_action()

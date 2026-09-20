@@ -412,6 +412,71 @@ desktop_validate_keyboard_layout_policy() {
   [ "$default_found" = true ] || desktop_fatal "LABWC_KEYBOARD_DEFAULT_LAYOUT must be included in LABWC_KEYBOARD_LAYOUTS"
 }
 
+# Native colour policy has a separate signed-decimal validator: existing scale
+# validators deliberately accept only unsigned input. Never interpolate an
+# unvalidated value into awk source or evaluate profile text as an expression.
+desktop_validate_wlsunset_decimal() {
+  wls_name=$1
+  wls_value=$2
+  wls_min=$3
+  wls_max=$4
+  case "$wls_value" in
+    *[!0-9+.-]*) desktop_fatal "${wls_name} contains invalid decimal characters" ;;
+  esac
+  [ "${#wls_value}" -le 32 ] &&
+    printf '%s\n' "$wls_value" | LC_ALL=C grep -Eq '^[+-]?[0-9]+(\.[0-9]+)?$' ||
+    desktop_fatal "${wls_name} must be a finite signed decimal"
+  LC_ALL=C awk -v value="$wls_value" -v low="$wls_min" -v high="$wls_max" \
+    'BEGIN { exit !(value + 0 >= low + 0 && value + 0 <= high + 0) }' ||
+    desktop_fatal "${wls_name} must be between ${wls_min} and ${wls_max}"
+}
+
+desktop_validate_wlsunset_policy() {
+  case "${WLSUNSET_ENABLED-true}" in
+    true|false) ;;
+    *) desktop_fatal 'WLSUNSET_ENABLED must be true or false' ;;
+  esac
+  desktop_validate_wlsunset_decimal WLSUNSET_LATITUDE "${WLSUNSET_LATITUDE-55.60587}" -90 90
+  desktop_validate_wlsunset_decimal WLSUNSET_LONGITUDE "${WLSUNSET_LONGITUDE-13.00073}" -180 180
+  desktop_validate_wlsunset_decimal WLSUNSET_GAMMA "${WLSUNSET_GAMMA-1.0}" 0.1 10
+  for wls_integer in "${WLSUNSET_TEMPERATURE_DAY-6500}" "${WLSUNSET_TEMPERATURE_NIGHT-4500}" "${WLSUNSET_TRANSITION_SECONDS-1800}"; do
+    [ "${#wls_integer}" -ge 1 ] && [ "${#wls_integer}" -le 5 ] ||
+      desktop_fatal 'wlsunset integer values must contain one to five digits'
+  done
+  desktop_validate_uint_range WLSUNSET_TEMPERATURE_DAY "${WLSUNSET_TEMPERATURE_DAY-6500}" 1000 10000
+  desktop_validate_uint_range WLSUNSET_TEMPERATURE_NIGHT "${WLSUNSET_TEMPERATURE_NIGHT-4500}" 1000 10000
+  [ "${WLSUNSET_TEMPERATURE_DAY-6500}" -gt "${WLSUNSET_TEMPERATURE_NIGHT-4500}" ] ||
+    desktop_fatal 'WLSUNSET_TEMPERATURE_DAY must exceed WLSUNSET_TEMPERATURE_NIGHT'
+  desktop_validate_uint_range WLSUNSET_TRANSITION_SECONDS "${WLSUNSET_TRANSITION_SECONDS-1800}" 1 21600
+  if [ -n "${WLSUNSET_SUNRISE-}${WLSUNSET_SUNSET-}" ]; then
+    wls_rise=${WLSUNSET_SUNRISE-}; wls_set=${WLSUNSET_SUNSET-}
+    [ "${#wls_rise}" -eq 5 ] && [ "${#wls_set}" -eq 5 ] ||
+      desktop_fatal 'manual wlsunset times must contain exactly five characters'
+    printf '%s\n' "${WLSUNSET_SUNRISE-}" | LC_ALL=C grep -Eq '^([01][0-9]|2[0-3]):[0-5][0-9]$' &&
+      printf '%s\n' "${WLSUNSET_SUNSET-}" | LC_ALL=C grep -Eq '^([01][0-9]|2[0-3]):[0-5][0-9]$' ||
+      desktop_fatal 'set both WLSUNSET_SUNRISE and WLSUNSET_SUNSET as HH:MM, or leave both empty'
+    LC_ALL=C awk -v rise="$WLSUNSET_SUNRISE" -v setting="$WLSUNSET_SUNSET" \
+      -v duration="${WLSUNSET_TRANSITION_SECONDS-1800}" '
+      BEGIN {
+        split(rise, r, ":"); split(setting, s, ":")
+        a = r[1] * 3600 + r[2] * 60; b = s[1] * 3600 + s[2] * 60
+        exit !(a - duration >= 0 && a < b && b + duration < 86400)
+      }' || desktop_fatal 'manual wlsunset transitions must be ordered within one local day'
+  fi
+  wls_outputs=${WLSUNSET_OUTPUTS-}
+  case "$wls_outputs" in
+    *[!A-Za-z0-9_.\ -]*) desktop_fatal 'WLSUNSET_OUTPUTS contains invalid characters' ;;
+  esac
+  [ "${#wls_outputs}" -le 1024 ] || desktop_fatal 'WLSUNSET_OUTPUTS is too long'
+  printf '%s\n' "${WLSUNSET_OUTPUTS-}" | LC_ALL=C awk '
+    /[^A-Za-z0-9_. -]/ { exit 1 }
+    NF > 16 { exit 1 }
+    { for (i = 1; i <= NF; i++) {
+        if ($i !~ /^[A-Za-z0-9][A-Za-z0-9_.-]*$/ || length($i) > 64 || seen[$i]++) exit 1
+      }
+    }' || desktop_fatal 'WLSUNSET_OUTPUTS must contain unique space-separated connector names'
+}
+
 desktop_validate_policy_env() {
   desktop_resolve_acceleration_availability
   desktop_resolve_managed_app_default_exec
@@ -495,6 +560,11 @@ desktop_validate_policy_env() {
   desktop_validate_optional_uint_range LABWC_GREETER_BUTTON_MIN_WIDTH "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}" 80 1024
   desktop_validate_uint_range LABWC_FUZZEL_WIDTH "${LABWC_FUZZEL_WIDTH:-36}" 20 200
   desktop_validate_uint_range LABWC_FUZZEL_LINES "${LABWC_FUZZEL_LINES:-15}" 4 40
+  desktop_validate_wlsunset_policy
+  desktop_validate_uint_range LABWC_FUZZEL_COMPUTER_MANAGEMENT_WIDTH "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_WIDTH:-${LABWC_FUZZEL_MAIN_MENU_WIDTH:-36}}" 20 200
+  desktop_validate_uint_range LABWC_FUZZEL_COMPUTER_MANAGEMENT_LINES "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_LINES:-${LABWC_FUZZEL_MAIN_MENU_LINES:-15}}" 4 40
+  desktop_validate_uint_range LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_WIDTH "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_WIDTH:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-28}}" 20 200
+  desktop_validate_uint_range LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_LINES "${LABWC_FUZZEL_COMPUTER_MANAGEMENT_INTERNAL_LINES:-${LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES:-10}}" 4 40
   desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_WIDTH:-54}}" 20 200
   desktop_validate_uint_range LABWC_FUZZEL_MAIN_MENU_LINES "${LABWC_FUZZEL_MAIN_MENU_LINES:-${LABWC_FUZZEL_LINES:-10}}" 4 40
   desktop_validate_uint_range LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH "${LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH:-${LABWC_FUZZEL_INTERNAL_WIDTH:-28}}" 20 200
