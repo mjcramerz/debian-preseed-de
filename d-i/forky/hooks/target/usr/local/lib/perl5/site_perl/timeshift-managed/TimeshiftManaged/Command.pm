@@ -34,7 +34,9 @@ sub capture {
         timeout => $args{timeout} // 120,
         limit => 1_048_576,
     );
-    return (status_from_wait($result->{status}), $result->{stdout});
+    my $status = status_from_wait($result->{status});
+    $status = 125 if $status == 0 && ($result->{error} // q{}) ne q{};
+    return ($status, $result->{stdout});
 }
 sub find_executable {
     my ($self, $name) = @_;

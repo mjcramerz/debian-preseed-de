@@ -1,0 +1,13 @@
+[Unit]
+Description=Reconcile the managed GRUB snapshot menu after boot and missed events
+ConditionPathExists=/etc/default/grub-btrfs/config
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=15min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Unit=grub-btrfs-refresh.service
+
+[Install]
+WantedBy=timers.target

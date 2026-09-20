@@ -3998,6 +3998,8 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files 0755
   desktop_stage_role_asset usr/local/bin/labwc-main-menu /usr/local/bin/labwc-main-menu 0755
   desktop_stage_role_asset usr/local/bin/labwc-window-switcher /usr/local/bin/labwc-window-switcher 0755
+  desktop_stage_role_asset etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg /etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg /etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg 0644
   desktop_stage_role_asset usr/local/bin/labwc-fzf-menu /usr/local/bin/labwc-fzf-menu 0755
   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.service /etc/systemd/system/labwc-system-desktop-overrides.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.path /etc/systemd/system/labwc-system-desktop-overrides.path 0644

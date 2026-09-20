@@ -1,0 +1,5 @@
+GTK 3 parsed full rendered CSS and rendered both symbolic icons in normal and hover states.
+apps-hover.png size= (50, 40) foreground_bbox= (18, 13, 31, 26) center_offset= (0.0, 0.0)
+apps.png size= (50, 40) foreground_bbox= (18, 13, 31, 26) center_offset= (0.0, 0.0)
+wayscriber-hover.png size= (50, 40) foreground_bbox= (18, 13, 31, 26) center_offset= (0.0, 0.0)
+wayscriber.png size= (50, 40) foreground_bbox= (18, 13, 31, 26) center_offset= (0.0, 0.0)

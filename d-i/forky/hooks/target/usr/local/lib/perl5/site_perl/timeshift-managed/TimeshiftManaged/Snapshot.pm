@@ -3,12 +3,13 @@ package TimeshiftManaged::Snapshot;
 use strict;
 use warnings;
 
-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_WRONLY);
+use Errno qw(EAGAIN EINTR EWOULDBLOCK);
+use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
 use File::Basename qw(dirname);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
-use Time::HiRes qw(sleep time);
+use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
 use Types::Standard qw(Int Str);
 
 use TimeshiftManaged::Command;
@@ -98,7 +99,7 @@ sub _validate_absolute_path {
 
     defined($value) && $value =~ m{\A/}
         or die "$label must be an absolute path\n";
-    $value !~ m{(?:^|/)\.\.(?:/|$)}
+    $value !~ m{(?:^|/)\.\.?(?:/|$)}
         or die "$label contains a parent-directory component\n";
     $value !~ m{//}
         or die "$label contains an empty path component\n";
@@ -126,7 +127,7 @@ sub _ensure_directory {
                 or die "cannot create Timeshift lock directory $current: $!\n";
             $created = 1;
         }
-        if ($created || $current eq $directory) {
+        if ($created) {
             chmod 0755, $current
                 or die "cannot set Timeshift lock directory mode for $current: $!\n";
         }
@@ -175,12 +176,19 @@ sub _acquire_lock {
     $self->_ensure_directory($directory);
     -l $self->lock_file()
         and die "Timeshift lock file must not be a symlink: " . $self->lock_file() . "\n";
-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW, 0600
+    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
         or die "cannot open Timeshift snapshot lock: " . $self->lock_file() . ": $!\n";
+    my @lock_stat = stat $fh;
+    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
+        && !($lock_stat[2] & 0022)
+        or die "lock must be a trusted, singly linked regular file\n";
 
-    my $deadline = time() + $self->lock_timeout_seconds();
+
+    my $deadline = clock_gettime(CLOCK_MONOTONIC) + $self->lock_timeout_seconds();
     while (!flock($fh, LOCK_EX | LOCK_NB)) {
-        return undef if time() >= $deadline;
+        next if $! == EINTR;
+        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock Timeshift snapshot: $!\n";
+        return undef if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
         sleep 0.2;
     }
     return $fh;

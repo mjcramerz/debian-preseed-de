@@ -3,7 +3,8 @@ package TimeshiftManaged::Config;
 use strict;
 use warnings;
 
-use Fcntl qw(O_NOFOLLOW O_RDONLY);
+use Errno qw(EINTR);
+use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
@@ -30,19 +31,27 @@ has path => (
 sub _read_limited_regular_file {
     my ($self) = @_;
 
-    -l $self->path()
-        and die "configuration must not be a symbolic link: " . $self->path() . "\n";
-    sysopen my $fh, $self->path(), O_RDONLY | O_NOFOLLOW
+    sysopen my $fh, $self->path(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK
         or die "cannot read configuration " . $self->path() . ": $!\n";
     my @stat = stat $fh;
-    @stat && -f _
-        or die "configuration must be a regular file: " . $self->path() . "\n";
+    @stat && -f _ && $stat[4] == $> && !($stat[2] & 0022)
+        or die "configuration must be a trusted, non-writable regular file: " . $self->path() . "\n";
     $stat[7] <= $self->maximum_bytes()
         or die "configuration is too large: " . $self->path() . "\n";
-    local $/;
-    my $content = <$fh>;
+    my $content = q{};
+    while (1) {
+        my $count = sysread($fh, my $chunk, 8192);
+        if (!defined $count) {
+            next if $! == EINTR;
+            die "cannot read configuration " . $self->path() . ": $!\n";
+        }
+        last if !$count;
+        $content .= $chunk;
+        length($content) <= $self->maximum_bytes()
+            or die "configuration is too large: " . $self->path() . "\n";
+    }
     close $fh or die "cannot close configuration " . $self->path() . ": $!\n";
-    return defined($content) ? $content : q{};
+    return $content;
 }
 
 sub parse_shell_value {
@@ -131,10 +140,15 @@ sub parse_shell_value {
 
 sub load {
     my ($self) = @_;
+    return $self->parse_content($self->_read_limited_regular_file());
+}
 
+sub parse_content {
+    my ($self, $content) = @_;
+    defined($content) && !ref($content) && length($content) <= $self->maximum_bytes()
+        or die "invalid or oversized configuration content\n";
     my %allowed = map { $_ => 1 } @{ $self->allowed_keys() };
-    my %values = map { $_ => q{} } @{ $self->allowed_keys() };
-    my $content = $self->_read_limited_regular_file();
+    my %values;
 
     my $current = q{};
     for my $line (split /\n/, $content, -1) {
@@ -151,6 +165,7 @@ sub load {
         my ($key, $value) = $current =~ /\A([A-Za-z_][A-Za-z0-9_]*)=(.*)\z/s;
         $allowed{$key}
             or die "unsupported configuration key in " . $self->path() . ": $key\n";
+        !exists($values{$key}) or die "duplicate configuration key: $key\n";
         $values{$key} = __PACKAGE__->parse_shell_value($value);
         $current = q{};
     }

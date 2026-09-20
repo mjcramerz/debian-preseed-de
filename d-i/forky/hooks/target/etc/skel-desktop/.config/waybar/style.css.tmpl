@@ -137,16 +137,35 @@ tooltip label {
   min-width: 28px;
   padding: 0 7px;
   color: @royalpurple;
-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
-  font-weight: 900;
+  background-image: -gtk-recolor(url("icons/apps-symbolic.svg"));
 }
 
 #custom-wayscriber {
   min-width: 28px;
   padding: 0 7px;
   color: @marineblue;
-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
-  font-weight: 900;
+  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg"));
+}
+
+
+/* Center the painted icon, not a font glyph's baseline or side bearings.
+ * The single-space labels retain tooltips, click targets and the apps drawer.
+ * Explicit hover layers preserve the existing gradient and foreground color. */
+#custom-apps,
+#custom-wayscriber,
+#custom-apps:hover,
+#custom-wayscriber:hover {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 1.2em 1.2em, 100% 100%;
+}
+
+#custom-apps:hover {
+  background-image: -gtk-recolor(url("icons/apps-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+}
+
+#custom-wayscriber:hover {
+  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 
 #custom-app-terminal,

@@ -72,6 +72,8 @@ profile managed-firstboot /usr/local/libexec/firstboot.sh flags=(attach_disconne
   /etc/** r,
   /etc/default/labwc-desktop rw,
   /home/*/.config/qt6ct/qt6ct.conf r,
+  # Root firstboot enumerates the user-owned unit directory; owner would not match.
+  @{HOME}/.config/systemd/user/ r,
   /run/ r,
   /run/** r,
   /usr/local/ r,
@@ -328,6 +330,9 @@ profile managed-grub-btrfs-refresh /usr/local/libexec/grub-btrfs-refresh flags=(
   # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
   signal (send) set=(hup, int, term, kill, cont),
   /usr/bin/grub-script-check rix,
+  /etc/grub.d/40_custom rix,
+  /usr/bin/{find,sed} rix,
+  /etc/default/grub.d/{72-nvme-platform,73-pcie-power,74-intel-mei-blacklist,75-intel-vfio,80-cpu-profile-flags,85-gpu-intel,86-gpu-amd,87-gpu-nvidia}.cfg r,
   /usr/bin/{btrfs,mount,sort,umount} rix,
   /usr/sbin/blkid rix,
 

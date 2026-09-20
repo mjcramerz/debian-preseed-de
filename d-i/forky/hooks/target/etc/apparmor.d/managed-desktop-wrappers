@@ -4268,7 +4268,8 @@ profile managed-labwc-fzf-menu /usr/local/bin/labwc-fzf-menu flags=(attach_disco
 profile managed-labwc-window-switcher /usr/local/bin/labwc-window-switcher flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-wayland>
   /usr/local/bin/labwc-window-switcher rix,
-  /usr/bin/{id,wtype} rix,
+  /usr/bin/{id,timeout,wtype} rix,
+  signal (send, receive) set=(term, kill, cont, chld) peer=managed-labwc-window-switcher,
   /usr/share/X11/xkb/{,**} r,
   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.
   owner /tmp/wtype-?????? rw,

@@ -70,7 +70,7 @@ def copy_binary(root: Path, binary: str, destination=None):
 def make_chroot(root: Path):
     copy_binary(root, shutil.which('busybox'), '/bin/busybox')
     for name in ('sh', 'sed', 'head', 'tr', 'readlink', 'sort', 'cat', 'chmod',
-                 'mkdir', 'install', 'mktemp', 'rm', 'dirname'):
+                 'mkdir', 'install', 'mktemp', 'rm', 'dirname', 'mv'):
         (root / 'bin' / name).symlink_to('busybox')
     copy_binary(root, '/usr/bin/find', '/bin/find')
     for directory in ('dev', 'tmp', 'etc/default/grub.d', 'etc/grub.d', 'boot/grub'):
@@ -79,6 +79,10 @@ def make_chroot(root: Path):
     (root / 'dev/null').touch()
     (root / 'bin/blkid').write_text('#!/bin/sh\nprintf "fixture-uuid\\n"\n')
     (root / 'bin/blkid').chmod(0o755)
+    # An explicit fixture: real GRUB syntax is checked separately when installed.
+    checker = root / 'bin/grub-script-check'
+    checker.write_text('#!/bin/sh\n[ -f "$1" ] && [ -s "$1" ]\n')
+    checker.chmod(0o755)
 
 
 class HardwareFilesTests(unittest.TestCase):

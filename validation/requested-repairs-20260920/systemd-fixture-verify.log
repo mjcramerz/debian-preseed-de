@@ -1,0 +1,3 @@
+Real systemd-analyze verify; isolated fixture root; target executables copied but NOT executed.
+Dependency targets are explicit fixture stubs, not a live system-manager integration test.
+Exit status: 0

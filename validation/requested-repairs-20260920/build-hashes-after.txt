@@ -1,0 +1,3 @@
+820a019a38c1376b06e522385cf7ec307e02c3497f6df925d11e4b4feca4106c  d-i/forky/payload.tar.gz
+f18988d519d45e6120fbdd384961f75b8c4a4f734c294cb2701f0f9be1a53adc  d-i/forky/payload.manifest
+bd538b91ec8ab9887ebef897b0bc72416fc0352c026b0178c214f2b0e65a8183  d-i/forky/preseed.cfg

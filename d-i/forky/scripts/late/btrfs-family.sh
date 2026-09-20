@@ -604,12 +604,14 @@ configure_target_timeshift() {
   btrfs_stage_shared_target_asset etc/systemd/system/timeshift-.service.d/60-resource-class.conf /etc/systemd/system/timeshift-.service.d/60-resource-class.conf 0644
   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.service "${FILE_GRUB_BTRFS_REFRESH_SERVICE}" 0644
   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.path "${FILE_GRUB_BTRFS_REFRESH_PATH}" 0644
+  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644
 
   for unit in \
     timeshift-daily.timer \
     timeshift-weekly.timer \
     timeshift-monthly.timer \
-    grub-btrfs-refresh.path
+    grub-btrfs-refresh.path \
+    grub-btrfs-refresh.timer
   do
     stage_target_systemd_unit_enabled "$unit" system
   done

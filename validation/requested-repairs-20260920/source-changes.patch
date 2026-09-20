@@ -1,0 +1,1128 @@
+--- original/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
++++ repaired/d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers
+@@ -4268,7 +4268,8 @@
+ profile managed-labwc-window-switcher /usr/local/bin/labwc-window-switcher flags=(attach_disconnected) {
+   #include <abstractions/managed-wrapper-wayland>
+   /usr/local/bin/labwc-window-switcher rix,
+-  /usr/bin/{id,wtype} rix,
++  /usr/bin/{id,timeout,wtype} rix,
++  signal (send, receive) set=(term, kill, cont, chld) peer=managed-labwc-window-switcher,
+   /usr/share/X11/xkb/{,**} r,
+   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.
+   owner /tmp/wtype-?????? rw,
+--- original/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
++++ repaired/d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers
+@@ -72,6 +72,8 @@
+   /etc/** r,
+   /etc/default/labwc-desktop rw,
+   /home/*/.config/qt6ct/qt6ct.conf r,
++  # Root firstboot enumerates the user-owned unit directory; owner would not match.
++  @{HOME}/.config/systemd/user/ r,
+   /run/ r,
+   /run/** r,
+   /usr/local/ r,
+@@ -328,6 +330,9 @@
+   # Owned command PIDs are checked by the supervisor; Unix UID checks still apply.
+   signal (send) set=(hup, int, term, kill, cont),
+   /usr/bin/grub-script-check rix,
++  /etc/grub.d/40_custom rix,
++  /usr/bin/{find,sed} rix,
++  /etc/default/grub.d/{72-nvme-platform,73-pcie-power,74-intel-mei-blacklist,75-intel-vfio,80-cpu-profile-flags,85-gpu-intel,86-gpu-amd,87-gpu-nvidia}.cfg r,
+   /usr/bin/{btrfs,mount,sort,umount} rix,
+   /usr/sbin/blkid rix,
+ 
+--- original/d-i/forky/hooks/target/etc/default/grub-profiles.tmpl
++++ repaired/d-i/forky/hooks/target/etc/default/grub-profiles.tmpl
+@@ -1,5 +1,8 @@
+ #!/bin/sh
+ set -eu
++PATH=/usr/sbin:/usr/bin:/sbin:/bin
++LC_ALL=C
++export PATH LC_ALL
+ 
+ profile_config=/etc/default/grub-profiles.conf
+ 
+@@ -16,11 +19,7 @@
+   printf "'%s'\n" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+ }
+ 
+-write_profile_config() {
+-  tmp=$(mktemp)
+-  trap 'rm -f "$tmp"' EXIT HUP INT TERM
+-
+-  {
++emit_profile_config() {
+     printf 'dev_part_boot=%s\n' "$(shell_single_quote "$dev_part_boot")"
+     printf 'dev_part_root=%s\n' "$(shell_single_quote "$dev_part_root")"
+     printf 'dev_part_efi=%s\n' "$(shell_single_quote "$dev_part_efi")"
+@@ -46,16 +45,69 @@
+     printf 'rescue_usb_uuid=%s\n' "$(shell_single_quote "$rescue_usb_uuid")"
+     printf 'grub_gfxpayload_linux=%s\n' "$(shell_single_quote "$grub_gfxpayload_linux")"
+     printf 'dualboot_enabled=%s\n' "$(shell_single_quote "$dualboot_enabled")"
+-  } >"$tmp"
+-
++}
++
++require_trusted_file() {
++  trusted_path=$1
++  [ -f "$trusted_path" ] && [ ! -L "$trusted_path" ] ||
++    fatal "GRUB input is not a direct regular file: $trusted_path"
++  [ "$(find -P "$trusted_path" -maxdepth 0 -printf %U)" = 0 ] ||
++    fatal "GRUB input must be root-owned: $trusted_path"
++  trusted_mode=$(find -P "$trusted_path" -maxdepth 0 -printf %m)
++  case "$trusted_mode" in
++    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
++    *) fatal "invalid GRUB input mode: $trusted_path" ;;
++  esac
++  [ $((0$trusted_mode & 0022)) -eq 0 ] ||
++    fatal "GRUB input is writable by non-root users: $trusted_path"
++}
++
++validate_profile_values() {
++  for profile_value in "$bootprofile_default" "$bootprofile_performance" "$bootprofile_hardened" "$grub_default_entry"; do
++    case "$profile_value" in
++      ''|*[!A-Za-z0-9_.:-]*) fatal "invalid GRUB profile identifier" ;;
++    esac
++  done
++  for flags_value in "$grub_root_flags" "$grub_initramfs_flags" "$grub_nvme_flags" \
++    "$grub_cgroup_flags" "$grub_security_core_flags" "$grub_blacklist_flags" \
++    "$grub_vfio_flags" "$grub_memory_core_flags" "$grub_hardening_flags" \
++    "$grub_aspm_flags" "$grub_systemd_mask_flags" "$grub_profile_default_flags" \
++    "$grub_profile_performance_flags" "$grub_profile_hardened_flags" "${grub_hardware_flags:-}"; do
++    # These values become unquoted GRUB arguments, not shell programs. Reject
++    # controls, quotes, expansions and GRUB metacharacters before emitting them.
++    case "$flags_value" in
++      *[!A-Za-z0-9_.,:/=@%+~!?\[\]\ -]*) fatal "unsafe GRUB command-line flags" ;;
++    esac
++  done
++  for device_value in "$dev_part_boot" "$dev_part_root" "$dev_part_efi"; do
++    case "$device_value" in
++      /dev/*) ;;
++      *) fatal "GRUB device must be below /dev" ;;
++    esac
++    case "$device_value" in
++      *[!A-Za-z0-9_./:+-]*|*'/../'*|*'/..'|*'/./'*|*'/.'|*'//'*) fatal "unsafe GRUB device path" ;;
++    esac
++  done
++  case "$grub_gfxpayload_linux" in
++    ''|*[!A-Za-z0-9_,.x-]*) fatal "invalid GRUB graphics payload" ;;
++  esac
++}
++
++write_profile_config() {
+   install -d -m 0755 /etc/default
+-  install -m 0600 "$tmp" "$profile_config"
+-  rm -f "$tmp"
++  [ ! -L "$profile_config" ] || fatal "GRUB profile config must not be a symlink"
++  tmp=$(mktemp /etc/default/.grub-profiles.conf.XXXXXX)
++  trap 'rm -f -- "$tmp"' EXIT
++  trap 'exit 1' HUP INT TERM
++  emit_profile_config >"$tmp"
++  chmod 0600 "$tmp"
++  mv -fT -- "$tmp" "$profile_config"
+   trap - EXIT HUP INT TERM
+ }
+ 
+ load_profile_config() {
+   [ -r "$profile_config" ] || fatal "GRUB profile config is missing: $profile_config"
++  require_trusted_file "$profile_config"
+   # shellcheck disable=SC1090
+   . "$profile_config"
+ }
+@@ -77,12 +129,18 @@
+ }
+ 
+ install_custom_generator_script() {
+-  install -m 0755 "$0" /etc/grub.d/40_custom
++  tmp=$(mktemp /etc/grub.d/.40_custom.XXXXXX)
++  trap 'rm -f -- "$tmp"' EXIT
++  trap 'exit 1' HUP INT TERM
++  install -m 0755 "$0" "$tmp"
++  mv -fT -- "$tmp" /etc/grub.d/40_custom
++  trap - EXIT HUP INT TERM
+   disable_duplicate_custom_source
+ }
+ 
+ emit_target=
+ emit_tmp=
++export_snapshot_config=false
+ case "$#" in
+   25)
+     dev_part_boot=$1
+@@ -110,6 +168,7 @@
+     rescue_usb_uuid=${23}
+     grub_gfxpayload_linux=${24}
+     dualboot_enabled=${25}
++    validate_profile_values
+     write_profile_config
+     install -d -m 0755 /boot/grub /etc/grub.d
+     ensure_grubenv
+@@ -119,6 +178,11 @@
+   0)
+     load_profile_config
+     disable_duplicate_custom_source
++    ;;
++  1)
++    [ "$1" = --snapshot-config ] || fatal "unsupported GRUB generator option"
++    load_profile_config
++    export_snapshot_config=true
+     ;;
+   *)
+     fatal "invalid GRUB profile installer argument count: $#"
+@@ -161,10 +225,18 @@
+   grub_profile_hardened_flags="${grub_profile_hardened_flags}${GRUB_PROFILE_HARDENED_FLAGS:+ $GRUB_PROFILE_HARDENED_FLAGS}"
+ }
+ load_hardware_profile_flags
++validate_profile_values
++
++if [ "$export_snapshot_config" = true ]; then
++  emit_profile_config
++  printf 'grub_hardware_flags=%s\n' "$(shell_single_quote "$grub_hardware_flags")"
++  exit 0
++fi
+ 
+ if [ -n "$emit_target" ]; then
+-  emit_tmp=$(mktemp)
+-  trap 'rm -f "$emit_tmp"' EXIT HUP INT TERM
++  emit_tmp=$(mktemp /boot/grub/.custom.cfg.XXXXXX)
++  trap 'rm -f -- "$emit_tmp"' EXIT
++  trap 'exit 1' HUP INT TERM
+   exec >"$emit_tmp"
+ fi
+ 
+@@ -238,6 +310,11 @@
+ boot_uuid=$(blkid -s UUID -o value "$dev_part_boot" 2>/dev/null || true)
+ root_uuid=$(blkid -s UUID -o value "$dev_part_root" 2>/dev/null || true)
+ efi_uuid=$(blkid -s UUID -o value "$dev_part_efi" 2>/dev/null || true)
++for uuid_value in "$boot_uuid" "$root_uuid" "$efi_uuid"; do
++  case "$uuid_value" in
++    *[!A-Za-z0-9-]*) fatal "invalid filesystem UUID returned by blkid" ;;
++  esac
++done
+ mokmanager_path=__INSTALLER_GRUB_MOK_MANAGER_EFI_PATH__
+ rescue_usb_efi_path=__INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH__
+ skip_mok_signing=false
+@@ -370,7 +447,11 @@
+ 
+   cat <<'SNAPSHOTS_EOF'
+ submenu 'BTRFS Snapshots' --id 'snapshots-btrfs' --class snapshots --class btrfs --class os {
+-    configfile "${prefix}/grub-btrfs.cfg"
++    if [ -f "${prefix}/grub-btrfs.cfg" ]; then
++        configfile "${prefix}/grub-btrfs.cfg"
++    else
++        echo 'The snapshot menu is not available yet. Boot normally to refresh it.'
++    fi
+ }
+ SNAPSHOTS_EOF
+ }
+@@ -541,7 +622,9 @@
+ FIRMWARE_EOF
+ 
+ if [ -n "$emit_target" ]; then
+-  install -m 0644 "$emit_tmp" "$emit_target"
+-  rm -f "$emit_tmp"
++  command -v grub-script-check >/dev/null 2>&1 || fatal "grub-script-check is unavailable"
++  grub-script-check "$emit_tmp" || fatal "generated custom GRUB menu failed syntax validation"
++  chmod 0644 "$emit_tmp"
++  mv -fT -- "$emit_tmp" "$emit_target"
+   trap - EXIT HUP INT TERM
+ fi
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
++++ repaired/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl
+@@ -62,19 +62,21 @@
+     "format": "",
+     "align": 0.5,
+     "tooltip": true,
+-    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
+-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
++    "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
++    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+   },
+   "custom/wayscriber": {
+-    "format": "",
+-    "align": 0.5,
++    "format": " ",
++    "align": 0.5,
++    "justify": "center",
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+-    "format": "",
+-    "align": 0.5,
++    "format": " ",
++    "align": 0.5,
++    "justify": "center",
+     "tooltip": true,
+     "tooltip-format": "Applications"
+   },
+@@ -355,19 +357,21 @@
+     "format": "",
+     "align": 0.5,
+     "tooltip": true,
+-    "tooltip-format": "Windows (F13) - select a window; Escape or an outside click cancels. Alt+Tab: thumbnails",
+-    "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-window-switcher"
++    "tooltip-format": "Windows (F13) - select a window; Escape cancels. Alt+Tab: thumbnails",
++    "on-click-release": "/usr/bin/systemd-run --user --quiet --collect --no-block --unit=labwc-window-switcher --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStartSec=3s --property=RuntimeMaxSec=3s --property=TimeoutStopSec=1s --property=StandardInput=null --property=StandardOutput=null --property=StandardError=journal -- /usr/local/bin/labwc-window-switcher"
+   },
+   "custom/wayscriber": {
+-    "format": "",
+-    "align": 0.5,
++    "format": " ",
++    "align": 0.5,
++    "justify": "center",
+     "tooltip": true,
+     "tooltip-format": "Wayscriber",
+     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
+   },
+   "custom/apps": {
+-    "format": "",
+-    "align": 0.5,
++    "format": " ",
++    "align": 0.5,
++    "justify": "center",
+     "tooltip": true,
+     "tooltip-format": "Applications"
+   },
+--- original/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
++++ repaired/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+@@ -137,16 +137,35 @@
+   min-width: 28px;
+   padding: 0 7px;
+   color: @royalpurple;
+-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+-  font-weight: 900;
++  background-image: -gtk-recolor(url("icons/apps-symbolic.svg"));
+ }
+ 
+ #custom-wayscriber {
+   min-width: 28px;
+   padding: 0 7px;
+   color: @marineblue;
+-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
+-  font-weight: 900;
++  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg"));
++}
++
++
++/* Center the painted icon, not a font glyph's baseline or side bearings.
++ * The single-space labels retain tooltips, click targets and the apps drawer.
++ * Explicit hover layers preserve the existing gradient and foreground color. */
++#custom-apps,
++#custom-wayscriber,
++#custom-apps:hover,
++#custom-wayscriber:hover {
++  background-position: center;
++  background-repeat: no-repeat;
++  background-size: 1.2em 1.2em, 100% 100%;
++}
++
++#custom-apps:hover {
++  background-image: -gtk-recolor(url("icons/apps-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
++}
++
++#custom-wayscriber:hover {
++  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+ }
+ 
+ #custom-app-terminal,
+--- original/d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.path
++++ repaired/d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.path
+@@ -3,7 +3,9 @@
+ ConditionPathExists=/usr/local/libexec/grub-btrfs-refresh
+ 
+ [Path]
+-PathExistsGlob=/run/timeshift/*/backup/timeshift-btrfs/snapshots
++# Runtime PID directories are created/removed even when Timeshift uses mounts.
++# A level-triggered PathExistsGlob would restart this service continuously.
++PathChanged=/run/timeshift
+ Unit=grub-btrfs-refresh.service
+ 
+ [Install]
+--- original/d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.service
++++ repaired/d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.service
+@@ -8,11 +8,14 @@
+ 
+ [Service]
+ Type=oneshot
+-TimeoutStartSec=10m
++TimeoutStartSec=3m
++TimeoutStopSec=15s
++KillMode=control-group
++UMask=0077
+ Nice=19
+ IOSchedulingClass=idle
+ PrivateMounts=yes
+ RuntimeDirectory=grub-btrfs-refresh
+ RuntimeDirectoryMode=0700
+ Environment=SKIP_MOK_SIGNING=1
+-ExecStart=/usr/local/libexec/grub-btrfs-refresh --wait
++ExecStart=/usr/local/libexec/grub-btrfs-refresh
+--- original/d-i/forky/hooks/target/etc/systemd/system/timeshift-daily.service
++++ repaired/d-i/forky/hooks/target/etc/systemd/system/timeshift-daily.service
+@@ -12,3 +12,5 @@
+ IOSchedulingPriority=7
+ UMask=0077
+ ExecStart=/usr/local/libexec/timeshift-managed-snapshot daily
++# Queue only after the snapshot command has finished; the timer covers missed events.
++ExecStartPost=/usr/bin/systemctl --no-block start grub-btrfs-refresh.service
+--- original/d-i/forky/hooks/target/etc/systemd/system/timeshift-monthly.service
++++ repaired/d-i/forky/hooks/target/etc/systemd/system/timeshift-monthly.service
+@@ -12,3 +12,5 @@
+ IOSchedulingPriority=7
+ UMask=0077
+ ExecStart=/usr/local/libexec/timeshift-managed-snapshot monthly
++# Queue only after the snapshot command has finished; the timer covers missed events.
++ExecStartPost=/usr/bin/systemctl --no-block start grub-btrfs-refresh.service
+--- original/d-i/forky/hooks/target/etc/systemd/system/timeshift-weekly.service
++++ repaired/d-i/forky/hooks/target/etc/systemd/system/timeshift-weekly.service
+@@ -12,3 +12,5 @@
+ IOSchedulingPriority=7
+ UMask=0077
+ ExecStart=/usr/local/libexec/timeshift-managed-snapshot weekly
++# Queue only after the snapshot command has finished; the timer covers missed events.
++ExecStartPost=/usr/bin/systemctl --no-block start grub-btrfs-refresh.service
+--- original/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
++++ repaired/d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher
+@@ -1,11 +1,13 @@
+ #!/bin/sh
+ set -eu
+ [ "$#" -eq 0 ] || { printf '%s\n' 'usage: labwc-window-switcher' >&2; exit 2; }
+-[ "$(id -u)" -ne 0 ] || {
++[ "$(/usr/bin/id -u)" -ne 0 ] || {
+   printf '%s\n' 'labwc-window-switcher must run as the desktop user' >&2
+   exit 1
+ }
+-# F13 invokes NextWindow in the unmodified Debian compositor. Labwc owns the
+-# thumbnail OSD and its input lifecycle; this one-shot launcher holds no modifier
+-# and does not implement a separate window list or input helper daemon.
+-exec /usr/bin/wtype -k F13
++# Waybar must invoke this on mouse release, after GTK's pointer grab ends.
++# Send down/up on the SAME virtual keyboard, before the user selects or cancels.
++# No F13 (or Alt) is held for the lifetime of labwc's native thumbnail switcher.
++# The enclosing transient service isolates the cgroup; timeout also bounds direct
++# invocations and tears down the virtual keyboard if the compositor stops replying.
++exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Command.pm
++++ repaired/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Command.pm
+@@ -34,7 +34,9 @@
+         timeout => $args{timeout} // 120,
+         limit => 1_048_576,
+     );
+-    return (status_from_wait($result->{status}), $result->{stdout});
++    my $status = status_from_wait($result->{status});
++    $status = 125 if $status == 0 && ($result->{error} // q{}) ne q{};
++    return ($status, $result->{stdout});
+ }
+ sub find_executable {
+     my ($self, $name) = @_;
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Config.pm
++++ repaired/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Config.pm
+@@ -3,7 +3,8 @@
+ use strict;
+ use warnings;
+ 
+-use Fcntl qw(O_NOFOLLOW O_RDONLY);
++use Errno qw(EINTR);
++use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY);
+ use Moo;
+ use MooX::StrictConstructor;
+ use MooX::TypeTiny;
+@@ -30,19 +31,27 @@
+ sub _read_limited_regular_file {
+     my ($self) = @_;
+ 
+-    -l $self->path()
+-        and die "configuration must not be a symbolic link: " . $self->path() . "\n";
+-    sysopen my $fh, $self->path(), O_RDONLY | O_NOFOLLOW
++    sysopen my $fh, $self->path(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+         or die "cannot read configuration " . $self->path() . ": $!\n";
+     my @stat = stat $fh;
+-    @stat && -f _
+-        or die "configuration must be a regular file: " . $self->path() . "\n";
++    @stat && -f _ && $stat[4] == $> && !($stat[2] & 0022)
++        or die "configuration must be a trusted, non-writable regular file: " . $self->path() . "\n";
+     $stat[7] <= $self->maximum_bytes()
+         or die "configuration is too large: " . $self->path() . "\n";
+-    local $/;
+-    my $content = <$fh>;
++    my $content = q{};
++    while (1) {
++        my $count = sysread($fh, my $chunk, 8192);
++        if (!defined $count) {
++            next if $! == EINTR;
++            die "cannot read configuration " . $self->path() . ": $!\n";
++        }
++        last if !$count;
++        $content .= $chunk;
++        length($content) <= $self->maximum_bytes()
++            or die "configuration is too large: " . $self->path() . "\n";
++    }
+     close $fh or die "cannot close configuration " . $self->path() . ": $!\n";
+-    return defined($content) ? $content : q{};
++    return $content;
+ }
+ 
+ sub parse_shell_value {
+@@ -131,10 +140,15 @@
+ 
+ sub load {
+     my ($self) = @_;
++    return $self->parse_content($self->_read_limited_regular_file());
++}
+ 
++sub parse_content {
++    my ($self, $content) = @_;
++    defined($content) && !ref($content) && length($content) <= $self->maximum_bytes()
++        or die "invalid or oversized configuration content\n";
+     my %allowed = map { $_ => 1 } @{ $self->allowed_keys() };
+-    my %values = map { $_ => q{} } @{ $self->allowed_keys() };
+-    my $content = $self->_read_limited_regular_file();
++    my %values;
+ 
+     my $current = q{};
+     for my $line (split /\n/, $content, -1) {
+@@ -151,6 +165,7 @@
+         my ($key, $value) = $current =~ /\A([A-Za-z_][A-Za-z0-9_]*)=(.*)\z/s;
+         $allowed{$key}
+             or die "unsupported configuration key in " . $self->path() . ": $key\n";
++        !exists($values{$key}) or die "duplicate configuration key: $key\n";
+         $values{$key} = __PACKAGE__->parse_shell_value($value);
+         $current = q{};
+     }
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/GrubRefresh.pm
++++ repaired/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/GrubRefresh.pm
+@@ -3,14 +3,19 @@
+ use strict;
+ use warnings;
+ 
+-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_WRONLY);
++use Errno qw(EAGAIN EINTR EWOULDBLOCK);
++use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
++use Cwd qw(realpath);
++use Encode qw(encode FB_CROAK);
++use File::Compare qw(compare);
++use IO::Handle;
+ use File::Basename qw(basename dirname);
+ use File::Temp qw(tempfile);
+ use JSON::PP qw(decode_json);
+ use Moo;
+ use MooX::StrictConstructor;
+ use MooX::TypeTiny;
+-use Time::HiRes qw(sleep time);
++use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
+ use Types::Standard qw(Int Str);
+ 
+ use TimeshiftManaged::Command;
+@@ -46,6 +51,12 @@
+     default => sub { '/etc/default/grub-profiles.conf' },
+ );
+ 
++has profile_generator => (
++    is      => 'ro',
++    isa     => Str,
++    default => sub { '/etc/grub.d/40_custom' },
++);
++
+ has command => (
+     is      => 'ro',
+     default => sub { TimeshiftManaged::Command->new() },
+@@ -54,9 +65,9 @@
+ sub _require_absolute_path {
+     my ($self, $label, $value) = @_;
+ 
+-    defined($value) && $value =~ m{\A/}
++    defined($value) && $value =~ m{\A/[A-Za-z0-9._/@%:+,-]*\z}
+         or die "$label must be an absolute path\n";
+-    $value !~ m{(?:^|/)\.\.(?:/|$)} && $value !~ m{//}
++    $value !~ m{(?:^|/)\.\.?(?:/|$)} && $value !~ m{//}
+         or die "$label contains unsafe path syntax\n";
+     return;
+ }
+@@ -80,7 +91,7 @@
+                 or die "cannot create runtime directory $current: $!\n";
+             $created = 1;
+         }
+-        if ($created || $current eq $directory) {
++        if ($created) {
+             chmod $mode, $current
+                 or die "cannot set runtime directory mode for $current: $!\n";
+         }
+@@ -95,9 +106,15 @@
+     $self->_ensure_directory($lock_dir, 0755);
+     -l $self->lock_file()
+         and die "refresh lock must not be a symbolic link: " . $self->lock_file() . "\n";
+-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW, 0600
++    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
+         or die "cannot open refresh lock " . $self->lock_file() . ": $!\n";
++    my @lock_stat = stat $fh;
++    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
++        && !($lock_stat[2] & 0022)
++        or die "lock must be a trusted, singly linked regular file\n";
++
+     if (!flock($fh, LOCK_EX | LOCK_NB)) {
++        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock snapshot menu: $!\n";
+         $self->logger()->info('another grub-btrfs-refresh run is active; skipping this event');
+         return undef;
+     }
+@@ -116,9 +133,9 @@
+ sub _wait_for_timeshift_exit {
+     my ($self) = @_;
+ 
+-    my $deadline = time() + 300;
++    my $deadline = clock_gettime(CLOCK_MONOTONIC) + 300;
+     while ($self->_runtime_snapshot_active()) {
+-        time() < $deadline
++        clock_gettime(CLOCK_MONOTONIC) < $deadline
+             or die "Timeshift runtime mounts did not disappear within 300s\n";
+         sleep 1;
+     }
+@@ -154,31 +171,26 @@
+     my ($self, $mount_path) = @_;
+ 
+     return if !defined($mount_path) || $mount_path eq q{};
++    -l $mount_path and die "refresh mount path must not be a symlink\n";
+     if ($self->_mount_path_is_active($mount_path)) {
+-        my $status = $self->command()->run($self->_program('umount'), $mount_path);
+-        if ($status != 0) {
+-            $self->command()->run($self->_program('umount'), '-l', $mount_path);
+-        }
+-    }
+-    rmdir $mount_path if -d $mount_path && !-l $mount_path;
+-    return;
+-}
+-
+-sub _cleanup_stale_mount_roots {
+-    my ($self) = @_;
+-
+-    for my $stale_root (glob('/run/grub-btrfs-refresh.*')) {
+-        next if !-d $stale_root || -l $stale_root;
+-        $self->_cleanup_mount_path($stale_root);
+-    }
+-    return;
+-}
++        my ($status) = $self->command()->capture(
++            argv => [ $self->_program('umount'), $mount_path ], timeout => 30,
++        );
++        $status == 0 or die "cannot unmount refresh mount $mount_path\n";
++    }
++    if (-d $mount_path) {
++        rmdir $mount_path or die "cannot remove refresh mount directory $mount_path: $!\n";
++    }
++    return;
++}
++
++
+ 
+ sub _load_configurations {
+     my ($self) = @_;
+ 
+     return undef if !-r $self->profile_config() || !-r $self->grub_btrfs_config();
+-    my $profile = TimeshiftManaged::Config->new(
++    my $profile_reader = TimeshiftManaged::Config->new(
+         allowed_keys => [
+             qw(
+               dev_part_boot dev_part_root dev_part_efi
+@@ -189,11 +201,25 @@
+               grub_systemd_mask_flags grub_profile_default_flags
+               grub_profile_performance_flags grub_profile_hardened_flags
+               mok_der_path grub_default_entry rescue_usb_uuid grub_gfxpayload_linux
+-              dualboot_enabled
++              dualboot_enabled grub_hardware_flags
+             )
+         ],
+         path => $self->profile_config(),
+-    )->load();
++    );
++    # Check the base data separately as well; the generator sources only trusted
++    # root-owned files and exports data, never a menu or an arbitrary command.
++    $profile_reader->load();
++    my $generator = $self->profile_generator();
++    $self->_require_absolute_path('profile generator', $generator);
++    my @generator_stat = lstat $generator;
++    @generator_stat && -f _ && !-l _ && $generator_stat[4] == $>
++        && !($generator_stat[2] & 0022) && -x $generator
++        or die "custom GRUB profile generator is missing or untrusted\n";
++    my ($status, $export) = $self->command()->capture(
++        argv => [ $generator, '--snapshot-config' ], timeout => 15,
++    );
++    $status == 0 or die "cannot export effective custom GRUB profiles\n";
++    my $profile = $profile_reader->parse_content($export);
+     my $grub_btrfs = TimeshiftManaged::Config->new(
+         allowed_keys => [
+             qw(GRUB_BTRFS_SNAPSHOT_DIR GRUB_BTRFS_ROOT_SUBVOLUME GRUB_BTRFS_LIMIT GRUB_BTRFS_STATE_DIR)
+@@ -210,7 +236,7 @@
+         or die "$label must not be empty\n";
+     $value !~ m{\A/} && $value !~ m{//}
+         or die "$label must be relative and contain no empty path components\n";
+-    $value !~ m{(?:^|/)\.\.(?:/|$)}
++    $value !~ m{(?:^|/)\.\.?(?:/|$)}
+         or die "$label contains a parent-directory component\n";
+     $value =~ m{\A[A-Za-z0-9@._/+:-]+\z}
+         or die "$label contains unsupported characters\n";
+@@ -223,7 +249,8 @@
+     my @images = grep {
+         my $version = $_;
+         $version =~ s{\A/boot/vmlinuz-}{};
+-        -e "/boot/initrd.img-$version";
++        $version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
++            && -f $_ && -f "/boot/initrd.img-$version";
+     } glob('/boot/vmlinuz-*');
+     return () if !@images;
+     my ($status, $output) = $self->command()->capture(
+@@ -254,6 +281,7 @@
+ 
+     my ($status, $output) = $self->command()->capture(
+         argv => [ $self->_program('btrfs'), 'property', 'get', '-ts', $snapshot_subvolume, 'ro' ],
++        timeout => 5,
+     );
+     return 0 if $status != 0;
+     $output =~ s/\s+\z//;
+@@ -264,27 +292,31 @@
+     my ($self, $snapshot_dir) = @_;
+ 
+     my $info_file = "$snapshot_dir/info.json";
+-    return (q{}, q{}) if !-r $info_file || -l $info_file;
+-    my @stat = stat $info_file;
+-    return (q{}, q{}) if !@stat || !-f _ || $stat[7] > 1_048_576;
+-    open my $fh, '<', $info_file or return (q{}, q{});
+-    local $/;
+-    my $raw = <$fh>;
+-    close $fh;
+-    my $metadata = eval { decode_json($raw // q{}) };
+-    return (q{}, q{}) if !$metadata || ref($metadata) ne 'HASH';
+-    my $tag = ref($metadata->{tags}) ? q{} : ($metadata->{tags} // q{});
++    sysopen my $fh, $info_file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
++        or return (undef, undef);
++    my @stat = stat $fh;
++    return (undef, undef) if !@stat || !-f _ || $stat[7] > 1_048_576;
++    my $raw = q{};
++    while (1) {
++        my $count = sysread($fh, my $chunk, 8192);
++        if (!defined $count) {
++            next if $! == EINTR;
++            return (undef, undef);
++        }
++        last if !$count;
++        $raw .= $chunk;
++        return (undef, undef) if length($raw) > 1_048_576;
++    }
++    close $fh or return (undef, undef);
++    my $metadata = eval { decode_json($raw) };
++    return (undef, undef) if !$metadata || ref($metadata) ne 'HASH';
++    my $tags = ref($metadata->{tags}) ? q{} : ($metadata->{tags} // q{});
+     my $comment = ref($metadata->{comments}) ? q{} : ($metadata->{comments} // q{});
+-    my %labels = (
+-        B => 'boot',
+-        D => 'daily',
+-        H => 'hourly',
+-        M => 'monthly',
+-        O => 'ondemand',
+-        W => 'weekly',
+-    );
+-    $tag = $labels{$tag} // $tag;
+-    $comment =~ s/[\r\n\x00-\x1f\x7f]/ /g;
++    my %labels = (B => 'boot', D => 'daily', H => 'hourly', M => 'monthly', O => 'ondemand', W => 'weekly');
++    my %seen;
++    my $tag = join q{, }, map { $labels{$_} }
++        grep { exists($labels{$_}) && !$seen{$_}++ } split /[ ,]+/, $tags;
++    $comment =~ s/[\x00-\x1f\x7f\p{Cf}]/ /g;
+     $comment = substr($comment, 0, 160);
+     return ($tag, $comment);
+ }
+@@ -316,19 +348,43 @@
+ sub _snapshot_root_flags {
+     my ($self, $grub_root_flags, $snapshot_dir_rel, $snapshot_name, $root_subvolume) = @_;
+ 
+-    my $snapshot_subvolume = $snapshot_dir_rel;
+-    $snapshot_subvolume =~ s{/+\z}{};
+-    $root_subvolume =~ s{\A/+}{};
+-    $snapshot_subvolume .= "/$snapshot_name/$root_subvolume";
+-    if ($grub_root_flags =~ /rootflags=subvol=@,/) {
+-        $grub_root_flags =~ s/rootflags=subvol=@,/rootflags=subvol=$snapshot_subvolume,/;
+-        return $grub_root_flags;
+-    }
+-    if ($grub_root_flags =~ /rootflags=subvol=@/) {
+-        $grub_root_flags =~ s/rootflags=subvol=@/rootflags=subvol=$snapshot_subvolume/;
+-        return $grub_root_flags;
+-    }
+-    return "$grub_root_flags rootflags=subvol=$snapshot_subvolume";
++    $self->_validate_relative_subvolume_path('snapshot directory', $snapshot_dir_rel);
++    $self->_validate_relative_subvolume_path('root subvolume', $root_subvolume);
++    $snapshot_name =~ /\A\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\z/
++        or die "invalid snapshot name\n";
++    $self->_validate_command_line($grub_root_flags);
++    my (@flags, @options);
++    for my $flag (split / +/, $grub_root_flags) {
++        next if $flag eq q{};
++        if ($flag =~ /\Arootflags=(.*)\z/) {
++            push @options, grep { $_ ne q{} && !/\Asubvol(?:id)?=/ } split /,/, $1;
++        }
++        else { push @flags, $flag; }
++    }
++    my $subvolume = "$snapshot_dir_rel/$snapshot_name/$root_subvolume";
++    push @flags, 'rootflags=' . join(q{,}, "subvol=$subvolume", @options);
++    return join q{ }, @flags;
++}
++
++sub _validate_command_line {
++    my ($self, $value) = @_;
++    defined($value) && $value =~ m{\A[A-Za-z0-9_.,:/=@%+~!?\[\] -]*\z}
++        or die "unsafe GRUB command-line flags\n";
++    return;
++}
++
++sub _validate_profiles {
++    my ($self, $profile) = @_;
++    for my $key (qw(bootprofile_default bootprofile_performance bootprofile_hardened)) {
++        ($profile->{$key} // q{}) =~ /\A[A-Za-z0-9_.:-]+\z/
++            or die "invalid GRUB profile identifier: $key\n";
++    }
++    for my $key (grep { /\Agrub_.*_flags\z/ } keys %{$profile}) {
++        $self->_validate_command_line($profile->{$key});
++    }
++    ($profile->{grub_gfxpayload_linux} // q{}) =~ /\A[A-Za-z0-9_,.x-]*\z/
++        or die "invalid GRUB graphics payload\n";
++    return;
+ }
+ 
+ sub _fallback_menu {
+@@ -358,6 +414,8 @@
+     my $boot_search = $args{boot_search};
+     my $base_cmdline = $args{base_cmdline};
+     my $limit = $args{limit};
++    $self->_validate_profiles($profile);
++    $self->_validate_command_line($base_cmdline);
+ 
+     my @profiles = (
+         [ $profile->{bootprofile_default}, 'Balanced',    $profile->{grub_profile_default_flags} ],
+@@ -382,13 +440,14 @@
+             next;
+         }
+         my $subvolume = "$snapshot_root/$snapshot_name/$root_subvolume";
+-        next SNAPSHOT if !-d $subvolume || -l $subvolume;
++        next SNAPSHOT if !-d $subvolume || (realpath($subvolume) // q{}) ne $subvolume;
+         if (!$self->_snapshot_writable($subvolume)) {
+             $self->logger()->warning("ignoring read-only or unreadable Timeshift snapshot: $snapshot_name");
+             next;
+         }
+ 
+         my ($tag, $comment) = $self->_snapshot_metadata("$snapshot_root/$snapshot_name");
++        next SNAPSHOT if !defined $tag; # incomplete or invalid snapshot metadata
+         my $title = $self->_format_snapshot_timestamp($snapshot_name);
+         $title .= " [$tag]" if $tag ne q{};
+         $title .= " $comment" if $comment ne q{};
+@@ -408,7 +467,12 @@
+             for my $kernel_image (@{$kernel_images}) {
+                 my $kernel_version = $kernel_image;
+                 $kernel_version =~ s{\A/boot/vmlinuz-}{};
+-                next if !-d "$subvolume/lib/modules/$kernel_version";
++                $kernel_version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
++                    or die "invalid kernel version\n";
++                my $modules = realpath("$subvolume/lib/modules/$kernel_version");
++                # Accept Debian's relative usrmerge link, never a link escaping
++                # this snapshot (including an absolute /usr/lib link).
++                next if !defined($modules) || index($modules, "$subvolume/") != 0 || !-d $modules;
+                 my $kernel_id = $self->_grub_id_fragment($kernel_version);
+                 my $profile_id = $self->_grub_id_fragment($profile_name);
+                 push @profile_lines,
+@@ -468,29 +532,52 @@
+ sub _install_menu {
+     my ($self, $menu) = @_;
+ 
+-    my $output_dir = dirname($self->output_file());
++    my $checker = $self->_program('grub-script-check');
++    my $output = $self->output_file();
++    -l $output and die "snapshot menu must not be a symbolic link\n";
++    if (-e $output) {
++        -f $output or die "snapshot menu must be a regular file\n";
++    }
++    my $output_dir = dirname($output);
+     $self->_ensure_directory($output_dir, 0755);
+-    my ($fh, $temporary) = tempfile(basename($self->output_file()) . '.XXXXXX', DIR => $output_dir, UNLINK => 0);
+-    print {$fh} $menu
+-        or die "cannot write generated grub-btrfs menu: $!\n";
+-    close $fh or die "cannot close generated grub-btrfs menu: $!\n";
+-    chmod 0644, $temporary
+-        or die "cannot set generated grub-btrfs menu mode: $!\n";
+-    my $checker = $self->command()->find_executable('grub-script-check');
+-    if ($checker) {
+-        my $status = $self->command()->run($checker, $temporary);
+-        $status == 0
+-            or die "generated grub-btrfs.cfg failed grub-script-check\n";
+-    }
+-    rename $temporary, $self->output_file()
+-        or die "cannot publish generated grub-btrfs menu: $!\n";
++    my ($fh, $temporary) = tempfile('.grub-btrfs.cfg.XXXXXX', DIR => $output_dir, UNLINK => 0);
++    my $ok = eval {
++        binmode $fh or die "cannot set snapshot menu encoding: $!\n";
++        my $bytes = encode('UTF-8', $menu, FB_CROAK);
++        print {$fh} $bytes or die "cannot write generated snapshot menu: $!\n";
++        $fh->flush() or die "cannot flush generated snapshot menu: $!\n";
++        my ($status) = $self->command()->capture(argv => [ $checker, $temporary ], timeout => 30);
++        $status == 0 or die "generated grub-btrfs.cfg failed grub-script-check\n";
++        chmod 0644, $temporary or die "cannot set generated snapshot menu mode: $!\n";
++        $fh->sync() or die "cannot synchronize generated snapshot menu: $!\n";
++        close $fh or die "cannot close generated snapshot menu: $!\n";
++        if (-f $output && compare($temporary, $output) == 0) {
++            unlink $temporary or die "cannot remove unchanged snapshot menu: $!\n";
++            return 1;
++        }
++        rename $temporary, $output or die "cannot publish generated snapshot menu: $!\n";
++        sysopen my $directory, $output_dir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
++            or die "cannot open snapshot menu directory: $!\n";
++        $directory->sync() or die "cannot synchronize snapshot menu directory: $!\n";
++        close $directory or die "cannot close snapshot menu directory: $!\n";
++        return 1;
++    };
++    my $error = $@;
++    if (!$ok) {
++        close $fh if defined fileno($fh);
++        unlink $temporary if -e $temporary;
++        die $error;
++    }
+     return;
+ }
+ 
+ sub run {
+     my ($self, @argv) = @_;
+ 
++    local $ENV{PATH} = '/usr/sbin:/usr/bin:/sbin:/bin';
++    local $ENV{LC_ALL} = 'C';
+     my $result = eval {
++        $> == 0 or die "snapshot menu refresh requires root\n";
+         @argv <= 1 && (!@argv || $argv[0] eq '--wait')
+             or die "unsupported grub-btrfs-refresh mode\n";
+         $self->_require_absolute_path('output file', $self->output_file());
+@@ -500,6 +587,7 @@
+         $self->_wait_for_timeshift_exit() if @argv && $argv[0] eq '--wait';
+         my ($profile, $grub_btrfs) = $self->_load_configurations();
+         return 0 if !$profile;
++        $self->_validate_profiles($profile);
+         return 0 if ($profile->{dev_part_root} // q{}) eq q{} || ($profile->{dev_part_boot} // q{}) eq q{};
+ 
+         my $snapshot_dir_rel = $grub_btrfs->{GRUB_BTRFS_SNAPSHOT_DIR} // 'timeshift-btrfs/snapshots';
+@@ -510,8 +598,8 @@
+         $self->_validate_relative_subvolume_path('GRUB_BTRFS_ROOT_SUBVOLUME', $root_subvolume);
+         $state_dir =~ m{\A/run/[A-Za-z0-9._/@%:+,-]+\z}
+             or die "GRUB_BTRFS_STATE_DIR must be below /run and contain safe path syntax\n";
+-        $snapshot_limit =~ /\A[0-9]+\z/ && $snapshot_limit <= 200
+-            or die "GRUB_BTRFS_LIMIT must be numeric and not exceed 200\n";
++        $snapshot_limit =~ /\A[0-9]+\z/ && $snapshot_limit >= 1 && $snapshot_limit <= 200
++            or die "GRUB_BTRFS_LIMIT must be between 1 and 200\n";
+         $snapshot_limit = int($snapshot_limit);
+ 
+         my @kernel_images = $self->_bootable_kernel_images();
+@@ -524,20 +612,19 @@
+         $root_uuid ne q{}
+             or die "unable to determine UUID for $profile->{dev_part_root}\n";
+         my $boot_uuid = $self->_uuid_for_device($profile->{dev_part_boot});
+-        my $default_version = $kernel_images[0];
+-        $default_version =~ s{\A/boot/vmlinuz-}{};
+-        my $boot_search = $boot_uuid ne q{}
+-            ? "search --no-floppy --fs-uuid --set=root $boot_uuid"
+-            : "search --no-floppy --file --set=root /vmlinuz-$default_version";
++        $boot_uuid ne q{} or die "unable to determine the boot filesystem UUID\n";
++        my $boot_search = "search --no-floppy --fs-uuid --set=root $boot_uuid";
+         my $base_cmdline = join q{ },
+             map { $profile->{$_} // q{} } qw(
+               grub_initramfs_flags grub_nvme_flags grub_systemd_mask_flags grub_cgroup_flags
+               grub_security_core_flags grub_blacklist_flags grub_vfio_flags grub_memory_core_flags
+-              grub_hardening_flags grub_aspm_flags
++              grub_hardening_flags grub_aspm_flags grub_hardware_flags
+             );
+ 
+-        $self->_cleanup_stale_mount_roots();
+         $self->_ensure_directory($state_dir, 0700);
++        my @state_stat = stat $state_dir;
++        @state_stat && $state_stat[4] == $> && !($state_stat[2] & 0077)
++            or die "refresh state directory must be private and root-owned\n";
+         my $mount_root = "$state_dir/root";
+         $self->_cleanup_mount_path($mount_root);
+         $self->_ensure_directory($mount_root, 0700);
+@@ -547,18 +634,17 @@
+             rmdir $state_dir if -d $state_dir && !-l $state_dir;
+         };
+         my $render_result = eval {
+-            my $status = $self->command()->run(
+-                $self->_program('mount'),
+-                '-o',
+-                'ro,subvolid=5',
+-                "/dev/disk/by-uuid/$root_uuid",
+-                $mount_root,
++            my ($status) = $self->command()->capture(
++                argv => [ $self->_program('mount'), '-t', 'btrfs', '-o',
++                    'ro,nosuid,nodev,noexec,subvolid=5',
++                    "/dev/disk/by-uuid/$root_uuid", $mount_root ],
++                timeout => 30,
+             );
+             $status == 0
+                 or die "cannot mount Btrfs top-level subvolume for GRUB snapshot refresh\n";
+             $mounted = 1;
+             my $snapshot_root = "$mount_root/$snapshot_dir_rel";
+-            if (!-d $snapshot_root || -l $snapshot_root) {
++            if (!-d $snapshot_root || (realpath($snapshot_root) // q{}) ne $snapshot_root) {
+                 $self->_install_menu($self->_fallback_menu());
+                 return 0;
+             }
+@@ -577,8 +663,10 @@
+             return 0;
+         };
+         my $error = $@;
+-        $cleanup->();
++        my $cleaned = eval { $cleanup->(); 1 };
++        my $cleanup_error = $@;
+         die $error if !$render_result && $error;
++        die $cleanup_error if !$cleaned;
+         return $render_result;
+     };
+ 
+--- original/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Snapshot.pm
++++ repaired/d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Snapshot.pm
+@@ -3,12 +3,13 @@
+ use strict;
+ use warnings;
+ 
+-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_WRONLY);
++use Errno qw(EAGAIN EINTR EWOULDBLOCK);
++use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
+ use File::Basename qw(dirname);
+ use Moo;
+ use MooX::StrictConstructor;
+ use MooX::TypeTiny;
+-use Time::HiRes qw(sleep time);
++use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
+ use Types::Standard qw(Int Str);
+ 
+ use TimeshiftManaged::Command;
+@@ -98,7 +99,7 @@
+ 
+     defined($value) && $value =~ m{\A/}
+         or die "$label must be an absolute path\n";
+-    $value !~ m{(?:^|/)\.\.(?:/|$)}
++    $value !~ m{(?:^|/)\.\.?(?:/|$)}
+         or die "$label contains a parent-directory component\n";
+     $value !~ m{//}
+         or die "$label contains an empty path component\n";
+@@ -126,7 +127,7 @@
+                 or die "cannot create Timeshift lock directory $current: $!\n";
+             $created = 1;
+         }
+-        if ($created || $current eq $directory) {
++        if ($created) {
+             chmod 0755, $current
+                 or die "cannot set Timeshift lock directory mode for $current: $!\n";
+         }
+@@ -175,12 +176,19 @@
+     $self->_ensure_directory($directory);
+     -l $self->lock_file()
+         and die "Timeshift lock file must not be a symlink: " . $self->lock_file() . "\n";
+-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW, 0600
++    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
+         or die "cannot open Timeshift snapshot lock: " . $self->lock_file() . ": $!\n";
+-
+-    my $deadline = time() + $self->lock_timeout_seconds();
++    my @lock_stat = stat $fh;
++    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
++        && !($lock_stat[2] & 0022)
++        or die "lock must be a trusted, singly linked regular file\n";
++
++
++    my $deadline = clock_gettime(CLOCK_MONOTONIC) + $self->lock_timeout_seconds();
+     while (!flock($fh, LOCK_EX | LOCK_NB)) {
+-        return undef if time() >= $deadline;
++        next if $! == EINTR;
++        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock Timeshift snapshot: $!\n";
++        return undef if clock_gettime(CLOCK_MONOTONIC) >= $deadline;
+         sleep 0.2;
+     }
+     return $fh;
+--- original/d-i/forky/scripts/desktop/components.sh
++++ repaired/d-i/forky/scripts/desktop/components.sh
+@@ -3998,6 +3998,8 @@
+   desktop_stage_role_asset usr/local/libexec/labwc-wrap-desktop-files /usr/local/libexec/labwc-wrap-desktop-files 0755
+   desktop_stage_role_asset usr/local/bin/labwc-main-menu /usr/local/bin/labwc-main-menu 0755
+   desktop_stage_role_asset usr/local/bin/labwc-window-switcher /usr/local/bin/labwc-window-switcher 0755
++  desktop_stage_role_asset etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg /etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg 0644
++  desktop_stage_role_asset etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg /etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg 0644
+   desktop_stage_role_asset usr/local/bin/labwc-fzf-menu /usr/local/bin/labwc-fzf-menu 0755
+   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.service /etc/systemd/system/labwc-system-desktop-overrides.service 0644
+   desktop_stage_role_asset etc/systemd/system/labwc-system-desktop-overrides.path /etc/systemd/system/labwc-system-desktop-overrides.path 0644
+--- original/d-i/forky/scripts/late/btrfs-family.sh
++++ repaired/d-i/forky/scripts/late/btrfs-family.sh
+@@ -604,12 +604,14 @@
+   btrfs_stage_shared_target_asset etc/systemd/system/timeshift-.service.d/60-resource-class.conf /etc/systemd/system/timeshift-.service.d/60-resource-class.conf 0644
+   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.service "${FILE_GRUB_BTRFS_REFRESH_SERVICE}" 0644
+   btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.path "${FILE_GRUB_BTRFS_REFRESH_PATH}" 0644
++  btrfs_stage_shared_target_asset etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644
+ 
+   for unit in \
+     timeshift-daily.timer \
+     timeshift-weekly.timer \
+     timeshift-monthly.timer \
+-    grub-btrfs-refresh.path
++    grub-btrfs-refresh.path \
++    grub-btrfs-refresh.timer
+   do
+     stage_target_systemd_unit_enabled "$unit" system
+   done
+--- original/d-i/forky/tests/test_desktop_navigation_20260918.py
++++ repaired/d-i/forky/tests/test_desktop_navigation_20260918.py
+@@ -281,19 +281,20 @@
+         self.assertIn('Font Awesome 6 Free',block)
+         self.assertIn('window#waybar.internal #custom-wayscriber,',css)
+         config=(TARGET/'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+-        clicks=re.findall(r'"on-click": "([^"\n]* -- labwc-window-switcher)"',config)
++        clicks=re.findall(r'"on-click-release": "([^"\n]* -- /usr/local/bin/labwc-window-switcher)"',config)
+         self.assertEqual(len(clicks),2)
+         for click in clicks:
+             for option in ('--user','--collect','--service-type=exec','--expand-environment=no',
+                            '--property=Requisite=labwc-session.target','--property=After=labwc-session.target',
+                            '--property=PartOf=labwc-session.target','--property=ExitType=cgroup',
+-                           '--property=KillMode=control-group','--property=TimeoutStopSec=20s'):
++                           '--property=KillMode=control-group','--property=TimeoutStopSec=1s',
++                           '--no-block','--unit=labwc-window-switcher','--property=RuntimeMaxSec=3s'):
+                 self.assertIn(option,click)
+         self.assertEqual(config.count('"format": "\uf24d"'),2)
+ 
+     def test_wtype_wrapper_has_fixed_argv_without_alt_or_fake_mouse_grabs(self):
+         wrapper=(BIN/'labwc-window-switcher').read_text()
+-        self.assertIn('exec /usr/bin/wtype -k F13',wrapper)
++        self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13',wrapper)
+         self.assertIn('[ "$#" -eq 0 ]',wrapper)
+         self.assertNotIn('-M alt',wrapper)
+         self.assertNotIn('-m alt',wrapper)
+--- original/d-i/forky/tests/test_hardware_restore.py
++++ repaired/d-i/forky/tests/test_hardware_restore.py
+@@ -70,7 +70,7 @@
+ def make_chroot(root: Path):
+     copy_binary(root, shutil.which('busybox'), '/bin/busybox')
+     for name in ('sh', 'sed', 'head', 'tr', 'readlink', 'sort', 'cat', 'chmod',
+-                 'mkdir', 'install', 'mktemp', 'rm', 'dirname'):
++                 'mkdir', 'install', 'mktemp', 'rm', 'dirname', 'mv'):
+         (root / 'bin' / name).symlink_to('busybox')
+     copy_binary(root, '/usr/bin/find', '/bin/find')
+     for directory in ('dev', 'tmp', 'etc/default/grub.d', 'etc/grub.d', 'boot/grub'):
+@@ -79,6 +79,10 @@
+     (root / 'dev/null').touch()
+     (root / 'bin/blkid').write_text('#!/bin/sh\nprintf "fixture-uuid\\n"\n')
+     (root / 'bin/blkid').chmod(0o755)
++    # An explicit fixture: real GRUB syntax is checked separately when installed.
++    checker = root / 'bin/grub-script-check'
++    checker.write_text('#!/bin/sh\n[ -f "$1" ] && [ -s "$1" ]\n')
++    checker.chmod(0o755)
+ 
+ 
+ class HardwareFilesTests(unittest.TestCase):
+--- original/d-i/forky/tests/test_packaged_native_session_20260920.py
++++ repaired/d-i/forky/tests/test_packaged_native_session_20260920.py
+@@ -173,7 +173,7 @@
+         self.assertNotIn('<fields>', (directory / 'rc.xml.tmpl').read_text())
+         self.assertNotIn('style-classic', (directory / 'themerc-override').read_text())
+         launcher = (TARGET / 'usr/local/bin/labwc-window-switcher').read_text()
+-        self.assertIn('exec /usr/bin/wtype -k F13', launcher)
++        self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13', launcher)
+         for token in ('fuzzel', 'ShowMenu', '-M alt', 'sleep '):
+             self.assertNotIn(token, launcher)
+ 

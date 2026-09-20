@@ -281,19 +281,20 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertIn('Font Awesome 6 Free',block)
         self.assertIn('window#waybar.internal #custom-wayscriber,',css)
         config=(TARGET/'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
-        clicks=re.findall(r'"on-click": "([^"\n]* -- labwc-window-switcher)"',config)
+        clicks=re.findall(r'"on-click-release": "([^"\n]* -- /usr/local/bin/labwc-window-switcher)"',config)
         self.assertEqual(len(clicks),2)
         for click in clicks:
             for option in ('--user','--collect','--service-type=exec','--expand-environment=no',
                            '--property=Requisite=labwc-session.target','--property=After=labwc-session.target',
                            '--property=PartOf=labwc-session.target','--property=ExitType=cgroup',
-                           '--property=KillMode=control-group','--property=TimeoutStopSec=20s'):
+                           '--property=KillMode=control-group','--property=TimeoutStopSec=1s',
+                           '--no-block','--unit=labwc-window-switcher','--property=RuntimeMaxSec=3s'):
                 self.assertIn(option,click)
         self.assertEqual(config.count('"format": "\uf24d"'),2)
 
     def test_wtype_wrapper_has_fixed_argv_without_alt_or_fake_mouse_grabs(self):
         wrapper=(BIN/'labwc-window-switcher').read_text()
-        self.assertIn('exec /usr/bin/wtype -k F13',wrapper)
+        self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13',wrapper)
         self.assertIn('[ "$#" -eq 0 ]',wrapper)
         self.assertNotIn('-M alt',wrapper)
         self.assertNotIn('-m alt',wrapper)

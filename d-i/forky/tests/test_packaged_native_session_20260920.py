@@ -173,7 +173,7 @@ run_in_target() {
         self.assertNotIn('<fields>', (directory / 'rc.xml.tmpl').read_text())
         self.assertNotIn('style-classic', (directory / 'themerc-override').read_text())
         launcher = (TARGET / 'usr/local/bin/labwc-window-switcher').read_text()
-        self.assertIn('exec /usr/bin/wtype -k F13', launcher)
+        self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13', launcher)
         for token in ('fuzzel', 'ShowMenu', '-M alt', 'sleep '):
             self.assertNotIn(token, launcher)
 

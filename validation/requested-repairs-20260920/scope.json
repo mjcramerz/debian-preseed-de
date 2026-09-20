@@ -1,0 +1,129 @@
+{
+  "input_archive": "debian-preseed-de(5).zip",
+  "input_sha256": "ab9cc8236205fe81357464a4251aa4324faf7b1e99ed1ac8faa53570a0f356b0",
+  "original_files_preserved": 3128,
+  "original_files_removed": 0,
+  "changed_original_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "before_sha256": "fe945fb4c2aa68e166fc1307c8da5c5aef51d17c0008c3d29977a2d47a929839",
+      "after_sha256": "ab524879f2ebe09eef27fb0f226baa4060cea0ca25d9146d039c3eb05a9ef80e"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "before_sha256": "97df968a51c32249cc36d0f58e15341f648c7f5e103125cc7b57120d0f3e85b8",
+      "after_sha256": "11c9073dff1a9b140222bd7c598713e040cebc875394cec936bbf128fe9bb669"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/default/grub-profiles.tmpl",
+      "before_sha256": "21bb4e4941d9d2beb233c55c337822af902f4f1c1f16f97632b786cb7864f26b",
+      "after_sha256": "6a90974fa2afba78ea6163bc3ea74169fb93f06f2fee174dd9970b0ad3254114"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/config.tmpl",
+      "before_sha256": "dadc36a9fa7585dad606ed3680d0f672f9ce9db59822200aff6d2450f92c1b17",
+      "after_sha256": "546e55aaff64e3a3402b5e482946dafdf3975d036a22ac6d9280a24e34105e20"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl",
+      "before_sha256": "c882d62b6d5382a18f69bd479e8f87cf3d1a00cf6c8ba177de65d7a8d1a0df1b",
+      "after_sha256": "e5217ee524fa8c566841a4d610475d5b739e6f679cbb618015d718dd2a219d54"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.path",
+      "before_sha256": "762c69b3194f70015294b3705d77620f8d88b85e68f33167297eac3f0515aeca",
+      "after_sha256": "223b4ab6f633c7fc8489440be305c6dad16a3c44d9c7284f5d044dd1cf0bf92c"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.service",
+      "before_sha256": "fdec53589482ef3b1f26b01c36293264ff2a9fdae17a8bff51a96f4935e69d07",
+      "after_sha256": "65d214b5aca595f3b34eb779d73f336e730b0a0235896b02a82029ec15b6fe4d"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/timeshift-daily.service",
+      "before_sha256": "d9428231276faf2b3559bb153a1a32b9706e5fa6ba6b31c30ac40f62fb3ec0ba",
+      "after_sha256": "b724654db7b7a07e26acf486f0f98f7493c01bfab77164b7646cc065df9d47d1"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/timeshift-monthly.service",
+      "before_sha256": "8042d7c54903a6770865877ad1e2c63133632aa31e502ef42c9200138470f709",
+      "after_sha256": "7d80b506ba64f490561c8aae180b2b7d0605da34abed2b9f81100ba8357483c5"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/systemd/system/timeshift-weekly.service",
+      "before_sha256": "9a1dbcabb2eed0475b749c567a2fc5a9b9e3793f77330b9abf8ca74d3f4096f5",
+      "after_sha256": "a2677927d440cb6e86fafe3e1406989600e85089fcde96f91f0ee8a9321be833"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/bin/labwc-window-switcher",
+      "before_sha256": "d39621ba5d3df7cd85f82ae92652b64e8a83644ec084f685974001f5e4eb41b6",
+      "after_sha256": "15ef81e50d8cd8877865fe2464fd2df11b12738dadd661c7c25ac4f3f33bac12"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Command.pm",
+      "before_sha256": "fc7df4d5cb77114e3f87ddd3d374795cc33ceee5aefcd1e4077a216882b6dce1",
+      "after_sha256": "025e5250471c7660c342181a33882e07ae3b1d622422c647a4991a8b4e676ae5"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Config.pm",
+      "before_sha256": "bca02a7837557061712a1006a99159a346dfa626126a215d2023976d4809c53e",
+      "after_sha256": "ea5e3f2d5afd60eea03faa80199728a5cc9e31a87bdd65e99563465157d5d4f5"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/GrubRefresh.pm",
+      "before_sha256": "d0d4c75dada560020aa1a892bb03a3b8df11c08b0795f90ef08e9ce478688e06",
+      "after_sha256": "660caca2e6bfa8bf1c565c7b81d6b421097691b542d7417db093aa68733957f0"
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/timeshift-managed/TimeshiftManaged/Snapshot.pm",
+      "before_sha256": "f0aad5912de01d9d7a702cf04627df214593512ea6a3343f2bde83cffd4e4ab3",
+      "after_sha256": "3c96f0c1ffb5a2b8803744da74cdbd2eaa03ad0c54ea59640a6df1efec68dc39"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/components.sh",
+      "before_sha256": "242e37d8ab90432e8a42b42dc8ec81f2b2c734db79200b2cd2ee7aa1d697b919",
+      "after_sha256": "119ce8e31f59ac8d812de462cfca0d89c1486781a312aa3d2ff198b249249281"
+    },
+    {
+      "path": "d-i/forky/scripts/late/btrfs-family.sh",
+      "before_sha256": "d5eeeea5d9326be78ceda5d5167e21cefb28d7a1ae3c4eefac9b34d49d2a65af",
+      "after_sha256": "cb0e4a06a8d519ea93bd75b7e24e34f373e5873669f26a8429c71c479945ddb6"
+    },
+    {
+      "path": "d-i/forky/tests/test_desktop_navigation_20260918.py",
+      "before_sha256": "5224fd181cfa4d052b18d353b7911258bed227b7ed41c14f4ff36c294cf440b6",
+      "after_sha256": "b8e0be2710ba28e18f40e62ecdedb2432a89559fa5acf144d4834e9c73960a4d"
+    },
+    {
+      "path": "d-i/forky/tests/test_hardware_restore.py",
+      "before_sha256": "99d34566ae3b952437da8acd65e0aef0601ff81b0b090db9e7327fc62896f667",
+      "after_sha256": "0ea2e956da7057d921f3407063162ad2bb32451d13d8efc4bb1c7121d0c8d4a3"
+    },
+    {
+      "path": "d-i/forky/tests/test_packaged_native_session_20260920.py",
+      "before_sha256": "4d8f53e835b4deaa5fe069e100bc26f12aa0508cf693c5c31128b5f93bf2cfca",
+      "after_sha256": "7e8ce948ba58cd0c103c5934f5f36f5e51f11314f0d39f2e48e9ffb14eacdcbd"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before_sha256": "67b56f4ea8556297a1b40503ad69c3bd90c46e945bd392fb2cedc242bb4a39d0",
+      "after_sha256": "f18988d519d45e6120fbdd384961f75b8c4a4f734c294cb2701f0f9be1a53adc"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before_sha256": "b90ecd5020ecf056b76c03283e20ac61b60e68189e4a6e2ddfa3f3db423c0806",
+      "after_sha256": "820a019a38c1376b06e522385cf7ec307e02c3497f6df925d11e4b4feca4106c"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before_sha256": "d1552897cb40e4b4540fc7bee6e0864667b2dd1b12ea77b11cc7e575cce493fb",
+      "after_sha256": "bd538b91ec8ab9887ebef897b0bc72416fc0352c026b0178c214f2b0e65a8183"
+    }
+  ],
+  "new_implementation_files": [
+    "d-i/forky/hooks/target/etc/systemd/system/grub-btrfs-refresh.timer",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/icons/apps-symbolic.svg",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/icons/wayscriber-symbolic.svg",
+    "d-i/forky/tests/test_requested_repairs_20260920.py"
+  ]
+}

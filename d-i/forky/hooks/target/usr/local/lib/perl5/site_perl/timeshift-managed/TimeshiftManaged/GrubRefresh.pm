@@ -3,14 +3,19 @@ package TimeshiftManaged::GrubRefresh;
 use strict;
 use warnings;
 
-use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_WRONLY);
+use Errno qw(EAGAIN EINTR EWOULDBLOCK);
+use Fcntl qw(:flock O_CREAT O_NOFOLLOW O_NONBLOCK O_WRONLY O_RDONLY O_DIRECTORY);
+use Cwd qw(realpath);
+use Encode qw(encode FB_CROAK);
+use File::Compare qw(compare);
+use IO::Handle;
 use File::Basename qw(basename dirname);
 use File::Temp qw(tempfile);
 use JSON::PP qw(decode_json);
 use Moo;
 use MooX::StrictConstructor;
 use MooX::TypeTiny;
-use Time::HiRes qw(sleep time);
+use Time::HiRes qw(sleep clock_gettime CLOCK_MONOTONIC);
 use Types::Standard qw(Int Str);
 
 use TimeshiftManaged::Command;
@@ -46,6 +51,12 @@ has profile_config => (
     default => sub { '/etc/default/grub-profiles.conf' },
 );
 
+has profile_generator => (
+    is      => 'ro',
+    isa     => Str,
+    default => sub { '/etc/grub.d/40_custom' },
+);
+
 has command => (
     is      => 'ro',
     default => sub { TimeshiftManaged::Command->new() },
@@ -54,9 +65,9 @@ has command => (
 sub _require_absolute_path {
     my ($self, $label, $value) = @_;
 
-    defined($value) && $value =~ m{\A/}
+    defined($value) && $value =~ m{\A/[A-Za-z0-9._/@%:+,-]*\z}
         or die "$label must be an absolute path\n";
-    $value !~ m{(?:^|/)\.\.(?:/|$)} && $value !~ m{//}
+    $value !~ m{(?:^|/)\.\.?(?:/|$)} && $value !~ m{//}
         or die "$label contains unsafe path syntax\n";
     return;
 }
@@ -80,7 +91,7 @@ sub _ensure_directory {
                 or die "cannot create runtime directory $current: $!\n";
             $created = 1;
         }
-        if ($created || $current eq $directory) {
+        if ($created) {
             chmod $mode, $current
                 or die "cannot set runtime directory mode for $current: $!\n";
         }
@@ -95,9 +106,15 @@ sub _acquire_lock {
     $self->_ensure_directory($lock_dir, 0755);
     -l $self->lock_file()
         and die "refresh lock must not be a symbolic link: " . $self->lock_file() . "\n";
-    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW, 0600
+    sysopen my $fh, $self->lock_file(), O_WRONLY | O_CREAT | O_NOFOLLOW | O_NONBLOCK, 0600
         or die "cannot open refresh lock " . $self->lock_file() . ": $!\n";
+    my @lock_stat = stat $fh;
+    @lock_stat && -f _ && $lock_stat[4] == $> && $lock_stat[3] == 1
+        && !($lock_stat[2] & 0022)
+        or die "lock must be a trusted, singly linked regular file\n";
+
     if (!flock($fh, LOCK_EX | LOCK_NB)) {
+        ($! == EWOULDBLOCK || $! == EAGAIN) or die "cannot lock snapshot menu: $!\n";
         $self->logger()->info('another grub-btrfs-refresh run is active; skipping this event');
         return undef;
     }
@@ -116,9 +133,9 @@ sub _runtime_snapshot_active {
 sub _wait_for_timeshift_exit {
     my ($self) = @_;
 
-    my $deadline = time() + 300;
+    my $deadline = clock_gettime(CLOCK_MONOTONIC) + 300;
     while ($self->_runtime_snapshot_active()) {
-        time() < $deadline
+        clock_gettime(CLOCK_MONOTONIC) < $deadline
             or die "Timeshift runtime mounts did not disappear within 300s\n";
         sleep 1;
     }
@@ -154,31 +171,26 @@ sub _cleanup_mount_path {
     my ($self, $mount_path) = @_;
 
     return if !defined($mount_path) || $mount_path eq q{};
+    -l $mount_path and die "refresh mount path must not be a symlink\n";
     if ($self->_mount_path_is_active($mount_path)) {
-        my $status = $self->command()->run($self->_program('umount'), $mount_path);
-        if ($status != 0) {
-            $self->command()->run($self->_program('umount'), '-l', $mount_path);
-        }
+        my ($status) = $self->command()->capture(
+            argv => [ $self->_program('umount'), $mount_path ], timeout => 30,
+        );
+        $status == 0 or die "cannot unmount refresh mount $mount_path\n";
     }
-    rmdir $mount_path if -d $mount_path && !-l $mount_path;
-    return;
-}
-
-sub _cleanup_stale_mount_roots {
-    my ($self) = @_;
-
-    for my $stale_root (glob('/run/grub-btrfs-refresh.*')) {
-        next if !-d $stale_root || -l $stale_root;
-        $self->_cleanup_mount_path($stale_root);
+    if (-d $mount_path) {
+        rmdir $mount_path or die "cannot remove refresh mount directory $mount_path: $!\n";
     }
     return;
 }
+
+
 
 sub _load_configurations {
     my ($self) = @_;
 
     return undef if !-r $self->profile_config() || !-r $self->grub_btrfs_config();
-    my $profile = TimeshiftManaged::Config->new(
+    my $profile_reader = TimeshiftManaged::Config->new(
         allowed_keys => [
             qw(
               dev_part_boot dev_part_root dev_part_efi
@@ -189,11 +201,25 @@ sub _load_configurations {
               grub_systemd_mask_flags grub_profile_default_flags
               grub_profile_performance_flags grub_profile_hardened_flags
               mok_der_path grub_default_entry rescue_usb_uuid grub_gfxpayload_linux
-              dualboot_enabled
+              dualboot_enabled grub_hardware_flags
             )
         ],
         path => $self->profile_config(),
-    )->load();
+    );
+    # Check the base data separately as well; the generator sources only trusted
+    # root-owned files and exports data, never a menu or an arbitrary command.
+    $profile_reader->load();
+    my $generator = $self->profile_generator();
+    $self->_require_absolute_path('profile generator', $generator);
+    my @generator_stat = lstat $generator;
+    @generator_stat && -f _ && !-l _ && $generator_stat[4] == $>
+        && !($generator_stat[2] & 0022) && -x $generator
+        or die "custom GRUB profile generator is missing or untrusted\n";
+    my ($status, $export) = $self->command()->capture(
+        argv => [ $generator, '--snapshot-config' ], timeout => 15,
+    );
+    $status == 0 or die "cannot export effective custom GRUB profiles\n";
+    my $profile = $profile_reader->parse_content($export);
     my $grub_btrfs = TimeshiftManaged::Config->new(
         allowed_keys => [
             qw(GRUB_BTRFS_SNAPSHOT_DIR GRUB_BTRFS_ROOT_SUBVOLUME GRUB_BTRFS_LIMIT GRUB_BTRFS_STATE_DIR)
@@ -210,7 +236,7 @@ sub _validate_relative_subvolume_path {
         or die "$label must not be empty\n";
     $value !~ m{\A/} && $value !~ m{//}
         or die "$label must be relative and contain no empty path components\n";
-    $value !~ m{(?:^|/)\.\.(?:/|$)}
+    $value !~ m{(?:^|/)\.\.?(?:/|$)}
         or die "$label contains a parent-directory component\n";
     $value =~ m{\A[A-Za-z0-9@._/+:-]+\z}
         or die "$label contains unsupported characters\n";
@@ -223,7 +249,8 @@ sub _bootable_kernel_images {
     my @images = grep {
         my $version = $_;
         $version =~ s{\A/boot/vmlinuz-}{};
-        -e "/boot/initrd.img-$version";
+        $version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
+            && -f $_ && -f "/boot/initrd.img-$version";
     } glob('/boot/vmlinuz-*');
     return () if !@images;
     my ($status, $output) = $self->command()->capture(
@@ -254,6 +281,7 @@ sub _snapshot_writable {
 
     my ($status, $output) = $self->command()->capture(
         argv => [ $self->_program('btrfs'), 'property', 'get', '-ts', $snapshot_subvolume, 'ro' ],
+        timeout => 5,
     );
     return 0 if $status != 0;
     $output =~ s/\s+\z//;
@@ -264,27 +292,31 @@ sub _snapshot_metadata {
     my ($self, $snapshot_dir) = @_;
 
     my $info_file = "$snapshot_dir/info.json";
-    return (q{}, q{}) if !-r $info_file || -l $info_file;
-    my @stat = stat $info_file;
-    return (q{}, q{}) if !@stat || !-f _ || $stat[7] > 1_048_576;
-    open my $fh, '<', $info_file or return (q{}, q{});
-    local $/;
-    my $raw = <$fh>;
-    close $fh;
-    my $metadata = eval { decode_json($raw // q{}) };
-    return (q{}, q{}) if !$metadata || ref($metadata) ne 'HASH';
-    my $tag = ref($metadata->{tags}) ? q{} : ($metadata->{tags} // q{});
+    sysopen my $fh, $info_file, O_RDONLY | O_NOFOLLOW | O_NONBLOCK
+        or return (undef, undef);
+    my @stat = stat $fh;
+    return (undef, undef) if !@stat || !-f _ || $stat[7] > 1_048_576;
+    my $raw = q{};
+    while (1) {
+        my $count = sysread($fh, my $chunk, 8192);
+        if (!defined $count) {
+            next if $! == EINTR;
+            return (undef, undef);
+        }
+        last if !$count;
+        $raw .= $chunk;
+        return (undef, undef) if length($raw) > 1_048_576;
+    }
+    close $fh or return (undef, undef);
+    my $metadata = eval { decode_json($raw) };
+    return (undef, undef) if !$metadata || ref($metadata) ne 'HASH';
+    my $tags = ref($metadata->{tags}) ? q{} : ($metadata->{tags} // q{});
     my $comment = ref($metadata->{comments}) ? q{} : ($metadata->{comments} // q{});
-    my %labels = (
-        B => 'boot',
-        D => 'daily',
-        H => 'hourly',
-        M => 'monthly',
-        O => 'ondemand',
-        W => 'weekly',
-    );
-    $tag = $labels{$tag} // $tag;
-    $comment =~ s/[\r\n\x00-\x1f\x7f]/ /g;
+    my %labels = (B => 'boot', D => 'daily', H => 'hourly', M => 'monthly', O => 'ondemand', W => 'weekly');
+    my %seen;
+    my $tag = join q{, }, map { $labels{$_} }
+        grep { exists($labels{$_}) && !$seen{$_}++ } split /[ ,]+/, $tags;
+    $comment =~ s/[\x00-\x1f\x7f\p{Cf}]/ /g;
     $comment = substr($comment, 0, 160);
     return ($tag, $comment);
 }
@@ -316,19 +348,43 @@ sub _format_snapshot_timestamp {
 sub _snapshot_root_flags {
     my ($self, $grub_root_flags, $snapshot_dir_rel, $snapshot_name, $root_subvolume) = @_;
 
-    my $snapshot_subvolume = $snapshot_dir_rel;
-    $snapshot_subvolume =~ s{/+\z}{};
-    $root_subvolume =~ s{\A/+}{};
-    $snapshot_subvolume .= "/$snapshot_name/$root_subvolume";
-    if ($grub_root_flags =~ /rootflags=subvol=@,/) {
-        $grub_root_flags =~ s/rootflags=subvol=@,/rootflags=subvol=$snapshot_subvolume,/;
-        return $grub_root_flags;
+    $self->_validate_relative_subvolume_path('snapshot directory', $snapshot_dir_rel);
+    $self->_validate_relative_subvolume_path('root subvolume', $root_subvolume);
+    $snapshot_name =~ /\A\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\z/
+        or die "invalid snapshot name\n";
+    $self->_validate_command_line($grub_root_flags);
+    my (@flags, @options);
+    for my $flag (split / +/, $grub_root_flags) {
+        next if $flag eq q{};
+        if ($flag =~ /\Arootflags=(.*)\z/) {
+            push @options, grep { $_ ne q{} && !/\Asubvol(?:id)?=/ } split /,/, $1;
+        }
+        else { push @flags, $flag; }
     }
-    if ($grub_root_flags =~ /rootflags=subvol=@/) {
-        $grub_root_flags =~ s/rootflags=subvol=@/rootflags=subvol=$snapshot_subvolume/;
-        return $grub_root_flags;
+    my $subvolume = "$snapshot_dir_rel/$snapshot_name/$root_subvolume";
+    push @flags, 'rootflags=' . join(q{,}, "subvol=$subvolume", @options);
+    return join q{ }, @flags;
+}
+
+sub _validate_command_line {
+    my ($self, $value) = @_;
+    defined($value) && $value =~ m{\A[A-Za-z0-9_.,:/=@%+~!?\[\] -]*\z}
+        or die "unsafe GRUB command-line flags\n";
+    return;
+}
+
+sub _validate_profiles {
+    my ($self, $profile) = @_;
+    for my $key (qw(bootprofile_default bootprofile_performance bootprofile_hardened)) {
+        ($profile->{$key} // q{}) =~ /\A[A-Za-z0-9_.:-]+\z/
+            or die "invalid GRUB profile identifier: $key\n";
     }
-    return "$grub_root_flags rootflags=subvol=$snapshot_subvolume";
+    for my $key (grep { /\Agrub_.*_flags\z/ } keys %{$profile}) {
+        $self->_validate_command_line($profile->{$key});
+    }
+    ($profile->{grub_gfxpayload_linux} // q{}) =~ /\A[A-Za-z0-9_,.x-]*\z/
+        or die "invalid GRUB graphics payload\n";
+    return;
 }
 
 sub _fallback_menu {
@@ -358,6 +414,8 @@ sub _render_snapshot_menu {
     my $boot_search = $args{boot_search};
     my $base_cmdline = $args{base_cmdline};
     my $limit = $args{limit};
+    $self->_validate_profiles($profile);
+    $self->_validate_command_line($base_cmdline);
 
     my @profiles = (
         [ $profile->{bootprofile_default}, 'Balanced',    $profile->{grub_profile_default_flags} ],
@@ -382,13 +440,14 @@ sub _render_snapshot_menu {
             next;
         }
         my $subvolume = "$snapshot_root/$snapshot_name/$root_subvolume";
-        next SNAPSHOT if !-d $subvolume || -l $subvolume;
+        next SNAPSHOT if !-d $subvolume || (realpath($subvolume) // q{}) ne $subvolume;
         if (!$self->_snapshot_writable($subvolume)) {
             $self->logger()->warning("ignoring read-only or unreadable Timeshift snapshot: $snapshot_name");
             next;
         }
 
         my ($tag, $comment) = $self->_snapshot_metadata("$snapshot_root/$snapshot_name");
+        next SNAPSHOT if !defined $tag; # incomplete or invalid snapshot metadata
         my $title = $self->_format_snapshot_timestamp($snapshot_name);
         $title .= " [$tag]" if $tag ne q{};
         $title .= " $comment" if $comment ne q{};
@@ -408,7 +467,12 @@ sub _render_snapshot_menu {
             for my $kernel_image (@{$kernel_images}) {
                 my $kernel_version = $kernel_image;
                 $kernel_version =~ s{\A/boot/vmlinuz-}{};
-                next if !-d "$subvolume/lib/modules/$kernel_version";
+                $kernel_version =~ /\A[A-Za-z0-9_.:+~=-]+\z/
+                    or die "invalid kernel version\n";
+                my $modules = realpath("$subvolume/lib/modules/$kernel_version");
+                # Accept Debian's relative usrmerge link, never a link escaping
+                # this snapshot (including an absolute /usr/lib link).
+                next if !defined($modules) || index($modules, "$subvolume/") != 0 || !-d $modules;
                 my $kernel_id = $self->_grub_id_fragment($kernel_version);
                 my $profile_id = $self->_grub_id_fragment($profile_name);
                 push @profile_lines,
@@ -468,29 +532,52 @@ GRUB
 sub _install_menu {
     my ($self, $menu) = @_;
 
-    my $output_dir = dirname($self->output_file());
-    $self->_ensure_directory($output_dir, 0755);
-    my ($fh, $temporary) = tempfile(basename($self->output_file()) . '.XXXXXX', DIR => $output_dir, UNLINK => 0);
-    print {$fh} $menu
-        or die "cannot write generated grub-btrfs menu: $!\n";
-    close $fh or die "cannot close generated grub-btrfs menu: $!\n";
-    chmod 0644, $temporary
-        or die "cannot set generated grub-btrfs menu mode: $!\n";
-    my $checker = $self->command()->find_executable('grub-script-check');
-    if ($checker) {
-        my $status = $self->command()->run($checker, $temporary);
-        $status == 0
-            or die "generated grub-btrfs.cfg failed grub-script-check\n";
+    my $checker = $self->_program('grub-script-check');
+    my $output = $self->output_file();
+    -l $output and die "snapshot menu must not be a symbolic link\n";
+    if (-e $output) {
+        -f $output or die "snapshot menu must be a regular file\n";
     }
-    rename $temporary, $self->output_file()
-        or die "cannot publish generated grub-btrfs menu: $!\n";
+    my $output_dir = dirname($output);
+    $self->_ensure_directory($output_dir, 0755);
+    my ($fh, $temporary) = tempfile('.grub-btrfs.cfg.XXXXXX', DIR => $output_dir, UNLINK => 0);
+    my $ok = eval {
+        binmode $fh or die "cannot set snapshot menu encoding: $!\n";
+        my $bytes = encode('UTF-8', $menu, FB_CROAK);
+        print {$fh} $bytes or die "cannot write generated snapshot menu: $!\n";
+        $fh->flush() or die "cannot flush generated snapshot menu: $!\n";
+        my ($status) = $self->command()->capture(argv => [ $checker, $temporary ], timeout => 30);
+        $status == 0 or die "generated grub-btrfs.cfg failed grub-script-check\n";
+        chmod 0644, $temporary or die "cannot set generated snapshot menu mode: $!\n";
+        $fh->sync() or die "cannot synchronize generated snapshot menu: $!\n";
+        close $fh or die "cannot close generated snapshot menu: $!\n";
+        if (-f $output && compare($temporary, $output) == 0) {
+            unlink $temporary or die "cannot remove unchanged snapshot menu: $!\n";
+            return 1;
+        }
+        rename $temporary, $output or die "cannot publish generated snapshot menu: $!\n";
+        sysopen my $directory, $output_dir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW
+            or die "cannot open snapshot menu directory: $!\n";
+        $directory->sync() or die "cannot synchronize snapshot menu directory: $!\n";
+        close $directory or die "cannot close snapshot menu directory: $!\n";
+        return 1;
+    };
+    my $error = $@;
+    if (!$ok) {
+        close $fh if defined fileno($fh);
+        unlink $temporary if -e $temporary;
+        die $error;
+    }
     return;
 }
 
 sub run {
     my ($self, @argv) = @_;
 
+    local $ENV{PATH} = '/usr/sbin:/usr/bin:/sbin:/bin';
+    local $ENV{LC_ALL} = 'C';
     my $result = eval {
+        $> == 0 or die "snapshot menu refresh requires root\n";
         @argv <= 1 && (!@argv || $argv[0] eq '--wait')
             or die "unsupported grub-btrfs-refresh mode\n";
         $self->_require_absolute_path('output file', $self->output_file());
@@ -500,6 +587,7 @@ sub run {
         $self->_wait_for_timeshift_exit() if @argv && $argv[0] eq '--wait';
         my ($profile, $grub_btrfs) = $self->_load_configurations();
         return 0 if !$profile;
+        $self->_validate_profiles($profile);
         return 0 if ($profile->{dev_part_root} // q{}) eq q{} || ($profile->{dev_part_boot} // q{}) eq q{};
 
         my $snapshot_dir_rel = $grub_btrfs->{GRUB_BTRFS_SNAPSHOT_DIR} // 'timeshift-btrfs/snapshots';
@@ -510,8 +598,8 @@ sub run {
         $self->_validate_relative_subvolume_path('GRUB_BTRFS_ROOT_SUBVOLUME', $root_subvolume);
         $state_dir =~ m{\A/run/[A-Za-z0-9._/@%:+,-]+\z}
             or die "GRUB_BTRFS_STATE_DIR must be below /run and contain safe path syntax\n";
-        $snapshot_limit =~ /\A[0-9]+\z/ && $snapshot_limit <= 200
-            or die "GRUB_BTRFS_LIMIT must be numeric and not exceed 200\n";
+        $snapshot_limit =~ /\A[0-9]+\z/ && $snapshot_limit >= 1 && $snapshot_limit <= 200
+            or die "GRUB_BTRFS_LIMIT must be between 1 and 200\n";
         $snapshot_limit = int($snapshot_limit);
 
         my @kernel_images = $self->_bootable_kernel_images();
@@ -524,20 +612,19 @@ sub run {
         $root_uuid ne q{}
             or die "unable to determine UUID for $profile->{dev_part_root}\n";
         my $boot_uuid = $self->_uuid_for_device($profile->{dev_part_boot});
-        my $default_version = $kernel_images[0];
-        $default_version =~ s{\A/boot/vmlinuz-}{};
-        my $boot_search = $boot_uuid ne q{}
-            ? "search --no-floppy --fs-uuid --set=root $boot_uuid"
-            : "search --no-floppy --file --set=root /vmlinuz-$default_version";
+        $boot_uuid ne q{} or die "unable to determine the boot filesystem UUID\n";
+        my $boot_search = "search --no-floppy --fs-uuid --set=root $boot_uuid";
         my $base_cmdline = join q{ },
             map { $profile->{$_} // q{} } qw(
               grub_initramfs_flags grub_nvme_flags grub_systemd_mask_flags grub_cgroup_flags
               grub_security_core_flags grub_blacklist_flags grub_vfio_flags grub_memory_core_flags
-              grub_hardening_flags grub_aspm_flags
+              grub_hardening_flags grub_aspm_flags grub_hardware_flags
             );
 
-        $self->_cleanup_stale_mount_roots();
         $self->_ensure_directory($state_dir, 0700);
+        my @state_stat = stat $state_dir;
+        @state_stat && $state_stat[4] == $> && !($state_stat[2] & 0077)
+            or die "refresh state directory must be private and root-owned\n";
         my $mount_root = "$state_dir/root";
         $self->_cleanup_mount_path($mount_root);
         $self->_ensure_directory($mount_root, 0700);
@@ -547,18 +634,17 @@ sub run {
             rmdir $state_dir if -d $state_dir && !-l $state_dir;
         };
         my $render_result = eval {
-            my $status = $self->command()->run(
-                $self->_program('mount'),
-                '-o',
-                'ro,subvolid=5',
-                "/dev/disk/by-uuid/$root_uuid",
-                $mount_root,
+            my ($status) = $self->command()->capture(
+                argv => [ $self->_program('mount'), '-t', 'btrfs', '-o',
+                    'ro,nosuid,nodev,noexec,subvolid=5',
+                    "/dev/disk/by-uuid/$root_uuid", $mount_root ],
+                timeout => 30,
             );
             $status == 0
                 or die "cannot mount Btrfs top-level subvolume for GRUB snapshot refresh\n";
             $mounted = 1;
             my $snapshot_root = "$mount_root/$snapshot_dir_rel";
-            if (!-d $snapshot_root || -l $snapshot_root) {
+            if (!-d $snapshot_root || (realpath($snapshot_root) // q{}) ne $snapshot_root) {
                 $self->_install_menu($self->_fallback_menu());
                 return 0;
             }
@@ -577,8 +663,10 @@ sub run {
             return 0;
         };
         my $error = $@;
-        $cleanup->();
+        my $cleaned = eval { $cleanup->(); 1 };
+        my $cleanup_error = $@;
         die $error if !$render_result && $error;
+        die $cleanup_error if !$cleaned;
         return $render_result;
     };
 

@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+LC_ALL=C
+export PATH LC_ALL
 
 profile_config=/etc/default/grub-profiles.conf
 
@@ -16,11 +19,7 @@ shell_single_quote() {
   printf "'%s'\n" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
-write_profile_config() {
-  tmp=$(mktemp)
-  trap 'rm -f "$tmp"' EXIT HUP INT TERM
-
-  {
+emit_profile_config() {
     printf 'dev_part_boot=%s\n' "$(shell_single_quote "$dev_part_boot")"
     printf 'dev_part_root=%s\n' "$(shell_single_quote "$dev_part_root")"
     printf 'dev_part_efi=%s\n' "$(shell_single_quote "$dev_part_efi")"
@@ -46,16 +45,69 @@ write_profile_config() {
     printf 'rescue_usb_uuid=%s\n' "$(shell_single_quote "$rescue_usb_uuid")"
     printf 'grub_gfxpayload_linux=%s\n' "$(shell_single_quote "$grub_gfxpayload_linux")"
     printf 'dualboot_enabled=%s\n' "$(shell_single_quote "$dualboot_enabled")"
-  } >"$tmp"
+}
 
+require_trusted_file() {
+  trusted_path=$1
+  [ -f "$trusted_path" ] && [ ! -L "$trusted_path" ] ||
+    fatal "GRUB input is not a direct regular file: $trusted_path"
+  [ "$(find -P "$trusted_path" -maxdepth 0 -printf %U)" = 0 ] ||
+    fatal "GRUB input must be root-owned: $trusted_path"
+  trusted_mode=$(find -P "$trusted_path" -maxdepth 0 -printf %m)
+  case "$trusted_mode" in
+    [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7]) ;;
+    *) fatal "invalid GRUB input mode: $trusted_path" ;;
+  esac
+  [ $((0$trusted_mode & 0022)) -eq 0 ] ||
+    fatal "GRUB input is writable by non-root users: $trusted_path"
+}
+
+validate_profile_values() {
+  for profile_value in "$bootprofile_default" "$bootprofile_performance" "$bootprofile_hardened" "$grub_default_entry"; do
+    case "$profile_value" in
+      ''|*[!A-Za-z0-9_.:-]*) fatal "invalid GRUB profile identifier" ;;
+    esac
+  done
+  for flags_value in "$grub_root_flags" "$grub_initramfs_flags" "$grub_nvme_flags" \
+    "$grub_cgroup_flags" "$grub_security_core_flags" "$grub_blacklist_flags" \
+    "$grub_vfio_flags" "$grub_memory_core_flags" "$grub_hardening_flags" \
+    "$grub_aspm_flags" "$grub_systemd_mask_flags" "$grub_profile_default_flags" \
+    "$grub_profile_performance_flags" "$grub_profile_hardened_flags" "${grub_hardware_flags:-}"; do
+    # These values become unquoted GRUB arguments, not shell programs. Reject
+    # controls, quotes, expansions and GRUB metacharacters before emitting them.
+    case "$flags_value" in
+      *[!A-Za-z0-9_.,:/=@%+~!?\[\]\ -]*) fatal "unsafe GRUB command-line flags" ;;
+    esac
+  done
+  for device_value in "$dev_part_boot" "$dev_part_root" "$dev_part_efi"; do
+    case "$device_value" in
+      /dev/*) ;;
+      *) fatal "GRUB device must be below /dev" ;;
+    esac
+    case "$device_value" in
+      *[!A-Za-z0-9_./:+-]*|*'/../'*|*'/..'|*'/./'*|*'/.'|*'//'*) fatal "unsafe GRUB device path" ;;
+    esac
+  done
+  case "$grub_gfxpayload_linux" in
+    ''|*[!A-Za-z0-9_,.x-]*) fatal "invalid GRUB graphics payload" ;;
+  esac
+}
+
+write_profile_config() {
   install -d -m 0755 /etc/default
-  install -m 0600 "$tmp" "$profile_config"
-  rm -f "$tmp"
+  [ ! -L "$profile_config" ] || fatal "GRUB profile config must not be a symlink"
+  tmp=$(mktemp /etc/default/.grub-profiles.conf.XXXXXX)
+  trap 'rm -f -- "$tmp"' EXIT
+  trap 'exit 1' HUP INT TERM
+  emit_profile_config >"$tmp"
+  chmod 0600 "$tmp"
+  mv -fT -- "$tmp" "$profile_config"
   trap - EXIT HUP INT TERM
 }
 
 load_profile_config() {
   [ -r "$profile_config" ] || fatal "GRUB profile config is missing: $profile_config"
+  require_trusted_file "$profile_config"
   # shellcheck disable=SC1090
   . "$profile_config"
 }
@@ -77,12 +129,18 @@ disable_duplicate_custom_source() {
 }
 
 install_custom_generator_script() {
-  install -m 0755 "$0" /etc/grub.d/40_custom
+  tmp=$(mktemp /etc/grub.d/.40_custom.XXXXXX)
+  trap 'rm -f -- "$tmp"' EXIT
+  trap 'exit 1' HUP INT TERM
+  install -m 0755 "$0" "$tmp"
+  mv -fT -- "$tmp" /etc/grub.d/40_custom
+  trap - EXIT HUP INT TERM
   disable_duplicate_custom_source
 }
 
 emit_target=
 emit_tmp=
+export_snapshot_config=false
 case "$#" in
   25)
     dev_part_boot=$1
@@ -110,6 +168,7 @@ case "$#" in
     rescue_usb_uuid=${23}
     grub_gfxpayload_linux=${24}
     dualboot_enabled=${25}
+    validate_profile_values
     write_profile_config
     install -d -m 0755 /boot/grub /etc/grub.d
     ensure_grubenv
@@ -119,6 +178,11 @@ case "$#" in
   0)
     load_profile_config
     disable_duplicate_custom_source
+    ;;
+  1)
+    [ "$1" = --snapshot-config ] || fatal "unsupported GRUB generator option"
+    load_profile_config
+    export_snapshot_config=true
     ;;
   *)
     fatal "invalid GRUB profile installer argument count: $#"
@@ -161,10 +225,18 @@ load_hardware_profile_flags() {
   grub_profile_hardened_flags="${grub_profile_hardened_flags}${GRUB_PROFILE_HARDENED_FLAGS:+ $GRUB_PROFILE_HARDENED_FLAGS}"
 }
 load_hardware_profile_flags
+validate_profile_values
+
+if [ "$export_snapshot_config" = true ]; then
+  emit_profile_config
+  printf 'grub_hardware_flags=%s\n' "$(shell_single_quote "$grub_hardware_flags")"
+  exit 0
+fi
 
 if [ -n "$emit_target" ]; then
-  emit_tmp=$(mktemp)
-  trap 'rm -f "$emit_tmp"' EXIT HUP INT TERM
+  emit_tmp=$(mktemp /boot/grub/.custom.cfg.XXXXXX)
+  trap 'rm -f -- "$emit_tmp"' EXIT
+  trap 'exit 1' HUP INT TERM
   exec >"$emit_tmp"
 fi
 
@@ -238,6 +310,11 @@ distro_title=$(grub_single_quote "$distro_title_raw")
 boot_uuid=$(blkid -s UUID -o value "$dev_part_boot" 2>/dev/null || true)
 root_uuid=$(blkid -s UUID -o value "$dev_part_root" 2>/dev/null || true)
 efi_uuid=$(blkid -s UUID -o value "$dev_part_efi" 2>/dev/null || true)
+for uuid_value in "$boot_uuid" "$root_uuid" "$efi_uuid"; do
+  case "$uuid_value" in
+    *[!A-Za-z0-9-]*) fatal "invalid filesystem UUID returned by blkid" ;;
+  esac
+done
 mokmanager_path=__INSTALLER_GRUB_MOK_MANAGER_EFI_PATH__
 rescue_usb_efi_path=__INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH__
 skip_mok_signing=false
@@ -370,7 +447,11 @@ emit_btrfs_snapshot_menu() {
 
   cat <<'SNAPSHOTS_EOF'
 submenu 'BTRFS Snapshots' --id 'snapshots-btrfs' --class snapshots --class btrfs --class os {
-    configfile "${prefix}/grub-btrfs.cfg"
+    if [ -f "${prefix}/grub-btrfs.cfg" ]; then
+        configfile "${prefix}/grub-btrfs.cfg"
+    else
+        echo 'The snapshot menu is not available yet. Boot normally to refresh it.'
+    fi
 }
 SNAPSHOTS_EOF
 }
@@ -541,7 +622,9 @@ fi
 FIRMWARE_EOF
 
 if [ -n "$emit_target" ]; then
-  install -m 0644 "$emit_tmp" "$emit_target"
-  rm -f "$emit_tmp"
+  command -v grub-script-check >/dev/null 2>&1 || fatal "grub-script-check is unavailable"
+  grub-script-check "$emit_tmp" || fatal "generated custom GRUB menu failed syntax validation"
+  chmod 0644 "$emit_tmp"
+  mv -fT -- "$emit_tmp" "$emit_target"
   trap - EXIT HUP INT TERM
 fi
