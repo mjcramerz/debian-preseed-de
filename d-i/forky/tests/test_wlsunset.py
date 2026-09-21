@@ -352,9 +352,9 @@ class InstallerTests(unittest.TestCase):
                                '. "$1"; desktop_validate_wlsunset_policy', 'fixture',
                                str(FORKY / 'scripts/desktop/detect.sh')], env=env, capture_output=True, text=True, timeout=10)
 
-    def test_all_thirteen_profiles_render_every_setting(self):
+    def test_all_ten_profiles_render_every_setting(self):
         profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         for profile in profiles:
             with self.subTest(profile=profile.name):
                 result = subprocess.run(['/bin/sh', '-c',
@@ -399,7 +399,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_autostart_order_and_app_armor_transitions(self):
         script = (TARGET / 'usr/local/bin/labwc-autostart').read_text()
-        call = script.index('/usr/local/bin/labwc-wlsunset start')
+        call = script.index('session_systemctl start labwc-wlsunset-start.service')
         for step in ('sync_user_activation_environment\n', 'start_session_target\n', 'wait_for_wayland_output\n'):
             self.assertLess(script.rindex(step), call)
         policy = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
@@ -441,11 +441,12 @@ class InstallerTests(unittest.TestCase):
         blocks = [(selectors, body) for selectors, body in matches if '#custom-window-switcher:hover' in selectors]
         self.assertEqual(len(blocks), 1)
         selectors, body = blocks[0]
-        for expected in ('#custom-launcher:hover', '#workspaces button:hover', '#custom-wayscriber:hover', '#custom-apps:hover'):
-            self.assertIn(expected, selectors)
-        self.assertIn('linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92))', body)
-        self.assertIn('color: #08111f;', body)
-        self.assertNotIn('alpha(@emeraldgreen, 0.15)', css)
+        self.assertEqual(selectors.strip(), '#custom-window-switcher:hover')
+        self.assertIn('background: rgba(15, 56, 39, 0.86);', body)
+        self.assertIn('border-color: @emeraldgreen;', body)
+        self.assertNotIn('color: #08111f;', body)
+        self.assertNotIn('#workspaces button:hover', selectors)
+
 
 
 if __name__ == '__main__': unittest.main()

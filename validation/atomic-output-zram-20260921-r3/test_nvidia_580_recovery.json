@@ -1,0 +1,13 @@
+{
+  "name": "test_nvidia_580_recovery",
+  "source": "d-i/forky/tests/test_nvidia_580_recovery.py",
+  "returncode": 0,
+  "seconds": 0.23,
+  "tests": 10,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_nvidia_580_recovery.log",
+  "reused_completed_run": true
+}

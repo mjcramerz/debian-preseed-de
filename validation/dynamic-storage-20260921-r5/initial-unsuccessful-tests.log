@@ -1,0 +1,520 @@
+Intermediate attempts retained for traceability; see final module records for rerun outcomes.
+
+===== d-i/forky/tests/test_codex_clone_staging.py | returncode=1 =====
+test_allocation_failure_does_not_invoke_ssh (test_codex_clone_staging.CloneStagingTests.test_allocation_failure_does_not_invoke_ssh) ... ok
+test_bash_caller (test_codex_clone_staging.CloneStagingTests.test_bash_caller) ... ok
+test_busybox_ash_and_applets (test_codex_clone_staging.CloneStagingTests.test_busybox_ash_and_applets) ... ok
+test_checked_child_umask_does_not_change_secret_parent_or_default_child (test_codex_clone_staging.CloneStagingTests.test_checked_child_umask_does_not_change_secret_parent_or_default_child) ... ok
+test_checked_failed_child_keeps_private_parent_umask (test_codex_clone_staging.CloneStagingTests.test_checked_failed_child_keeps_private_parent_umask) ... ok
+test_clone_failure_cleans_with_no_stat_on_installer_path (test_codex_clone_staging.CloneStagingTests.test_clone_failure_cleans_with_no_stat_on_installer_path) ... ok
+test_clone_failure_removes_partial_checkout_and_prevents_publication (test_codex_clone_staging.CloneStagingTests.test_clone_failure_removes_partial_checkout_and_prevents_publication) ... ok
+test_either_chmod_failure_stops_before_ssh_and_cleans_stage (test_codex_clone_staging.CloneStagingTests.test_either_chmod_failure_stops_before_ssh_and_cleans_stage) ... ok
+test_empty_or_malformed_metadata_fails_closed_without_wrong_owner (test_codex_clone_staging.CloneStagingTests.test_empty_or_malformed_metadata_fails_closed_without_wrong_owner) ... ok
+test_final_metadata_read_failure_is_not_wrong_mode (test_codex_clone_staging.CloneStagingTests.test_final_metadata_read_failure_is_not_wrong_mode) ... ok
+test_forbidden_installer_stat_is_never_called (test_codex_clone_staging.CloneStagingTests.test_forbidden_installer_stat_is_never_called) ... ok
+test_gnu_allocator_normalizes_stage_and_preserves_shared_root (test_codex_clone_staging.CloneStagingTests.test_gnu_allocator_normalizes_stage_and_preserves_shared_root) ... ok
+test_installer_path_without_stat_succeeds_in_dash_ash_and_bash (test_codex_clone_staging.CloneStagingTests.test_installer_path_without_stat_succeeds_in_dash_ash_and_bash) ... ok
+test_nonroot_allocator_output_is_rejected_without_repair (test_codex_clone_staging.CloneStagingTests.test_nonroot_allocator_output_is_rejected_without_repair) ... ok
+test_nonroot_stage_is_rejected_without_stat (test_codex_clone_staging.CloneStagingTests.test_nonroot_stage_is_rejected_without_stat) ... ok
+test_original_setgid_inheritance_and_gnu_chmod_trap (test_codex_clone_staging.CloneStagingTests.test_original_setgid_inheritance_and_gnu_chmod_trap) ... ok
+test_owner_metadata_read_failure_is_not_wrong_ownership (test_codex_clone_staging.CloneStagingTests.test_owner_metadata_read_failure_is_not_wrong_ownership) ... ok
+test_post_clone_failure_still_cleans (test_codex_clone_staging.CloneStagingTests.test_post_clone_failure_still_cleans) ... ok
+test_published_root_owned_config_remains_readable_by_desktop_user (test_codex_clone_staging.CloneStagingTests.test_published_root_owned_config_remains_readable_by_desktop_user) ... ok
+test_publisher_failure_preserves_failure_status_and_cleans (test_codex_clone_staging.CloneStagingTests.test_publisher_failure_preserves_failure_status_and_cleans) ... ok
+test_readable_checkout_is_still_hidden_by_private_stage (test_codex_clone_staging.CloneStagingTests.test_readable_checkout_is_still_hidden_by_private_stage) ... ok
+test_real_git_clone_through_production_allocator_and_validator (test_codex_clone_staging.CloneStagingTests.test_real_git_clone_through_production_allocator_and_validator) ... ok
+test_real_git_clone_with_no_stat_on_installer_path (test_codex_clone_staging.CloneStagingTests.test_real_git_clone_with_no_stat_on_installer_path) ... ERROR
+test_real_git_transport_failure_stops_and_cleans (test_codex_clone_staging.CloneStagingTests.test_real_git_transport_failure_stops_and_cleans) ... ok
+test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) ... ok
+test_stage_normalization_does_not_change_caller_umask (test_codex_clone_staging.CloneStagingTests.test_stage_normalization_does_not_change_caller_umask) ... ok
+test_successful_but_ineffective_chmod_is_not_trusted (test_codex_clone_staging.CloneStagingTests.test_successful_but_ineffective_chmod_is_not_trusted) ... ok
+test_symlink_stage_is_rejected_without_changing_referent (test_codex_clone_staging.CloneStagingTests.test_symlink_stage_is_rejected_without_changing_referent) ... ok
+test_validator_does_not_relax_path_allowlist (test_codex_clone_staging.CloneStagingTests.test_validator_does_not_relax_path_allowlist) ... ok
+test_validator_keeps_rejecting_unsafe_modes_including_inherited_setgid (test_codex_clone_staging.CloneStagingTests.test_validator_keeps_rejecting_unsafe_modes_including_inherited_setgid) ... ok
+test_validator_rejects_existing_checkout_or_dangling_symlink (test_codex_clone_staging.CloneStagingTests.test_validator_rejects_existing_checkout_or_dangling_symlink) ... ok
+test_validator_rejects_nonroot_parent (test_codex_clone_staging.CloneStagingTests.test_validator_rejects_nonroot_parent) ... ok
+test_validator_rejects_symlink_parent_without_chmod_target (test_codex_clone_staging.CloneStagingTests.test_validator_rejects_symlink_parent_without_chmod_target) ... ok
+
+======================================================================
+ERROR: test_real_git_clone_with_no_stat_on_installer_path (test_codex_clone_staging.CloneStagingTests.test_real_git_clone_with_no_stat_on_installer_path)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 333, in test_real_git_clone_with_no_stat_on_installer_path
+    self.prepare_git_chroot()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_codex_clone_staging.py", line 210, in prepare_git_chroot
+    probe = subprocess.run([sys.executable, '-c',
+                            'import os,sys;os.chroot(sys.argv[1])', str(self.target)],
+                           capture_output=True, timeout=5)
+  File "/usr/lib/python3.13/subprocess.py", line 556, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1222, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 2129, in _communicate
+    self._check_timeout(endtime, orig_timeout, stdout, stderr)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 1269, in _check_timeout
+    raise TimeoutExpired(
+    ...<2 lines>...
+            stderr=b''.join(stderr_seq) if stderr_seq else None)
+subprocess.TimeoutExpired: Command '['/opt/pyvenv/bin/python3', '-c', 'import os,sys;os.chroot(sys.argv[1])', '/tmp/codex-clone-stage-mgp6tzsr/target']' timed out after 5 seconds
+
+----------------------------------------------------------------------
+Ran 33 tests in 52.657s
+
+FAILED (errors=1)
+
+===== d-i/forky/tests/test_debconf_protocol.py | returncode=124 =====
+test_all_generated_phase_commands_preserve_debconf_roundtrip (test_debconf_protocol.DebconfProtocolTests.test_all_generated_phase_commands_preserve_debconf_roundtrip) ... ok
+test_bounded_installer_selector_preserves_live_stdin (test_debconf_protocol.DebconfProtocolTests.test_bounded_installer_selector_preserves_live_stdin) ... ok
+test_canonical_debconf_copies_are_identical (test_debconf_protocol.DebconfProtocolTests.test_canonical_debconf_copies_are_identical) ... ok
+test_cleanup_retains_root_failure_and_rejects_successful_work_with_failed_cleanup (test_debconf_protocol.DebconfProtocolTests.test_cleanup_retains_root_failure_and_rejects_successful_work_with_failed_cleanup) ... ok
+test_dash_supervisor_also_preserves_busybox_client_protocol (test_debconf_protocol.DebconfProtocolTests.test_dash_supervisor_also_preserves_busybox_client_protocol) ... ok
+test_eof_reply_is_fatal_without_illegal_return_or_secret_leak (test_debconf_protocol.DebconfProtocolTests.test_eof_reply_is_fatal_without_illegal_return_or_secret_leak) ... ok
+test_failed_selector_in_preseed_command_holds_without_reentry (test_debconf_protocol.DebconfProtocolTests.test_failed_selector_in_preseed_command_holds_without_reentry) ... ok
+test_failed_selector_not_retried_and_diagnostics_remain_private (test_debconf_protocol.DebconfProtocolTests.test_failed_selector_not_retried_and_diagnostics_remain_private) ... ok
+test_full_debian_preseed_f2fs_arm64_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_f2fs_arm64_apply) ... ok
+test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply) ... ok
+test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply) ... ok
+test_full_debian_preseed_vm_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_vm_apply) ... 
+===== d-i/forky/tests/test_log_followup_20260915.py | returncode=1 =====
+test_blocked_output_cannot_prevent_stop_escalation (test_log_followup_20260915.SpotifySupervisionTests.test_blocked_output_cannot_prevent_stop_escalation) ... ok
+test_clean_child_that_closes_stdout_early_is_reaped (test_log_followup_20260915.SpotifySupervisionTests.test_clean_child_that_closes_stdout_early_is_reaped) ... ok
+test_exact_handoff_on_real_pipe (test_log_followup_20260915.SpotifySupervisionTests.test_exact_handoff_on_real_pipe) ... ok
+test_normal_large_output_is_forwarded_without_loss (test_log_followup_20260915.SpotifySupervisionTests.test_normal_large_output_is_forwarded_without_loss) ... ok
+test_output_error_kills_and_reaps_child_and_restores_handlers (test_log_followup_20260915.SpotifySupervisionTests.test_output_error_kills_and_reaps_child_and_restores_handlers) ... ok
+test_real_file_output_and_descriptor_flags_are_preserved (test_log_followup_20260915.SpotifySupervisionTests.test_real_file_output_and_descriptor_flags_are_preserved) ... ok
+test_sigint_and_hup_are_forwarded (test_log_followup_20260915.SpotifySupervisionTests.test_sigint_and_hup_are_forwarded) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+test_real_proxy_allows_only_the_configured_tray_name (test_log_followup_20260915.TutaLiveProxyTests.test_real_proxy_allows_only_the_configured_tray_name) ... skipped 'live filtered-bus test requires preinstalled dbus-daemon, busctl and xdg-dbus-proxy'
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+----------------------------------------------------------------------
+Ran 9 tests in 23.645s
+
+FAILED (failures=1, skipped=1)
+
+===== d-i/forky/tests/test_repository_integrity.py | returncode=1 =====
+test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current) ... FAIL
+test_class_dependency_references_are_local (test_repository_integrity.RepositoryIntegrityTests.test_class_dependency_references_are_local) ... ok
+test_each_flat_profile_composes (test_repository_integrity.RepositoryIntegrityTests.test_each_flat_profile_composes) ... ok
+test_layout_only_expected_scopes (test_repository_integrity.RepositoryIntegrityTests.test_layout_only_expected_scopes) ... ok
+test_no_legacy_path_references_in_active_installer (test_repository_integrity.RepositoryIntegrityTests.test_no_legacy_path_references_in_active_installer) ... ok
+test_no_symlinks_published (test_repository_integrity.RepositoryIntegrityTests.test_no_symlinks_published) ... ok
+test_preseed_checker_imports_with_python_safe_path (test_repository_integrity.RepositoryIntegrityTests.test_preseed_checker_imports_with_python_safe_path) ... ok
+test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) ... 
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14-duo.env') ... FAIL
+test_role_scoped_entries (test_repository_integrity.RepositoryIntegrityTests.test_role_scoped_entries) ... ok
+test_validator_counts_skips_from_failed_unittest_run (test_repository_integrity.RepositoryIntegrityTests.test_validator_counts_skips_from_failed_unittest_run) ... ok
+
+======================================================================
+FAIL: test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 99, in test_build_products_are_current
+    self.assertEqual(result.returncode,0,result.stderr+result.stdout)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 0 : stale generated files; run python3 tools/build.py: payload.tar.gz, payload.manifest, preseed.cfg
+resctl-bench: 13 profiles have independently valid release pins (offline)
+Browser artifacts current
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '35e76eb4798f64a047bbcce7c0f641da60a3be33cde71b6c5481497149da8a41' != '7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94'
+- 35e76eb4798f64a047bbcce7c0f641da60a3be33cde71b6c5481497149da8a41
++ 7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '376164dbe87296e857c1920cbeb8fb101bc877b4df864343514cefb7735a6bab' != '2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620'
+- 376164dbe87296e857c1920cbeb8fb101bc877b4df864343514cefb7735a6bab
++ 2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '7985eb386d6043fb30ad6273f16e712730301d8e3b9405b88eee51c05f0f7daf' != 'e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b'
+- 7985eb386d6043fb30ad6273f16e712730301d8e3b9405b88eee51c05f0f7daf
++ e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '6e85d0785139a9fc71d75d122aee0fa7e8d1096a9414df250590c53dec95d631' != 'f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f'
+- 6e85d0785139a9fc71d75d122aee0fa7e8d1096a9414df250590c53dec95d631
++ f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa' != '859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7'
+- 440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa
++ 859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '9019ee7040fd8010946d9a58b3dfde56bb646aed955e53acf87292172e61b039' != 'd3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe'
+- 9019ee7040fd8010946d9a58b3dfde56bb646aed955e53acf87292172e61b039
++ d3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '3a4dfeb29a06c866ed775afe317730b119f7f73188c155a53a7479c4097c1216' != 'fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d'
+- 3a4dfeb29a06c866ed775afe317730b119f7f73188c155a53a7479c4097c1216
++ fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'c5d18ec58aea418d6584b1a3fcb617e0c7557cbce93e24bfe4bc9e6610fb63e1' != 'fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd'
+- c5d18ec58aea418d6584b1a3fcb617e0c7557cbce93e24bfe4bc9e6610fb63e1
++ fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'e892159a23c397d35fa8c2cd7478fbc891aa70bd41a3cc7531ccfdaaa04bea63' != '2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd'
+- e892159a23c397d35fa8c2cd7478fbc891aa70bd41a3cc7531ccfdaaa04bea63
++ 2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'de51299d6e76b18f0b6c33ae8823b8aba4b38ecc81f5f8538a9f1b4d848874c3' != '611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf'
+- de51299d6e76b18f0b6c33ae8823b8aba4b38ecc81f5f8538a9f1b4d848874c3
++ 611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa' != '859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7'
+- 440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa
++ 859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '5eb96734f2fffa4fb3bd201ba8121bf87cad6d2d3a8c839e5d44809cdc851fea' != '92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397'
+- 5eb96734f2fffa4fb3bd201ba8121bf87cad6d2d3a8c839e5d44809cdc851fea
++ 92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 18.045s
+
+FAILED (failures=13)
+
+===== d-i/forky/tests/test_repository_transport.py | returncode=1 =====
+test_complete_local_bootstrap_and_flat_profile (test_repository_transport.RealBootstrapTests.test_complete_local_bootstrap_and_flat_profile) ... ok
+test_complete_short_url_bootstrap_fetches_snapshot_once (test_repository_transport.RealBootstrapTests.test_complete_short_url_bootstrap_fetches_snapshot_once) ... ok
+test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker) ... FAIL
+test_archive_path_traversal_is_rejected (test_repository_transport.SnapshotTests.test_archive_path_traversal_is_rejected) ... ok
+test_archive_pin_mismatch_fails_without_ready_marker (test_repository_transport.SnapshotTests.test_archive_pin_mismatch_fails_without_ready_marker) ... ok
+test_duplicate_archive_member_is_rejected (test_repository_transport.SnapshotTests.test_duplicate_archive_member_is_rejected) ... ok
+test_invalid_installer_shell_fails_before_ready_marker (test_repository_transport.SnapshotTests.test_invalid_installer_shell_fails_before_ready_marker) ... ok
+test_local_edit_requires_rebuild (test_repository_transport.SnapshotTests.test_local_edit_requires_rebuild) ... ok
+test_manifest_pin_mismatch_fails_without_ready_marker (test_repository_transport.SnapshotTests.test_manifest_pin_mismatch_fails_without_ready_marker) ... ok
+test_missing_snapshot_file_cannot_fall_back_to_network (test_repository_transport.SnapshotTests.test_missing_snapshot_file_cannot_fall_back_to_network) ... ok
+test_snapshot_cache_reuses_archive_and_manifest (test_repository_transport.SnapshotTests.test_snapshot_cache_reuses_archive_and_manifest) ... ok
+test_symlink_member_is_rejected_before_extraction (test_repository_transport.SnapshotTests.test_symlink_member_is_rejected_before_extraction) ... ok
+test_busybox_wget_redirects (test_repository_transport.TransportTests.test_busybox_wget_redirects) ... ok
+test_conflicting_sources_fail_before_network (test_repository_transport.TransportTests.test_conflicting_sources_fail_before_network) ... ok
+test_exact_base_hash_prevents_sanitized_cache_collisions (test_repository_transport.TransportTests.test_exact_base_hash_prevents_sanitized_cache_collisions) ... ok
+test_failed_http_fetch_preserves_existing_destination (test_repository_transport.TransportTests.test_failed_http_fetch_preserves_existing_destination) ... ok
+test_file_and_preseed_file_aliases (test_repository_transport.TransportTests.test_file_and_preseed_file_aliases) ... ok
+test_file_uri (test_repository_transport.TransportTests.test_file_uri) ... ok
+test_https_downgrade_and_non_http_redirect_are_rejected (test_repository_transport.TransportTests.test_https_downgrade_and_non_http_redirect_are_rejected) ... ok
+test_library_adapters_share_one_get_and_accept_empty_profile (test_repository_transport.TransportTests.test_library_adapters_share_one_get_and_accept_empty_profile) ... ok
+test_local_symlink_escape_is_rejected (test_repository_transport.TransportTests.test_local_symlink_escape_is_rejected) ... ok
+test_missing_source_and_missing_local_preseed_fail (test_repository_transport.TransportTests.test_missing_source_and_missing_local_preseed_fail) ... ok
+test_persisted_effective_url_wins_without_re_download (test_repository_transport.TransportTests.test_persisted_effective_url_wins_without_re_download) ... ok
+test_raw_style_ref_path_is_not_truncated (test_repository_transport.TransportTests.test_raw_style_ref_path_is_not_truncated) ... ok
+test_redirect_fixture_has_explicit_close_framing (test_repository_transport.TransportTests.test_redirect_fixture_has_explicit_close_framing) ... ok
+test_shortener_and_relative_redirect_chain (test_repository_transport.TransportTests.test_shortener_and_relative_redirect_chain) ... ok
+test_tls_verification_default_and_bypass_is_rejected (test_repository_transport.TransportTests.test_tls_verification_default_and_bypass_is_rejected) ... ok
+test_url_and_relative_path_validation (test_repository_transport.TransportTests.test_url_and_relative_path_validation) ... ok
+
+======================================================================
+FAIL: test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_repository_transport.py", line 391, in test_opposite_role_fails_before_preflight_marker
+    self.assertTrue(wait_file(failure), 'bootstrap did not retain its fatal record')
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true : bootstrap did not retain its fatal record
+
+----------------------------------------------------------------------
+Ran 28 tests in 54.866s
+
+FAILED (failures=1)
+
+===== d-i/forky/tests/test_resctl_bench_release_20260917.py | returncode=1 =====
+test_bad_sha256_gets_a_sha256_specific_error (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_sha256_gets_a_sha256_specific_error) ... ok
+test_bad_url_diagnostic_does_not_blame_a_valid_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_url_diagnostic_does_not_blame_a_valid_sha256) ... ok
+test_build_id_is_not_mistaken_for_archive_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_is_not_mistaken_for_archive_sha256) ... ok
+test_build_id_shape_is_strictly_bounded (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_shape_is_strictly_bounded) ... ok
+test_exact_asset_directory_shape_unpacks_and_verifies_all_members (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_asset_directory_shape_unpacks_and_verifies_all_members) ... ok
+test_exact_user_requested_pins_pass_runtime_policy (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_user_requested_pins_pass_runtime_policy) ... ok
+test_invalid_policy_fails_before_root_network_or_installation (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_invalid_policy_fails_before_root_network_or_installation) ... ok
+test_legacy_exact_basename_remains_accepted (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_legacy_exact_basename_remains_accepted) ... ok
+test_real_mismatch_reports_expected_and_actual_digests (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_real_mismatch_reports_expected_and_actual_digests) ... ok
+test_validate_only_is_read_only_and_does_not_require_root (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_validate_only_is_read_only_and_does_not_require_root) ... ok
+test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected) ... ok
+test_all_actual_profiles_pass_independent_preflight (test_resctl_bench_release_20260917.ProfilePreflightTests.test_all_actual_profiles_pass_independent_preflight) ... ok
+test_build_and_build_check_reject_invalid_pins_before_touching_products (test_resctl_bench_release_20260917.ProfilePreflightTests.test_build_and_build_check_reject_invalid_pins_before_touching_products) ... ok
+test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement (test_resctl_bench_release_20260917.ProfilePreflightTests.test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement) ... ok
+test_comments_are_not_assignments (test_resctl_bench_release_20260917.ProfilePreflightTests.test_comments_are_not_assignments) ... ok
+test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) ... 
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-p15s-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-p15s.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-hp14.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-hp14-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360.env') ... FAIL
+test_each_duplicate_pin_is_rejected_even_when_values_match (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_duplicate_pin_is_rejected_even_when_values_match) ... ok
+test_each_missing_pin_is_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_missing_pin_is_rejected) ... ok
+test_empty_profile_set_and_symlink_profile_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_empty_profile_set_and_symlink_profile_are_rejected) ... ok
+test_independently_valid_different_profile_pins_are_accepted (test_resctl_bench_release_20260917.ProfilePreflightTests.test_independently_valid_different_profile_pins_are_accepted) ... ok
+test_nonliteral_shell_expressions_never_execute (test_resctl_bench_release_20260917.ProfilePreflightTests.test_nonliteral_shell_expressions_never_execute) ... ok
+test_single_and_multiple_matching_profiles_pass (test_resctl_bench_release_20260917.ProfilePreflightTests.test_single_and_multiple_matching_profiles_pass) ... ok
+test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected) ... ok
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94' != '35e76eb4798f64a047bbcce7c0f641da60a3be33cde71b6c5481497149da8a41'
+- 7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94
++ 35e76eb4798f64a047bbcce7c0f641da60a3be33cde71b6c5481497149da8a41
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-p15s-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b' != '7985eb386d6043fb30ad6273f16e712730301d8e3b9405b88eee51c05f0f7daf'
+- e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b
++ 7985eb386d6043fb30ad6273f16e712730301d8e3b9405b88eee51c05f0f7daf
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd' != 'c5d18ec58aea418d6584b1a3fcb617e0c7557cbce93e24bfe4bc9e6610fb63e1'
+- fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd
++ c5d18ec58aea418d6584b1a3fcb617e0c7557cbce93e24bfe4bc9e6610fb63e1
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf' != 'de51299d6e76b18f0b6c33ae8823b8aba4b38ecc81f5f8538a9f1b4d848874c3'
+- 611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf
++ de51299d6e76b18f0b6c33ae8823b8aba4b38ecc81f5f8538a9f1b4d848874c3
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-p15s.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f' != '6e85d0785139a9fc71d75d122aee0fa7e8d1096a9414df250590c53dec95d631'
+- f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f
++ 6e85d0785139a9fc71d75d122aee0fa7e8d1096a9414df250590c53dec95d631
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'd3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe' != '9019ee7040fd8010946d9a58b3dfde56bb646aed955e53acf87292172e61b039'
+- d3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe
++ 9019ee7040fd8010946d9a58b3dfde56bb646aed955e53acf87292172e61b039
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d' != '3a4dfeb29a06c866ed775afe317730b119f7f73188c155a53a7479c4097c1216'
+- fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d
++ 3a4dfeb29a06c866ed775afe317730b119f7f73188c155a53a7479c4097c1216
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-hp14.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620' != '376164dbe87296e857c1920cbeb8fb101bc877b4df864343514cefb7735a6bab'
+- 2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620
++ 376164dbe87296e857c1920cbeb8fb101bc877b4df864343514cefb7735a6bab
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-hp14-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397' != '5eb96734f2fffa4fb3bd201ba8121bf87cad6d2d3a8c839e5d44809cdc851fea'
+- 92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397
++ 5eb96734f2fffa4fb3bd201ba8121bf87cad6d2d3a8c839e5d44809cdc851fea
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7' != '440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa'
+- 859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7
++ 440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd' != 'e892159a23c397d35fa8c2cd7478fbc891aa70bd41a3cc7531ccfdaaa04bea63'
+- 2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd
++ e892159a23c397d35fa8c2cd7478fbc891aa70bd41a3cc7531ccfdaaa04bea63
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='f2fs-de-x360.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7' != '440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa'
+- 859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7
++ 440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa
+
+
+----------------------------------------------------------------------
+Ran 23 tests in 11.606s
+
+FAILED (failures=12)

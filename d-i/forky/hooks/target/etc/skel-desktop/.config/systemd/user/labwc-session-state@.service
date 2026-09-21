@@ -9,7 +9,9 @@ Type=oneshot
 Environment=XDG_RUNTIME_DIR=%t
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
 ExecStart=/usr/local/libexec/labwc-session-state %i
-TimeoutStartSec=145s
+TimeoutStartSec=285s
+# 77 is a verified user/save veto, not permission to continue shutdown.
+SuccessExitStatus=77
 TimeoutStopSec=5s
 KillMode=control-group
 UMask=0077

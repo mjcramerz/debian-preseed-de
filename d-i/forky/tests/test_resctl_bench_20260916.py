@@ -81,10 +81,10 @@ class ReleasePolicyTests(unittest.TestCase):
     def setUp(self):
         self.installer = module()
 
-    def test_all_thirteen_profiles_have_independently_valid_pins(self):
+    def test_all_ten_profiles_have_independently_valid_pins(self):
         checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
         profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         for profile in profiles:
             with self.subTest(profile=profile.name):
                 self.installer.policy(checker['arguments'](checker['read_pins'](profile)))

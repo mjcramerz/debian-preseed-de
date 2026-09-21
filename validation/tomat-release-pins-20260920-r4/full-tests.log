@@ -876,7 +876,7 @@ test_administrator_file_preserved_disabled_and_enabled_fails (test_iocost_202609
 test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix) ... FAIL
 test_boolean_is_canonical (test_iocost_20260919.IOCostTests.test_boolean_is_canonical) ... ok
 test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) ... 
-  test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex') ... FAIL
+  test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo') ... FAIL
 test_complete_policy_survives_trusted_composite_profile_loading (test_iocost_20260919.IOCostTests.test_complete_policy_survives_trusted_composite_profile_loading) ... ok
 test_disable_recovers_missing_link_or_already_restored_defaults (test_iocost_20260919.IOCostTests.test_disable_recovers_missing_link_or_already_restored_defaults) ... ok
 test_disabled_administrator_replacement_keeps_policy_and_backup (test_iocost_20260919.IOCostTests.test_disabled_administrator_replacement_keeps_policy_and_backup) ... ok
@@ -1610,18 +1610,17 @@ test_no_symlinks_published (test_repository_integrity.RepositoryIntegrityTests.t
 test_preseed_checker_imports_with_python_safe_path (test_repository_integrity.RepositoryIntegrityTests.test_preseed_checker_imports_with_python_safe_path) ... ok
 test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) ... 
   test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env') ... FAIL
   test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env') ... FAIL
-  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14.env') ... FAIL
 test_role_scoped_entries (test_repository_integrity.RepositoryIntegrityTests.test_role_scoped_entries) ... ok
 test_validator_counts_skips_from_failed_unittest_run (test_repository_integrity.RepositoryIntegrityTests.test_validator_counts_skips_from_failed_unittest_run) ... ok
 test_complete_local_bootstrap_and_flat_profile (test_repository_transport.RealBootstrapTests.test_complete_local_bootstrap_and_flat_profile) ... ok
@@ -1737,19 +1736,18 @@ test_build_and_build_check_reject_invalid_pins_before_touching_products (test_re
 test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement (test_resctl_bench_release_20260917.ProfilePreflightTests.test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement) ... ok
 test_comments_are_not_assignments (test_resctl_bench_release_20260917.ProfilePreflightTests.test_comments_are_not_assignments) ... ok
 test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) ... 
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-flex.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-main.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-flex-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-p15s-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-duo.env') ... FAIL
   test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-flex.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-main.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-p15s.env') ... FAIL
   test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-desktop.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-cbook.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual-cbook.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-desktop.env') ... FAIL
-  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='vm-desktop.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-hp14.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-hp14-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360.env') ... FAIL
+  test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360.env') ... FAIL
 test_each_duplicate_pin_is_rejected_even_when_values_match (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_duplicate_pin_is_rejected_even_when_values_match) ... ok
 test_each_missing_pin_is_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_missing_pin_is_rejected) ... ok
 test_empty_profile_set_and_symlink_profile_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_empty_profile_set_and_symlink_profile_are_rejected) ... ok
@@ -2084,23 +2082,23 @@ FAIL: test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.I
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 116, in test_all_profiles_complete_and_exact_enable_matrix
-    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
+    self.assertEqual(enabled, ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env'])
     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']
 
 First differing element 0:
 'btrfs-de-flex.env'
-'btrfs-de-dual-flex.env'
+'btrfs-de-flex-duo.env'
 
 Second list contains 1 additional elements.
 First extra element 1:
 'btrfs-de-flex.env'
 
 - ['btrfs-de-flex.env']
-+ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
++ ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']
 
 ======================================================================
-FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')
+FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py", line 147, in test_both_enabled_profiles_native_staging_and_query
@@ -2121,7 +2119,6 @@ AssertionError: '271b87f058b35d4ee4a5dc2af90311b6e7e038c63fb079eee082d9fcfc43a2c
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2133,7 +2130,7 @@ AssertionError: '5d802cd10df26b25e6ad6272195c85fa917f5a75061b2e3c4d2e1c0677a9e1d
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2145,7 +2142,7 @@ AssertionError: '5d6e7d61c52575d6766325f0f552c4cf6875b66dc81101828e9b0ca1bd9599b
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2157,7 +2154,7 @@ AssertionError: 'b373facc2d20cea025e938f8f550852979e184bab6b4d131e93fd8f1774390b
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2181,7 +2178,7 @@ AssertionError: 'b8b0f08bc6bb2ebd3a787499d573312343a070e0925b2296e9468597421df26
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2193,7 +2190,7 @@ AssertionError: '52b8975abfd29352cbf0bb24f792a1e56b2f60d63c25cf012ba82318f5ef8b0
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2205,7 +2202,7 @@ AssertionError: '0df7f6dd652bc0d90709ffbcb2fdd2140d3f4f8b214383c5fe0e41eb903e975
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2217,7 +2214,7 @@ AssertionError: '35065cc045dddee8cb1ad6fa0d208ab9ecde35207a20dabf00b9ea4a3a0905d
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2229,7 +2226,7 @@ AssertionError: '5d6e7d61c52575d6766325f0f552c4cf6875b66dc81101828e9b0ca1bd9599b
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2241,7 +2238,7 @@ AssertionError: '261c958a76052799f34d466e922fbdfc96eff1d4361bfef4ac8b6f718b80391
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2253,7 +2250,7 @@ AssertionError: '2d95bff5e016cedb29e9cc1cfac732ad88319a0f46c53aecb2aa2a56d4889b1
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -2265,7 +2262,7 @@ AssertionError: 'd371447a9a2711cefe0b510edfe414fca53159f5f396592f45fad0bdd36abda
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-flex.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-flex-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2277,7 +2274,7 @@ AssertionError: '4a073a0be0b5d894c0465680f3397cd91661a701748ccca0d49f117ceb00181
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual-main.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-p15s-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2289,7 +2286,7 @@ AssertionError: '3218a5a965902b76584c93a26c3e23b0182887c065839c51ebad300d45c1737
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-dual.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2313,7 +2310,7 @@ AssertionError: '1f6e83d3e86c5e5951972777cabc4245a4f334ff01df1ad0306be4f85dbaa4b
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-main.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de-p15s.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2337,7 +2334,7 @@ AssertionError: '06df6e20acec692e5751765cd3c8f34afdcc04aab6047197a3276b72602ca4b
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-desktop.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='btrfs-de.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2349,7 +2346,7 @@ AssertionError: 'eac720441852a410354a0ef7563f5a2dd4616f595acb076f04aec58b0cf2e45
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-cbook.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-hp14.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2361,7 +2358,7 @@ AssertionError: 'd0b9e038e0dd29015566c8a31213e6ab0a123e70ae13cf51b2e9435d74dcea8
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual-cbook.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-hp14-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2373,7 +2370,7 @@ AssertionError: 'd856eed362b7069f403e1a9ae129ba281768c65902e05c128109ec81219d84c
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-dual.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2385,7 +2382,7 @@ AssertionError: '271523b3a590396df0be8d6e13819dd10f3793a618ccd9b12919d94582fd602
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2397,7 +2394,7 @@ AssertionError: 'd630656533f26770ce2b2708612aa025dc27bd8de9bfabbca425ed364f33cfe
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-desktop.env')
+FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles
@@ -2409,7 +2406,6 @@ AssertionError: '271523b3a590396df0be8d6e13819dd10f3793a618ccd9b12919d94582fd602
 
 
 ======================================================================
-FAIL: test_current_profile_provenance_matches_the_synchronized_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_synchronized_profiles) (profile='vm-desktop.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/r4-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 196, in test_current_profile_provenance_matches_the_synchronized_profiles

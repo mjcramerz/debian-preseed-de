@@ -1,6 +1,6 @@
 {
   "case": "Exact reported profile names, only the second uses the user supplied new URL/SHA256",
-  "r4_error": "f2fs-de-cbook.env: resctl-bench pins differ from btrfs-de-dual-flex.env: RESCTL_BENCH_URL, RESCTL_BENCH_SHA256; update all profiles together",
+  "r4_error": "f2fs-de-hp14.env: resctl-bench pins differ from btrfs-de-flex-duo.env: RESCTL_BENCH_URL, RESCTL_BENCH_SHA256; update all profiles together",
   "r5_validated_profiles": 2,
   "profiles_unchanged_by_checker": true,
   "scope": "Offline production checker/policy execution, no download"

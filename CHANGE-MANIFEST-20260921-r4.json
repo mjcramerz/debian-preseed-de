@@ -1,0 +1,73 @@
+{
+  "revision": "20260921-r4",
+  "base_archive": "debian-preseed-de-refactored-20260921-r3.tar.gz",
+  "base_sha256": "d027a8af2a9a32878eeb3324cbce2aa522c0ce994845d7af78e94693d90b9e40",
+  "removed": [],
+  "changed_existing_files": [
+    {
+      "path": "d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl",
+      "sha256_r3": "b00200bc4b902204899a9b2126cbb87491a85d60ab4a81a3d40ac80f5292e1cb",
+      "sha256_r4": "ff9a1711ff49b6b345276449b79127b63102766d2a490869d62bb3a1daa8444b",
+      "bytes_r3": 17227,
+      "bytes_r4": 17227,
+      "mode": "0o600"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "sha256_r3": "2f435da6a526304d1aa9f0c6ebceb8946061496340c085099337be986e00bcf6",
+      "sha256_r4": "b478d9f37f00385a17835ba2175228d857314ec2ae3fe7c8ae0d2fbeaeb6fced",
+      "bytes_r3": 174253,
+      "bytes_r4": 174253,
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "sha256_r3": "3996826d30e9af0e2622ef94eee7028505daa0d1722cb54648a0e16bafd5a4e1",
+      "sha256_r4": "1ee2dc95debea9ec943da46ab4142a9651f3df1542b82d158c4d3a0d383e9dcc",
+      "bytes_r3": 7191848,
+      "bytes_r4": 7191843,
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "sha256_r3": "00193cd16377a0aae228e54d521651c9ce6cf25ffe5a991d1e38c71f8c5b1795",
+      "sha256_r4": "963a1da6b44a0d021365ca83aeb830c42a184b8472b98e623b4a03100ea012c2",
+      "bytes_r3": 88323,
+      "bytes_r4": 88323,
+      "mode": "0o644"
+    },
+    {
+      "path": "d-i/forky/scripts/desktop/verify.sh",
+      "sha256_r3": "728f035b9d0455cece5846dbe09846737c41992519ac22c817f834aad8b43e96",
+      "sha256_r4": "600f8cba264fe6d23ab20621dcdb9808de9c69bd60c4dd64b1226e4863e4f1f2",
+      "bytes_r3": 98202,
+      "bytes_r4": 98202,
+      "mode": "0o750"
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/waybar-native-icons-gtk.py",
+      "sha256_r3": "6b38148bcfb35fd0e0d096939fcc9f15eaa92dd76babc6c0699b113c1449dca4",
+      "sha256_r4": "1eec6645f0d7aaf75f72a4c5e0f65bdd9ad515ab60384817caf1f8b81c9820f6",
+      "bytes_r3": 4944,
+      "bytes_r4": 4944,
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/tests/test_drawer_native_icons_20260920.py",
+      "sha256_r3": "bed956362a21aa5e5205dc347e8b864bef7cf55401163271c1829d53b0980dfc",
+      "sha256_r4": "6dd8746d63bc70ec5616c2d07a8fd40cfad71d1bc9e28bf98583a38e458ae54a",
+      "bytes_r3": 12716,
+      "bytes_r4": 14520,
+      "mode": "0o640"
+    },
+    {
+      "path": "d-i/forky/tests/test_requested_repairs_20260920.py",
+      "sha256_r3": "fdf4287db248af996177101e6acd01a155f85dbed9c9ea2074dc875e78854a2c",
+      "sha256_r4": "e676721ae85c8e02c8ab8a9763928b8e36644efac7609c3a5dda7c00c252034f",
+      "bytes_r3": 20733,
+      "bytes_r4": 20733,
+      "mode": "0o600"
+    }
+  ],
+  "added_files_note": "Only the R4 review, validation, change manifest and validation/icon-size-20260921-r4 evidence files are added."
+}

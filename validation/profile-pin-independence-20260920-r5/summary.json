@@ -45,10 +45,10 @@
     "failures": [
       {
         "test": "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
-        "traceback": "Traceback (most recent call last):\n  File \"/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py\", line 116, in test_all_profiles_complete_and_exact_enable_matrix\n    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']\n\nFirst differing element 0:\n'btrfs-de-flex.env'\n'btrfs-de-dual-flex.env'\n\nSecond list contains 1 additional elements.\nFirst extra element 1:\n'btrfs-de-flex.env'\n\n- ['btrfs-de-flex.env']\n+ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']\n"
+        "traceback": "Traceback (most recent call last):\n  File \"/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py\", line 116, in test_all_profiles_complete_and_exact_enable_matrix\n    self.assertEqual(enabled, ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env'])\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']\n\nFirst differing element 0:\n'btrfs-de-flex.env'\n'btrfs-de-flex-duo.env'\n\nSecond list contains 1 additional elements.\nFirst extra element 1:\n'btrfs-de-flex.env'\n\n- ['btrfs-de-flex.env']\n+ ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']\n"
       },
       {
-        "test": "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+        "test": "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')",
         "traceback": "Traceback (most recent call last):\n  File \"/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_iocost_20260919.py\", line 147, in test_both_enabled_profiles_native_staging_and_query\n    self.assertTrue(path.is_file())\n    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^\nAssertionError: False is not true\n"
       },
       {
@@ -265,12 +265,12 @@
     "r5_tests_run": 2065,
     "r4_failure_names": [
       "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
-      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')",
       "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
     ],
     "r5_failure_names": [
       "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
-      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')",
       "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
     ],
     "additional_failure_names": [],
@@ -299,19 +299,18 @@
     "byte_identical_original_files": 3412,
     "changed_original_files": [
       "README.md",
-      "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
-      "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
-      "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+      "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+      "d-i/forky/hosts/profiles/btrfs-de-duo.env",
       "d-i/forky/hosts/profiles/btrfs-de-flex.env",
-      "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
       "d-i/forky/hosts/profiles/btrfs-de.env",
-      "d-i/forky/hosts/profiles/btrfs-desktop.env",
-      "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
-      "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
-      "d-i/forky/hosts/profiles/f2fs-de-dual.env",
-      "d-i/forky/hosts/profiles/f2fs-de.env",
-      "d-i/forky/hosts/profiles/f2fs-desktop.env",
-      "d-i/forky/hosts/profiles/vm-desktop.env",
+      "d-i/forky/hosts/profiles/btrfs-de.env",
+      "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+      "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360.env",
       "d-i/forky/payload.manifest",
       "d-i/forky/payload.tar.gz",
       "d-i/forky/preseed.cfg",

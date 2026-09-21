@@ -1,0 +1,13 @@
+{
+  "name": "test_dbus_broker",
+  "source": "d-i/forky/tests/test_dbus_broker.py",
+  "returncode": 0,
+  "seconds": 0.041,
+  "tests": 16,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_dbus_broker.log",
+  "reused_completed_run": true
+}

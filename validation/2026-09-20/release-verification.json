@@ -42,7 +42,7 @@
   "unexpected_full_suite_failures": [],
   "inherited_failures_reproduced_on_untouched_input": [
     "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
-    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+    "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')",
     "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)",
     "test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration)",
     "test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration)",

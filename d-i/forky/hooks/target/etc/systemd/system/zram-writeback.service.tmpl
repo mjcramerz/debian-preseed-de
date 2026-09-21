@@ -2,6 +2,8 @@
 Description=Run pressure-aware zram recompression/writeback maintenance
 After=__INSTALLER_ZRAM_SETUP_UNIT__ sys-kernel-debug.mount
 Requires=__INSTALLER_ZRAM_SETUP_UNIT__
+BindsTo=__INSTALLER_ZRAM_SETUP_UNIT__
+PartOf=__INSTALLER_ZRAM_SETUP_UNIT__
 Wants=sys-kernel-debug.mount
 ConditionPathExists=/sys/block/__INSTALLER_ZRAM_SWAP_DEVICE_NAME__/writeback
 ConditionPathIsReadWrite=/sys/block/__INSTALLER_ZRAM_SWAP_DEVICE_NAME__/writeback
@@ -14,8 +16,8 @@ StartLimitIntervalSec=30min
 StartLimitBurst=2
 
 [Service]
-# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
-# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+# Isolate helper PIDs without hiding host-wide memory/PSI metrics.
+# Setup owns raw devices; maintenance needs only zram controls and PSI triggers.
 PrivatePIDs=yes
 PrivateUsers=no
 # Aggregate memory/PSI files are required even inside the PID namespace.
@@ -34,6 +36,8 @@ TimeoutStartSec=5min
 Nice=19
 CPUSchedulingPolicy=idle
 CPUWeight=10
+TasksAccounting=yes
+TasksMax=16
 IOSchedulingClass=idle
 IOSchedulingPriority=7
 IOAccounting=yes
@@ -44,12 +48,16 @@ MemoryHigh=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_HIGH__
 MemoryMax=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_MAX__
 OOMScoreAdjust=500
 NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_SYS_RESOURCE
+RestrictNamespaces=yes
+OOMPolicy=stop
 PrivateTmp=yes
 ProtectHome=yes
 ProtectControlGroups=yes
 ProtectKernelModules=yes
 ProtectSystem=strict
 ReadWritePaths=__INSTALLER_ZRAM_RUNTIME_DIR__
+RestrictAddressFamilies=AF_UNIX
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes

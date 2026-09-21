@@ -1,0 +1,13 @@
+test_active_adaptive_is_powersave (test_intel_policy_20260919.IntelPolicyTests.test_active_adaptive_is_powersave) ... ok
+test_all_thirteen_profiles_explicit_balanced_boost (test_intel_policy_20260919.IntelPolicyTests.test_all_thirteen_profiles_explicit_balanced_boost) ... ok
+test_balanced_fallback_is_advertised_balance_performance_only (test_intel_policy_20260919.IntelPolicyTests.test_balanced_fallback_is_advertised_balance_performance_only) ... ok
+test_balanced_prefers_advertised_balance_power (test_intel_policy_20260919.IntelPolicyTests.test_balanced_prefers_advertised_balance_power) ... ok
+test_boost_optional_but_supported_write_is_verified (test_intel_policy_20260919.IntelPolicyTests.test_boost_optional_but_supported_write_is_verified) ... ok
+test_hwp_matrix_and_retained_limits (test_intel_policy_20260919.IntelPolicyTests.test_hwp_matrix_and_retained_limits) ... ok
+test_invalid_configured_epp_never_falls_back (test_intel_policy_20260919.IntelPolicyTests.test_invalid_configured_epp_never_falls_back) ... ok
+test_passive_and_generic_adaptive_are_schedutil_with_deliberate_fallback (test_intel_policy_20260919.IntelPolicyTests.test_passive_and_generic_adaptive_are_schedutil_with_deliberate_fallback) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.031s
+
+OK

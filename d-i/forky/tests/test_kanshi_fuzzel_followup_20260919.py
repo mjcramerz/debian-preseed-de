@@ -216,7 +216,7 @@ class KanshiWiringTests(unittest.TestCase):
         role = (FORKY / 'classes/class-select/role/desktop.cfg').read_text()
         self.assertNotIn('kanshi', role.split())
         profiles = list((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         for path in profiles:
             self.assertIn('LABWC_ENABLE_KANSHI="false"', path.read_text(), path.name)
 

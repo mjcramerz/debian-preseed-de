@@ -7,6 +7,7 @@ use Exporter qw(import);
 use File::Basename qw(basename);
 use Zram::Config qw(cfg);
 use Zram::Error qw(fatal);
+use Zram::IOPressure qw(io_pressure_snapshot);
 use Zram::Path qw(canonical_path);
 use Zram::Sysfs qw(read_uint_attr write_attr_optional);
 
@@ -81,7 +82,7 @@ sub backing_rotational {
 }
 
 sub _writeback_batch_size_for_state {
-    my ($state, $queue_depth, $rotational) = @_;
+    my ($state, $queue_depth, $rotational, $io) = @_;
     _validate_state($state);
 
     my $configured_max = cfg('ZRAM_WRITEBACK_BATCH_SIZE');
@@ -93,31 +94,41 @@ sub _writeback_batch_size_for_state {
     $target = _positive_min($target, cfg('ZRAM_WRITEBACK_BATCH_SIZE_ROTATIONAL_MAX'))
         if defined $rotational && $rotational == 1;
     $target = _positive_min($target, $queue_depth);
+    if ($state ne 'normal' && $io && $io->{throttle}) {
+        $target = _positive_min($target, cfg('ZRAM_IO_PSI_BATCH_SIZE_' . uc($state)));
+    }
     return defined $target && $target > 0 ? $target : 1;
 }
 
 sub writeback_batch_size_for_state {
-    my ($state) = @_;
+    my ($state, $io) = @_;
+    $io //= io_pressure_snapshot();
     return _writeback_batch_size_for_state(
         $state,
         backing_queue_depth(),
         backing_rotational(),
+        $io,
     );
 }
 
 sub writeback_pass_pages_for_state {
-    my ($state, $budget_pages_available) = @_;
+    my ($state, $budget_pages_available, $io) = @_;
     _validate_state($state);
     return 0 if $state eq 'normal';
     return 0 if defined $budget_pages_available && $budget_pages_available <= 0;
 
+    $io //= io_pressure_snapshot();
     my $pass_limit = cfg($STATE_PASS_KEY{$state});
+    if ($io->{throttle}) {
+        $pass_limit = _positive_min($pass_limit, cfg('ZRAM_IO_PSI_MAX_PAGES_' . uc($state)));
+    }
     return _positive_min($pass_limit, $budget_pages_available) // 0;
 }
 
 sub writeback_tuning_snapshot {
-    my ($state, $budget_pages_available) = @_;
+    my ($state, $budget_pages_available, $io) = @_;
     _validate_state($state);
+    $io //= io_pressure_snapshot();
     my $configured_target = cfg('ZRAM_WRITEBACK_BATCH_SIZE_ADAPTIVE')
         ? cfg($STATE_BATCH_KEY{$state})
         : cfg('ZRAM_WRITEBACK_BATCH_SIZE');
@@ -125,6 +136,7 @@ sub writeback_tuning_snapshot {
     my $rotational = backing_rotational();
     return {
         state => $state,
+        io_pressure => $io,
         adaptive => cfg('ZRAM_WRITEBACK_BATCH_SIZE_ADAPTIVE') ? 1 : 0,
         configured_max => cfg('ZRAM_WRITEBACK_BATCH_SIZE'),
         configured_target => $configured_target,
@@ -134,14 +146,15 @@ sub writeback_tuning_snapshot {
             $state,
             $queue_depth,
             $rotational,
+            $io,
         ),
-        pass_page_limit => writeback_pass_pages_for_state($state, $budget_pages_available),
+        pass_page_limit => writeback_pass_pages_for_state($state, $budget_pages_available, $io),
     };
 }
 
 sub apply_writeback_batch_size {
-    my ($state) = @_;
-    my $snapshot = writeback_tuning_snapshot($state, undef);
+    my ($state, $io) = @_;
+    my $snapshot = writeback_tuning_snapshot($state, undef, $io);
     $snapshot->{applied} = 0;
     return $snapshot if !cfg('ZRAM_WRITEBACK_ENABLED');
 

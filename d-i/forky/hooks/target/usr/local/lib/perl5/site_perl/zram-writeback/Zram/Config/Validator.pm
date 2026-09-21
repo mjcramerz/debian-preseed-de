@@ -181,6 +181,13 @@ sub normalize_config {
         ZRAM_WRITEBACK_BATCH_SIZE_ROTATIONAL_MAX => ensure_positive_uint('writeback.writeback_batch_size_rotational_max', _get($config, 'writeback', 'writeback_batch_size_rotational_max')),
         ZRAM_WRITEBACK_MAX_PAGES_PRESSURE => ensure_positive_uint('writeback.writeback_max_pages_pressure', _get($config, 'writeback', 'writeback_max_pages_pressure')),
         ZRAM_WRITEBACK_MAX_PAGES_EMERGENCY => ensure_positive_uint('writeback.writeback_max_pages_emergency', _get($config, 'writeback', 'writeback_max_pages_emergency')),
+        ZRAM_IO_PSI_ENABLE => ensure_bool('io_pressure.enabled', _get($config, 'io_pressure', 'enabled')),
+        ZRAM_IO_PSI_SOME_AVG10_THRESHOLD_UNITS => ensure_psi_millionths('io_pressure.some_avg10_min', _get($config, 'io_pressure', 'some_avg10_min')),
+        ZRAM_IO_PSI_FULL_AVG10_THRESHOLD_UNITS => ensure_psi_millionths('io_pressure.full_avg10_min', _get($config, 'io_pressure', 'full_avg10_min')),
+        ZRAM_IO_PSI_BATCH_SIZE_PRESSURE => ensure_positive_uint('io_pressure.batch_size_pressure', _get($config, 'io_pressure', 'batch_size_pressure')),
+        ZRAM_IO_PSI_BATCH_SIZE_EMERGENCY => ensure_positive_uint('io_pressure.batch_size_emergency', _get($config, 'io_pressure', 'batch_size_emergency')),
+        ZRAM_IO_PSI_MAX_PAGES_PRESSURE => ensure_positive_uint('io_pressure.max_pages_pressure', _get($config, 'io_pressure', 'max_pages_pressure')),
+        ZRAM_IO_PSI_MAX_PAGES_EMERGENCY => ensure_positive_uint('io_pressure.max_pages_emergency', _get($config, 'io_pressure', 'max_pages_emergency')),
         ZRAM_WRITEBACK_LIMIT_ENABLE => ensure_bool('writeback.writeback_limit_enabled', _get($config, 'writeback', 'writeback_limit_enabled')),
         ZRAM_WRITEBACK_LIMIT_PCT => ensure_percent('writeback.writeback_limit_percent', _get($config, 'writeback', 'writeback_limit_percent')),
         ZRAM_DAILY_WRITEBACK_LIMIT_BYTES => size_to_bytes('writeback.daily_writeback_limit', _get($config, 'writeback', 'daily_writeback_limit')),
@@ -190,7 +197,10 @@ sub normalize_config {
         ZRAM_ALGORITHM_PARAMS => _validate_algorithm_params('zram.algorithm_params', _get($config, 'zram', 'algorithm_params')),
         ZRAM_DISKSIZE_BYTES => size_to_bytes('zram.disksize', _get($config, 'zram', 'disksize')),
         ZRAM_MEM_LIMIT_BYTES => size_to_bytes('zram.mem_limit', _get($config, 'zram', 'mem_limit')),
-        ZRAM_SIZE_PERCENT => ensure_percent('zram.size_percent', _get($config, 'zram', 'size_percent')),
+        # Logical compressed capacity may exceed RAM; physical-memory and
+        # writeback percentages below remain bounded to 0..100 independently.
+        ZRAM_SIZE_PERCENT => _ensure_range('zram.size_percent',
+            ensure_positive_uint('zram.size_percent', _get($config, 'zram', 'size_percent')), 1, 300),
         ZRAM_SIZE_MIN_MIB => ensure_positive_uint('zram.size_min_mib', _get($config, 'zram', 'size_min_mib')),
         ZRAM_SIZE_MAX_MIB => ensure_positive_uint('zram.size_max_mib', _get($config, 'zram', 'size_max_mib')),
         ZRAM_MEM_LIMIT_PERCENT => ensure_percent('zram.mem_limit_percent', _get($config, 'zram', 'mem_limit_percent')),
@@ -277,8 +287,6 @@ sub normalize_config {
         $normalized{ZRAM_MAINTENANCE_PAGE_INDEXES},
         $normalized{ZRAM_WRITEBACK_SPEC_MAX_BYTES},
     );
-    $normalized{ZRAM_SIZE_PERCENT} > 0
-        or fatal('zram.size_percent must be greater than zero');
     $normalized{ZRAM_MEM_LIMIT_PERCENT} > 0
         or fatal('zram.mem_limit_percent must be greater than zero');
     $normalized{ZRAM_SIZE_MIN_MIB}
@@ -376,6 +384,19 @@ sub normalize_config {
             1,
             $normalized{ZRAM_WRITEBACK_PASS_PAGES_MAX},
         );
+    }
+    # Throttling must never turn a zero into 'unlimited', or raise the regular
+    # state/administrator bounds. Runtime min() also preserves queue/quota caps.
+    for my $kind (qw(BATCH_SIZE MAX_PAGES)) {
+        my $pressure = $normalized{"ZRAM_IO_PSI_${kind}_PRESSURE"};
+        my $emergency = $normalized{"ZRAM_IO_PSI_${kind}_EMERGENCY"};
+        $pressure <= $emergency
+            or fatal("io_pressure $kind must be nondecreasing toward emergency");
+        for my $state (qw(PRESSURE EMERGENCY)) {
+            $normalized{"ZRAM_IO_PSI_${kind}_$state"}
+                <= $normalized{"ZRAM_WRITEBACK_${kind}_$state"}
+                or fatal("io_pressure $kind $state must not exceed the regular state limit");
+        }
     }
     _ensure_range(
         'daemon.psi_window_us',

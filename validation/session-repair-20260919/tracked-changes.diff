@@ -493,10 +493,10 @@ index 12af834..9e69e5c 100644
  From a normal terminal inside the primary user's Labwc session:
  
  ```sh
-diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env b/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env b/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
 index 2255148..06b8d32 100644
---- a/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
-+++ b/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+--- a/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
 @@ -417,6 +417,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="17"
@@ -509,10 +509,10 @@ index 2255148..06b8d32 100644
  LABWC_FUZZEL_WIDTH="34"
  LABWC_FUZZEL_LINES="14"
  LABWC_FUZZEL_MENU_WIDTH="24"
-diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual-main.env b/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env b/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
 index 38be014..f6c6ced 100644
---- a/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
-+++ b/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+--- a/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
 @@ -415,6 +415,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="17"
@@ -525,10 +525,10 @@ index 38be014..f6c6ced 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/btrfs-de-dual.env b/d-i/forky/hosts/profiles/btrfs-de-dual.env
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-duo.env b/d-i/forky/hosts/profiles/btrfs-de-duo.env
 index 391b5d8..711de33 100644
---- a/d-i/forky/hosts/profiles/btrfs-de-dual.env
-+++ b/d-i/forky/hosts/profiles/btrfs-de-dual.env
+--- a/d-i/forky/hosts/profiles/btrfs-de-duo.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-duo.env
 @@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="17"
@@ -557,10 +557,10 @@ index 8d519f5..ade1ed9 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/btrfs-de-main.env b/d-i/forky/hosts/profiles/btrfs-de-main.env
+diff --git a/d-i/forky/hosts/profiles/btrfs-de-p15s.env b/d-i/forky/hosts/profiles/btrfs-de-p15s.env
 index 388cb03..2902954 100644
---- a/d-i/forky/hosts/profiles/btrfs-de-main.env
-+++ b/d-i/forky/hosts/profiles/btrfs-de-main.env
+--- a/d-i/forky/hosts/profiles/btrfs-de-p15s.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-p15s.env
 @@ -415,6 +415,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="16"
@@ -589,10 +589,10 @@ index a23cc92..972f957 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/btrfs-desktop.env b/d-i/forky/hosts/profiles/btrfs-desktop.env
+diff --git a/d-i/forky/hosts/profiles/btrfs-de.env b/d-i/forky/hosts/profiles/btrfs-de.env
 index 26472c5..1745da9 100644
---- a/d-i/forky/hosts/profiles/btrfs-desktop.env
-+++ b/d-i/forky/hosts/profiles/btrfs-desktop.env
+--- a/d-i/forky/hosts/profiles/btrfs-de.env
++++ b/d-i/forky/hosts/profiles/btrfs-de.env
 @@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="17"
@@ -605,10 +605,10 @@ index 26472c5..1745da9 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/f2fs-de-cbook.env b/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-hp14.env b/d-i/forky/hosts/profiles/f2fs-de-hp14.env
 index 93bf42d..90d9c75 100644
---- a/d-i/forky/hosts/profiles/f2fs-de-cbook.env
-+++ b/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+--- a/d-i/forky/hosts/profiles/f2fs-de-hp14.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-hp14.env
 @@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="9"
  LABWC_QT_FIXED_FONT_SIZE="10"
  LABWC_GREETER_FONT_SIZE="12"
@@ -621,10 +621,10 @@ index 93bf42d..90d9c75 100644
  LABWC_FUZZEL_WIDTH="28"
  LABWC_FUZZEL_LINES="10"
  LABWC_FUZZEL_MENU_WIDTH="18"
-diff --git a/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env b/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env b/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
 index 500d46b..960bd4b 100644
---- a/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
-+++ b/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+--- a/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
 @@ -405,6 +405,11 @@ LABWC_QT_FONT_SIZE="10"
  LABWC_QT_FIXED_FONT_SIZE="11"
  LABWC_GREETER_FONT_SIZE="15"
@@ -637,10 +637,10 @@ index 500d46b..960bd4b 100644
  LABWC_FUZZEL_WIDTH="32"
  LABWC_FUZZEL_LINES="12"
  LABWC_FUZZEL_MENU_WIDTH="20"
-diff --git a/d-i/forky/hosts/profiles/f2fs-de-dual.env b/d-i/forky/hosts/profiles/f2fs-de-dual.env
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env b/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
 index 2756764..af487fb 100644
---- a/d-i/forky/hosts/profiles/f2fs-de-dual.env
-+++ b/d-i/forky/hosts/profiles/f2fs-de-dual.env
+--- a/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
 @@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
  LABWC_QT_FIXED_FONT_SIZE="11"
  LABWC_GREETER_FONT_SIZE="16"
@@ -653,10 +653,10 @@ index 2756764..af487fb 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/f2fs-de.env b/d-i/forky/hosts/profiles/f2fs-de.env
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-x360.env b/d-i/forky/hosts/profiles/f2fs-de-x360.env
 index 4d16b2c..b24c3a3 100644
---- a/d-i/forky/hosts/profiles/f2fs-de.env
-+++ b/d-i/forky/hosts/profiles/f2fs-de.env
+--- a/d-i/forky/hosts/profiles/f2fs-de-x360.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-x360.env
 @@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
  LABWC_QT_FIXED_FONT_SIZE="11"
  LABWC_GREETER_FONT_SIZE="16"
@@ -669,10 +669,10 @@ index 4d16b2c..b24c3a3 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/f2fs-desktop.env b/d-i/forky/hosts/profiles/f2fs-desktop.env
+diff --git a/d-i/forky/hosts/profiles/f2fs-de-x360.env b/d-i/forky/hosts/profiles/f2fs-de-x360.env
 index 2756764..af487fb 100644
---- a/d-i/forky/hosts/profiles/f2fs-desktop.env
-+++ b/d-i/forky/hosts/profiles/f2fs-desktop.env
+--- a/d-i/forky/hosts/profiles/f2fs-de-x360.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-x360.env
 @@ -404,6 +404,11 @@ LABWC_QT_FONT_SIZE="10"
  LABWC_QT_FIXED_FONT_SIZE="11"
  LABWC_GREETER_FONT_SIZE="16"
@@ -685,10 +685,7 @@ index 2756764..af487fb 100644
  LABWC_FUZZEL_WIDTH="36"
  LABWC_FUZZEL_LINES="15"
  LABWC_FUZZEL_MENU_WIDTH="22"
-diff --git a/d-i/forky/hosts/profiles/vm-desktop.env b/d-i/forky/hosts/profiles/vm-desktop.env
 index f032722..b3e21da 100644
---- a/d-i/forky/hosts/profiles/vm-desktop.env
-+++ b/d-i/forky/hosts/profiles/vm-desktop.env
 @@ -414,6 +414,11 @@ LABWC_QT_FONT_SIZE="11"
  LABWC_QT_FIXED_FONT_SIZE="12"
  LABWC_GREETER_FONT_SIZE="17"
@@ -816,32 +813,30 @@ index 502da9b..fef9288 100644
  a7052fb781fd1c55c4a2347e0c7a02860b51ca855d259d827af37a2cf0748d4b  hosts/installer/layout-f2fs.env
  d84cec43a06d89d941c5c7249bfa0ee02e83dff019e5ba52cb6b717f5fea4f02  hosts/installer/layout.env
  da70b4fa8d628ed2480c3926dc095cfaedab73f7ccb29cf13f2832a985e6c6ca  hosts/installer/runtime.env
--f2461d6444e1d5deca9869c560ddf457d06cd3c9c355e2de530b89134ef605a9  hosts/profiles/btrfs-de-dual-flex.env
--50616cf4126aae83b9b401c070c3e5c9858e28a00e30ce1ab1c751b4d40a1afb  hosts/profiles/btrfs-de-dual-main.env
--bf3fbb0502697fef4380dc68629e640fe6907855734489656c824efdea82fd27  hosts/profiles/btrfs-de-dual.env
+-f2461d6444e1d5deca9869c560ddf457d06cd3c9c355e2de530b89134ef605a9  hosts/profiles/btrfs-de-flex-duo.env
+-50616cf4126aae83b9b401c070c3e5c9858e28a00e30ce1ab1c751b4d40a1afb  hosts/profiles/btrfs-de-p15s-duo.env
+-bf3fbb0502697fef4380dc68629e640fe6907855734489656c824efdea82fd27  hosts/profiles/btrfs-de-duo.env
 -ff4431ea3016c357ec2142a1c3dd0cf5c27c88ed207f7c2a57cebfec70f63b40  hosts/profiles/btrfs-de-flex.env
--88aa926168227537e24e61bb0ded8feac7aef13c692305b0ab585ee4047996f6  hosts/profiles/btrfs-de-main.env
+-88aa926168227537e24e61bb0ded8feac7aef13c692305b0ab585ee4047996f6  hosts/profiles/btrfs-de-p15s.env
 -2565b0c61e5881b5fdeda2437c9f6f5c64abf3b80541f9e0488ca4105e5738ca  hosts/profiles/btrfs-de.env
--4db46a6e800c23715f2d2b8450b9838a9b4d38d525efe3ddb94f3b03b1d3f6fb  hosts/profiles/btrfs-desktop.env
--1b114103997cf8467067d92314099d17ca796ba9965e04ea8e888568a0170e15  hosts/profiles/f2fs-de-cbook.env
--9c96c3edcda9e781d7afb1fa5e3a0301cc4b3279f0ab858f47ed9a960866ba4a  hosts/profiles/f2fs-de-dual-cbook.env
--a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-de-dual.env
--fcfca374179989108d27889a01728d615a071e48274c446bdce2fe1c9627dea8  hosts/profiles/f2fs-de.env
--a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-desktop.env
--8f8a918ff40b5f495900d3e4cdd01dc243e043fc32f859992e64f703313c27ec  hosts/profiles/vm-desktop.env
-+1aeeb84dcab6b422326119611e6caae9d84ed525caf7b259470c6808cc917739  hosts/profiles/btrfs-de-dual-flex.env
-+5364acb8d4f418bf307dc67120163d2b094523402e0355da84bd77e829c0fef4  hosts/profiles/btrfs-de-dual-main.env
-+6508e8be1738808178f41f7c94c477da7510416b588af90e31ba36ba6290cf1e  hosts/profiles/btrfs-de-dual.env
+-4db46a6e800c23715f2d2b8450b9838a9b4d38d525efe3ddb94f3b03b1d3f6fb  hosts/profiles/btrfs-de.env
+-1b114103997cf8467067d92314099d17ca796ba9965e04ea8e888568a0170e15  hosts/profiles/f2fs-de-hp14.env
+-9c96c3edcda9e781d7afb1fa5e3a0301cc4b3279f0ab858f47ed9a960866ba4a  hosts/profiles/f2fs-de-hp14-duo.env
+-a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-de-x360-duo.env
+-fcfca374179989108d27889a01728d615a071e48274c446bdce2fe1c9627dea8  hosts/profiles/f2fs-de-x360.env
+-a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240  hosts/profiles/f2fs-de-x360.env
++1aeeb84dcab6b422326119611e6caae9d84ed525caf7b259470c6808cc917739  hosts/profiles/btrfs-de-flex-duo.env
++5364acb8d4f418bf307dc67120163d2b094523402e0355da84bd77e829c0fef4  hosts/profiles/btrfs-de-p15s-duo.env
++6508e8be1738808178f41f7c94c477da7510416b588af90e31ba36ba6290cf1e  hosts/profiles/btrfs-de-duo.env
 +34e304c2496aa0967883cacec600c27d64169926460c6f6c714f1bc813a3d81a  hosts/profiles/btrfs-de-flex.env
-+e6311c7c65f06e6ad46a3adbad497c52a9f01a150321497e89881e33d145eab5  hosts/profiles/btrfs-de-main.env
++e6311c7c65f06e6ad46a3adbad497c52a9f01a150321497e89881e33d145eab5  hosts/profiles/btrfs-de-p15s.env
 +5e224ea5c536666b3275897a36ec34b7b06c897fe0405040c305c3c8b2b5329c  hosts/profiles/btrfs-de.env
-+da9d7f39444eb1172c3bf81bbfb98eb44e15c27029d26558458a86ffa7ffd46e  hosts/profiles/btrfs-desktop.env
-+31bf41a3f184c2a714f47708e5f4c0a6d48cad88bb9ab1efa19976f79de00b29  hosts/profiles/f2fs-de-cbook.env
-+410af02459631455a5fff1f0972348f2f07e061cd39ca5d0856205de1c8cc22a  hosts/profiles/f2fs-de-dual-cbook.env
-+c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-de-dual.env
-+24468daad87dabd74331850efbda9c4d6cb3835544cfd937c739edb8f1389bec  hosts/profiles/f2fs-de.env
-+c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-desktop.env
-+384fa9585ed1b96cfd99982edc77e9cc859575806b569c5ea31b741c09a07b34  hosts/profiles/vm-desktop.env
++da9d7f39444eb1172c3bf81bbfb98eb44e15c27029d26558458a86ffa7ffd46e  hosts/profiles/btrfs-de.env
++31bf41a3f184c2a714f47708e5f4c0a6d48cad88bb9ab1efa19976f79de00b29  hosts/profiles/f2fs-de-hp14.env
++410af02459631455a5fff1f0972348f2f07e061cd39ca5d0856205de1c8cc22a  hosts/profiles/f2fs-de-hp14-duo.env
++c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-de-x360-duo.env
++24468daad87dabd74331850efbda9c4d6cb3835544cfd937c739edb8f1389bec  hosts/profiles/f2fs-de-x360.env
++c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4  hosts/profiles/f2fs-de-x360.env
  f047613bef399ffd2d4391a390459e1d7e45ae935e27df756c5ab20039f6bd9b  repo.env
  7c083ec0d7d88ae8371433b6ea66d40bdf0ad414901dd6afc7f41671b58d55b3  scripts/common/apt-sources.sh
  2c0f4171b816eaabcc4825ffee5ac66a2ee9b0297bc9adf6269f6dc28d3117d0  scripts/common/bootstrap.sh
@@ -1279,7 +1274,6 @@ index 27345fb..3532930 100644
 -        path = self.target / ASSETS[0]; path.parent.mkdir(parents=True)
 +        path = self.target / ASSETS[1]; path.parent.mkdir(parents=True)
          path.write_text('[IOCost]\n# administrator\n')
-         result = self.run_policy(profile('vm-desktop')); self.assertEqual(result.returncode, 0, result.stderr)
          result = self.run_policy(); self.assertNotEqual(result.returncode, 0)
          self.assertEqual(path.read_text(), '[IOCost]\n# administrator\n')
 -        self.assertFalse((self.target / ASSETS[1]).exists())
@@ -1333,7 +1327,7 @@ index 27345fb..3532930 100644
          result = self.run_policy()
          self.assertEqual(result.returncode, 0, result.stderr)
 @@ -499,7 +498,7 @@ iocost_native_hwdb() {
-         result = self.run_policy(profile('f2fs-de'), before=before)
+         result = self.run_policy(profile('f2fs-de-x360'), before=before)
          self.assertNotEqual(result.returncode, 0)
          self.assertEqual(originals, {rel: (self.target / rel).read_bytes() for rel in originals})
 -        self.assertEqual(os.readlink(self.target / COMPAT), '../systemd/iocost.conf.d/70-unattended-installer.conf')
@@ -1381,7 +1375,6 @@ index 27345fb..3532930 100644
 +            self.assertTrue(path.is_file())
 +            self.assertFalse(path.is_symlink())
 +            self.assertEqual(path.read_text().count('TargetSolution=isolated-bandwidth'), 1)
-+        result = self.run_policy(profile('vm-desktop'), before=ROOT_TOOL)
 +        self.assertEqual(result.returncode, 0, result.stderr)
 +        self.assert_absent()
 +
@@ -1406,7 +1399,6 @@ index 27345fb..3532930 100644
 +        old = self.target / 'etc/systemd/iocost.conf'
 +        old.parent.mkdir(parents=True)
 +        old.write_text('[IOCost]\nTargetSolution=naive\n')
-+        for values in (profile(), profile('vm-desktop')):
 +            result = self.run_policy(values, before=ROOT_TOOL)
 +            self.assertEqual(result.returncode, 0, result.stderr)
 +            self.assertEqual(old.read_text(), '[IOCost]\nTargetSolution=naive\n')
@@ -1626,7 +1618,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex-duo.env",
 @@ -7846,8 +7846,8 @@
        "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
        "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
@@ -1637,7 +1629,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s-duo.env",
 @@ -7855,8 +7855,8 @@
        "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
        "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
@@ -1648,7 +1640,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-duo.env",
 @@ -7864,8 +7864,8 @@
        "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
        "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
@@ -1670,7 +1662,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s.env",
 @@ -7882,8 +7882,8 @@
        "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
        "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
@@ -1692,7 +1684,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14.env",
 @@ -7901,8 +7901,8 @@
        "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
        "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
@@ -1703,7 +1695,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14-duo.env",
 @@ -7910,8 +7910,8 @@
        "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
        "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
@@ -1714,7 +1706,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360-duo.env",
 @@ -7919,8 +7919,8 @@
        "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
        "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
@@ -1725,7 +1717,7 @@ index fc60b51..6999bae 100644
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair)"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360.env",
 @@ -7928,8 +7928,8 @@
        "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
        "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",

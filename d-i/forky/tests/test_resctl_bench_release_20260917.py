@@ -178,7 +178,7 @@ class ProfilePreflightTests(unittest.TestCase):
 
     def test_all_actual_profiles_pass_independent_preflight(self):
         # Fixture PINS are not a repository-wide release constraint.
-        self.assertEqual(self.checker.check(), 13)
+        self.assertEqual(self.checker.check(), 10)
 
     def test_current_profile_provenance_matches_the_recorded_profiles(self):
         ledger = json.loads((ROOT / 'docs/migration-map.json').read_text())

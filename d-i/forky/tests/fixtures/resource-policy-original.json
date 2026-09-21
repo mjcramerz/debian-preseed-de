@@ -67,18 +67,15 @@
     "d-i/forky/scripts/late/podman.sh": "fe430165425b18f822e920ded73d61b868641d8e87915c0487d29b3e3fe6ae45"
   },
   "profile_prefix_sha256": {
-    "btrfs-de-dual-flex.env": "095f44ec084caac0b23fb07541fd5e497cbf30ad668d9c6e328410fa633501bc",
-    "btrfs-de-dual-main.env": "988c740b7d5bc2b904063d9e5c7542a41b72863a5834fa2ca7d389bfba653b77",
-    "btrfs-de-dual.env": "ef2c6acdeacffaa86378d9ad0dddb10ecde7d4c549572e5b440f0109da22630a",
+    "btrfs-de-flex-duo.env": "095f44ec084caac0b23fb07541fd5e497cbf30ad668d9c6e328410fa633501bc",
+    "btrfs-de-p15s-duo.env": "988c740b7d5bc2b904063d9e5c7542a41b72863a5834fa2ca7d389bfba653b77",
+    "btrfs-de-duo.env": "ef2c6acdeacffaa86378d9ad0dddb10ecde7d4c549572e5b440f0109da22630a",
     "btrfs-de-flex.env": "73fc293a8ce582952c9ae4959d7ef48a29772d6f208231bf57a318ab22866521",
-    "btrfs-de-main.env": "f9ba00ff355b9e90bd692bea193addf41ebaa532f19dc57acd77259074fde835",
+    "btrfs-de-p15s.env": "f9ba00ff355b9e90bd692bea193addf41ebaa532f19dc57acd77259074fde835",
     "btrfs-de.env": "9810516ed69cff447d5e60614ffd994ab587923804d911391cc0ff0c0ac4460d",
-    "btrfs-desktop.env": "047564577a6381d4fd45b876d0996716e9701f21766a47ec2ce5a7c8bad35d88",
-    "f2fs-de-cbook.env": "668b2669f9d360858eb56079bf8680c0fd75eb35b3efa8553809368aa8fc795e",
-    "f2fs-de-dual-cbook.env": "4e05ef3eeab5ac2e6320cda2e3584177b3445d9dea15ccdb83f76d41803c52fa",
-    "f2fs-de-dual.env": "481b532c00eb68327719c687e2ea7468aa7aea872b524ff5872d97451c053924",
-    "f2fs-de.env": "29cfc232597caee710bbae8ee262bd7d90c37bd8f3cf3bfd3cb479dc97713b70",
-    "f2fs-desktop.env": "481b532c00eb68327719c687e2ea7468aa7aea872b524ff5872d97451c053924",
-    "vm-desktop.env": "1a914f198acd17d31bcf9d2bbe05d53f733e523ab4f7893ba71b750680b0d156"
+    "f2fs-de-hp14.env": "668b2669f9d360858eb56079bf8680c0fd75eb35b3efa8553809368aa8fc795e",
+    "f2fs-de-hp14-duo.env": "4e05ef3eeab5ac2e6320cda2e3584177b3445d9dea15ccdb83f76d41803c52fa",
+    "f2fs-de-x360-duo.env": "481b532c00eb68327719c687e2ea7468aa7aea872b524ff5872d97451c053924",
+    "f2fs-de-x360.env": "29cfc232597caee710bbae8ee262bd7d90c37bd8f3cf3bfd3cb479dc97713b70"
   }
 }

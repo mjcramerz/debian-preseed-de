@@ -285,7 +285,7 @@ runtime_compute_layout_sizing() {
   runtime_require_positive_integer SIZE_LAYOUT_SAFETY_MARGIN_MB "${SIZE_LAYOUT_SAFETY_MARGIN_MB:-}"
   usable_budget_mb=$((disk_total_mb - preserved_total_mb - SIZE_LAYOUT_SAFETY_MARGIN_MB))
   if [ "$usable_budget_mb" -le 0 ]; then
-    runtime_fatal "usable install budget on ${DEV_INSTALL_DISK} collapsed to ${usable_budget_mb} MiB after preserved partitions and safety margin"
+    runtime_fatal "usable install budget on ${DEV_INSTALL_DISK} collapsed to ${usable_budget_mb} MB after preserved partitions and safety margin"
   fi
 
   runtime_require_positive_integer SIZE_PART_ROOT_TARGET_MB "${SIZE_PART_ROOT_TARGET_MB:-}"
@@ -296,7 +296,7 @@ runtime_compute_layout_sizing() {
   runtime_require_positive_integer SIZE_PART_VAR_TMP_TARGET_MB "${SIZE_PART_VAR_TMP_TARGET_MB:-}"
   raw_zram_mb=$(runtime_compute_raw_zram_partition_mb "$usable_budget_mb" "$usable_budget_mb")
   SWAP_SIZE_MIB=$(runtime_compute_swap_partition_mib "$usable_budget_mb" "$ram_total_mib")
-  DEV_PART_RAW_SWAP_MB=$SWAP_SIZE_MIB
+  DEV_PART_RAW_SWAP_MB=$(runtime_mib_to_recipe_mb SWAP_SIZE_MIB "$SWAP_SIZE_MIB")
 
   if [ "${DUALBOOT_ENABLED:-false}" = "true" ]; then
     DEV_PART_EFI_MB=$(runtime_get_partition_size_mb "$RUNTIME_EFI_SLOT") || \
@@ -368,7 +368,7 @@ runtime_compute_layout_sizing() {
     base_total_mb=$((efi_recipe_mb + DEV_PART_BOOT_MB + DEV_PART_ROOT_MB + DEV_PART_HOME_MB + DEV_PART_OPT_MB + DEV_PART_DATA_MB + DEV_PART_POOL_MB + DEV_PART_VAR_TMP_MB + DEV_PART_VAR_LIB_SHSIGNED_MB + DEV_PART_VAR_LOG_JOURNAL_MB + DEV_PART_RAW_SWAP_MB + DEV_PART_RAW_ZRAM_MB))
   fi
   if [ "$base_total_mb" -gt "$usable_budget_mb" ]; then
-    runtime_fatal "disk budget ${usable_budget_mb} MiB is too small for the minimum Debian layout (${base_total_mb} MiB)"
+    runtime_fatal "disk budget ${usable_budget_mb} MB is too small for the minimum Debian layout (${base_total_mb} MB)"
   fi
 
   elastic_budget_mb=$((usable_budget_mb - base_total_mb))
@@ -716,6 +716,8 @@ runtime_write_runtime_env() {
 }
 
 runtime_emit_debian_partition_recipe() {
+  # Runtime sizing has already allocated the backing/swap budgets. Only root
+  # may grow to absorb the remaining alignment/free-space remainder.
   cat <<EOF
     ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ext4
         \$primary{ } \$bootable{ }
@@ -726,7 +728,7 @@ runtime_emit_debian_partition_recipe() {
 EOF
   if runtime_root_home_crypto_enabled; then
     cat <<EOF
-    ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} btrfs
+    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 btrfs
         method{ crypto } format{ }
         crypto_type{ luks }
         cipher{ aes }
@@ -743,7 +745,7 @@ EOF
 EOF
   else
     cat <<EOF
-    ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} btrfs
+    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 btrfs
         method{ format } format{ }
         use_filesystem{ } filesystem{ btrfs }
         mountpoint{ / }
@@ -787,7 +789,7 @@ EOF
     ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} free
         method{ keep }
     .
-    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} 1000000000 free
+    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} free
         method{ keep }
     .
 EOF

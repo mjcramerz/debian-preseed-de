@@ -41,8 +41,8 @@ not changed.
 
 | Profiles | Intel tuning installation | NVIDIA tuning installation |
 |---|---|---|
-| btrfs-de-main, btrfs-de-dual-main | true | true |
-| btrfs-de-flex, btrfs-de-dual-flex | true | false |
+| btrfs-de-p15s, btrfs-de-p15s-duo | true | true |
+| btrfs-de-flex, btrfs-de-flex-duo | true | false |
 | All nine other profiles | false | false |
 
 Every profile has the same complete tuning schema and values. Intel additionally

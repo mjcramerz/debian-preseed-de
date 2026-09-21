@@ -480,7 +480,7 @@ runtime_compute_layout_sizing() {
 
   runtime_require_positive_integer SIZE_LAYOUT_SAFETY_MARGIN_MB "$SIZE_LAYOUT_SAFETY_MARGIN_MB"
   usable_budget_mb=$((disk_total_mb - preserved_total_mb - SIZE_LAYOUT_SAFETY_MARGIN_MB))
-  [ "$usable_budget_mb" -gt 0 ] || runtime_fatal "usable install budget on ${DEV_INSTALL_DISK} collapsed to ${usable_budget_mb} MiB after preserved partitions and safety margin"
+  [ "$usable_budget_mb" -gt 0 ] || runtime_fatal "usable install budget on ${DEV_INSTALL_DISK} collapsed to ${usable_budget_mb} MB after preserved partitions and safety margin"
 
   runtime_require_positive_integer SIZE_PART_EFI_MB "$SIZE_PART_EFI_MB"
   runtime_require_positive_integer SIZE_PART_BOOT_MB "$SIZE_PART_BOOT_MB"
@@ -495,7 +495,7 @@ runtime_compute_layout_sizing() {
 
   DEV_PART_RAW_ZRAM_MB=$(runtime_compute_raw_zram_partition_mb "$usable_budget_mb" "$usable_budget_mb")
   SWAP_SIZE_MIB=$(runtime_compute_swap_partition_mib "$usable_budget_mb" "$ram_total_mib")
-  DEV_PART_RAW_SWAP_MB=$SWAP_SIZE_MIB
+  DEV_PART_RAW_SWAP_MB=$(runtime_mib_to_recipe_mb SWAP_SIZE_MIB "$SWAP_SIZE_MIB")
 
   if [ "${DUALBOOT_ENABLED:-false}" = "true" ]; then
     DEV_PART_EFI_MB=$(runtime_get_partition_size_mb "$RUNTIME_EFI_SLOT") || \
@@ -533,17 +533,22 @@ runtime_compute_layout_sizing() {
       "$(runtime_shrink_partition_to_floor "$DEV_PART_HOME_MB" "$home_floor_mb" "$overflow_mb")"
     runtime_apply_fill_result DEV_PART_VAR_LOG_JOURNAL_MB overflow_mb \
       "$(runtime_shrink_partition_to_floor "$DEV_PART_VAR_LOG_JOURNAL_MB" "$var_log_journal_floor_mb" "$overflow_mb")"
-    runtime_apply_fill_result DEV_PART_EFI_MB overflow_mb \
-      "$(runtime_shrink_partition_to_floor "$DEV_PART_EFI_MB" "$efi_floor_mb" "$overflow_mb")"
+    # A reused ESP is already excluded from the install budget. Never shrink
+    # it or charge it to the Debian layout again on the low-space path.
+    if [ "${DUALBOOT_ENABLED:-false}" != true ]; then
+      runtime_apply_fill_result DEV_PART_EFI_MB overflow_mb \
+        "$(runtime_shrink_partition_to_floor "$DEV_PART_EFI_MB" "$efi_floor_mb" "$overflow_mb")"
+      efi_recipe_mb=$DEV_PART_EFI_MB
+    fi
     runtime_apply_fill_result DEV_PART_BOOT_MB overflow_mb \
       "$(runtime_shrink_partition_to_floor "$DEV_PART_BOOT_MB" "$boot_floor_mb" "$overflow_mb")"
     runtime_apply_fill_result DEV_PART_ROOT_MB overflow_mb \
       "$(runtime_shrink_partition_to_floor "$DEV_PART_ROOT_MB" "$root_floor_mb" "$overflow_mb")"
 
-    base_total_mb=$((DEV_PART_EFI_MB + DEV_PART_BOOT_MB + DEV_PART_ROOT_MB + DEV_PART_HOME_MB + DEV_PART_POOL_MB + DEV_PART_VAR_LIB_SHSIGNED_MB + DEV_PART_VAR_LOG_JOURNAL_MB + DEV_PART_RAW_SWAP_MB + DEV_PART_RAW_ZRAM_MB))
+    base_total_mb=$((efi_recipe_mb + DEV_PART_BOOT_MB + DEV_PART_ROOT_MB + DEV_PART_HOME_MB + DEV_PART_POOL_MB + DEV_PART_VAR_LIB_SHSIGNED_MB + DEV_PART_VAR_LOG_JOURNAL_MB + DEV_PART_RAW_SWAP_MB + DEV_PART_RAW_ZRAM_MB))
   fi
   if [ "$base_total_mb" -gt "$usable_budget_mb" ]; then
-    runtime_fatal "disk budget ${usable_budget_mb} MiB is too small for the F2FS minimum layout (${base_total_mb} MiB)"
+    runtime_fatal "disk budget ${usable_budget_mb} MB is too small for the F2FS minimum layout (${base_total_mb} MB)"
   fi
 
   elastic_budget_mb=$((usable_budget_mb - base_total_mb))
@@ -639,7 +644,7 @@ runtime_emit_debian_partition_recipe() {
 EOF
   if runtime_root_home_crypto_enabled; then
     cat <<EOF
-    ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ext4
+    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 ext4
         method{ crypto } format{ }
         crypto_type{ luks }
         cipher{ aes }
@@ -653,7 +658,7 @@ EOF
 EOF
   else
     cat <<EOF
-    ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ${DEV_PART_ROOT_MB} ext4
+    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 ext4
         method{ format } format{ }
         use_filesystem{ } filesystem{ f2fs }
         mountpoint{ / }
@@ -702,7 +707,7 @@ EOF
     ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} free
         method{ keep }
     .
-    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} 1000000000 free
+    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} free
         method{ keep }
     .
 EOF

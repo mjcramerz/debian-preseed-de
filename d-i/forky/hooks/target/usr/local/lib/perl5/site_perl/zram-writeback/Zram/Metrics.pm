@@ -11,6 +11,7 @@ use Zram::Debugfs qw(block_state_path);
 use Zram::Error qw(fatal);
 use Zram::Lock qw(ensure_runtime_dir);
 use Zram::Logger qw(log_enabled log_msg);
+use Zram::IOPressure qw(io_pressure_log_fields);
 use Zram::Procfs qw(memory_pressure_snapshot);
 use Zram::Stats qw(read_zram_stat_attrs zram_stat_names);
 use Zram::Sysfs qw(read_first_line read_uint_attr);
@@ -183,6 +184,10 @@ sub capture_zram_state {
         mem_total_bytes => $pressure->{mem_total_bytes},
         psi_some_avg10_millionths => $pressure->{psi_some_avg10_millionths},
         psi_full_avg10_millionths => $pressure->{psi_full_avg10_millionths},
+        io_psi_state => $tuning->{io_pressure}{state},
+        io_psi_reason => $tuning->{io_pressure}{reason},
+        io_psi_some_avg10_millionths => $tuning->{io_pressure}{some_avg10_millionths} // 'unknown',
+        io_psi_full_avg10_millionths => $tuning->{io_pressure}{full_avg10_millionths} // 'unknown',
         writeback_batch_size_effective => $tuning->{effective_batch_size},
         writeback_batch_size_configured_max => $tuning->{configured_max},
         writeback_batch_size_actual => read_uint_attr("$sysfs/writeback_batch_size") || 0,
@@ -337,7 +342,9 @@ sub capture_zram_state {
         incompressible_writeback_chunks targeted_specs_truncated targeted_specs_capped
         max_page_age_sec
         mem_available_bytes mem_total_bytes psi_some_avg10_millionths
-        psi_full_avg10_millionths writeback_batch_size_effective
+        psi_full_avg10_millionths io_psi_state io_psi_reason
+        io_psi_some_avg10_millionths io_psi_full_avg10_millionths
+        writeback_batch_size_effective
         writeback_batch_size_configured_max writeback_batch_size_actual
         writeback_pass_page_limit writeback_limit_enabled writeback_limit_remaining
         backing_queue_depth backing_rotational
@@ -365,7 +372,8 @@ sub capture_zram_state {
             "targeted_idle_pages=$stats{targeted_idle_pages} huge_idle_pages=$stats{huge_idle_pages} " .
             "targeted_huge_idle_pages=$stats{targeted_huge_idle_pages} incompressible_pages=$stats{incompressible_pages} " .
             "targeted_incompressible_pages=$stats{targeted_incompressible_pages} targeted_specs_truncated=$stats{targeted_specs_truncated} " .
-            "targeted_specs_capped=$stats{targeted_specs_capped}"
+            "targeted_specs_capped=$stats{targeted_specs_capped} " .
+            io_pressure_log_fields($tuning->{io_pressure})
         );
     }
 

@@ -4,7 +4,7 @@
 
 This change adds a separate, opt-in hardware policy controller. It does not replace the existing energy-profile menu, cgroup delegation, resource weights, launcher isolation, display configuration, driver installation, or unrelated power-management services. Confirmed activation temporarily hands CPU-policy ownership from power-profiles-daemon (PPD) to custom tuning; stopping hands it back. The served payload and generated preseed must be rebuilt together with `make build` after changing any installer profile.
 
-`HARDWARE_INTEL_CPU_TUNING_ENABLE="true"` in the two main and two Flex profiles. `HARDWARE_NVIDIA_GPU_TUNING_ENABLE="true"` only in `btrfs-de-main.env` and `btrfs-de-dual-main.env`; it is explicitly `"false"` in both Flex profiles. Both flags are `"false"` in the other nine profiles. Every profile carries the same initial tuning values; enablement is the only intended difference in this added configuration block.
+`HARDWARE_INTEL_CPU_TUNING_ENABLE="true"` in the two main and two Flex profiles. `HARDWARE_NVIDIA_GPU_TUNING_ENABLE="true"` only in `btrfs-de-p15s.env` and `btrfs-de-p15s-duo.env`; it is explicitly `"false"` in both Flex profiles. Both flags are `"false"` in the other nine profiles. Every profile carries the same initial tuning values; enablement is the only intended difference in this added configuration block.
 
 Intel additionally requires a detected GenuineIntel CPU. NVIDIA additionally requires a selected `addon/nvidia` or `addon/nvidia-legacy` class and a detected NVIDIA display GPU. NVIDIA GPU detection, not a nonexistent requirement for an NVIDIA CPU, is used. Both flags are literal booleans; invalid values fail installation. The desktop role and Labwc must also be enabled by the existing installer policy.
 

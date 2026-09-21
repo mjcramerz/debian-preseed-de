@@ -215,7 +215,7 @@ class DesktopIsolationTests(unittest.TestCase):
         with mock.patch.object(generic, 'assert_launch_allowed'):
             argv = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
             second = generic.transient_argv('wayland', 'launch', ['/usr/bin/foot'], {})
-        for setting in ('ExitType=cgroup', 'KillMode=control-group', 'TimeoutStopSec=20s',
+        for setting in ('ExitType=cgroup', 'KillMode=mixed', 'TimeoutStopSec=20s',
                         'Requisite=labwc-session.target', 'PartOf=labwc-session.target'):
             self.assertIn('--property=' + setting, argv)
         self.assertIn('--service-type=exec', argv)

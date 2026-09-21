@@ -46,6 +46,15 @@ sub default_config {
             daily_writeback_limit => '',
             maintenance_page_indexes => '',
         },
+        io_pressure => {
+            enabled => '1',
+            some_avg10_min => '10.00',
+            full_avg10_min => '2.00',
+            batch_size_pressure => '8',
+            batch_size_emergency => '16',
+            max_pages_pressure => '1024',
+            max_pages_emergency => '4096',
+        },
         backing_crypto => {
             cipher => 'aes-xts-plain64',
             key_size_bits => '512',
@@ -147,7 +156,7 @@ sub default_config {
         runtime => {
             lock_file => '/run/zram/zram-writeback.lock',
             metrics_file => '',
-            log_level => 'error',
+            log_level => 'info',
             dry_run => '0',
         },
     };

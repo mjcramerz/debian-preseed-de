@@ -1,0 +1,13 @@
+{
+  "name": "tools-test_labwc_power_handoff",
+  "source": "tools/tests/test_labwc_power_handoff.py",
+  "returncode": 0,
+  "seconds": 0.95,
+  "tests": 24,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/tools-test_labwc_power_handoff.log",
+  "reused_completed_run": true
+}

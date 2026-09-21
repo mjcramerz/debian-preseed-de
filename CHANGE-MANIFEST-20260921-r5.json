@@ -1,0 +1,563 @@
+{
+  "revision": "20260921-r5",
+  "base_archive": "debian-preseed-de-refactored-20260921-r4.tar.gz",
+  "base_sha256": "de411af01b366d95a77df8285ea91f99a463eb1495deeb8c98fc084550e8c505",
+  "note": "Complete R4 continuation. The change manifest excludes itself to avoid a recursive hash. The final archive verification checks every regular file including this manifest.",
+  "changed": [
+    {
+      "path": "ATOMIC-OUTPUT-ZRAM-REVIEW-20260921-r3.md",
+      "before": {
+        "sha256": "a7f73a3428d24d08416522133d722508c514b87b246abfdaf6ef71b01a98f180",
+        "size": 16674,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "794dd24d24fddd7c7fd038626b5187de092ec087deb5a11d5c82cd171aaf1af2",
+        "size": 14831,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Config/Validator.pm",
+      "before": {
+        "sha256": "14ff2b8499ce700c2b0ef8d8a040ef52df28f35a3f0f68fcac8fdfee707dc471",
+        "size": 25075,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "a02eea3a36cbf7b44ad310593dce9c47825deb9f2b2b92e48cb095e0b11333a9",
+        "size": 25185,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/README.md",
+      "before": {
+        "sha256": "9fb62f5acd00fb4a55b2726839ff55e2302309c7afff8b7a104f93b3389c79fc",
+        "size": 1555,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "22c510c797207f41093c65da1f558b02f9dafbf74abcceabf826e3c7b3e1906b",
+        "size": 1680,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+      "before": {
+        "sha256": "7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94",
+        "size": 61168,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "35e76eb4798f64a047bbcce7c0f641da60a3be33cde71b6c5481497149da8a41",
+        "size": 61056,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+      "before": {
+        "sha256": "e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b",
+        "size": 60804,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "7985eb386d6043fb30ad6273f16e712730301d8e3b9405b88eee51c05f0f7daf",
+        "size": 60982,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
+      "before": {
+        "sha256": "fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd",
+        "size": 60461,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "c5d18ec58aea418d6584b1a3fcb617e0c7557cbce93e24bfe4bc9e6610fb63e1",
+        "size": 60625,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "before": {
+        "sha256": "611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf",
+        "size": 60943,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "de51299d6e76b18f0b6c33ae8823b8aba4b38ecc81f5f8538a9f1b4d848874c3",
+        "size": 60818,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
+      "before": {
+        "sha256": "f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f",
+        "size": 60985,
+        "mode": 416
+      },
+      "after": {
+        "sha256": "6e85d0785139a9fc71d75d122aee0fa7e8d1096a9414df250590c53dec95d631",
+        "size": 61150,
+        "mode": 416
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "before": {
+        "sha256": "d3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe",
+        "size": 60487,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "9019ee7040fd8010946d9a58b3dfde56bb646aed955e53acf87292172e61b039",
+        "size": 60651,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+      "before": {
+        "sha256": "fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d",
+        "size": 60461,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "3a4dfeb29a06c866ed775afe317730b119f7f73188c155a53a7479c4097c1216",
+        "size": 60625,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+      "before": {
+        "sha256": "2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620",
+        "size": 60208,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "376164dbe87296e857c1920cbeb8fb101bc877b4df864343514cefb7735a6bab",
+        "size": 60432,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+      "before": {
+        "sha256": "92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397",
+        "size": 60256,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "5eb96734f2fffa4fb3bd201ba8121bf87cad6d2d3a8c839e5d44809cdc851fea",
+        "size": 60434,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+      "before": {
+        "sha256": "859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7",
+        "size": 60158,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa",
+        "size": 60322,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "before": {
+        "sha256": "2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd",
+        "size": 60164,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "e892159a23c397d35fa8c2cd7478fbc891aa70bd41a3cc7531ccfdaaa04bea63",
+        "size": 60328,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "before": {
+        "sha256": "859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7",
+        "size": 60158,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "440158add98b6d2f0b3f8fbca33e736bb2a63ad933e650d88516f6768cbdd9aa",
+        "size": 60322,
+        "mode": 384
+      }
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "before": {
+        "sha256": "b478d9f37f00385a17835ba2175228d857314ec2ae3fe7c8ae0d2fbeaeb6fced",
+        "size": 174253,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "83c6735cb21c45cac76e688f73c2a0933a5b52fbf9e11b72c5c44a7887a43aef",
+        "size": 174253,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "before": {
+        "sha256": "1ee2dc95debea9ec943da46ab4142a9651f3df1542b82d158c4d3a0d383e9dcc",
+        "size": 7191843,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "e7f63b9cba6548047466bf90d86bdac7b0afabc66ce83dc97f78a85b20665274",
+        "size": 7192836,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "before": {
+        "sha256": "963a1da6b44a0d021365ca83aeb830c42a184b8472b98e623b4a03100ea012c2",
+        "size": 88323,
+        "mode": 420
+      },
+      "after": {
+        "sha256": "bf1defc662bf8c9f94ce3f18cb4285877fef0414b9e35765f8e9031aabb5fea0",
+        "size": 88323,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/late/zram-swap.sh",
+      "before": {
+        "sha256": "e03523100f2ebd4337edf3d658b6776989bca45edb665d507b6ef347958b1a86",
+        "size": 13025,
+        "mode": 488
+      },
+      "after": {
+        "sha256": "74790e23bc53174c29b38f1fc13aa00d798afae7698d7f1ad684b1de0b3bf586",
+        "size": 11791,
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/runtime/btrfs.sh",
+      "before": {
+        "sha256": "2c20205cc277efa3e2b1f5b684a9e3c3c8065e5add9524e036572585a951e726",
+        "size": 38302,
+        "mode": 488
+      },
+      "after": {
+        "sha256": "3eee4665c5114816998e7fac597712748ab547e12af37a97123d0def782dd807",
+        "size": 37944,
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/runtime/common.sh",
+      "before": {
+        "sha256": "3ea7726149b91ba3c6c77d3bbf0e5767c9d1c34d36f1c01bdc5c85f2516a6ad5",
+        "size": 39026,
+        "mode": 488
+      },
+      "after": {
+        "sha256": "9e2515914d3c92daaa273c7120032ea7028c1c4dcb8cb980f73a75b2e75f3f03",
+        "size": 39174,
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/scripts/runtime/f2fs.sh",
+      "before": {
+        "sha256": "96b71cec8a03c4b08d252658b570996d51cf0b906b31f29c67ed0263b088da01",
+        "size": 30233,
+        "mode": 488
+      },
+      "after": {
+        "sha256": "06bb5c2827b12873bc9e54fda5646df6f3e3e1b01a6d06334cd6148b804f6efa",
+        "size": 30530,
+        "mode": 488
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_systemd_resource_policy.py",
+      "before": {
+        "sha256": "5dc100e1f206314ba81b67729f5231dc7307b42445d460410fad85d86e5dd42f",
+        "size": 37208,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "f71f980b60f984b8d735a5ac6c4dceaa5825a1bf69087739a3006b25fd842310",
+        "size": 36725,
+        "mode": 384
+      }
+    },
+    {
+      "path": "docs/migration-map.json",
+      "before": {
+        "sha256": "4c06387cd5e7b34b07728f65233f38c7e6cd8e66d097f2293a67010d21f6188e",
+        "size": 550977,
+        "mode": 384
+      },
+      "after": {
+        "sha256": "646cfd51948134f582bcc398640bd26a5134e5653d6de84d23813cf159af4f87",
+        "size": 553929,
+        "mode": 384
+      }
+    }
+  ],
+  "added": [
+    {
+      "path": "DYNAMIC-STORAGE-REVIEW-20260921-r5.md",
+      "after": {
+        "sha256": "b447ca819588b9a665b7d644e71aa11bb66e3918f40368ea0173461a56d2799c",
+        "size": 11102,
+        "mode": 420
+      }
+    },
+    {
+      "path": "VALIDATION-20260921-r5.json",
+      "after": {
+        "sha256": "0e315e83c975d84a4dcc5e192fedf2ddb9857f8193135e29013190ba0bfd0968",
+        "size": 36092,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/tests/fixtures/dynamic-storage-profile-reversions.json",
+      "after": {
+        "sha256": "3a84c3d1e1127598b5c1f1769fe8e22abe8fe791af5bc1f57ed34dcb69d8989d",
+        "size": 10576,
+        "mode": 420
+      }
+    },
+    {
+      "path": "d-i/forky/tests/test_dynamic_storage_sizing_20260921.py",
+      "after": {
+        "sha256": "b228f2c4298cebffaf4495264ab77e03a63ef39276a782d3e3cd2e48c426df90",
+        "size": 18878,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/apparmor-offline.json",
+      "after": {
+        "sha256": "e2759ba1ebc20cb96cd80f5f4d34bc1644f92e8ab672ea404b3fd041b37c1ab9",
+        "size": 8971,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/build-and-preseed-checks.log",
+      "after": {
+        "sha256": "e5f807f06fb9eb9c387cced4a1b99284d5e91b5b8bf2bae7bd46f508b1e7d3f0",
+        "size": 1084,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/completeness-cleanup.json",
+      "after": {
+        "sha256": "253b28f544a2c199044e9f6d1c0c782080803688c4ad608a4791d52d688b3fca",
+        "size": 114,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/initial-unsuccessful-tests.log",
+      "after": {
+        "sha256": "eee27bba7930bed93e69396630638884e0f6bf47b61fe20e3261d9b88e751beb",
+        "size": 53450,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/offline-audit.json",
+      "after": {
+        "sha256": "e6f6debdd5a69733aa4159bca084383fa17feb2a1eff8737edce3d07ed02a550",
+        "size": 862720,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/regression-tests.log",
+      "after": {
+        "sha256": "74d09dc75ef021689f38248530fe620e58a17b79e515a554bdd94f80fcc60885",
+        "size": 411851,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/scenarios.json",
+      "after": {
+        "sha256": "db9ecea3bb16f93c3ec5a3f5bf118c17863b3037c64246f6c4a92062f34e3da1",
+        "size": 9257,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/scope-check.json",
+      "after": {
+        "sha256": "53b0e53f381a31384168719728fed345e086e0e483c09ee9c3b9f332d3548740",
+        "size": 3732,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/dynamic-storage-20260921-r5/shell-check.json",
+      "after": {
+        "sha256": "1482d399a38c99516ae8fd6368ae0c74aceb5936b4184c8820854e7aad632b8e",
+        "size": 191,
+        "mode": 420
+      }
+    }
+  ],
+  "removed": [
+    {
+      "path": "d-i/forky/tests/test_flex_zram_r3_20260921.py",
+      "before": {
+        "sha256": "68e5552576bcce64416d79b4d184169703f38b15be2cea54d89d3d4d4c265c7d",
+        "size": 8761,
+        "mode": 420
+      }
+    },
+    {
+      "path": "validation/atomic-output-zram-20260921-r3/production-changes.patch",
+      "before": {
+        "sha256": "33ee09118c9c3911fe80bf94a5bbba29e8c30f0504b5ce6f5a54d97ea2a080ab",
+        "size": 24213,
+        "mode": 420
+      }
+    }
+  ],
+  "scope": {
+    "changed_production_files": [
+      "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Config/Validator.pm",
+      "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+      "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+      "d-i/forky/hosts/profiles/btrfs-de-duo.env",
+      "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+      "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
+      "d-i/forky/hosts/profiles/btrfs-de.env",
+      "d-i/forky/hosts/profiles/btrfs-de.env",
+      "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+      "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+      "d-i/forky/scripts/late/zram-swap.sh",
+      "d-i/forky/scripts/runtime/btrfs.sh",
+      "d-i/forky/scripts/runtime/common.sh",
+      "d-i/forky/scripts/runtime/f2fs.sh"
+    ],
+    "production_assignment_check": [
+      {
+        "path": "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Config/Validator.pm",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/btrfs-de.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/scripts/late/zram-swap.sh",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/scripts/runtime/btrfs.sh",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/scripts/runtime/common.sh",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      },
+      {
+        "path": "d-i/forky/scripts/runtime/f2fs.sh",
+        "new_assignment_names": [],
+        "new_profile_keys": []
+      }
+    ],
+    "target_changes": [
+      "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Config/Validator.pm"
+    ],
+    "unchanged_target_source_files": 1192,
+    "vm_profile_unchanged": true,
+    "original_source_files_retained": 3468,
+    "historical_provenance_hashes_unchanged": true,
+    "intentional_removals": [
+      "d-i/forky/tests/test_flex_zram_r3_20260921.py",
+      "validation/atomic-output-zram-20260921-r3/production-changes.patch"
+    ]
+  }
+}

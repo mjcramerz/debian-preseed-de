@@ -1,0 +1,54 @@
+test_bad_sha256_gets_a_sha256_specific_error (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_sha256_gets_a_sha256_specific_error) ... ok
+test_bad_url_diagnostic_does_not_blame_a_valid_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_url_diagnostic_does_not_blame_a_valid_sha256) ... ok
+test_build_id_is_not_mistaken_for_archive_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_is_not_mistaken_for_archive_sha256) ... ok
+test_build_id_shape_is_strictly_bounded (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_shape_is_strictly_bounded) ... ok
+test_exact_asset_directory_shape_unpacks_and_verifies_all_members (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_asset_directory_shape_unpacks_and_verifies_all_members) ... ok
+test_exact_user_requested_pins_pass_runtime_policy (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_user_requested_pins_pass_runtime_policy) ... ok
+test_invalid_policy_fails_before_root_network_or_installation (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_invalid_policy_fails_before_root_network_or_installation) ... ok
+test_legacy_exact_basename_remains_accepted (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_legacy_exact_basename_remains_accepted) ... ok
+test_real_mismatch_reports_expected_and_actual_digests (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_real_mismatch_reports_expected_and_actual_digests) ... ok
+test_validate_only_is_read_only_and_does_not_require_root (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_validate_only_is_read_only_and_does_not_require_root) ... ok
+test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected) ... ok
+test_all_actual_profiles_pass_independent_preflight (test_resctl_bench_release_20260917.ProfilePreflightTests.test_all_actual_profiles_pass_independent_preflight) ... ok
+test_build_and_build_check_reject_invalid_pins_before_touching_products (test_resctl_bench_release_20260917.ProfilePreflightTests.test_build_and_build_check_reject_invalid_pins_before_touching_products) ... ok
+test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement (test_resctl_bench_release_20260917.ProfilePreflightTests.test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement) ... ok
+test_comments_are_not_assignments (test_resctl_bench_release_20260917.ProfilePreflightTests.test_comments_are_not_assignments) ... ok
+test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) ... 
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex-duo.env') ... FAIL
+  test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex.env') ... FAIL
+test_each_duplicate_pin_is_rejected_even_when_values_match (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_duplicate_pin_is_rejected_even_when_values_match) ... ok
+test_each_missing_pin_is_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_missing_pin_is_rejected) ... ok
+test_empty_profile_set_and_symlink_profile_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_empty_profile_set_and_symlink_profile_are_rejected) ... ok
+test_independently_valid_different_profile_pins_are_accepted (test_resctl_bench_release_20260917.ProfilePreflightTests.test_independently_valid_different_profile_pins_are_accepted) ... ok
+test_nonliteral_shell_expressions_never_execute (test_resctl_bench_release_20260917.ProfilePreflightTests.test_nonliteral_shell_expressions_never_execute) ... ok
+test_single_and_multiple_matching_profiles_pass (test_resctl_bench_release_20260917.ProfilePreflightTests.test_single_and_multiple_matching_profiles_pass) ... ok
+test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected) ... ok
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r3-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '8b1b340fa6dddc8d167b79817f36054cb8279cd8346d40a9bc2001bf104c971b' != '7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94'
+- 8b1b340fa6dddc8d167b79817f36054cb8279cd8346d40a9bc2001bf104c971b
++ 7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94
+
+
+======================================================================
+FAIL: test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r3-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_release_20260917.py", line 192, in test_current_profile_provenance_matches_the_recorded_profiles
+    self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '18a038a418a60d1eea26e579b2184d454f29238aaca668a2aae490e61833deab' != '611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf'
+- 18a038a418a60d1eea26e579b2184d454f29238aaca668a2aae490e61833deab
++ 611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf
+
+
+----------------------------------------------------------------------
+Ran 23 tests in 7.539s
+
+FAILED (failures=2)

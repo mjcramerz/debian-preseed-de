@@ -44,7 +44,7 @@ def main() -> int:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     environment = module.parse_environment('\n'.join(
-        line for line in (FORKY / 'hosts/profiles/btrfs-de-main.env').read_text().splitlines()
+        line for line in (FORKY / 'hosts/profiles/btrfs-de-p15s.env').read_text().splitlines()
         if line.startswith('HARDWARE_')))
     results = []
     with tempfile.TemporaryDirectory(prefix='tuning-units-', dir=Path.home()) as temporary:

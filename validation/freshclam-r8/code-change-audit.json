@@ -1,0 +1,42 @@
+{
+  "base_archive_sha256": "7370031ba00627257c40b9857890abde298336194a9f93c785a76e8ce55abedd",
+  "modified_existing_files": [
+    {
+      "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-configure-session-repairs",
+      "old_sha256": "1c3a16698884ed63f0a1a89bd3bd12747466d5a85c904a861da231b3a0239c9b",
+      "new_sha256": "529f8c98b5645a9b79c9aa8d46b65820cf42da36dbfe7ce3583f8e714b9f9392",
+      "old_mode": "0750",
+      "new_mode": "0750"
+    },
+    {
+      "path": "d-i/forky/payload.manifest",
+      "old_sha256": "cae404b029bae798da0618c7ea66d0154387463dc37cf742ff8f97d2ae49f664",
+      "new_sha256": "365ec2d6f2e7cbe09155810944ee4b86a11f0fa0613e3a54bd704f152662158c",
+      "old_mode": "0644",
+      "new_mode": "0644"
+    },
+    {
+      "path": "d-i/forky/payload.tar.gz",
+      "old_sha256": "d69ca4ec4985f01c2eb701f285c7db64b8d8f9af28b9f9a0a9f22c3c1776cb38",
+      "new_sha256": "d976887ad648d7c9cfaf17eac8c5bd16cf85fb1076c4c3e3dd3c71f7be7cdd2c",
+      "old_mode": "0644",
+      "new_mode": "0644"
+    },
+    {
+      "path": "d-i/forky/preseed.cfg",
+      "old_sha256": "2b967af93c07fe0eba79aea63e07fb929d4357202958eeb6e3f80c27a70619b0",
+      "new_sha256": "de0ced01b2955fd1528af7e8551e9bb7e63286db1e0d238865189fb160b891f9",
+      "old_mode": "0644",
+      "new_mode": "0644"
+    }
+  ],
+  "removed_files": [],
+  "target_files_total": 1194,
+  "target_files_unchanged": 1193,
+  "managed_app_modules_unchanged": 23,
+  "unmodified_helper_functions": [
+    "replace",
+    "retire_colour_assets"
+  ],
+  "profile_files_unchanged": 10
+}

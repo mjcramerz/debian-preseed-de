@@ -40,7 +40,7 @@ mismatch are not the release-candidate result.
 The full suite is **not green**. Every remaining failure was reproduced against
 an independently extracted, untouched baseline:
 
-- Three IOCost-related checks expect `btrfs-de-dual-flex` to enable calibration;
+- Three IOCost-related checks expect `btrfs-de-flex-duo` to enable calibration;
   the supplied profile explicitly sets it to false. Its value is preserved.
 - Ten workspace-verifier fixture checks stop at the existing native-switcher
   contract mismatch before reaching their individual assertions. The relevant

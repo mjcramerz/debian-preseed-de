@@ -1,0 +1,34 @@
+[
+  {
+    "uid": 23117,
+    "gid": 4,
+    "mode": "0444",
+    "stale_notify": false,
+    "result": "reproduced",
+    "error": "unsafe freshclam configuration"
+  },
+  {
+    "uid": 23117,
+    "gid": 4,
+    "mode": "0444",
+    "stale_notify": true,
+    "result": "reproduced",
+    "error": "unsafe freshclam configuration"
+  },
+  {
+    "uid": 23117,
+    "gid": 4,
+    "mode": "0400",
+    "stale_notify": false,
+    "result": "reproduced",
+    "error": "unsafe freshclam configuration"
+  },
+  {
+    "uid": 23117,
+    "gid": 4,
+    "mode": "0400",
+    "stale_notify": true,
+    "result": "reproduced",
+    "error": "unsafe freshclam configuration"
+  }
+]

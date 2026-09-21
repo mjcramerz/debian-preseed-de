@@ -112,6 +112,50 @@ def walk(menu):
         list_free(items)
 
 
+get_label_text = bind(G, 'gtk_label_get_text', C.c_char_p, ptr)
+label_type = bind(G, 'gtk_label_get_type', C.c_size_t)()
+image_type = bind(G, 'gtk_image_get_type', C.c_size_t)()
+image_size = bind(G, 'gtk_image_get_pixel_size', C.c_int, ptr)
+image_name = bind(G, 'gtk_image_get_icon_name', None, ptr, C.POINTER(C.c_char_p), C.POINTER(C.c_int))
+pango=C.CDLL(ctypes.util.find_library('pango-1.0'))
+get_font=bind(G,'gtk_style_context_get_font',ptr,ptr,C.c_uint)
+font_weight=bind(pango,'pango_font_description_get_weight',C.c_int,ptr)
+font_size=bind(pango,'pango_font_description_get_size',C.c_int,ptr)
+icon_theme=bind(G,'gtk_icon_theme_new',ptr)()
+bind(G,'gtk_icon_theme_set_custom_theme',None,ptr,C.c_char_p)(icon_theme,b'Adwaita')
+has_icon=bind(G,'gtk_icon_theme_has_icon',C.c_int,ptr,C.c_char_p)
+
+def get_label_widget(item):
+    nodes = children(child(item))
+    found = None
+    images = 0
+    try:
+        current = nodes
+        while current:
+            widget = current.contents.data
+            if is_type(widget, label_type):
+                found = widget
+            elif is_type(widget, image_type):
+                name, size = C.c_char_p(), C.c_int()
+                image_name(widget, C.byref(name), C.byref(size))
+                assert name.value and name.value.endswith(b'-symbolic'), name.value
+                assert image_size(widget) == 18
+                assert has_icon(icon_theme,name.value), name.value
+                images += 1
+            current = current.contents.next
+    finally:
+        list_free(nodes)
+    assert found and images == 1, 'each item/header needs one label and one themed GTK image'
+    font=get_font(get_context(found),get_state(found))
+    assert font_weight(font) >= 700
+    # GTK resolves 16 CSS px to 12 Pango points at the fixture's 96 DPI.
+    absolute = bind(pango, 'pango_font_description_get_size_is_absolute', C.c_int, ptr)(font)
+    dpi = bind(D, 'gdk_screen_get_resolution', C.c_double, ptr)(screen)
+    pixels = font_size(font) / 1024 * (1 if absolute else (dpi if dpi > 0 else 96) / 72)
+    assert abs(pixels - 16) < 0.01, (font_size(font), dpi, pixels)
+    return found
+
+
 def rgba(widget, getter):
     value = RGBA()
     getter(get_context(widget), get_state(widget), C.byref(value))
@@ -128,7 +172,7 @@ modules = [('custom/tomat', 'tomat'), ('clock', 'calendar'), ('pulseaudio', 'aud
 report = {'profiles': len(profiles), 'themes': ['Adwaita', 'Adwaita-dark'],
           'menu_roots': 0, 'activations': 0, 'center_activations': 0,
           'highlight_states': 0, 'disabled_states': 0, 'submenu_headers': 0,
-          'orange_rgba': [242, 159, 103, 0.24], 'callback_errors': []}
+          'orange_rgba': [255, 159, 54, 1.0], 'callback_errors': []}
 callback_type = C.CFUNCTYPE(None, ptr, ptr)
 
 with tempfile.TemporaryDirectory() as temporary:
@@ -180,7 +224,7 @@ with tempfile.TemporaryDirectory() as temporary:
                             refs.append(callback)
                             assert connect(item, b'activate', callback, None, None, 0)
                         for item in walk(menu):
-                            label = (get_label(item) or b'').decode()
+                            label = (get_label_text(get_label_widget(item)) or b'').decode()
                             ident = (get_name(item) or b'').decode()
                             where = (profile['name'], bar['name'], theme, optional_enabled, menu_name, ident, label)
                             header = bool(submenu(item))
@@ -196,7 +240,7 @@ with tempfile.TemporaryDirectory() as temporary:
                                 actual = rgba(item, background)
                                 if enabled:
                                     assert actual == report['orange_rgba'], (where, state, actual)
-                                    assert rgba(child(item), foreground) == [245, 239, 227, 1.0], where
+                                    assert rgba(child(item), foreground) == [23, 16, 10, 1.0], where
                                     report['highlight_states'] += 1
                                 else:
                                     assert actual[3] == 0.0, (where, state, actual)
@@ -233,5 +277,6 @@ with tempfile.TemporaryDirectory() as temporary:
                         drain()
             remove_provider(screen, provider)
             unref(provider)
+unref(icon_theme)
 assert not report['callback_errors'], report
 print(json.dumps(report, indent=2))

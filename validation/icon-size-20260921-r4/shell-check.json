@@ -1,0 +1,17 @@
+{
+  "name": "shell-check",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "tools/check_shells.py",
+    "--output",
+    "/mnt/data/r4-work/debian-preseed-de/validation/icon-size-20260921-r4/shell-check.json"
+  ],
+  "returncode": 0,
+  "seconds": 12.23,
+  "log": "validation/icon-size-20260921-r4/shell-check.log",
+  "tests": 0,
+  "skipped": 0,
+  "skip_reasons": [],
+  "failed": 0
+}

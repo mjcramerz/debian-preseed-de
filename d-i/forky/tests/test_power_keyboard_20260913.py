@@ -210,6 +210,7 @@ while True: time.sleep(0.02)
 class SessionPreparationTests(unittest.TestCase):
     def setUp(self):
         self.session = module('labwc-session-state')
+        self.confirm = mock.patch.object(self.session, 'confirm_close'); self.confirm.start(); self.addCleanup(self.confirm.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.state = Path(tmp.name) / 'state'
@@ -228,7 +229,7 @@ class SessionPreparationTests(unittest.TestCase):
 
     def test_empty_desktop_has_no_close_request_or_wait(self):
         self.session.prepare(self.state, self.runtime)
-        self.sleep.assert_not_called()
+        self.sleep.assert_called_once_with(0.3)
         self.run.assert_not_called()
         self.notify.assert_not_called()
         self.services.assert_called_once()
@@ -238,14 +239,14 @@ class SessionPreparationTests(unittest.TestCase):
         self.services.return_value = {'tray.service': {'LABWC_SESSION_APP': '1'},
                                      'nested.service': {'LABWC_SESSION_APP': '1', 'LABWC_SESSION_NESTED': '1'}}
         self.session.prepare(self.state, self.runtime)
-        self.sleep.assert_not_called()
+        self.sleep.assert_called_once_with(0.3)
         self.assertTrue((self.runtime / 'labwc-session-closing').exists())
 
     def test_save_dialog_gets_time_but_only_one_close_request(self):
-        self.windows.side_effect = ['editor: Document', 'editor: Save changes?', '']
+        self.windows.side_effect = ['editor: Document', 'editor: Save changes?', '', '']
         self.session.prepare(self.state, self.runtime)
         self.run.assert_called_once_with(['/usr/bin/wlrctl', 'toplevel', 'close'], timeout=5, accepted=(0, 1))
-        self.sleep.assert_called_once_with(0.2)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(0.2), mock.call(0.3)])
         self.services.assert_called_once()
 
     def test_unresolved_save_window_cancels_before_teardown(self):
@@ -554,10 +555,11 @@ class AuditPolicyTests(unittest.TestCase):
     def test_power_controller_does_not_need_cross_domain_ptrace_or_kill(self):
         worker = block('managed-desktop-wrappers', 'managed-labwc-admin-action-worker')
         self.assertNotIn('ptrace (read)', worker)
-        self.assertNotIn('capability kill,', worker)
+        self.assertIn('capability kill,', worker)
+        self.assertIn('set=(kill chld) peer=managed-labwc-admin-action-worker', worker)
         self.assertNotIn('signal (send),', worker)
         self.assertIn('/run/systemd/notify w,', worker)
-        self.assertIn('signal (send, receive) set=(kill) peer=managed-labwc-admin-action-worker,', worker)
+        self.assertIn('signal (send, receive) set=(kill chld) peer=managed-labwc-admin-action-worker,', worker)
 
 
 if __name__ == '__main__':

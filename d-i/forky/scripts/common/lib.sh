@@ -2811,12 +2811,7 @@ installer_fetch_host_env() {
         host_profile_env_dir=${INSTALLER_PROFILE_OVERRIDE_ENV_DIR}
         host_profile_env_name=${INSTALLER_PROFILE_OVERRIDE_ENV_NAME}
         ;;
-      *)
-        host_family=$(installer_profile_shared_family "$host_profile" 2>/dev/null || true)
-        host_variant=$(installer_profile_variant "$host_profile" 2>/dev/null || true)
-        host_profile_env_dir=$host_family
-        host_profile_env_name=$host_variant
-        ;;
+      *) installer_fatal "unsupported host profile: ${host_profile:-unset}" ;;
     esac
   fi
 
@@ -4540,6 +4535,13 @@ installer_populate_selected_class_state() {
   default_install_disk=$(installer_class_meta_value "$seed_base" "$storage_group" "$storage_class" default_install_disk)
   host_profile_env_dir=$host_family
   host_profile_env_name=$host_variant
+  # Use the canonical defaults directly; no duplicate desktop-profile aliases.
+  case "$host_family" in
+    # Virtual storage keeps its disk candidates/hooks, but uses the same
+    # canonical Btrfs policy as other Btrfs storage; no separate VM profile.
+    btrfs|vm) host_profile_env_dir=override; host_profile_env_name=btrfs-de ;;
+    f2fs) host_profile_env_dir=override; host_profile_env_name=f2fs-de-x360 ;;
+  esac
 
   [ -n "$host_variant" ] || installer_fatal "selected class ${base_role_group}/${base_role_class} must define HostVariant in classes/configs/system.cfg"
   [ "$host_variant" = "${REPOSITORY_ROLE:-}" ] || installer_fatal "selected role does not match this repository: ${host_variant}"
@@ -4592,11 +4594,7 @@ installer_populate_selected_class_state() {
   INSTALLER_DEFAULT_INSTALL_DISK=$default_install_disk
   INSTALLER_HOST_PROFILE_ENV_DIR=$host_profile_env_dir
   INSTALLER_HOST_PROFILE_ENV_NAME=$host_profile_env_name
-  if [ -n "$profile_class" ]; then
-    INSTALLER_HOST_PROFILE="${host_profile_env_dir}-${host_profile_env_name}"
-  else
-    INSTALLER_HOST_PROFILE="${host_profile_prefix}-${host_variant}"
-  fi
+  INSTALLER_HOST_PROFILE="${host_profile_env_dir}-${host_profile_env_name}"
   INSTALLER_HOST_FAMILY=$host_family
   INSTALLER_HOOK_FAMILY=$hook_family
 }
@@ -4811,13 +4809,12 @@ installer_prepare_context() {
   installer_load_context
 }
 
-# Flat profile storage. The logical 'override' identifier remains compatible.
+# Flat profile storage; canonical class identifiers are validated by the resolver.
 installer_profile_env_path() {
   installer_validate_profile_component "profile family" "$1"
   installer_validate_profile_component "profile name" "$2"
   case "$1" in
     override) installer_repo_join_var DIR_HOSTS_PROFILES "$2.env" ;;
-    btrfs|f2fs|vm) installer_repo_join_var DIR_HOSTS_PROFILES "$1-$2.env" ;;
     *) installer_fatal "unsupported profile family: $1" ;;
   esac
 }

@@ -1,0 +1,11 @@
+test_actual_grub_generator_keeps_family_governors_and_iommu (test_policy_alignment_20260919.PolicyAlignmentTests.test_actual_grub_generator_keeps_family_governors_and_iommu) ... ok
+test_exact_numeric_modprobe_set_and_references_exist (test_policy_alignment_20260919.PolicyAlignmentTests.test_exact_numeric_modprobe_set_and_references_exist) ... ok
+test_grub_pcie_usb_effective_tokens_once (test_policy_alignment_20260919.PolicyAlignmentTests.test_grub_pcie_usb_effective_tokens_once) ... ok
+test_profile_font_pins_and_architecture_neutral_boot_flags (test_policy_alignment_20260919.PolicyAlignmentTests.test_profile_font_pins_and_architecture_neutral_boot_flags) ... ok
+test_switcher_rgb_matches_waybar_without_losing_alpha (test_policy_alignment_20260919.PolicyAlignmentTests.test_switcher_rgb_matches_waybar_without_losing_alpha) ... ok
+test_thunderbolt_and_usb_have_one_effective_directive (test_policy_alignment_20260919.PolicyAlignmentTests.test_thunderbolt_and_usb_have_one_effective_directive) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.498s
+
+OK

@@ -46,7 +46,7 @@ UNSET_ENVIRONMENT = (
 )
 ELECTRON_UNSAFE_SWITCHES = {
     "--no-sandbox", "--no-zygote", "--single-process", "--disable-gpu-sandbox",
-    "--disable-namespace-sandbox", "--disable-seccomp-filter-sandbox",
+    "--disable-namespace-sandbox", "--disable-seccomp-filter-sandbox", "--disable-sandbox",
     "--in-process-gpu",
 }
 
@@ -54,8 +54,13 @@ ELECTRON_UNSAFE_SWITCHES = {
 def electron_command(arguments: list[str]) -> list[str]:
     """Retain vendor arguments/field-code expansions, without policy overrides."""
     for argument in arguments[1:]:
-        if argument.split("=", 1)[0] in ELECTRON_UNSAFE_SWITCHES:
-            fail(f"Electron launcher refuses sandbox-disabling switch: {argument.split('=', 1)[0]}")
+        key = argument.split("=", 1)[0]
+        # Chromium accepts a single '-' as well as '--'. A boolean switch is
+        # present even when its supplied value is "false".
+        if key.startswith("-") and not key.startswith("--"):
+            key = "-" + key
+        if key in ELECTRON_UNSAFE_SWITCHES:
+            fail(f"Electron launcher refuses sandbox-disabling switch: {key}")
     # Do not pretend flags appended to a shell script become Electron switches.
     if Path(arguments[0]).name in {"sh", "bash", "dash", "zsh", "fish"}:
         fail("Electron desktop Exec must name the executable, not a shell -c script")
@@ -73,6 +78,8 @@ def electron_command(arguments: list[str]) -> list[str]:
             remaining.extend(arguments[index:])
             break
         key, separator, value = argument.partition("=")
+        if key.startswith("-") and not key.startswith("--"):
+            key = "-" + key
         if key in controlled:
             if key in extra_features:
                 if not separator and index + 1 < len(arguments):
@@ -167,6 +174,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
     }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
+    is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
     return [
         "/usr/bin/systemd-run", "--user", "--quiet", "--collect",
         *menu_action_wait_arguments(),
@@ -175,17 +183,19 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
         "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
-        "--property=KillMode=control-group", "--property=TimeoutStopSec=20s",
+        "--property=KillMode=" + ("mixed" if is_foot else "control-group"),
+        "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         # Do not force NNP/seccomp before package AppArmor -> bwrap
         # transitions. Electron and Bubblewrap set NNP inside their sandboxes.
         "--property=StandardInput=null", "--property=StandardOutput=journal",
         "--property=StandardError=journal", f"--property=SyslogIdentifier=labwc-{label}",
         "--property=LimitCORE=0", "--property=NoNewPrivileges=no",
-        # Foot reports the default shell's SIGHUP as status 1 on window close.
-        # Do not apply to foot -e/explicit commands or internal error code 230.
-        *(["--property=SuccessExitStatus=1"]
-          if kind == "wayland" and arguments == ["/usr/bin/foot"] else []),
+        # Signal Foot itself first so it can close/reap its PTY client.
+        # systemd still owns final cgroup cleanup. Only the argument-free
+        # default shell gets the observed close-window HUP status (1).
+        # Explicit commands/options and Foot internal errors (230) stay errors.
+        *(["--property=SuccessExitStatus=1"] if is_foot and len(arguments) == 1 else []),
         *(["--property=PrivatePIDs=no", "--property=PrivateUsers=no"] if host_administration else [
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",

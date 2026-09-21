@@ -289,7 +289,7 @@ class FontInstallTests(unittest.TestCase):
 
     def test_all_profiles_and_role_flow_have_complete_pins(self):
         profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         keys = ('FIRACODE', 'SYMBOLS', 'PROFONT', 'APTOS', 'MICROSOFT')
         for profile in profiles:
             text = profile.read_text()

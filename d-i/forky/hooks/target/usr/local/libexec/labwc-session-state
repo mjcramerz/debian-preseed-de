@@ -26,12 +26,21 @@ TARGET = "labwc-session.target"
 MAX_STATE = 1024 * 1024
 DOCUMENT_APPS = {"featherpad", "fpad", "focuswriter", "gnumeric", "code", "code-insiders",
                  "libreoffice", "lowriter", "localc", "soffice", "gedit", "kate", "mousepad"}
+BROWSER_APPS = {"firefox", "firefox-esr", "chromium", "google-chrome", "google-chrome-stable",
+                "microsoft-edge", "microsoft-edge-stable", "msedge", "vivaldi", "vivaldi-stable",
+                "mullvad-browser", "brave-browser", "librewolf", "floorp"}
+PROTECTED_APPS = DOCUMENT_APPS | BROWSER_APPS
 WRAPPERS = {"/usr/local/bin/labwc-wayland-app", "/usr/local/bin/labwc-electron-app",
             "/usr/local/bin/labwc-managed-app", "/usr/local/bin/labwc-managed-wayland-compat-app"}
 
 
 class Error(Exception):
     pass
+
+
+class Cancelled(Error):
+    """An explicit user veto or save timeout, not a failed application."""
+
 
 
 def run(argv: list[str], *, timeout: int = 15, accepted: tuple[int, ...] = (0,), cwd: str | None = None) -> str:
@@ -171,6 +180,32 @@ def windows() -> str:
     return ""
 
 
+def protected_services(apps: dict[str, dict[str, str]]) -> set[str]:
+    """Conservative gate for editors and browsers, including background saves.
+
+    Wayland exposes no trustworthy dirty-document flag. Never parse titles or
+    inspect files to guess it: let the application own Save/Discard/Cancel.
+    """
+    result = set()
+    for unit, props in apps.items():
+        if props.get("LABWC_SESSION_APP") != "1":
+            continue
+        if any(re.fullmatch(r"labwc-(?:wayland|electron|native)-" + re.escape(app)
+                            + r"-[0-9a-f]{32}\.service", unit) for app in PROTECTED_APPS):
+            result.add(unit)
+    return result
+
+
+def protected_still_running(units: set[str]) -> bool:
+    for unit in sorted(units):
+        state = properties(unit)
+        if state.get("LoadState") == "not-found":
+            continue
+        if state.get("LoadState") != "loaded" or state.get("ActiveState") not in {"inactive", "failed"}:
+            return True
+    return False
+
+
 def collect(apps: dict[str, dict[str, str]], prior: list[dict]) -> list[dict]:
     result = list(prior)
     for props in apps.values():
@@ -222,6 +257,25 @@ def stop_orphans() -> None:
             ctl("stop", unit, timeout=25)
 
 
+def confirm_close() -> None:
+    # Wayland has no cross-application dirty-document API. Give the user an
+    # explicit chance to return and save browser forms/downloads, even when a
+    # browser would otherwise close without a beforeunload prompt. Cancel is
+    # the default; the only affirmative answer is the second exact index.
+    choices = "Cancel - return to applications and save first\nContinue - browser work is saved; ask editors to close\n"
+    try:
+        result = subprocess.run(
+            ["/usr/local/bin/labwc-fuzzel", "--dmenu", "--index", "--no-sort", "--prompt", "Save before closing: "],
+            input=choices, capture_output=True, text=True, timeout=120, check=False, close_fds=True,
+            env={**os.environ, "LABWC_MENU_BACKEND": "fuzzel", "LABWC_FUZZEL_MANAGED_ICONS": "0"})
+    except subprocess.TimeoutExpired:
+        raise Cancelled("No confirmation received; the desktop was left running") from None
+    if result.returncode == 1 or (result.returncode == 0 and result.stdout.strip() == "0"):
+        raise Cancelled("Power/logout cancelled; return to applications and save your work")
+    if result.returncode != 0 or result.stdout.strip() != "1":
+        raise Error("cannot verify the save-before-close confirmation")
+
+
 def prepare(state: Path, runtime: Path, *, timeout: float = 120) -> None:
     marker = runtime / "labwc-session-closing"
     fd = checked_fd(marker, create=True)
@@ -229,21 +283,27 @@ def prepare(state: Path, runtime: Path, *, timeout: float = 120) -> None:
     try:
         ctl("--quiet", "is-active", TARGET)
         initial = services()
+        protected = protected_services(initial)
         saved = collect(initial, load(state / "pending.json"))
         atomic(state / "pending.json", {"format": 1, "apps": saved})
         visible = windows()
         if visible:
-            notify("Closing applications normally. Save any requested documents. An unresolved window or save dialog will cancel this request.")
+            confirm_close()
+            notify("Save changes in FeatherPad, FocusWriter and Gnumeric, and finish browser forms/downloads. Applications will receive one normal close request. Save or Cancel in their own dialogs; any remaining window or protected application blocks poweroff/reboot.")
             # A single protocol round-trip closes only the currently advertised
             # toplevels. Never simulate shortcuts, click Discard, or send SIGTERM.
             run(["/usr/bin/wlrctl", "toplevel", "close"], timeout=5, accepted=(0, 1))
         deadline = time.monotonic() + timeout
         while True:
             visible = windows()
-            if not visible:
-                break
+            if not visible and not protected_still_running(protected):
+                # Catch a late save dialog before the privileged worker stops
+                # the compositor. No second close request is ever sent.
+                time.sleep(0.3)
+                if not windows() and not protected_still_running(protected):
+                    break
             if time.monotonic() >= deadline:
-                raise Error("Save/close the remaining window, then retry. No session teardown was performed")
+                raise Cancelled("Save/close the remaining window or quit the background editor/browser, then retry. No session teardown was performed")
             time.sleep(0.2)
         atomic(state / "resume.json", {"format": 1, "apps": saved})
         # PID 1 owns the destructive phase. A failed clipboard helper must not
@@ -350,6 +410,10 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
+    except Cancelled as exc:
+        print(f"labwc-session-state: {exc}", file=sys.stderr)
+        notify(str(exc))
+        sys.exit(77)  # Declared successful cancellation; worker checks it explicitly.
     except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"labwc-session-state: {exc}", file=sys.stderr)
         notify(str(exc))

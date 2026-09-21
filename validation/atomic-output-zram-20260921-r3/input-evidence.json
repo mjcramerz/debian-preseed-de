@@ -1,0 +1,647 @@
+{
+  "inputs": [
+    {
+      "file": "debian-preseed-de-refactored-20260921-r2.tar.gz",
+      "bytes": 24763540,
+      "sha256": "94b841298159a20311be23570134c8832560ece530eeb3ee79bd3aeefbd8a2c6"
+    },
+    {
+      "file": "journalctl",
+      "bytes": 1905015,
+      "sha256": "e8964fce8de5a16083949e2e6447f3120858978e41a7d64b2f2cdba6023af5e3"
+    },
+    {
+      "file": "kernel-audit.log",
+      "bytes": 2573760,
+      "sha256": "83f2c165730e3bac8714575db61c35be4c91a1fbd61f857b53141c158604269c"
+    }
+  ],
+  "journal_atomic_commit_errors": 144,
+  "first_error": {
+    "line": 1069,
+    "text": "Sep 21 02:39:26 LPL-264 labwc[6611]: 00:01:04.206 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+  },
+  "nearby_events": [
+    {
+      "line": 938,
+      "text": "Sep 21 02:38:21 LPL-264 systemd[5862]: Starting labwc-compositor.service - Run the managed Labwc compositor..."
+    },
+    {
+      "line": 939,
+      "text": "Sep 21 02:38:21 LPL-264 systemd[5862]: Started labwc-compositor.service - Run the managed Labwc compositor."
+    },
+    {
+      "line": 955,
+      "text": "Sep 21 02:38:22 LPL-264 systemd[5862]: Starting labwc-output-watch.service - Refresh Labwc output policy after DRM hotplug events..."
+    },
+    {
+      "line": 971,
+      "text": "Sep 21 02:38:23 LPL-264 systemd[5862]: Started labwc-output-watch.service - Refresh Labwc output policy after DRM hotplug events."
+    },
+    {
+      "line": 1015,
+      "text": "Sep 21 02:38:24 LPL-264 labwc[6941]: labwc-wlsunset: unsafe directory ownership or permissions: /etc/default"
+    },
+    {
+      "line": 1016,
+      "text": "Sep 21 02:38:24 LPL-264 labwc[6631]: warning: wlsunset startup failed; inspect journalctl --user -b -u labwc-wlsunset.service"
+    },
+    {
+      "line": 1051,
+      "text": "Sep 21 02:39:23 LPL-264 systemd[5862]: Starting run-p7689-i14205.service - [systemd-run] /usr/bin/thunar..."
+    },
+    {
+      "line": 1052,
+      "text": "Sep 21 02:39:23 LPL-264 systemd[5862]: Started run-p7689-i14205.service - [systemd-run] /usr/bin/thunar."
+    },
+    {
+      "line": 1069,
+      "text": "Sep 21 02:39:26 LPL-264 labwc[6611]: 00:01:04.206 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 1070,
+      "text": "Sep 21 02:39:26 LPL-264 systemd[5862]: Starting labwc-wayland-foot-b184f35752ec41f79fc3f91b1948dba7.service - Labwc wayland application: foot..."
+    }
+  ],
+  "audit_export_first_record": "Sep 21 02:48:26 LPL-264 auditd-file: node=LPL-264 type=DAEMON_START msg=audit(1789951701.396:3044): op=start ver=4.1.2 format=enriched kernel=7.2.6-x64v3-xanmod1 auid=4294967295 pid=766 uid=0 ses=4294967295 subj=unconfined  res=success\u001dAUID=\"unset\" UID=\"root\"",
+  "first_error_boot_covered_by_audit_export": false,
+  "inference_limit": "No same-boot DRM ioctl flags, CRTC commit identity or flip completion trace accompanies the first error. A named outstanding operation cannot be established from these uploads.",
+  "all_atomic_error_locations": [
+    {
+      "line": 1069,
+      "text": "Sep 21 02:39:26 LPL-264 labwc[6611]: 00:01:04.206 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 3902,
+      "text": "Sep 21 02:57:21 LPL-264 labwc[7004]: 00:04:37.023 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 3909,
+      "text": "Sep 21 02:57:26 LPL-264 labwc[7004]: 00:04:42.023 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4016,
+      "text": "Sep 21 02:59:06 LPL-264 labwc[7004]: 00:06:22.004 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4028,
+      "text": "Sep 21 02:59:16 LPL-264 labwc[7004]: 00:06:32.021 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4248,
+      "text": "Sep 21 03:02:36 LPL-264 labwc[7004]: 00:09:52.017 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4322,
+      "text": "Sep 21 03:03:06 LPL-264 labwc[7004]: 00:10:22.000 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4725,
+      "text": "Sep 21 03:04:46 LPL-264 labwc[7004]: 00:12:02.001 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4793,
+      "text": "Sep 21 03:05:46 LPL-264 labwc[7004]: 00:13:01.999 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4809,
+      "text": "Sep 21 03:06:00 LPL-264 labwc[7004]: 00:13:15.480 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4869,
+      "text": "Sep 21 03:06:56 LPL-264 labwc[7004]: 00:14:12.013 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4912,
+      "text": "Sep 21 03:07:36 LPL-264 labwc[7004]: 00:14:52.079 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4940,
+      "text": "Sep 21 03:08:01 LPL-264 labwc[7004]: 00:15:17.078 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4980,
+      "text": "Sep 21 03:08:38 LPL-264 labwc[7004]: 00:15:53.978 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4986,
+      "text": "Sep 21 03:08:43 LPL-264 labwc[7004]: 00:15:59.078 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 4990,
+      "text": "Sep 21 03:08:46 LPL-264 labwc[7004]: 00:16:02.077 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5011,
+      "text": "Sep 21 03:09:01 LPL-264 labwc[7004]: 00:16:17.077 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5022,
+      "text": "Sep 21 03:09:06 LPL-264 labwc[7004]: 00:16:22.077 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5028,
+      "text": "Sep 21 03:09:11 LPL-264 labwc[7004]: 00:16:27.077 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5033,
+      "text": "Sep 21 03:09:16 LPL-264 labwc[7004]: 00:16:31.810 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5040,
+      "text": "Sep 21 03:09:21 LPL-264 labwc[7004]: 00:16:37.077 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5049,
+      "text": "Sep 21 03:09:30 LPL-264 labwc[7004]: 00:16:45.477 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5061,
+      "text": "Sep 21 03:09:41 LPL-264 labwc[7004]: 00:16:56.477 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5063,
+      "text": "Sep 21 03:09:41 LPL-264 labwc[7004]: 00:16:57.160 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5122,
+      "text": "Sep 21 03:10:30 LPL-264 labwc[7004]: 00:17:45.478 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5145,
+      "text": "Sep 21 03:10:51 LPL-264 labwc[7004]: 00:18:06.975 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5147,
+      "text": "Sep 21 03:10:52 LPL-264 labwc[7004]: 00:18:07.992 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5150,
+      "text": "Sep 21 03:10:54 LPL-264 labwc[7004]: 00:18:09.992 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5169,
+      "text": "Sep 21 03:11:11 LPL-264 labwc[7004]: 00:18:27.025 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5170,
+      "text": "Sep 21 03:11:11 LPL-264 labwc[7004]: 00:18:27.092 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5176,
+      "text": "Sep 21 03:11:16 LPL-264 labwc[7004]: 00:18:32.008 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5210,
+      "text": "Sep 21 03:11:49 LPL-264 labwc[7004]: 00:19:05.091 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5234,
+      "text": "Sep 21 03:12:11 LPL-264 labwc[7004]: 00:19:27.091 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5257,
+      "text": "Sep 21 03:12:33 LPL-264 labwc[7004]: 00:19:48.990 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5266,
+      "text": "Sep 21 03:12:41 LPL-264 labwc[7004]: 00:19:57.090 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5335,
+      "text": "Sep 21 03:13:46 LPL-264 labwc[7004]: 00:21:02.089 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5446,
+      "text": "Sep 21 03:15:29 LPL-264 labwc[7004]: 00:22:44.471 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5454,
+      "text": "Sep 21 03:15:36 LPL-264 labwc[7004]: 00:22:51.487 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5494,
+      "text": "Sep 21 03:16:10 LPL-264 labwc[7004]: 00:23:25.987 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 5702,
+      "text": "Sep 21 03:18:10 LPL-264 labwc[7004]: 00:25:25.988 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6649,
+      "text": "Sep 21 03:20:10 LPL-264 labwc[7004]: 00:27:25.987 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6651,
+      "text": "Sep 21 03:20:11 LPL-264 labwc[7004]: 00:27:26.982 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6702,
+      "text": "Sep 21 03:21:00 LPL-264 labwc[7004]: 00:28:15.482 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6708,
+      "text": "Sep 21 03:21:05 LPL-264 labwc[7004]: 00:28:21.082 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6751,
+      "text": "Sep 21 03:21:46 LPL-264 labwc[7004]: 00:29:02.014 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6777,
+      "text": "Sep 21 03:22:10 LPL-264 labwc[7004]: 00:29:26.197 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6866,
+      "text": "Sep 21 03:23:33 LPL-264 labwc[7004]: 00:30:48.479 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6897,
+      "text": "Sep 21 03:24:00 LPL-264 labwc[7004]: 00:31:15.479 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6899,
+      "text": "Sep 21 03:24:01 LPL-264 labwc[7004]: 00:31:16.978 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6901,
+      "text": "Sep 21 03:24:02 LPL-264 labwc[7004]: 00:31:17.479 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6909,
+      "text": "Sep 21 03:24:09 LPL-264 labwc[7004]: 00:31:25.078 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6961,
+      "text": "Sep 21 03:24:58 LPL-264 labwc[7004]: 00:32:13.478 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6965,
+      "text": "Sep 21 03:24:59 LPL-264 labwc[7004]: 00:32:14.478 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 6967,
+      "text": "Sep 21 03:25:00 LPL-264 labwc[7004]: 00:32:15.478 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 9996,
+      "text": "Sep 21 04:29:55 LPL-264 labwc[7004]: 01:37:10.962 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 9999,
+      "text": "Sep 21 04:29:57 LPL-264 labwc[7004]: 01:37:12.962 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10006,
+      "text": "Sep 21 04:30:00 LPL-264 labwc[7004]: 01:37:15.829 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10010,
+      "text": "Sep 21 04:30:03 LPL-264 labwc[7004]: 01:37:19.012 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10024,
+      "text": "Sep 21 04:30:16 LPL-264 labwc[7004]: 01:37:31.978 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10116,
+      "text": "Sep 21 04:31:41 LPL-264 labwc[7004]: 01:38:57.060 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10146,
+      "text": "Sep 21 04:32:05 LPL-264 labwc[7004]: 01:39:20.760 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10687,
+      "text": "Sep 21 04:35:50 LPL-264 labwc[7004]: 01:43:06.006 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10700,
+      "text": "Sep 21 04:36:03 LPL-264 labwc[7004]: 01:43:18.589 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10702,
+      "text": "Sep 21 04:36:03 LPL-264 labwc[7004]: 01:43:19.006 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10744,
+      "text": "Sep 21 04:36:43 LPL-264 labwc[7004]: 01:43:58.758 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10838,
+      "text": "Sep 21 04:38:10 LPL-264 labwc[7004]: 01:45:26.257 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10888,
+      "text": "Sep 21 04:38:53 LPL-264 labwc[7004]: 01:46:08.503 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10889,
+      "text": "Sep 21 04:38:53 LPL-264 labwc[7004]: 01:46:09.003 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10942,
+      "text": "Sep 21 04:39:41 LPL-264 labwc[7004]: 01:46:57.036 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 10984,
+      "text": "Sep 21 04:40:17 LPL-264 labwc[7004]: 01:47:33.001 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11031,
+      "text": "Sep 21 04:40:58 LPL-264 labwc[7004]: 01:48:13.518 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11060,
+      "text": "Sep 21 04:41:24 LPL-264 labwc[7004]: 01:48:39.467 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11089,
+      "text": "Sep 21 04:41:50 LPL-264 labwc[7004]: 01:49:06.000 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11096,
+      "text": "Sep 21 04:41:54 LPL-264 labwc[7004]: 01:49:09.517 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11103,
+      "text": "Sep 21 04:42:00 LPL-264 labwc[7004]: 01:49:16.017 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11105,
+      "text": "Sep 21 04:42:01 LPL-264 labwc[7004]: 01:49:17.050 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11110,
+      "text": "Sep 21 04:42:05 LPL-264 labwc[7004]: 01:49:20.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11121,
+      "text": "Sep 21 04:42:15 LPL-264 labwc[7004]: 01:49:30.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11132,
+      "text": "Sep 21 04:42:25 LPL-264 labwc[7004]: 01:49:40.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11136,
+      "text": "Sep 21 04:42:28 LPL-264 labwc[7004]: 01:49:43.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11150,
+      "text": "Sep 21 04:42:41 LPL-264 labwc[7004]: 01:49:57.049 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11156,
+      "text": "Sep 21 04:42:46 LPL-264 labwc[7004]: 01:50:01.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11161,
+      "text": "Sep 21 04:42:50 LPL-264 labwc[7004]: 01:50:05.516 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11163,
+      "text": "Sep 21 04:42:51 LPL-264 labwc[7004]: 01:50:07.116 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11181,
+      "text": "Sep 21 04:43:07 LPL-264 labwc[7004]: 01:50:22.515 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11209,
+      "text": "Sep 21 04:43:30 LPL-264 labwc[7004]: 01:50:45.515 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11220,
+      "text": "Sep 21 04:43:40 LPL-264 labwc[7004]: 01:50:55.515 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11242,
+      "text": "Sep 21 04:44:01 LPL-264 labwc[7004]: 01:51:17.048 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11269,
+      "text": "Sep 21 04:44:26 LPL-264 labwc[7004]: 01:51:41.514 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11285,
+      "text": "Sep 21 04:44:41 LPL-264 labwc[7004]: 01:51:56.514 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11287,
+      "text": "Sep 21 04:44:42 LPL-264 labwc[7004]: 01:51:57.514 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11302,
+      "text": "Sep 21 04:44:56 LPL-264 labwc[7004]: 01:52:11.514 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11316,
+      "text": "Sep 21 04:45:06 LPL-264 labwc[7004]: 01:52:21.513 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11322,
+      "text": "Sep 21 04:45:08 LPL-264 labwc[7004]: 01:52:23.513 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11378,
+      "text": "Sep 21 04:45:57 LPL-264 labwc[7004]: 01:53:12.513 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11391,
+      "text": "Sep 21 04:46:06 LPL-264 labwc[7004]: 01:53:21.512 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11417,
+      "text": "Sep 21 04:46:30 LPL-264 labwc[7004]: 01:53:45.479 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11461,
+      "text": "Sep 21 04:47:11 LPL-264 labwc[7004]: 01:54:27.028 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11470,
+      "text": "Sep 21 04:47:18 LPL-264 labwc[7004]: 01:54:33.761 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11474,
+      "text": "Sep 21 04:47:21 LPL-264 labwc[7004]: 01:54:36.761 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11509,
+      "text": "Sep 21 04:47:55 LPL-264 labwc[7004]: 01:55:10.777 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11546,
+      "text": "Sep 21 04:48:30 LPL-264 labwc[7004]: 01:55:45.760 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11550,
+      "text": "Sep 21 04:48:33 LPL-264 labwc[7004]: 01:55:48.777 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11556,
+      "text": "Sep 21 04:48:38 LPL-264 labwc[7004]: 01:55:53.760 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11564,
+      "text": "Sep 21 04:48:45 LPL-264 labwc[7004]: 01:56:00.776 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11575,
+      "text": "Sep 21 04:48:55 LPL-264 labwc[7004]: 01:56:10.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11581,
+      "text": "Sep 21 04:49:00 LPL-264 labwc[7004]: 01:56:15.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11594,
+      "text": "Sep 21 04:49:12 LPL-264 labwc[7004]: 01:56:27.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11600,
+      "text": "Sep 21 04:49:17 LPL-264 labwc[7004]: 01:56:32.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11604,
+      "text": "Sep 21 04:49:20 LPL-264 labwc[7004]: 01:56:35.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11607,
+      "text": "Sep 21 04:49:22 LPL-264 labwc[7004]: 01:56:37.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11634,
+      "text": "Sep 21 04:49:47 LPL-264 labwc[7004]: 01:57:02.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11651,
+      "text": "Sep 21 04:50:00 LPL-264 labwc[7004]: 01:57:15.775 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11667,
+      "text": "Sep 21 04:50:15 LPL-264 labwc[7004]: 01:57:30.759 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11693,
+      "text": "Sep 21 04:50:38 LPL-264 labwc[7004]: 01:57:53.758 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11710,
+      "text": "Sep 21 04:50:50 LPL-264 labwc[7004]: 01:58:05.757 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11762,
+      "text": "Sep 21 04:51:40 LPL-264 labwc[7004]: 01:58:55.757 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11764,
+      "text": "Sep 21 04:51:41 LPL-264 labwc[7004]: 01:58:57.040 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11781,
+      "text": "Sep 21 04:51:56 LPL-264 labwc[7004]: 01:59:11.756 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11793,
+      "text": "Sep 21 04:52:06 LPL-264 labwc[7004]: 01:59:21.756 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11799,
+      "text": "Sep 21 04:52:11 LPL-264 labwc[7004]: 01:59:27.039 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11803,
+      "text": "Sep 21 04:52:14 LPL-264 labwc[7004]: 01:59:30.173 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 11811,
+      "text": "Sep 21 04:52:21 LPL-264 labwc[7004]: 01:59:36.756 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12646,
+      "text": "Sep 21 04:52:31 LPL-264 labwc[7004]: 01:59:46.589 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12662,
+      "text": "Sep 21 04:52:45 LPL-264 labwc[7004]: 02:00:00.756 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12672,
+      "text": "Sep 21 04:52:54 LPL-264 labwc[7004]: 02:00:10.255 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12682,
+      "text": "Sep 21 04:53:03 LPL-264 labwc[7004]: 02:00:19.272 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12688,
+      "text": "Sep 21 04:53:08 LPL-264 labwc[7004]: 02:00:24.272 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12709,
+      "text": "Sep 21 04:53:28 LPL-264 labwc[7004]: 02:00:43.755 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12770,
+      "text": "Sep 21 04:54:27 LPL-264 labwc[7004]: 02:01:42.770 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12786,
+      "text": "Sep 21 04:54:42 LPL-264 labwc[7004]: 02:01:57.770 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12793,
+      "text": "Sep 21 04:54:46 LPL-264 labwc[7004]: 02:02:02.087 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12805,
+      "text": "Sep 21 04:54:58 LPL-264 labwc[7004]: 02:02:13.753 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12807,
+      "text": "Sep 21 04:54:59 LPL-264 labwc[7004]: 02:02:14.487 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12868,
+      "text": "Sep 21 04:55:52 LPL-264 labwc[7004]: 02:03:07.586 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12877,
+      "text": "Sep 21 04:56:00 LPL-264 labwc[7004]: 02:03:16.252 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12881,
+      "text": "Sep 21 04:56:03 LPL-264 labwc[7004]: 02:03:18.619 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12904,
+      "text": "Sep 21 04:56:25 LPL-264 labwc[7004]: 02:03:41.018 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12924,
+      "text": "Sep 21 04:56:44 LPL-264 labwc[7004]: 02:03:59.518 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12932,
+      "text": "Sep 21 04:56:52 LPL-264 labwc[7004]: 02:04:07.502 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 12985,
+      "text": "Sep 21 04:57:40 LPL-264 labwc[7004]: 02:04:56.017 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 13053,
+      "text": "Sep 21 04:58:46 LPL-264 labwc[7004]: 02:06:02.016 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 13063,
+      "text": "Sep 21 04:58:55 LPL-264 labwc[7004]: 02:06:11.016 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    },
+    {
+      "line": 13070,
+      "text": "Sep 21 04:59:01 LPL-264 labwc[7004]: 02:06:17.016 [ERROR] [backend/drm/atomic.c:82] connector eDP-1: Atomic commit failed: Device or resource busy"
+    }
+  ]
+}

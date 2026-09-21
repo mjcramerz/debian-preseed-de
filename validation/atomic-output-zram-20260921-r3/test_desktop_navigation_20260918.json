@@ -1,0 +1,15 @@
+{
+  "name": "test_desktop_navigation_20260918",
+  "source": "d-i/forky/tests/test_desktop_navigation_20260918.py",
+  "returncode": 0,
+  "seconds": 0.053,
+  "tests": 36,
+  "skipped": 1,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [
+    "fzf binary unavailable; fixed-argv/data behavior is unit tested"
+  ],
+  "log": "validation/atomic-output-zram-20260921-r3/test_desktop_navigation_20260918.log",
+  "reused_completed_run": true
+}

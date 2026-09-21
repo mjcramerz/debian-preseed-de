@@ -269,7 +269,7 @@ class DesktopIntegrationTests(unittest.TestCase):
 
     def test_button_order_is_between_workspaces_and_wayscriber(self):
         source=(FORKY/'scripts/desktop/components.sh').read_text()
-        self.assertIn('"ext/workspaces", "custom/window-switcher", "custom/wayscriber"', source)
+        self.assertIn('"ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher"', source)
         config=(TARGET/'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
         self.assertEqual(config.count('"custom/window-switcher": {'), 2)
         self.assertEqual(config.count('"modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__]'), 2)

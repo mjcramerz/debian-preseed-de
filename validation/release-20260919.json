@@ -277,7 +277,7 @@
     "Four managed-software tests cannot import Perl Moo in the available environment."
   ],
   "profile_matrix": {
-    "btrfs-de-dual-flex.env": {
+    "btrfs-de-flex-duo.env": {
       "iocost_enabled": "true",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -319,7 +319,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "btrfs-de-dual-main.env": {
+    "btrfs-de-p15s-duo.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -361,7 +361,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "btrfs-de-dual.env": {
+    "btrfs-de-duo.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -445,7 +445,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "btrfs-de-main.env": {
+    "btrfs-de-p15s.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -529,7 +529,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "btrfs-desktop.env": {
+    "f2fs-de-hp14.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -571,7 +571,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "f2fs-de-cbook.env": {
+    "f2fs-de-hp14-duo.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -613,7 +613,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "f2fs-de-dual-cbook.env": {
+    "f2fs-de-x360-duo.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -655,133 +655,7 @@
         "IOCOST_QOS_NAIVE_MAX": "100"
       }
     },
-    "f2fs-de-dual.env": {
-      "iocost_enabled": "false",
-      "iocost_fields": 35,
-      "balanced_hwp_dynamic_boost": "1",
-      "iocost": {
-        "IOCOST_CALIBRATE_ENABLE": "false",
-        "IOCOST_DEVICE_MODEL_MATCH": "KXG6AZNV512G*",
-        "IOCOST_DEVICE_FWREV_MATCH": "*",
-        "IOCOST_TARGET_SOLUTION": "isolated-bandwidth",
-        "IOCOST_SOLUTIONS": "isolation isolated-bandwidth bandwidth naive",
-        "IOCOST_MODEL_RBPS": "1000000000",
-        "IOCOST_MODEL_RSEQIOPS": "100000",
-        "IOCOST_MODEL_RRANDIOPS": "50000",
-        "IOCOST_MODEL_WBPS": "500000000",
-        "IOCOST_MODEL_WSEQIOPS": "50000",
-        "IOCOST_MODEL_WRANDIOPS": "20000",
-        "IOCOST_QOS_ISOLATION_RPCT": "95",
-        "IOCOST_QOS_ISOLATION_RLAT": "1000",
-        "IOCOST_QOS_ISOLATION_WPCT": "95",
-        "IOCOST_QOS_ISOLATION_WLAT": "2000",
-        "IOCOST_QOS_ISOLATION_MIN": "50",
-        "IOCOST_QOS_ISOLATION_MAX": "80",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT": "2000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT": "5000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MAX": "100",
-        "IOCOST_QOS_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_RLAT": "5000",
-        "IOCOST_QOS_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_WLAT": "10000",
-        "IOCOST_QOS_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_BANDWIDTH_MAX": "125",
-        "IOCOST_QOS_NAIVE_RPCT": "99",
-        "IOCOST_QOS_NAIVE_RLAT": "5000",
-        "IOCOST_QOS_NAIVE_WPCT": "99",
-        "IOCOST_QOS_NAIVE_WLAT": "10000",
-        "IOCOST_QOS_NAIVE_MIN": "75",
-        "IOCOST_QOS_NAIVE_MAX": "100"
-      }
-    },
-    "f2fs-de.env": {
-      "iocost_enabled": "false",
-      "iocost_fields": 35,
-      "balanced_hwp_dynamic_boost": "1",
-      "iocost": {
-        "IOCOST_CALIBRATE_ENABLE": "false",
-        "IOCOST_DEVICE_MODEL_MATCH": "KXG6AZNV512G*",
-        "IOCOST_DEVICE_FWREV_MATCH": "*",
-        "IOCOST_TARGET_SOLUTION": "isolated-bandwidth",
-        "IOCOST_SOLUTIONS": "isolation isolated-bandwidth bandwidth naive",
-        "IOCOST_MODEL_RBPS": "1000000000",
-        "IOCOST_MODEL_RSEQIOPS": "100000",
-        "IOCOST_MODEL_RRANDIOPS": "50000",
-        "IOCOST_MODEL_WBPS": "500000000",
-        "IOCOST_MODEL_WSEQIOPS": "50000",
-        "IOCOST_MODEL_WRANDIOPS": "20000",
-        "IOCOST_QOS_ISOLATION_RPCT": "95",
-        "IOCOST_QOS_ISOLATION_RLAT": "1000",
-        "IOCOST_QOS_ISOLATION_WPCT": "95",
-        "IOCOST_QOS_ISOLATION_WLAT": "2000",
-        "IOCOST_QOS_ISOLATION_MIN": "50",
-        "IOCOST_QOS_ISOLATION_MAX": "80",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT": "2000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT": "5000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MAX": "100",
-        "IOCOST_QOS_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_RLAT": "5000",
-        "IOCOST_QOS_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_WLAT": "10000",
-        "IOCOST_QOS_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_BANDWIDTH_MAX": "125",
-        "IOCOST_QOS_NAIVE_RPCT": "99",
-        "IOCOST_QOS_NAIVE_RLAT": "5000",
-        "IOCOST_QOS_NAIVE_WPCT": "99",
-        "IOCOST_QOS_NAIVE_WLAT": "10000",
-        "IOCOST_QOS_NAIVE_MIN": "75",
-        "IOCOST_QOS_NAIVE_MAX": "100"
-      }
-    },
-    "f2fs-desktop.env": {
-      "iocost_enabled": "false",
-      "iocost_fields": 35,
-      "balanced_hwp_dynamic_boost": "1",
-      "iocost": {
-        "IOCOST_CALIBRATE_ENABLE": "false",
-        "IOCOST_DEVICE_MODEL_MATCH": "KXG6AZNV512G*",
-        "IOCOST_DEVICE_FWREV_MATCH": "*",
-        "IOCOST_TARGET_SOLUTION": "isolated-bandwidth",
-        "IOCOST_SOLUTIONS": "isolation isolated-bandwidth bandwidth naive",
-        "IOCOST_MODEL_RBPS": "1000000000",
-        "IOCOST_MODEL_RSEQIOPS": "100000",
-        "IOCOST_MODEL_RRANDIOPS": "50000",
-        "IOCOST_MODEL_WBPS": "500000000",
-        "IOCOST_MODEL_WSEQIOPS": "50000",
-        "IOCOST_MODEL_WRANDIOPS": "20000",
-        "IOCOST_QOS_ISOLATION_RPCT": "95",
-        "IOCOST_QOS_ISOLATION_RLAT": "1000",
-        "IOCOST_QOS_ISOLATION_WPCT": "95",
-        "IOCOST_QOS_ISOLATION_WLAT": "2000",
-        "IOCOST_QOS_ISOLATION_MIN": "50",
-        "IOCOST_QOS_ISOLATION_MAX": "80",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT": "2000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT": "5000",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_ISOLATED_BANDWIDTH_MAX": "100",
-        "IOCOST_QOS_BANDWIDTH_RPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_RLAT": "5000",
-        "IOCOST_QOS_BANDWIDTH_WPCT": "90",
-        "IOCOST_QOS_BANDWIDTH_WLAT": "10000",
-        "IOCOST_QOS_BANDWIDTH_MIN": "75",
-        "IOCOST_QOS_BANDWIDTH_MAX": "125",
-        "IOCOST_QOS_NAIVE_RPCT": "99",
-        "IOCOST_QOS_NAIVE_RLAT": "5000",
-        "IOCOST_QOS_NAIVE_WPCT": "99",
-        "IOCOST_QOS_NAIVE_WLAT": "10000",
-        "IOCOST_QOS_NAIVE_MIN": "75",
-        "IOCOST_QOS_NAIVE_MAX": "100"
-      }
-    },
-    "vm-desktop.env": {
+    "f2fs-de-x360.env": {
       "iocost_enabled": "false",
       "iocost_fields": 35,
       "balanced_hwp_dynamic_boost": "1",
@@ -946,15 +820,15 @@
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+        "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+        "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
         "kind": "modified"
       },
       {
@@ -962,7 +836,7 @@
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+        "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
         "kind": "modified"
       },
       {
@@ -970,31 +844,27 @@
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+        "path": "d-i/forky/hosts/profiles/btrfs-de.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+        "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
         "kind": "modified"
       },
       {
-        "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
-        "kind": "modified"
-      },
-      {
-        "path": "d-i/forky/hosts/profiles/vm-desktop.env",
+        "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
         "kind": "modified"
       },
       {

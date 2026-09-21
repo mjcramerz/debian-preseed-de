@@ -155,6 +155,10 @@ unset WLR_NO_HARDWARE_CURSORS
 [ -z "$session_wlr_no_hardware_cursors" ] || export WLR_NO_HARDWARE_CURSORS="$session_wlr_no_hardware_cursors"
 unset WLR_SCENE_DISABLE_DIRECT_SCANOUT
 [ -z "$session_wlr_scene_disable_direct_scanout" ] || export WLR_SCENE_DISABLE_DIRECT_SCANOUT="$session_wlr_scene_disable_direct_scanout"
+
+# Keep wlroots' normal atomic KMS path. Remove any inherited value from
+# the retired backend override; the manager copy is cleared before import.
+unset WLR_DRM_NO_ATOMIC
 [ -x /usr/bin/flock ] || {
   printf 'fatal: /usr/bin/flock is required to enforce one Labwc session per user\n' >&2
   exit 1
@@ -306,7 +310,7 @@ systemctl_cmd=$(command -v systemctl 2>/dev/null || true)
   printf 'fatal: systemctl is required to manage the Labwc compositor session\n' >&2
   exit 1
 }
-cleanup_environment_names="LABWC_SESSION_OWNER LABWC_SESSION_UID LABWC_PID WAYLAND_DISPLAY SWAYSOCK XDG_SESSION_TYPE XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CURRENT_DESKTOP ${labwc_x11_environment_names} SSH_AUTH_SOCK SSH_AGENT_PID"
+cleanup_environment_names="WLR_DRM_NO_ATOMIC LABWC_SESSION_OWNER LABWC_SESSION_UID LABWC_PID WAYLAND_DISPLAY SWAYSOCK XDG_SESSION_TYPE XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CURRENT_DESKTOP ${labwc_x11_environment_names} SSH_AUTH_SOCK SSH_AGENT_PID"
 compositor_environment_names='PATH LABWC_SESSION_UID LABWC_SESSION_OWNER DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_DIRS XDG_DATA_HOME XDG_DATA_DIRS MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION QT_OPENGL QSG_RHI_BACKEND GDK_BACKEND GDK_DISABLE SDL_VIDEODRIVER SDL_RENDER_DRIVER CLUTTER_BACKEND ANGLE_DEFAULT_PLATFORM WGPU_BACKEND XCURSOR_THEME XCURSOR_SIZE GTK_THEME GTK_A11Y NO_AT_BRIDGE WLR_RENDERER GSK_RENDERER WLR_NO_HARDWARE_CURSORS WLR_SCENE_DISABLE_DIRECT_SCANOUT SSH_AUTH_SOCK'
 
 # The login wrapper owns the lock, never its systemctl children. A killed

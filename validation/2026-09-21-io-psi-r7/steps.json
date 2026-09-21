@@ -1,0 +1,72 @@
+[
+  {
+    "name": "runtime-tests",
+    "argv": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "d-i/forky/tests",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 572.584,
+    "log": "runtime-tests.log"
+  },
+  {
+    "name": "tools-tests",
+    "argv": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tools/tests",
+      "-p",
+      "test_*.py",
+      "-v"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 37.6,
+    "log": "tools-tests.log"
+  },
+  {
+    "name": "build-check",
+    "argv": [
+      "python3",
+      "-B",
+      "tools/build.py",
+      "--check"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 4.185,
+    "log": "build-check.log"
+  },
+  {
+    "name": "shell-check",
+    "argv": [
+      "python3",
+      "-B",
+      "tools/check_shells.py"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 2.522,
+    "log": "shell-check.log"
+  },
+  {
+    "name": "preseed-check",
+    "argv": [
+      "python3",
+      "-B",
+      "tools/check_preseeds.py"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.82,
+    "log": "preseed-check.log"
+  }
+]

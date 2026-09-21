@@ -45,7 +45,7 @@ def bars():
     def value(match):
         key = match[0]
         if 'MODULES_LEFT' in key:
-            return '"custom/launcher", "ext/workspaces", "custom/window-switcher", "custom/wayscriber", "custom/tomat", "group/apps"'
+            return '"custom/launcher", "ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher", "group/apps"'
         if 'MODULES_RIGHT' in key:
             function = ('desktop_waybar_modules_right_internal_json' if 'INTERNAL' in key
                         else 'desktop_waybar_modules_right_json')
@@ -62,13 +62,13 @@ def bars():
 class HardwareProfileTests(unittest.TestCase):
     def test_exact_profile_assignments_and_no_cpu_inference(self):
         expected = {
-            'btrfs-de-main.env': '79-thinkpad-acpi.conf',
-            'btrfs-de-dual-main.env': '79-thinkpad-acpi.conf',
+            'btrfs-de-p15s.env': '79-thinkpad-acpi.conf',
+            'btrfs-de-p15s-duo.env': '79-thinkpad-acpi.conf',
             'btrfs-de-flex.env': '79-ideapad-acpi.conf',
-            'btrfs-de-dual-flex.env': '79-ideapad-acpi.conf',
+            'btrfs-de-flex-duo.env': '79-ideapad-acpi.conf',
         }
         expected.update({p.name: '79-chromebook.conf' for p in (FORKY / 'hosts/profiles').glob('f2fs-*.env')})
-        self.assertEqual(len(expected), 9)
+        self.assertEqual(len(expected), 8)
         for name, selected in expected.items():
             text = (FORKY / 'hosts/profiles' / name).read_text()
             self.assertEqual(re.findall(r'^SYSTEM_HARDWARE_SPEC="([^"]+)"$', text, re.M), [selected])

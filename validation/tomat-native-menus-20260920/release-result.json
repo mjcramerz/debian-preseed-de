@@ -5,7 +5,7 @@
     "skipped": 48,
     "baseline_failures": [
       "test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix)",
-      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')",
+      "test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')",
       "test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge)"
     ]
   },

@@ -46,7 +46,7 @@ wrappers; literal command arguments; supervised, bounded and looped helpers;
 answer-file publication; fail-closed descriptor checks; caller descriptor
 preservation; and cleanup with the original child exit code retained. Native
 systemd-hwdb and the complete IOCost metadata transaction run through the bridge
-using the reported btrfs-de-dual-flex profile. No IOCost device calibration runs.
+using the reported btrfs-de-flex-duo profile. No IOCost device calibration runs.
 
 ## Attempt history retained, not overwritten
 

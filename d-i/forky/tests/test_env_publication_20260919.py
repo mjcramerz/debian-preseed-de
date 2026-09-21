@@ -206,7 +206,7 @@ class RealProfileEnvironmentTests(unittest.TestCase):
     def test_every_real_profile_fetches_and_sources_in_fresh_strict_shells(self):
         override_names = {record['Name'] for record in records() if record['Group'] == 'profile'}
         profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         with tempfile.TemporaryDirectory(prefix='profile-strict-source-') as temporary:
             root = Path(temporary)
             commands = ['. "$INSTALLER_SOURCE_ROOT/scripts/common/lib.sh"',

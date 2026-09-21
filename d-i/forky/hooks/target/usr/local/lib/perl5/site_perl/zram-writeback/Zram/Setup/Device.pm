@@ -12,6 +12,7 @@ use POSIX qw(_exit);
 use Time::HiRes qw(sleep);
 use Zram::Config qw(cfg);
 use Zram::Error qw(fatal);
+use Zram::Logger qw(log_msg);
 use Zram::Path qw(same_path);
 use Zram::Setup::BackingDevice;
 use Zram::Setup::Sysfs;
@@ -169,7 +170,10 @@ sub _dynamic_sizes {
     my $size = int(($ram * cfg('ZRAM_SIZE_PERCENT') + 99) / 100);
     $size = cfg('ZRAM_SIZE_MIN_MIB') if $size < cfg('ZRAM_SIZE_MIN_MIB');
     $size = cfg('ZRAM_SIZE_MAX_MIB') if $size > cfg('ZRAM_SIZE_MAX_MIB');
-    my $mem_limit = int(($size * cfg('ZRAM_MEM_LIMIT_PERCENT') + 99) / 100);
+    # A larger logical disk must not turn the existing percentage into a RAM
+    # limit greater than physical memory. Preserve the ratio on smaller disks.
+    my $memory_base = $size < $ram ? $size : $ram;
+    my $mem_limit = int(($memory_base * cfg('ZRAM_MEM_LIMIT_PERCENT') + 99) / 100);
     $mem_limit = $size if $mem_limit > $size;
 
     my $writeback_pages = 0;
@@ -261,13 +265,18 @@ sub start {
     $self->_run('/sbin/mkswap', '-L', 'zram0', $device) or fatal("failed to format zram swap $device");
     $self->_run('/sbin/swapon', '-p', cfg('ZRAM_SWAP_PRIORITY'), $device)
         or fatal("failed to activate zram swap $device");
+    log_msg('info', "event=setup-active device=$device logical_mib=$size_mib mem_limit_mib=$mem_mib " .
+        "writeback_limit_4k=$writeback_pages algorithm=" . cfg('ZRAM_COMPRESSION_ALGORITHM') .
+        ' backing=' . (cfg('ZRAM_WRITEBACK_ENABLED') ? cfg('ZRAM_BACKING_DEVICE') : 'disabled'));
     return 0;
 }
 
 sub stop {
     my ($self) = @_;
+    log_msg('info', 'event=setup-stop device=' . cfg('ZRAM_SWAP_DEVICE'));
     $self->reset();
     $self->backing()->close() if cfg('ZRAM_WRITEBACK_ENABLED');
+    log_msg('info', 'event=setup-stopped device=' . cfg('ZRAM_SWAP_DEVICE'));
     return 0;
 }
 

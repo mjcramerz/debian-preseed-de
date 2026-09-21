@@ -53,7 +53,7 @@ test_automatic_profile_transition_checks_external_interference_first (test_hardw
 ok
 test_real_foreign_uid_rejected_and_authorized_lease_released_on_eof (test_hardware_tuning_20260916.PeerCredentialTests.test_real_foreign_uid_rejected_and_authorized_lease_released_on_eof) ... ok
 test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) ... 
-  test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-dual-flex.env') ... FAIL
+  test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-flex-duo.env') ... FAIL
 test_boolean_is_not_truthiness (test_hardware_tuning_20260916.PolicyTests.test_boolean_is_not_truthiness) ... ok
 test_broker_config_cannot_select_privileged_account_or_unknown_vendor (test_hardware_tuning_20260916.PolicyTests.test_broker_config_cannot_select_privileged_account_or_unknown_vendor) ... ok
 test_duplicate_nonfinite_unknown_json_rejected (test_hardware_tuning_20260916.PolicyTests.test_duplicate_nonfinite_unknown_json_rejected) ... ok
@@ -84,7 +84,7 @@ test_partial_sensor_coverage_is_unknown_not_the_other_gpu_temperature (test_hard
 test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock (test_hardware_tuning_followup_20260917.MultipleGpuTemperatureTests.test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock) ... ok
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-dual-flex.env')
+FAIL: test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-flex-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/source/debian-preseed-de/d-i/forky/tests/test_hardware_tuning_20260916.py", line 101, in test_all_thirteen_profiles_have_complete_matching_schemas

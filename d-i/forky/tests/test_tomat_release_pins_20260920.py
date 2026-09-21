@@ -118,8 +118,8 @@ print "\nR4_RESULT=" . encode_json({ok => $ok ? 1 : 0, error => $error, result =
 
 
 class TomatProfilePinsTests(unittest.TestCase):
-    def test_all_thirteen_profiles_have_independently_valid_literal_pins(self):
-        self.assertEqual(len(list(PROFILES.glob('*.env'))), 13)
+    def test_all_ten_profiles_have_independently_valid_literal_pins(self):
+        self.assertEqual(len(list(PROFILES.glob('*.env'))), 10)
         load_build().validate_tomat_profiles()
 
     def validate_fixture(self, values=None, extra=''):
@@ -209,7 +209,7 @@ software_fatal() { printf 'FATAL:%s\n' "$*"; exit 1; }
 chroot() { printf 'CHROOT\n'; return 9; }
 software_install_deb() { printf 'UNREACHABLE_INSTALL\n'; }
 ''' + block
-        result = subprocess.run(['/bin/sh', '-c', code, 'r4', str(PROFILES / 'vm-desktop.env')],
+        result = subprocess.run(['/bin/sh', '-c', code, 'r4', str(PROFILES / 'btrfs-de.env')],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout.count('CHROOT\n'), 1)

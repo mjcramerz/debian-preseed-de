@@ -1,0 +1,11 @@
+test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall) ... skipped 'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'
+test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia) ... skipped 'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'
+test_discord_module_npm_bin_symlink_is_materialized_as_a_regular_file (test_managed_external_software.ManagedExternalSoftwareTests.test_discord_module_npm_bin_symlink_is_materialized_as_a_regular_file) ... ok
+test_discord_module_rejects_unsafe_or_dangling_symlinks (test_managed_external_software.ManagedExternalSoftwareTests.test_discord_module_rejects_unsafe_or_dangling_symlinks) ... ok
+test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb) ... skipped 'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'
+test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound) ... skipped 'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.396s
+
+OK (skipped=4)

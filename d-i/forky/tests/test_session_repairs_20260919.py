@@ -76,7 +76,7 @@ class ProfileRenderingTests(unittest.TestCase):
         transport = transport.split('desktop_render_labwc_rc_xml\n', 1)[0]
         transport += '. "$5"\ndesktop_render_fuzzel_configs\n'
         paths = sorted((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(paths), 13)
+        self.assertEqual(len(paths), 10)
         for profile in paths:
             with self.subTest(profile=profile.name), tempfile.TemporaryDirectory() as tmp:
                 result = subprocess.run(['/bin/sh', '-eu', '-c', transport, 'fixture',

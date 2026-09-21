@@ -8,6 +8,7 @@ use Zram::Budget qw(refresh_daily_writeback_budget writeback_budget_allows write
 use Zram::Config qw(cfg cfg_default);
 use Zram::Error qw(fatal);
 use Zram::Logger qw(log_msg);
+use Zram::IOPressure qw(io_pressure_snapshot io_pressure_log_fields);
 use Zram::Metrics qw(
   block_state_authoritative capture_zram_state has_candidate_at_least
 );
@@ -192,13 +193,13 @@ sub _incompressible_candidate {
 }
 
 sub _writeback_class_caps {
-    my ($state, $budget_pages_available) = @_;
+    my ($state, $budget_pages_available, $io) = @_;
     return {} if $state eq 'normal';
     return {} if !cfg('ZRAM_WRITEBACK_ENABLED');
     return {} if !cfg('ZRAM_COLD_TIER_WRITEBACK_ENABLE');
     return {} if defined $budget_pages_available && $budget_pages_available <= 0;
 
-    my $pass_cap = writeback_pass_pages_for_state($state, $budget_pages_available);
+    my $pass_cap = writeback_pass_pages_for_state($state, $budget_pages_available, $io);
     return {} if $pass_cap <= 0;
 
     my %caps;
@@ -313,11 +314,13 @@ sub policy_plan {
     my $budget_allows = exists $opts{budget_allows}
         ? $opts{budget_allows}
         : (!defined $budget_pages_available || $budget_pages_available > 0 ? 1 : 0);
-    my $remaining_pages = writeback_pass_pages_for_state($state, $budget_pages_available);
+    my $io = $opts{io_pressure} // io_pressure_snapshot();
+    my $remaining_pages = writeback_pass_pages_for_state($state, $budget_pages_available, $io);
     my $cold_tier_enabled = _enabled('ZRAM_COLD_TIER_ENABLE');
     my $cold_minimum_met;
     my %plan = (
         state => $state,
+        io_pressure => $io,
         recompress => [],
         writeback => [],
         compact => 0,
@@ -385,8 +388,42 @@ sub _apply_plan {
     for my $spec (@{$plan->{recompress}}) {
         $operations += recompress_spec($spec);
     }
-    for my $spec (@{$plan->{writeback}}) {
-        $operations += writeback_spec($spec);
+    if (@{$plan->{writeback}}) {
+        # Recompression is always first. Its CPU work and candidate discovery
+        # can take time, so do not reuse their pre-pass I/O sample for disk I/O.
+        my $io = io_pressure_snapshot();
+        my $tuning = apply_writeback_batch_size($plan->{state}, $io);
+        my $limit = writeback_pass_pages_for_state(
+            $plan->{state}, writeback_budget_pages_available(), $io,
+        );
+        $limit = $plan->{writeback_pass_pages} if $limit > $plan->{writeback_pass_pages};
+        if (!$tuning->{applied} && $io->{throttle}) {
+            # Older kernels or a denied batch knob cannot guarantee reduced
+            # concurrency. Bound the entire synchronous pass to that batch.
+            $limit = $tuning->{effective_batch_size} if $limit > $tuning->{effective_batch_size};
+            log_msg('warning', 'zram I/O throttle batch knob unavailable; bounding total pass pages to batch limit');
+        }
+        my $remaining = $limit;
+        my @bounded;
+        for my $spec (@{$plan->{writeback}}) {
+            last if $remaining <= 0;
+            my $bounded = _truncate_page_index_spec('I/O-throttled writeback', $spec, $remaining);
+            $remaining -= _page_index_spec_pages('I/O-throttled writeback', $bounded);
+            push @bounded, $bounded;
+        }
+        $plan->{writeback} = \@bounded;
+        $plan->{io_pressure} = $io;
+        $plan->{writeback_pass_pages} = $limit;
+        $plan->{writeback_batch_size} = $tuning->{effective_batch_size};
+        $plan->{writeback_batch_applied} = $tuning->{applied};
+        log_msg('info', 'zram writeback admission state=' . $plan->{state} . ' ' .
+            io_pressure_log_fields($io) .
+            ' recompression_first=1 batch_size=' . $tuning->{effective_batch_size} .
+            ' batch_applied=' . $tuning->{applied} .
+            " pass_page_limit=$limit selected_pages=" . ($limit - $remaining));
+        for my $spec (@bounded) {
+            $operations += writeback_spec($spec);
+        }
     }
     compact_device() if $operations > 0 && $plan->{compact};
     return $operations;
@@ -401,7 +438,7 @@ sub run_maintenance {
     }
 
     my ($state, $reasons) = $opts{state}
-        ? ($opts{state}, ['operator override'])
+        ? ($opts{state}, $opts{reasons} // ['operator override'])
         : determine_pressure_state();
     $state =~ /\A(?:normal|pressure|emergency)\z/
         or fatal("invalid zram maintenance state: $state");
@@ -409,7 +446,8 @@ sub run_maintenance {
     refresh_daily_writeback_budget();
     my $budget_pages_available = writeback_budget_pages_available();
     my $budget_allows = !defined $budget_pages_available || $budget_pages_available > 0 ? 1 : 0;
-    my $tuning = apply_writeback_batch_size($state);
+    my $io = io_pressure_snapshot();
+    my $tuning = apply_writeback_batch_size($state, $io);
     if ($state eq 'normal' && !cfg('ZRAM_IDLE_WRITEBACK_ENABLE')) {
         log_msg('debug', 'skipping normal zram maintenance; normal idle policy disabled');
         capture_zram_state(
@@ -436,7 +474,10 @@ sub run_maintenance {
     }
 
     my $fill_pct = zram_fill_pct();
-    if (!_fill_gate_met($fill_pct)) {
+    # Logical fill is an idle-work efficiency gate, not a host-memory gate.
+    # Poorly compressible data can reach mem_limit well below logical capacity.
+    # PSI pressure still obeys cold-page, tier, pass and kernel quota limits.
+    if ($state eq 'normal' && !_fill_gate_met($fill_pct)) {
         log_msg(
             'info',
             'skipping zram maintenance state=' . $state .
@@ -461,12 +502,16 @@ sub run_maintenance {
         "maintenance-$state-candidates",
         state => $state,
         idle_age_sec => $idle_age,
-        writeback_class_caps => _writeback_class_caps($state, $budget_pages_available),
+        writeback_class_caps => _writeback_class_caps($state, $budget_pages_available, $io),
     );
+    if (!block_state_authoritative($stats)) {
+        log_msg('warning', 'zram candidate snapshot is not authoritative; automatic targeted writeback suppressed, bounded recompression remains available');
+    }
     my $plan = policy_plan(
         $state,
         $stats,
         budget_allows => $budget_allows,
+        io_pressure => $io,
         writeback_pages_available => $budget_pages_available,
     );
 
@@ -474,6 +519,8 @@ sub run_maintenance {
         'info',
         'zram maintenance state=' . $state .
         ' reason=' . join('; ', @{$reasons || []}) .
+        ' ' . io_pressure_log_fields($io) .
+        ' zram_fill_percent=' . $fill_pct .
         ' idle_mark=' . ($mark_succeeded ? 1 : 0) .
         ' recompress=' . scalar(@{$plan->{recompress}}) .
         ' writeback=' . scalar(@{$plan->{writeback}}) .
@@ -492,9 +539,10 @@ sub run_maintenance {
             "maintenance-$state-after",
             state => $state,
             idle_age_sec => $idle_age,
+            scan_block_state => 0, # no second full scan while relieving pressure
         );
     }
-    $plan->{writeback_batch_size} = $tuning->{effective_batch_size};
+    $plan->{writeback_batch_size} //= $tuning->{effective_batch_size};
     $plan->{operations} = $operations;
     return $plan;
 }

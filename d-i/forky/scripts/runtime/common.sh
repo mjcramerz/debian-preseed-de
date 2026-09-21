@@ -942,7 +942,8 @@ runtime_device_size_bytes() {
 runtime_device_size_mb() {
   dev=$1
   bytes=$(runtime_device_size_bytes "$dev") || return 1
-  size_mb=$(((bytes + 1048575) / 1048576))
+  # Preserved partitions are rounded up in partman's decimal MB units.
+  size_mb=$(((bytes + 999999) / 1000000))
   [ "$size_mb" -gt 0 ] || runtime_fatal "partition size for ${dev} resolved to zero MB"
   printf '%s\n' "$size_mb"
 }
@@ -954,7 +955,12 @@ runtime_install_disk_size_mb() {
     return 0
   fi
 
-  runtime_device_size_mb "$DEV_INSTALL_DISK"
+  # Never round available disk capacity up. Preserved sizes are rounded up
+  # separately, so every rounding decision remains conservative.
+  bytes=$(runtime_device_size_bytes "$DEV_INSTALL_DISK") || return 1
+  size_mb=$((bytes / 1000000))
+  [ "$size_mb" -gt 0 ] || runtime_fatal "install disk size resolved to zero MB"
+  printf '%s\n' "$size_mb"
 }
 
 runtime_fill_partition_to_target() {
@@ -1023,6 +1029,18 @@ runtime_shrink_partition_to_floor() {
   fi
 }
 
+runtime_mib_to_recipe_mb() {
+  # Only logical RAM/swap sizing uses MiB. Recipes and disk budgets use MB.
+  label=$1
+  size_mb=$2
+  runtime_require_positive_integer "$label" "$size_mb"
+  case "$size_mb" in
+    0*) runtime_fatal "${label} must not contain leading zeroes" ;;
+  esac
+  [ "$size_mb" -le 2147483647 ] || runtime_fatal "${label} is too large"
+  printf '%s\n' "$(((size_mb * 1048576 + 999999) / 1000000))"
+}
+
 runtime_compute_raw_zram_partition_mb() {
   runtime_zram_budget_mb=$1
   runtime_zram_relevant_span_mb=$2
@@ -1036,6 +1054,8 @@ runtime_compute_raw_zram_partition_mb() {
   runtime_require_positive_integer SIZE_PART_RAW_ZRAM_MIN_MB "${SIZE_PART_RAW_ZRAM_MIN_MB:-2048}"
 
   runtime_zram_floor_mb=$(runtime_min "$SIZE_PART_RAW_ZRAM_MB" "${SIZE_PART_RAW_ZRAM_MIN_MB:-2048}")
+  [ "$runtime_zram_floor_mb" -le "$SIZE_PART_RAW_ZRAM_MAX_MB" ] ||
+    runtime_fatal "raw zram backing minimum exceeds its maximum"
   runtime_zram_target_mb=$((runtime_zram_relevant_span_mb / SIZE_PART_RAW_ZRAM_DISK_DIVISOR))
   runtime_zram_target_mb=$(runtime_clamp "$runtime_zram_target_mb" "$runtime_zram_floor_mb" "$SIZE_PART_RAW_ZRAM_MAX_MB")
   runtime_zram_budget_cap_mb=$((runtime_zram_budget_mb / SIZE_PART_RAW_ZRAM_BUDGET_DIVISOR))
@@ -1058,9 +1078,11 @@ runtime_compute_swap_partition_mib() {
   runtime_require_positive_integer SIZE_PART_SWAP_RAM_DIVISOR "${SIZE_PART_SWAP_RAM_DIVISOR:-}"
   runtime_require_positive_integer SIZE_PART_SWAP_LAYOUT_DIVISOR "${SIZE_PART_SWAP_LAYOUT_DIVISOR:-}"
 
+  [ "$SIZE_PART_SWAP_MIN_MIB" -le "$SIZE_PART_SWAP_MAX_MIB" ] ||
+    runtime_fatal "fallback swap minimum exceeds its maximum"
   runtime_swap_target_mib=$((runtime_swap_ram_mib / SIZE_PART_SWAP_RAM_DIVISOR))
   runtime_swap_target_mib=$(runtime_clamp "$runtime_swap_target_mib" "$SIZE_PART_SWAP_MIN_MIB" "$SIZE_PART_SWAP_MAX_MIB")
-  runtime_swap_budget_cap_mib=$((runtime_swap_budget_mb / SIZE_PART_SWAP_LAYOUT_DIVISOR))
+  runtime_swap_budget_cap_mib=$((runtime_swap_budget_mb * 1000000 / 1048576 / SIZE_PART_SWAP_LAYOUT_DIVISOR))
   if [ "$runtime_swap_budget_cap_mib" -lt "$SIZE_PART_SWAP_MIN_MIB" ]; then
     runtime_swap_budget_cap_mib=$SIZE_PART_SWAP_MIN_MIB
   fi

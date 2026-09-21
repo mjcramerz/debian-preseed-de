@@ -1919,7 +1919,7 @@ desktop_waybar_modules_left_json() {
   # expose a global window list as a supposedly workspace-local taskbar.
   # With one configured workspace its native per-window buttons are safe.
   desktop_validate_uint_range LABWC_WORKSPACE_COUNT "${LABWC_WORKSPACE_COUNT:-4}" 1 12
-  printf '"custom/launcher", "ext/workspaces", "custom/window-switcher", "custom/wayscriber", "custom/tomat", "group/apps"'
+  printf '"custom/launcher", "ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher", "group/apps"'
   if [ "${LABWC_WORKSPACE_COUNT:-4}" -eq 1 ]; then
     printf ', "wlr/taskbar"'
   fi
@@ -3937,6 +3937,7 @@ desktop_stage_session_repairs() {
 }
 
 desktop_stage_wlsunset() {
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service /etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service 0644
   desktop_stage_role_asset usr/local/bin/labwc-wlsunset /usr/local/bin/labwc-wlsunset 0755
   desktop_render_role_target_template \
     etc/default/labwc-wlsunset.tmpl /etc/default/labwc-wlsunset 0644 \
@@ -3981,7 +3982,7 @@ if prop is None:
     # Properties added after that child are not reliably applied by GTK3.
     item.insert(0, prop)
 prop.text = "True" if sys.argv[1] == "1" else "False"
-item.find("./property[@name=\"label\"]").text = "Whisper" if sys.argv[1] == "1" else "Whisper (not installed)"
+item.find("./child/object[@class=\"GtkBox\"]/child/object[@class=\"GtkLabel\"]/property[@name=\"label\"]").text = "Whisper" if sys.argv[1] == "1" else "Whisper (not installed)"
 ET.indent(tree, space="  ")
 tree.write(path, encoding="utf-8", xml_declaration=True)
 ' "$native_menu_whisper"
@@ -4018,6 +4019,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/local/libexec/labwc-session-state /usr/local/libexec/labwc-session-state 0755
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-restore.service /etc/skel-desktop/.config/systemd/user/labwc-session-restore.service 0644
   desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@.service /etc/skel-desktop/.config/systemd/user/labwc-session-state@.service 0644
+  desktop_stage_role_asset etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf /etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf 0644
   desktop_stage_role_asset etc/systemd/system/labwc-admin-action@.service /etc/systemd/system/labwc-admin-action@.service 0644
   desktop_stage_role_asset etc/systemd/system/labwc-package-sleep-guard.service /etc/systemd/system/labwc-package-sleep-guard.service 0644
   desktop_stage_role_asset etc/systemd/system/sleep.target.d/50-package-lock-guard.conf /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 0644
@@ -4115,6 +4117,7 @@ desktop_stage_target_assets() {
     desktop_stage_role_asset usr/local/libexec/labwc-kanshi /usr/local/libexec/labwc-kanshi 0755
   fi
   desktop_stage_role_asset usr/local/libexec/labwc-session-check /usr/local/libexec/labwc-session-check 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-exec 0755
   desktop_stage_role_asset usr/local/libexec/labwc-panel-run /usr/local/libexec/labwc-panel-run 0755
   desktop_stage_role_asset usr/local/libexec/whisper-record-timed /usr/local/libexec/whisper-record-timed 0755
   desktop_stage_role_asset usr/local/libexec/labwc-swaybg /usr/local/libexec/labwc-swaybg 0755
@@ -4156,6 +4159,7 @@ desktop_stage_target_assets() {
   desktop_stage_role_asset usr/share/applications/computer-management.desktop /usr/share/applications/computer-management.desktop 0644
   desktop_stage_role_asset usr/share/applications/remote-desktop-management.desktop /usr/share/applications/remote-desktop-management.desktop 0644
   desktop_stage_role_asset usr/local/share/applications/foot.desktop /usr/local/share/applications/foot.desktop 0644
+  desktop_stage_role_asset usr/local/share/applications/labwc-notifications.desktop /usr/local/share/applications/labwc-notifications.desktop 0644
   desktop_render_gtkgreet_css
   desktop_stage_role_asset etc/greetd/gtkgreet-power.css /etc/greetd/gtkgreet-power.css 0644
   desktop_render_greeter_power_rule

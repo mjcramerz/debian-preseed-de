@@ -63,9 +63,9 @@ class DesktopRepairTests(unittest.TestCase):
             self.assertEqual(ET.fromstring(icon.read_text()).attrib['viewBox'], '0 0 24 24')
             stage = (FORKY / 'scripts/desktop/components.sh').read_text()
             self.assertIn(f'/etc/skel-desktop/.config/waybar/icons/{name}-symbolic.svg 0644', stage)
-            self.assertIn(f'#custom-{name}:hover {{\n  background-image: -gtk-recolor', css)
+            self.assertRegex(css, rf'#custom-{name}:hover \{{[^}}]*background-image: -gtk-recolor')
         self.assertIn('background-position: center;', css)
-        self.assertIn('background-size: 1.2em 1.2em, 100% 100%;', css)
+        self.assertIn('background-size: 18px 18px, 100% 100%;', css)
 
     @unittest.skipUnless(os.geteuid() == 0, 'root can create a disposable unprivileged process')
     def test_real_timeout_wrapper_emits_exact_same_device_key_pair(self):

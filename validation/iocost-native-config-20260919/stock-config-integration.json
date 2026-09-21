@@ -10,7 +10,7 @@
     },
     {
       "action": "stage_target_iocost",
-      "profile": "btrfs-de-dual-flex",
+      "profile": "btrfs-de-flex-duo",
       "returncode": 0,
       "stdout": "",
       "stderr": ""
@@ -46,7 +46,7 @@
     },
     {
       "action": "disable-and-restore",
-      "profile": "f2fs-de",
+      "profile": "f2fs-de-x360",
       "returncode": 0,
       "stdout": "",
       "stderr": ""

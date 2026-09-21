@@ -3,7 +3,7 @@
 `IOCOST_CALIBRATE_ENABLE` is the only enable switch. It controls deployment,
 not calibration: the installer never runs a storage benchmark or writes cgroup
 IOCost controls itself. Exactly `btrfs-de-flex.env` and
-`btrfs-de-dual-flex.env` enable it initially. The other eleven profiles, including
+`btrfs-de-flex-duo.env` enable it initially. The other eleven profiles, including
 all F2FS profiles and the VM profile, explicitly disable it. Every profile has
 all 35 IOCost fields. The common late-stage helper works with either filesystem.
 

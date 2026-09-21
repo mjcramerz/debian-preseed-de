@@ -86,7 +86,7 @@ class NotificationsFollowupTests(unittest.TestCase):
 
     def test_every_desktop_profile_css_resolves_session_geometry(self):
         styles = rendered_profile_styles()
-        self.assertEqual(len(styles), 13)
+        self.assertEqual(len(styles), 10)
         for name, css in styles.items():
             with self.subTest(profile=name):
                 self.assertNotIn('__INSTALLER_', css)
@@ -114,7 +114,7 @@ class NotificationsFollowupTests(unittest.TestCase):
                 text=True, capture_output=True, timeout=45)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             report = json.loads(result.stdout)
-            self.assertEqual(report['gtk_cases'], 13 * 2 * 2 * 2)
+            self.assertEqual(report['gtk_cases'], 10 * 2 * 2 * 2)
             self.assertEqual(len(report['records']), report['gtk_cases'])
             for record in report['records']:
                 if record['hover']:

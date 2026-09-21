@@ -41,7 +41,7 @@ class IndependentIOTests(unittest.TestCase):
         self.runner = base.ResourcePolicyTests()
 
     def test_all_profiles_all_four_switch_combinations_and_republication(self):
-        self.assertEqual(len(base.PROFILES), 13)
+        self.assertEqual(len(base.PROFILES), 10)
         for profile in base.PROFILES:
             with self.subTest(profile=profile.name), tempfile.TemporaryDirectory() as tmp:
                 target = Path(tmp) / 'target'; target.mkdir()

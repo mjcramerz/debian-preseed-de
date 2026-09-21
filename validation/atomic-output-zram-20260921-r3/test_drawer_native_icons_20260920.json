@@ -1,0 +1,13 @@
+{
+  "name": "test_drawer_native_icons_20260920",
+  "source": "d-i/forky/tests/test_drawer_native_icons_20260920.py",
+  "returncode": 0,
+  "seconds": 1.088,
+  "tests": 15,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_drawer_native_icons_20260920.log",
+  "reused_completed_run": true
+}

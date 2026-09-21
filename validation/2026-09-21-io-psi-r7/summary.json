@@ -1,0 +1,200 @@
+{
+  "revision": "2026-09-21-io-psi-r7",
+  "target": {
+    "distribution": "Debian Forky",
+    "systemd": "261.2"
+  },
+  "test_environment": {
+    "distribution": "Debian 13 container",
+    "python": "3.13.5",
+    "perl": "5.40.1",
+    "systemd_analyze": "257 (257.9-1~deb13u1)",
+    "live_target_booted": false,
+    "hardware_writeback_tested": false,
+    "full_Moo_daemon_integration_tested": false
+  },
+  "runtime_suite": {
+    "tests": 2209,
+    "passed": 2160,
+    "skipped": 49,
+    "failed": 0,
+    "errors": 0,
+    "seconds": 570.955
+  },
+  "tools_suite": {
+    "tests": 179,
+    "passed": 179,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "seconds": 36.804
+  },
+  "totals": {
+    "tests": 2388,
+    "passed": 2339,
+    "skipped": 49,
+    "failed": 0,
+    "errors": 0
+  },
+  "new_regression_coverage": {
+    "io_psi": {
+      "tests": 27,
+      "passed": 27,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "seconds": 5.609
+    },
+    "managed_app": {
+      "tests": 21,
+      "passed": 21,
+      "skipped": 0,
+      "failed": 0,
+      "errors": 0,
+      "seconds": 0.033
+    },
+    "included_in_runtime_suite": true
+  },
+  "shell_checks": {
+    "files": 282,
+    "parser_checks": 575,
+    "failed": 0
+  },
+  "preseed_checks": {
+    "files": 59,
+    "failed": 0
+  },
+  "static_audit": {
+    "counts": {
+      "blocked-dependency": 158,
+      "inventory-only": 509,
+      "pass": 482,
+      "structure-pass": 180,
+      "template-needs-render": 2
+    },
+    "inventory_total": 1331,
+    "limits": [
+      "Syntax and inventory are not semantic or runtime proof.",
+      "Systemd structure checks do not resolve vendor units or template values.",
+      "Blocked dependency/template checks are not passes.",
+      "No kernel policies, network changes, services or installers are applied."
+    ]
+  },
+  "module_review": {
+    "total": 23,
+    "changed": 4,
+    "unchanged": 19,
+    "sandbox_functions_unchanged": 37,
+    "protected_files_unchanged": 222
+  },
+  "profiles": [
+    "btrfs-de-duo.env",
+    "btrfs-de-flex-duo.env",
+    "btrfs-de-flex.env",
+    "btrfs-de-p15s-duo.env",
+    "btrfs-de-p15s.env",
+    "btrfs-de.env",
+    "f2fs-de-hp14-duo.env",
+    "f2fs-de-hp14.env",
+    "f2fs-de-x360-duo.env",
+    "f2fs-de-x360.env"
+  ],
+  "profile_count": 10,
+  "installer_perl_staging": {
+    "modules": 45,
+    "shells": [
+      "dash",
+      "bash",
+      "BusyBox sh"
+    ],
+    "verified": [
+      "exact source path inventory",
+      "installed content",
+      "0644 installed modes"
+    ],
+    "transport": "temporary-file copy stub for stage_target_asset; actual zram module staging function"
+  },
+  "payload": {
+    "files": 1403,
+    "sha256": "d69ca4ec4985f01c2eb701f285c7db64b8d8f9af28b9f9a0a9f22c3c1776cb38",
+    "manifest_sha256": "cae404b029bae798da0618c7ea66d0154387463dc37cf742ff8f97d2ae49f664"
+  },
+  "steps": [
+    {
+      "name": "runtime-tests",
+      "argv": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "d-i/forky/tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 572.584,
+      "log": "runtime-tests.log"
+    },
+    {
+      "name": "tools-tests",
+      "argv": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 37.6,
+      "log": "tools-tests.log"
+    },
+    {
+      "name": "build-check",
+      "argv": [
+        "python3",
+        "-B",
+        "tools/build.py",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.185,
+      "log": "build-check.log"
+    },
+    {
+      "name": "shell-check",
+      "argv": [
+        "python3",
+        "-B",
+        "tools/check_shells.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.522,
+      "log": "shell-check.log"
+    },
+    {
+      "name": "preseed-check",
+      "argv": [
+        "python3",
+        "-B",
+        "tools/check_preseeds.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.82,
+      "log": "preseed-check.log"
+    }
+  ],
+  "limits": [
+    "Skipped tests and dependency-blocked static checks are not passes.",
+    "Source review and fixture-based regression tests are not a security certification.",
+    "No live Forky/systemd 261.2, AppArmor enforcement or physical-device writeback acceptance was performed.",
+    "PSI thresholds and batch limits are policy defaults, not measured hardware calibration."
+  ]
+}

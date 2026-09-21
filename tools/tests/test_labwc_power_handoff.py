@@ -37,6 +37,7 @@ class PowerWorkerTests(unittest.TestCase):
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(mock.patch.object(power, 'run', side_effect=self.mock_run))
+        self.stack.enter_context(mock.patch.object(power.Worker, 'user_run', side_effect=self.mock_run))
         self.sync = self.stack.enter_context(mock.patch.object(power.os, 'sync'))
         self.stack.enter_context(mock.patch.object(power, 'ready'))
         self.stack.enter_context(mock.patch.object(power, 'hold_reservation'))
@@ -52,7 +53,7 @@ class PowerWorkerTests(unittest.TestCase):
             raise power.Error('injected failure')
         if argv[0] == '/usr/bin/busctl':
             return json.dumps({'type': 'a(ssssuu)', 'data': [[]]})
-        if 'kill' in argv and '--signal=SIGKILL' in argv:
+        if 'stop' in argv and 'user@1000.service' in argv:
             self.runtime_stopped = True
         if '--property=' + power.RUNTIME_PROPERTIES in argv:
             return '\n\n'.join('\n'.join((
@@ -61,10 +62,12 @@ class PowerWorkerTests(unittest.TestCase):
                 'Job=0', 'MainPID=' + ('0' if self.runtime_stopped or name.endswith('.socket') else '123'),
                 'ControlPID=0', 'ControlGroup=' + power.runtime_cgroup(name)))
                 for name in (*power.RUNTIME_FIXED_UNITS, 'user@1000.service'))
+        if '--property=ActiveState,SubState,Result,ExecMainStatus' in argv:
+            return 'ActiveState=active\nSubState=exited\nResult=success\nExecMainStatus=0\n'
         if '--property=ConsistsOf' in argv:
             return ''
-        if '--property=Id,ActiveState,Job,MainPID,ControlPID' in argv:
-            return '\n\n'.join('Id=' + name + '\nActiveState=inactive\nJob=0\nMainPID=0\nControlPID=0'
+        if '--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID' in argv:
+            return '\n\n'.join('Id=' + name + '\nLoadState=loaded\nActiveState=inactive\nJob=0\nMainPID=0\nControlPID=0'
                                 for name in ('labwc-session.target','labwc-compositor.service'))
         if '--property=LoadState,ActiveState' in argv:
             return 'LoadState=not-found\nActiveState=inactive\n'
@@ -88,12 +91,13 @@ class PowerWorkerTests(unittest.TestCase):
                 final = self.calls.index(['/usr/bin/systemctl', '--force', '--no-ask-password', action])
                 self.assertLess(prepare, stop)
                 self.assertLess(stop, final)
-                runtime = next(i for i,c in enumerate(self.calls) if '--job-mode=replace-irreversibly' in c)
-                kill = next(i for i,c in enumerate(self.calls) if '--signal=SIGKILL' in c)
+                runtime = next(i for i,c in enumerate(self.calls) if '--no-block' in c and 'greetd.service' in c)
+                managers = next(i for i,c in enumerate(self.calls) if 'stop' in c and 'user@1000.service' in c)
                 self.assertLess(stop, runtime)
-                self.assertLess(runtime, kill)
-                self.assertLess(kill, final)
-                self.assertFalse(any(c[0] != '/usr/bin/systemctl' or '--user' in c for c in self.calls[kill:]))
+                self.assertLess(runtime, managers)
+                self.assertLess(managers, final)
+                self.assertFalse(any(c[0] != '/usr/bin/systemctl' or '--user' in c for c in self.calls[managers:]))
+                self.assertFalse(any('kill' in c or 'dbus-broker.service' in c for c in self.calls))
                 self.assertFalse(any('terminate-user' in c or c[0].endswith(('/pkill','/pgrep')) for c in self.calls))
                 self.assertFalse(any(command.count('--force') > 1 for command in self.calls))
 
@@ -112,10 +116,10 @@ class PowerWorkerTests(unittest.TestCase):
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_prepare_failure_never_tears_down_session(self):
-        self.failure = lambda command: command[-1] == 'labwc-session-state@prepare.service'
+        self.failure = lambda command: command[-2:] == ['start', 'labwc-session-state@prepare.service']
         with self.assertRaises(power.Error):
             self.execute('poweroff')
-        self.assertFalse(any('stop' in c or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
+        self.assertFalse(any(('stop' in c and c[-1] != 'labwc-session-state@prepare.service') or '--force' in c or c[0].endswith('/pkill') for c in self.calls))
 
     def test_failed_target_stop_never_reaches_forced_power(self):
         self.failure = lambda command: command[-2:] == ['labwc-session.target', 'labwc-compositor.service']
@@ -151,6 +155,7 @@ class PowerWorkerTests(unittest.TestCase):
 
 class SessionStateTests(unittest.TestCase):
     def setUp(self):
+        self.confirm = mock.patch.object(state, 'confirm_close'); self.confirm.start(); self.addCleanup(self.confirm.stop)
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -181,7 +186,7 @@ class SessionStateTests(unittest.TestCase):
 
     def test_success_records_state_before_clearing_clipboard_without_premature_unit_stops(self):
         initial = {'labwc-editor.service': {'LABWC_SESSION_APP': '1', 'LABWC_SESSION_RESTORE': self.token}}
-        with mock.patch.object(state, 'services', side_effect=[initial, {}]), mock.patch.object(state, 'windows', side_effect=['editor: document', '']):
+        with mock.patch.object(state, 'services', side_effect=[initial, {}]), mock.patch.object(state, 'windows', side_effect=['editor: document', '', '']):
             state.prepare(self.state, self.runtime, timeout=0)
         self.assertEqual(state.load(self.state / 'resume.json'), [dict(self.app, argv=self.app['argv'][:4])])
         self.assertEqual((self.state / 'resume.json').stat().st_mode & 0o777, 0o600)
@@ -274,7 +279,7 @@ class WiringTests(unittest.TestCase):
     def test_root_worker_keeps_nnp_with_inherited_command_confinement(self):
         unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
         self.assertIn('NoNewPrivileges=yes', unit)
-        self.assertIn('CapabilityBoundingSet=\n', unit)
+        self.assertIn('CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n', unit)
         profiles = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
         worker = profiles.split('profile managed-labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
         self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,busctl,sync} rix,', worker)
@@ -304,7 +309,7 @@ class WiringTests(unittest.TestCase):
         for path in (module / 'generic.py', module / 'session.py', TARGET / 'usr/local/bin/labwc-qbittorrent'):
             text = path.read_text()
             self.assertIn('ExitType=cgroup', text)
-            self.assertIn('KillMode=control-group', text)
+            self.assertTrue('KillMode=control-group' in text or 'KillMode=" + ("mixed" if is_foot else "control-group")' in text)
             self.assertIn('PartOf=', text)
             self.assertIn('LABWC_SESSION_APP', text)
         self.assertIn('recovery.py', (module / 'integrity.py').read_text())

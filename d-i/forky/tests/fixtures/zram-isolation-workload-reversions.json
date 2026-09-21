@@ -1,0 +1,34 @@
+{
+  "d-i/forky/hooks/target/etc/systemd/system/zram-writeback.service.tmpl": [
+    {
+      "current": "Requires=__INSTALLER_ZRAM_SETUP_UNIT__\nBindsTo=__INSTALLER_ZRAM_SETUP_UNIT__\nPartOf=__INSTALLER_ZRAM_SETUP_UNIT__\n",
+      "historical": "Requires=__INSTALLER_ZRAM_SETUP_UNIT__\n"
+    },
+    {
+      "current": "# Isolate helper PIDs without hiding host-wide memory/PSI metrics.\n# Setup owns raw devices; maintenance needs only zram controls and PSI triggers.\n",
+      "historical": "# PID-only isolation: helpers do not consume host PIDs. Keep host UID and\n# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.\n"
+    },
+    {
+      "current": "CPUWeight=10\nTasksAccounting=yes\nTasksMax=16\n",
+      "historical": "CPUWeight=10\n"
+    },
+    {
+      "current": "NoNewPrivileges=yes\nCapabilityBoundingSet=CAP_SYS_RESOURCE\nRestrictNamespaces=yes\nOOMPolicy=stop\n",
+      "historical": "NoNewPrivileges=yes\n"
+    },
+    {
+      "current": "ReadWritePaths=__INSTALLER_ZRAM_RUNTIME_DIR__\nRestrictAddressFamilies=AF_UNIX\n",
+      "historical": "ReadWritePaths=__INSTALLER_ZRAM_RUNTIME_DIR__\n"
+    }
+  ],
+  "d-i/forky/hooks/target/etc/systemd/system/zram-writebackd.service.tmpl": [
+    {
+      "current": "# Isolate helper PIDs without hiding host-wide memory/PSI metrics.\n# Setup owns raw devices; maintenance needs only zram controls and PSI triggers.\n",
+      "historical": "# PID-only isolation: helpers do not consume host PIDs. Keep host UID and\n# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.\n"
+    },
+    {
+      "current": "NoNewPrivileges=yes\nCapabilityBoundingSet=CAP_SYS_RESOURCE\nRestrictNamespaces=yes\nOOMPolicy=stop\n",
+      "historical": "NoNewPrivileges=yes\n"
+    }
+  ]
+}

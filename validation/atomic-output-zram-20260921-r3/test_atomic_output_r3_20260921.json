@@ -1,0 +1,13 @@
+{
+  "name": "test_atomic_output_r3_20260921",
+  "source": "d-i/forky/tests/test_atomic_output_r3_20260921.py",
+  "returncode": 0,
+  "seconds": 0.849,
+  "tests": 12,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_atomic_output_r3_20260921.log",
+  "reused_completed_run": true
+}

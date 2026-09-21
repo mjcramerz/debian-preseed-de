@@ -1,0 +1,40 @@
+[
+  {
+    "name": "test_bootstrap_portability",
+    "source": "d-i/forky/tests/test_bootstrap_portability.py",
+    "returncode": 0,
+    "seconds": 47.134,
+    "tests": 18,
+    "skipped": 0,
+    "failed": 0,
+    "timed_out": false,
+    "skip_reasons": [],
+    "log": "validation/atomic-output-zram-20260921-r3/test_bootstrap_portability.log"
+  },
+  {
+    "name": "test_debconf_protocol",
+    "source": "d-i/forky/tests/test_debconf_protocol.py",
+    "returncode": 0,
+    "seconds": 101.641,
+    "tests": 22,
+    "skipped": 0,
+    "failed": 0,
+    "timed_out": false,
+    "skip_reasons": [],
+    "log": "validation/atomic-output-zram-20260921-r3/test_debconf_protocol.log"
+  },
+  {
+    "name": "test_log_followup_20260915",
+    "source": "d-i/forky/tests/test_log_followup_20260915.py",
+    "returncode": 0,
+    "seconds": 12.489,
+    "tests": 9,
+    "skipped": 1,
+    "failed": 0,
+    "timed_out": false,
+    "skip_reasons": [
+      "live filtered-bus test requires preinstalled dbus-daemon, busctl and xdg-dbus-proxy"
+    ],
+    "log": "validation/atomic-output-zram-20260921-r3/test_log_followup_20260915.log"
+  }
+]

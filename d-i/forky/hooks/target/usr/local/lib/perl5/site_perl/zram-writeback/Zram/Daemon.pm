@@ -8,7 +8,7 @@ use Exporter qw(import);
 use Fcntl qw(F_GETFD F_SETFD FD_CLOEXEC O_NONBLOCK O_RDWR);
 use IO::Handle qw();
 use IO::Poll qw(POLLERR POLLHUP POLLNVAL POLLPRI);
-use Time::HiRes qw(time);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Zram::Config qw(cfg);
 use Zram::Daemon::Controller;
 use Zram::Error qw(fatal);
@@ -63,9 +63,8 @@ sub _register_triggers {
 
 sub _poll_triggers {
     my ($poll, $timeout_sec, @triggers) = @_;
-    my $timeout_ms = int($timeout_sec * 1000);
-    $timeout_ms = 1 if $timeout_ms < 1;
-    my $ready = $poll->poll($timeout_ms);
+    # IO::Poll accepts seconds and converts to milliseconds internally.
+    my $ready = $poll->poll($timeout_sec);
     if (!defined $ready || $ready < 0) {
         return 0 if $! == EINTR;
         fatal("zram PSI poll failed: $!");
@@ -83,13 +82,13 @@ sub _poll_triggers {
 }
 
 sub _run_pressure_pass {
-    my ($state) = @_;
+    my ($state, $reasons) = @_;
     my $lock_fh = try_acquire_lock();
     if (!defined $lock_fh) {
         log_msg('debug', "zram PSI daemon skipped $state pass because another pass is active");
         return undef;
     }
-    run_maintenance(state => $state);
+    run_maintenance(state => $state, reasons => $reasons);
     return 1;
 }
 
@@ -135,7 +134,7 @@ sub run_daemon {
         my $event = _poll_triggers($poll, $poll_timeout, @triggers);
         last if $stop;
 
-        my $now = time;
+        my $now = clock_gettime(CLOCK_MONOTONIC);
         my ($state, $reasons) = determine_pressure_state();
         my $decision = $controller->observe($now, $state);
         if ($state eq 'normal') {
@@ -172,9 +171,9 @@ sub run_daemon {
             ' pass source=' . ($event ? 'psi' : 'periodic') .
             ' reason=' . join('; ', @{$reasons || []}),
         );
-        my $pass_ran = _run_pressure_pass($state);
+        my $pass_ran = _run_pressure_pass($state, $reasons);
         if (defined $pass_ran) {
-            $controller->pass_completed($state, time);
+            $controller->pass_completed($state, clock_gettime(CLOCK_MONOTONIC));
         }
     }
     log_msg('info', 'zram PSI daemon stopped');

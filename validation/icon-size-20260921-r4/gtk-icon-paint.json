@@ -1,0 +1,614 @@
+{
+  "native_icon_paint_cases": 40,
+  "logical_icon_size": [
+    18,
+    18
+  ],
+  "scales": [
+    1,
+    2
+  ],
+  "note": "Real GTK3/Cairo rendering with synthetic full-coverage SVG and 512px PNG package artwork. Solid-color bounds allow edge antialiasing; no target Waybar session was run.",
+  "records": [
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 1,
+      "bounds": [
+        18,
+        18
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": false,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "external",
+      "hover": true,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": false,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "foot",
+      "rgb": [
+        23,
+        217,
+        71
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "org.xfce.thunar",
+      "rgb": [
+        35,
+        145,
+        247
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "tuta-mail",
+      "rgb": [
+        179,
+        27,
+        198
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "featherpad",
+      "rgb": [
+        47,
+        226,
+        211
+      ],
+      "scale": 2,
+      "bounds": [
+        34,
+        34
+      ]
+    },
+    {
+      "layout": "internal",
+      "hover": true,
+      "icon": "sleek",
+      "rgb": [
+        230,
+        72,
+        174
+      ],
+      "scale": 2,
+      "bounds": [
+        36,
+        36
+      ]
+    }
+  ]
+}

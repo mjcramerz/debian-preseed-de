@@ -1,6 +1,6 @@
 test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.IOCostTests.test_all_profiles_complete_and_exact_enable_matrix) ... FAIL
 test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) ... 
-  test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex') ... FAIL
+  test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo') ... FAIL
 test_reported_profile_native_iocost_transaction_through_real_bridge (test_target_debconf_boundary.TargetDebconfBoundaryTests.test_reported_profile_native_iocost_transaction_through_real_bridge) ... FAIL
 test_accepts_native_multi_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_multi_workspace_configuration) ... FAIL
 test_accepts_native_single_workspace_configuration (test_workspace_no_broker.InstalledVerifierTests.test_accepts_native_single_workspace_configuration) ... FAIL
@@ -22,23 +22,23 @@ FAIL: test_all_profiles_complete_and_exact_enable_matrix (test_iocost_20260919.I
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original-baseline/d-i/forky/tests/test_iocost_20260919.py", line 116, in test_all_profiles_complete_and_exact_enable_matrix
-    self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
+    self.assertEqual(enabled, ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env'])
     ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
+AssertionError: Lists differ: ['btrfs-de-flex.env'] != ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']
 
 First differing element 0:
 'btrfs-de-flex.env'
-'btrfs-de-dual-flex.env'
+'btrfs-de-flex-duo.env'
 
 Second list contains 1 additional elements.
 First extra element 1:
 'btrfs-de-flex.env'
 
 - ['btrfs-de-flex.env']
-+ ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env']
++ ['btrfs-de-flex-duo.env', 'btrfs-de-flex.env']
 
 ======================================================================
-FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-dual-flex')
+FAIL: test_both_enabled_profiles_native_staging_and_query (test_iocost_20260919.IOCostTests.test_both_enabled_profiles_native_staging_and_query) (profile='btrfs-de-flex-duo')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original-baseline/d-i/forky/tests/test_iocost_20260919.py", line 147, in test_both_enabled_profiles_native_staging_and_query

@@ -1,0 +1,14 @@
+test_default_disabled_policy_batches_fallback_and_skips_noop (test_native_session_followup_20260919.OutputAuthorityTests.test_default_disabled_policy_batches_fallback_and_skips_noop) ... ok
+test_idle_noop_and_multihead_transaction (test_native_session_followup_20260919.OutputAuthorityTests.test_idle_noop_and_multihead_transaction) ... ok
+test_kanshi_launch_respects_pause_marker (test_native_session_followup_20260919.OutputAuthorityTests.test_kanshi_launch_respects_pause_marker) ... ok
+test_pause_marker_and_stop_resume_order (test_native_session_followup_20260919.OutputAuthorityTests.test_pause_marker_and_stop_resume_order) ... ok
+test_pause_symlink_is_rejected (test_native_session_followup_20260919.OutputAuthorityTests.test_pause_symlink_is_rejected) ... ok
+test_policy_does_not_fall_back_during_kanshi_activation (test_native_session_followup_20260919.OutputAuthorityTests.test_policy_does_not_fall_back_during_kanshi_activation) ... ok
+test_rejected_transaction_is_not_replayed (test_native_session_followup_20260919.OutputAuthorityTests.test_rejected_transaction_is_not_replayed) ... ok
+test_stop_failure_prevents_dpms_mutation (test_native_session_followup_20260919.OutputAuthorityTests.test_stop_failure_prevents_dpms_mutation) ... ok
+test_native_thumbnail_emerald_uses_alpha_not_global_opacity (test_native_session_followup_20260919.ThemeTests.test_native_thumbnail_emerald_uses_alpha_not_global_opacity) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.267s
+
+OK

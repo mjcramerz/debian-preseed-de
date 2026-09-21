@@ -11,7 +11,7 @@ publication are retained.
 
 The reported failure has an isolated reproducer and regression coverage. The
 corrected bridge also executes the native IOCost metadata transaction for the
-reported `btrfs-de-dual-flex` profile. This is not a claim that a booted unattended
+reported `btrfs-de-flex-duo` profile. This is not a claim that a booted unattended
 installation or every hardware and package combination has been accepted. See
 `late-command-debconf-r2-validation-20260919.md` for measured results and limits.
 

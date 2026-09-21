@@ -1,0 +1,7 @@
+{
+  "payload_files_verified": 1403,
+  "installer_helper_sha256": "529f8c98b5645a9b79c9aa8d46b65820cf42da36dbfe7ce3583f8e714b9f9392",
+  "installer_helper_payload_mode": "0755",
+  "preseed_pins_verified": true,
+  "payload_data_matches_source": true
+}

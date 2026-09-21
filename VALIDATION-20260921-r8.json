@@ -1,0 +1,137 @@
+{
+  "revision": "2026-09-21-freshclam-r8",
+  "base_archive": "debian-preseed-de-io-psi-r7-20260921.tar.gz",
+  "base_archive_sha256": "7370031ba00627257c40b9857890abde298336194a9f93c785a76e8ce55abedd",
+  "target": {
+    "distribution": "Debian Forky",
+    "systemd": "261.2"
+  },
+  "test_environment": {
+    "distribution": "Debian 13 container",
+    "python": "3.13.5",
+    "perl": "5.40.1",
+    "live_target_booted": false
+  },
+  "runtime_suite": {
+    "tests": 2245,
+    "passed": 2196,
+    "skipped": 49,
+    "failed": 0,
+    "errors": 0,
+    "seconds": 578.052
+  },
+  "tools_suite": {
+    "tests": 179,
+    "passed": 179,
+    "skipped": 0,
+    "failed": 0,
+    "errors": 0,
+    "seconds": 37.584
+  },
+  "totals": {
+    "tests": 2424,
+    "passed": 2375,
+    "skipped": 49,
+    "failed": 0,
+    "errors": 0
+  },
+  "freshclam_regression_tests": {
+    "tests": 36,
+    "passed": 36,
+    "skipped": 0,
+    "included_in_runtime_total": true,
+    "scope": "real file metadata, child chroot/NSS, unprivileged reader, production shell staging and required-command wrapper"
+  },
+  "baseline_failure_reproductions": 4,
+  "installer_shells_tested": [
+    "dash",
+    "bash",
+    "BusyBox sh"
+  ],
+  "shell_checks": {
+    "success": true,
+    "shell_files": 282,
+    "parser_checks": 575,
+    "failures": [],
+    "scope": "syntax and external metadata dependency checks; runtime execution is a separate test stage"
+  },
+  "preseed_files_checked": 59,
+  "static_audit": {
+    "counts": {
+      "blocked-dependency": 158,
+      "blocked-tool": 11,
+      "inventory-only": 509,
+      "pass": 471,
+      "structure-pass": 180,
+      "template-needs-render": 2
+    },
+    "limits": [
+      "Syntax and inventory are not semantic or runtime proof.",
+      "Systemd structure checks do not resolve vendor units or template values.",
+      "Blocked dependency/template checks are not passes.",
+      "No kernel policies, network changes, services or installers are applied."
+    ]
+  },
+  "payload_verification": {
+    "payload_files_verified": 1403,
+    "installer_helper_sha256": "529f8c98b5645a9b79c9aa8d46b65820cf42da36dbfe7ce3583f8e714b9f9392",
+    "installer_helper_payload_mode": "0755",
+    "preseed_pins_verified": true,
+    "payload_data_matches_source": true
+  },
+  "scope_verification": {
+    "base_archive_sha256": "7370031ba00627257c40b9857890abde298336194a9f93c785a76e8ce55abedd",
+    "modified_existing_files": [
+      {
+        "path": "d-i/forky/hooks/target/usr/local/libexec/labwc-configure-session-repairs",
+        "old_sha256": "1c3a16698884ed63f0a1a89bd3bd12747466d5a85c904a861da231b3a0239c9b",
+        "new_sha256": "529f8c98b5645a9b79c9aa8d46b65820cf42da36dbfe7ce3583f8e714b9f9392",
+        "old_mode": "0750",
+        "new_mode": "0750"
+      },
+      {
+        "path": "d-i/forky/payload.manifest",
+        "old_sha256": "cae404b029bae798da0618c7ea66d0154387463dc37cf742ff8f97d2ae49f664",
+        "new_sha256": "365ec2d6f2e7cbe09155810944ee4b86a11f0fa0613e3a54bd704f152662158c",
+        "old_mode": "0644",
+        "new_mode": "0644"
+      },
+      {
+        "path": "d-i/forky/payload.tar.gz",
+        "old_sha256": "d69ca4ec4985f01c2eb701f285c7db64b8d8f9af28b9f9a0a9f22c3c1776cb38",
+        "new_sha256": "d976887ad648d7c9cfaf17eac8c5bd16cf85fb1076c4c3e3dd3c71f7be7cdd2c",
+        "old_mode": "0644",
+        "new_mode": "0644"
+      },
+      {
+        "path": "d-i/forky/preseed.cfg",
+        "old_sha256": "2b967af93c07fe0eba79aea63e07fb929d4357202958eeb6e3f80c27a70619b0",
+        "new_sha256": "de0ced01b2955fd1528af7e8551e9bb7e63286db1e0d238865189fb160b891f9",
+        "old_mode": "0644",
+        "new_mode": "0644"
+      }
+    ],
+    "removed_files": [],
+    "target_files_total": 1194,
+    "target_files_unchanged": 1193,
+    "managed_app_modules_unchanged": 23,
+    "unmodified_helper_functions": [
+      "replace",
+      "retire_colour_assets"
+    ],
+    "profile_files_unchanged": 10
+  },
+  "runtime_product_sha256": {
+    "preseed.cfg": "de0ced01b2955fd1528af7e8551e9bb7e63286db1e0d238865189fb160b891f9",
+    "payload.manifest": "365ec2d6f2e7cbe09155810944ee4b86a11f0fa0613e3a54bd704f152662158c",
+    "payload.tar.gz": "d976887ad648d7c9cfaf17eac8c5bd16cf85fb1076c4c3e3dd3c71f7be7cdd2c"
+  },
+  "all_validation_stages_passed": true,
+  "limits": [
+    "The complete Debian installer was not booted and the failed target was not accessible.",
+    "The full helper ran in a disposable filesystem chroot using the container Python runtime, not target Python 3.14.",
+    "Staging tests execute the real staging function and run_in_target wrapper; copy, logging and hardware boundaries are fixtures.",
+    "No FreshClam signature download, real antivirus daemon, live AppArmor policy, target systemd 261.2, disk partitioning or hardware zram test was run.",
+    "Dependency-blocked checks, skipped cases, structural checks, inventory-only entries and unrendered templates are not successful runtime acceptance tests."
+  ]
+}

@@ -305,7 +305,7 @@ print "perl-passthrough-ok\\n";
         result, _ = self.assert_ok('capture_in_target fixture /bin/perl-passthrough-probe')
         self.assertEqual(result.stdout, 'perl-passthrough-ok\n')
 
-    def test_reported_profile_native_iocost_transaction_through_real_bridge(self):
+    def test_enabled_profile_native_iocost_transaction_through_real_bridge(self):
         from test_iocost_20260919 import ASSETS, STOCK_NATIVE, profile
         for binary in ('/usr/bin/systemd-hwdb', '/usr/lib/udev/iocost'):
             if not Path(binary).is_file():
@@ -324,7 +324,9 @@ print "perl-passthrough-ok\\n";
         defaults.parent.mkdir(parents=True, exist_ok=True)
         defaults.write_bytes(STOCK_NATIVE.read_bytes())
         defaults.chmod(0o644)
-        env = profile('btrfs-de-dual-flex')
+        # The original dual-disk profile disables calibration; use the
+        # enabled single-disk policy to exercise a real target transaction.
+        env = profile('btrfs-de-flex')
         self.write('seed/repo.env', (SEED/'repo.env').read_text())
         env.update(INSTALLER_SOURCE_LIBRARY='/tmp/source.sh', INSTALLER_SOURCE_ROOT='/seed',
                    DIR_HOOKS_TARGET='hooks/target')

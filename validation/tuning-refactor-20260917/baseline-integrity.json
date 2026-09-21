@@ -3,18 +3,15 @@
   "original_regular_files": 2568,
   "baseline_byte_mismatches": [],
   "profile_non_hardware_lines_identical": {
-    "btrfs-de-dual-flex.env": true,
-    "btrfs-de-dual-main.env": true,
-    "btrfs-de-dual.env": true,
+    "btrfs-de-flex-duo.env": true,
+    "btrfs-de-p15s-duo.env": true,
+    "btrfs-de-duo.env": true,
     "btrfs-de-flex.env": true,
-    "btrfs-de-main.env": true,
+    "btrfs-de-p15s.env": true,
     "btrfs-de.env": true,
-    "btrfs-desktop.env": true,
-    "f2fs-de-cbook.env": true,
-    "f2fs-de-dual-cbook.env": true,
-    "f2fs-de-dual.env": true,
-    "f2fs-de.env": true,
-    "f2fs-desktop.env": true,
-    "vm-desktop.env": true
+    "f2fs-de-hp14.env": true,
+    "f2fs-de-hp14-duo.env": true,
+    "f2fs-de-x360-duo.env": true,
+    "f2fs-de-x360.env": true
   }
 }

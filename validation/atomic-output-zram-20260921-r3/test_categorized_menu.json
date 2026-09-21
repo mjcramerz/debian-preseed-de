@@ -1,0 +1,16 @@
+{
+  "name": "test_categorized_menu",
+  "source": "d-i/forky/tests/test_categorized_menu.py",
+  "returncode": 0,
+  "seconds": 1.864,
+  "tests": 40,
+  "skipped": 2,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [
+    "desktop-file-utils not installed on test host",
+    "python3-gi/GioUnix typelib unavailable on test host"
+  ],
+  "log": "validation/atomic-output-zram-20260921-r3/test_categorized_menu.log",
+  "reused_completed_run": true
+}

@@ -111,7 +111,8 @@ class SnapshotTests(unittest.TestCase):
     def test_greeter_can_be_not_installed(self):
         data = snapshot(self.power)
         data['greetd.service'] = dict(Id='greetd.service', LoadState='not-found', ActiveState='inactive', Job='0')
-        self.parse(data)
+        with self.assertRaises(self.power.Error):
+            self.parse(data)
 
     def test_idle_services_can_clear_cgroups(self):
         self.parse(snapshot(self.power, stopped=True, clear=True))
@@ -126,27 +127,29 @@ class SnapshotTests(unittest.TestCase):
     def test_unexpected_unit_or_cgroup_placement_is_rejected(self):
         for key, value in (('Id', 'sshd.service'), ('ControlGroup', '/system.slice/sshd.service'),
                            ('ControlGroup', '/user.slice/user-1000.slice/user@1000.service/..')):
-            data = snapshot(self.power); data['dbus-broker.service'][key] = value
+            data = snapshot(self.power); data['user@1000.service'][key] = value
             with self.subTest(key=key,value=value), self.assertRaises(self.power.Error):
                 self.parse(data)
 
-    def test_missing_fixed_units_and_broker_not_loaded_fail(self):
-        for name in self.power.RUNTIME_FIXED_UNITS:
-            data=snapshot(self.power); del data[name]
-            with self.subTest(name=name), self.assertRaises(self.power.Error): self.parse(data)
-        data=snapshot(self.power,stopped=True);data['dbus-broker.service']['LoadState']='not-found'
-        with self.assertRaises(self.power.Error): self.parse(data)
+    def test_collected_user_manager_and_empty_snapshot_are_valid(self):
+        data=snapshot(self.power,stopped=True)
+        data['user@1000.service']['LoadState']='not-found'
+        self.assertEqual(self.parse(data), data)
+        self.assertEqual(self.parse(''), {})
+        # A failed transport must not be confused with a successful empty glob.
+        with mock.patch.object(self.power, 'run', side_effect=self.power.Error('bus denied')):
+            with self.assertRaises(self.power.Error): self.power.runtime_snapshot()
 
     def test_duplicate_units_properties_unknown_states_and_partial_properties_fail(self):
         data=snapshot(self.power); raw=text_snapshot(data)
-        bad=[raw+'\n'+text_snapshot({'a':data['dbus-broker.service']}), raw.replace('Job=0','Job=0\nJob=0',1),
+        bad=[raw+'\n'+text_snapshot({'a':data['user@1000.service']}), raw.replace('Job=0','Job=0\nJob=0',1),
              raw.replace('Job=0','Job=0\nInjected=yes',1), raw.replace('Job=0','Job=x',1),
              raw.replace('MainPID=123\n','',1), raw.replace('ActiveState=active','ActiveState=unknown',1)]
         for text in bad:
             with self.subTest(text=text[:90]), self.assertRaises(self.power.Error): self.parse(text)
 
     def test_empty_oversized_or_excessive_snapshots_fail(self):
-        for text in ('', 'x'*131073, text_snapshot(snapshot(self.power, users=tuple(map(str,range(129)))))):
+        for text in ('x'*131073, text_snapshot(snapshot(self.power, users=tuple(map(str,range(129)))))):
             with self.assertRaises(self.power.Error): self.parse(text)
 
 
@@ -210,6 +213,7 @@ class RuntimeFlowTests(unittest.TestCase):
         if 'show' in argv: return text_snapshot(self.after if self.stopped else self.before)
         if 'stop' in argv:
             if self.stop_error: raise self.power.Error('stop failed')
+            if '--no-block' not in argv: self.stopped=True
             return ''
         if 'kill' in argv:
             self.stopped=True
@@ -226,14 +230,14 @@ class RuntimeFlowTests(unittest.TestCase):
                 self.worker.runtime_teardown_started=self.worker.handoff_attempted=False
                 self.worker.final_power_action()
                 stop=next(i for i,c in enumerate(self.calls) if 'stop' in c)
-                kill=next(i for i,c in enumerate(self.calls) if 'kill' in c)
+                managers=next(i for i,c in enumerate(self.calls) if 'stop' in c and '--no-block' not in c)
                 final=next(i for i,c in enumerate(self.calls) if '--force' in c)
-                self.assertLess(stop,kill);self.assertLess(kill,final)
-                self.assertIn('--no-block',self.calls[stop]);self.assertIn('--job-mode=replace-irreversibly',self.calls[stop])
-                for name in self.before: self.assertIn(name,self.calls[stop])
-                self.assertIn('--kill-whom=all',self.calls[kill]);self.assertIn('--signal=SIGKILL',self.calls[kill])
-                for name in ('dbus-broker.service','user@1000.service','user@109.service'): self.assertIn(name,self.calls[kill])
-                self.assertNotIn('greetd.service',self.calls[kill]);self.assertNotIn('dbus.socket',self.calls[kill])
+                self.assertLess(stop,managers);self.assertLess(managers,final)
+                self.assertIn('--no-block',self.calls[stop]);self.assertIn('greetd.service',self.calls[stop])
+                self.assertNotIn('--no-block',self.calls[managers])
+                for name in self.before: self.assertIn(name,self.calls[managers])
+                self.assertFalse(any('kill' in c for c in self.calls))
+                self.assertFalse(any('dbus-broker.service' in c or 'dbus.socket' in c for c in self.calls))
                 self.assertEqual(self.calls[final],['/usr/bin/systemctl','--force','--no-ask-password',action])
                 self.assertEqual(sum(c.count('--force') for c in self.calls),1)
                 self.assertTrue(all(c[0]=='/usr/bin/systemctl' and '--user' not in c for c in self.calls[stop:]))
@@ -244,11 +248,12 @@ class RuntimeFlowTests(unittest.TestCase):
         self.worker.final_power_action()
         self.assertGreaterEqual(sum(c.args[0].endswith('user@1000.service') for c in self.population.call_args_list),2)
 
-    def test_kill_transport_race_is_accepted_only_after_independent_empty_check(self):
-        self.kill_error=True
+    def test_no_root_service_wait_after_user_managers_stop(self):
         self.worker.final_power_action()
+        last_stop=max(i for i,c in enumerate(self.calls) if 'stop' in c)
+        self.assertIn('user@1000.service',self.calls[last_stop])
+        self.assertTrue(all('show' in c or '--force' in c for c in self.calls[last_stop+1:]))
         self.assertTrue(self.worker.handoff_attempted)
-        self.assertTrue(any('show' in c for c in self.calls[next(i for i,c in enumerate(self.calls) if 'kill' in c)+1:]))
 
     def test_surviving_sd_pam_cgroup_blocks_force_even_when_mainpid_is_zero(self):
         self.keep_populated=True;self.kill_error=True
@@ -257,12 +262,12 @@ class RuntimeFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(self.power.Error,'only once'): self.worker.final_power_action()
 
     def test_busy_stop_job_blocks_force(self):
-        self.after['dbus.socket']['Job']='123'
+        self.after['user@1000.service']['Job']='123'
         with self.assertRaises(self.power.Error): self.worker.final_power_action()
         self.assertFalse(any('--force' in c for c in self.calls))
 
     def test_live_controlpid_blocks_force(self):
-        self.after['greetd.service']['ControlPID']='456'
+        self.after['user@1000.service']['ControlPID']='456'
         with self.assertRaises(self.power.Error): self.worker.final_power_action()
         self.assertFalse(any('--force' in c for c in self.calls))
 
@@ -278,7 +283,7 @@ class RuntimeFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(self.power.Error,'only once'): self.worker.final_power_action()
 
     def test_malformed_post_stop_snapshot_cannot_authorize_force(self):
-        self.after['dbus-broker.service']['MainPID']='unknown'
+        self.after['user@1000.service']['MainPID']='unknown'
         with self.assertRaises(self.power.Error): self.worker.final_power_action()
         self.assertFalse(any('--force' in c for c in self.calls))
 
@@ -367,14 +372,16 @@ class HardeningTests(unittest.TestCase):
         self.assertEqual(power.ENV['SYSTEMCTL_FORCE_BUS'],'0')
         self.assertFalse(any(key.startswith('DBUS_') for key in power.ENV))
         unit=(TARGET/'etc/systemd/system/labwc-admin-action@.service').read_text()
-        self.assertIn('\nCapabilityBoundingSet=\n',unit)
+        self.assertIn('\nCapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n',unit)
         self.assertIn('\nAmbientCapabilities=\n',unit)
         self.assertIn('NoNewPrivileges=yes',unit)
         self.assertIn('ProtectControlGroups=yes',unit)
         source=WORKER.read_text()
         self.assertNotIn('/usr/bin/pkill',source);self.assertNotIn('/usr/bin/pgrep',source)
         profile=(TARGET/'etc/apparmor.d/managed-desktop-wrappers').read_text().split('profile managed-labwc-admin-action-worker ',1)[1].split('\n}',1)[0]
-        self.assertNotIn('capability kill',profile)
+        self.assertIn('capability kill,',profile)
+        self.assertNotIn('capability sys_admin',profile)
+        self.assertIn('set=(kill chld) peer=managed-labwc-admin-action-worker',profile)
         self.assertIn('/sys/fs/cgroup/cgroup.controllers r,',profile)
         self.assertIn('cgroup.events r,',profile)
         self.assertNotIn('cgroup.kill',profile)

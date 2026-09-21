@@ -1,0 +1,13 @@
+{
+  "name": "test_installer_hardening",
+  "source": "d-i/forky/tests/test_installer_hardening.py",
+  "returncode": 0,
+  "seconds": 3.787,
+  "tests": 56,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_installer_hardening.log",
+  "reused_completed_run": true
+}

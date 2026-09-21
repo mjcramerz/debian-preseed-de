@@ -746,7 +746,7 @@ Binary files a/d-i/forky/payload.tar.gz and b/d-i/forky/payload.tar.gz differ (r
 +Known independent issues include missing raw AppArmor incident fixtures
 +(`todo/apparmor.log` and `todo/managed/apparmor/apparmor.log`), an older test's
 +expectation that every profile enables hardware tuning despite the uploaded
-+`btrfs-de-dual-flex.env` disabling it, stale provenance hashes for two untouched
++`btrfs-de-flex-duo.env` disabling it, stale provenance hashes for two untouched
 +profiles, older resctl-bench tests expecting v0.0.1 release pins while two uploaded
 +profiles explicitly use v0.0.2, an older scope-drop-in expectation, a fuzzel launcher mock that targets an
 +old subprocess API, and older power/session tests whose expectations disagree with

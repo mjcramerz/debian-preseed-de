@@ -1,16 +1,16 @@
 test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) ... 
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='TAG') ... FAIL
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='URL') ... FAIL
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='SHA256') ... FAIL
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='TAG') ... FAIL
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='URL') ... FAIL
-  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='SHA256') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='TAG') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='URL') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='SHA256') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='TAG') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='URL') ... FAIL
+  test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='SHA256') ... FAIL
 test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) ... 
   test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=False) ... FAIL
   test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=True) ... FAIL
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='TAG')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='TAG')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
@@ -30,7 +30,7 @@ First differing element 0:
 
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='URL')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='URL')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
@@ -50,7 +50,7 @@ First differing element 0:
 
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='SHA256')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='SHA256')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
@@ -66,7 +66,7 @@ First differing element 0:
 + ['466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c']
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='TAG')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='TAG')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
@@ -86,7 +86,7 @@ First differing element 0:
 
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='URL')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='URL')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once
@@ -106,7 +106,7 @@ First differing element 0:
 
 
 ======================================================================
-FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='SHA256')
+FAIL: test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='SHA256')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/original/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 91, in test_all_thirteen_profiles_have_each_exact_pin_once

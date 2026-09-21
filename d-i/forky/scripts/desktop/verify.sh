@@ -1781,9 +1781,10 @@ for config in config_roots:
     require(len(bars) == 2, "expected internal and external bars")
     for bar in bars:
         left = bar.get("modules-left", [])
-        require(all(name in left for name in ("ext/workspaces", "custom/window-switcher", "custom/wayscriber")), "native switcher button missing")
-        require(left.index("custom/window-switcher") == left.index("ext/workspaces") + 1
-                and left.index("custom/wayscriber") == left.index("custom/window-switcher") + 1, "native switcher button order changed")
+        expected_left = ["custom/launcher", "ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher", "group/apps"]
+        if count == 1:
+            expected_left.append("wlr/taskbar")
+        require(left == expected_left, "native switcher button order changed")
         click = bar["custom/window-switcher"].get("on-click-release", "")
         require(click.endswith(" -- /usr/local/bin/labwc-window-switcher") and "--property=KillMode=control-group" in click
                 and "--property=PartOf=labwc-session.target" in click, "native switcher launch contract changed")
@@ -1979,25 +1980,24 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
 }
 
 desktop_verify_native_drawer_icons() {
-  # Software addons run before the desktop role. Do not make an optional
-  # amd64-only bundle mandatory on hosts which did not select it.
+  # Validate package artwork, without generating or installing a second copy.
+  # The optional software bundle is amd64-only; keep other installs optional.
   desktop_drawer_software=0
   if installer_selected_class_reference_is_selected addon/software 2>/dev/null; then
     desktop_drawer_software=1
   fi
-  # This narrow check is display-independent. Keep the broad staging verifier
-  # disabled; validate only the native artwork and its actual drawer wiring.
   # shellcheck disable=SC2016
   run_in_target "verify native Waybar drawer artwork" /usr/bin/python3 -I -B -c '
 import json
 from pathlib import Path
 import pwd
+import re
 import subprocess
 import sys
 import gi
 
-gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
 
 def require(ok, message):
     if not ok:
@@ -2005,17 +2005,20 @@ def require(ok, message):
 
 require(sys.argv[3] in {"0", "1"}, "invalid drawer software policy")
 arch = subprocess.check_output(["/usr/bin/dpkg", "--print-architecture"], text=True, timeout=10).strip()
-drawer_icons = {"custom/app-terminal": "foot", "custom/app-files": "org.xfce.thunar",
-                "custom/app-tuta": "tuta-mail", "custom/app-notes": "featherpad",
-                "custom/app-sleek": "sleek"}
-icon_theme = Gtk.IconTheme.new()
-icon_theme.set_custom_theme("hicolor")
+drawer_icons = {
+    "custom/app-terminal": "/usr/share/icons/Papirus/24x24/apps/foot.svg",
+    "custom/app-files": "/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg",
+    "custom/app-tuta": "/usr/share/icons/hicolor/512x512/apps/tuta-mail.png",
+    "custom/app-notes": "/usr/share/icons/Papirus/24x24/apps/featherpad.svg",
+    "custom/app-sleek": "/usr/share/icons/hicolor/512x512/apps/sleek.png",
+}
 for module, icon in drawer_icons.items():
     if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}:
         continue
-    require(icon_theme.has_icon(icon), "native drawer icon is not installed: " + icon)
-    require(icon_theme.load_icon(icon, 32, Gtk.IconLookupFlags.FORCE_SIZE) is not None,
-            "native drawer icon cannot be decoded: " + icon)
+    require(Path(icon).is_file(), "native drawer icon is not installed: " + icon)
+    image = GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 18, 18, True)
+    require(image is not None and 0 < image.get_width() <= 18 and 0 < image.get_height() <= 18,
+            "native drawer icon cannot be decoded at 18px: " + icon)
 account = pwd.getpwnam(sys.argv[2])
 require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "drawer account/home mismatch")
 for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
@@ -2024,15 +2027,24 @@ for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
     style = (config / "style.css").read_text()
     require(len(bars) == 2 and {bar.get("name") for bar in bars} == {"internal", "external"},
             "native drawer requires both managed bar layouts")
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", re.sub(r"/\*.*?\*/", "", style, flags=re.S))
+    for module in ("custom/apps", "custom/wayscriber", *drawer_icons):
+        for suffix in ("", ":hover"):
+            selector = "#" + module.replace("/", "-") + suffix
+            sizes = [value.strip() for selectors, body in rules
+                     if selector in {part.strip() for part in selectors.split(",")}
+                     for value in re.findall(r"background-size:\s*([^;]+);", body)]
+            require(sizes and sizes[-1] == "18px 18px, 100% 100%",
+                    "native drawer icon size is misconfigured: " + selector)
     for icon in drawer_icons.values():
-        require(style.count("-gtk-icontheme(\"" + icon + "\")") == 2,
+        require(style.count("url(\"" + icon + "\")") == 2,
                 "native drawer icon must survive hover: " + icon)
     for bar in bars:
         for module in drawer_icons:
             require(module in bar["group/apps"]["modules"]
                     and bar[module].get("format") == " " and bar[module].get("on-click"),
                     "native drawer icon/click target is misconfigured: " + module)
-print("desktop_native_drawer_verification layouts=2 icons=hicolor")
+print("desktop_native_drawer_verification layouts=2 icons=package-artwork size=18px")
 ' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "$desktop_drawer_software"
 }
 

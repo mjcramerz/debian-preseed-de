@@ -188,7 +188,8 @@ class UserStateTests(unittest.TestCase):
             self.assertFalse((TARGET / 'etc/systemd/system' / name).exists())
         source = (LIBEXEC / 'labwc-admin-action-worker').read_text()
         self.assertIn('"start", "labwc-session-state@" + action + ".service"', source)
-        self.assertIn('"--user", "--machine=" + self.machine', source)
+        self.assertNotIn('self.machine', source)
+        self.assertIn('account=account', source)
 
 
 class RendererValidationTests(unittest.TestCase):

@@ -6,7 +6,7 @@
 @define-color text #f5efe3;
 @define-color muted #aeb7c6;
 @define-color amber #ecb860;
-@define-color royalpurple #7851A9;
+@define-color royalpurple #c4a4ef;
 @define-color marineblue #4166F5;
 @define-color emeraldgreen #50C878;
 @define-color cinnamon #D2691E;
@@ -97,13 +97,8 @@ tooltip label {
 
 #workspaces button.active,
 #taskbar button.active,
-#custom-launcher:hover,
-#custom-window-switcher:hover,
 #workspaces button:hover,
 #taskbar button:hover,
-#custom-wayscriber:hover,
-#custom-tomat:hover,
-#custom-apps:hover,
 #custom-app-terminal:hover,
 #custom-app-files:hover,
 #custom-app-tuta:hover,
@@ -154,22 +149,47 @@ tooltip label {
 
 /* Center the painted icon, not a font glyph's baseline or side bearings.
  * The single-space labels retain tooltips, click targets and the apps drawer.
- * Explicit hover layers preserve the existing gradient and foreground color. */
+ * Explicit hover layers preserve each button's tint and foreground color. */
 #custom-apps,
 #custom-wayscriber,
 #custom-apps:hover,
 #custom-wayscriber:hover {
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 1.2em 1.2em, 100% 100%;
+  background-size: 18px 18px, 100% 100%;
 }
 
 #custom-apps:hover {
-  background-image: -gtk-recolor(url("icons/apps-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-color: rgba(64, 44, 86, 0.82);
+  background-image: -gtk-recolor(url("icons/apps-symbolic.svg"));
+  border-color: #b596db;
+  box-shadow: 0 0 9px rgba(181, 150, 219, 0.28);
 }
 
 #custom-wayscriber:hover {
-  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg")), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-color: rgba(20, 39, 83, 0.86);
+  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg"));
+  border-color: #6387ff;
+  box-shadow: 0 0 9px rgba(65, 102, 245, 0.32);
+}
+
+#custom-launcher:hover {
+  background: rgba(69, 46, 13, 0.84);
+  border-color: @amber;
+  box-shadow: 0 0 9px rgba(236, 184, 96, 0.30);
+}
+
+#custom-tomat:hover {
+  background: rgba(64, 20, 34, 0.86);
+  border-color: #a85a6c;
+  box-shadow: 0 0 7px rgba(168, 90, 108, 0.22);
+  /* No color override: preserve work/break/paused/error state foreground. */
+}
+
+#custom-window-switcher:hover {
+  background: rgba(15, 56, 39, 0.86);
+  border-color: @emeraldgreen;
+  box-shadow: 0 0 9px rgba(80, 200, 120, 0.28);
 }
 
 #custom-app-terminal,
@@ -184,50 +204,52 @@ tooltip label {
 #custom-app-sleek:hover {
   min-width: 28px;
   padding: 0 7px;
-  /* Full-color application artwork from the installed hicolor theme, not
-   * a generic font glyph or a recolored symbolic replacement. */
-  -gtk-icon-theme: "hicolor";
+  /* Read package artwork directly: Papirus-Dark shares app SVGs with
+   * Papirus; Tuta/Sleek supply their own logos. CSS URL images respect this
+   * 18px bound, unlike GTK3's CSS icon-theme bitmap lookup. No cache/helper.
+   * Forky's Waybar 0.15.0 custom module does not implement image-path yet. */
+  -gtk-icon-theme: "Papirus-Dark";
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 1.2em 1.2em, 100% 100%;
+  background-size: 18px 18px, 100% 100%;
 }
 
 #custom-app-terminal {
-  background-image: -gtk-icontheme("foot");
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/foot.svg");
 }
 
 #custom-app-files {
-  background-image: -gtk-icontheme("org.xfce.thunar");
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg");
 }
 
 #custom-app-tuta {
-  background-image: -gtk-icontheme("tuta-mail");
+  background-image: url("/usr/share/icons/hicolor/512x512/apps/tuta-mail.png");
 }
 
 #custom-app-notes {
-  background-image: -gtk-icontheme("featherpad");
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/featherpad.svg");
 }
 
 #custom-app-sleek {
-  background-image: -gtk-icontheme("sleek");
+  background-image: url("/usr/share/icons/hicolor/512x512/apps/sleek.png");
 }
 
 /* A background shorthand in the shared hover rule resets its image layer.
  * Keep the native artwork above that highlight, at the same size/position. */
 #custom-app-terminal:hover {
-  background-image: -gtk-icontheme("foot"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/foot.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 #custom-app-files:hover {
-  background-image: -gtk-icontheme("org.xfce.thunar"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 #custom-app-tuta:hover {
-  background-image: -gtk-icontheme("tuta-mail"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-image: url("/usr/share/icons/hicolor/512x512/apps/tuta-mail.png"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 #custom-app-notes:hover {
-  background-image: -gtk-icontheme("featherpad"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-image: url("/usr/share/icons/Papirus/24x24/apps/featherpad.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 #custom-app-sleek:hover {
-  background-image: -gtk-icontheme("sleek"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-image: url("/usr/share/icons/hicolor/512x512/apps/sleek.png"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
 }
 
 #taskbar {
@@ -553,19 +575,42 @@ window#waybar.internal #custom-app-sleek {
  * Share one orange highlight across all five menus and their submenus. GTK
  * uses :hover (PRELIGHT) for pointer and keyboard menu selection; :selected
  * also covers themes exposing that state. Disabled actions stay subdued. */
-menu { background: @panel; color: @text; border: 1px solid @border; }
-menuitem { padding: 6px 12px; }
+menu {
+  background: @panel;
+  color: @text;
+  border: 1px solid @border_strong;
+  padding: 4px;
+  -gtk-icon-theme: "Papirus-Dark";
+}
+menuitem { padding: 8px 14px; border-radius: 6px; }
+menuitem label { font-size: 16px; font-weight: 700; }
+menuitem image { min-width: 18px; min-height: 18px; color: @text; }
 menuitem:hover:not(:disabled),
 menuitem:selected:not(:disabled) {
-  background: rgba(242, 159, 103, 0.24);
-  color: @text;
+  background: #ff9f36;
+  color: #17100a;
+  box-shadow: inset 0 0 0 1px #ffc06d;
 }
 menuitem:hover:not(:disabled) label,
-menuitem:selected:not(:disabled) label {
-  color: @text;
+menuitem:selected:not(:disabled) label,
+menuitem:hover:not(:disabled) image,
+menuitem:selected:not(:disabled) image {
+  color: #17100a;
 }
+menuitem arrow {
+  min-width: 16px;
+  min-height: 16px;
+  margin-left: 12px;
+  color: @amber;
+}
+menuitem arrow.right { -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
+menuitem arrow.left { -gtk-icon-source: -gtk-icontheme("pan-start-symbolic"); }
+menuitem:hover:not(:disabled) arrow,
+menuitem:selected:not(:disabled) arrow { color: #17100a; }
 menuitem:disabled {
   background: transparent;
   color: @muted;
 }
-menuitem:disabled label { color: @muted; }
+menuitem:disabled label,
+menuitem:disabled image,
+menuitem:disabled arrow { color: @muted; }

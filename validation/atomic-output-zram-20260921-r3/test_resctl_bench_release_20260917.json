@@ -1,0 +1,12 @@
+{
+  "name": "test_resctl_bench_release_20260917",
+  "source": "d-i/forky/tests/test_resctl_bench_release_20260917.py",
+  "returncode": 0,
+  "seconds": 7.779,
+  "tests": 23,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_resctl_bench_release_20260917.log"
+}

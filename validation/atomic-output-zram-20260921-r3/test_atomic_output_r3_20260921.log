@@ -1,0 +1,17 @@
+test_concurrent_processes_never_enter_the_refresh_section_together (test_atomic_output_r3_20260921.OutputReconcileTests.test_concurrent_processes_never_enter_the_refresh_section_together) ... ok
+test_connector_change_during_dock_stop_defers_the_stale_plan (test_atomic_output_r3_20260921.OutputReconcileTests.test_connector_change_during_dock_stop_defers_the_stale_plan) ... ok
+test_dpms_uses_the_same_logged_bounded_mutation_path (test_atomic_output_r3_20260921.OutputReconcileTests.test_dpms_uses_the_same_logged_bounded_mutation_path) ... ok
+test_idle_decision_is_made_only_after_the_refresh_lock_is_acquired (test_atomic_output_r3_20260921.OutputReconcileTests.test_idle_decision_is_made_only_after_the_refresh_lock_is_acquired) ... ok
+test_manual_and_periodic_refresh_leave_sleeping_outputs_alone (test_atomic_output_r3_20260921.OutputReconcileTests.test_manual_and_periodic_refresh_leave_sleeping_outputs_alone) ... ok
+test_missing_snapshot_after_dock_stop_cannot_submit_a_plan (test_atomic_output_r3_20260921.OutputReconcileTests.test_missing_snapshot_after_dock_stop_cannot_submit_a_plan) ... ok
+test_mutations_have_paired_bounded_monotonic_records_and_no_replay (test_atomic_output_r3_20260921.OutputReconcileTests.test_mutations_have_paired_bounded_monotonic_records_and_no_replay) ... ok
+test_omitted_mode_is_a_true_noop_but_changed_scale_or_position_is_not (test_atomic_output_r3_20260921.OutputReconcileTests.test_omitted_mode_is_a_true_noop_but_changed_scale_or_position_is_not) ... ok
+test_policy_does_not_probe_idle_in_a_separate_transaction (test_atomic_output_r3_20260921.OutputReconcileTests.test_policy_does_not_probe_idle_in_a_separate_transaction) ... ok
+test_requested_idle_restore_uses_the_same_locked_reconcile (test_atomic_output_r3_20260921.OutputReconcileTests.test_requested_idle_restore_uses_the_same_locked_reconcile) ... ok
+test_steady_state_never_requeries_restarts_chrome_sleeps_or_mutates (test_atomic_output_r3_20260921.OutputReconcileTests.test_steady_state_never_requeries_restarts_chrome_sleeps_or_mutates) ... ok
+test_teardown_prevents_mutation_and_empty_transactions_are_read_only (test_atomic_output_r3_20260921.OutputReconcileTests.test_teardown_prevents_mutation_and_empty_transactions_are_read_only) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.849s
+
+OK

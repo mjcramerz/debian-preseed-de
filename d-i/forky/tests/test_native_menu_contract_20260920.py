@@ -134,7 +134,7 @@ class MenuContractTests(unittest.TestCase):
                 parent = next(obj for obj in tree.iter('object') if obj.get('class') == 'GtkMenuItem'
                               and obj.find('.//object[@id="whisper_record"]') is not None)
                 self.assertEqual(parent.findtext('./property[@name="sensitive"]'), 'True' if enabled == '1' else 'False')
-                self.assertEqual(parent.findtext('./property[@name="label"]'), 'Whisper' if enabled == '1' else 'Whisper (not installed)')
+                self.assertEqual(parent.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Whisper' if enabled == '1' else 'Whisper (not installed)')
 
     def test_actual_gtk_honors_optional_whisper_sensitive_property(self):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):

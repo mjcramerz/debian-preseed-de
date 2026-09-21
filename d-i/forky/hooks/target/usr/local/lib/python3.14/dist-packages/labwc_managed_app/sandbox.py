@@ -660,7 +660,9 @@ def persistent_app_directory(
 ) -> str:
     if not relative_path or relative_path.startswith("/") or ".." in pathlib.PurePosixPath(relative_path).parts:
         fail(f"invalid persistent sandbox path: {relative_path or 'unset'}")
-    directory = os.path.join(home_dir, relative_path)
+    # Resolve the existing ancestry before creating anything: a symlinked
+    # parent must not cause directory creation outside HOME before rejection.
+    directory = resolve_home_relative_path(home_dir, relative_path)
     validate_absolute_path("persistent sandbox directory", directory)
     existed = os.path.lexists(directory)
     if not existed:

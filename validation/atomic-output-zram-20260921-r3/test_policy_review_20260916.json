@@ -1,0 +1,13 @@
+{
+  "name": "test_policy_review_20260916",
+  "source": "d-i/forky/tests/test_policy_review_20260916.py",
+  "returncode": 0,
+  "seconds": 10.282,
+  "tests": 15,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_policy_review_20260916.log",
+  "reused_completed_run": true
+}

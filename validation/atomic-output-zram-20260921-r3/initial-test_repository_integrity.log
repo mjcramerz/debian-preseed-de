@@ -1,0 +1,41 @@
+test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current) ... ok
+test_class_dependency_references_are_local (test_repository_integrity.RepositoryIntegrityTests.test_class_dependency_references_are_local) ... ok
+test_each_flat_profile_composes (test_repository_integrity.RepositoryIntegrityTests.test_each_flat_profile_composes) ... ok
+test_layout_only_expected_scopes (test_repository_integrity.RepositoryIntegrityTests.test_layout_only_expected_scopes) ... ok
+test_no_legacy_path_references_in_active_installer (test_repository_integrity.RepositoryIntegrityTests.test_no_legacy_path_references_in_active_installer) ... ok
+test_no_symlinks_published (test_repository_integrity.RepositoryIntegrityTests.test_no_symlinks_published) ... ok
+test_preseed_checker_imports_with_python_safe_path (test_repository_integrity.RepositoryIntegrityTests.test_preseed_checker_imports_with_python_safe_path) ... ok
+test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) ... 
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env') ... FAIL
+  test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env') ... FAIL
+test_role_scoped_entries (test_repository_integrity.RepositoryIntegrityTests.test_role_scoped_entries) ... ok
+test_validator_counts_skips_from_failed_unittest_run (test_repository_integrity.RepositoryIntegrityTests.test_validator_counts_skips_from_failed_unittest_run) ... ok
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r3-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94' != '8b1b340fa6dddc8d167b79817f36054cb8279cd8346d40a9bc2001bf104c971b'
+- 7939a39838cedce585d45e4d83935152b59dae92cc689c82503e22fa2e109b94
++ 8b1b340fa6dddc8d167b79817f36054cb8279cd8346d40a9bc2001bf104c971b
+
+
+======================================================================
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex.env')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r3-work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
+    self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: '611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf' != '18a038a418a60d1eea26e579b2184d454f29238aaca668a2aae490e61833deab'
+- 611dea9a513823f46a343bb8d582718d2f58d06d9da6884ea2c1f890396ccccf
++ 18a038a418a60d1eea26e579b2184d454f29238aaca668a2aae490e61833deab
+
+
+----------------------------------------------------------------------
+Ran 10 tests in 11.514s
+
+FAILED (failures=2)

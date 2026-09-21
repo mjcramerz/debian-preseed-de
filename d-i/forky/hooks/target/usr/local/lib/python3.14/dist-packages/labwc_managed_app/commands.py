@@ -78,12 +78,24 @@ def validate_managed_arguments(mode: str, extra_args: list[str]) -> None:
         "--disable-seccomp-filter-sandbox",
         "--disable-setuid-sandbox",
         "--no-sandbox",
+        "--no-zygote",
+        "--in-process-gpu",
         "--single-process",
     }
     for argument in extra_args:
         normalized = argument.strip().lower()
-        if normalized in sandbox_weakening_arguments or normalized.startswith("--no-sandbox="):
+        # Chromium accepts both '-' and '--' switches. A boolean switch remains
+        # present with '=false' or any other value; match its name, not its value.
+        if normalized.startswith("-") and not normalized.startswith("--"):
+            normalized = "-" + normalized
+        option, separator, _value = normalized.partition("=")
+        if option in sandbox_weakening_arguments:
             fail(f"managed launchers forbid sandbox-disabling arguments: {argument}")
+        if option in {
+            "--ozone-platform", "--ozone-platform-hint", "--use-angle", "--use-gl",
+            "--enable-features", "--disable-features",
+        } and not separator:
+            fail(f"managed platform switches require an explicit =value: {argument}")
         if normalized.startswith("--ozone-platform=") and normalized != "--ozone-platform=wayland":
             fail(f"refusing non-Wayland Ozone platform override: {argument}")
         if (
@@ -106,7 +118,7 @@ def validate_managed_arguments(mode: str, extra_args: list[str]) -> None:
                 fail(f"refusing ANGLE override outside the managed OpenGL path: {argument}")
             if normalized.startswith("--use-gl=") and normalized != "--use-gl=angle":
                 fail(f"refusing GL override outside the managed ANGLE path: {argument}")
-            if normalized in {
+            if option in {
                 "--disable-gpu",
                 "--disable-gpu-compositing",
                 "--disable-gpu-rasterization",

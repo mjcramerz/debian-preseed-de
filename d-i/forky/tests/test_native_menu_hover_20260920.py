@@ -90,7 +90,7 @@ class NativeMenuHoverTests(unittest.TestCase):
         cls.profiles = rendered_profile_bars()
 
     def test_real_rendered_profiles_keep_every_menu_action_and_gesture(self):
-        self.assertEqual(len(self.profiles), 13)
+        self.assertEqual(len(self.profiles), 10)
         count = 0
         for name, bars in self.profiles.items():
             self.assertEqual(len(bars), 2)
@@ -115,7 +115,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                             self.assertIn('--property=KillMode=control-group', argv)
                             self.assertNotIn('fixture', argv)
                             count += 1
-        self.assertEqual(count, 1092)
+        self.assertEqual(count, len(self.profiles) * 2 * 42)
 
     def test_every_action_has_the_intended_backend_not_just_an_existing_id(self):
         expected = {
@@ -163,7 +163,7 @@ class NativeMenuHoverTests(unittest.TestCase):
     def test_notifications_center_label_menu_and_secondary_click_match(self):
         xml = ET.parse(SKEL / 'waybar/notifications-menu.xml')
         item = xml.find('.//object[@id="notifications_center"]')
-        self.assertEqual(item.findtext('./property[@name="label"]'), 'Open notifications center')
+        self.assertEqual(item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Open notifications center')
         for bars in self.profiles.values():
             for bar in bars:
                 entry = bar['custom/notifications']
@@ -177,14 +177,14 @@ class NativeMenuHoverTests(unittest.TestCase):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
             self.skipTest('native GTK3 / Xvfb unavailable')
         report = gtk_menu_report()
-        self.assertEqual(report['profiles'], 13)
+        self.assertEqual(report['profiles'], 10)
         self.assertEqual(report['themes'], ['Adwaita', 'Adwaita-dark'])
-        self.assertEqual(report['menu_roots'], 13 * 2 * 2 * 2 * 5)
-        self.assertEqual(report['activations'], 13 * 2 * 2 * (42 + 38))
-        self.assertEqual(report['center_activations'], 13 * 2 * 2 * 2)
+        self.assertEqual(report['menu_roots'], 10 * 2 * 2 * 2 * 5)
+        self.assertEqual(report['activations'], 10 * 2 * 2 * (42 + 38))
+        self.assertEqual(report['center_activations'], 10 * 2 * 2 * 2)
         self.assertGreater(report['highlight_states'], 10000)
         self.assertGreater(report['disabled_states'], 100)
-        self.assertEqual(report['orange_rgba'], [242, 159, 103, 0.24])
+        self.assertEqual(report['orange_rgba'], [255, 159, 54, 1.0])
         self.assertEqual(report['callback_errors'], [])
 
 

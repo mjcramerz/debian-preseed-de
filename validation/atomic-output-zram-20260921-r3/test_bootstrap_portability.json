@@ -1,0 +1,12 @@
+{
+  "name": "test_bootstrap_portability",
+  "source": "d-i/forky/tests/test_bootstrap_portability.py",
+  "returncode": 0,
+  "seconds": 47.134,
+  "tests": 18,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_bootstrap_portability.log"
+}

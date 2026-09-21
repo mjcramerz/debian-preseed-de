@@ -27,15 +27,19 @@ COMPOSITOR = "labwc-compositor.service"
 # Only repository-managed guest shutdown hooks. Leave their engines and both
 # D-Bus brokers alive while ExecStop completes; do not enumerate/stop the host.
 GUEST_STOP_UNITS = ("podman-devops-restart.service", "incus-startup.service")
-# Fixed system units only. User managers own their broker and (sd-pam) child;
-# killing their cgroups avoids PID/name races and requires no CAP_KILL here.
-RUNTIME_FIXED_UNITS = ("greetd.service", "dbus-broker.service", "dbus.socket")
+# User managers own all user units, their broker and (sd-pam) child.
+# Do not stop the SYSTEM broker: PID 1 must retain host IPC until handoff.
+RUNTIME_FIXED_UNITS: tuple[str, ...] = ()
 RUNTIME_PROPERTIES = "Id,LoadState,ActiveState,Job,MainPID,ControlPID,ControlGroup"
 CGROUP_ROOT = Path("/sys/fs/cgroup")
 
 
 class Error(Exception):
     pass
+
+
+class Cancelled(Error):
+    """The session helper vetoed preparation before any destructive work."""
 
 
 
@@ -236,12 +240,25 @@ def bounded_output(proc, timeout: float, limit: int) -> tuple[str, str]:
 
 
 def run(argv: list[str], *, timeout: float = 25, accepted: tuple[int, ...] = (0,),
-        max_output: int | None = None) -> str:
+        max_output: int | None = None, account=None) -> str:
     # Each local transport gets its own process group. On a timeout, reap the
     # whole transport rather than leaving a stdio bridge holding our pipes open.
+    child_env = dict(ENV)
+    credentials = {}
+    if account is not None:
+        # Direct credential drop, NOT PAM/runuser or --machine=user@.host.
+        # The latter creates one short-lived login session per query and races
+        # logind peer credential acquisition. Only trusted passwd data is used.
+        if not 0 < account.pw_uid < 2**32 - 1 or not 0 <= account.pw_gid < 2**32 - 1:
+            raise Error("invalid user-manager credentials")
+        runtime = f"/run/user/{account.pw_uid}"
+        child_env.update(HOME=account.pw_dir, USER=account.pw_name,
+                         LOGNAME=account.pw_name, XDG_RUNTIME_DIR=runtime,
+                         DBUS_SESSION_BUS_ADDRESS="unix:path=" + runtime + "/bus")
+        credentials = dict(user=account.pw_uid, group=account.pw_gid, extra_groups=())
     proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, env=ENV,
-                            start_new_session=True)
+                            stderr=subprocess.PIPE, text=True, env=child_env,
+                            start_new_session=True, close_fds=True, **credentials)
     communicated = False
     try:
         try:
@@ -321,10 +338,6 @@ def check_shutdown_inhibitors() -> None:
 
 def runtime_cgroup(name: str) -> str:
     """Only canonical repository/vendor cgroups may be inspected or signalled."""
-    if name in {"greetd.service", "dbus-broker.service"}:
-        return "/system.slice/" + name
-    if name == "dbus.socket":
-        return ""
     match = re.fullmatch(r"user@(0|[1-9][0-9]{0,9})\.service", name)
     if not match or int(match[1]) >= 2**32 - 1:
         raise Error("unexpected unit in final power cleanup")
@@ -337,9 +350,11 @@ def runtime_snapshot(*, timeout: float = 5) -> dict[str, dict[str, str]]:
     # operand, never expanded by a shell and never supplied by the caller.
     raw = run(["/usr/bin/systemctl", "--no-pager", "show", "--all",
                "--property=" + RUNTIME_PROPERTIES, "--",
-               *RUNTIME_FIXED_UNITS, "user@*.service"], timeout=timeout, accepted=(0, 1), max_output=131_072)
-    if not raw.strip() or len(raw) > 131_072:
-        raise Error("missing or oversized final cleanup snapshot")
+               *RUNTIME_FIXED_UNITS, "user@*.service"], timeout=timeout, max_output=131_072)
+    if len(raw) > 131_072:
+        raise Error("oversized final cleanup snapshot")
+    if not raw.strip():
+        return {}  # All user managers have already been collected.
     units = {}
     for block in raw.strip().split("\n\n"):
         props = {}
@@ -357,7 +372,7 @@ def runtime_snapshot(*, timeout: float = 5) -> dict[str, dict[str, str]]:
                                                      "deactivating", "reloading", "refreshing"}
                 or not re.fullmatch(r"[0-9]{0,10}", props.get("Job", "invalid"))):
             raise Error("unverifiable final cleanup unit state")
-        if name != "dbus.socket" and props["LoadState"] == "loaded":
+        if props["LoadState"] == "loaded":
             if (any(not re.fullmatch(r"[0-9]{1,10}", props.get(key, ""))
                     for key in ("MainPID", "ControlPID")) or "ControlGroup" not in props):
                 raise Error("incomplete final cleanup service state")
@@ -366,11 +381,6 @@ def runtime_snapshot(*, timeout: float = 5) -> dict[str, dict[str, str]]:
         if props["LoadState"] == "not-found" and props["ActiveState"] != "inactive":
             raise Error("inconsistent missing final cleanup unit")
         units[name] = props
-    if not set(RUNTIME_FIXED_UNITS) <= units.keys():
-        raise Error("incomplete final cleanup snapshot")
-    for name in ("dbus.socket", "dbus-broker.service"):
-        if units[name]["LoadState"] != "loaded":
-            raise Error("managed D-Bus broker/socket is not loaded")
     return units
 
 
@@ -406,23 +416,58 @@ class Worker:
         self.uid, self.user, self.action = uid, user, action
         self.greeter = greeter
         self.package_locks = None
-        self.machine = user + "@.host"
         self.committed = False
         self.quiesced = False
         self.handoff_attempted = False
         self.runtime_teardown_started = False
 
+    def user_run(self, argv: list[str], **kwargs) -> str:
+        account = pwd.getpwuid(self.uid)
+        if account.pw_name != self.user:
+            raise Error("invoking account changed during power preparation")
+        # The address is derived from the authorized UID; never accept caller
+        # bus addresses, injected environment variables or an arbitrary command.
+        runtime = Path(f"/run/user/{self.uid}")
+        meta = runtime.lstat()
+        if (not stat.S_ISDIR(meta.st_mode) or meta.st_uid != self.uid
+                or stat.S_IMODE(meta.st_mode) != 0o700):
+            raise Error("unsafe or unavailable authorized user bus")
+        return run(argv, account=account, **kwargs)
+
     def userctl(self, *args: str, **kwargs) -> str:
-        return run(["/usr/bin/systemctl", "--user", "--machine=" + self.machine,
-                    "--no-ask-password", *args], **kwargs)
+        return self.user_run(["/usr/bin/systemctl", "--user", "--no-pager",
+                              "--no-ask-password", *args], **kwargs)
 
     def helper(self, action: str) -> None:
         if action not in {"prepare", "cancel", "locked", "error", "waiting"}:
             raise Error("invalid desktop state operation")
         # This is a USER unit, not a PID-1 service with User=. Its manager owns
         # the desktop environment and executes the helper without root rights.
+        if action == "prepare":
+            # Reset any retained result from an interrupted prior worker. The
+            # prepare-only RemainAfterExit drop-in prevents successful status
+            # 77 being garbage-collected and mistaken for a fresh status 0.
+            self.userctl("stop", "labwc-session-state@prepare.service", timeout=15)
         self.userctl("start", "labwc-session-state@" + action + ".service",
-                     timeout=160 if action == "prepare" else 15)
+                     timeout=300 if action == "prepare" else 15)
+        if action == "prepare":
+            response = self.userctl("show", "labwc-session-state@prepare.service",
+                "--property=ActiveState,SubState,Result,ExecMainStatus", timeout=10)
+            props = {}
+            for line in response.splitlines():
+                key, separator, value = line.partition("=")
+                if not separator or key in props:
+                    raise Error("invalid session preparation properties")
+                props[key] = value
+            if (props.get("ActiveState") != "active" or props.get("SubState") != "exited"
+                    or props.get("Result") != "success"):
+                raise Error("cannot verify retained session preparation completion")
+            # Only release the retained unit AFTER reading its exit status.
+            self.userctl("stop", "labwc-session-state@prepare.service", timeout=15)
+            if props.get("ExecMainStatus") == "77":
+                raise Cancelled("user/save veto; no session teardown or power action performed")
+            if props.get("ExecMainStatus") != "0":
+                raise Error("unexpected session preparation status")
 
     def protect_other_sessions(self) -> None:
         if self.action == "logout":
@@ -441,7 +486,7 @@ class Worker:
     def lock(self) -> None:
         # Type=forking waits for labwc-lock's swaylock -f readiness handshake.
         # Unlike an exec oneshot, its daemon stays in a live independent unit.
-        run(["/usr/bin/systemd-run", "--user", "--machine=" + self.machine,
+        self.user_run(["/usr/bin/systemd-run", "--user",
              "--quiet", "--collect", "--service-type=forking", "--expand-environment=no",
              "--unit=labwc-power-lock-" + uuid.uuid4().hex + ".service",
              "--property=Requisite=labwc-session.target", "--property=After=labwc-session.target",
@@ -521,12 +566,14 @@ class Worker:
         # launch gate or restart a half-torn-down desktop. Stop is synchronous:
         # never --no-block and never kill the user's slice under running clients.
         self.committed = True
-        self.userctl("stop", DESKTOP_TARGET, COMPOSITOR,
-                     *sorted(members - {DESKTOP_TARGET, COMPOSITOR}), timeout=120)
+        # Stop the authoritative boundary, not a stale ConsistsOf snapshot.
+        # PartOf propagates the stop with reverse dependency ordering. A
+        # collected transient (e.g. Tomat) is not a StopUnit operand at all.
+        self.userctl("stop", DESKTOP_TARGET, COMPOSITOR, timeout=120)
         # Include units loaded during preparation, and wait for/verify every
         # member, not merely the target (which may finish before its compositor).
         members |= self.desktop_members()
-        text = self.userctl("show", "--property=Id,ActiveState,Job,MainPID,ControlPID",
+        text = self.userctl("show", "--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID",
                             "--", *sorted(members), timeout=15, accepted=(0, 1))
         observed = set()
         for block in text.strip().split("\n\n"):
@@ -535,7 +582,8 @@ class Worker:
             if name not in members or name in observed:
                 raise Error("cannot verify desktop stop results")
             observed.add(name)
-            if (props.get("ActiveState") not in {"inactive", "failed"}
+            if (props.get("LoadState") not in {"loaded", "not-found"}
+                    or props.get("ActiveState") not in {"inactive", "failed"}
                     or props.get("Job", "") not in {"", "0"}
                     or props.get("MainPID", "0") != "0"
                     or props.get("ControlPID", "0") != "0"):
@@ -573,12 +621,11 @@ class Worker:
                     raise Error(f"guest shutdown did not complete cleanly: {name}")
 
     def stop_shutdown_runtime(self) -> None:
-        """Final, bounded broker/PAM teardown; no user bus is used afterwards.
+        """Drain every user manager gracefully, leaving root-service IPC alive.
 
-        All loaded user@UID.service cgroups are selected only after checking
-        other interactive accounts. This includes their brokers and sd-pam,
-        including greeter/lingering managers. No PID scan, pkill, direct
-        cross-profile signals, persistent mask or global timeout change.
+        Guest hooks ran BEFORE this boundary, while their user buses existed.
+        No blanket SIGKILL, broker kill, root-service wait, or forced fallback
+        is allowed if a manager or one of its descendant cgroups remains live.
         """
         if self.action not in {"reboot", "poweroff"} or not (self.quiesced or self.greeter):
             raise Error("runtime teardown requires a prepared machine power action")
@@ -591,31 +638,26 @@ class Worker:
             raise Error("final power cleanup requires the unified cgroup-v2 hierarchy")
         before = runtime_snapshot()
         groups = {runtime_cgroup(name) for name, props in before.items()
-                  if name.endswith(".service") and props["LoadState"] == "loaded"}
+                  if props["LoadState"] == "loaded"}
         for group in groups:
-            cgroup_populated(group)  # Check read access before committing.
+            cgroup_populated(group)
         selected = sorted(name for name, props in before.items() if props["LoadState"] == "loaded")
         self.require_package_reservation()
         self.committed = self.runtime_teardown_started = True
-        # Queue stop jobs before SIGKILL so Restart= cannot relaunch a killed
-        # service. Stop the system bus listener too, preventing socket
-        # activation. Stop greetd to prevent a fresh greeter/login loop.
-        # Root systemctl uses PID 1's private socket, not the broker being killed.
+        # Prevent a new login while user managers stop. This root service stop
+        # is queued only; never wait for its stop hook, nor stop the system bus.
         run(["/usr/bin/systemctl", "--no-ask-password", "--no-block",
-             "--job-mode=replace-irreversibly", "stop", "--", *selected], timeout=10)
-        services = [name for name in selected if name == "dbus-broker.service" or name.startswith("user@")]
-        try:
-            run(["/usr/bin/systemctl", "--no-ask-password", "kill", "--kill-whom=all",
-                 "--signal=SIGKILL", "--", *services], timeout=10)
-        except (Error, OSError, subprocess.SubprocessError) as exc:
-            # A stop can win the race. Accept this only if the independent
-            # verification below proves every selected cgroup is empty.
-            print(f"power cleanup signal result requires verification: {exc}", file=sys.stderr, flush=True)
+             "stop", "greetd.service"], timeout=10)
+        if selected:
+            # PID 1 and each user manager perform their normal stop ordering.
+            # Their configured timeouts remain meaningful; no early SIGKILL.
+            run(["/usr/bin/systemctl", "--no-ask-password", "stop", "--", *selected],
+                timeout=120)
         deadline = time.monotonic() + 10
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise Error("broker/PAM cleanup did not finish; forced power was not submitted")
+                raise Error("user-manager cleanup did not finish; forced power was not submitted")
             after = runtime_snapshot(timeout=min(5, remaining))
             if set(after) - set(before):
                 raise Error("a new user manager appeared during power cleanup; forced power cancelled")
@@ -625,11 +667,9 @@ class Worker:
                           and props.get("ControlPID", "0") == "0"
                           for props in after.values())
             groups.update(props["ControlGroup"] for props in after.values() if props.get("ControlGroup"))
-            # Check saved cgroups even when a unit disappears or clears its
-            # ControlGroup property. A surviving sd-pam must not be missed.
             empty = not any(cgroup_populated(group) for group in sorted(groups))
             if stopped and empty:
-                print("power cleanup: user brokers/PAM and system broker stopped; cgroups empty",
+                print("power cleanup: every user manager stopped; descendant cgroups empty; system bus retained",
                       file=sys.stderr, flush=True)
                 return
             time.sleep(min(0.1, max(0, deadline - time.monotonic())))
@@ -649,7 +689,8 @@ class Worker:
         # Exactly ONE --force contacts PID 1; two would bypass its final
         # process/filesystem teardown. No target is started as an intermediate
         # barrier. All remaining requests go directly to PID 1; the user
-        # managers and brokers have already been stopped and verified empty.
+        # managers and their brokers have been stopped and verified empty.
+        # No root-service stop or wait is performed after this boundary.
         try:
             run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)
         except (Error, OSError, subprocess.SubprocessError) as exc:
@@ -747,6 +788,12 @@ def main(argv: list[str]) -> int:
         worker = Worker(uid, account.pw_name, action, greeter=greeter)
         try:
             worker.execute()
+        except Cancelled as exc:
+            if worker.committed:
+                raise Error("invalid cancellation after teardown commitment") from exc
+            worker.best_effort("cancel preparation", lambda: worker.helper("cancel"))
+            print(f"power cancelled: {exc}", file=sys.stderr, flush=True)
+            return 0
         except BaseException:
             if not worker.committed and not worker.greeter:
                 for operation in ("cancel", "error"):

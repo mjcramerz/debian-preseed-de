@@ -235,6 +235,7 @@ use Time::HiRes qw(clock_gettime sleep usleep CLOCK_MONOTONIC);
 
 my %defaults;
 my $dock_restore_requested = 0;
+my $output_transaction_sequence = 0;
 
 sub refresh_outputs {
     my ($mode) = @_;
@@ -285,6 +286,16 @@ sub refresh_outputs {
         return 0;
     }
 
+    # Every ordinary reconcile (watcher, manual refresh, startup repair) must
+    # inspect idle state inside the same refresh lock as the eventual commit.
+    # A check in a separate locked invocation races the DPMS-off callback and
+    # can otherwise re-enable the outputs it just powered down.
+    if (idle_topology_active()) {
+        return refresh_outputs('--restore-idle-topology')
+            if idle_topology_restore_requested();
+        return 0;
+    }
+
     my $wlr_randr = find_command('wlr-randr');
     return 0 if !defined $wlr_randr;
 
@@ -320,8 +331,22 @@ sub refresh_outputs {
           || $current_outputs{$_}->{enabled} ne 'no'
     } @{$outputs_to_disable};
 
-    if (@output_plans_to_apply || @outputs_to_turn_off) {
-        return 0 if !prepare_dock_for_output_change(1);
+    if (!@output_plans_to_apply && !@outputs_to_turn_off) {
+        # Read-only convergence: no output request, dock stop, second snapshot
+        # or artificial delay when the live configuration is already current.
+        save_topology($state_before);
+        return topology_changed($previous_topology, $state_before) ? $restart_delay_us : 0;
+    }
+    return 0 if !prepare_dock_for_output_change(1);
+
+    # Stopping chrome can take time. A connector/compositor change in that
+    # interval invalidates this plan; do not replay it over a newer topology.
+    # The queued hotplug event or next periodic check takes a fresh snapshot.
+    my $state_ready = capture_command($wlr_randr);
+    return 0 if $state_ready eq q{} || !session_is_active();
+    if (topology_changed($state_before, $state_ready)) {
+        warn "warning: output topology changed while preparing; deferring stale transaction\n";
+        return 0;
     }
 
     # Submit one complete topology, not a train of overlapping per-head commits.
@@ -395,7 +420,18 @@ sub resume_output_authority {
 sub apply_output_transaction {
     my ($wlr_randr, @args) = @_;
     return 0 if !session_is_active();
+    return 1 if !@args;
+    my $transaction = $$ . '-' . ++$output_transaction_sequence;
+    my $command = substr(join(' ', $wlr_randr, @args), 0, 1024);
+    $command =~ s/[^\x20-\x7e]/?/g;
+    my $started = clock_gettime(CLOCK_MONOTONIC);
+    # Journal only real mutations. These paired records identify our command
+    # window without pretending a Wayland acknowledgement is a DRM flip event.
+    printf STDERR "labwc-output-watch: transaction=%s phase=begin monotonic=%.6f command=%s\n",
+        $transaction, $started, $command;
     my ($ok, $diagnostic) = run_command_capture_stderr($wlr_randr, @args);
+    printf STDERR "labwc-output-watch: transaction=%s phase=end monotonic=%.6f result=%s\n",
+        $transaction, clock_gettime(CLOCK_MONOTONIC), $ok ? 'accepted' : 'rejected';
     if (!$ok) {
         $diagnostic =~ s/[\x00-\x1f\x7f]+/ /g;
         warn "warning: output transaction rejected; next reconciliation will take a fresh snapshot: $diagnostic\n";
@@ -1022,6 +1058,9 @@ sub run_optional {
     my ($command_name, @args) = @_;
     my $command = find_command($command_name);
     return 0 if !defined $command;
+    # Power requests use the same bounded command path and transaction journal
+    # as geometry updates; callers already hold output-refresh.lock.
+    return apply_output_transaction($command, @args) if $command_name eq 'wlopm';
     return run_quiet_command($command, @args);
 }
 
@@ -1246,7 +1285,10 @@ sub output_plan_is_current {
     my ($current, $plan) = @_;
     return 0 if !defined $current || !defined $plan;
     return 0 if ($current->{enabled} // q{}) ne 'yes';
-    return 0 if !same_output_mode($current->{mode}, $plan->{mode});
+    # An unspecified mode is not a request to change the current mode.
+    # Treat it exactly like the commit builder, which omits --mode in this case.
+    return 0 if defined($plan->{mode}) && $plan->{mode} ne q{}
+        && !same_output_mode($current->{mode}, $plan->{mode});
     return 0 if ($current->{position} // q{}) ne ($plan->{position} // q{});
     my $wanted_scale = scale_for_output($plan->{name});
     return 0 if !defined $current->{scale};
@@ -1520,10 +1562,8 @@ sub run_refresh_action {
 }
 
 sub apply_output_policy {
-    if (run_refresh_action('--idle-topology-active') == 0) {
-        run_refresh_action('--restore-idle-topology');
-        return;
-    }
+    # Idle gating/restoration belongs to refresh_outputs under ONE lock, not a
+    # probe followed by a second independently locked action.
     run_refresh_action(q{});
     return;
 }

@@ -87,6 +87,107 @@ def retire_colour_assets(account):
                 remove(base / target / unit)
 
 
+def reconcile_clamd_notification(directory=Path('/etc/clamav')):
+    """Disable only a stale default-path NotifyClamd on scanner-only installs.
+
+    Never change a custom daemon path or a present clamd configuration.
+    Debian owns freshclam.conf as clamav:adm (0444, or 0400 for proxy
+    credentials). Accept root or that named package account for this data file
+    only; do not infer trust from DatabaseOwner inside the file. The directory
+    and a present clamd.conf still require root ownership. Preserve bytes and
+    file permissions/ownership, including secret-bearing read-only files, and
+    replace atomically through a pinned no-follow directory descriptor.
+
+    This is an offline installer operation, not a live reconfiguration API.
+    Detect observed source changes rather than overwriting a concurrent edit.
+    """
+    try:
+        dfd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return False
+    try:
+        meta = os.fstat(dfd)
+        if meta.st_uid != 0 or meta.st_mode & 0o022:
+            raise RuntimeError('unsafe clamav configuration directory')
+        try:
+            daemon = os.stat('clamd.conf', dir_fd=dfd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            if not stat.S_ISREG(daemon.st_mode) or daemon.st_uid != 0 or daemon.st_mode & 0o022:
+                raise RuntimeError('unsafe clamd configuration')
+            return False
+        try:
+            fd = os.open('freshclam.conf', os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        except FileNotFoundError:
+            return False
+        def snapshot(info):
+            return (info.st_dev, info.st_ino, info.st_uid, info.st_gid,
+                    info.st_mode, info.st_nlink, info.st_size,
+                    info.st_mtime_ns, info.st_ctime_ns)
+
+        with os.fdopen(fd, 'rb') as stream:
+            meta = os.fstat(stream.fileno())
+            allowed_uid = 0
+            if meta.st_uid != 0:
+                try:
+                    allowed_uid = pwd.getpwnam('clamav').pw_uid
+                except KeyError:
+                    pass  # No package account: never trust an arbitrary UID.
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1
+                    or meta.st_uid not in (0, allowed_uid)
+                    or meta.st_mode & (0o022 | 0o111 | 0o7000)):
+                raise RuntimeError(
+                    'unsafe freshclam configuration: '
+                    f'uid={meta.st_uid} gid={meta.st_gid} '
+                    f'mode={stat.S_IMODE(meta.st_mode):04o} links={meta.st_nlink}; '
+                    'expected a regular single-link file owned by root or clamav, '
+                    'without executable, special, or group/other-write bits')
+            data = stream.read(65537)
+            if snapshot(os.fstat(stream.fileno())) != snapshot(meta):
+                raise RuntimeError('freshclam configuration changed while reading; refusing replacement')
+        if len(data) > 65536:
+            raise RuntimeError('oversized freshclam configuration (limit: 65536 bytes)')
+        pattern = rb'(?m)^([ \t]*NotifyClamd[ \t]+/etc/clamav/clamd\.conf[ \t]*\r?)$'
+        updated, count = re.subn(pattern, rb'# Managed scanner-only install; clamd.conf absent: \1', data)
+        if not count:
+            return False
+        if len(updated) > 65536:
+            raise RuntimeError('oversized freshclam configuration after reconciliation (limit: 65536 bytes)')
+        # This is an offline installer operation in a root-owned directory.
+        # An unpredictable, exclusive filename prevents following old debris.
+        import secrets
+        name = '.freshclam.conf.' + secrets.token_hex(16)
+        newfd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                        0o600, dir_fd=dfd)
+        try:
+            with os.fdopen(newfd, 'wb') as stream:
+                stream.write(updated)
+                stream.flush()
+                os.fchown(stream.fileno(), meta.st_uid, meta.st_gid)
+                os.fchmod(stream.fileno(), stat.S_IMODE(meta.st_mode))
+                os.fsync(stream.fileno())
+            current = os.stat('freshclam.conf', dir_fd=dfd, follow_symlinks=False)
+            if snapshot(current) != snapshot(meta):
+                raise RuntimeError('freshclam configuration changed before replacement; refusing overwrite')
+            try:
+                os.stat('clamd.conf', dir_fd=dfd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                raise RuntimeError('clamd configuration appeared; refusing to disable notification')
+            os.replace(name, 'freshclam.conf', src_dir_fd=dfd, dst_dir_fd=dfd)
+            os.fsync(dfd)
+        finally:
+            try:
+                os.unlink(name, dir_fd=dfd)
+            except FileNotFoundError:
+                pass
+        return True
+    finally:
+        os.close(dfd)
+
+
 def main():
     if os.getuid() != 0 or len(sys.argv) != 2:
         raise RuntimeError('expected root: helper ACCOUNT')
@@ -94,6 +195,9 @@ def main():
     if account.pw_uid == 0:
         raise RuntimeError('the desktop account cannot be root')
     retire_colour_assets(account)
+    if reconcile_clamd_notification():
+        print('session-repairs: disabled stale default NotifyClamd; '
+              'FreshClam ownership and permissions preserved', file=sys.stderr)
     path = Path('/etc/pam.d/sudo-i')
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     with os.fdopen(fd, 'r', encoding='utf-8') as stream:

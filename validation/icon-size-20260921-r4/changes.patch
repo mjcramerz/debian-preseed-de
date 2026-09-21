@@ -1,0 +1,195 @@
+--- r3/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
++++ r4/d-i/forky/hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl
+@@ -156,7 +156,7 @@
+ #custom-wayscriber:hover {
+   background-position: center;
+   background-repeat: no-repeat;
+-  background-size: 24px 24px, 100% 100%;
++  background-size: 18px 18px, 100% 100%;
+ }
+ 
+ #custom-apps:hover {
+@@ -206,12 +206,12 @@
+   padding: 0 7px;
+   /* Read package artwork directly: Papirus-Dark shares app SVGs with
+    * Papirus; Tuta/Sleek supply their own logos. CSS URL images respect this
+-   * 24px bound, unlike GTK3's CSS icon-theme bitmap lookup. No cache/helper.
++   * 18px bound, unlike GTK3's CSS icon-theme bitmap lookup. No cache/helper.
+    * Forky's Waybar 0.15.0 custom module does not implement image-path yet. */
+   -gtk-icon-theme: "Papirus-Dark";
+   background-position: center;
+   background-repeat: no-repeat;
+-  background-size: 24px 24px, 100% 100%;
++  background-size: 18px 18px, 100% 100%;
+ }
+ 
+ #custom-app-terminal {
+--- r3/d-i/forky/scripts/desktop/verify.sh
++++ r4/d-i/forky/scripts/desktop/verify.sh
+@@ -2016,9 +2016,9 @@
+     if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}:
+         continue
+     require(Path(icon).is_file(), "native drawer icon is not installed: " + icon)
+-    image = GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 24, 24, True)
+-    require(image is not None and 0 < image.get_width() <= 24 and 0 < image.get_height() <= 24,
+-            "native drawer icon cannot be decoded at 24px: " + icon)
++    image = GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 18, 18, True)
++    require(image is not None and 0 < image.get_width() <= 18 and 0 < image.get_height() <= 18,
++            "native drawer icon cannot be decoded at 18px: " + icon)
+ account = pwd.getpwnam(sys.argv[2])
+ require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "drawer account/home mismatch")
+ for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
+@@ -2034,7 +2034,7 @@
+             sizes = [value.strip() for selectors, body in rules
+                      if selector in {part.strip() for part in selectors.split(",")}
+                      for value in re.findall(r"background-size:\s*([^;]+);", body)]
+-            require(sizes and sizes[-1] == "24px 24px, 100% 100%",
++            require(sizes and sizes[-1] == "18px 18px, 100% 100%",
+                     "native drawer icon size is misconfigured: " + selector)
+     for icon in drawer_icons.values():
+         require(style.count("url(\"" + icon + "\")") == 2,
+@@ -2044,7 +2044,7 @@
+             require(module in bar["group/apps"]["modules"]
+                     and bar[module].get("format") == " " and bar[module].get("on-click"),
+                     "native drawer icon/click target is misconfigured: " + module)
+-print("desktop_native_drawer_verification layouts=2 icons=package-artwork size=24px")
++print("desktop_native_drawer_verification layouts=2 icons=package-artwork size=18px")
+ ' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "$desktop_drawer_software"
+ }
+ 
+--- r3/d-i/forky/tests/fixtures/waybar-native-icons-gtk.py
++++ r4/d-i/forky/tests/fixtures/waybar-native-icons-gtk.py
+@@ -76,7 +76,7 @@
+             pixel=int.from_bytes(raw[offset:offset+4],sys.byteorder)
+             actual=((pixel>>16)&255,(pixel>>8)&255,pixel&255)
+             assert actual==expected,(layout,hover,icon,actual,expected)
+-            # Even a 512px application source must occupy exactly 24 logical
++            # Even a 512px application source must occupy exactly 18 logical
+             # pixels, not the theme image's intrinsic dimensions. At HiDPI, Cairo
+             # antialiases one device pixel at each edge; count the solid interior.
+             marked=[]
+@@ -89,7 +89,7 @@
+             assert marked
+             width=max(x for x,y in marked)-min(x for x,y in marked)+1
+             height=max(y for x,y in marked)-min(y for x,y in marked)+1
+-            assert 24*scale-2 <= width <= 24*scale and 24*scale-2 <= height <= 24*scale,(icon,width,height,scale)
++            assert 18*scale-2 <= width <= 18*scale and 18*scale-2 <= height <= 18*scale,(icon,width,height,scale)
+             records.append({'layout':layout,'hover':hover,'icon':icon,'rgb':actual,'scale':scale,'bounds':[width,height]})
+             cairo_destroy(cr);surface_destroy(surface)
+         destroy(window)
+--- r3/d-i/forky/tests/test_drawer_native_icons_20260920.py
++++ r4/d-i/forky/tests/test_drawer_native_icons_20260920.py
+@@ -49,6 +49,20 @@
+                 self.assertIn('--property=KillMode=control-group',entry['on-click'])
+                 self.assertEqual(entry['align'],0.5)
+                 self.assertIn(module,bar['group/apps']['modules'])
++
++    def test_all_seven_icons_have_18px_bounds_for_every_profile_and_state(self):
++        for profile, css in rendered_profile_styles().items():
++            rules = re.findall(r'([^{}]+)\{([^{}]*)\}',
++                               re.sub(r'/\*.*?\*/', '', css, flags=re.S))
++            for module in ('custom/apps', 'custom/wayscriber', *ICONS):
++                for suffix in ('', ':hover'):
++                    selector = '#' + module.replace('/', '-') + suffix
++                    with self.subTest(profile=profile, selector=selector):
++                        sizes = [value.strip() for selectors, body in rules
++                                 if selector in {part.strip() for part in selectors.split(',')}
++                                 for value in re.findall(r'background-size:\s*([^;]+);', body)]
++                        self.assertTrue(sizes)
++                        self.assertEqual(sizes[-1], '18px 18px, 100% 100%')
+ 
+     def test_native_artwork_is_present_above_both_background_layers(self):
+         css=(SKEL/'waybar/style.css.tmpl').read_text()
+@@ -68,7 +82,7 @@
+     def test_installed_verifier_checks_decoding_and_config_instead_of_silent_fallback(self):
+         source=(FORKY/'scripts/desktop/verify.sh').read_text()
+         self.assertIn('Path(icon).is_file()',source)
+-        self.assertIn('GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 24, 24, True)',source)
++        self.assertIn('GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 18, 18, True)',source)
+         for icon in ICON_PATHS.values():self.assertIn('"'+icon+'"',source)
+         self.assertNotIn('desktop_prepare_native_drawer_icons',source)
+         # Do not start installing third-party amd64-only apps on other targets.
+@@ -149,7 +163,7 @@
+             path.parent.mkdir(parents=True,exist_ok=True)
+             path.write_bytes(b'fixture image: decoder is mocked')
+ 
+-    def execute(self,arch='amd64',software='1',missing=None,dimensions=(24,24),decoded=True):
++    def execute(self,arch='amd64',software='1',missing=None,dimensions=(18,18),decoded=True):
+         if missing is not None:
+             (self.root/ICON_PATHS[missing].lstrip('/')).unlink(missing_ok=True)
+         image=self.types.SimpleNamespace(get_width=lambda:dimensions[0],get_height=lambda:dimensions[1])
+@@ -163,7 +177,7 @@
+         import contextlib,io
+         with contextlib.redirect_stdout(io.StringIO()):exec(self.code,scope)
+         for call in decoder.call_args_list:
+-            self.assertEqual(call.args[1:],(24,24,True))
++            self.assertEqual(call.args[1:],(18,18,True))
+         return [call.args[0] for call in decoder.call_args_list]
+ 
+     def test_selected_amd64_bundle_requires_all_five_decodable_icons(self):
+@@ -176,10 +190,10 @@
+         self.assertEqual(set(self.execute(arch='arm64',missing='tuta-mail')),expected)
+ 
+     def test_undecodable_empty_and_oversized_images_are_rejected(self):
+-        with self.assertRaisesRegex(SystemExit,'cannot be decoded at 24px'):
++        with self.assertRaisesRegex(SystemExit,'cannot be decoded at 18px'):
+             self.execute(decoded=False)
+-        for dimensions in ((0,24),(24,0),(25,24),(24,25),(512,512)):
+-            with self.subTest(dimensions=dimensions), self.assertRaisesRegex(SystemExit,'cannot be decoded at 24px'):
++        for dimensions in ((0,18),(18,0),(19,18),(18,19),(24,24),(512,512)):
++            with self.subTest(dimensions=dimensions), self.assertRaisesRegex(SystemExit,'cannot be decoded at 18px'):
+                 self.execute(dimensions=dimensions)
+ 
+     def test_missing_papirus_is_not_replaced_by_hicolor_fallback(self):
+@@ -188,7 +202,7 @@
+ 
+     def test_missing_size_bound_is_rejected(self):
+         path=self.configs[0]/'style.css'
+-        path.write_text(path.read_text().replace('background-size: 24px 24px, 100% 100%;','background-size: auto;'))
++        path.write_text(path.read_text().replace('background-size: 18px 18px, 100% 100%;','background-size: auto;'))
+         with self.assertRaisesRegex(SystemExit,'size is misconfigured'):
+             self.execute()
+ 
+@@ -196,7 +210,7 @@
+         path=self.configs[0]/'style.css'
+         style=path.read_text()
+         # The first declaration is for apps/wayscriber; the second is the drawer.
+-        needle='background-size: 24px 24px, 100% 100%;'
++        needle='background-size: 18px 18px, 100% 100%;'
+         position=style.rindex(needle)
+         style=style[:position]+style[position:].replace(needle, 'background-size: auto;', 1)
+         path.write_text(style)
+@@ -204,6 +218,22 @@
+         with self.assertRaisesRegex(SystemExit, 'size is misconfigured'):
+             self.execute()
+ 
++    def test_any_single_24px_icon_override_is_rejected_in_either_config(self):
++        for config in self.configs:
++            path = config / 'style.css'
++            original = path.read_text()
++            try:
++                for module in ('custom/apps', 'custom/wayscriber', *ICONS):
++                    for suffix in ('', ':hover'):
++                        selector = '#' + module.replace('/', '-') + suffix
++                        with self.subTest(config=str(config), selector=selector):
++                            path.write_text(original + '\n' + selector +
++                                            ' { background-size: 24px 24px, 100% 100%; }\n')
++                            with self.assertRaisesRegex(SystemExit, 'size is misconfigured'):
++                                self.execute()
++            finally:
++                path.write_text(original)
++
+     def test_corrupt_account_drawer_is_not_hidden_by_valid_skeleton(self):
+         path=self.configs[1]/'config';data=json.loads(path.read_text())
+         data[0]['custom/app-terminal']['format']='font-glyph';path.write_text(json.dumps(data))
+--- r3/d-i/forky/tests/test_requested_repairs_20260920.py
++++ r4/d-i/forky/tests/test_requested_repairs_20260920.py
+@@ -65,7 +65,7 @@
+             self.assertIn(f'/etc/skel-desktop/.config/waybar/icons/{name}-symbolic.svg 0644', stage)
+             self.assertRegex(css, rf'#custom-{name}:hover \{{[^}}]*background-image: -gtk-recolor')
+         self.assertIn('background-position: center;', css)
+-        self.assertIn('background-size: 24px 24px, 100% 100%;', css)
++        self.assertIn('background-size: 18px 18px, 100% 100%;', css)
+ 
+     @unittest.skipUnless(os.geteuid() == 0, 'root can create a disposable unprivileged process')
+     def test_real_timeout_wrapper_emits_exact_same_device_key_pair(self):

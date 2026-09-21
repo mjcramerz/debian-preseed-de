@@ -33,7 +33,7 @@ sub load_config {
     my $parsed = parse_file($path);
     my $normalized = normalize_config($parsed);
     %CONFIG = %{$normalized};
-    set_active_log_level($CONFIG{ZRAM_LOG_LEVEL} // $ENV{ZRAM_LOG_LEVEL} // 'error');
+    set_active_log_level($CONFIG{ZRAM_LOG_LEVEL} // $ENV{ZRAM_LOG_LEVEL} // 'info');
     return \%CONFIG;
 }
 

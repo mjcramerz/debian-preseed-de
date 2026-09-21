@@ -1,6 +1,6 @@
 .......FFFFFFFFFFFFF..
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -12,7 +12,6 @@ AssertionError: '057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f236
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='vm-desktop.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -24,7 +23,7 @@ AssertionError: 'e86e3d01d27930a0e7392fccfb03778e57f7a9fd1ab60f17a5c8d03a02619ac
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-desktop.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -36,7 +35,7 @@ AssertionError: 'fede98b3b73d5c0b7f3cfb8c408bd7386e071aed9745499bb526ce61964371e
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -48,7 +47,7 @@ AssertionError: '524c4134a216b4ce89ae4634394e786b4d6392ffc36dad48395b36746effd0f
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -60,7 +59,7 @@ AssertionError: '0a8dafda10ac719636b3f92180a9fee88e5f23c80420309c4022ef490f2e0ba
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-main.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -84,7 +83,7 @@ AssertionError: '52d0e1aee79defbf49fc631235f453903728302033ebef71be864ee2efe8805
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -96,7 +95,7 @@ AssertionError: 'db8f367d7fdcce20f8a6bb791bcc1c137153cb26f51de7025dc50ba83f8e0f2
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-cbook.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -108,7 +107,7 @@ AssertionError: '2169a8379d940e6db4968cf09e61705856772ce3003c81f61c8869d729f038f
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -120,7 +119,7 @@ AssertionError: '8fc51f0203c904c512548c605ce73837b7579c786eb23252c788d0d385b03a3
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-dual-cbook.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-hp14-duo.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance
@@ -144,7 +143,7 @@ AssertionError: 'bbc4a5ff0c00c58992f5e8913323222de95bf8333b1075567814765b6eacfb4
 
 
 ======================================================================
-FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-desktop.env')
+FAIL: test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='f2fs-de-x360.env')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
   File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_repository_integrity.py", line 45, in test_profiles_match_current_or_original_provenance

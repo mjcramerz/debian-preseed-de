@@ -1,0 +1,63 @@
+#!/usr/bin/python3 -I
+"""Close Waybar-owned FDs before entering a narrower status-helper profile.
+
+This executable shares managed-waybar's AppArmor attachment. It does not
+widen the destination helper profiles to accept inherited rfkill, procfs or
+menu-file descriptors. Only the six configured read-only status calls exist.
+"""
+from __future__ import annotations
+import os
+import sys
+
+COMMANDS = {
+    ("/usr/local/libexec/labwc-tomat", "watch"),
+    ("/usr/local/libexec/labwc-notifications", "status"),
+    ("/usr/local/bin/labwc-capture", "status"),
+    ("/usr/local/bin/labwc-brightness-control", "status"),
+    ("/usr/local/bin/labwc-bluetooth", "status"),
+    ("/usr/local/bin/labwc-keyboard-layout", "status"),
+}
+
+
+def command(arguments: list[str]) -> tuple[str, ...]:
+    if len(arguments) != 2:
+        raise ValueError("exactly one managed status command is required")
+    executable, action = arguments
+    if "/" not in executable:
+        executable = "/usr/local/bin/" + executable
+    result = (executable, action)
+    if result not in COMMANDS:
+        raise ValueError("unapproved Waybar status command")
+    return result
+
+
+def close_inherited_fds() -> None:
+    # Enumerate actual descriptors, not RLIMIT_NOFILE (an inherited descriptor
+    # can exceed a subsequently lowered soft/hard limit). listdir closes its
+    # own directory descriptor before returning. The process is single-threaded.
+    descriptors = os.listdir("/proc/self/fd")
+    for text in descriptors:
+        if text.isdecimal() and int(text) >= 3:
+            try:
+                os.close(int(text))
+            except OSError as exc:
+                import errno
+                if exc.errno != errno.EBADF:
+                    raise
+
+
+def main(arguments: list[str]) -> None:
+    argv = command(arguments)
+    if os.getuid() == 0 or os.geteuid() != os.getuid():
+        raise ValueError("status helpers require an unprivileged desktop user")
+    close_inherited_fds()
+    # Fixed argv, no shell expansion, no eval, no command or profile override.
+    os.execv(argv[0], argv)
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except (OSError, ValueError) as exc:
+        print(f"labwc-waybar-exec: {exc}", file=sys.stderr)
+        sys.exit(1)

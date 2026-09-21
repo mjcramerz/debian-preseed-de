@@ -17,8 +17,8 @@ StartLimitIntervalSec=30min
 StartLimitBurst=3
 
 [Service]
-# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
-# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+# Isolate helper PIDs without hiding host-wide memory/PSI metrics.
+# Setup owns raw devices; maintenance needs only zram controls and PSI triggers.
 PrivatePIDs=yes
 PrivateUsers=no
 # Aggregate memory/PSI files are required even inside the PID namespace.
@@ -52,6 +52,9 @@ MemoryHigh=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_HIGH__
 MemoryMax=__INSTALLER_ZRAM_MAINTENANCE_MEMORY_MAX__
 OOMScoreAdjust=250
 NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_SYS_RESOURCE
+RestrictNamespaces=yes
+OOMPolicy=stop
 PrivateTmp=yes
 ProtectHome=yes
 ProtectControlGroups=yes

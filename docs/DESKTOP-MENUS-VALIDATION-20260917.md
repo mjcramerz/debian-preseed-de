@@ -124,7 +124,7 @@ Project-relative paths below identify the exact checked files. `AUDIT` denotes t
 | `systemd-analyze --root="$AUDIT/systemd-root" verify labwc-system-desktop-overrides.service labwc-system-desktop-overrides.path` | PASS: offline staged root, host systemd 257.9 checker. |
 | `systemctl --root="$AUDIT/systemd-root" enable labwc-system-desktop-overrides.path labwc-system-desktop-overrides.service` | PASS: both actual multi-user.target.wants symlinks created offline. No service was started. |
 | Python ElementTree parsing of `menu.xml` and `rc.xml.tmpl` | PASS: both XML documents parsed. |
-| Actual trusted `btrfs-de-main.env` shell loading, Waybar placeholder substitution and `json.loads` | PASS: both internal/external configurations rendered and parsed; menu command tails checked. Hardware-dependent output/module values were explicit fixtures. |
+| Actual trusted `btrfs-de-p15s.env` shell loading, Waybar placeholder substitution and `json.loads` | PASS: both internal/external configurations rendered and parsed; menu command tails checked. Hardware-dependent output/module values were explicit fixtures. |
 | Render all project `.desktop` / `.desktop.tmpl` candidates outside the tree | PASS for rendering: 19 candidates, no unresolved application placeholders. External desktop-file validation remains skipped below. |
 | `shellcheck` capability check | SKIPPED: binary absent; package installation unavailable in the execution environment. |
 | `desktop-file-validate` capability check and capability-gated test | SKIPPED: desktop-file-utils binary absent on the execution host. It is already a selected target dependency and is invoked before publication in production. |

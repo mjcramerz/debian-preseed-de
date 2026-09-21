@@ -1,0 +1,16 @@
+{
+  "name": "build-check",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "tools/build.py",
+    "--check"
+  ],
+  "returncode": 0,
+  "seconds": 14.149,
+  "log": "validation/icon-size-20260921-r4/build-check.log",
+  "tests": 0,
+  "skipped": 0,
+  "skip_reasons": [],
+  "failed": 0
+}

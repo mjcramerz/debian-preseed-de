@@ -76,8 +76,8 @@ desktop_user_unit_source_path() {{
 }}
 '''
 
-    def test_all_13_profiles_define_exactly_six_managed_weight_keys(self):
-        self.assertEqual(len(PROFILES), 13)
+    def test_all_10_profiles_define_exactly_six_managed_weight_keys(self):
+        self.assertEqual(len(PROFILES), 10)
         for profile in PROFILES:
             with self.subTest(profile=profile.name):
                 keys = re.findall(r'^(SYSTEMD_IOWEIGHT_(?!ENABLE=)[A-Z0-9_]+)=', profile.read_text(), re.M)
@@ -178,9 +178,22 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
         for relative, expected in manifest['sha256'].items():
             with self.subTest(path=relative):
                 original = (ROOT / relative).read_bytes()
+                # R6 isolates zram maintenance without changing its CPU/IO/RAM
+                # weights. Reverse exact reviewed additions, never rebaseline.
+                zram_reversions = json.loads((SEED / 'tests/fixtures/zram-isolation-workload-reversions.json').read_text())
+                for change in zram_reversions.get(relative, []):
+                    current = change['current'].encode()
+                    self.assertEqual(original.count(current), 1)
+                    original = original.replace(current, change['historical'].encode(), 1)
                 # Reverse only the exact missing-executable corrections.
                 # Historical workload hashes remain unchanged.
                 metadata_migrations = {
+                    # Save confirmation/veto time and exit classification are
+                    # intentional lifecycle changes, not resource policy.
+                    'd-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/labwc-session-state@.service': (
+                        (b'TimeoutStartSec=285s\n# 77 is a verified user/save veto, not permission to continue shutdown.\nSuccessExitStatus=77\n',
+                         b'TimeoutStartSec=145s\n'),
+                    ),
                     # Wallpaper child supervision changes only these comments;
                     # retain the original immutable workload-policy hash.
                     'd-i/forky/hooks/target/etc/skel-desktop/.config/systemd/user/swaybg.service': (
@@ -261,7 +274,13 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             # Remove just its added block, not any original profile policy.
             menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
             self.assertEqual(profile.read_text().count(menu_policy), 1)
-            profile_text = profile.read_text().replace(menu_policy, 'LABWC_MENU_COMMAND="labwc-fuzzel launcher"', 1)
+            profile_text = profile.read_text()
+            # The I/O-PSI throttle is an intentional new profile policy block.
+            profile_text, io_blocks = re.subn(
+                r'# I/O PSI throttles pressure writeback; these are policy defaults, not calibration.\n'
+                r'(?:ZRAM_IO_PSI_[A-Z0-9_]+="[^"\n]*"\n){7}', '', profile_text)
+            self.assertEqual(io_blocks, 1)
+            profile_text = profile_text.replace(menu_policy, 'LABWC_MENU_COMMAND="labwc-fuzzel launcher"', 1)
             # Session repair adds geometry only, not workload policy. Verify
             # each new value against its original search setting before removing
             # precisely this block for the unchanged historical hash fixture.
@@ -276,17 +295,23 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                 geometry += 'LABWC_FUZZEL_' + added + '="' + value[1] + '"\n'
             self.assertEqual(profile_text.count(geometry), 1)
             profile_text = profile_text.replace(geometry, '', 1)
+            # R5 changes only the requested storage sizing and its comments.
+            # Reverse exact reviewed hunks, preserving the original workload
+            # fingerprint. The dynamic-storage suite executes the new policy.
+            reversions = json.loads((SEED / 'tests/fixtures/dynamic-storage-profile-reversions.json').read_text())
+            for change in reversions.get(profile.name, []):
+                self.assertEqual(profile_text.count(change['current']), 1)
+                profile_text = profile_text.replace(change['current'], change['historical'], 1)
             # Governor ownership moved to CPU-family fragments on 2026-09-19.
             # Restore only those three removed tokens for this historical hash;
             # every other original workload/profile byte must still agree.
-            if profile.name != 'vm-desktop.env':
-                for label, governor in (('DEFAULT', 'schedutil'), ('HARDENED', 'powersave'),
-                                        ('PERFORMANCE', 'performance')):
-                    profile_text, restored = re.subn(
-                        r'^(GRUB_PROFILE_' + label + r'_FLAGS="[^"\n]*)( mitigations=)',
-                        lambda match: match[1] + ' cpufreq.default_governor=' + governor + match[2],
-                        profile_text, flags=re.M)
-                    self.assertEqual(restored, 1)
+            for label, governor in (('DEFAULT', 'schedutil'), ('HARDENED', 'powersave'),
+                                    ('PERFORMANCE', 'performance')):
+                profile_text, restored = re.subn(
+                    r'^(GRUB_PROFILE_' + label + r'_FLAGS="[^"\n]*)( mitigations=)',
+                    lambda match: match[1] + ' cpufreq.default_governor=' + governor + match[2],
+                    profile_text, flags=re.M)
+                self.assertEqual(restored, 1)
             original, count = re.subn(
                 r'# Native x86-64 resource-control benchmark release \(installation only\)\.\n'
                 r'# Native CPU compatibility is checked with unprivileged --version on the target\.\n'

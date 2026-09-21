@@ -836,7 +836,7 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_all_host_profiles_use_devops(self):
         profiles = list((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertGreaterEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         for path in profiles:
             text = path.read_text()
             self.assertIn('PODMAN_USER="devops"', text)

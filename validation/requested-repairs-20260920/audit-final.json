@@ -17800,7 +17800,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17813,7 +17813,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17826,7 +17826,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17852,7 +17852,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17878,7 +17878,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17891,7 +17891,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17904,7 +17904,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17917,7 +17917,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17930,7 +17930,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17943,7 +17943,7 @@
       "placeholder_count": 0
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
       "requested_scope": false,
       "kind": "shell",
       "check": "pass",
@@ -17953,19 +17953,6 @@
       "bytes": 58560,
       "mode": "0o600",
       "sha256": "c4e01884bdb0dcbefdf187bb7e189d6f372887f3c032cde1da1f673f8f720fc4",
-      "placeholder_count": 0
-    },
-    {
-      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
-      "requested_scope": false,
-      "kind": "shell",
-      "check": "pass",
-      "detail": "",
-      "unit_facts": {},
-      "lines": 1218,
-      "bytes": 58867,
-      "mode": "0o600",
-      "sha256": "384fa9585ed1b96cfd99982edc77e9cc859575806b569c5ea31b741c09a07b34",
       "placeholder_count": 0
     },
     {

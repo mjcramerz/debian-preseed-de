@@ -286,7 +286,7 @@ printf screen >&5
         self.bootstrap('file=/seed/preseed.cfg classes=prod;desktop;standard;dhcp;ssh')
         context = (self.box.runtime / 'state/context.env').read_text()
         self.assertIn('arm64', context)
-        self.assertIn('f2fs-desktop', context)
+        self.assertIn('override-f2fs-de-x360', context)
         self.assertIn('grub-efi-arm64-signed', self.db.value('pkgsel/include'))
         self.assertNotIn('grub-efi-amd64', self.db.value('pkgsel/include'))
 
@@ -298,7 +298,8 @@ printf screen >&5
         (dmi / 'product_name').write_text('QEMU Virtual Machine\n')
         self.bootstrap('file=/seed/preseed.cfg classes=prod;desktop;standard;dhcp;ssh')
         context = (self.box.runtime / 'state/context.env').read_text()
-        self.assertIn('vm-desktop', context)
+        self.assertIn('override-btrfs-de', context)
+        self.assertIn("INSTALLER_HOST_FAMILY='vm'", context)
 
 
 if __name__ == '__main__':

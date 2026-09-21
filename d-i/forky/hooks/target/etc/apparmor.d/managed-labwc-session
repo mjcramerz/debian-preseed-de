@@ -79,7 +79,9 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected, medi
   include if exists <local/usr.bin.labwc>
 }
 
-profile managed-waybar /usr/bin/waybar flags=(attach_disconnected) {
+# The status trampoline deliberately retains this profile while closing
+# inherited FDs; only its final exec enters the destination helper profile.
+profile managed-waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_disconnected) {
   #include <abstractions/managed-session-client>
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,

@@ -3,14 +3,13 @@
     "d-i/forky/scripts/common/target.sh"
   ],
   "btrfs_vm_profiles": [
-    "btrfs-de-dual-flex.env",
-    "btrfs-de-dual-main.env",
-    "btrfs-de-dual.env",
+    "btrfs-de-flex-duo.env",
+    "btrfs-de-p15s-duo.env",
+    "btrfs-de-duo.env",
     "btrfs-de-flex.env",
-    "btrfs-de-main.env",
+    "btrfs-de-p15s.env",
     "btrfs-de.env",
-    "btrfs-desktop.env",
-    "vm-desktop.env"
+    "btrfs-de.env"
   ],
   "btrfs_vm_profile_count": 8,
   "mkfs_tiers": [

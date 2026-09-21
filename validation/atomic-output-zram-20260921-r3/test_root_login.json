@@ -1,0 +1,13 @@
+{
+  "name": "test_root_login",
+  "source": "d-i/forky/tests/test_root_login.py",
+  "returncode": 0,
+  "seconds": 35.074,
+  "tests": 32,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_root_login.log",
+  "reused_completed_run": true
+}

@@ -1,0 +1,46 @@
+test_failed_lock_never_suspends (test_labwc_power_handoff.PowerWorkerTests.test_failed_lock_never_suspends) ... ok
+test_failed_target_stop_never_reaches_forced_power (test_labwc_power_handoff.PowerWorkerTests.test_failed_target_stop_never_reaches_forced_power) ... ok
+test_invalid_instance_never_executes_a_command (test_labwc_power_handoff.PowerWorkerTests.test_invalid_instance_never_executes_a_command) ... ok
+test_logout_uses_same_preparation_without_a_machine_power_action (test_labwc_power_handoff.PowerWorkerTests.test_logout_uses_same_preparation_without_a_machine_power_action) ... ok
+test_other_interactive_account_blocks_machine_action (test_labwc_power_handoff.PowerWorkerTests.test_other_interactive_account_blocks_machine_action) ... ok
+test_prepare_failure_never_tears_down_session (test_labwc_power_handoff.PowerWorkerTests.test_prepare_failure_never_tears_down_session) ... ok
+test_reboot_and_poweroff_wait_for_quiescence_then_clean_runtime_cgroups (test_labwc_power_handoff.PowerWorkerTests.test_reboot_and_poweroff_wait_for_quiescence_then_clean_runtime_cgroups) ... power cleanup: desktop clients and compositor stopped
+power cleanup: every user manager stopped; descendant cgroups empty; system bus retained
+power handoff: systemctl --force reboot; runtime stop verified
+power cleanup: desktop clients and compositor stopped
+power cleanup: every user manager stopped; descendant cgroups empty; system bus retained
+power handoff: systemctl --force poweroff; runtime stop verified
+ok
+test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps (test_labwc_power_handoff.PowerWorkerTests.test_suspend_locks_without_saving_stopping_clearing_or_signalling_apps) ... ok
+test_failed_restore_keeps_retryable_state (test_labwc_power_handoff.SessionStateTests.test_failed_restore_keeps_retryable_state) ... ok
+test_missing_wayland_protocol_fails_closed (test_labwc_power_handoff.SessionStateTests.test_missing_wayland_protocol_fails_closed) ... ok
+test_nested_service_without_windows_is_left_for_manager_quiescence (test_labwc_power_handoff.SessionStateTests.test_nested_service_without_windows_is_left_for_manager_quiescence) ... ok
+test_null_app_id_window_is_not_mistaken_for_empty_desktop (test_labwc_power_handoff.SessionStateTests.test_null_app_id_window_is_not_mistaken_for_empty_desktop) ... ok
+test_restart_descriptors_reject_shells_and_traversal (test_labwc_power_handoff.SessionStateTests.test_restart_descriptors_reject_shells_and_traversal) ... ok
+test_restore_handoff_uses_transient_service_and_exact_cwd (test_labwc_power_handoff.SessionStateTests.test_restore_handoff_uses_transient_service_and_exact_cwd) ... ok
+test_save_dialog_blocks_teardown_and_removes_launch_barrier (test_labwc_power_handoff.SessionStateTests.test_save_dialog_blocks_teardown_and_removes_launch_barrier) ... ok
+test_state_helper_refuses_root (test_labwc_power_handoff.SessionStateTests.test_state_helper_refuses_root) ... ok
+test_success_records_state_before_clearing_clipboard_without_premature_unit_stops (test_labwc_power_handoff.SessionStateTests.test_success_records_state_before_clearing_clipboard_without_premature_unit_stops) ... ok
+test_tray_process_is_left_for_the_verified_manager_stop_phase (test_labwc_power_handoff.SessionStateTests.test_tray_process_is_left_for_the_verified_manager_stop_phase) ... ok
+test_all_modified_launchers_have_cgroup_exit_and_session_ownership (test_labwc_power_handoff.WiringTests.test_all_modified_launchers_have_cgroup_exit_and_session_ownership) ... FAIL
+test_force_is_single_and_only_in_authorized_worker (test_labwc_power_handoff.WiringTests.test_force_is_single_and_only_in_authorized_worker) ... ok
+test_launch_barrier_blocks_existing_file_or_dangling_symlink (test_labwc_power_handoff.WiringTests.test_launch_barrier_blocks_existing_file_or_dangling_symlink) ... fatal: the desktop is closing; finish or cancel the power request before launching applications
+fatal: the desktop is closing; finish or cancel the power request before launching applications
+ok
+test_polkit_uses_exact_helpers_and_non_cached_admin_auth (test_labwc_power_handoff.WiringTests.test_polkit_uses_exact_helpers_and_non_cached_admin_auth) ... ok
+test_restore_service_is_explicitly_staged_and_started_after_session (test_labwc_power_handoff.WiringTests.test_restore_service_is_explicitly_staged_and_started_after_session) ... ok
+test_root_worker_keeps_nnp_with_inherited_command_confinement (test_labwc_power_handoff.WiringTests.test_root_worker_keeps_nnp_with_inherited_command_confinement) ... ok
+
+======================================================================
+FAIL: test_all_modified_launchers_have_cgroup_exit_and_session_ownership (test_labwc_power_handoff.WiringTests.test_all_modified_launchers_have_cgroup_exit_and_session_ownership)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/revision-work/debian-preseed-de/tools/tests/test_labwc_power_handoff.py", line 312, in test_all_modified_launchers_have_cgroup_exit_and_session_ownership
+    self.assertTrue('KillMode=control-group' in text or 'KillMode=" + ("mixed" if supervised_foot else "control-group")' in text)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 24 tests in 0.961s
+
+FAILED (failures=1)

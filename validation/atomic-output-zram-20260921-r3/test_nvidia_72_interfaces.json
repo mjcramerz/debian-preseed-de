@@ -1,0 +1,13 @@
+{
+  "name": "test_nvidia_72_interfaces",
+  "source": "d-i/forky/tests/test_nvidia_72_interfaces.py",
+  "returncode": 0,
+  "seconds": 1.935,
+  "tests": 19,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_nvidia_72_interfaces.log",
+  "reused_completed_run": true
+}

@@ -74,7 +74,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
   },
   "custom/tomat": {
-    "exec": "/usr/local/libexec/labwc-tomat watch",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",
     "exec-if": "/usr/bin/test -x /usr/bin/tomat",
     "return-type": "json",
     "format": "{}",
@@ -223,7 +223,7 @@
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
   },
   "custom/bluetooth": {
-    "exec": "labwc-bluetooth status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
     "return-type": "json",
     "interval": 10,
     "signal": 8,
@@ -232,7 +232,7 @@
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
   },
   "custom/keyboard": {
-    "exec": "labwc-keyboard-layout status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
     "return-type": "json",
     "interval": 30,
     "signal": 7,
@@ -241,7 +241,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
-    "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
     "return-type": "json",
     "interval": 5,
     "signal": 9,
@@ -276,7 +276,7 @@
     }
   },
   "custom/backlight": {
-    "exec": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
     "return-type": "json",
     "interval": 5,
     "signal": 8,
@@ -341,7 +341,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
   },
   "custom/notifications": {
-    "exec": "/usr/local/libexec/labwc-notifications status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
     "return-type": "json",
     "format": "{}",
     "escape": true,
@@ -450,7 +450,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-wayscriber-toggle"
   },
   "custom/tomat": {
-    "exec": "/usr/local/libexec/labwc-tomat watch",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-tomat watch",
     "exec-if": "/usr/bin/test -x /usr/bin/tomat",
     "return-type": "json",
     "format": "{}",
@@ -584,7 +584,7 @@
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-network-control-menu"
   },
   "custom/bluetooth": {
-    "exec": "labwc-bluetooth status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-bluetooth status",
     "return-type": "json",
     "interval": 10,
     "signal": 8,
@@ -593,7 +593,7 @@
     "on-click-right": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-bluetooth menu"
   },
   "custom/keyboard": {
-    "exec": "labwc-keyboard-layout status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec labwc-keyboard-layout status",
     "return-type": "json",
     "interval": 30,
     "signal": 7,
@@ -602,7 +602,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-keyboard-layout waybar-toggle"
   },
   "custom/screenshot": {
-    "exec": "__INSTALLER_LABWC_CAPTURE_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_CAPTURE_COMMAND__ status",
     "return-type": "json",
     "interval": 5,
     "signal": 9,
@@ -637,7 +637,7 @@
     }
   },
   "custom/backlight": {
-    "exec": "__INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec __INSTALLER_LABWC_BRIGHTNESS_CONTROL_COMMAND__ status",
     "return-type": "json",
     "interval": 5,
     "signal": 8,
@@ -702,7 +702,7 @@
     "on-click": "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- labwc-lock"
   },
   "custom/notifications": {
-    "exec": "/usr/local/libexec/labwc-notifications status",
+    "exec": "/usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-notifications status",
     "return-type": "json",
     "format": "{}",
     "escape": true,

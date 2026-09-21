@@ -71,7 +71,7 @@ class PolicyAlignmentTests(unittest.TestCase):
                 fragment = fixture.root / 'etc/default/grub.d/80-cpu-profile-flags.cfg'
                 if family == 'vm': fragment.unlink()
                 else: shutil.copyfile(TARGET / f'etc/default/grub.d/80-cpu-profile-flags.{family}.cfg', fragment)
-                profile_name = 'vm-desktop' if family == 'vm' else 'btrfs-de-flex'
+                profile_name = 'btrfs-de' if family == 'vm' else 'btrfs-de-flex'
                 data = (FORKY / f'hosts/profiles/{profile_name}.env').read_text()
                 for index, label in ((17, 'DEFAULT'), (18, 'PERFORMANCE'), (19, 'HARDENED')):
                     fixture.args[index] = re.search(r'^GRUB_PROFILE_' + label + r'_FLAGS="([^"]*)"', data, re.M)[1]

@@ -1,0 +1,13 @@
+{
+  "name": "test_management_perl_methods_20260916",
+  "source": "d-i/forky/tests/test_management_perl_methods_20260916.py",
+  "returncode": 0,
+  "seconds": 0.545,
+  "tests": 11,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_management_perl_methods_20260916.log",
+  "reused_completed_run": true
+}

@@ -242,7 +242,7 @@ class NotificationTests(unittest.TestCase):
 class IntegrationTests(unittest.TestCase):
     def test_every_profile_has_explicit_opt_in_and_linked_geometry(self):
         profiles=sorted((FORKY/'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles),13)
+        self.assertEqual(len(profiles), 10)
         for path in profiles:
             source=path.read_text()
             self.assertEqual(source.count('WLSUNSET_ENABLED="true"'),1,path)
@@ -306,7 +306,10 @@ class IntegrationTests(unittest.TestCase):
         delta=electrons[electrons.index('    "chatgpt": {'):electrons.index('    "code": {')]
         self.assertNotIn('--disable-gpu"',delta)
         self.assertNotIn('--no-sandbox',delta)
-        self.assertNotIn('WLR_DRM_NO_ATOMIC',(TARGET/'etc/default/labwc-desktop.tmpl').read_text())
+        self.assertNotIn('LABWC_WLR_DRM_', (TARGET/'etc/default/labwc-desktop.tmpl').read_text())
+        session = (TARGET/'usr/local/bin/labwc-session.tmpl').read_text()
+        self.assertNotIn('LABWC_WLR_DRM_', session)
+        self.assertIn('unset WLR_DRM_NO_ATOMIC', session)
 
 
 if __name__=='__main__':unittest.main()

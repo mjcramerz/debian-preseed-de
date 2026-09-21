@@ -19,7 +19,7 @@ def resolve_home_relative_path(home_dir: str, relative_path: str) -> str:
     path = os.path.join(home_dir, relative_path)
     validate_absolute_path("HOME-relative path", path)
     home_real = os.path.realpath(home_dir)
-    path_real = os.path.realpath(path if os.path.exists(path) else os.path.dirname(path))
+    path_real = os.path.realpath(path if os.path.lexists(path) else os.path.dirname(path))
     if os.path.commonpath((home_real, path_real)) != home_real:
         fail(f"HOME-relative path escapes HOME: {path}")
     return path
@@ -69,6 +69,15 @@ def validate_seed_file(source_path: str) -> None:
         fail(f"seed file is not readable: {source_path}")
 
 
+def _require_user_file_descriptor(descriptor: int, path: str) -> os.stat_result:
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        fail(f"managed user file must be a regular file with one link: {path}")
+    if metadata.st_uid != os.getuid():
+        fail(f"managed user file is not owned by the current user: {path}")
+    return metadata
+
+
 def ensure_managed_user_file(
     home_dir: str,
     relative_path: str,
@@ -78,19 +87,47 @@ def ensure_managed_user_file(
     path = resolve_home_relative_path(home_dir, relative_path)
     parent = os.path.dirname(path)
     ensure_user_owned_directory(parent, 0o700)
-    if not os.path.exists(path):
-        if seed_path is None:
-            with open(path, "a", encoding="utf-8"):
-                pass
-        else:
+    # Do not create through a dangling symlink and then reject it only after
+    # writing. Existing files are opened without following links; validate and
+    # chmod the same descriptor, not a subsequently replaced pathname.
+    descriptor = -1
+    created = False
+    try:
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                                 os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+            created = True
+        except FileExistsError:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        _require_user_file_descriptor(descriptor, path)
+        if created and seed_path is not None:
             validate_seed_file(seed_path)
-            shutil.copyfile(seed_path, path)
-    file_stat = os.lstat(path)
-    if stat.S_ISLNK(file_stat.st_mode) or not stat.S_ISREG(file_stat.st_mode):
-        fail(f"managed user file is not a regular file: {path}")
-    if file_stat.st_uid != os.getuid():
-        fail(f"managed user file is not owned by the current user: {path}")
-    os.chmod(path, mode)
+            source_fd = os.open(seed_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(source_fd, "rb") as source:
+                if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                    fail(f"seed file must be a regular file: {seed_path}")
+                with os.fdopen(os.dup(descriptor), "wb") as destination:
+                    shutil.copyfileobj(source, destination, length=65536)
+                    destination.flush()
+                    os.fsync(destination.fileno())
+        os.fchmod(descriptor, mode)
+    except BaseException as exc:
+        # A failed seed copy must not become a valid-looking empty file on the
+        # next launch. Never unlink an entry that replaced our new inode.
+        if created and descriptor >= 0:
+            try:
+                current = os.lstat(path)
+                opened = os.fstat(descriptor)
+                if (current.st_dev, current.st_ino) == (opened.st_dev, opened.st_ino):
+                    os.unlink(path)
+            except OSError:
+                pass
+        if isinstance(exc, OSError):
+            fail(f"cannot initialize managed user file: {path}: {exc}")
+        raise
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
 
 
 def replace_user_text_atomic(path: str, value: str, mode: int) -> None:
@@ -146,20 +183,21 @@ def reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, obj
 
 
 def load_user_json_object(path: str, maximum_bytes: int) -> dict[str, object]:
+    if isinstance(maximum_bytes, bool) or not isinstance(maximum_bytes, int) or maximum_bytes <= 0:
+        fail("managed JSON byte limit must be a positive integer")
     try:
-        file_stat = os.lstat(path)
-    except OSError as exc:
-        fail(f"managed JSON is unavailable: {path}: {exc}")
-    if stat.S_ISLNK(file_stat.st_mode) or not stat.S_ISREG(file_stat.st_mode):
-        fail(f"managed JSON must be a regular file: {path}")
-    if file_stat.st_uid != os.getuid():
-        fail(f"managed JSON is not owned by the current user: {path}")
-    if file_stat.st_size > maximum_bytes:
-        fail(f"managed JSON exceeds the size limit: {path}")
-    try:
-        with open(path, encoding="utf-8") as handle:
-            value = json.load(handle, object_pairs_hook=reject_duplicate_json_keys)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as handle:
+            metadata = _require_user_file_descriptor(handle.fileno(), path)
+            if metadata.st_size > maximum_bytes:
+                fail(f"managed JSON exceeds the size limit: {path}")
+            # fstat alone does not bound a concurrently growing file. Read at
+            # most the limit plus one byte from the validated descriptor.
+            payload = handle.read(maximum_bytes + 1)
+        if len(payload) > maximum_bytes:
+            fail(f"managed JSON exceeds the size limit: {path}")
+        value = json.loads(payload.decode("utf-8"), object_pairs_hook=reject_duplicate_json_keys)
+    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as exc:
         fail(f"managed JSON is invalid: {path}: {exc}")
     if not isinstance(value, dict):
         fail(f"managed JSON must contain an object: {path}")

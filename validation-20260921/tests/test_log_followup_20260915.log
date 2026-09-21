@@ -1,0 +1,14 @@
+test_blocked_output_cannot_prevent_stop_escalation (test_log_followup_20260915.SpotifySupervisionTests.test_blocked_output_cannot_prevent_stop_escalation) ... ok
+test_clean_child_that_closes_stdout_early_is_reaped (test_log_followup_20260915.SpotifySupervisionTests.test_clean_child_that_closes_stdout_early_is_reaped) ... ok
+test_exact_handoff_on_real_pipe (test_log_followup_20260915.SpotifySupervisionTests.test_exact_handoff_on_real_pipe) ... ok
+test_normal_large_output_is_forwarded_without_loss (test_log_followup_20260915.SpotifySupervisionTests.test_normal_large_output_is_forwarded_without_loss) ... ok
+test_output_error_kills_and_reaps_child_and_restores_handlers (test_log_followup_20260915.SpotifySupervisionTests.test_output_error_kills_and_reaps_child_and_restores_handlers) ... ok
+test_real_file_output_and_descriptor_flags_are_preserved (test_log_followup_20260915.SpotifySupervisionTests.test_real_file_output_and_descriptor_flags_are_preserved) ... ok
+test_sigint_and_hup_are_forwarded (test_log_followup_20260915.SpotifySupervisionTests.test_sigint_and_hup_are_forwarded) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_real_proxy_allows_only_the_configured_tray_name (test_log_followup_20260915.TutaLiveProxyTests.test_real_proxy_allows_only_the_configured_tray_name) ... skipped 'live filtered-bus test requires preinstalled dbus-daemon, busctl and xdg-dbus-proxy'
+
+----------------------------------------------------------------------
+Ran 9 tests in 14.036s
+
+OK (skipped=1)

@@ -1,0 +1,15 @@
+{
+  "name": "test_btrfs_locale_boundary",
+  "source": "d-i/forky/tests/test_btrfs_locale_boundary.py",
+  "returncode": 0,
+  "seconds": 3.539,
+  "tests": 19,
+  "skipped": 1,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [
+    "real btrfs-progs executables unavailable; no mock claimed as format validation"
+  ],
+  "log": "validation/atomic-output-zram-20260921-r3/test_btrfs_locale_boundary.log",
+  "reused_completed_run": true
+}

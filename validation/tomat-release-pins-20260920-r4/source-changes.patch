@@ -162,8 +162,8 @@
                                  or not 65_536 <= candidate.get("size", 0) <= 134_217_728
                                  or not re.fullmatch(r"[0-9a-f]{64}", candidate.get("sha256", ""))):
                              raise Error("Tomat release lacks the approved identity, size or SHA-256")
---- revision-3/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
-+++ revision-4/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+--- revision-3/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
++++ revision-4/d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
 @@ -314,6 +314,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -178,8 +178,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
-+++ revision-4/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+--- revision-3/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
++++ revision-4/d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env
 @@ -312,6 +312,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -194,8 +194,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/btrfs-de-dual.env
-+++ revision-4/d-i/forky/hosts/profiles/btrfs-de-dual.env
+--- revision-3/d-i/forky/hosts/profiles/btrfs-de-duo.env
++++ revision-4/d-i/forky/hosts/profiles/btrfs-de-duo.env
 @@ -311,6 +311,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -226,8 +226,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/btrfs-de-main.env
-+++ revision-4/d-i/forky/hosts/profiles/btrfs-de-main.env
+--- revision-3/d-i/forky/hosts/profiles/btrfs-de-p15s.env
++++ revision-4/d-i/forky/hosts/profiles/btrfs-de-p15s.env
 @@ -312,6 +312,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -258,8 +258,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/btrfs-desktop.env
-+++ revision-4/d-i/forky/hosts/profiles/btrfs-desktop.env
+--- revision-3/d-i/forky/hosts/profiles/btrfs-de.env
++++ revision-4/d-i/forky/hosts/profiles/btrfs-de.env
 @@ -311,6 +311,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -274,8 +274,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/f2fs-de-cbook.env
-+++ revision-4/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+--- revision-3/d-i/forky/hosts/profiles/f2fs-de-hp14.env
++++ revision-4/d-i/forky/hosts/profiles/f2fs-de-hp14.env
 @@ -301,6 +301,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -290,8 +290,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
-+++ revision-4/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+--- revision-3/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
++++ revision-4/d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env
 @@ -302,6 +302,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -306,8 +306,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/f2fs-de-dual.env
-+++ revision-4/d-i/forky/hosts/profiles/f2fs-de-dual.env
+--- revision-3/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
++++ revision-4/d-i/forky/hosts/profiles/f2fs-de-x360-duo.env
 @@ -301,6 +301,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -322,8 +322,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/f2fs-de.env
-+++ revision-4/d-i/forky/hosts/profiles/f2fs-de.env
+--- revision-3/d-i/forky/hosts/profiles/f2fs-de-x360.env
++++ revision-4/d-i/forky/hosts/profiles/f2fs-de-x360.env
 @@ -301,6 +301,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -338,8 +338,8 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/f2fs-desktop.env
-+++ revision-4/d-i/forky/hosts/profiles/f2fs-desktop.env
+--- revision-3/d-i/forky/hosts/profiles/f2fs-de-x360.env
++++ revision-4/d-i/forky/hosts/profiles/f2fs-de-x360.env
 @@ -301,6 +301,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -354,8 +354,6 @@
  LABWC_DESKTOP_DEFAULT_TARGET="graphical.target"
  LABWC_DESKTOP_SESSION_NAME="Labwc"
  LABWC_DESKTOP_SESSION_COMMENT="Labwc Wayland session"
---- revision-3/d-i/forky/hosts/profiles/vm-desktop.env
-+++ revision-4/d-i/forky/hosts/profiles/vm-desktop.env
 @@ -311,6 +311,13 @@
  SOFTWARE_QOREDB_URL="https://github.com/QoreDB/QoreDB/releases/download/v0.1.38/QoreDB_0.1.38_amd64.deb"
  SOFTWARE_QOREDB_SHA256="59d6dc6c17009b90eba22dd2585969c9869518cb843ce4e50f29f6439824c6cb"
@@ -458,7 +456,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex-duo.env",
 @@ -7846,8 +7846,8 @@
        "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
        "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
@@ -469,7 +467,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s-duo.env",
 @@ -7855,8 +7855,8 @@
        "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
        "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
@@ -480,7 +478,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-duo.env",
 @@ -7864,8 +7864,8 @@
        "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
        "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
@@ -502,7 +500,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-p15s.env",
 @@ -7882,8 +7882,8 @@
        "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
        "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
@@ -524,7 +522,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14.env",
 @@ -7901,8 +7901,8 @@
        "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
        "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
@@ -535,7 +533,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-hp14-duo.env",
 @@ -7910,8 +7910,8 @@
        "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
        "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
@@ -546,7 +544,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360-duo.env",
 @@ -7919,8 +7919,8 @@
        "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
        "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
@@ -557,7 +555,7 @@
 +      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
      },
      {
-       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-x360.env",
 @@ -7928,8 +7928,8 @@
        "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
        "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
@@ -841,7 +839,6 @@
 +chroot() { printf 'CHROOT\n'; return 9; }
 +software_install_deb() { printf 'UNREACHABLE_INSTALL\n'; }
 +''' + block
-+        result = subprocess.run(['/bin/sh', '-c', code, 'r4', str(PROFILES / 'vm-desktop.env')],
 +                                capture_output=True, text=True, timeout=10)
 +        self.assertEqual(result.returncode, 1)
 +        self.assertEqual(result.stdout.count('CHROOT\n'), 1)

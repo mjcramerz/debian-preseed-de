@@ -37,12 +37,13 @@ ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
-# PID 1 performs final broker/PAM cgroup cleanup; this controller only reads
-# cgroup.events and never scans other PIDs or sends their signals.
+# PID 1 performs user-manager cgroup cleanup. CAP_KILL is only needed to
+# reap a timed-out, credential-dropped transport in this service; AppArmor
+# limits its signals to the worker profile, not desktop applications.
 ProtectProc=default
 ProtectSystem=strict
 ProcSubset=pid
-CapabilityBoundingSet=
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL
 AmbientCapabilities=
 LockPersonality=yes
 MemoryDenyWriteExecute=yes

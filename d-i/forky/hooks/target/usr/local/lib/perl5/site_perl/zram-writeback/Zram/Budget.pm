@@ -6,7 +6,7 @@ use warnings;
 use Exporter qw(import);
 use POSIX qw(strftime);
 use Zram::AtomicFile qw(write_atomic_text);
-use Zram::Config qw(cfg);
+use Zram::Config qw(cfg cfg_default);
 use Zram::Error qw(fatal);
 use Zram::Lock qw(ensure_runtime_dir);
 use Zram::Logger qw(log_msg);
@@ -78,6 +78,10 @@ sub refresh_daily_writeback_budget {
         return 0;
     }
 
+    if (cfg_default('ZRAM_DRY_RUN', 0)) {
+        log_msg('info', "dry-run: would reset zram daily budget date=$today pages_4k=$pages");
+        return 0; # do not publish a date that would suppress the real reset
+    }
     my $sysfs = cfg('ZRAM_SYSFS');
     my $limit_written = write_attr_optional("$sysfs/writeback_limit", $pages, 'zram daily writeback_limit');
     my $enable_written = write_attr_optional("$sysfs/writeback_limit_enable", 1, 'zram writeback_limit_enable');
@@ -86,7 +90,7 @@ sub refresh_daily_writeback_budget {
     $state->{daily_budget_date} = $today;
     $state->{daily_budget_pages} = $pages;
     _write_state($state);
-    log_msg('info', "zram daily writeback budget reset to $pages pages");
+    log_msg('info', "zram daily writeback budget reset date=$today pages_4k=$pages bytes=" . ($pages * 4096));
     return 1;
 }
 

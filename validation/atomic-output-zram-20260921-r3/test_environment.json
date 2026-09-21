@@ -1,0 +1,13 @@
+{
+  "name": "test_environment",
+  "source": "d-i/forky/tests/test_environment.py",
+  "returncode": 5,
+  "seconds": 0.0,
+  "tests": 0,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_environment.log",
+  "reused_completed_run": true
+}

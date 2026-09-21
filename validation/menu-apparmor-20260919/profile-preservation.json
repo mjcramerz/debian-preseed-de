@@ -1,17 +1,17 @@
 {
   "profiles": [
     {
-      "profile": "btrfs-de-dual-flex.env",
+      "profile": "btrfs-de-flex-duo.env",
       "sha256": "f2461d6444e1d5deca9869c560ddf457d06cd3c9c355e2de530b89134ef605a9",
       "unchanged": true
     },
     {
-      "profile": "btrfs-de-dual-main.env",
+      "profile": "btrfs-de-p15s-duo.env",
       "sha256": "50616cf4126aae83b9b401c070c3e5c9858e28a00e30ce1ab1c751b4d40a1afb",
       "unchanged": true
     },
     {
-      "profile": "btrfs-de-dual.env",
+      "profile": "btrfs-de-duo.env",
       "sha256": "bf3fbb0502697fef4380dc68629e640fe6907855734489656c824efdea82fd27",
       "unchanged": true
     },
@@ -21,7 +21,7 @@
       "unchanged": true
     },
     {
-      "profile": "btrfs-de-main.env",
+      "profile": "btrfs-de-p15s.env",
       "sha256": "88aa926168227537e24e61bb0ded8feac7aef13c692305b0ab585ee4047996f6",
       "unchanged": true
     },
@@ -31,38 +31,33 @@
       "unchanged": true
     },
     {
-      "profile": "btrfs-desktop.env",
+      "profile": "btrfs-de.env",
       "sha256": "4db46a6e800c23715f2d2b8450b9838a9b4d38d525efe3ddb94f3b03b1d3f6fb",
       "unchanged": true
     },
     {
-      "profile": "f2fs-de-cbook.env",
+      "profile": "f2fs-de-hp14.env",
       "sha256": "1b114103997cf8467067d92314099d17ca796ba9965e04ea8e888568a0170e15",
       "unchanged": true
     },
     {
-      "profile": "f2fs-de-dual-cbook.env",
+      "profile": "f2fs-de-hp14-duo.env",
       "sha256": "9c96c3edcda9e781d7afb1fa5e3a0301cc4b3279f0ab858f47ed9a960866ba4a",
       "unchanged": true
     },
     {
-      "profile": "f2fs-de-dual.env",
+      "profile": "f2fs-de-x360-duo.env",
       "sha256": "a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240",
       "unchanged": true
     },
     {
-      "profile": "f2fs-de.env",
+      "profile": "f2fs-de-x360.env",
       "sha256": "fcfca374179989108d27889a01728d615a071e48274c446bdce2fe1c9627dea8",
       "unchanged": true
     },
     {
-      "profile": "f2fs-desktop.env",
+      "profile": "f2fs-de-x360.env",
       "sha256": "a775a94ac6aa6d99053179c539595e11089820ff80d4ce511f8a69ac96481240",
-      "unchanged": true
-    },
-    {
-      "profile": "vm-desktop.env",
-      "sha256": "8f8a918ff40b5f495900d3e4cdd01dc243e043fc32f859992e64f703313c27ec",
       "unchanged": true
     }
   ],

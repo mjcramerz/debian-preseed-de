@@ -1,0 +1,13 @@
+{
+  "name": "test_boot_runtime_second_pass",
+  "source": "d-i/forky/tests/test_boot_runtime_second_pass.py",
+  "returncode": 0,
+  "seconds": 0.992,
+  "tests": 6,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_boot_runtime_second_pass.log",
+  "reused_completed_run": true
+}

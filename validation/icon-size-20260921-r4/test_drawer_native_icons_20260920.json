@@ -1,0 +1,22 @@
+{
+  "name": "test_drawer_native_icons_20260920",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-v",
+    "-s",
+    "d-i/forky/tests",
+    "-p",
+    "test_drawer_native_icons_20260920.py"
+  ],
+  "returncode": 0,
+  "seconds": 8.037,
+  "log": "validation/icon-size-20260921-r4/test_drawer_native_icons_20260920.log",
+  "tests": 17,
+  "skipped": 0,
+  "skip_reasons": [],
+  "failed": 0
+}

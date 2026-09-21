@@ -1,0 +1,13 @@
+{
+  "name": "test_codex_clone_staging",
+  "source": "d-i/forky/tests/test_codex_clone_staging.py",
+  "returncode": 0,
+  "seconds": 30.957,
+  "tests": 33,
+  "skipped": 0,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [],
+  "log": "validation/atomic-output-zram-20260921-r3/test_codex_clone_staging.log",
+  "reused_completed_run": true
+}

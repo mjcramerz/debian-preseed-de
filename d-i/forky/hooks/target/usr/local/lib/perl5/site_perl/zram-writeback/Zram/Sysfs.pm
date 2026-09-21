@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Exporter qw(import);
+use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Zram::Config qw(cfg cfg_default);
 use Zram::Error qw(fatal);
 use Zram::Logger qw(log_msg);
@@ -48,7 +49,7 @@ sub read_first_line {
 sub read_uint_attr {
     my ($path) = @_;
     my $line = read_first_line($path);
-    return undef if !defined $line || $line !~ /\A([0-9]+)/;
+    return undef if !defined $line || $line !~ /\A([0-9]{1,20})\s*\z/;
     return 0 + $1;
 }
 
@@ -151,21 +152,75 @@ sub zram_fill_pct {
     return int($orig_data_size * 100 / $disksize);
 }
 
+my $TRIGGER_SEQUENCE = 0;
+
+sub _counter_field {
+    my ($path, $index) = @_;
+    my $line = read_first_line($path);
+    return undef if !defined $line;
+    # Kernel statistics use padded %8llu fields; Perl's special space split
+    # discards leading whitespace instead of shifting every counter index.
+    my @fields = split ' ', $line;
+    my $value = $fields[$index];
+    return undef if !defined $value || $value !~ /\A[0-9]{1,20}\z/;
+    return 0 + $value;
+}
+
+sub _trigger_counters {
+    my $sysfs = cfg('ZRAM_SYSFS');
+    return {
+        mem_used => _counter_field("$sysfs/mm_stat", 2),
+        bd_writes => _counter_field("$sysfs/bd_stat", 2),
+        remaining => read_uint_attr("$sysfs/writeback_limit"),
+    };
+}
+
+sub _audited_trigger {
+    my ($action, @specs) = @_;
+    _validate_attr_value("zram $action trigger", $_) for grep { defined $_ && $_ ne '' } @specs;
+    my $id = $$ . '-' . ++$TRIGGER_SEQUENCE;
+    my $before = _trigger_counters();
+    my $started = clock_gettime(CLOCK_MONOTONIC);
+    # Index lists can be long: log a bounded specification plus its full length.
+    my $spec = $specs[0] // '';
+    log_msg('info', "event=trigger-start id=$id action=$action device=" . cfg('ZRAM_SYSFS') .
+        ' spec_bytes=' . length($spec) . ' spec=' . substr($spec, 0, 256));
+    my $ok = try_values(cfg('ZRAM_SYSFS') . "/$action", "zram $action trigger", @specs);
+    my $after = _trigger_counters();
+    my $elapsed_ms = int((clock_gettime(CLOCK_MONOTONIC) - $started) * 1000);
+    my ($writes, $bytes, $memory) = ('unknown', 'unknown', 'unknown');
+    if (defined $before->{bd_writes} && defined $after->{bd_writes} &&
+            $after->{bd_writes} >= $before->{bd_writes}) {
+        $writes = $after->{bd_writes} - $before->{bd_writes};
+        $bytes = $writes * 4096; # bd_stat units are ALWAYS 4 KiB, not PAGE_SIZE
+    }
+    if (defined $before->{mem_used} && defined $after->{mem_used}) {
+        $memory = $after->{mem_used} - $before->{mem_used};
+    }
+    my $remaining = $after->{remaining} // 'unknown';
+    my $result = !$ok ? 'failed' : _dry_run() ? 'dry-run' : 'accepted';
+    # These are observed kernel deltas, not claimed NAND writes or exclusive
+    # attribution: the kernel may service concurrent swap traffic during a pass.
+    log_msg($ok ? 'info' : 'warning', "event=trigger-end id=$id action=$action result=$result " .
+        "elapsed_ms=$elapsed_ms bd_writes_delta_4k=$writes backing_written_bytes=$bytes " .
+        "mem_used_delta_bytes=$memory writeback_limit_remaining_4k=$remaining");
+    return $ok;
+}
+
 sub recompress_spec {
-    my (@specs) = @_;
-    return try_values(cfg('ZRAM_SYSFS') . '/recompress', 'zram recompress trigger', @specs);
+    return _audited_trigger('recompress', @_);
 }
 
 sub writeback_spec {
-    my (@specs) = @_;
-    return try_values(cfg('ZRAM_SYSFS') . '/writeback', 'zram writeback trigger', @specs);
+    return _audited_trigger('writeback', @_);
 }
 
 sub compact_device {
     my $sysfs = cfg('ZRAM_SYSFS');
     my $changed = 0;
     $changed += write_attr_optional("$sysfs/compact", 1, 'zram compact trigger');
-    $changed += write_attr_optional("$sysfs/mem_used_max", 0, 'zram mem_used_max reset');
+    # Preserve the lifetime peak for auditing; setup resets it on initialization.
+    log_msg('info', 'event=compact result=' . ($changed ? (_dry_run() ? 'dry-run' : 'accepted') : 'failed'));
     return $changed;
 }
 

@@ -1,0 +1,79 @@
+{
+  "checks": [
+    {
+      "shell": "dash",
+      "case": "btrfs-de-p15s-duo",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "dash",
+      "case": "btrfs-de-p15s-duo-missing-addon",
+      "expected": "rejected",
+      "passed": true
+    },
+    {
+      "shell": "dash",
+      "case": "default-nvme",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "dash",
+      "case": "default-emmc",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "dash",
+      "case": "default-vm",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "dash",
+      "case": "retired-1",
+      "expected": "rejected",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "btrfs-de-p15s-duo",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "btrfs-de-p15s-duo-missing-addon",
+      "expected": "rejected",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "default-nvme",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "default-emmc",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "default-vm",
+      "expected": "accepted",
+      "passed": true
+    },
+    {
+      "shell": "busybox",
+      "case": "retired-1",
+      "expected": "rejected",
+      "passed": true
+    }
+  ],
+  "count": 12,
+  "success": true,
+  "method": "real shell class resolver; fatal-hold boundary replaced with exit; no disk commands"
+}

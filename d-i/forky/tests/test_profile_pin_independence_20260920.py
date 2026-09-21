@@ -149,7 +149,7 @@ class IndependentPreflightTests(unittest.TestCase):
 
 class BuildAndDispatchTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('make'), 'make is needed for the real build entry point')
-    def test_real_make_build_and_check_preserve_thirteen_distinct_pin_sets(self):
+    def test_real_make_build_and_check_preserve_ten_distinct_pin_sets(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for directory in ('d-i', 'tools', 'browser-config'):
@@ -158,7 +158,7 @@ class BuildAndDispatchTests(unittest.TestCase):
             shutil.copyfile(ROOT / 'Makefile', root / 'Makefile')
             seed = root / 'd-i/forky'
             profiles = sorted((seed / 'hosts/profiles').glob('*.env'))
-            self.assertEqual(len(profiles), 13)
+            self.assertEqual(len(profiles), 10)
             for index, profile in enumerate(profiles):
                 update_profile(profile, index)
             before = {str(p.relative_to(seed)): p.read_bytes() for p in profiles}
@@ -167,7 +167,7 @@ class BuildAndDispatchTests(unittest.TestCase):
                 result = subprocess.run(['make', target, 'PYTHON=' + sys.executable],
                                         cwd=root, env=env, capture_output=True, text=True, timeout=120)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertIn('13 profiles have independently valid release pins', result.stdout)
+                self.assertIn('10 profiles have independently valid release pins', result.stdout)
             self.assertEqual(before, {str(p.relative_to(seed)): p.read_bytes() for p in profiles})
             manifest = dict(line.split('  ', 1)[::-1]
                             for line in (seed / 'payload.manifest').read_text().splitlines())

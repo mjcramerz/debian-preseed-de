@@ -37,7 +37,7 @@ class QuiescenceTests(unittest.TestCase):
         for name in sorted(self.members):
             if name == omit:
                 continue
-            props = dict(Id=name, ActiveState='inactive', Job='0', MainPID='0', ControlPID='0')
+            props = dict(Id=name, LoadState='loaded', ActiveState='inactive', Job='0', MainPID='0', ControlPID='0')
             if name == 'labwc-wayland-foot-0123456789.service' and change:
                 props.update(change)
             blocks.append('\n'.join(k + '=' + v for k, v in props.items()))
@@ -52,13 +52,13 @@ class QuiescenceTests(unittest.TestCase):
             if args[0] == 'stop':
                 self.assertTrue(self.worker.committed)
                 self.assertNotIn('--no-block', args)
-                self.assertEqual(set(args[1:]), self.members)
+                self.assertEqual(set(args[1:]), {'labwc-session.target','labwc-compositor.service'})
                 if stop_error:
                     raise stop_error
                 return ''
             if '--property=ConsistsOf' in args:
                 return ' '.join(sorted(self.members - {'labwc-session.target', 'labwc-compositor.service'}))
-            self.assertEqual(args[:3], ('show', '--property=Id,ActiveState,Job,MainPID,ControlPID', '--'))
+            self.assertEqual(args[:3], ('show', '--property=Id,LoadState,ActiveState,Job,MainPID,ControlPID', '--'))
             return self.states() if states is None else states
         return mock.patch.object(self.worker, 'userctl', side_effect=call)
 

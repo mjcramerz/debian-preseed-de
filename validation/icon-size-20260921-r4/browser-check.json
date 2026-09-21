@@ -1,0 +1,16 @@
+{
+  "name": "browser-check",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "tools/build_browser_config.py",
+    "--check"
+  ],
+  "returncode": 0,
+  "seconds": 2.186,
+  "log": "validation/icon-size-20260921-r4/browser-check.log",
+  "tests": 0,
+  "skipped": 0,
+  "skip_reasons": [],
+  "failed": 0
+}

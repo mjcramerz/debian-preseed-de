@@ -240,7 +240,7 @@ runtime_nftables_log_level_canonical() {
 validate_installed_log_levels() {
   nft_level=$(runtime_nftables_log_level_canonical "${NFTABLES_LOG_LEVEL:-none}") ||
     installer_fatal "NFTABLES_LOG_LEVEL must be debug, info, warning, error, or none"
-  zram_level=$(runtime_log_level_canonical "${ZRAM_LOG_LEVEL:-error}") ||
+  zram_level=$(runtime_log_level_canonical "${ZRAM_LOG_LEVEL:-info}") ||
     installer_fatal "ZRAM_LOG_LEVEL must be debug, info, warning, error, or none"
   systemd_level=$(runtime_log_level_canonical "${SYSTEMD_LOG_LEVEL:-error}") ||
     installer_fatal "SYSTEMD_LOG_LEVEL must be debug, info, warning, error, or none"

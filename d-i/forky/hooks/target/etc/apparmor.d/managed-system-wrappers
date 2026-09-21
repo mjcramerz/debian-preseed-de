@@ -704,47 +704,39 @@ profile managed-zram-device-setup /usr/local/libexec/zram-device-setup flags=(at
 profile managed-zram-writeback /usr/local/libexec/zram-writeback flags=(attach_disconnected) {
   #include <abstractions/managed-wrapper-perl>
 
-  # Writeback setup is a privileged storage-maintenance path. Keep it
-  # compatibility-first so kernel and sysfs layout changes cannot block the
-  # managed writeback cycle.
-  capability,
-  network,
-  unix,
-  dbus,
-  userns,
-  mount,
-  remount,
-  umount,
-  pivot_root,
-  signal,
+  # Maintenance is not device setup: no raw-block writes, module loading,
+  # mounts, network IP sockets or unrestricted execution. sys_resource permits
+  # privileged PSI trigger windows; systemd bounds the capability set too.
+  capability sys_resource,
+  # Pathname Unix sockets are mediated by file rules, not unix addr= rules.
+  network unix dgram,
+  network unix stream,
+  /run/systemd/journal/dev-log w,
+  signal (receive) peer=unconfined,
+  signal (send, receive) peer=managed-zram-writeback,
 
   /usr/local/libexec/zram-writeback rix,
   /usr/local/lib/perl5/site_perl/zram-writeback/ r,
   /usr/local/lib/perl5/site_perl/zram-writeback/** r,
-
-  / r,
-  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/ rw,
-  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rwklm,
-  /{bin,boot,data,dev,etc,home,lib,lib64,media,mnt,opt,pool,proc,root,run,sbin,srv,sys,tmp,usr,var}/** rix,
-  /dev/mapper/zram-writeback rw,
-  /dev/zram[0-9]* rw,
   /etc/default/zram-writeback r,
   /etc/zram-writeback.conf r,
-  /proc/meminfo r,
+  /proc/{meminfo,stat,swaps,uptime} r,
   /proc/pressure/ r,
-  /proc/pressure/{cpu,io,memory} rw,
-  /proc/stat r,
-  /proc/swaps r,
-  /proc/uptime r,
+  /proc/pressure/{cpu,io} r,
+  /proc/pressure/memory rw,
   /run/zram/ rw,
   /run/zram/** rwkl,
   /sys/block/ r,
-  /sys/block/** rw,
+  /sys/block/** r,
   /sys/class/block/ r,
   /sys/class/block/** r,
+  /sys/devices/ r,
+  /sys/devices/** r,
+  /sys/{block,devices/virtual/block}/zram[0-9]*/{idle,recompress,writeback,compact,writeback_limit,writeback_limit_enable,writeback_batch_size} w,
   /sys/kernel/debug/ r,
   /sys/kernel/debug/zram/ r,
-  /sys/kernel/debug/zram/** rw,
+  /sys/kernel/debug/zram/zram[0-9]*/ r,
+  /sys/kernel/debug/zram/zram[0-9]*/block_state r,
 
   include if exists <local/usr.local.libexec.zram-writeback>
 }

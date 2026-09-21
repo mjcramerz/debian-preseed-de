@@ -105,7 +105,7 @@ class IOCostTests(unittest.TestCase):
     def test_all_profiles_complete_and_exact_enable_matrix(self):
         enabled = []
         profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
+        self.assertEqual(len(profiles), 10)
         for path in profiles:
             values = profile(path.stem)
             self.assertEqual(len(values), 35)
@@ -113,8 +113,10 @@ class IOCostTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(len(result.stdout.splitlines()), 35)
             if values['IOCOST_CALIBRATE_ENABLE'] == 'true': enabled.append(path.name)
-        self.assertEqual(enabled, ['btrfs-de-dual-flex.env', 'btrfs-de-flex.env'])
-        self.assertEqual(len(profiles) - len(enabled), 11)
+        # The supplied dual-disk profile already opts out of calibration.
+        # Preserve that policy; only the single-disk profile is enabled.
+        self.assertEqual(enabled, ['btrfs-de-flex.env'])
+        self.assertEqual(len(profiles) - len(enabled), 9)
 
     def test_complete_policy_survives_trusted_composite_profile_loading(self):
         from test_repository_integrity import records
@@ -136,12 +138,15 @@ class IOCostTests(unittest.TestCase):
         self.assertEqual(result.stdout, expected.stdout)
         self.assertEqual(len(result.stdout.splitlines()), 35)
 
-    def test_both_enabled_profiles_native_staging_and_query(self):
+    def test_enabled_then_disabled_profile_staging_and_cleanup(self):
         self.native()
-        for name in ('btrfs-de-flex', 'btrfs-de-dual-flex'):
+        for name in ('btrfs-de-flex', 'btrfs-de-flex-duo'):
             with self.subTest(profile=name):
-                result = self.run_policy(profile(name), before=ROOT_TOOL if name.endswith('dual-flex') else '')
+                result = self.run_policy(profile(name), before=ROOT_TOOL if name.endswith('-duo') else '')
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                if profile(name)["IOCOST_CALIBRATE_ENABLE"] == "false":
+                    self.assert_absent()
+                    continue
                 for relative in ASSETS:
                     path = self.target / relative
                     self.assertTrue(path.is_file())
@@ -216,8 +221,8 @@ stage_target_iocost
         self.assertEqual((outer / 'target' / SAVED).read_bytes(),
                          SAVED_MARKER + STOCK_NATIVE.read_bytes())
 
-    def test_disabled_btrfs_f2fs_vm_create_no_files_or_database(self):
-        for name in ('btrfs-de', 'f2fs-de', 'vm-desktop'):
+    def test_disabled_btrfs_f2fs_create_no_files_or_database(self):
+        for name in ('btrfs-de', 'f2fs-de-x360'):
             result = self.run_policy(profile(name))
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assert_absent()
@@ -291,7 +296,7 @@ fetch_hook() {
         result = self.run_policy(); self.assertEqual(result.returncode, 0, result.stderr)
         admin = self.target / 'etc/udev/hwdb.d/99-admin.hwdb'
         admin.write_text('fixture:admin\n ADMIN_PRESERVED=yes\n')
-        result = self.run_policy(profile('f2fs-de'), before=ROOT_TOOL)
+        result = self.run_policy(profile('f2fs-de-x360'), before=ROOT_TOOL)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_absent(); self.assertTrue(admin.is_file())
         query = subprocess.run(['chroot', str(self.target), '/usr/bin/systemd-hwdb', 'query', 'fixture:vendor'], capture_output=True, text=True)
@@ -303,7 +308,7 @@ fetch_hook() {
     def test_administrator_file_preserved_disabled_and_enabled_fails(self):
         path = self.target / ASSETS[1]; path.parent.mkdir(parents=True)
         path.write_text('[IOCost]\n# administrator\n')
-        result = self.run_policy(profile('vm-desktop')); self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_policy(profile('btrfs-de')); self.assertEqual(result.returncode, 0, result.stderr)
         result = self.run_policy(); self.assertNotEqual(result.returncode, 0)
         self.assertEqual(path.read_text(), '[IOCost]\n# administrator\n')
         self.assertFalse((self.target / ASSETS[0]).exists())
@@ -364,7 +369,7 @@ iocost_native_hwdb() {
             result = self.run_policy(before=ROOT_TOOL if run else '')
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((self.target / SAVED).exists())
-        result = self.run_policy(profile('vm-desktop'), before=ROOT_TOOL)
+        result = self.run_policy(profile('btrfs-de'), before=ROOT_TOOL)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_absent()
 
@@ -381,14 +386,14 @@ iocost_native_hwdb() {
                 result = self.run_policy(before=ROOT_TOOL)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((self.target / SAVED).read_bytes(), SAVED_MARKER + original)
-                result = self.run_policy(profile('f2fs-de'), before=ROOT_TOOL)
+                result = self.run_policy(profile('f2fs-de-x360'), before=ROOT_TOOL)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_absent()
 
     def test_disabled_stock_native_file_is_untouched_without_hwdb_tools(self):
         self.native()
         before = 'target_exec() { printf "unexpected native tool call\\n" >&2; return 91; }\n'
-        result = self.run_policy(profile('vm-desktop'), before=before)
+        result = self.run_policy(profile('btrfs-de'), before=before)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_absent()
         self.assertFalse((self.target / 'etc/udev/hwdb.bin').exists())
@@ -495,7 +500,7 @@ iocost_native_hwdb() {
   chroot "$iocost_root" /usr/bin/systemd-hwdb "$@"
 }
 '''
-        result = self.run_policy(profile('f2fs-de'), before=before)
+        result = self.run_policy(profile('f2fs-de-x360'), before=before)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(originals, {rel: (self.target / rel).read_bytes() for rel in originals})
         self.assertFalse((self.target / COMPAT).is_symlink())
@@ -511,7 +516,7 @@ iocost_native_hwdb() {
                 native.unlink()
                 if state == 'already-restored':
                     native.write_bytes(self.original_native); native.chmod(0o644)
-                result = self.run_policy(profile('f2fs-de'), before=ROOT_TOOL)
+                result = self.run_policy(profile('f2fs-de-x360'), before=ROOT_TOOL)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_absent()
 
@@ -525,7 +530,7 @@ iocost_native_hwdb() {
         native.write_bytes(administrator); native.chmod(0o644)
         saved = (self.target / SAVED).read_bytes()
         for run in range(2):
-            result = self.run_policy(profile('vm-desktop'), before=ROOT_TOOL)
+            result = self.run_policy(profile('btrfs-de'), before=ROOT_TOOL)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(native.read_bytes(), administrator)
             self.assertEqual((self.target / SAVED).read_bytes(), saved)
@@ -563,7 +568,7 @@ iocost_native_hwdb() {
             self.assertTrue(path.is_file())
             self.assertFalse(path.is_symlink())
             self.assertEqual(path.read_text().count('TargetSolution=isolated-bandwidth'), 1)
-        result = self.run_policy(profile('vm-desktop'), before=ROOT_TOOL)
+        result = self.run_policy(profile('btrfs-de'), before=ROOT_TOOL)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_absent()
 
@@ -588,7 +593,7 @@ iocost_native_hwdb() {
         old = self.target / 'etc/systemd/iocost.conf'
         old.parent.mkdir(parents=True)
         old.write_text('[IOCost]\nTargetSolution=naive\n')
-        for values in (profile(), profile('vm-desktop')):
+        for values in (profile(), profile('btrfs-de')):
             result = self.run_policy(values, before=ROOT_TOOL)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(old.read_text(), '[IOCost]\nTargetSolution=naive\n')

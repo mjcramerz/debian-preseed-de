@@ -1,6 +1,6 @@
-"""Exercise real GTK icon-theme painting with synthetic, not bundled app artwork.
+"""Exercise real GTK CSS URL painting with synthetic package-layout artwork.
 
-Arguments: rendered CSS, scale. XDG_DATA_HOME contains the fixture hicolor theme.
+Arguments: rendered CSS with fixture icon paths, scale.
 Never contacts Waybar, a session manager, or any power endpoint.
 """
 import ctypes as C
@@ -24,23 +24,10 @@ class Error(C.Structure):
     _fields_=[('domain',C.c_uint),('code',C.c_int),('message',C.c_char_p)]
 
 
-# This matches the installer's display-independent native icon decoding check.
-new_theme=bind(G,'gtk_icon_theme_new',P)
-custom_theme=bind(G,'gtk_icon_theme_set_custom_theme',None,P,C.c_char_p)
-has_icon=bind(G,'gtk_icon_theme_has_icon',C.c_int,P,C.c_char_p)
-load_icon=bind(G,'gtk_icon_theme_load_icon',P,P,C.c_char_p,C.c_int,C.c_int,C.POINTER(C.POINTER(Error)))
 unref=bind(O,'g_object_unref',None,P)
 icons={'app-terminal':('foot',(23,217,71)), 'app-files':('org.xfce.thunar',(35,145,247)),
        'app-tuta':('tuta-mail',(179,27,198)), 'app-notes':('featherpad',(47,226,211)),
        'app-sleek':('sleek',(230,72,174))}
-theme=new_theme();custom_theme(theme,b'hicolor')
-for icon,_ in icons.values():
-    assert has_icon(theme,icon.encode()),icon
-    error=C.POINTER(Error)()
-    image=load_icon(theme,icon.encode(),32,16,C.byref(error))  # FORCE_SIZE
-    assert image and not error,(icon,error.contents.message if error else None)
-    unref(image)
-unref(theme)
 assert bind(G,'gtk_init_check',C.c_int,P,P)(None,None)
 screen=bind(D,'gdk_screen_get_default',P)()
 provider=bind(G,'gtk_css_provider_new',P)()
@@ -89,7 +76,21 @@ for layout in ('external','internal'):
             pixel=int.from_bytes(raw[offset:offset+4],sys.byteorder)
             actual=((pixel>>16)&255,(pixel>>8)&255,pixel&255)
             assert actual==expected,(layout,hover,icon,actual,expected)
-            records.append({'layout':layout,'hover':hover,'icon':icon,'rgb':actual,'scale':scale})
+            # Even a 512px application source must occupy exactly 18 logical
+            # pixels, not the theme image's intrinsic dimensions. At HiDPI, Cairo
+            # antialiases one device pixel at each edge; count the solid interior.
+            marked=[]
+            for y in range(40*scale):
+                for x in range(80*scale):
+                    off=y*stride(surface)+x*4
+                    value=int.from_bytes(raw[off:off+4],sys.byteorder)
+                    rgb=((value>>16)&255,(value>>8)&255,value&255)
+                    if rgb==expected: marked.append((x,y))
+            assert marked
+            width=max(x for x,y in marked)-min(x for x,y in marked)+1
+            height=max(y for x,y in marked)-min(y for x,y in marked)+1
+            assert 18*scale-2 <= width <= 18*scale and 18*scale-2 <= height <= 18*scale,(icon,width,height,scale)
+            records.append({'layout':layout,'hover':hover,'icon':icon,'rgb':actual,'scale':scale,'bounds':[width,height]})
             cairo_destroy(cr);surface_destroy(surface)
         destroy(window)
         while pending():iterate()

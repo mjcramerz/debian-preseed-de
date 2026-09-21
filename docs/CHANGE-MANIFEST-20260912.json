@@ -297,7 +297,7 @@
       "after": null
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-flex.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env",
       "change": "modified",
       "before": {
         "sha256": "56a5be7073cbcb674f034b34a9da6c255ef26d95d3d6eed966138e8e223c32f0",
@@ -311,7 +311,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual-main.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env",
       "change": "modified",
       "before": {
         "sha256": "b1e6f2c40feff6efcb45e39be1db063b1e4d06616c3a686b1ec26ac9541c3c8a",
@@ -325,7 +325,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-dual.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-duo.env",
       "change": "modified",
       "before": {
         "sha256": "bc77bf499055d546947ee4416b47c5690ef23a1d2edc268a01049d012fdaaafd",
@@ -353,7 +353,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-de-main.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de-p15s.env",
       "change": "modified",
       "before": {
         "sha256": "5ad159bf65743521b78ed9d71d4cf8da26afedc11bed5fec401480000429d201",
@@ -381,7 +381,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/btrfs-desktop.env",
+      "path": "d-i/forky/hosts/profiles/btrfs-de.env",
       "change": "modified",
       "before": {
         "sha256": "9fe7e557d4567336306705da75b71d68e635372f3a7fae930a03a5c835dcb2c2",
@@ -395,7 +395,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-cbook.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14.env",
       "change": "modified",
       "before": {
         "sha256": "884736e72e4a738fefe163c739d7d919f45fefacc5c2084992220c2e96921dc9",
@@ -409,7 +409,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env",
       "change": "modified",
       "before": {
         "sha256": "7460013920edd9c97ee8ac8a9790f565d261dc7d67b26f60fc013cfbf9fba714",
@@ -423,7 +423,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de-dual.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env",
       "change": "modified",
       "before": {
         "sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
@@ -437,7 +437,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-de.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
       "change": "modified",
       "before": {
         "sha256": "df397f1964e7ad605c671232dea473fe944be4cdabe067439c63eb24c61eaadd",
@@ -451,7 +451,7 @@
       }
     },
     {
-      "path": "d-i/forky/hosts/profiles/f2fs-desktop.env",
+      "path": "d-i/forky/hosts/profiles/f2fs-de-x360.env",
       "change": "modified",
       "before": {
         "sha256": "8ae40dbb14208c983550ac26a5d3007e47a376160e6baa1d76b1cb2419e1bb20",
@@ -462,20 +462,6 @@
         "sha256": "057d54794ae5edecc9f5beacc6a26c1c6cf1e6bdb541ae41d5eaa860455f2368",
         "mode": "0o640",
         "bytes": 43814
-      }
-    },
-    {
-      "path": "d-i/forky/hosts/profiles/vm-desktop.env",
-      "change": "modified",
-      "before": {
-        "sha256": "8a55c86220da55f9fef2102e8129f163907916ffdce93a072de1452d230f18dc",
-        "mode": "0o640",
-        "bytes": 43866
-      },
-      "after": {
-        "sha256": "e86e3d01d27930a0e7392fccfb03778e57f7a9fd1ab60f17a5c8d03a02619ac4",
-        "mode": "0o640",
-        "bytes": 44014
       }
     },
     {

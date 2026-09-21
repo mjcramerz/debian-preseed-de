@@ -33,9 +33,9 @@ class IntelPolicyTests(unittest.TestCase):
         self.assertEqual(settings['CPU_MAX_PERF_PCT'], ('100', '100', '100', '55'))
         self.assertEqual(settings['CPU_NO_TURBO'], ('0', '0', '0', '1'))
 
-    def test_all_thirteen_profiles_explicit_balanced_boost(self):
+    def test_all_ten_profiles_explicit_balanced_boost(self):
         paths = list((fixture.FORKY / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(paths), 13)
+        self.assertEqual(len(paths), 10)
         key = 'HARDWARE_INTEL_CPU_TUNING_BALANCED_CPU_HWP_DYNAMIC_BOOST'
         for path in paths:
             self.assertEqual(path.read_text().count(key + '="1"'), 1)

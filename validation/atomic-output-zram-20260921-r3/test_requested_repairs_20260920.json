@@ -1,0 +1,23 @@
+{
+  "name": "test_requested_repairs_20260920",
+  "source": "d-i/forky/tests/test_requested_repairs_20260920.py",
+  "returncode": 0,
+  "seconds": 4.801,
+  "tests": 24,
+  "skipped": 10,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+  ],
+  "log": "validation/atomic-output-zram-20260921-r3/test_requested_repairs_20260920.log"
+}

@@ -14,9 +14,9 @@ This is implementation and offline validation evidence, not a claim of successfu
 
 | Profiles | `SYSTEM_HARDWARE_SPEC` |
 | --- | --- |
-| `btrfs-de-main`, `btrfs-de-dual-main` | `79-thinkpad-acpi.conf` |
-| `btrfs-de-flex`, `btrfs-de-dual-flex` | `79-ideapad-acpi.conf` |
-| `f2fs-de-cbook`, `f2fs-de-dual-cbook`, `f2fs-de`, `f2fs-de-dual`, `f2fs-desktop` | `79-chromebook.conf` |
+| `btrfs-de-p15s`, `btrfs-de-p15s-duo` | `79-thinkpad-acpi.conf` |
+| `btrfs-de-flex`, `btrfs-de-flex-duo` | `79-ideapad-acpi.conf` |
+| `f2fs-de-hp14`, `f2fs-de-hp14-duo`, `f2fs-de-x360`, `f2fs-de-x360-duo`, `override-f2fs-de-x360` | `79-chromebook.conf` |
 
 The default is empty. CPU vendor no longer selects a ThinkPad chassis policy. `stage_target_hardware_spec` is called by both filesystem-family installers and accepts only these three exact filenames or an empty value. It validates the target parent, stages the requested file atomically before removing stale alternatives, and removes only the other known managed filenames. It does not delete unrelated administrator-created `79-*.conf` files. An unsupported filename is rejected before target mutation. Generic profiles without a selection install none of these three files.
 
@@ -113,7 +113,7 @@ The final validator returns failure, correctly, because it retains the three bas
 
 The generated payload contains 1,404 files. Scope comparison retains every original regular file except the explicitly removed hwdb asset; the protected private-Xwayland/Zoom/Discord/Crystal Dock paths remain byte- and mode-identical. The separate delivery checksum and archive-verification record validate the complete tarball, not only its runtime payload.
 
-The untouched original ZIP was extracted separately and exercised for baseline comparison. Its `btrfs-de-dual-flex.env` already sets `IOCOST_CALIBRATE_ENABLE="false"`, whereas three existing assertions expect enabled calibration. Those three failures reproduce on the original code. The profile value and those unrelated assertions are deliberately unchanged; corresponding baseline logs are included. The final full-suite result is not represented as all-green.
+The untouched original ZIP was extracted separately and exercised for baseline comparison. Its `btrfs-de-flex-duo.env` already sets `IOCOST_CALIBRATE_ENABLE="false"`, whereas three existing assertions expect enabled calibration. Those three failures reproduce on the original code. The profile value and those unrelated assertions are deliberately unchanged; corresponding baseline logs are included. The final full-suite result is not represented as all-green.
 
 Container constraints: no booted Forky/systemd 261.2 user session, physical ThinkPad/IdeaPad/Chromebook, Wayland compositor, live Mako/PipeWire/media path or enforced AppArmor kernel acceptance was available. Perl Moo validation dependencies were absent and are reported as skips; they remain declared by the target package selection. Outbound networking from the execution container was unavailable, so the actual Tomat release `.deb` was not downloaded/executed here. Web review used upstream v2.13.0, the latest release returned during this task. HTTP metadata/download tests use deterministic fixtures; archive tests use clearly labeled synthetic Debian packages, not a substitute Tomat binary.
 

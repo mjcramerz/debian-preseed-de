@@ -86,62 +86,92 @@ stable_raw_partition_path() {
   printf '/dev/disk/by-partuuid/%s\n' "$raw_partuuid"
 }
 
-swap_fallback_partition_alignment_tolerance_bytes() {
-  printf '%s\n' 2097152
+raw_storage_partition_alignment_tolerance_bytes() {
+  # Fixed-size partitions can lose at most their two aligned boundaries.
+  # partman-auto creates its final partition with position=full: it gets the
+  # remaining extent, including rounding accumulated by the preceding recipe.
+  # Only that verified tail gets a per-partition budget, never a disk percentage.
+  if [ -z "${1:-}" ] || [ "${1:-}" != "${DEV_PART_RAW_ZRAM:-}" ]; then
+    printf '%s\n' 2097152
+    return 0
+  fi
+  for ratb_slot in "${RUNTIME_DEBIAN_START_SLOT:-}" "${RUNTIME_DEBIAN_END_SLOT:-}" "${RUNTIME_RAW_ZRAM_SLOT:-}"; do
+    case "$ratb_slot" in ''|*[!0-9]*|0*) return 1 ;; esac
+    [ "${#ratb_slot}" -le 3 ] && [ "$ratb_slot" -le 128 ] || return 1
+  done
+  [ "$RUNTIME_DEBIAN_END_SLOT" = "$RUNTIME_RAW_ZRAM_SLOT" ] || return 1
+  [ "$RUNTIME_DEBIAN_START_SLOT" -le "$RUNTIME_DEBIAN_END_SLOT" ] || return 1
+  ratb_count=$((RUNTIME_DEBIAN_END_SLOT - RUNTIME_DEBIAN_START_SLOT + 1))
+  case "${DUALBOOT_ENABLED:-}" in
+    false) ratb_count=$((ratb_count + 1)) ;; # newly created ESP
+    true) ;; # reused ESP and preserved slots do not accumulate new rounding
+    *) return 1 ;;
+  esac
+  [ "$ratb_count" -le 32 ] || return 1
+  # One MiB per newly created partition plus two boundary/decimal-rounding MiB.
+  # This is bounded to 34 MiB even for the largest supported recipe, and is
+  # independent of disk capacity. Actual mapper capacity still limits zram.
+  printf '%s\n' "$(((ratb_count + 2) * 1048576))"
 }
 
-swap_fallback_partition_size_is_acceptable() {
+raw_storage_partition_size_is_acceptable() {
   sfps_configured_size_mb=$1
   sfps_actual_size_bytes=$2
-  sfps_alignment_tolerance_bytes=$(swap_fallback_partition_alignment_tolerance_bytes)
+  sfps_alignment_tolerance_bytes=$(raw_storage_partition_alignment_tolerance_bytes "${3:-}") || return 1
 
   case "$sfps_configured_size_mb" in
-    ''|*[!0-9]*|0) return 1 ;;
+    ''|*[!0-9]*|0*) return 1 ;;
   esac
   case "$sfps_actual_size_bytes" in
     ''|*[!0-9]*) return 1 ;;
   esac
 
+  [ "$sfps_configured_size_mb" -le 2147483647 ] || return 1
+  [ "${#sfps_actual_size_bytes}" -le 18 ] || return 1
   sfps_expected_size_bytes=$((sfps_configured_size_mb * 1000000))
-  [ "$sfps_actual_size_bytes" -ge "$sfps_expected_size_bytes" ] && return 0
+  # Reject both undersized and oversized devices beyond the bounded recipe
+  # alignment budget; the tail must not silently consume arbitrary free space.
+  [ "$sfps_actual_size_bytes" -le "$((sfps_expected_size_bytes + sfps_alignment_tolerance_bytes))" ] || return 1
 
   sfps_shortfall_bytes=$((sfps_expected_size_bytes - sfps_actual_size_bytes))
   [ "$sfps_shortfall_bytes" -le "$sfps_alignment_tolerance_bytes" ]
 }
 
-validate_swap_fallback_partition() {
-  raw_device=${SWAP_FALLBACK_RAW_DEVICE:-}
-  configured_size_mb=${DEV_PART_RAW_SWAP_MB:-}
+validate_raw_storage_partition() {
+  raw_device=$1
+  configured_size_mb=$2
 
   case "$raw_device" in
     /dev/*) ;;
-    *) installer_fatal "swap fallback raw device must be an absolute /dev path: ${raw_device:-unset}" ;;
+    *) installer_fatal "raw storage device must be an absolute /dev path: ${raw_device:-unset}" ;;
   esac
   case "$configured_size_mb" in
-    ''|*[!0-9]*|0) installer_fatal "configured swap fallback partition size must be a positive integer: ${configured_size_mb:-unset}" ;;
+    ''|*[!0-9]*|0*) installer_fatal "configured raw storage size must be a canonical positive MB integer: ${configured_size_mb:-unset}" ;;
   esac
-  [ -b "$raw_device" ] || installer_fatal "swap fallback partition was not created: ${raw_device}"
-  command -v blockdev >/dev/null 2>&1 || installer_fatal "blockdev is required to verify swap fallback partition size"
+  [ "$configured_size_mb" -le 2147483647 ] || installer_fatal "raw storage size is too large"
+  [ -b "$raw_device" ] || installer_fatal "raw storage partition was not created: ${raw_device}"
+  command -v blockdev >/dev/null 2>&1 || installer_fatal "blockdev is required to verify raw storage partition size"
   actual_size_bytes=$(blockdev --getsize64 "$raw_device" 2>/dev/null) ||
-    installer_fatal "unable to read swap fallback partition size: ${raw_device}"
+    installer_fatal "unable to read raw storage partition size: ${raw_device}"
   case "$actual_size_bytes" in
-    ''|*[!0-9]*) installer_fatal "invalid swap fallback partition size for ${raw_device}: ${actual_size_bytes:-unset}" ;;
+    ''|*[!0-9]*) installer_fatal "invalid raw storage partition size for ${raw_device}: ${actual_size_bytes:-unset}" ;;
   esac
-  alignment_tolerance_bytes=$(swap_fallback_partition_alignment_tolerance_bytes)
+  [ "${#actual_size_bytes}" -le 18 ] || installer_fatal "raw storage byte count is too large"
+  alignment_tolerance_bytes=$(raw_storage_partition_alignment_tolerance_bytes "$raw_device") ||
+    installer_fatal "invalid runtime partition context for raw storage alignment: ${raw_device}"
   expected_size_bytes=$((configured_size_mb * 1000000))
   actual_size_mb=$((actual_size_bytes / 1000000))
-  if ! swap_fallback_partition_size_is_acceptable "$configured_size_mb" "$actual_size_bytes"; then
-    shortfall_bytes=$((expected_size_bytes - actual_size_bytes))
-    installer_fatal "swap fallback partition ${raw_device} is ${actual_size_mb} MB (${actual_size_bytes} bytes), configured size is ${configured_size_mb} MB (${expected_size_bytes} bytes), short by ${shortfall_bytes} bytes and exceeds the ${alignment_tolerance_bytes}-byte partman alignment tolerance"
+  if ! raw_storage_partition_size_is_acceptable "$configured_size_mb" "$actual_size_bytes" "$raw_device"; then
+    installer_fatal "raw storage partition ${raw_device} is ${actual_size_mb} MB (${actual_size_bytes} bytes), expected ${configured_size_mb} MB (${expected_size_bytes} bytes) within the ${alignment_tolerance_bytes}-byte partman alignment tolerance"
   fi
   if [ "$actual_size_bytes" -lt "$expected_size_bytes" ]; then
     shortfall_bytes=$((expected_size_bytes - actual_size_bytes))
-    installer_warn "swap fallback partition ${raw_device} is ${shortfall_bytes} bytes below the nominal recipe size; accepting within the ${alignment_tolerance_bytes}-byte partman alignment tolerance"
+    installer_warn "raw storage partition ${raw_device} is ${shortfall_bytes} bytes below the nominal recipe size; accepting within the ${alignment_tolerance_bytes}-byte partman alignment tolerance"
   fi
 }
 
 write_target_swap_fallback_config() {
-  validate_swap_fallback_partition
+  validate_raw_storage_partition "$SWAP_FALLBACK_RAW_DEVICE" "$DEV_PART_RAW_SWAP_MB"
   SWAP_FALLBACK_RAW_PARTUUID=$(raw_partition_partuuid "$SWAP_FALLBACK_RAW_DEVICE")
   SWAP_FALLBACK_RAW_DEVICE=$(stable_raw_partition_path "$SWAP_FALLBACK_RAW_DEVICE")
   {
@@ -180,6 +210,7 @@ Zram/Daemon/Controller.pm
 Zram/Debugfs.pm
 Zram/Device.pm
 Zram/Error.pm
+Zram/IOPressure.pm
 Zram/Lock.pm
 Zram/Logger.pm
 Zram/Metrics.pm
@@ -218,6 +249,7 @@ stage_target_zram_perl_modules() {
 }
 
 stage_target_zram_assets() {
+  validate_raw_storage_partition "$ZRAM_BACKING_RAW_DEVICE" "$DEV_PART_RAW_ZRAM_MB"
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/90-zram.conf)" "${FILE_MODPROBE_ZRAM}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/40-zram.conf)" "${FILE_MODULES_LOAD_ZRAM}" 0644
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/zram-writeback.tmpl)" "${FILE_ZRAM_DEFAULT}" 0644

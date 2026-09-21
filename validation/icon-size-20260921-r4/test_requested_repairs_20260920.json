@@ -1,0 +1,33 @@
+{
+  "name": "test_requested_repairs_20260920",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-v",
+    "-s",
+    "d-i/forky/tests",
+    "-p",
+    "test_requested_repairs_20260920.py"
+  ],
+  "returncode": 0,
+  "seconds": 13.35,
+  "log": "validation/icon-size-20260921-r4/test_requested_repairs_20260920.log",
+  "tests": 24,
+  "skipped": 10,
+  "skip_reasons": [
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests",
+    "Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests"
+  ],
+  "failed": 0
+}

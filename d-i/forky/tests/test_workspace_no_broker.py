@@ -110,7 +110,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                 bars = json.loads((config / 'waybar/config').read_text())
                 self.assertEqual(len(bars), 2)
                 for bar in bars:
-                    expected = ['custom/launcher', 'ext/workspaces', 'custom/window-switcher', 'custom/wayscriber', 'custom/tomat', 'group/apps']
+                    expected = ['custom/launcher', 'ext/workspaces', 'custom/tomat', 'custom/wayscriber', 'custom/window-switcher', 'group/apps']
                     if count == 1:
                         expected += ['wlr/taskbar']
                     self.assertEqual(bar['modules-left'], expected)
@@ -232,7 +232,7 @@ class InstalledVerifierTests(unittest.TestCase):
         bars = json.loads(path.read_text())
         bars[0]['modules-left'].remove('custom/window-switcher')
         path.write_text(json.dumps(bars))
-        self.assertIn('native switcher button missing', self.verify().stderr)
+        self.assertIn('native switcher button order changed', self.verify().stderr)
 
     def test_rejects_classic_list_style(self):
         path = self.root / 'home/test/.config/labwc/rc.xml'

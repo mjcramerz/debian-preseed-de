@@ -1,0 +1,22 @@
+{
+  "name": "test_notifications_followup_20260920",
+  "command": [
+    "/opt/pyvenv/bin/python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-v",
+    "-s",
+    "d-i/forky/tests",
+    "-p",
+    "test_notifications_followup_20260920.py"
+  ],
+  "returncode": 0,
+  "seconds": 5.271,
+  "log": "validation/icon-size-20260921-r4/test_notifications_followup_20260920.log",
+  "tests": 5,
+  "skipped": 0,
+  "skip_reasons": [],
+  "failed": 0
+}

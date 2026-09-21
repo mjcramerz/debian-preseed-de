@@ -1,0 +1,15 @@
+{
+  "name": "test_tomat_release_pins_20260920",
+  "source": "d-i/forky/tests/test_tomat_release_pins_20260920.py",
+  "returncode": 0,
+  "seconds": 3.294,
+  "tests": 25,
+  "skipped": 1,
+  "failed": 0,
+  "timed_out": false,
+  "skip_reasons": [
+    "Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl"
+  ],
+  "log": "validation/atomic-output-zram-20260921-r3/test_tomat_release_pins_20260920.log",
+  "reused_completed_run": true
+}

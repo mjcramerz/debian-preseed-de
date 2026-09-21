@@ -36,7 +36,7 @@ installer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(installer)
 
 
-def environment(name="btrfs-de-main"):
+def environment(name="btrfs-de-p15s"):
     text = (FORKY / f"hosts/profiles/{name}.env").read_text()
     return installer.parse_environment("\n".join(line for line in text.splitlines() if line.startswith("HARDWARE_")))
 
@@ -88,17 +88,17 @@ class FakeBackend:
 
 
 class PolicyTests(unittest.TestCase):
-    def test_all_thirteen_profiles_have_complete_matching_schemas(self):
+    def test_all_ten_profiles_have_complete_matching_schemas(self):
         profiles = list((FORKY / "hosts/profiles").glob("*.env"))
-        self.assertEqual(len(profiles), 13)
-        enabled = {"btrfs-de-main", "btrfs-de-dual-main", "btrfs-de-flex", "btrfs-de-dual-flex"}
+        self.assertEqual(len(profiles), 10)
+        enabled = {"btrfs-de-p15s", "btrfs-de-p15s-duo", "btrfs-de-flex", "btrfs-de-flex-duo"}
         reference_keys = set(environment())
         for path in profiles:
             with self.subTest(path=path.name):
                 env = environment(path.stem)
                 self.assertEqual(set(env), reference_keys)
                 for vendor, module in (("intel", intel), ("nvidia", nvidia)):
-                    self.assertEqual(env[installer.PREFIXES[vendor] + "ENABLE"], str(path.stem in (enabled if vendor == "intel" else {"btrfs-de-main", "btrfs-de-dual-main"})).lower())
+                    self.assertEqual(env[installer.PREFIXES[vendor] + "ENABLE"], str(path.stem in (enabled if vendor == "intel" else {"btrfs-de-p15s", "btrfs-de-p15s-duo"})).lower())
                     value = installer.policy(env, vendor, module.SETTINGS)
                     self.assertFalse(value["allow_overclock"])
                     self.assertFalse(value["allow_power_increase"])

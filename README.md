@@ -1,5 +1,33 @@
 # debian-preseed-de
 
+## I/O-aware zram and managed-application safety - 21 September 2026
+
+The current inventory has **ten profiles**, with generic Btrfs, P15s, Flex,
+HP14 and x360 variants and a `-duo` suffix for multi-OS installations. Retired
+profiles have no compatibility aliases. Virtual storage remains supported by
+the generic Btrfs profile; its capacity checks and minimums apply. Duo classes
+still require the preservation addon and explicit partition-slot arguments.
+
+Zram samples host I/O PSI before planning and again after recompression, just
+before writeback. High or unavailable I/O telemetry reduces both concurrency
+and the shared per-pass page budget, including a bounded emergency path. Normal
+memory maintenance remains recompression-only. Existing cold-page eligibility,
+queue limits, quotas, memory thresholds, logging route and privilege policy are
+retained. The previous disk-alignment, dynamic-sizing and PSI timing repairs
+remain included.
+
+All 23 managed-application modules were reviewed. Four have narrow argument or
+user-file/path safety fixes. Private Zoom/Discord Xwayland configuration,
+compositor arguments and lifecycle functions are unchanged. No new third-party
+source compilation, source patching or dependencies are introduced.
+
+See [the R7 review, configuration and acceptance notes](REVIEW-20260921-r7.md),
+[canonical profile selection](d-i/forky/hosts/README.md), and
+`validation/2026-09-21-io-psi-r7/` for current evidence. The [R6 report](REVIEW-20260921-r6.md)
+and other dated material below describe earlier revisions. Profile-specific
+records for the retired environment were pruned from retained historical
+reports; their aggregate counts are historical, not current validation proof.
+
 ## Native wlsunset and matching switcher hover - 20 September 2026
 
 The managed Gammastep indicator and its GeoClue dependency are replaced by
@@ -369,28 +397,23 @@ cannot retroactively authenticate an insecure initial download. See `SECURITY.md
 
 ## Profiles
 
-All existing values, including sizing and hardware policy variables, remain in:
+Ten canonical profiles are served from `d-i/forky/hosts/profiles/`:
 
-```text
-d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
-d-i/forky/hosts/profiles/btrfs-de-dual-main.env
-d-i/forky/hosts/profiles/btrfs-de-dual.env
-d-i/forky/hosts/profiles/btrfs-de-flex.env
-d-i/forky/hosts/profiles/btrfs-de-main.env
-d-i/forky/hosts/profiles/btrfs-de.env
-d-i/forky/hosts/profiles/btrfs-desktop.env
-d-i/forky/hosts/profiles/f2fs-de-cbook.env
-d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
-d-i/forky/hosts/profiles/f2fs-de-dual.env
-d-i/forky/hosts/profiles/f2fs-de.env
-d-i/forky/hosts/profiles/f2fs-desktop.env
-d-i/forky/hosts/profiles/vm-desktop.env
-```
+| Family | Normal | Multi-OS |
+| --- | --- | --- |
+| Generic Btrfs | `btrfs-de.env` | `btrfs-de-duo.env` |
+| P15s | `btrfs-de-p15s.env` | `btrfs-de-p15s-duo.env` |
+| Flex | `btrfs-de-flex.env` | `btrfs-de-flex-duo.env` |
+| HP14 | `f2fs-de-hp14.env` | `f2fs-de-hp14-duo.env` |
+| x360 | `f2fs-de-x360.env` | `f2fs-de-x360-duo.env` |
 
-The logical `override-<name>` identifier remains compatible internally, although
-its physical source is now `hosts/profiles/<name>.env`. Baseline profiles retain
-`btrfs-desktop.env`, `f2fs-desktop.env` and `vm-desktop.env` fallback names. See
-`d-i/forky/hosts/README.md` for the unchanged environment precedence.
+The logical `override-<name>` identifier resolves to
+`hosts/profiles/<name>.env`. Btrfs and virtual-storage defaults select
+`btrfs-de.env`; eMMC selects `f2fs-de-x360.env`. Virtual storage retains its
+existing disk candidates, `/dev/vda` default and VM hooks, but has no separate
+host profile or VM-specific sizing. Its generic profile still uses measured disk
+and RAM capacity. Small test disks must satisfy that profile's minimum layout.
+See `d-i/forky/hosts/README.md` for environment precedence and duo safeguards.
 
 ## Diagnostics and validation limits
 

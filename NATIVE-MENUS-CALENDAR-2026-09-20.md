@@ -235,7 +235,7 @@ are explicitly not runtime passes. Unit checks are lexical structure checks.
 **The full repository suite is not green.** Its three failure names also occur
 in the untouched baseline; no new failure name was introduced. These failures
 are an existing IOCost profile/test expectation mismatch: the supplied
-`btrfs-de-dual-flex.env` sets `IOCOST_CALIBRATE_ENABLE="false"`, while those tests
+`btrfs-de-flex-duo.env` sets `IOCOST_CALIBRATE_ENABLE="false"`, while those tests
 expect it to be enabled and staged. Changing that hardware policy or silently
 rewriting unrelated tests would go beyond this menu revision, so both are kept.
 

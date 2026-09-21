@@ -11,18 +11,17 @@
   "preseed_hashes_match": true,
   "embedded_helper_matches_source": true,
   "embedded_profiles_with_exact_requested_pins": [
-    "btrfs-de-dual-flex.env",
-    "btrfs-de-dual-main.env",
-    "btrfs-de-dual.env",
+    "btrfs-de-flex-duo.env",
+    "btrfs-de-p15s-duo.env",
+    "btrfs-de-duo.env",
     "btrfs-de-flex.env",
-    "btrfs-de-main.env",
+    "btrfs-de-p15s.env",
     "btrfs-de.env",
-    "btrfs-desktop.env",
-    "f2fs-de-cbook.env",
-    "f2fs-de-dual-cbook.env",
-    "f2fs-de-dual.env",
-    "f2fs-de.env",
-    "f2fs-desktop.env",
-    "vm-desktop.env"
+    "btrfs-de.env",
+    "f2fs-de-hp14.env",
+    "f2fs-de-hp14-duo.env",
+    "f2fs-de-x360-duo.env",
+    "f2fs-de-x360.env",
+    "f2fs-de-x360.env"
   ]
 }

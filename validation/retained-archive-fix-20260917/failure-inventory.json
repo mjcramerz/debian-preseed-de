@@ -42,7 +42,7 @@
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-dual-flex.env')",
+        "case": "test_all_thirteen_profiles_have_complete_matching_schemas (test_hardware_tuning_20260916.PolicyTests.test_all_thirteen_profiles_have_complete_matching_schemas) (path='btrfs-de-flex-duo.env')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
@@ -78,49 +78,49 @@
       },
       {
         "kind": "FAIL",
-        "case": "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-dual-flex.env')",
+        "case": "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-flex-duo.env')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited provenance ledger mismatch for an unmodified input profile."
       },
       {
         "kind": "FAIL",
-        "case": "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-main.env')",
+        "case": "test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) (profile='btrfs-de-p15s.env')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited provenance ledger mismatch for an unmodified input profile."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='TAG')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='TAG')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='URL')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='URL')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-dual-flex.env', key='SHA256')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-flex-duo.env', key='SHA256')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='TAG')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='TAG')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='URL')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='URL')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },
       {
         "kind": "FAIL",
-        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-main.env', key='SHA256')",
+        "case": "test_all_thirteen_profiles_have_each_exact_pin_once (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_each_exact_pin_once) (profile='btrfs-de-p15s.env', key='SHA256')",
         "reproduced_on_untouched_upload": true,
         "classification": "Inherited expectation conflict: an uploaded profile intentionally disables the tuning setting expected by the older test."
       },

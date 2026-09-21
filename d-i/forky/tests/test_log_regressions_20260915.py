@@ -183,7 +183,9 @@ class TransientPropertyTests(unittest.TestCase):
         self.assertIn('--property=PrivateIPC=yes', self.command('/usr/bin/timeshift-launcher', kind='electron'))
 
     def test_only_default_shell_foot_gets_hangup_status_classification(self):
+        self.assertEqual(self.command('/usr/bin/foot')[-1], '/usr/bin/foot')
         self.assertIn('--property=SuccessExitStatus=1', self.command('/usr/bin/foot'))
+        self.assertIn('--property=KillMode=mixed', self.command('/usr/bin/foot'))
         for executable, args in (('/usr/bin/foot', ('-e', '/bin/false')),
                                  ('/usr/bin/foot', ('/bin/false',)),
                                  ('/tmp/foot', ()), ('/usr/bin/kitty', ()),

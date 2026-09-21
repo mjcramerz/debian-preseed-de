@@ -119,7 +119,7 @@ class UnitBoundaryTests(unittest.TestCase):
 
     def test_transient_forking_lock_explicitly_keeps_host_namespaces(self):
         worker = power.Worker(1000, 'fixture', 'suspend')
-        with mock.patch.object(power, 'run') as run, mock.patch.object(worker, 'helper'):
+        with mock.patch.object(worker, 'user_run') as run, mock.patch.object(worker, 'helper'):
             worker.lock()
         args = run.call_args.args[0]
         for value in ('--service-type=forking', '--property=PrivatePIDs=no',

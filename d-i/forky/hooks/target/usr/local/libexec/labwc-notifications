@@ -55,7 +55,10 @@ def environment() -> dict[str, str]:
            "XDG_RUNTIME_DIR": str(runtime), "DBUS_SESSION_BUS_ADDRESS": f"unix:path={runtime}/bus",
            "XDG_CONFIG_HOME": str(Path(account.pw_dir) / ".config"),
            "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-           "GDK_BACKEND": "wayland", "XDG_SESSION_TYPE": "wayland"}
+           "GDK_BACKEND": "wayland", "XDG_SESSION_TYPE": "wayland",
+           # Match the existing 10-wayland.env session policy. Clearing the
+           # environment must not accidentally re-enable an absent AT-SPI bus.
+           "GTK_A11Y": "none", "NO_AT_BRIDGE": "1"}
     display = os.environ.get("WAYLAND_DISPLAY", "")
     if re.fullmatch(r"wayland-[0-9]+", display):
         env["WAYLAND_DISPLAY"] = display
@@ -176,6 +179,7 @@ def show_center(env: dict[str, str]) -> int:
     os.environ.update(env)
     import gi
     gi.require_version("Gtk", "3.0")
+    gi.require_version("Gdk", "3.0")
     from gi.repository import Gdk, Gio, GLib, Gtk
 
     class Center(Gtk.Application):

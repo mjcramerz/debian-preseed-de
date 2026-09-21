@@ -1,14 +1,54 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version='1.0' encoding='utf-8'?>
 <interface>
   <object class="GtkMenu" id="menu">
     <child>
       <object class="GtkMenuItem" id="power_lock">
-        <property name="label">Lock</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">10</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="power_lock_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">system-lock-screen-symbolic</property>
+                <property name="pixel-size">18</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="power_lock_label">
+                <property name="visible">True</property>
+                <property name="label">Lock</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="power_suspend">
-        <property name="label">Suspend</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">10</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="power_suspend_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">weather-clear-night-symbolic</property>
+                <property name="pixel-size">18</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="power_suspend_label">
+                <property name="visible">True</property>
+                <property name="label">Suspend</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
@@ -16,17 +56,77 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="power_reboot">
-        <property name="label">Reboot</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">10</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="power_reboot_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">system-reboot-symbolic</property>
+                <property name="pixel-size">18</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="power_reboot_label">
+                <property name="visible">True</property>
+                <property name="label">Reboot</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="power_logout">
-        <property name="label">Logout</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">10</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="power_logout_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">system-log-out-symbolic</property>
+                <property name="pixel-size">18</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="power_logout_label">
+                <property name="visible">True</property>
+                <property name="label">Logout</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="power_shutdown">
-        <property name="label">Shutdown</property>
+        <child>
+          <object class="GtkBox">
+            <property name="visible">True</property>
+            <property name="spacing">10</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkImage" id="power_shutdown_icon">
+                <property name="visible">True</property>
+                <property name="icon-name">system-shutdown-symbolic</property>
+                <property name="pixel-size">18</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="power_shutdown_label">
+                <property name="visible">True</property>
+                <property name="label">Shutdown</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </child>
   </object>

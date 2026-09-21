@@ -12,7 +12,7 @@
   },
   "old_policy_error": "release URL/tag/version or SHA-256 is invalid",
   "profiles": {
-    "btrfs-de-dual-flex.env": {
+    "btrfs-de-flex-duo.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.2-P15s",
@@ -26,7 +26,7 @@
       "changed_keys": [],
       "sha256_before": "4f67a4e67fa01c46193477ab3e6ccd87355da083b015f38238ff36402e3de7e3"
     },
-    "btrfs-de-dual-main.env": {
+    "btrfs-de-p15s-duo.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -44,7 +44,7 @@
       ],
       "sha256_before": "9cdfbce455af7b38fbfa3f1a93008bd705587e0599fc9fbb48865cb51a992eb5"
     },
-    "btrfs-de-dual.env": {
+    "btrfs-de-duo.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -80,7 +80,7 @@
       ],
       "sha256_before": "a9e5842b072b7406f6e6c40ef4c029335adc5ec853efa7ef194de0626c91318c"
     },
-    "btrfs-de-main.env": {
+    "btrfs-de-p15s.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.2-P15s",
@@ -110,27 +110,9 @@
         "URL",
         "SHA256"
       ],
-      "sha256_before": "7df14985ea9b7325fc1ef98f5bcc7dbe7dfbaaaaab774af8e01c7f4a268bf56a"
-    },
-    "btrfs-desktop.env": {
-      "before": {
-        "VERSION": "2.2.6",
-        "TAG": "resctl-bench-v0.0.1-P15s",
-        "ARCHITECTURE": "amd64",
-        "URL": "https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz",
-        "SHA256": "466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c",
-        "MAXIMUM_BYTES": "536870912",
-        "MAXIMUM_EXTRACTED_BYTES": "2147483648",
-        "MAXIMUM_MEMBERS": "8192"
-      },
-      "changed_keys": [
-        "TAG",
-        "URL",
-        "SHA256"
-      ],
       "sha256_before": "5426f1023cab556b71a9a339398b482b0b414f41af5ef718e39b92956bb13485"
     },
-    "f2fs-de-cbook.env": {
+    "f2fs-de-hp14.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -148,7 +130,7 @@
       ],
       "sha256_before": "ac96e31a78c8e47eb496997c57bf1bd4f9178db6133c4e7ef73ef3dd50e9494b"
     },
-    "f2fs-de-dual-cbook.env": {
+    "f2fs-de-hp14-duo.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -166,7 +148,7 @@
       ],
       "sha256_before": "571665f830ad4321a26f416d45e080bb0d4d86fa9318125a7c63aa0d34c34ce9"
     },
-    "f2fs-de-dual.env": {
+    "f2fs-de-x360-duo.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -184,25 +166,7 @@
       ],
       "sha256_before": "a03244b5a494aa417b840d4a893a6441739fdac5f77e04c4a3d17ec5935eaf37"
     },
-    "f2fs-de.env": {
-      "before": {
-        "VERSION": "2.2.6",
-        "TAG": "resctl-bench-v0.0.1-P15s",
-        "ARCHITECTURE": "amd64",
-        "URL": "https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz",
-        "SHA256": "466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c",
-        "MAXIMUM_BYTES": "536870912",
-        "MAXIMUM_EXTRACTED_BYTES": "2147483648",
-        "MAXIMUM_MEMBERS": "8192"
-      },
-      "changed_keys": [
-        "TAG",
-        "URL",
-        "SHA256"
-      ],
-      "sha256_before": "9f9fe60d2888a335b8cfe9bf607b9d5ae6279b2419d036f6375ef85a6b1f8f3c"
-    },
-    "f2fs-desktop.env": {
+    "f2fs-de-x360.env": {
       "before": {
         "VERSION": "2.2.6",
         "TAG": "resctl-bench-v0.0.1-P15s",
@@ -219,24 +183,6 @@
         "SHA256"
       ],
       "sha256_before": "a03244b5a494aa417b840d4a893a6441739fdac5f77e04c4a3d17ec5935eaf37"
-    },
-    "vm-desktop.env": {
-      "before": {
-        "VERSION": "2.2.6",
-        "TAG": "resctl-bench-v0.0.1-P15s",
-        "ARCHITECTURE": "amd64",
-        "URL": "https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.1-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native.tar.gz",
-        "SHA256": "466f9d0fbdea9b9c5755bb03cd1e5905e3b3fe3fc311c564b3c3619781e2786c",
-        "MAXIMUM_BYTES": "536870912",
-        "MAXIMUM_EXTRACTED_BYTES": "2147483648",
-        "MAXIMUM_MEMBERS": "8192"
-      },
-      "changed_keys": [
-        "TAG",
-        "URL",
-        "SHA256"
-      ],
-      "sha256_before": "d61985acd1dc17d3a35366fa81343a9433eb7be64eea85a892ba572c215cde91"
     }
   },
   "changed_profiles": 11
