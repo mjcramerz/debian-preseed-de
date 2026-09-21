@@ -1,4 +1,4 @@
-"""Regression for build-ID release URLs and consistent, preflighted host pins.
+"""Regression for build-ID release URLs and independently preflighted host pins.
 
 Offline tests: synthetic archives only; no release binary/installer executes.
 The --version/noexec regressions in the existing suite retain their real ELF
@@ -176,15 +176,11 @@ class ProfilePreflightTests(unittest.TestCase):
         self.profile = self.profiles / 'a.env'
         self.profile.write_text(pin_text())
 
-    def test_all_actual_profiles_match_the_exact_requested_values_once(self):
-        profiles = sorted((base.SEED / 'hosts/profiles').glob('*.env'))
-        self.assertEqual(len(profiles), 13)
-        for profile in profiles:
-            with self.subTest(profile=profile.name):
-                self.assertEqual(self.checker.read_pins(profile), PINS)
+    def test_all_actual_profiles_pass_independent_preflight(self):
+        # Fixture PINS are not a repository-wide release constraint.
         self.assertEqual(self.checker.check(), 13)
 
-    def test_current_profile_provenance_matches_the_synchronized_profiles(self):
+    def test_current_profile_provenance_matches_the_recorded_profiles(self):
         ledger = json.loads((ROOT / 'docs/migration-map.json').read_text())
         records = {item['destination']: item for item in ledger['files']
                    if item['destination'].startswith('d-i/forky/hosts/profiles/')}
@@ -219,14 +215,18 @@ class ProfilePreflightTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'duplicate RESCTL_BENCH_' + key):
                 self.checker.check(self.seed)
 
-    def test_syntactically_valid_but_different_profile_pin_is_rejected(self):
+    def test_independently_valid_different_profile_pins_are_accepted(self):
         changes = ({'SHA256': '0' * 64}, {'MAXIMUM_BYTES': '536870911'},
                    {'MAXIMUM_EXTRACTED_BYTES': '2147483647'}, {'MAXIMUM_MEMBERS': '8191'},
-                   {'URL': PINS['URL'].replace('-' + BUILD_ID, '')})
+                   {'URL': PINS['URL'].replace('-' + BUILD_ID, '')},
+                   {'TAG': 'resctl-bench-v0.0.3-P15s', 'VERSION': '2.2.7',
+                    'URL': PINS['URL'].replace(PINS['TAG'], 'resctl-bench-v0.0.3-P15s')
+                                      .replace('resctl-bench-2.2.6-', 'resctl-bench-2.2.7-'),
+                    'SHA256': 'a' * 64})
         for change in changes:
             (self.profiles / 'b.env').write_text(pin_text(**change))
-            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'pins differ from a.env'):
-                self.checker.check(self.seed)
+            with self.subTest(change=change):
+                self.assertEqual(self.checker.check(self.seed), 2)
 
     def test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement(self):
         # All profiles agree, but policy still rejects this otherwise legal literal.
@@ -270,10 +270,10 @@ class ProfilePreflightTests(unittest.TestCase):
         for name in products:
             (self.seed / name).write_bytes(b'untouched release sentinel\n')
         # No browser/build helper is present: pin errors MUST happen first.
-        for kind in ('invalid-url', 'profile-drift'):
+        for kind in ('invalid-url', 'invalid-second-profile'):
             self.profile.write_text(pin_text(URL=PINS['URL'] + '?bad') if kind == 'invalid-url' else pin_text())
-            if kind == 'profile-drift':
-                (self.profiles / 'b.env').write_text(pin_text(SHA256='0' * 64))
+            if kind == 'invalid-second-profile':
+                (self.profiles / 'b.env').write_text(pin_text(SHA256='not-a-sha256'))
             for flag in ([], ['--check']):
                 with self.subTest(kind=kind, flag=flag):
                     result = subprocess.run([sys.executable, '-I', '-B', str(tools / 'build.py'), *flag],

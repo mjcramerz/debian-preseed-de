@@ -3,8 +3,9 @@
 
 This is an offline publishing gate, not a download or native-CPU acceptance test.
 The trusted repository helper supplies the SAME policy used inside the target.
-Every profile must have all eight pins exactly once, as literal assignments,
-and all profiles must agree. Update the complete set together for a new release.
+Every profile must have all eight pins exactly once, as literal assignments.
+Profiles are independent: each may select its own release and resource bounds.
+Only consistency within each profile is required; no cross-profile equality.
 """
 from __future__ import annotations
 
@@ -77,20 +78,12 @@ def check(seed: Path = SEED) -> int:
     # Load definitions only, never the helper's __main__ installation entry point.
     helper = runpy.run_path(str(seed / 'scripts/desktop/resctl-bench-install.py'),
                             run_name='resctl_release_policy')
-    reference: dict[str, str] | None = None
-    reference_name = ''
     for profile in profiles:
         try:
             pins = read_pins(profile)
             helper['policy'](arguments(pins))
         except (ValueError, helper['Error']) as exc:
             raise ValueError(f'resctl-bench profile validation failed ({profile.name}): {exc}') from exc
-        if reference is None:
-            reference, reference_name = pins, profile.name
-        elif pins != reference:
-            changed = ', '.join('RESCTL_BENCH_' + key for key in FIELDS if pins[key] != reference[key])
-            raise ValueError(f'{profile.name}: resctl-bench pins differ from {reference_name}: '
-                             f'{changed}; update all profiles together')
     return len(profiles)
 
 
@@ -102,7 +95,7 @@ def main() -> int:
     except (OSError, ValueError) as exc:
         print(f'resctl-bench preflight: {exc}', file=sys.stderr)
         return 1
-    print(f'resctl-bench: {count} profiles have identical, valid release pins (offline)')
+    print(f'resctl-bench: {count} profiles have independently valid release pins (offline)')
     return 0
 
 

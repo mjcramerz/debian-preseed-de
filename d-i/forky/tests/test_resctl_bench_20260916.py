@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import stat
 import subprocess
@@ -80,15 +81,13 @@ class ReleasePolicyTests(unittest.TestCase):
     def setUp(self):
         self.installer = module()
 
-    def test_all_thirteen_profiles_have_each_exact_pin_once(self):
-        profiles = sorted((SEED/'hosts/profiles').glob('*.env'))
+    def test_all_thirteen_profiles_have_independently_valid_pins(self):
+        checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
+        profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 13)
-        expected = dict(VERSION='2.2.6', TAG=TAG, URL=URL, SHA256=PIN, ARCHITECTURE='amd64',
-                        MAXIMUM_BYTES='536870912', MAXIMUM_EXTRACTED_BYTES='2147483648', MAXIMUM_MEMBERS='8192')
         for profile in profiles:
-            for key, value in expected.items():
-                with self.subTest(profile=profile.name, key=key):
-                    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
+            with self.subTest(profile=profile.name):
+                self.installer.policy(checker['arguments'](checker['read_pins'](profile)))
 
     def test_valid_policy_and_each_invalid_input(self):
         self.installer.policy(arguments())
@@ -161,7 +160,9 @@ desktop_install_resctl_bench
                 self.assertEqual(result.returncode, 7 if failure else 0, result.stderr)
                 self.assertFalse((root/'target/usr/local/libexec/installer-resctl-bench').exists())
                 args = (root/'target/invocation').read_text().splitlines()
-                for value in (PIN, TAG, URL, '/usr/bin/python3', '-I', '/usr/bin/env', '-i', '900s'):
+                checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
+                pins = checker['read_pins'](base.PROFILES[0])
+                for value in (*pins.values(), '/usr/bin/python3', '-I', '/usr/bin/env', '-i', '900s'):
                     self.assertIn(value, args)
                 self.assertFalse(list((root/'target').rglob('.installer-asset.*')))
 

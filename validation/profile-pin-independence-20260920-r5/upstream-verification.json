@@ -1,0 +1,11 @@
+{
+  "configured_url": "https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz",
+  "configured_sha256": "5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12",
+  "source": "user-provided",
+  "release_bytes_downloaded": false,
+  "release_bytes_independently_hashed": false,
+  "curl_exit": 6,
+  "curl_error": "Could not resolve host: github.com",
+  "web_metadata": "Release listing returned the earlier aa3786 asset; the exact supplied download and API could not be fetched. This does not prove the new asset is absent.",
+  "installer_digest_verification": "Unchanged: actual downloaded bytes must match the selected profile SHA256 before extraction/publication."
+}

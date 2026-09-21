@@ -293,19 +293,17 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                 r'(?:RESCTL_BENCH_[A-Z0-9_]+="[^"\n]*"\n){8}\n',
                 '', profile_text, count=1)
             self.assertEqual(count, 1)
-            # R4 adds only the independent Tomat bootstrap pins here. Match
-            # and remove exactly that block; all historical workload bytes and
-            # their original hash fixtures below must remain unchanged.
-            tomat_pins = (
-                '\n# Pinned Tomat bootstrap release; all three values must be updated together.\n'
-                '# Installation verifies this digest without consulting the mutable latest API.\n'
-                'SOFTWARE_TOMAT_TAG="v2.13.0"\n'
-                'SOFTWARE_TOMAT_URL="https://github.com/jolars/tomat/releases/download/v2.13.0/'
-                'tomat_2.13.0-1_amd64.deb"\n'
-                'SOFTWARE_TOMAT_SHA256="871ee4fd19f3367cf4aa638a2364ae83de6c4ce4550a7ebe5ee6124be86c6aa1"\n\n'
-            )
-            self.assertEqual(original.count(tomat_pins), 1)
-            original = original.replace(tomat_pins, '', 1)
+            # Release pins vary per profile; their validators own pin policy.
+            # Remove only the three-key block, preserving every workload byte
+            # and the original historical hash fixture.
+            original, tomat_count = re.subn(
+                r'\n# Pinned Tomat bootstrap release; all three values must be updated together\.\n'
+                r'# Installation verifies this digest without consulting the mutable latest API\.\n'
+                r'SOFTWARE_TOMAT_TAG="[^"\n]*"\n'
+                r'SOFTWARE_TOMAT_URL="[^"\n]*"\n'
+                r'SOFTWARE_TOMAT_SHA256="[^"\n]*"\n\n',
+                '', original, count=1)
+            self.assertEqual(tomat_count, 1)
             prefix = original.split('\n# Systemd accounting and user resource classes.', 1)[0]
             self.assertEqual(hashlib.sha256((prefix.rstrip()+'\n').encode()).hexdigest(),
                              manifest['profile_prefix_sha256'][profile.name])

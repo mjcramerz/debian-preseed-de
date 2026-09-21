@@ -1,0 +1,153 @@
+test_real_make_build_and_check_preserve_thirteen_distinct_pin_sets (test_profile_pin_independence_20260920.BuildAndDispatchTests.test_real_make_build_and_check_preserve_thirteen_distinct_pin_sets) ... ok
+test_real_shell_forwards_each_profile_pins_without_reusing_previous_release (test_profile_pin_independence_20260920.BuildAndDispatchTests.test_real_shell_forwards_each_profile_pins_without_reusing_previous_release) ... ok
+test_each_profile_must_match_its_own_tag_not_a_neighbors (test_profile_pin_independence_20260920.IndependentPreflightTests.test_each_profile_must_match_its_own_tag_not_a_neighbors) ... ok
+test_invalid_later_profile_is_not_skipped (test_profile_pin_independence_20260920.IndependentPreflightTests.test_invalid_later_profile_is_not_skipped) ... ok
+test_no_sorted_reference_profile_controls_other_profiles (test_profile_pin_independence_20260920.IndependentPreflightTests.test_no_sorted_reference_profile_controls_other_profiles) ... ok
+test_one_profile_can_change_with_no_edit_to_others (test_profile_pin_independence_20260920.IndependentPreflightTests.test_one_profile_can_change_with_no_edit_to_others) ... ok
+test_security_checks_apply_to_every_profile (test_profile_pin_independence_20260920.IndependentPreflightTests.test_security_checks_apply_to_every_profile) ... ok
+test_thirteen_distinct_releases_and_bounds_pass_without_mutation (test_profile_pin_independence_20260920.IndependentPreflightTests.test_thirteen_distinct_releases_and_bounds_pass_without_mutation) ... ok
+test_tomat_also_accepts_distinct_profiles_and_checks_each (test_profile_pin_independence_20260920.IndependentPreflightTests.test_tomat_also_accepts_distinct_profiles_and_checks_each) ... ok
+test_absolute_parent_alias_and_control_character_paths_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_absolute_parent_alias_and_control_character_paths_are_rejected) ... ok
+test_all_link_and_special_node_types_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_all_link_and_special_node_types_are_rejected) ... ok
+test_checksum_inventory_or_format_mismatch_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_checksum_inventory_or_format_mismatch_is_rejected) ... ok
+test_duplicate_member_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_duplicate_member_is_rejected) ... ok
+test_expansion_and_member_count_are_bounded (test_resctl_bench_20260916.ArchiveTests.test_expansion_and_member_count_are_bounded) ... ok
+test_gzip_truncation_is_not_accepted (test_resctl_bench_20260916.ArchiveTests.test_gzip_truncation_is_not_accepted) ... ok
+test_highly_compressible_member_is_not_limited_to_compressed_ceiling (test_resctl_bench_20260916.ArchiveTests.test_highly_compressible_member_is_not_limited_to_compressed_ceiling) ... ok
+test_missing_companion_binary_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_missing_companion_binary_is_rejected) ... ok
+test_non_elf_and_wrong_elf_architecture_are_rejected (test_resctl_bench_20260916.ArchiveTests.test_non_elf_and_wrong_elf_architecture_are_rejected) ... ok
+test_optional_demo_is_validated_too (test_resctl_bench_20260916.ArchiveTests.test_optional_demo_is_validated_too) ... ok
+test_parent_file_collision_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_parent_file_collision_is_rejected) ... ok
+test_sparse_pax_payload_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_sparse_pax_payload_is_rejected) ... ok
+test_unknown_executable_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_unknown_executable_is_rejected) ... ok
+test_valid_archive_preserves_docs_licenses_debug_and_companions (test_resctl_bench_20260916.ArchiveTests.test_valid_archive_preserves_docs_licenses_debug_and_companions) ... ok
+test_wrong_release_root_or_second_root_is_rejected (test_resctl_bench_20260916.ArchiveTests.test_wrong_release_root_or_second_root_is_rejected) ... ok
+test_existing_unmanaged_binary_is_never_overwritten (test_resctl_bench_20260916.PublicationTests.test_existing_unmanaged_binary_is_never_overwritten) ... ok
+test_partial_publication_error_rolls_back_new_files (test_resctl_bench_20260916.PublicationTests.test_partial_publication_error_rolls_back_new_files) ... ok
+test_publication_modes_provenance_and_identical_repeat_install (test_resctl_bench_20260916.PublicationTests.test_publication_modes_provenance_and_identical_repeat_install) ... ok
+test_real_unprivileged_smoke_with_harmless_compiled_fixture (test_resctl_bench_20260916.PublicationTests.test_real_unprivileged_smoke_with_harmless_compiled_fixture) ... ok
+test_smoke_drops_groups_uses_fixed_version_only_and_fails_before_publish (test_resctl_bench_20260916.PublicationTests.test_smoke_drops_groups_uses_fixed_version_only_and_fails_before_publish) ... ok
+test_symlinked_destination_or_writable_parent_is_rejected (test_resctl_bench_20260916.PublicationTests.test_symlinked_destination_or_writable_parent_is_rejected) ... ok
+test_all_thirteen_profiles_have_independently_valid_pins (test_resctl_bench_20260916.ReleasePolicyTests.test_all_thirteen_profiles_have_independently_valid_pins) ... ok
+test_desktop_pipeline_fetches_and_installs_for_all_profiles (test_resctl_bench_20260916.ReleasePolicyTests.test_desktop_pipeline_fetches_and_installs_for_all_profiles) ... ok
+test_download_enforces_https_bounds_and_hash_before_unpacking (test_resctl_bench_20260916.ReleasePolicyTests.test_download_enforces_https_bounds_and_hash_before_unpacking) ... ok
+test_download_rejects_oversize_and_empty_response (test_resctl_bench_20260916.ReleasePolicyTests.test_download_rejects_oversize_and_empty_response) ... ok
+test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) ... 
+  test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=False) ... FAIL
+  test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=True) ... FAIL
+test_shell_refuses_wrong_architecture_before_staging (test_resctl_bench_20260916.ReleasePolicyTests.test_shell_refuses_wrong_architecture_before_staging) ... ok
+test_valid_policy_and_each_invalid_input (test_resctl_bench_20260916.ReleasePolicyTests.test_valid_policy_and_each_invalid_input) ... ok
+test_bad_sha256_gets_a_sha256_specific_error (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_sha256_gets_a_sha256_specific_error) ... ok
+test_bad_url_diagnostic_does_not_blame_a_valid_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_bad_url_diagnostic_does_not_blame_a_valid_sha256) ... ok
+test_build_id_is_not_mistaken_for_archive_sha256 (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_is_not_mistaken_for_archive_sha256) ... ok
+test_build_id_shape_is_strictly_bounded (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_build_id_shape_is_strictly_bounded) ... ok
+test_exact_asset_directory_shape_unpacks_and_verifies_all_members (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_asset_directory_shape_unpacks_and_verifies_all_members) ... ok
+test_exact_user_requested_pins_pass_runtime_policy (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_exact_user_requested_pins_pass_runtime_policy) ... ok
+test_invalid_policy_fails_before_root_network_or_installation (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_invalid_policy_fails_before_root_network_or_installation) ... ok
+test_legacy_exact_basename_remains_accepted (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_legacy_exact_basename_remains_accepted) ... ok
+test_real_mismatch_reports_expected_and_actual_digests (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_real_mismatch_reports_expected_and_actual_digests) ... ok
+test_validate_only_is_read_only_and_does_not_require_root (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_validate_only_is_read_only_and_does_not_require_root) ... ok
+test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected (test_resctl_bench_release_20260917.BuildIdPolicyTests.test_wrong_origin_version_tag_architecture_and_url_aliases_are_rejected) ... ok
+test_all_actual_profiles_pass_independent_preflight (test_resctl_bench_release_20260917.ProfilePreflightTests.test_all_actual_profiles_pass_independent_preflight) ... ok
+test_build_and_build_check_reject_invalid_pins_before_touching_products (test_resctl_bench_release_20260917.ProfilePreflightTests.test_build_and_build_check_reject_invalid_pins_before_touching_products) ... ok
+test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement (test_resctl_bench_release_20260917.ProfilePreflightTests.test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement) ... ok
+test_comments_are_not_assignments (test_resctl_bench_release_20260917.ProfilePreflightTests.test_comments_are_not_assignments) ... ok
+test_current_profile_provenance_matches_the_recorded_profiles (test_resctl_bench_release_20260917.ProfilePreflightTests.test_current_profile_provenance_matches_the_recorded_profiles) ... ok
+test_each_duplicate_pin_is_rejected_even_when_values_match (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_duplicate_pin_is_rejected_even_when_values_match) ... ok
+test_each_missing_pin_is_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_each_missing_pin_is_rejected) ... ok
+test_empty_profile_set_and_symlink_profile_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_empty_profile_set_and_symlink_profile_are_rejected) ... ok
+test_independently_valid_different_profile_pins_are_accepted (test_resctl_bench_release_20260917.ProfilePreflightTests.test_independently_valid_different_profile_pins_are_accepted) ... ok
+test_nonliteral_shell_expressions_never_execute (test_resctl_bench_release_20260917.ProfilePreflightTests.test_nonliteral_shell_expressions_never_execute) ... ok
+test_single_and_multiple_matching_profiles_pass (test_resctl_bench_release_20260917.ProfilePreflightTests.test_single_and_multiple_matching_profiles_pass) ... ok
+test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected (test_resctl_bench_release_20260917.ProfilePreflightTests.test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected) ... ok
+test_account_owned_data_reproduces_original_rejection (test_resctl_bench_docs_20260917.DocumentationDestinationTests.test_account_owned_data_reproduces_original_rejection) ... ok
+test_all_runtime_verifiers_use_same_protected_destination (test_resctl_bench_docs_20260917.DocumentationDestinationTests.test_all_runtime_verifiers_use_same_protected_destination) ... ok
+test_destination_parent_mutable_by_group_still_rejected (test_resctl_bench_docs_20260917.DocumentationDestinationTests.test_destination_parent_mutable_by_group_still_rejected) ... ok
+test_protected_destination_installs_repeatably_without_touching_user_data (test_resctl_bench_docs_20260917.DocumentationDestinationTests.test_protected_destination_installs_repeatably_without_touching_user_data) ... ok
+test_system_doc_symlink_to_user_data_still_rejected (test_resctl_bench_docs_20260917.DocumentationDestinationTests.test_system_doc_symlink_to_user_data_still_rejected) ... ok
+test_bad_copy_digest_is_rejected_before_execution (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_bad_copy_digest_is_rejected_before_execution) ... ok
+test_main_uses_private_archive_then_smoke_then_publish (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_main_uses_private_archive_then_smoke_then_publish) ... ok
+test_noexec_destination_fails_without_running_or_changing_mount_policy (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_noexec_destination_fails_without_running_or_changing_mount_policy) ... ok
+test_nonzero_probe_never_publishes_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_nonzero_probe_never_publishes_and_cleans_staging) ... ok
+test_only_verified_binaries_copied_to_private_destination_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_only_verified_binaries_copied_to_private_destination_staging) ... ok
+test_permission_denial_has_actionable_diagnostic_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_permission_denial_has_actionable_diagnostic_and_cleans_staging) ... ok
+test_real_noexec_reproduces_eacces_then_staged_probe_succeeds (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_noexec_reproduces_eacces_then_staged_probe_succeeds) ... skipped 'no existing noexec /dev/shm; test never mounts filesystems'
+test_real_probes_work_without_exposing_private_archive_workspace (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_probes_work_without_exposing_private_archive_workspace) ... ok
+test_timeout_never_publishes_and_cleans_staging (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_timeout_never_publishes_and_cleans_staging) ... ok
+test_unlisted_or_duplicate_binary_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_unlisted_or_duplicate_binary_is_rejected) ... ok
+test_untrusted_executable_or_symlink_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_untrusted_executable_or_symlink_is_rejected) ... ok
+test_untrusted_staging_ancestor_is_rejected (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_untrusted_staging_ancestor_is_rejected) ... ok
+test_full_moo_module_pin_validation_when_dependencies_are_installed (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_full_moo_module_pin_validation_when_dependencies_are_installed) ... skipped 'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'
+test_hash_valid_but_wrong_debian_identity_version_or_payload_is_rejected (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_hash_valid_but_wrong_debian_identity_version_or_payload_is_rejected) ... ok
+test_invalid_pin_is_rejected_before_http (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_invalid_pin_is_rejected_before_http) ... ok
+test_latest_adapter_accepts_versioned_asset_and_checks_exact_version (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_latest_adapter_accepts_versioned_asset_and_checks_exact_version) ... ok
+test_network_failure_does_not_query_latest_or_retry_unverified_asset (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_network_failure_does_not_query_latest_or_retry_unverified_asset) ... ok
+test_non_scalar_missing_or_empty_pin_is_rejected_before_http (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_non_scalar_missing_or_empty_pin_is_rejected_before_http) ... ok
+test_pinned_download_uses_only_exact_asset_and_real_package_hash_metadata (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_pinned_download_uses_only_exact_asset_and_real_package_hash_metadata) ... ok
+test_release_ignores_other_architecture_and_nondebian_assets (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_release_ignores_other_architecture_and_nondebian_assets) ... ok
+test_release_keeps_legacy_compatibility_but_rejects_ambiguity (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_release_keeps_legacy_compatibility_but_rejects_ambiguity) ... ok
+test_release_rejects_unstable_wrong_tag_origin_digest_size_and_filename (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_release_rejects_unstable_wrong_tag_origin_digest_size_and_filename) ... ok
+test_size_bounds_and_symlink_rejected_even_with_non_enforcing_http_double (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_size_bounds_and_symlink_rejected_even_with_non_enforcing_http_double) ... ok
+test_user_supplied_pin_is_accepted_without_network_or_metadata (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_user_supplied_pin_is_accepted_without_network_or_metadata) ... ok
+test_wrong_hash_fails_without_retry_or_fallback (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_wrong_hash_fails_without_retry_or_fallback) ... ok
+test_all_thirteen_profiles_have_independently_valid_literal_pins (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_all_thirteen_profiles_have_independently_valid_literal_pins) ... ok
+test_builder_accepts_coherent_future_pin_without_hardcoded_release (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_builder_accepts_coherent_future_pin_without_hardcoded_release) ... ok
+test_builder_rejects_missing_empty_duplicate_unknown_or_nonliteral_pins (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_builder_rejects_missing_empty_duplicate_unknown_or_nonliteral_pins) ... ok
+test_builder_rejects_no_profiles_and_checks_before_writes (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_builder_rejects_no_profiles_and_checks_before_writes) ... ok
+test_builder_rejects_wrong_tag_url_architecture_revision_or_digest (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_builder_rejects_wrong_tag_url_architecture_revision_or_digest) ... ok
+test_failure_stops_before_service_masks_and_installation (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_failure_stops_before_service_masks_and_installation) ... ok
+test_real_shell_profile_to_chroot_argv_for_every_profile (test_tomat_release_pins_20260920.TomatProfilePinsTests.test_real_shell_profile_to_chroot_argv_for_every_profile) ... ok
+test_actual_versioned_asset_works_with_pinned_repo_and_legacy_source_hints (test_tomat_release_pins_20260920.TomatVersionedUpdaterTests.test_actual_versioned_asset_works_with_pinned_repo_and_legacy_source_hints) ... ok
+test_legacy_family_exception_does_not_change_other_repositories (test_tomat_release_pins_20260920.TomatVersionedUpdaterTests.test_legacy_family_exception_does_not_change_other_repositories) ... ok
+test_versioned_refresh_rejects_wrong_origin_tag_name_digest_size_and_duplicates (test_tomat_release_pins_20260920.TomatVersionedUpdaterTests.test_versioned_refresh_rejects_wrong_origin_tag_name_digest_size_and_duplicates) ... ok
+test_versioned_refresh_requires_exact_package_revision (test_tomat_release_pins_20260920.TomatVersionedUpdaterTests.test_versioned_refresh_requires_exact_package_revision) ... ok
+test_versioned_refresh_selects_only_amd64_in_multiarchitecture_release (test_tomat_release_pins_20260920.TomatVersionedUpdaterTests.test_versioned_refresh_selects_only_amd64_in_multiarchitecture_release) ... ok
+test_actual_home_copy_installs_private_dropins_for_account (test_systemd_resource_policy.ResourcePolicyTests.test_actual_home_copy_installs_private_dropins_for_account) ... ok
+test_all_13_profiles_define_exactly_six_managed_weight_keys (test_systemd_resource_policy.ResourcePolicyTests.test_all_13_profiles_define_exactly_six_managed_weight_keys) ... ok
+test_all_profiles_both_modes_use_production_literal_renderer (test_systemd_resource_policy.ResourcePolicyTests.test_all_profiles_both_modes_use_production_literal_renderer) ... ok
+test_bad_profile_preserves_existing_policy_and_cleans_scratch (test_systemd_resource_policy.ResourcePolicyTests.test_bad_profile_preserves_existing_policy_and_cleans_scratch) ... ok
+test_busybox_and_dash_agree (test_systemd_resource_policy.ResourcePolicyTests.test_busybox_and_dash_agree) ... ok
+test_deployment_order_and_scope_lifecycle_are_preserved (test_systemd_resource_policy.ResourcePolicyTests.test_deployment_order_and_scope_lifecycle_are_preserved) ... ok
+test_empty_individual_weight_and_core_metadata_only_mode (test_systemd_resource_policy.ResourcePolicyTests.test_empty_individual_weight_and_core_metadata_only_mode) ... ok
+test_invalid_inputs_and_missing_weights_fail_before_publication (test_systemd_resource_policy.ResourcePolicyTests.test_invalid_inputs_and_missing_weights_fail_before_publication) ... ok
+test_journal_default_and_nondefault_storage_survive_installer_validation (test_systemd_resource_policy.ResourcePolicyTests.test_journal_default_and_nondefault_storage_survive_installer_validation) ... ok
+test_no_target_symlink_escape (test_systemd_resource_policy.ResourcePolicyTests.test_no_target_symlink_escape) ... ok
+test_only_six_approved_templates_introduce_io_weights (test_systemd_resource_policy.ResourcePolicyTests.test_only_six_approved_templates_introduce_io_weights) ... ok
+test_optional_units_do_not_get_orphan_class_dropins (test_systemd_resource_policy.ResourcePolicyTests.test_optional_units_do_not_get_orphan_class_dropins) ... ok
+test_original_workload_policy_is_byte_identical (test_systemd_resource_policy.ResourcePolicyTests.test_original_workload_policy_is_byte_identical) ... ok
+test_rendered_unit_dropins_parse_with_available_systemd (test_systemd_resource_policy.ResourcePolicyTests.test_rendered_unit_dropins_parse_with_available_systemd) ... ok
+test_staging_paths_modes_and_disabled_republication (test_systemd_resource_policy.ResourcePolicyTests.test_staging_paths_modes_and_disabled_republication) ... ok
+test_unknown_placeholder_fails_atomic_publication (test_systemd_resource_policy.ResourcePolicyTests.test_unknown_placeholder_fails_atomic_publication) ... ok
+test_build_products_are_current (test_repository_integrity.RepositoryIntegrityTests.test_build_products_are_current) ... ok
+test_class_dependency_references_are_local (test_repository_integrity.RepositoryIntegrityTests.test_class_dependency_references_are_local) ... ok
+test_each_flat_profile_composes (test_repository_integrity.RepositoryIntegrityTests.test_each_flat_profile_composes) ... ok
+test_layout_only_expected_scopes (test_repository_integrity.RepositoryIntegrityTests.test_layout_only_expected_scopes) ... ok
+test_no_legacy_path_references_in_active_installer (test_repository_integrity.RepositoryIntegrityTests.test_no_legacy_path_references_in_active_installer) ... ok
+test_no_symlinks_published (test_repository_integrity.RepositoryIntegrityTests.test_no_symlinks_published) ... ok
+test_preseed_checker_imports_with_python_safe_path (test_repository_integrity.RepositoryIntegrityTests.test_preseed_checker_imports_with_python_safe_path) ... ok
+test_profiles_match_current_or_original_provenance (test_repository_integrity.RepositoryIntegrityTests.test_profiles_match_current_or_original_provenance) ... ok
+test_role_scoped_entries (test_repository_integrity.RepositoryIntegrityTests.test_role_scoped_entries) ... ok
+test_validator_counts_skips_from_failed_unittest_run (test_repository_integrity.RepositoryIntegrityTests.test_validator_counts_skips_from_failed_unittest_run) ... ok
+
+======================================================================
+FAIL: test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 164, in test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup
+    pins = checker['read_pins'](base.PROFILES[0])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857' not found in ['install pinned resctl-bench release', '/usr/bin/env', '-i', 'HOME=/root', 'LC_ALL=C', 'PATH=/usr/sbin:/usr/bin:/sbin:/bin', '/usr/bin/timeout', '--signal=TERM', '--kill-after=5s', '900s', '/usr/bin/python3', '-I', '/usr/local/libexec/installer-resctl-bench', '--version', '2.2.6', '--tag', 'resctl-bench-v0.0.2-P15s', '--url', 'https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz', '--sha256', '5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12', '--architecture', 'amd64', '--max-archive', '536870912', '--max-extracted', '2147483648', '--max-members', '8192']
+
+======================================================================
+FAIL: test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup (test_resctl_bench_20260916.ReleasePolicyTests.test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup) (failure=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/r5-work/debian-preseed-de/d-i/forky/tests/test_resctl_bench_20260916.py", line 164, in test_real_shell_staging_pin_arguments_and_ephemeral_helper_cleanup
+    pins = checker['read_pins'](base.PROFILES[0])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857' not found in ['install pinned resctl-bench release', '/usr/bin/env', '-i', 'HOME=/root', 'LC_ALL=C', 'PATH=/usr/sbin:/usr/bin:/sbin:/bin', '/usr/bin/timeout', '--signal=TERM', '--kill-after=5s', '900s', '/usr/bin/python3', '-I', '/usr/local/libexec/installer-resctl-bench', '--version', '2.2.6', '--tag', 'resctl-bench-v0.0.2-P15s', '--url', 'https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz', '--sha256', '5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12', '--architecture', 'amd64', '--max-archive', '536870912', '--max-extracted', '2147483648', '--max-members', '8192']
+
+----------------------------------------------------------------------
+Ran 128 tests in 67.391s
+
+FAILED (failures=2, skipped=2)

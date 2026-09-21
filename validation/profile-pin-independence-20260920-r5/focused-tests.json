@@ -1,0 +1,20 @@
+{
+  "suite": "focused",
+  "tests_run": 128,
+  "passed": 126,
+  "failures": [],
+  "errors": [],
+  "skipped": [
+    {
+      "test": "test_real_noexec_reproduces_eacces_then_staged_probe_succeeds (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_noexec_reproduces_eacces_then_staged_probe_succeeds)",
+      "reason": "no existing noexec /dev/shm; test never mounts filesystems"
+    },
+    {
+      "test": "test_full_moo_module_pin_validation_when_dependencies_are_installed (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_full_moo_module_pin_validation_when_dependencies_are_installed)",
+      "reason": "Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl"
+    }
+  ],
+  "seconds": 70.225,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "python_executable": "/opt/pyvenv/bin/python3"
+}

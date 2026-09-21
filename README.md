@@ -46,24 +46,33 @@ See [the current scoped refactor and validation report](docs/HARDWARE-TUNING-REF
 
 The resctl installer now publishes release documentation to root-controlled `/usr/local/share/doc/resctl-bench`, not the account-owned `/data/docs`. Its trust checks, release pins, noexec protections, credential-dropped probes and no-clobber publication remain intact. Current evidence is under `validation/tuning-refactor-20260917/`; dated reports below remain historical.
 
-## resctl-bench release pin repair - 17 September 2026
+## Independent per-profile release pins - Revision 5, 20 September 2026
 
-All 13 desktop profiles now pin `resctl-bench-v0.0.2-P15s`, version `2.2.6`,
-including the `-aa3786abb93aa646` asset build ID and the requested archive SHA-256.
-The installer accepts the upstream 16-hex build-ID filename and reports URL
-validation separately from malformed or mismatched SHA-256 values. Archive and
-member checksum verification remain mandatory; no downloaded installer executes.
+Each desktop profile owns its resctl-bench release pins. Different profiles may
+use different URLs, SHA-256 digests, tags, versions and size/member limits.
+`python3 -I -B tools/check_resctl_bench.py` validates each profile independently
+using the target installer's existing policy; it never compares profiles.
+Both `make build` and `tools/build.py --check` retain this offline validation.
 
-`python3 -I -B tools/check_resctl_bench.py` validates all eight profile pins with
-the target installer's actual policy, without sourcing the profiles or using
-the network. Both `tools/build.py` and `tools/build.py --check` run this gate
-before generating release products. Missing, duplicate, nonliteral, inconsistent
-or invalid pins stop publication rather than surfacing late in d-i.
+All 13 shipped profiles currently use the requested `resctl-bench-v0.0.2-P15s`
+release, version `2.2.6`, the `-fe7971477fed192a` asset, and SHA-256
+`5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12`.
+These are initial defaults, not an equality constraint or a locked release.
+To change a single profile, update its related pins coherently; no other profile
+needs changing. Tomat's tag, URL and SHA-256 are also independently configurable.
 
-See [the current repair and deployment report](docs/RESCTL-RELEASE-REPAIR-20260917.md)
-and `validation/resctl-release-20260917/`. The earlier resctl release pins and
-validation reports below are historical. The 2 GiB publisher ceiling, 4 GiB
-retained-archive ceiling, and package-safe power flows remain unchanged.
+Each profile still requires literal, unique, complete assignments and a URL
+consistent with its own tag/version and the supported origin/architecture.
+Malformed configuration stops publication. The installer still hashes the
+actual downloaded archive before extraction or installation; the offline build
+does not confirm remote availability or that a digest matches remote bytes.
+No downloaded installer executes and native-target smoke checks remain intact.
+
+See [the Revision 5 report](FOLLOWUP-20260920-r5.md) and
+`validation/profile-pin-independence-20260920-r5/`. Earlier dated reports,
+including [the 17 September repair](docs/RESCTL-RELEASE-REPAIR-20260917.md),
+describe historical behavior; their cross-profile equality requirement is
+superseded. Resource limits and power/session behavior are unchanged.
 
 ## Package limits and package-safe power actions - 17 September 2026
 

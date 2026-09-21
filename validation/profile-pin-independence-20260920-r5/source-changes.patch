@@ -1,0 +1,824 @@
+--- a/README.md
++++ b/README.md
+@@ -46,24 +46,33 @@
+ 
+ The resctl installer now publishes release documentation to root-controlled `/usr/local/share/doc/resctl-bench`, not the account-owned `/data/docs`. Its trust checks, release pins, noexec protections, credential-dropped probes and no-clobber publication remain intact. Current evidence is under `validation/tuning-refactor-20260917/`; dated reports below remain historical.
+ 
+-## resctl-bench release pin repair - 17 September 2026
+-
+-All 13 desktop profiles now pin `resctl-bench-v0.0.2-P15s`, version `2.2.6`,
+-including the `-aa3786abb93aa646` asset build ID and the requested archive SHA-256.
+-The installer accepts the upstream 16-hex build-ID filename and reports URL
+-validation separately from malformed or mismatched SHA-256 values. Archive and
+-member checksum verification remain mandatory; no downloaded installer executes.
+-
+-`python3 -I -B tools/check_resctl_bench.py` validates all eight profile pins with
+-the target installer's actual policy, without sourcing the profiles or using
+-the network. Both `tools/build.py` and `tools/build.py --check` run this gate
+-before generating release products. Missing, duplicate, nonliteral, inconsistent
+-or invalid pins stop publication rather than surfacing late in d-i.
+-
+-See [the current repair and deployment report](docs/RESCTL-RELEASE-REPAIR-20260917.md)
+-and `validation/resctl-release-20260917/`. The earlier resctl release pins and
+-validation reports below are historical. The 2 GiB publisher ceiling, 4 GiB
+-retained-archive ceiling, and package-safe power flows remain unchanged.
++## Independent per-profile release pins - Revision 5, 20 September 2026
++
++Each desktop profile owns its resctl-bench release pins. Different profiles may
++use different URLs, SHA-256 digests, tags, versions and size/member limits.
++`python3 -I -B tools/check_resctl_bench.py` validates each profile independently
++using the target installer's existing policy; it never compares profiles.
++Both `make build` and `tools/build.py --check` retain this offline validation.
++
++All 13 shipped profiles currently use the requested `resctl-bench-v0.0.2-P15s`
++release, version `2.2.6`, the `-fe7971477fed192a` asset, and SHA-256
++`5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12`.
++These are initial defaults, not an equality constraint or a locked release.
++To change a single profile, update its related pins coherently; no other profile
++needs changing. Tomat's tag, URL and SHA-256 are also independently configurable.
++
++Each profile still requires literal, unique, complete assignments and a URL
++consistent with its own tag/version and the supported origin/architecture.
++Malformed configuration stops publication. The installer still hashes the
++actual downloaded archive before extraction or installation; the offline build
++does not confirm remote availability or that a digest matches remote bytes.
++No downloaded installer executes and native-target smoke checks remain intact.
++
++See [the Revision 5 report](FOLLOWUP-20260920-r5.md) and
++`validation/profile-pin-independence-20260920-r5/`. Earlier dated reports,
++including [the 17 September repair](docs/RESCTL-RELEASE-REPAIR-20260917.md),
++describe historical behavior; their cross-profile equality requirement is
++superseded. Resource limits and power/session behavior are unchanged.
+ 
+ ## Package limits and package-safe power actions - 17 September 2026
+ 
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual-flex.env
+@@ -576,8 +576,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual-main.env
+@@ -574,8 +574,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-de-dual.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-dual.env
+@@ -573,8 +573,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-de-flex.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-flex.env
+@@ -573,8 +573,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-de-main.env
++++ b/d-i/forky/hosts/profiles/btrfs-de-main.env
+@@ -574,8 +574,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-de.env
++++ b/d-i/forky/hosts/profiles/btrfs-de.env
+@@ -573,8 +573,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/btrfs-desktop.env
++++ b/d-i/forky/hosts/profiles/btrfs-desktop.env
+@@ -573,8 +573,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/f2fs-de-cbook.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-cbook.env
+@@ -563,8 +563,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-dual-cbook.env
+@@ -564,8 +564,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/f2fs-de-dual.env
++++ b/d-i/forky/hosts/profiles/f2fs-de-dual.env
+@@ -563,8 +563,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/f2fs-de.env
++++ b/d-i/forky/hosts/profiles/f2fs-de.env
+@@ -563,8 +563,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/f2fs-desktop.env
++++ b/d-i/forky/hosts/profiles/f2fs-desktop.env
+@@ -563,8 +563,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/hosts/profiles/vm-desktop.env
++++ b/d-i/forky/hosts/profiles/vm-desktop.env
+@@ -573,8 +573,8 @@
+ RESCTL_BENCH_VERSION="2.2.6"
+ RESCTL_BENCH_TAG="resctl-bench-v0.0.2-P15s"
+ RESCTL_BENCH_ARCHITECTURE="amd64"
+-RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-aa3786abb93aa646.tar.gz"
+-RESCTL_BENCH_SHA256="bb132e73ffe5cdf32e205569b8a5cd7e2f52872dae6ffeace57b28337f2d6857"
++RESCTL_BENCH_URL="https://github.com/mjcramerz/resctl-bench/releases/download/resctl-bench-v0.0.2-P15s/resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-fe7971477fed192a.tar.gz"
++RESCTL_BENCH_SHA256="5521053cd583b6d01c608a9deff7dabe4ebb5e07eb314d8819a9833ff5684d12"
+ RESCTL_BENCH_MAXIMUM_BYTES="536870912"
+ RESCTL_BENCH_MAXIMUM_EXTRACTED_BYTES="2147483648"
+ RESCTL_BENCH_MAXIMUM_MEMBERS="8192"
+--- a/d-i/forky/tests/test_resctl_bench_20260916.py
++++ b/d-i/forky/tests/test_resctl_bench_20260916.py
+@@ -12,6 +12,7 @@
+ import os
+ from pathlib import Path
+ import re
++import runpy
+ import shutil
+ import stat
+ import subprocess
+@@ -80,15 +81,13 @@
+     def setUp(self):
+         self.installer = module()
+ 
+-    def test_all_thirteen_profiles_have_each_exact_pin_once(self):
+-        profiles = sorted((SEED/'hosts/profiles').glob('*.env'))
++    def test_all_thirteen_profiles_have_independently_valid_pins(self):
++        checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
++        profiles = sorted((SEED / 'hosts/profiles').glob('*.env'))
+         self.assertEqual(len(profiles), 13)
+-        expected = dict(VERSION='2.2.6', TAG=TAG, URL=URL, SHA256=PIN, ARCHITECTURE='amd64',
+-                        MAXIMUM_BYTES='536870912', MAXIMUM_EXTRACTED_BYTES='2147483648', MAXIMUM_MEMBERS='8192')
+         for profile in profiles:
+-            for key, value in expected.items():
+-                with self.subTest(profile=profile.name, key=key):
+-                    self.assertEqual(re.findall(r'^RESCTL_BENCH_' + key + r'="([^"]*)"$', profile.read_text(), re.M), [value])
++            with self.subTest(profile=profile.name):
++                self.installer.policy(checker['arguments'](checker['read_pins'](profile)))
+ 
+     def test_valid_policy_and_each_invalid_input(self):
+         self.installer.policy(arguments())
+@@ -161,7 +160,9 @@
+                 self.assertEqual(result.returncode, 7 if failure else 0, result.stderr)
+                 self.assertFalse((root/'target/usr/local/libexec/installer-resctl-bench').exists())
+                 args = (root/'target/invocation').read_text().splitlines()
+-                for value in (PIN, TAG, URL, '/usr/bin/python3', '-I', '/usr/bin/env', '-i', '900s'):
++                checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
++                pins = checker['read_pins'](base.PROFILES[0])
++                for value in (*pins.values(), '/usr/bin/python3', '-I', '/usr/bin/env', '-i', '900s'):
+                     self.assertIn(value, args)
+                 self.assertFalse(list((root/'target').rglob('.installer-asset.*')))
+ 
+--- a/d-i/forky/tests/test_resctl_bench_release_20260917.py
++++ b/d-i/forky/tests/test_resctl_bench_release_20260917.py
+@@ -1,4 +1,4 @@
+-"""Regression for build-ID release URLs and consistent, preflighted host pins.
++"""Regression for build-ID release URLs and independently preflighted host pins.
+ 
+ Offline tests: synthetic archives only; no release binary/installer executes.
+ The --version/noexec regressions in the existing suite retain their real ELF
+@@ -176,15 +176,11 @@
+         self.profile = self.profiles / 'a.env'
+         self.profile.write_text(pin_text())
+ 
+-    def test_all_actual_profiles_match_the_exact_requested_values_once(self):
+-        profiles = sorted((base.SEED / 'hosts/profiles').glob('*.env'))
+-        self.assertEqual(len(profiles), 13)
+-        for profile in profiles:
+-            with self.subTest(profile=profile.name):
+-                self.assertEqual(self.checker.read_pins(profile), PINS)
++    def test_all_actual_profiles_pass_independent_preflight(self):
++        # Fixture PINS are not a repository-wide release constraint.
+         self.assertEqual(self.checker.check(), 13)
+ 
+-    def test_current_profile_provenance_matches_the_synchronized_profiles(self):
++    def test_current_profile_provenance_matches_the_recorded_profiles(self):
+         ledger = json.loads((ROOT / 'docs/migration-map.json').read_text())
+         records = {item['destination']: item for item in ledger['files']
+                    if item['destination'].startswith('d-i/forky/hosts/profiles/')}
+@@ -219,14 +215,18 @@
+             with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'duplicate RESCTL_BENCH_' + key):
+                 self.checker.check(self.seed)
+ 
+-    def test_syntactically_valid_but_different_profile_pin_is_rejected(self):
++    def test_independently_valid_different_profile_pins_are_accepted(self):
+         changes = ({'SHA256': '0' * 64}, {'MAXIMUM_BYTES': '536870911'},
+                    {'MAXIMUM_EXTRACTED_BYTES': '2147483647'}, {'MAXIMUM_MEMBERS': '8191'},
+-                   {'URL': PINS['URL'].replace('-' + BUILD_ID, '')})
++                   {'URL': PINS['URL'].replace('-' + BUILD_ID, '')},
++                   {'TAG': 'resctl-bench-v0.0.3-P15s', 'VERSION': '2.2.7',
++                    'URL': PINS['URL'].replace(PINS['TAG'], 'resctl-bench-v0.0.3-P15s')
++                                      .replace('resctl-bench-2.2.6-', 'resctl-bench-2.2.7-'),
++                    'SHA256': 'a' * 64})
+         for change in changes:
+             (self.profiles / 'b.env').write_text(pin_text(**change))
+-            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'pins differ from a.env'):
+-                self.checker.check(self.seed)
++            with self.subTest(change=change):
++                self.assertEqual(self.checker.check(self.seed), 2)
+ 
+     def test_checker_invokes_real_installer_policy_not_just_regex_or_profile_agreement(self):
+         # All profiles agree, but policy still rejects this otherwise legal literal.
+@@ -270,10 +270,10 @@
+         for name in products:
+             (self.seed / name).write_bytes(b'untouched release sentinel\n')
+         # No browser/build helper is present: pin errors MUST happen first.
+-        for kind in ('invalid-url', 'profile-drift'):
++        for kind in ('invalid-url', 'invalid-second-profile'):
+             self.profile.write_text(pin_text(URL=PINS['URL'] + '?bad') if kind == 'invalid-url' else pin_text())
+-            if kind == 'profile-drift':
+-                (self.profiles / 'b.env').write_text(pin_text(SHA256='0' * 64))
++            if kind == 'invalid-second-profile':
++                (self.profiles / 'b.env').write_text(pin_text(SHA256='not-a-sha256'))
+             for flag in ([], ['--check']):
+                 with self.subTest(kind=kind, flag=flag):
+                     result = subprocess.run([sys.executable, '-I', '-B', str(tools / 'build.py'), *flag],
+--- a/d-i/forky/tests/test_systemd_resource_policy.py
++++ b/d-i/forky/tests/test_systemd_resource_policy.py
+@@ -293,19 +293,17 @@
+                 r'(?:RESCTL_BENCH_[A-Z0-9_]+="[^"\n]*"\n){8}\n',
+                 '', profile_text, count=1)
+             self.assertEqual(count, 1)
+-            # R4 adds only the independent Tomat bootstrap pins here. Match
+-            # and remove exactly that block; all historical workload bytes and
+-            # their original hash fixtures below must remain unchanged.
+-            tomat_pins = (
+-                '\n# Pinned Tomat bootstrap release; all three values must be updated together.\n'
+-                '# Installation verifies this digest without consulting the mutable latest API.\n'
+-                'SOFTWARE_TOMAT_TAG="v2.13.0"\n'
+-                'SOFTWARE_TOMAT_URL="https://github.com/jolars/tomat/releases/download/v2.13.0/'
+-                'tomat_2.13.0-1_amd64.deb"\n'
+-                'SOFTWARE_TOMAT_SHA256="871ee4fd19f3367cf4aa638a2364ae83de6c4ce4550a7ebe5ee6124be86c6aa1"\n\n'
+-            )
+-            self.assertEqual(original.count(tomat_pins), 1)
+-            original = original.replace(tomat_pins, '', 1)
++            # Release pins vary per profile; their validators own pin policy.
++            # Remove only the three-key block, preserving every workload byte
++            # and the original historical hash fixture.
++            original, tomat_count = re.subn(
++                r'\n# Pinned Tomat bootstrap release; all three values must be updated together\.\n'
++                r'# Installation verifies this digest without consulting the mutable latest API\.\n'
++                r'SOFTWARE_TOMAT_TAG="[^"\n]*"\n'
++                r'SOFTWARE_TOMAT_URL="[^"\n]*"\n'
++                r'SOFTWARE_TOMAT_SHA256="[^"\n]*"\n\n',
++                '', original, count=1)
++            self.assertEqual(tomat_count, 1)
+             prefix = original.split('\n# Systemd accounting and user resource classes.', 1)[0]
+             self.assertEqual(hashlib.sha256((prefix.rstrip()+'\n').encode()).hexdigest(),
+                              manifest['profile_prefix_sha256'][profile.name])
+--- a/d-i/forky/tests/test_tomat_release_pins_20260920.py
++++ b/d-i/forky/tests/test_tomat_release_pins_20260920.py
+@@ -118,14 +118,8 @@
+ 
+ 
+ class TomatProfilePinsTests(unittest.TestCase):
+-    def test_all_thirteen_profiles_have_exact_literal_pins(self):
+-        profiles = sorted(PROFILES.glob('*.env'))
+-        self.assertEqual(len(profiles), 13)
+-        for profile in profiles:
+-            with self.subTest(profile=profile.name):
+-                lines = [line for line in profile.read_text().splitlines() if line.startswith('SOFTWARE_TOMAT_')]
+-                self.assertEqual(len(lines), 3)
+-                self.assertEqual(set(lines), {f'{key}="{value}"' for key, value in PINS.items()})
++    def test_all_thirteen_profiles_have_independently_valid_literal_pins(self):
++        self.assertEqual(len(list(PROFILES.glob('*.env'))), 13)
+         load_build().validate_tomat_profiles()
+ 
+     def validate_fixture(self, values=None, extra=''):
+@@ -193,7 +187,11 @@
+                         self.assertEqual(result.returncode, 0, result.stderr)
+                         args = json.loads(captured.read_text())
+                         self.assertEqual(args[:2], ['/target', '/usr/bin/perl'])
+-                        self.assertEqual(args[-5:], ['--', '/tmp/installer-software', TAG, URL, SHA256])
++                        values = dict(re.findall(r'^(SOFTWARE_TOMAT_[A-Z0-9_]+)="([^"\n]*)"$',
++                                                 profile.read_text(), re.M))
++                        self.assertEqual(args[-5:], ['--', '/tmp/installer-software',
++                            values['SOFTWARE_TOMAT_TAG'], values['SOFTWARE_TOMAT_URL'],
++                            values['SOFTWARE_TOMAT_SHA256']])
+                         self.assertIn('->download_pinned(@ARGV)', args[args.index('-e') + 1])
+                         self.assertNotIn('releases/latest', args[args.index('-e') + 1])
+         self.assertLess(text.index('. "$host_env"'), text.index('${SOFTWARE_TOMAT_TAG:?'))
+--- a/docs/migration-map.json
++++ b/docs/migration-map.json
+@@ -7828,8 +7828,8 @@
+       "source_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+       "destination_sha256": "d7c2059a306b8456bdacd172f7defd00a2c47fb31fdbe822749e9d85ccf73b59",
+       "content_status": "unchanged",
+-      "current_sha256": "35065cc045dddee8cb1ad6fa0d208ab9ecde35207a20dabf00b9ea4a3a0905d8",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "fd8863a947eac69c8fc6e2e45ef2075fac7737698ef930bc56a57cd65bc8171d",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/f2fs/desktop.env",
+@@ -7837,8 +7837,8 @@
+       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "content_status": "unchanged",
+-      "current_sha256": "5d6e7d61c52575d6766325f0f552c4cf6875b66dc81101828e9b0ca1bd9599ba",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-flex.env",
+@@ -7846,8 +7846,8 @@
+       "source_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "destination_sha256": "9bc47bc25e4393684d50389df6eefa585d573c5b8ae90ea12fa7c77af12f035b",
+       "content_status": "unchanged",
+-      "current_sha256": "5d01aca5299d63b449f35170e0ab6e88415dd33c5a8a8f11ae2d5a1ba6507c0b",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "8b1b340fa6dddc8d167b79817f36054cb8279cd8346d40a9bc2001bf104c971b",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual-main.env",
+@@ -7855,8 +7855,8 @@
+       "source_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "destination_sha256": "a71b84a9eae9feb5c1dcdc8016db36499df734ca872e40fdea9d0e14819c4558",
+       "content_status": "unchanged",
+-      "current_sha256": "b373facc2d20cea025e938f8f550852979e184bab6b4d131e93fd8f1774390b5",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "e814156309a419e25c09dcfa2c46c9fa5fd0ee3567c87eb28fef4c108f566f1b",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-dual.env",
+@@ -7864,8 +7864,8 @@
+       "source_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "destination_sha256": "23a18d3406b432980c651e5017fec23e5df79b92a754afdec2519953360f5cb4",
+       "content_status": "unchanged",
+-      "current_sha256": "261c958a76052799f34d466e922fbdfc96eff1d4361bfef4ac8b6f718b80391f",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "fd9bff49720360b5e0b5a03699af24e15f59028fa7ee0ae55a2e72f1ba15d2cd",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-flex.env",
+@@ -7873,8 +7873,8 @@
+       "source_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "destination_sha256": "b8fdef22c4b570058edd8d1feb7c83f3a35e2d8593afde68f1fc69326b5fcfff",
+       "content_status": "unchanged",
+-      "current_sha256": "b8b0f08bc6bb2ebd3a787499d573312343a070e0925b2296e9468597421df263",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "18a038a418a60d1eea26e579b2184d454f29238aaca668a2aae490e61833deab",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/btrfs-de-main.env",
+@@ -7882,8 +7882,8 @@
+       "source_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "destination_sha256": "fa4054cc45c4d0befdf672af5a9c4712d3a9d44594f0db2735d46e766434184a",
+       "content_status": "unchanged",
+-      "current_sha256": "2d95bff5e016cedb29e9cc1cfac732ad88319a0f46c53aecb2aa2a56d4889b1f",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained",
++      "current_sha256": "f3ae00639aaed9edac80443cd91f1de8d68e4e332bde325698edbe6659ff871f",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile",
+       "repair_note": "Baseline ZIP already contained this profile content; repaired stale current provenance, not profile behavior."
+     },
+     {
+@@ -7892,8 +7892,8 @@
+       "source_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "destination_sha256": "0c3f14b51ae969bba003e5faf48d1c30f4b180a83a218d451f1d6c125db8b011",
+       "content_status": "unchanged",
+-      "current_sha256": "271b87f058b35d4ee4a5dc2af90311b6e7e038c63fb079eee082d9fcfc43a2c7",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "d3a0f4de2c2af04d4db7ae0a934e9f642644dc5ecbe17b9d387b01aea62060fe",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-cbook.env",
+@@ -7901,8 +7901,8 @@
+       "source_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "destination_sha256": "c9a6ba842bd32505c737436b17cc01e80f734d3f9f733f48bb6a73a309a2fa9e",
+       "content_status": "unchanged",
+-      "current_sha256": "d371447a9a2711cefe0b510edfe414fca53159f5f396592f45fad0bdd36abda3",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "2bdcb38551f66c4346fc780c3afceae59be587eceb7d111a0e16201c68e4e620",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual-cbook.env",
+@@ -7910,8 +7910,8 @@
+       "source_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "destination_sha256": "48b1d37d91676548fb89ba4644094a0a7bb7dbfe6231c8d79ff142293e0520b0",
+       "content_status": "unchanged",
+-      "current_sha256": "52b8975abfd29352cbf0bb24f792a1e56b2f60d63c25cf012ba82318f5ef8b0d",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "92ca76b89f99133c2cc3995b1285188001b7ba837d386f8e2480d9a1eeec8397",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de-dual.env",
+@@ -7919,8 +7919,8 @@
+       "source_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "destination_sha256": "4b0e169887ecf16dce3a69da4ae2d4b3010f537f759296c4f39bb2845bb296de",
+       "content_status": "unchanged",
+-      "current_sha256": "5d6e7d61c52575d6766325f0f552c4cf6875b66dc81101828e9b0ca1bd9599ba",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "859fe2bb7188f0da75a70b8c37b6fe404a8117d2b75530e15797e651b43a3be7",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/override/f2fs-de.env",
+@@ -7928,8 +7928,8 @@
+       "source_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "destination_sha256": "7570ad71265da0b3c31c3b312e4804e56b9875bfa3128bdf620b8b5abca66593",
+       "content_status": "unchanged",
+-      "current_sha256": "0df7f6dd652bc0d90709ffbcb2fdd2140d3f4f8b214383c5fe0e41eb903e9757",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "2912df63cf5898c2a43a161ca8ef4531d8ecda8394dd30e21c9e18b28d56b1dd",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; explicit allowlisted SYSTEM_HARDWARE_SPEC selection (2026-09-20 Tomat/native-menu task); original source and migration destination hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/profiles/vm/desktop.env",
+@@ -7937,8 +7937,8 @@
+       "source_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+       "destination_sha256": "5eb8014dcad5419a199ae77e09ec0ca9ba7531273c74a7753d20b890f05ae94c",
+       "content_status": "unchanged",
+-      "current_sha256": "5d802cd10df26b25e6ad6272195c85fa917f5a75061b2e3c4d2e1c0677a9e1d7",
+-      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained"
++      "current_sha256": "8ec095fa16679a576a10d45f7203b3c087d62ff3bcd65066fbb71a7c6d4077c3",
++      "current_change": "No-home Podman devops service-account configuration and archive-validated Labwc wallpaper selection; original source_sha256 retained; Codex home uses SSH on tracking branch mcr/main (2026-09-14); scoped manager/user-slice resource policy and storage parameters; original workload policy preserved (2026-09-16 r2); compositor/audio CPU policy, system sub-slices and socket polling controls (2026-09-16 r3); preserve vendor coredump concurrency and use moderate polling only (2026-09-16 r4); pinned resctl-bench native release installation (2026-09-16 power/resctl); gated Intel/NVIDIA hardware tuning, bounded policy and lifecycle integration (2026-09-16); synchronized all eight resctl-bench v2.2.6 / v0.0.2-P15s release pins and refreshed current provenance (2026-09-17); original source and migration destination hashes retained; scoped hardware tuning ownership/transaction/lifecycle and protected resctl documentation refactor (2026-09-17); historical source/destination hashes retained; categorized Fuzzel main menu policy, searchable launcher unchanged (2026-09-17 desktop menus); five checksum-pinned terminal-font archives (2026-09-18 desktop navigation/fonts); matched main-menu/search Fuzzel geometry (2026-09-19 session repair); linked Computer Management/Main Menu geometry and explicit Gammastep opt-in (2026-09-20); prior source and migration destination hashes retained; replaced the old indicator boolean with ten native WLSUNSET settings and Malmo defaults (2026-09-20 follow-up); original provenance hashes retained; pinned Tomat v2.13.0 bootstrap URL/tag/SHA-256 (2026-09-20 revision 4); historical source/destination hashes retained; R5: requested resctl-bench URL/SHA256 defaults; release pins are independently configurable per profile"
+     },
+     {
+       "source": "d-i/forky/hosts/shared/account.env",
+--- a/tools/check_resctl_bench.py
++++ b/tools/check_resctl_bench.py
+@@ -3,8 +3,9 @@
+ 
+ This is an offline publishing gate, not a download or native-CPU acceptance test.
+ The trusted repository helper supplies the SAME policy used inside the target.
+-Every profile must have all eight pins exactly once, as literal assignments,
+-and all profiles must agree. Update the complete set together for a new release.
++Every profile must have all eight pins exactly once, as literal assignments.
++Profiles are independent: each may select its own release and resource bounds.
++Only consistency within each profile is required; no cross-profile equality.
+ """
+ from __future__ import annotations
+ 
+@@ -77,20 +78,12 @@
+     # Load definitions only, never the helper's __main__ installation entry point.
+     helper = runpy.run_path(str(seed / 'scripts/desktop/resctl-bench-install.py'),
+                             run_name='resctl_release_policy')
+-    reference: dict[str, str] | None = None
+-    reference_name = ''
+     for profile in profiles:
+         try:
+             pins = read_pins(profile)
+             helper['policy'](arguments(pins))
+         except (ValueError, helper['Error']) as exc:
+             raise ValueError(f'resctl-bench profile validation failed ({profile.name}): {exc}') from exc
+-        if reference is None:
+-            reference, reference_name = pins, profile.name
+-        elif pins != reference:
+-            changed = ', '.join('RESCTL_BENCH_' + key for key in FIELDS if pins[key] != reference[key])
+-            raise ValueError(f'{profile.name}: resctl-bench pins differ from {reference_name}: '
+-                             f'{changed}; update all profiles together')
+     return len(profiles)
+ 
+ 
+@@ -102,7 +95,7 @@
+     except (OSError, ValueError) as exc:
+         print(f'resctl-bench preflight: {exc}', file=sys.stderr)
+         return 1
+-    print(f'resctl-bench: {count} profiles have identical, valid release pins (offline)')
++    print(f'resctl-bench: {count} profiles have independently valid release pins (offline)')
+     return 0
+ 
+ 
+--- /dev/null
++++ b/d-i/forky/tests/test_profile_pin_independence_20260920.py
+@@ -0,0 +1,238 @@
++"""R5: independent pins through real build and shell dispatch paths.
++
++Alternate releases and digests below are synthetic offline configuration data.
++No artifact is downloaded or executed; run_in_target is intercepted.
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++from pathlib import Path
++import re
++import runpy
++import shutil
++import subprocess
++import sys
++import tarfile
++import tempfile
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[3]
++SEED = ROOT / 'd-i/forky'
++
++
++def load_checker():
++    return runpy.run_path(str(ROOT / 'tools/check_resctl_bench.py'), run_name='profile_pin_checker')
++
++
++def resctl_fixture(number: int) -> dict[str, str]:
++    version = f'2.2.{number + 6}'
++    tag = f'resctl-bench-v0.0.{number + 2}-Fixture'
++    return {
++        'VERSION': version,
++        'TAG': tag,
++        'ARCHITECTURE': 'amd64',
++        'URL': ('https://github.com/mjcramerz/resctl-bench/releases/download/'
++                f'{tag}/resctl-bench-{version}-x86_64-unknown-linux-gnu-native-{number:016x}.tar.gz'),
++        'SHA256': hashlib.sha256(f'synthetic fixture {number}'.encode()).hexdigest(),
++        'MAXIMUM_BYTES': str(134217728 + number),
++        'MAXIMUM_EXTRACTED_BYTES': str(268435456 + number),
++        'MAXIMUM_MEMBERS': str(100 + number),
++    }
++
++
++def tomat_fixture(number: int) -> dict[str, str]:
++    version = f'2.{13 + number}.0'
++    return {
++        'SOFTWARE_TOMAT_TAG': f'v{version}',
++        'SOFTWARE_TOMAT_URL': ('https://github.com/jolars/tomat/releases/download/'
++                               f'v{version}/tomat_{version}-{number + 1}_amd64.deb'),
++        'SOFTWARE_TOMAT_SHA256': hashlib.sha256(f'synthetic Tomat {number}'.encode()).hexdigest(),
++    }
++
++
++def pin_text(pins: dict[str, str]) -> str:
++    return ''.join(f'RESCTL_BENCH_{key}="{value}"\n' for key, value in pins.items())
++
++
++def update_profile(path: Path, number: int) -> None:
++    values = {**{'RESCTL_BENCH_' + k: v for k, v in resctl_fixture(number).items()},
++              **tomat_fixture(number)}
++    text = path.read_text()
++    for key, value in values.items():
++        text, count = re.subn(r'^' + key + r'="[^"\n]*"$', f'{key}="{value}"', text, flags=re.M)
++        if count != 1:
++            raise AssertionError(f'{path.name}: expected exactly one {key}')
++    path.write_text(text)
++
++
++class IndependentPreflightTests(unittest.TestCase):
++    def setUp(self):
++        temporary = tempfile.TemporaryDirectory()
++        self.addCleanup(temporary.cleanup)
++        self.seed = Path(temporary.name)
++        self.profiles = self.seed / 'hosts/profiles'
++        self.profiles.mkdir(parents=True)
++        helper = self.seed / 'scripts/desktop/resctl-bench-install.py'
++        helper.parent.mkdir(parents=True)
++        shutil.copyfile(SEED / 'scripts/desktop/resctl-bench-install.py', helper)
++        self.checker = load_checker()
++
++    def test_thirteen_distinct_releases_and_bounds_pass_without_mutation(self):
++        paths = []
++        for index in range(13):
++            path = self.profiles / f'{index:02}.env'
++            path.write_text(pin_text(resctl_fixture(index)))
++            paths.append(path)
++        before = {p.name: p.read_bytes() for p in paths}
++        self.assertEqual(self.checker['check'](self.seed), 13)
++        self.assertEqual(before, {p.name: p.read_bytes() for p in paths})
++
++    def test_one_profile_can_change_with_no_edit_to_others(self):
++        first = self.profiles / 'a.env'
++        second = self.profiles / 'b.env'
++        first.write_text(pin_text(resctl_fixture(0)))
++        second.write_bytes(first.read_bytes())
++        self.assertEqual(self.checker['check'](self.seed), 2)
++        unchanged = first.read_bytes()
++        second.write_text(pin_text(resctl_fixture(12)))
++        self.assertEqual(self.checker['check'](self.seed), 2)
++        self.assertEqual(first.read_bytes(), unchanged)
++
++    def test_no_sorted_reference_profile_controls_other_profiles(self):
++        for order in ((0, 1), (1, 0)):
++            with self.subTest(order=order):
++                for name, number in zip(('a.env', 'b.env'), order):
++                    (self.profiles / name).write_text(pin_text(resctl_fixture(number)))
++                self.assertEqual(self.checker['check'](self.seed), 2)
++
++    def test_each_profile_must_match_its_own_tag_not_a_neighbors(self):
++        first = resctl_fixture(0)
++        second = resctl_fixture(1)
++        (self.profiles / 'a.env').write_text(pin_text(first))
++        (self.profiles / 'b.env').write_text(pin_text(dict(second, URL=first['URL'])))
++        with self.assertRaisesRegex(ValueError, r'b.env.*invalid RESCTL_BENCH_URL'):
++            self.checker['check'](self.seed)
++
++    def test_invalid_later_profile_is_not_skipped(self):
++        (self.profiles / 'a.env').write_text(pin_text(resctl_fixture(0)))
++        (self.profiles / 'z.env').write_text(pin_text(dict(resctl_fixture(1), SHA256='bad')))
++        with self.assertRaisesRegex(ValueError, r'z.env.*invalid RESCTL_BENCH_SHA256'):
++            self.checker['check'](self.seed)
++
++    def test_security_checks_apply_to_every_profile(self):
++        (self.profiles / 'a.env').write_text(pin_text(resctl_fixture(0)))
++        second = self.profiles / 'z.env'
++        for change in ({'ARCHITECTURE': 'arm64'}, {'MAXIMUM_MEMBERS': '16385'},
++                       {'URL': resctl_fixture(1)['URL'].replace('github.com/', 'example.com/')},
++                       {'MAXIMUM_EXTRACTED_BYTES': '1024'}):
++            with self.subTest(change=change):
++                second.write_text(pin_text(dict(resctl_fixture(1), **change)))
++                with self.assertRaises(ValueError):
++                    self.checker['check'](self.seed)
++
++    def test_tomat_also_accepts_distinct_profiles_and_checks_each(self):
++        build = runpy.run_path(str(ROOT / 'tools/build.py'), run_name='profile_build')
++        namespace = build['validate_tomat_profiles'].__globals__
++        with mock.patch.dict(namespace, {'SEED': self.seed}):
++            for number in range(13):
++                (self.profiles / f'{number:02}.env').write_text(
++                    ''.join(f'{k}="{v}"\n' for k, v in tomat_fixture(number).items()))
++            build['validate_tomat_profiles']()
++            last = self.profiles / '12.env'
++            last.write_text(last.read_text().replace('v2.25.0', 'v9.99.0', 1))
++            with self.assertRaisesRegex(ValueError, r'12.env: Tomat URL'):
++                build['validate_tomat_profiles']()
++
++
++class BuildAndDispatchTests(unittest.TestCase):
++    @unittest.skipUnless(shutil.which('make'), 'make is needed for the real build entry point')
++    def test_real_make_build_and_check_preserve_thirteen_distinct_pin_sets(self):
++        with tempfile.TemporaryDirectory() as temporary:
++            root = Path(temporary)
++            for directory in ('d-i', 'tools', 'browser-config'):
++                shutil.copytree(ROOT / directory, root / directory,
++                                ignore=shutil.ignore_patterns('tests', '__pycache__', '.pytest_cache'))
++            shutil.copyfile(ROOT / 'Makefile', root / 'Makefile')
++            seed = root / 'd-i/forky'
++            profiles = sorted((seed / 'hosts/profiles').glob('*.env'))
++            self.assertEqual(len(profiles), 13)
++            for index, profile in enumerate(profiles):
++                update_profile(profile, index)
++            before = {str(p.relative_to(seed)): p.read_bytes() for p in profiles}
++            env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
++            for target in ('build', 'check'):
++                result = subprocess.run(['make', target, 'PYTHON=' + sys.executable],
++                                        cwd=root, env=env, capture_output=True, text=True, timeout=120)
++                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
++                self.assertIn('13 profiles have independently valid release pins', result.stdout)
++            self.assertEqual(before, {str(p.relative_to(seed)): p.read_bytes() for p in profiles})
++            manifest = dict(line.split('  ', 1)[::-1]
++                            for line in (seed / 'payload.manifest').read_text().splitlines())
++            with tarfile.open(seed / 'payload.tar.gz', 'r:gz') as archive:
++                for name, data in before.items():
++                    with self.subTest(profile=name), archive.extractfile(name) as stream:
++                        self.assertEqual(stream.read(), data)
++                        self.assertEqual(manifest[name], hashlib.sha256(data).hexdigest())
++            products = {name: (seed / name).read_bytes()
++                        for name in ('payload.tar.gz', 'payload.manifest', 'preseed.cfg')}
++            # Invalid pins must still stop both commands without replacing products.
++            last = profiles[-1]
++            last.write_text(last.read_text().replace('RESCTL_BENCH_SHA256="', 'RESCTL_BENCH_SHA256="bad', 1))
++            for target in ('build', 'check'):
++                result = subprocess.run(['make', target, 'PYTHON=' + sys.executable],
++                                        cwd=root, env=env, capture_output=True, text=True, timeout=120)
++                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
++                self.assertIn('invalid RESCTL_BENCH_SHA256', result.stderr)
++                self.assertEqual(products, {name: (seed / name).read_bytes() for name in products})
++
++    def test_real_shell_forwards_each_profile_pins_without_reusing_previous_release(self):
++        shells = [['/bin/sh']]
++        if shutil.which('busybox'):
++            shells.append([shutil.which('busybox'), 'sh'])
++        script = r'''
++set -eu
++. "$1"
++. "$2"
++work=$3
++python=$4
++capture=$work/argv.json
++capture_in_target() { printf '%s\n' amd64; }
++installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
++target_asset_host_path() { printf '%s/helper\n' "$work"; }
++installer_repo_join_var() { printf 'scripts/desktop/%s\n' "$2"; }
++stage_target_asset() { : >"$work/helper"; }
++desktop_log() { :; }
++run_in_target() {
++    shift
++    "$python" -B -c 'import json,sys;open(sys.argv[1],"w").write(json.dumps(sys.argv[2:]))' "$capture" "$@"
++}
++desktop_install_resctl_bench
++'''
++        flags = {'VERSION': '--version', 'TAG': '--tag', 'URL': '--url', 'SHA256': '--sha256',
++                 'ARCHITECTURE': '--architecture', 'MAXIMUM_BYTES': '--max-archive',
++                 'MAXIMUM_EXTRACTED_BYTES': '--max-extracted', 'MAXIMUM_MEMBERS': '--max-members'}
++        with tempfile.TemporaryDirectory() as temporary:
++            work = Path(temporary)
++            profile = work / 'profile.env'
++            for shell in shells:
++                for index in range(13):
++                    pins = resctl_fixture(index)
++                    profile.write_text(pin_text(pins))
++                    with self.subTest(shell=shell, profile=index):
++                        result = subprocess.run([*shell, '-c', script, 'profile-dispatch', str(profile),
++                                                 str(SEED / 'scripts/desktop/resctl-bench.sh'),
++                                                 str(work), sys.executable],
++                                                env=dict(os.environ, RESCTL_BENCH_TAG='stale-parent-tag'),
++                                                capture_output=True, text=True, timeout=15)
++                        self.assertEqual(result.returncode, 0, result.stderr)
++                        args = json.loads((work / 'argv.json').read_text())
++                        for key, flag in flags.items():
++                            self.assertEqual(args[args.index(flag) + 1], pins[key])
++                        self.assertFalse((work / 'helper').exists())
++
++
++if __name__ == '__main__':
++    unittest.main()

@@ -118,14 +118,8 @@ print "\nR4_RESULT=" . encode_json({ok => $ok ? 1 : 0, error => $error, result =
 
 
 class TomatProfilePinsTests(unittest.TestCase):
-    def test_all_thirteen_profiles_have_exact_literal_pins(self):
-        profiles = sorted(PROFILES.glob('*.env'))
-        self.assertEqual(len(profiles), 13)
-        for profile in profiles:
-            with self.subTest(profile=profile.name):
-                lines = [line for line in profile.read_text().splitlines() if line.startswith('SOFTWARE_TOMAT_')]
-                self.assertEqual(len(lines), 3)
-                self.assertEqual(set(lines), {f'{key}="{value}"' for key, value in PINS.items()})
+    def test_all_thirteen_profiles_have_independently_valid_literal_pins(self):
+        self.assertEqual(len(list(PROFILES.glob('*.env'))), 13)
         load_build().validate_tomat_profiles()
 
     def validate_fixture(self, values=None, extra=''):
@@ -193,7 +187,11 @@ chroot() { /usr/bin/python3 -c 'import json,sys;open(sys.argv[1],"w").write(json
                         self.assertEqual(result.returncode, 0, result.stderr)
                         args = json.loads(captured.read_text())
                         self.assertEqual(args[:2], ['/target', '/usr/bin/perl'])
-                        self.assertEqual(args[-5:], ['--', '/tmp/installer-software', TAG, URL, SHA256])
+                        values = dict(re.findall(r'^(SOFTWARE_TOMAT_[A-Z0-9_]+)="([^"\n]*)"$',
+                                                 profile.read_text(), re.M))
+                        self.assertEqual(args[-5:], ['--', '/tmp/installer-software',
+                            values['SOFTWARE_TOMAT_TAG'], values['SOFTWARE_TOMAT_URL'],
+                            values['SOFTWARE_TOMAT_SHA256']])
                         self.assertIn('->download_pinned(@ARGV)', args[args.index('-e') + 1])
                         self.assertNotIn('releases/latest', args[args.index('-e') + 1])
         self.assertLess(text.index('. "$host_env"'), text.index('${SOFTWARE_TOMAT_TAG:?'))

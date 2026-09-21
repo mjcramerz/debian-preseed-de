@@ -1,0 +1,12 @@
+Installed resctl-bench 2.2.6; docs: /var/lib/resctl-noexec-test-hb8cxg88/data/docs/resctl-bench; no benchmark executed
+{
+  "suite": "focused",
+  "tests_run": 128,
+  "passed": 126,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 2,
+  "seconds": 70.225,
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "python_executable": "/opt/pyvenv/bin/python3"
+}
