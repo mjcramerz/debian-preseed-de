@@ -1,0 +1,8 @@
+{
+  "reason": "Stopped the second full run after discovering that Debian Python could not import the existing PyYAML test dependency.",
+  "failing_import": "test_config_safety: ModuleNotFoundError: No module named yaml",
+  "action": "Supply the preinstalled, unchanged PyYAML package through a test-only PYTHONPATH, then repeat full validation.",
+  "production_code_changed": false,
+  "test_assertions_or_deadlines_changed": false,
+  "signal_to_test_process_group": "SIGTERM"
+}

@@ -2057,6 +2057,9 @@ print("desktop_native_drawer_verification layouts=2 icons=package-artwork size=1
 
 desktop_verify_native_menus() {
   desktop_verify_native_drawer_icons
+  # Share the renderer's layout, including the single-workspace taskbar.
+  desktop_native_menu_modules_left=$(desktop_waybar_modules_left_json) ||
+    desktop_fatal "failed to resolve native Waybar menu button order"
   # Parse installed files, without launching a daemon or requiring a display.
   # shellcheck disable=SC2016
   run_in_target "verify native Waybar menus and Tomat integration" /usr/bin/python3 -I -B -c '
@@ -2094,6 +2097,7 @@ require(subprocess.run(["/usr/bin/dpkg", "--compare-versions", mako_version, "ge
                        timeout=10, check=False).returncode == 0,
         "native notification history requires mako-notifier >= 1.11")
 controller = runpy.run_path("/usr/local/libexec/labwc-tomat")
+expected_left = json.loads(sys.argv[3])
 account = pwd.getpwnam(sys.argv[2])
 require(account.pw_uid != 0 and account.pw_dir == sys.argv[1], "menu account/home mismatch")
 for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw_uid)):
@@ -2106,8 +2110,9 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
     bars = json.loads((config / "waybar/config").read_text())
     for bar in bars:
         left = bar["modules-left"]
-        require(left.index("custom/tomat") == left.index("custom/wayscriber") + 1
-                and left.index("group/apps") == left.index("custom/tomat") + 1, "wrong Tomat button order")
+        require(left == expected_left,
+                "wrong native menu button order in " + str(config / "waybar/config")
+                + " (" + str(bar.get("name")) + "): expected " + repr(expected_left) + ", got " + repr(left))
         right = bar["modules-right"]
         controls = "group/quick-controls-internal" if bar.get("name") == "internal" else "group/quick-controls"
         require(right[-4:] == [controls, "custom/notifications", "custom/lock", "custom/power"]
@@ -2212,7 +2217,7 @@ if arch == "amd64":
         path = Path("/") / relative
         require(path.is_symlink() and os.readlink(path) == "/dev/null", "stock Tomat service is not masked: " + relative)
 print("desktop_native_menu_verification menus=5 tomat=isolated power=native calendar=native")
-' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME"
+' "$ACCOUNT_HOME" "$ACCOUNT_USERNAME" "[${desktop_native_menu_modules_left}]"
 }
 
 desktop_verify_target_staging() {

@@ -1,0 +1,45 @@
+{
+  "host_distribution": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.3\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n",
+  "python": "3.13.5 (main, Jun 25 2025, 18:55:22) [GCC 14.2.0]",
+  "kernel": "6.18.44",
+  "installed_test_packages": [
+    "apparmor 4.1.0-1",
+    "busybox 1:1.37.0-6+b8",
+    "libgtk-3-0t64:amd64 3.24.49-3",
+    "perl 5.40.1-6",
+    "python3 3.13.5-1",
+    "xvfb 2:21.1.16-1.3+deb13u1"
+  ],
+  "systemd_executable": null,
+  "test_boundaries": [
+    "Target pathname and UID/account mapping uses temporary fixtures.",
+    "New verifier tests simulate GTK import, installed Mako version and Tomat help probes.",
+    "Separate existing GTK3 tests instantiate real native widgets in isolated Xvfb displays.",
+    "No systemd user manager, real vendor daemon, booted Forky install or AppArmor kernel enforcement qualified."
+  ],
+  "native_verifier_require_calls": 31,
+  "initial_virtualenv_python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "final_validation_python_executable": "/usr/bin/python3",
+  "initial_validation_python_executable": "/opt/pyvenv/bin/python",
+  "full_validation_runs": [
+    {
+      "interpreter": "/opt/pyvenv/bin/python",
+      "summary": "virtualenv-attempt/summary.json",
+      "success": false,
+      "known_failure": "Unchanged Spotify cancellation fixture: 137 != 1 at its 250 ms test deadline."
+    },
+    {
+      "interpreter": "/usr/bin/python3",
+      "summary": "debian-python-missing-yaml-attempt/summary.json",
+      "success": false,
+      "interrupted": true,
+      "reason": "Existing test_config_safety required PyYAML; stopped after discovering the import error."
+    },
+    {
+      "interpreter": "/usr/bin/python3",
+      "summary": "summary.json",
+      "success": true,
+      "test_only_dependency": "Existing PyYAML 6.0.3 copied unchanged outside the repository and supplied via PYTHONPATH."
+    }
+  ]
+}

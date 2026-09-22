@@ -1,0 +1,60 @@
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... FAIL
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/waybar-repair/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/waybar-repair/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/waybar-repair/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/waybar-repair/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+======================================================================
+FAIL: test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/waybar-repair/debian-preseed-de/d-i/forky/tests/test_log_followup_20260915.py", line 112, in test_sigterm_handoff_text_cannot_mask_cancellation
+    self.assertEqual(process.returncode, 1, stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 137 != 1 : b''
+
+----------------------------------------------------------------------
+Ran 10 tests in 17.032s
+
+FAILED (failures=5)

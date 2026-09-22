@@ -1,0 +1,8 @@
+{
+  "before_members": 1403,
+  "after_members": 1403,
+  "member_content_changes": [
+    "scripts/desktop/verify.sh"
+  ],
+  "member_metadata_changes": []
+}

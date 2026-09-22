@@ -1,0 +1,252 @@
+[
+  {
+    "suite": "tests",
+    "test": "test_check_loaded_is_readonly_and_checks_both_source_and_kernel (test_boot_runtime_20260913.AppArmorReconciliationTests.test_check_loaded_is_readonly_and_checks_both_source_and_kernel)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_child_modes_remain_confined_without_forcing_parent_mode (test_boot_runtime_20260913.AppArmorReconciliationTests.test_child_modes_remain_confined_without_forcing_parent_mode)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_config_symlink_and_writable_source_remain_rejected (test_boot_runtime_20260913.AppArmorReconciliationTests.test_config_symlink_and_writable_source_remain_rejected)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_disabled_source_already_absent_is_noop (test_boot_runtime_20260913.AppArmorReconciliationTests.test_disabled_source_already_absent_is_noop)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_disabled_source_still_loaded_is_unloaded (test_boot_runtime_20260913.AppArmorReconciliationTests.test_disabled_source_still_loaded_is_unloaded)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_kernel_only_drift_reloads_only_mismatching_profile_without_editing (test_boot_runtime_20260913.AppArmorReconciliationTests.test_kernel_only_drift_reloads_only_mismatching_profile_without_editing)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_logging_has_one_sanitized_copy_and_no_syslog_dependency (test_boot_runtime_20260913.AppArmorReconciliationTests.test_logging_has_one_sanitized_copy_and_no_syslog_dependency)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_matching_sources_and_kernel_do_not_reload_or_rewrite (test_boot_runtime_20260913.AppArmorReconciliationTests.test_matching_sources_and_kernel_do_not_reload_or_rewrite)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_native_parser_finds_labels_when_reenabling_disabled_optional_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_native_parser_finds_labels_when_reenabling_disabled_optional_profile)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_no_reload_does_not_require_kernel_state (test_boot_runtime_20260913.AppArmorReconciliationTests.test_no_reload_does_not_require_kernel_state)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_optional_disabled_profile_is_reenabled_and_verified (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_disabled_profile_is_reenabled_and_verified)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_optional_labelless_source_is_allowed (test_boot_runtime_20260913.AppArmorReconciliationTests.test_optional_labelless_source_is_allowed)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_readonly_check_rejects_disabled_optional_named_profile (test_boot_runtime_20260913.AppArmorReconciliationTests.test_readonly_check_rejects_disabled_optional_named_profile)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_reload_failure_remains_failure (test_boot_runtime_20260913.AppArmorReconciliationTests.test_reload_failure_remains_failure)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_required_labelless_source_is_rejected (test_boot_runtime_20260913.AppArmorReconciliationTests.test_required_labelless_source_is_rejected)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_source_drift_changes_only_mismatching_profile_and_is_idempotent (test_boot_runtime_20260913.AppArmorReconciliationTests.test_source_drift_changes_only_mismatching_profile_and_is_idempotent)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_both_adapters_share_one_deadline (test_boot_runtime_20260913.NetworkReadinessTests.test_both_adapters_share_one_deadline)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_cli_rejects_unbounded_or_malformed_wait (test_boot_runtime_20260913.NetworkReadinessTests.test_cli_rejects_unbounded_or_malformed_wait)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_delayed_expected_adapter_succeeds (test_boot_runtime_20260913.NetworkReadinessTests.test_delayed_expected_adapter_succeeds)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_manual_validation_does_not_wait_by_default (test_boot_runtime_20260913.NetworkReadinessTests.test_manual_validation_does_not_wait_by_default)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_present_adapter_does_not_wait_for_other_devices (test_boot_runtime_20260913.NetworkReadinessTests.test_present_adapter_does_not_wait_for_other_devices)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_unrelated_adapter_does_not_satisfy_wait (test_boot_runtime_20260913.NetworkReadinessTests.test_unrelated_adapter_does_not_satisfy_wait)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_wait_cannot_hide_mac_type_or_wireless_mismatch (test_boot_runtime_20260913.NetworkReadinessTests.test_wait_cannot_hide_mac_type_or_wireless_mismatch)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_real_mkfs_uses_only_temporary_regular_images (test_btrfs_locale_boundary.BtrfsFeatureTests.test_real_mkfs_uses_only_temporary_regular_images)",
+    "reason": "'real btrfs-progs executables unavailable; no mock claimed as format validation'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_all_project_desktop_entries_validate_after_template_rendering (test_categorized_menu.IntegrationContractTests.test_all_project_desktop_entries_validate_after_template_rendering)",
+    "reason": "'desktop-file-utils not installed on test host'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_pygi_binding_runs_the_same_production_discovery_when_available (test_categorized_menu.RealGioSemanticTests.test_pygi_binding_runs_the_same_production_discovery_when_available)",
+    "reason": "'python3-gi/GioUnix typelib unavailable on test host'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_installed_fzf_can_parse_internal_text_action_bindings (test_desktop_navigation_20260918.FzfDataTests.test_installed_fzf_can_parse_internal_text_action_bindings)",
+    "reason": "'fzf binary unavailable; fixed-argv/data behavior is unit tested'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_apparmor_complain_incident_is_fully_mapped (test_desktop_sandbox.InstalledFailureRegressionTests.test_apparmor_complain_incident_is_fully_mapped)",
+    "reason": "'original todo/apparmor.log not supplied; policy/fixture checks remain enabled'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_auth_rainerscript_parses (test_desktop_sandbox.InstalledFailureRegressionTests.test_auth_rainerscript_parses)",
+    "reason": "'rsyslogd is unavailable'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_polkit_grants_only_fixed_helper_to_active_local_greeter (test_greeter_power_followup_20260922.WiringTests.test_polkit_grants_only_fixed_helper_to_active_local_greeter)",
+    "reason": "'node is required to exercise polkit JavaScript'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_fixture_exactly_matches_the_supplied_raw_audit_events (test_installed_failures_20260911.RecordedAppArmorCoverageTests.test_fixture_exactly_matches_the_supplied_raw_audit_events)",
+    "reason": "'original managed/apparmor/apparmor.log not supplied; parsed fixture checks remain enabled'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_real_proxy_allows_only_the_configured_tray_name (test_log_followup_20260915.TutaLiveProxyTests.test_real_proxy_allows_only_the_configured_tray_name)",
+    "reason": "'live filtered-bus test requires preinstalled dbus-daemon, busctl and xdg-dbus-proxy'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_chatgpt_forbidden_installed_dependencies_fail_postinstall (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_forbidden_installed_dependencies_fail_postinstall)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia (test_managed_external_software.ManagedExternalSoftwareTests.test_chatgpt_repacked_depends_excludes_x11_xwayland_and_nvidia)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_repository_failure_is_reported_for_every_managed_deb (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_failure_is_reported_for_every_managed_deb)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_repository_package_digest_uses_the_512_mib_streaming_bound (test_managed_external_software.ManagedExternalSoftwareTests.test_repository_package_digest_uses_the_512_mib_streaming_bound)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_real_agent_correct_wrong_and_mismatched_passphrase (test_managed_git_debugsys.SSHTests.test_real_agent_correct_wrong_and_mismatched_passphrase)",
+    "reason": "'OpenSSH client binaries are not installed in this validation container'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_perl_bootstrap_release_metadata_validation (test_native_tomat_20260920.TomatRepositoryTests.test_perl_bootstrap_release_metadata_validation)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_all_runtime_modules_load_with_selected_dependency_mode (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_all_runtime_modules_load_with_selected_dependency_mode)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_atomic_publish_cleans_failure_and_does_not_rewrite_unchanged_menu (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_atomic_publish_cleans_failure_and_does_not_rewrite_unchanged_menu)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_configuration_rejects_symlink_fifo_oversize_and_writable_inputs (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_configuration_rejects_symlink_fifo_oversize_and_writable_inputs)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_lock_does_not_change_parent_mode_and_rejects_unsafe_inodes (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_lock_does_not_change_parent_mode_and_rejects_unsafe_inodes)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_metadata_is_bounded_regular_sanitized_and_not_a_grub_program (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_metadata_is_bounded_regular_sanitized_and_not_a_grub_program)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_missing_keys_remain_missing_and_duplicates_fail (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_missing_keys_remain_missing_and_duplicates_fail)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_profile_values_reject_grub_metacharacters (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_profile_values_reject_grub_metacharacters)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_render_accepts_usrmerge_but_never_modules_outside_the_snapshot (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_render_accepts_usrmerge_but_never_modules_outside_the_snapshot)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_rootflags_replace_all_subvolume_selectors_without_prefix_corruption (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_rootflags_replace_all_subvolume_selectors_without_prefix_corruption)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_snapshot_lock_preserves_shared_directory_mode (test_requested_repairs_20260920.TimeshiftPerlRepairTests.test_snapshot_lock_preserves_shared_directory_mode)",
+    "reason": "'Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_real_noexec_reproduces_eacces_then_staged_probe_succeeds (test_resctl_bench_noexec_20260917.NoexecInstallerTests.test_real_noexec_reproduces_eacces_then_staged_probe_succeeds)",
+    "reason": "'no existing noexec /dev/shm; test never mounts filesystems'"
+  },
+  {
+    "suite": "tests",
+    "test": "test_full_moo_module_pin_validation_when_dependencies_are_installed (test_tomat_release_pins_20260920.TomatPerlPinMethodsTests.test_full_moo_module_pin_validation_when_dependencies_are_installed)",
+    "reason": "'Perl validation dependency unavailable: Moo.pm; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl'"
+  }
+]

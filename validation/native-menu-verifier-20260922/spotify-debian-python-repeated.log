@@ -1,0 +1,10 @@
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+test_sigterm_handoff_text_cannot_mask_cancellation (test_log_followup_20260915.SpotifySupervisionTests.test_sigterm_handoff_text_cannot_mask_cancellation) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.584s
+
+OK
