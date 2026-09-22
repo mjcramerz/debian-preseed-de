@@ -1,0 +1,193 @@
+{
+  "profile_count": 37,
+  "failed": 0,
+  "seconds": 6.53,
+  "methodology": "No kernel policy loaded. Host distribution abstractions overlaid with all repository policies; parser -Q -T -K.",
+  "profiles": [
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/chatgpt",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/crun",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-utilities",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-desktop-wrappers",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-document-applications",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-hardware-tuning",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-labwc-session",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-system-wrappers",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-tomat",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/managed-waybar-menus",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/obsidian",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.Bitwarden.bitwarden",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.Filen.Filen",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.ledger-live.AppRun",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.postman.app.Postman",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/opt.tuta-mail.AppRun",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/sleek",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/slirp4netns",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/timeshift",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.keepassxc",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.pwsh",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.qbittorrent",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.qoredb",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.retroarch",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.spotify",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.sqlitebrowser",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.telegram-desktop",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.totem",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.aa-status",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.apt-cacher-ng",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.avahi-daemon",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/usr.sbin.tailscaled",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-bin",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/vivaldi-stable",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    },
+    {
+      "path": "d-i/forky/hooks/target/etc/apparmor.d/whisper-local-transcription",
+      "returncode": 0,
+      "diagnostic": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+    }
+  ]
+}

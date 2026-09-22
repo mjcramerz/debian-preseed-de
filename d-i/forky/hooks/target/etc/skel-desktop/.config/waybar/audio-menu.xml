@@ -1,18 +1,22 @@
 <?xml version='1.0' encoding='utf-8'?>
 <interface>
   <object class="GtkMenu" id="menu">
+    <property name="reserve-toggle-size">False</property>
     <child>
       <object class="GtkMenuItem" id="audio_open">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="audio_open_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">multimedia-volume-control-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -20,6 +24,7 @@
                 <property name="visible">True</property>
                 <property name="label">Open Pavucontrol</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -28,16 +33,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="audio_mute">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="audio_mute_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">audio-volume-muted-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -45,6 +53,7 @@
                 <property name="visible">True</property>
                 <property name="label">Sound Mute / Unmute</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -53,16 +62,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="audio_mic">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="audio_mic_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">microphone-sensitivity-muted-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -70,6 +82,7 @@
                 <property name="visible">True</property>
                 <property name="label">Mic Mute / Unmute</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -78,16 +91,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="audio_40">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="audio_40_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">audio-volume-medium-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -95,6 +111,7 @@
                 <property name="visible">True</property>
                 <property name="label">Volume 40%</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -102,20 +119,25 @@
       </object>
     </child>
     <child>
-      <object class="GtkSeparatorMenuItem" />
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+      </object>
     </child>
     <child>
       <object class="GtkMenuItem">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="audio_submenu_whisper_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">audio-input-microphone-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -123,24 +145,29 @@
                 <property name="visible">True</property>
                 <property name="label">Whisper</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
         </child>
         <child type="submenu">
           <object class="GtkMenu">
+            <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="whisper_record">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="whisper_record_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">media-record-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -148,6 +175,7 @@
                         <property name="visible">True</property>
                         <property name="label">Record</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -156,16 +184,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="whisper_transcribe">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="whisper_transcribe_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">document-edit-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -173,6 +204,7 @@
                         <property name="visible">True</property>
                         <property name="label">Transcribe saved recording</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -181,16 +213,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="whisper_stop">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="whisper_stop_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">media-playback-stop-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -198,6 +233,7 @@
                         <property name="visible">True</property>
                         <property name="label">Stop recording (and transcribe)</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -206,16 +242,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="whisper_cancel">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="whisper_cancel_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">process-stop-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -223,6 +262,7 @@
                         <property name="visible">True</property>
                         <property name="label">Stop transcription</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>

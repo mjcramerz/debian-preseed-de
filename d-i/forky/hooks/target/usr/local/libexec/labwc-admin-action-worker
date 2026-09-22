@@ -415,6 +415,7 @@ class Worker:
     def __init__(self, uid: int, user: str, action: str, *, greeter: bool = False):
         self.uid, self.user, self.action = uid, user, action
         self.greeter = greeter
+        self.greeter_identity: tuple[str, str] | None = None
         self.package_locks = None
         self.committed = False
         self.quiesced = False
@@ -472,16 +473,58 @@ class Worker:
     def protect_other_sessions(self) -> None:
         if self.action == "logout":
             return
-        listing = run(["/usr/bin/loginctl", "list-sessions", "--no-legend", "--no-pager"])
-        for line in listing.splitlines():
+        listing = run(["/usr/bin/loginctl", "list-sessions", "--no-legend", "--no-pager"],
+                      timeout=10, max_output=131_072)
+        lines = listing.splitlines()
+        if len(lines) > 1024:
+            raise Error("excessive login session listing")
+        interactive = {"user", "user-early", "user-light", "user-early-light", "user-incomplete"}
+        greeters = []
+        for line in lines:
             fields = line.split()
             if len(fields) < 2 or not fields[1].isdigit() or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fields[0]):
                 raise Error("unexpected login session listing")
             if int(fields[1]) == self.uid:
+                if not self.greeter:
+                    continue
+                # Polkit authorized an active/local greeter, not every future
+                # session of that account. Revalidate after package waits and
+                # again before runtime teardown, using logind-owned identity.
+                keys = {"User", "Name", "Class", "Active", "Remote", "Service", "Leader"}
+                raw = run(["/usr/bin/loginctl", "show-session", fields[0], "--all",
+                           "--property=User,Name,Class,Active,Remote,Service,Leader"],
+                          timeout=5, max_output=8192)
+                props = {}
+                for item in raw.splitlines():
+                    key, separator, value = item.partition("=")
+                    if not separator or key not in keys or key in props:
+                        raise Error("invalid greeter session properties")
+                    props[key] = value
+                if set(props) != keys:
+                    raise Error("incomplete greeter session properties")
+                if props["Class"] in interactive:
+                    raise Error("a greeter power request cannot bypass an interactive desktop")
+                if props["Class"] != "greeter":
+                    continue  # A user-manager/background session is not the greeter.
+                expected = {"User": str(self.uid), "Name": self.user, "Active": "yes",
+                            "Remote": "no", "Service": "greetd-greeter"}
+                if (any(props[key] != value for key, value in expected.items())
+                        or not re.fullmatch(r"[1-9][0-9]{0,9}", props["Leader"])
+                        or int(props["Leader"]) >= 2**31):
+                    raise Error("the authorized active local greeter session is no longer available")
+                greeters.append((fields[0], props["Leader"]))
                 continue
-            session_class = run(["/usr/bin/loginctl", "show-session", fields[0], "--property=Class", "--value"]).strip()
-            if session_class in {"user", "user-early", "user-light", "user-early-light"}:
+            session_class = run(["/usr/bin/loginctl", "show-session", fields[0],
+                                 "--property=Class", "--value"], timeout=5, max_output=256).strip()
+            if session_class in interactive:
                 raise Error("another interactive account is logged in; ask that user to save and log out first")
+        if self.greeter:
+            if len(greeters) != 1:
+                raise Error("cannot identify one active local greeter session")
+            identity = greeters[0]
+            if self.greeter_identity is not None and identity != self.greeter_identity:
+                raise Error("greeter session changed while power was pending; submit a new request")
+            self.greeter_identity = identity
 
     def lock(self) -> None:
         # Type=forking waits for labwc-lock's swaylock -f readiness handshake.

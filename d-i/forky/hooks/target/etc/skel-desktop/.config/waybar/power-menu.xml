@@ -1,18 +1,22 @@
 <?xml version='1.0' encoding='utf-8'?>
 <interface>
   <object class="GtkMenu" id="menu">
+    <property name="reserve-toggle-size">False</property>
     <child>
       <object class="GtkMenuItem" id="power_lock">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="power_lock_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">system-lock-screen-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -20,6 +24,7 @@
                 <property name="visible">True</property>
                 <property name="label">Lock</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -28,16 +33,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="power_suspend">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="power_suspend_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">weather-clear-night-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -45,6 +53,7 @@
                 <property name="visible">True</property>
                 <property name="label">Suspend</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -52,20 +61,25 @@
       </object>
     </child>
     <child>
-      <object class="GtkSeparatorMenuItem" />
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+      </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="power_reboot">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="power_reboot_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">system-reboot-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -73,6 +87,7 @@
                 <property name="visible">True</property>
                 <property name="label">Reboot</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -81,16 +96,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="power_logout">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="power_logout_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">system-log-out-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -98,6 +116,7 @@
                 <property name="visible">True</property>
                 <property name="label">Logout</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -106,16 +125,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="power_shutdown">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="power_shutdown_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">system-shutdown-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -123,6 +145,7 @@
                 <property name="visible">True</property>
                 <property name="label">Shutdown</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>

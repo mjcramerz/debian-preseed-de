@@ -678,6 +678,8 @@ profile managed-zram-device-setup /usr/local/libexec/zram-device-setup flags=(at
   /proc/cmdline r,
   /proc/devices r,
   /proc/meminfo r,
+  # Startup samples I/O pressure; trigger writes belong to the separate worker.
+  /proc/pressure/io r,
   /proc/mounts r,
   @{PROC}/[0-9]*/mounts r,
   /proc/swaps r,

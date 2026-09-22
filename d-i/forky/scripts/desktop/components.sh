@@ -4733,6 +4733,9 @@ desktop_enable_target_services() {
   desktop_enable_unit_if_available upower.service system
   desktop_enable_unit_if_available power-profiles-daemon.service system
   desktop_enable_unit_if_available udisks2.service system
+  # Keep the clock synchronized after installation; do not block desktop
+  # startup on external NTP reachability or add a competing custom daemon.
+  desktop_enable_unit_if_available systemd-timesyncd.service system
   desktop_enable_unit_if_available NetworkManager.service system
   desktop_enable_unit_if_available NetworkManager-dispatcher.service system
   if desktop_mullvad_selected; then

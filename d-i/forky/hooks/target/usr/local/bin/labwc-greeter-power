@@ -109,7 +109,9 @@ class GreeterPower:
                 [ACTION_HELPER, action],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                # Inherit greetd's journal stream so authorization/start errors
+                # remain diagnosable without buffering privileged output.
+                stderr=None,
                 close_fds=True,
                 start_new_session=True,
             )

@@ -2036,8 +2036,15 @@ for base in (Path("/etc/skel-desktop"), Path(sys.argv[1])):
                      for value in re.findall(r"background-size:\s*([^;]+);", body)]
             require(sizes and sizes[-1] == "18px 18px, 100% 100%",
                     "native drawer icon size is misconfigured: " + selector)
-    for icon in drawer_icons.values():
-        require(style.count("url(\"" + icon + "\")") == 2,
+    for module, icon in drawer_icons.items():
+        selector = "#" + module.replace("/", "-")
+        normal = [body for selectors, body in rules if selectors.strip() == selector]
+        hovered = [body for selectors, body in rules
+                   if selector + ":hover" in {part.strip() for part in selectors.split(",")}]
+        require(len(normal) == 1 and "url(\"" + icon + "\")" in normal[0],
+                "native drawer icon is missing: " + icon)
+        require(hovered and not any(re.search(r"(?:^|;)\s*background(?:-image)?\s*:", body)
+                                   for body in hovered),
                 "native drawer icon must survive hover: " + icon)
     for bar in bars:
         for module in drawer_icons:
@@ -2123,6 +2130,28 @@ for base, uid in ((Path("/etc/skel-desktop"), 0), (Path(sys.argv[1]), account.pw
             menus = tree.findall("./object[@class=\"GtkMenu\"][@id=\"menu\"]")
             require(len(menus) == 1, "native menu root is missing")
             objects = list(tree.iter("object"))
+            for obj in objects:
+                cls = obj.get("class")
+                props = {prop.get("name"): prop.text for prop in obj.findall("property")}
+                if cls == "GtkMenu":
+                    require(props.get("reserve-toggle-size") == "False", "menu reserves an empty toggle column")
+                elif cls == "GtkMenuItem":
+                    require(props.get("visible") == "True", "hidden native menu item")
+                    box = obj.find("./child/object[@class=\"GtkBox\"]")
+                    require(box is not None and box.findtext("./property[@name=\"spacing\"]") == "8"
+                            and box.findtext("./property[@name=\"orientation\"]") == "horizontal",
+                            "invalid native menu row layout")
+                    require(len(box.findall("./child/object[@class=\"GtkImage\"]")) == 1
+                            and len(box.findall("./child/object[@class=\"GtkLabel\"]")) == 1,
+                            "native menu row must have one image and one label")
+                elif cls == "GtkImage":
+                    require(props.get("visible") == "True" and props.get("pixel-size") == "18"
+                            and props.get("width-request") == "20" and props.get("use-fallback") == "True"
+                            and props.get("icon-name", "").endswith("-symbolic"),
+                            "native menu icon geometry/fallback differs")
+                elif cls == "GtkLabel":
+                    require(props.get("visible") == "True" and props.get("xalign") == "0"
+                            and props.get("hexpand") == "True", "native menu label alignment differs")
             all_ids = [item.get("id") for item in objects if item.get("id")]
             require(len(all_ids) == len(set(all_ids)), "duplicate GtkBuilder IDs: " + name)
             leaves = [item for item in objects if item.get("class") == "GtkMenuItem"

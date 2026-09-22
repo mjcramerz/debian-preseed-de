@@ -31,6 +31,7 @@ fi
 LABWC_GREETER_OWNER_PID=$$ \
   /usr/local/bin/labwc-greeter-output --watch >/dev/null 2>&1 &
 watcher_pid=$!
-/usr/local/bin/labwc-greeter-power >/dev/null 2>&1 &
+# Keep power-helper diagnostics in greetd's journal, not /dev/null.
+/usr/local/bin/labwc-greeter-power >/dev/null &
 power_pid=$!
 /usr/bin/gtkgreet --layer-shell -s /etc/greetd/gtkgreet.css -c "$LABWC_GREETER_SESSION_COMMAND"

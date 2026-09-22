@@ -1,0 +1,337 @@
+{
+  "summary": {
+    "files": 46,
+    "lines": 23596,
+    "empty_files": 27,
+    "status_records": {
+      "STATUS": 800,
+      "ALLOWED": 3034
+    },
+    "semantic_groups": 404,
+    "complain_denial_groups": 5
+  },
+  "files": [
+    {
+      "source": "managed/adb/adb.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/apparmor/apparmor.log",
+      "lines": 728,
+      "bytes": 117743,
+      "sha256": "5eea6c0c9ab9725763a0fa1e42945ef34060bdda41d277aaddcd55af42c9d73f",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/apparmor/apparmor.log-20260922-000039",
+      "lines": 2489,
+      "bytes": 356425,
+      "sha256": "276165acb2426db15cece87b86fdf0381f9a889b1328996f8014a840dd7fdadf",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/apparmor/managed-modes.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/apparmor/managed-modes.log-20260922-000039",
+      "lines": 81,
+      "bytes": 11824,
+      "sha256": "c9a22183f022b4d05b540091ca1b28e6791bbc91ae602241b98d36fb4cc7c23d",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/audit/kernel-audit.log",
+      "lines": 3148,
+      "bytes": 644175,
+      "sha256": "4cf3a9fe5e558099b150ae0072408a7d2aa9fed88073300f6c4f5c127c13ef04",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/audit/kernel-audit.log-20260922-000039",
+      "lines": 14525,
+      "bytes": 2847972,
+      "sha256": "3a11db8cf44a57058ecfe4886e227001ccb9ef376a56433a294ac6d1b40e9e3d",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/auth/auth.log",
+      "lines": 10,
+      "bytes": 1071,
+      "sha256": "e8fcf16edc4b38695bef300164817328c8486097f55d526c78f5bb0cd8ac6326",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/auth/auth.log-20260922-000039",
+      "lines": 39,
+      "bytes": 4066,
+      "sha256": "b18a30c11edb4d7ce2b60045bd13ac6f7168bd8e745c14ec6403a2db2414238e",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/chkrootkit/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/clamav/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/debsecan/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/debsums/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/desktop/applications.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/fail2ban/fail2ban.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/fuzzel/actions.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/fuzzel/menu.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/fuzzel/menu.log-20260922-000039",
+      "lines": 4,
+      "bytes": 392,
+      "sha256": "879d9709287dedec80e784c65fd055f249b749cbb145e2d145b65f4c1a3174a9",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/fwupd/security-scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/hardware/usb.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/hardware/usb.log-20260922-000039",
+      "lines": 85,
+      "bytes": 9400,
+      "sha256": "844227c472af9671dbe2a6c347a8035ef0e22d2c1d98ff66d3a401c2926277c2",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/lynis/lynis-report.dat",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/lynis/lynis.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/lynis/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/nftables/firewall.log",
+      "lines": 10,
+      "bytes": 2487,
+      "sha256": "1e80bb0ce0fc42f112d453d475e3f0a3255f1bd3949cd677b62c2e728775cada",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/nftables/firewall.log-20260922-000039",
+      "lines": 34,
+      "bytes": 7749,
+      "sha256": "fa280f41d24629a0aa13ac4ab81e3e6eeb8325b7834988af1983ea97b5dffb3d",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/openai/chatgpt/chatgpt.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/openai/chatgpt/runtime/codex-login.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/openai/chatgpt/runtime/codex-tui.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/openai/codex/codex-login.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/openai/codex/codex-tui.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/rkhunter/rkhunter.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/rkhunter/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/spectre-meltdown-checker/scan.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/storage/storage.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/timeshift/timeshift.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/timeshift/timeshift.log-20260922-000039",
+      "lines": 6,
+      "bytes": 530,
+      "sha256": "5617f3a84e5452c2143a34b85a6f87350b116377346e7dbd10697f9bd47b6c6b",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/whisper/whisper.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/whisper/whisper.log-20260922-000039",
+      "lines": 3,
+      "bytes": 433,
+      "sha256": "da03e761c847aba413b5a07451f99631048cf8d6e06130dc8a66a9fcb9c469b7",
+      "status": "reviewed"
+    },
+    {
+      "source": "managed/zram/zram.log",
+      "lines": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "status": "empty-no-evidence"
+    },
+    {
+      "source": "managed/zram/zram.log-20260922-000039",
+      "lines": 10,
+      "bytes": 1954,
+      "sha256": "a8447d31ef62724a96249e534798edc959a8d1ddf246ad354e8d95c784651293",
+      "status": "reviewed"
+    },
+    {
+      "source": "wlsunset",
+      "lines": 19,
+      "bytes": 2323,
+      "sha256": "561b9f436047842a7c28ab5b61c203404aae1e8c2000a8d07a60db5d420a7029",
+      "status": "reviewed"
+    },
+    {
+      "source": "waybar-gtk",
+      "lines": 2,
+      "bytes": 327,
+      "sha256": "dca29b8f7e28c880974831b6dd19d1a778260a1651f7b099be43ec84b6695433",
+      "status": "reviewed"
+    },
+    {
+      "source": "drm",
+      "lines": 3,
+      "bytes": 441,
+      "sha256": "62b90e6f4aa90601b4ac19addf94c094280be9e2c2515670809b32ae6b02eecf",
+      "status": "reviewed"
+    },
+    {
+      "source": "net",
+      "lines": 65,
+      "bytes": 10057,
+      "sha256": "efe745a92b25528b094d18917ae1ccf5a0e6f8be76074e77b4751e78d059b2e2",
+      "status": "reviewed"
+    },
+    {
+      "source": "journalctl(1)",
+      "lines": 2335,
+      "bytes": 249261,
+      "sha256": "d460ef72d2797dd30eb7ab1e25a150f4a2269b43cd1c89c5de2e431a1a93fb9c",
+      "status": "reviewed"
+    }
+  ]
+}

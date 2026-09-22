@@ -1,0 +1,8 @@
+{
+  "fixture": "Only ExecStart replaced with /usr/bin/true; no service started. All sandbox and lifecycle directives unchanged.",
+  "host_version": "systemd 257 (257.9-1~deb13u1)",
+  "returncode": 0,
+  "stdout": "",
+  "stderr": "",
+  "limitations": "Offline parser only; no service started. Host systemd 257.9 is not a booted target systemd 261.2."
+}

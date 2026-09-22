@@ -47,7 +47,12 @@ PROPERTIES = (
     'KillMode=control-group', 'TimeoutStartSec=10s', 'TimeoutStopSec=5s',
     'StandardInput=null', 'StandardOutput=journal', 'StandardError=journal',
     'SyslogIdentifier=labwc-wlsunset', 'WorkingDirectory=/', 'UMask=0077',
-    'NoNewPrivileges=yes', 'CapabilityBoundingSet=', 'AmbientCapabilities=',
+    # This is an unprivileged user service, not PID 1. Dropping the host
+    # capability bounding set can fail before exec (218/CAPABILITIES).
+    # Do not add CAP_SETPCAP or a user namespace to work around that failure.
+    # NoNewPrivileges blocks setuid/file-capability gains; AppArmor and seccomp
+    # remain the service's access boundary.
+    'NoNewPrivileges=yes',
     'RestrictAddressFamilies=AF_UNIX', 'RestrictNamespaces=yes',
     'RestrictRealtime=yes', 'LockPersonality=yes', 'MemoryDenyWriteExecute=yes',
     'SystemCallArchitectures=native', 'SystemCallFilter=@system-service',

@@ -1,0 +1,140 @@
+{
+  "note": "Line references only; transport copies are not presented as distinct incidents. AppArmor and network findings have separate complete inventories.",
+  "categories": [
+    {
+      "category": "wlsunset-capability-setup",
+      "status": "configuration-corrected; target-execution-not-tested",
+      "transport_records": 15,
+      "source_lines": {
+        "wlsunset": [
+          1,
+          2,
+          7,
+          8,
+          11,
+          12
+        ],
+        "journalctl(1)": [
+          1075,
+          1076,
+          1077,
+          1107,
+          1108,
+          1109,
+          1115,
+          1116,
+          1117
+        ]
+      },
+      "disposition": "Removed host capability-bound manipulation from the unprivileged colour service; retained NoNewPrivileges, AppArmor, seccomp and lifetime bounds."
+    },
+    {
+      "category": "wlsunset-restart-limit",
+      "status": "consequence-of-startup-failure",
+      "transport_records": 2,
+      "source_lines": {
+        "wlsunset": [
+          15
+        ],
+        "journalctl(1)": [
+          1123
+        ]
+      },
+      "disposition": "The bounded restart policy is retained, not increased to hide repeated failures."
+    },
+    {
+      "category": "gtk-tray-accelerator",
+      "status": "upstream-package-blocker",
+      "transport_records": 4,
+      "source_lines": {
+        "waybar-gtk": [
+          1,
+          2
+        ],
+        "journalctl(1)": [
+          1438,
+          1439
+        ]
+      },
+      "disposition": "Waybar tray client requires upstream commit fae2b31 or equivalent trusted binary. Custom GtkBuilder image configuration does not fix the separate client."
+    },
+    {
+      "category": "drm-atomic-ebusy",
+      "status": "hardware-reproduction-required",
+      "transport_records": 5,
+      "source_lines": {
+        "drm": [
+          1,
+          2,
+          3
+        ],
+        "journalctl(1)": [
+          1120,
+          1200
+        ]
+      },
+      "disposition": "No unproven atomic/PSR/VRR disable switch. Duplicate excerpts do not indicate extra events."
+    },
+    {
+      "category": "ucsi-pdos",
+      "status": "hardware-firmware-reproduction-required",
+      "transport_records": 4,
+      "source_lines": {
+        "managed/hardware/usb.log-20260922-000039": [
+          52,
+          53,
+          65,
+          66
+        ]
+      },
+      "disposition": "No USB driver blacklist or fabricated firmware remediation."
+    },
+    {
+      "category": "explicit-terminal-command-exit",
+      "status": "not-masked-as-success",
+      "transport_records": 4,
+      "source_lines": {
+        "journalctl(1)": [
+          1272,
+          1273,
+          1392,
+          1393
+        ]
+      },
+      "disposition": "Explicit foot -e btop failure after terminal-child hangup is preserved as a failed command, not covered by the default-shell success exception."
+    },
+    {
+      "category": "dock-deprecation",
+      "status": "vendor-diagnostic-retained",
+      "transport_records": 1,
+      "source_lines": {
+        "journalctl(1)": [
+          1104
+        ]
+      },
+      "disposition": "No Crystal Dock or LayerShellQt source patch or compilation."
+    },
+    {
+      "category": "tuta-buffer-deprecation",
+      "status": "vendor-diagnostic-retained",
+      "transport_records": 1,
+      "source_lines": {
+        "journalctl(1)": [
+          1415
+        ]
+      },
+      "disposition": "No application source patch or blanket warning suppression."
+    },
+    {
+      "category": "chkrootkit-alert",
+      "status": "detailed-scan-required",
+      "transport_records": 1,
+      "source_lines": {
+        "journalctl(1)": [
+          1201
+        ]
+      },
+      "disposition": "Alert exists but the supplied detailed scan file is empty; do not classify as false positive or disable scanner."
+    }
+  ]
+}

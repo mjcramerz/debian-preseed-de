@@ -56,7 +56,7 @@ STEPS = (
     'desktop_install_waypaper',
     'desktop_enable_target_services',
     'desktop_verify_kanshi_policy',
-    'desktop_verify_native_drawer_icons',
+    'desktop_verify_native_menus',
     'desktop_install_codex_standalone',
 )
 
@@ -154,6 +154,12 @@ run_in_target() {
         self.assertEqual(result.returncode, 71, result.stderr)
         self.assertEqual(result.stdout.splitlines()[-1], 'desktop_install_xwayland')
         self.assertNotIn('desktop_install_satty', result.stdout)
+
+    def test_native_menu_validation_failure_aborts_before_codex(self):
+        result = self.flow(('/bin/sh',), 'desktop_verify_native_menus')
+        self.assertEqual(result.returncode, 71, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1], 'desktop_verify_native_menus')
+        self.assertNotIn('desktop_install_codex_standalone', result.stdout)
 
     def test_list_mode_and_injection_fail_before_replacing_rendered_config(self):
         fixture = FORKY / 'tests/fixtures/workspaces/render.sh'

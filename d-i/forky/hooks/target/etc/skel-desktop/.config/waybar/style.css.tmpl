@@ -95,15 +95,18 @@ tooltip label {
   font-weight: 700;
 }
 
+/* Idle workspaces remain navy; pointer feedback must not imitate active. */
+#workspaces button:hover:not(.active):not(.urgent) {
+  background: @panel_hover;
+  border-color: rgba(236, 184, 96, 0.34);
+  color: @text;
+  box-shadow: 0 0 7px rgba(236, 184, 96, 0.14);
+}
+
 #workspaces button.active,
+#workspaces button.active:hover,
 #taskbar button.active,
-#workspaces button:hover,
 #taskbar button:hover,
-#custom-app-terminal:hover,
-#custom-app-files:hover,
-#custom-app-tuta:hover,
-#custom-app-notes:hover,
-#custom-app-sleek:hover,
 #custom-power:hover {
   background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
   border-color: @border_strong;
@@ -124,6 +127,7 @@ tooltip label {
 #custom-launcher {
   min-width: __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_MIN_WIDTH__px;
   padding: 0 __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_PADDING_X__px;
+  background: @panel_alt;
   color: @amber;
   font-weight: 700;
 }
@@ -234,22 +238,15 @@ tooltip label {
   background-image: url("/usr/share/icons/hicolor/512x512/apps/sleek.png");
 }
 
-/* A background shorthand in the shared hover rule resets its image layer.
- * Keep the native artwork above that highlight, at the same size/position. */
-#custom-app-terminal:hover {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/foot.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
-}
-#custom-app-files:hover {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
-}
-#custom-app-tuta:hover {
-  background-image: url("/usr/share/icons/hicolor/512x512/apps/tuta-mail.png"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
-}
-#custom-app-notes:hover {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/featherpad.svg"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
-}
+/* Change only the color layer: retain each application's bounded artwork. */
+#custom-app-terminal:hover,
+#custom-app-files:hover,
+#custom-app-tuta:hover,
+#custom-app-notes:hover,
 #custom-app-sleek:hover {
-  background-image: url("/usr/share/icons/hicolor/512x512/apps/sleek.png"), linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
+  background-color: rgba(44, 39, 62, 0.96);
+  border-color: rgba(196, 164, 239, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(196, 164, 239, 0.20);
 }
 
 #taskbar {
@@ -571,46 +568,50 @@ window#waybar.internal #custom-app-sleek {
   color: #08111f;
   box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
 }
-/* Native GTK popups are separate windows, not descendants of window#waybar.
- * Share one orange highlight across all five menus and their submenus. GTK
- * uses :hover (PRELIGHT) for pointer and keyboard menu selection; :selected
- * also covers themes exposing that state. Disabled actions stay subdued. */
+/* Native GTK popups are separate windows, not window#waybar descendants.
+ * Keep pointer and keyboard selection identical. Text is deliberately normal
+ * weight; symbolic images and submenu arrows have independent foregrounds. */
 menu {
-  background: @panel;
-  color: @text;
-  border: 1px solid @border_strong;
+  background: rgba(8, 17, 31, 0.985);
+  color: #f5efe3;
+  border: 1px solid rgba(236, 184, 96, 0.34);
   padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
   -gtk-icon-theme: "Papirus-Dark";
 }
-menuitem { padding: 8px 14px; border-radius: 6px; }
-menuitem label { font-size: 16px; font-weight: 700; }
-menuitem image { min-width: 18px; min-height: 18px; color: @text; }
+menuitem { padding: 8px 14px; border-radius: 6px; font-weight: 400; }
+menuitem label { font-size: 16px; font-weight: 400; color: #f5efe3; }
+menuitem image { min-width: 20px; min-height: 18px; color: #dfe6ef; }
 menuitem:hover:not(:disabled),
 menuitem:selected:not(:disabled) {
-  background: #ff9f36;
-  color: #17100a;
-  box-shadow: inset 0 0 0 1px #ffc06d;
+  background: rgba(236, 184, 96, 0.16);
+  color: #fff7e9;
+  box-shadow: inset 0 0 0 1px rgba(236, 184, 96, 0.42);
 }
 menuitem:hover:not(:disabled) label,
-menuitem:selected:not(:disabled) label,
+menuitem:selected:not(:disabled) label { color: #fff7e9; }
 menuitem:hover:not(:disabled) image,
-menuitem:selected:not(:disabled) image {
-  color: #17100a;
-}
+menuitem:selected:not(:disabled) image { color: #ecb860; }
 menuitem arrow {
   min-width: 16px;
   min-height: 16px;
   margin-left: 12px;
-  color: @amber;
+  color: #ecb860;
 }
 menuitem arrow.right { -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
 menuitem arrow.left { -gtk-icon-source: -gtk-icontheme("pan-start-symbolic"); }
 menuitem:hover:not(:disabled) arrow,
-menuitem:selected:not(:disabled) arrow { color: #17100a; }
+menuitem:selected:not(:disabled) arrow { color: #ecb860; }
 menuitem:disabled {
   background: transparent;
-  color: @muted;
+  color: #7f8999;
+  box-shadow: none;
 }
 menuitem:disabled label,
 menuitem:disabled image,
-menuitem:disabled arrow { color: @muted; }
+menuitem:disabled arrow { color: #7f8999; }
+menu separator {
+  min-height: 1px;
+  margin: 4px 8px;
+  background: rgba(174, 183, 198, 0.18);
+}

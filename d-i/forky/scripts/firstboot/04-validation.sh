@@ -1084,6 +1084,21 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     failures=$((failures + 1))
   fi
 
+  # Validate the complete greeter handoff, not just the presence of a menu.
+  if grep -Fqx 'exec /usr/bin/pkexec --disable-internal-agent /usr/local/libexec/greetd-power-action-root "$action"' /usr/local/sbin/greetd-power-action 2>/dev/null &&
+     grep -Fqx '  poweroff|reboot) exec /usr/local/libexec/labwc-admin-action-root "greeter-$1" ;;' /usr/local/libexec/greetd-power-action-root 2>/dev/null &&
+     grep -Fqx '  greeter-*) exec /usr/bin/systemctl --wait start "$worker_unit" ;;' /usr/local/libexec/labwc-admin-action-root 2>/dev/null &&
+     grep -Fq 'run(["/usr/bin/systemctl", "--force", "--no-ask-password", self.action], timeout=20)' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fq 'self.greeter_identity' /usr/local/libexec/labwc-admin-action-worker 2>/dev/null &&
+     grep -Fqx 'ProtectHome=read-only' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null &&
+     grep -Fqx 'InaccessiblePaths=/home /root' /etc/systemd/system/labwc-admin-action@.service 2>/dev/null; then
+    record "PASS desktop-greeter-power-handoff"
+  else
+    record "FAIL desktop-greeter-power-handoff"
+    log_line validation error desktop "greeter_power_handoff_invalid=true"
+    failures=$((failures + 1))
+  fi
+
   if grep -q '^ConditionEnvironment=LABWC_SESSION_OWNER=desktop$' /etc/skel-desktop/.config/systemd/user/labwc-session.target 2>/dev/null &&
      ! grep -q '^BindsTo=graphical-session.target$' /etc/skel-desktop/.config/systemd/user/labwc-session.target 2>/dev/null &&
      ! grep -q '^Wants=graphical-session.target$' /etc/skel-desktop/.config/systemd/user/labwc-session.target 2>/dev/null &&

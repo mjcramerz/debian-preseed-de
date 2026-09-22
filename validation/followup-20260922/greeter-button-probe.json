@@ -1,0 +1,45 @@
+{
+  "success": true,
+  "cases": [
+    {
+      "action": "reboot",
+      "outcome": "failed",
+      "passed": true
+    },
+    {
+      "action": "reboot",
+      "outcome": "cancelled",
+      "passed": true
+    },
+    {
+      "action": "reboot",
+      "outcome": "spawn-failed",
+      "passed": true
+    },
+    {
+      "action": "poweroff",
+      "outcome": "failed",
+      "passed": true
+    },
+    {
+      "action": "poweroff",
+      "outcome": "cancelled",
+      "passed": true
+    },
+    {
+      "action": "poweroff",
+      "outcome": "spawn-failed",
+      "passed": true
+    }
+  ],
+  "selected_runtime_packages": [
+    "gtkgreet",
+    "greetd",
+    "pkexec",
+    "polkitd",
+    "python3-gi",
+    "gir1.2-gtk-3.0",
+    "gir1.2-gtklayershell-0.1"
+  ],
+  "limitations": "Actual Python class methods; fake GTK widgets and Popen transport. No real gtkgreet, Python GI, Wayland compositor or power action was executed. Package selection is static, not current repository availability verification."
+}

@@ -1,18 +1,22 @@
 <?xml version='1.0' encoding='utf-8'?>
 <interface>
   <object class="GtkMenu" id="menu">
+    <property name="reserve-toggle-size">False</property>
     <child>
       <object class="GtkMenuItem">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="tomat_submenu_start_session_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">media-playback-start-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -20,24 +24,29 @@
                 <property name="visible">True</property>
                 <property name="label">Start session</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
         </child>
         <child type="submenu">
           <object class="GtkMenu">
+            <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="tomat_default">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_default_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">media-playback-start-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -45,6 +54,7 @@
                         <property name="visible">True</property>
                         <property name="label">Default</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -53,16 +63,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="tomat_25">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_25_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">alarm-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -70,6 +83,7 @@
                         <property name="visible">True</property>
                         <property name="label">25 / 5</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -78,16 +92,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="tomat_50">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_50_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">alarm-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -95,6 +112,7 @@
                         <property name="visible">True</property>
                         <property name="label">50 / 10</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -103,16 +121,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="tomat_90">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_90_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">alarm-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -120,6 +141,7 @@
                         <property name="visible">True</property>
                         <property name="label">90 / 15</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -131,20 +153,25 @@
       </object>
     </child>
     <child>
-      <object class="GtkSeparatorMenuItem" />
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+      </object>
     </child>
     <child>
       <object class="GtkMenuItem" id="tomat_toggle">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="tomat_toggle_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">media-playback-pause-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -152,6 +179,7 @@
                 <property name="visible">True</property>
                 <property name="label">Pause / Resume</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -160,16 +188,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="tomat_skip">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="tomat_skip_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">media-skip-forward-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -177,6 +208,7 @@
                 <property name="visible">True</property>
                 <property name="label">Skip</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -185,16 +217,19 @@
     </child>
     <child>
       <object class="GtkMenuItem" id="tomat_stop">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="tomat_stop_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">media-playback-stop-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -202,6 +237,7 @@
                 <property name="visible">True</property>
                 <property name="label">Stop</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
@@ -209,20 +245,25 @@
       </object>
     </child>
     <child>
-      <object class="GtkSeparatorMenuItem" />
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+      </object>
     </child>
     <child>
       <object class="GtkMenuItem">
+        <property name="visible">True</property>
         <child>
           <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="spacing">10</property>
+            <property name="spacing">8</property>
             <property name="orientation">horizontal</property>
             <child>
               <object class="GtkImage" id="tomat_submenu_settings_icon">
                 <property name="visible">True</property>
                 <property name="icon-name">preferences-system-symbolic</property>
                 <property name="pixel-size">18</property>
+                <property name="width-request">20</property>
+                <property name="use-fallback">True</property>
               </object>
             </child>
             <child>
@@ -230,24 +271,29 @@
                 <property name="visible">True</property>
                 <property name="label">Settings</property>
                 <property name="xalign">0</property>
+                <property name="hexpand">True</property>
               </object>
             </child>
           </object>
         </child>
         <child type="submenu">
           <object class="GtkMenu">
+            <property name="reserve-toggle-size">False</property>
             <child>
               <object class="GtkMenuItem" id="tomat_notifications">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_notifications_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">preferences-system-notifications-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -255,6 +301,7 @@
                         <property name="visible">True</property>
                         <property name="label">Notifications (toggle)</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -263,16 +310,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="tomat_sounds">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_sounds_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">audio-volume-high-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -280,6 +330,7 @@
                         <property name="visible">True</property>
                         <property name="label">Sounds (toggle)</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>
@@ -288,16 +339,19 @@
             </child>
             <child>
               <object class="GtkMenuItem" id="tomat_config">
+                <property name="visible">True</property>
                 <child>
                   <object class="GtkBox">
                     <property name="visible">True</property>
-                    <property name="spacing">10</property>
+                    <property name="spacing">8</property>
                     <property name="orientation">horizontal</property>
                     <child>
                       <object class="GtkImage" id="tomat_config_icon">
                         <property name="visible">True</property>
                         <property name="icon-name">document-properties-symbolic</property>
                         <property name="pixel-size">18</property>
+                        <property name="width-request">20</property>
+                        <property name="use-fallback">True</property>
                       </object>
                     </child>
                     <child>
@@ -305,6 +359,7 @@
                         <property name="visible">True</property>
                         <property name="label">Open config</property>
                         <property name="xalign">0</property>
+                        <property name="hexpand">True</property>
                       </object>
                     </child>
                   </object>

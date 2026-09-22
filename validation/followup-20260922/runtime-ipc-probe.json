@@ -1,0 +1,19 @@
+{
+  "methodology": "Separate disposable user/mount namespaces model inaccessible versus read-only runtime mounts. Uses a temporary UNIX socket, not the system/user bus. Does not start a systemd service.",
+  "success": true,
+  "checks": [
+    {
+      "mode": "hidden",
+      "returncode": 0,
+      "stdout": "hidden runtime: IPC inaccessible (expected prior-policy failure)\n",
+      "stderr": ""
+    },
+    {
+      "mode": "readonly",
+      "returncode": 0,
+      "stdout": "read-only runtime: IPC usable; regular file creation denied\n",
+      "stderr": "",
+      "received": "probe"
+    }
+  ]
+}

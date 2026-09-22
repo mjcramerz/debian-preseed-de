@@ -32,7 +32,11 @@ PrivateDevices=yes
 PrivateTmp=yes
 ProtectClock=yes
 ProtectControlGroups=yes
-ProtectHome=yes
+# The worker drops credentials before contacting /run/user/UID/bus.
+# ProtectHome=yes hides that IPC directory too. Keep it read-only while
+# leaving both real home trees inaccessible; AppArmor still limits sockets.
+ProtectHome=read-only
+InaccessiblePaths=/home /root
 ProtectHostname=yes
 ProtectKernelLogs=yes
 ProtectKernelModules=yes

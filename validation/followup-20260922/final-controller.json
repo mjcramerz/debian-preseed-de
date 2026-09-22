@@ -1,0 +1,5 @@
+{
+  "pid": 456615,
+  "interpreter": "/opt/pyvenv/bin/python3",
+  "reason": "Use provisioned environment containing PyYAML; the initial system-Python run lacked this pre-existing test dependency."
+}

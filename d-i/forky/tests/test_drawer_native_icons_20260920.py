@@ -64,20 +64,21 @@ class NativeDrawerTests(unittest.TestCase):
                         self.assertTrue(sizes)
                         self.assertEqual(sizes[-1], '18px 18px, 100% 100%')
 
-    def test_native_artwork_is_present_above_both_background_layers(self):
+    def test_native_artwork_is_retained_above_violet_hover_color(self):
         css=(SKEL/'waybar/style.css.tmpl').read_text()
-        self.assertIn('-gtk-icon-theme: "Papirus-Dark";',css)
+        rules=re.findall(r'([^{}]+)\{([^{}]*)\}', re.sub(r'/\*.*?\*/','',css,flags=re.S))
         for module,(icon,_,_) in ICONS.items():
             selector='#'+module.replace('/','-')
-            for suffix in ('',':hover'):
-                matches=[body for selectors,body in re.findall(r'([^{}]+)\{([^{}]*)\}',css)
-                         if re.sub(r'/\*.*?\*/','',selectors,flags=re.S).strip()==selector+suffix]
-                self.assertEqual(len(matches),1)
-                rule=matches[0]
-                self.assertIn('url("'+ICON_PATHS[icon]+'")',rule)
-                self.assertNotIn('-gtk-recolor',rule)
-                if suffix:self.assertIn('linear-gradient',rule)
-            self.assertEqual(css.count('url("'+ICON_PATHS[icon]+'")'),2)
+            normal=[body for selectors,body in rules if selectors.strip()==selector]
+            hovered=[body for selectors,body in rules
+                     if selector+':hover' in {x.strip() for x in selectors.split(',')}]
+            self.assertEqual(len(normal),1)
+            self.assertIn('url("'+ICON_PATHS[icon]+'")',normal[0])
+            self.assertTrue(hovered)
+            self.assertTrue(any('background-color: rgba(44, 39, 62, 0.96)' in body for body in hovered))
+            for body in hovered:
+                self.assertIsNone(re.search(r'(?:^|;)\s*background(?:-image)?\s*:',body))
+            self.assertEqual(css.count('url("'+ICON_PATHS[icon]+'")'),1)
 
     def test_installed_verifier_checks_decoding_and_config_instead_of_silent_fallback(self):
         source=(FORKY/'scripts/desktop/verify.sh').read_text()
@@ -90,7 +91,7 @@ class NativeDrawerTests(unittest.TestCase):
 
     def test_narrow_verifier_is_called_after_user_config_without_enabling_broad_checks(self):
         role=(FORKY/'scripts/desktop/labwc.sh').read_text().split('run_desktop_late_command() {',1)[1]
-        self.assertLess(role.index('  desktop_install_user_config'),role.index('  desktop_verify_native_drawer_icons'))
+        self.assertLess(role.index('  desktop_install_user_config'),role.index('  desktop_verify_native_menus'))
         self.assertNotIn('  desktop_verify_target_staging\n',role)
         source=(FORKY/'scripts/desktop/verify.sh').read_text()
         self.assertIn('desktop_verify_native_menus() {\n  desktop_verify_native_drawer_icons',source)
@@ -239,8 +240,13 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
         data[0]['custom/app-terminal']['format']='font-glyph';path.write_text(json.dumps(data))
         with self.assertRaisesRegex(SystemExit,'misconfigured'):self.execute()
 
-    def test_missing_hover_artwork_is_rejected(self):
+    def test_missing_artwork_is_rejected(self):
         path=self.configs[0]/'style.css';path.write_text(path.read_text().replace('url("'+ICON_PATHS['foot']+'")','none',1))
+        with self.assertRaisesRegex(SystemExit,'icon is missing'):self.execute()
+
+    def test_hover_shorthand_must_not_erase_artwork(self):
+        path=self.configs[0]/'style.css'
+        path.write_text(path.read_text()+'\n#custom-app-terminal:hover { background: #222222; }\n')
         with self.assertRaisesRegex(SystemExit,'survive hover'):self.execute()
 
     def test_invalid_software_policy_cannot_silently_skip_icons(self):

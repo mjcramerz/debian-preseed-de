@@ -83,6 +83,9 @@ profile managed-labwc-compositor /usr/bin/labwc flags=(attach_disconnected, medi
 # inherited FDs; only its final exec enters the destination helper profile.
 profile managed-waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_disconnected) {
   #include <abstractions/managed-session-client>
+  # The Python status trampoline probes this root-owned import directory.
+  # Directory metadata only: no new recursive read or write permission.
+  /usr/local/lib/python3.14/dist-packages/ r,
   # Click callbacks dispatch through this user manager, not panel-owned children.
   owner /run/user/[0-9]*/systemd/private rw,
   /usr/bin/bwrap rPx -> managed-session-glycin-bwrap,

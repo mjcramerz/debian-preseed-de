@@ -77,7 +77,7 @@ def gtk_menu_report():
         result = subprocess.run(
             ['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
              str(FORKY / 'tests/fixtures/native-menus-hover-gtk.py'), str(FORKY), str(data)],
-            env={**os.environ, 'GDK_BACKEND': 'x11', 'NO_AT_BRIDGE': '1'},
+            env={**os.environ, 'GDK_BACKEND': 'x11', 'NO_AT_BRIDGE': '1', 'G_DEBUG': 'fatal-criticals'},
             text=True, capture_output=True, timeout=90)
         if result.returncode:
             raise AssertionError(result.stdout + result.stderr)
@@ -173,7 +173,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                     self.assertEqual(argv[argv.index('--') + 1:],
                                      ['/usr/local/libexec/labwc-notifications', 'center'])
 
-    def test_native_gtk_orange_hover_keyboard_submenus_disabled_and_callbacks(self):
+    def test_native_gtk_amber_tint_keyboard_submenus_disabled_and_callbacks(self):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
             self.skipTest('native GTK3 / Xvfb unavailable')
         report = gtk_menu_report()
@@ -184,7 +184,7 @@ class NativeMenuHoverTests(unittest.TestCase):
         self.assertEqual(report['center_activations'], 10 * 2 * 2 * 2)
         self.assertGreater(report['highlight_states'], 10000)
         self.assertGreater(report['disabled_states'], 100)
-        self.assertEqual(report['orange_rgba'], [255, 159, 54, 1.0])
+        self.assertEqual(report['hover_rgba'], [236, 184, 96, 0.16])
         self.assertEqual(report['callback_errors'], [])
 
 

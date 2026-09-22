@@ -184,7 +184,8 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         "--property=PartOf=labwc-session.target", "--property=ExitType=cgroup",
         f"--property=ConditionPathExists=!/run/user/{os.getuid()}/labwc-session-closing",
         "--property=KillMode=" + ("mixed" if is_foot else "control-group"),
-        "--property=TimeoutStopSec=20s",
+        # Bound preparation/exec failure without limiting application runtime.
+        "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=20s",
         "--property=SendSIGKILL=yes", "--property=Restart=no", "--property=UMask=0077",
         # Do not force NNP/seccomp before package AppArmor -> bwrap
         # transitions. Electron and Bubblewrap set NNP inside their sandboxes.

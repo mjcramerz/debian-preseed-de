@@ -187,6 +187,10 @@ profile managed-desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-term
   ptrace (read) peer=managed-labwc-managed-app,
   ptrace (read) peer=managed-labwc-managed-app//managed-app-bwrap,
   ptrace (read) peer=managed-labwc-output-watch,
+  # Observed btop proc-stat reads; never authorize trace/attach/write here.
+  ptrace (read) peer=managed-labwc-swaybg,
+  ptrace (read) peer=managed-tomat,
+  ptrace (read) peer=managed-labwc-notifications,
   ptrace (read) peer=managed-labwc-plans,
   ptrace (read) peer=managed-labwc-session,
   ptrace (read) peer=managed-session-controls,

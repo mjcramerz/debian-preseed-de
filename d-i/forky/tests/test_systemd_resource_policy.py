@@ -234,7 +234,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
                     original = original.replace(kanshi_block.group(0), b'', 1)
                     for added in (b'  desktop_install_kanshi_policy\n',
                                   b'  desktop_verify_kanshi_policy\n',
-                                  b'  desktop_verify_native_drawer_icons\n'):
+                                  b'  desktop_verify_native_menus\n'):
                         self.assertEqual(original.count(added), 1)
                         original = original.replace(added, b'', 1)
                     logger_default = b'LABWC_ENABLE_KANSHI:-false'

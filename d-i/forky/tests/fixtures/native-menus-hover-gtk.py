@@ -140,6 +140,15 @@ def get_label_widget(item):
                 image_name(widget, C.byref(name), C.byref(size))
                 assert name.value and name.value.endswith(b'-symbolic'), name.value
                 assert image_size(widget) == 18
+                width, height = C.c_int(), C.c_int()
+                bind(G, 'gtk_widget_get_size_request', None, ptr, C.POINTER(C.c_int), C.POINTER(C.c_int))(
+                    widget, C.byref(width), C.byref(height))
+                assert width.value == 20
+                fallback = C.c_int()
+                getter = O.g_object_get
+                getter.restype, getter.argtypes = None, [ptr, C.c_char_p]
+                getter(widget, b'use-fallback', C.byref(fallback), None)
+                assert fallback.value == 1
                 assert has_icon(icon_theme,name.value), name.value
                 images += 1
             current = current.contents.next
@@ -147,7 +156,7 @@ def get_label_widget(item):
         list_free(nodes)
     assert found and images == 1, 'each item/header needs one label and one themed GTK image'
     font=get_font(get_context(found),get_state(found))
-    assert font_weight(font) >= 700
+    assert font_weight(font) == 400
     # GTK resolves 16 CSS px to 12 Pango points at the fixture's 96 DPI.
     absolute = bind(pango, 'pango_font_description_get_size_is_absolute', C.c_int, ptr)(font)
     dpi = bind(D, 'gdk_screen_get_resolution', C.c_double, ptr)(screen)
@@ -172,8 +181,15 @@ modules = [('custom/tomat', 'tomat'), ('clock', 'calendar'), ('pulseaudio', 'aud
 report = {'profiles': len(profiles), 'themes': ['Adwaita', 'Adwaita-dark'],
           'menu_roots': 0, 'activations': 0, 'center_activations': 0,
           'highlight_states': 0, 'disabled_states': 0, 'submenu_headers': 0,
-          'orange_rgba': [255, 159, 54, 1.0], 'callback_errors': []}
+          'hover_rgba': [236, 184, 96, 0.16], 'callback_errors': []}
 callback_type = C.CFUNCTYPE(None, ptr, ptr)
+# A real mapped anchor is required for GTK keyboard menu traversal. Showing an
+# unattached GtkMenu alone can produce GDK window assertions in the fixture.
+anchor = bind(G, 'gtk_window_new', ptr, C.c_int)(0)
+show(anchor)
+drain()
+attach_menu = bind(G, 'gtk_menu_attach_to_widget', None, ptr, ptr, ptr)
+popup_menu = bind(G, 'gtk_menu_popup_at_widget', None, ptr, ptr, C.c_int, C.c_int, ptr)
 
 with tempfile.TemporaryDirectory() as temporary:
     staged_audio = {}
@@ -201,7 +217,9 @@ with tempfile.TemporaryDirectory() as temporary:
                         assert build(builder, str(path).encode(), C.byref(error)) and not error
                         menu = get_object(builder, b'menu')
                         assert menu
+                        attach_menu(menu, anchor, None)
                         show(menu)
+                        popup_menu(menu, anchor, 7, 1, None)
                         drain()
                         report['menu_roots'] += 1
                         commands = bar[module]['menu-actions']
@@ -224,6 +242,12 @@ with tempfile.TemporaryDirectory() as temporary:
                             refs.append(callback)
                             assert connect(item, b'activate', callback, None, None, 0)
                         for item in walk(menu):
+                            # Submenus are usually realized by pointer navigation;
+                            # this fixture traverses them programmatically instead.
+                            container = parent(item)
+                            toplevel = bind(G, 'gtk_widget_get_toplevel', ptr, ptr)(container)
+                            bind(G, 'gtk_widget_realize', None, ptr)(toplevel)
+                            bind(G, 'gtk_widget_realize', None, ptr)(container)
                             label = (get_label_text(get_label_widget(item)) or b'').decode()
                             ident = (get_name(item) or b'').decode()
                             where = (profile['name'], bar['name'], theme, optional_enabled, menu_name, ident, label)
@@ -239,12 +263,12 @@ with tempfile.TemporaryDirectory() as temporary:
                                     set_state(item, 8, False)  # INSENSITIVE must remain dominant.
                                 actual = rgba(item, background)
                                 if enabled:
-                                    assert actual == report['orange_rgba'], (where, state, actual)
-                                    assert rgba(child(item), foreground) == [23, 16, 10, 1.0], where
+                                    assert actual == report['hover_rgba'], (where, state, actual)
+                                    assert rgba(child(item), foreground) == [255, 247, 233, 1.0], where
                                     report['highlight_states'] += 1
                                 else:
                                     assert actual[3] == 0.0, (where, state, actual)
-                                    assert rgba(child(item), foreground)[:3] == [174, 183, 198], where
+                                    assert rgba(child(item), foreground)[:3] == [127, 137, 153], where
                                     report['disabled_states'] += 1
                             set_state(item, 0, True)
                             if enabled:
@@ -253,7 +277,7 @@ with tempfile.TemporaryDirectory() as temporary:
                                 container = parent(item)
                                 select_item(container, item)
                                 assert get_state(item) & 2, (where, 'keyboard selection is not PRELIGHT')
-                                assert rgba(item, background) == report['orange_rgba'], (where, 'keyboard highlight')
+                                assert rgba(item, background) == report['hover_rgba'], (where, 'keyboard highlight')
                                 report['highlight_states'] += 1
                                 deselect(container)
                             # Exercise the inactive guard on every leaf/header,
@@ -261,7 +285,7 @@ with tempfile.TemporaryDirectory() as temporary:
                             set_sensitive(item, False)
                             set_state(item, 2 | 4, False)
                             assert rgba(item, background)[3] == 0.0, (where, 'disabled highlight')
-                            assert rgba(child(item), foreground)[:3] == [174, 183, 198], where
+                            assert rgba(child(item), foreground)[:3] == [127, 137, 153], where
                             report['disabled_states'] += 1
                             set_sensitive(item, enabled)
                             set_state(item, 0, True)
@@ -277,6 +301,7 @@ with tempfile.TemporaryDirectory() as temporary:
                         drain()
             remove_provider(screen, provider)
             unref(provider)
+destroy(anchor)
 unref(icon_theme)
 assert not report['callback_errors'], report
 print(json.dumps(report, indent=2))
