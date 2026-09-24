@@ -231,7 +231,7 @@ tailscale_interface_log_regex=$(printf '%s\n' "$tailscale_interface" | sed 's/[.
 : "${FILE_TAILSCALE_AUTH_KEY:?FILE_TAILSCALE_AUTH_KEY must be set}"
 : "${FILE_TAILSCALE_COMPLETE:?FILE_TAILSCALE_COMPLETE must be set}"
 : "${FILE_TAILSCALE_STATUS:?FILE_TAILSCALE_STATUS must be set}"
-: "${LOG_NETWORK_FILE:?LOG_NETWORK_FILE must be set}"
+: "${LOG_SYSTEM_SERVICES_FILE:?LOG_SYSTEM_SERVICES_FILE must be set}"
 : "${FILE_MANAGED_SYNCTHING_DEFAULT:?FILE_MANAGED_SYNCTHING_DEFAULT must be set}"
 : "${FILE_MANAGED_SYNCTHING_HELPER:?FILE_MANAGED_SYNCTHING_HELPER must be set}"
 : "${FILE_MANAGED_SYNCTHING_SERVICE:?FILE_MANAGED_SYNCTHING_SERVICE must be set}"
@@ -252,8 +252,8 @@ for config_file in "$FILE_TAILSCALED_DEFAULT" "$FILE_MANAGED_SYNCTHING_DEFAULT";
   [ ! -L "${target_root}${config_file}" ] || tailscale_fatal "configuration must not be a symlink: $config_file"
   if [ -e "${target_root}${config_file}" ]; then
     case "$(installer_metadata_value "${target_root}${config_file}" uid_gid_mode_links)" in
-      0:0:644:1|0:0:600:1) ;;
-      *) tailscale_fatal "unsafe existing configuration metadata: $config_file" ;;
+      0:0:400:1|0:0:440:1|0:0:444:1|0:0:600:1|0:0:640:1|0:0:644:1|0:0:700:1|0:0:750:1|0:0:755:1) ;;
+      *) tailscale_fatal "unsafe existing configuration metadata: $config_file ($(installer_metadata_value "${target_root}${config_file}" uid_gid_mode_links))" ;;
     esac
   fi
 done
@@ -265,7 +265,7 @@ install -d -m 0700 "${target_root}/var/lib/firstboot" "${target_root}/var/lib/fi
 auth_key_file=$FILE_TAILSCALE_AUTH_KEY
 complete_file=$FILE_TAILSCALE_COMPLETE
 status_file=$FILE_TAILSCALE_STATUS
-log_file=$LOG_NETWORK_FILE
+log_file=$LOG_SYSTEM_SERVICES_FILE
 
 install -d -m 0700 \
   "${target_root}$(dirname "$auth_key_file")" \

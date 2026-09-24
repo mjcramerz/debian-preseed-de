@@ -97,6 +97,12 @@ def main() -> int:
         elif (first.startswith('#!') and 'perl' in first) or name.endswith(('.pm', '.pl')):
             kind = 'perl'
             cmd = ['perl', *perl_args, '-c', str(path)]
+        elif '/etc/apparmor.d/' in '/' + relative and not (
+                first.startswith('#!') and re.search(r'\b(sh|bash|dash|ash)\b', first)):
+            # Attachment names can end in .sh without being shell programs.
+            # Policy compilation needs rendered inputs and system abstractions;
+            # keep this inventory-only rather than claiming a syntax pass.
+            kind = 'apparmor-policy'
         elif ((first.startswith('#!') and re.search(r'\b(sh|bash|dash)\b', first))
               or name.endswith(('.sh', '.env')) or '/etc/default/grub.d/' in relative
               or name in ('.bashrc', '.bash_profile', '.profile')):

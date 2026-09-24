@@ -1,6 +1,6 @@
 #!/bin/sh
-# Canonical initrd credential reader. tools/build.py embeds this file in both
-# common libraries: no new network fetch or source-path discovery is needed.
+# Canonical initrd credential reader, imported by both common entrypoints
+# from the protected installer payload through bootstrap_source_module.
 # /preseed.env remains TRUSTED SHELL CODE, not an untrusted dotenv import.
 # Return codes: 0=value, 1=unmapped/missing/empty, 2=unsafe or unreadable file.
 

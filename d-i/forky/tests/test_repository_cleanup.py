@@ -1,5 +1,6 @@
 """Current source, launcher and session boundaries; no target services are started."""
 from __future__ import annotations
+from payload_fixture import read_text as module_text
 
 import os
 from pathlib import Path
@@ -29,8 +30,10 @@ def load(relative):
 
 
 class SourceContracts(unittest.TestCase):
-    def test_no_archived_reports_or_wildcard_dropin_directories(self):
-        self.assertFalse((ROOT / 'docs').exists())
+    def test_validation_reports_are_nested_and_no_wildcard_dropin_directories(self):
+        self.assertEqual({p.name for p in ROOT.glob('*.md')}, {'README.md', 'SECURITY.md'})
+        self.assertTrue((ROOT / 'docs/security-hardening.md').is_file())
+        self.assertTrue((ROOT / 'docs/validation').is_dir())
         self.assertFalse(any(ROOT.glob('validation*')))
         self.assertFalse(any('*' in p.name for p in (TARGET / 'etc/systemd/user').iterdir()))
 
@@ -38,13 +41,13 @@ class SourceContracts(unittest.TestCase):
         for family in ('btrfs', 'f2fs'):
             self.assertTrue((SEED / f'hosts/installer/{family}.env').is_file())
             self.assertFalse((SEED / f'hosts/installer/layout-{family}.env').exists())
-        source = (SEED / 'scripts/common/lib.sh').read_text()
+        source = module_text(SEED / 'scripts/common/lib.sh')
         self.assertIn('"${host_layout_family}.env"', source)
         self.assertNotIn('"layout-${host_layout_family}.env"', source)
 
     def test_dynamic_devops_templates_are_target_assets(self):
         self.assertFalse((SEED / 'scripts/late/templates/devops').exists())
-        code = (SEED / 'scripts/late/devops.sh.tmpl').read_text().replace('\\\n', ' ')
+        code = module_text(SEED / 'scripts/late/devops.sh.tmpl').replace('\\\n', ' ')
         for name in ('aptly.conf.tmpl', 'oscrc.tmpl', 'oscrc.json.tmpl'):
             self.assertTrue((TARGET / 'usr/local/share/devops/templates' / name).is_file())
             self.assertRegex(code, r'DIR_HOOKS_TARGET\s+usr/local/share/devops/templates/' + re.escape(name))

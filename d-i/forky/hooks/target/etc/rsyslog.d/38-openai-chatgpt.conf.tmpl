@@ -2,7 +2,8 @@
 # The private ruleset prevents records from reaching generic syslog, messages,
 # or console-oriented emergency rules.
 
-ruleset(name="managed_openai_chatgpt_input" queue.type="LinkedList") {
+ruleset(name="managed_openai_chatgpt_input" queue.type="LinkedList"
+        queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.workerThreads="1") {
   if ($programname == "openai-chatgpt") then {
     action(
       name="managed_openai_chatgpt_log"
@@ -16,6 +17,9 @@ ruleset(name="managed_openai_chatgpt_input" queue.type="LinkedList") {
       dirCreateMode="0751"
       createDirs="on"
       template="RSYSLOG_TraditionalFileFormat"
+      rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+      rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+      rotation.sizeLimitCommandPassFileName="on"
     )
   }
 

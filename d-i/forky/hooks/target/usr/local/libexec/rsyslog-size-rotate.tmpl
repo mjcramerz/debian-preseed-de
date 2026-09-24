@@ -1,0 +1,147 @@
+#!/usr/bin/python3 -I
+"""Bounded, rename-only omfile size callback; no daemon or polling timer.
+
+rsyslog closes the output before invoking this helper and reopens it afterwards.
+Only compiled-in collector paths are accepted. All path components and every
+archive are checked without following links before modifying anything. No shell,
+compression, copytruncate, directory scan, user-supplied policy, or HUP is used.
+The threshold is a trigger, not a hard cap: omfile may finish a record/batch first.
+"""
+from __future__ import annotations
+
+import fcntl
+import grp
+import os
+from pathlib import Path
+import stat
+import sys
+
+LIMIT = __INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__
+KEEP = __INSTALLER_LOG_ROTATE_COUNT__
+# Root-owned collector files only. Native/user-owned producers rotate separately.
+OUTPUTS = {
+    '/var/lib/labwc-notifications/security/apparmor.signal': ('logreader', '__INSTALLER_LOG_FILE_MODE__'),
+    '/var/lib/labwc-notifications/security/auth.signal': ('logreader', '__INSTALLER_LOG_FILE_MODE__'),
+    '/var/lib/labwc-notifications/security/firewall.signal': ('logreader', '__INSTALLER_LOG_FILE_MODE__'),
+    '/var/lib/labwc-notifications/security/storage.signal': ('logreader', '__INSTALLER_LOG_FILE_MODE__'),
+    '/var/lib/labwc-notifications/security/usb.signal': ('logreader', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_APPARMOR_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_APPARMOR_MODES_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_APPLICATIONS_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_AUTH_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_CHATGPT_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_CHKROOTKIT_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_CLAMAV_SCAN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_DEBSECAN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_DEBSUMS_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_FWUPD_SCAN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_KERNEL_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_LYNIS_SCAN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_NFTABLES_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_POWER_ACTIONS_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_RKHUNTER_SCAN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_SPECTRE_MELTDOWN_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_STORAGE_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_SYSTEM_SERVICES_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_TIMESHIFT_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_USB_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_WHISPER_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+    '__INSTALLER_LOG_ZRAM_FILE__': ('__INSTALLER_LOG_GROUP__', '__INSTALLER_LOG_FILE_MODE__'),
+}
+
+
+class RotationError(ValueError):
+    """An unsafe path, owner, mode, or invocation was rejected."""
+
+
+def _directory(root: Path, parts: tuple[str, ...]) -> int:
+    """Return a pinned directory descriptor with no writable/symlink ancestors."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    fd = os.open(root, flags)
+    try:
+        for part in parts:
+            if part in ('', '.', '..', '/'):
+                raise RotationError('invalid directory component')
+            child = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise RotationError('collector parent is not root-owned and protected')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _file(parent: int, name: str, gid: int, mode: int) -> os.stat_result | None:
+    try:
+        info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+            info.st_uid != 0 or info.st_gid != gid or
+            stat.S_IMODE(info.st_mode) != mode):
+        raise RotationError('collector file is not a protected single-link regular file')
+    return info
+
+
+def rotate(absolute: str, *, root: Path = Path('/')) -> bool:
+    """Rotate one allowlisted output. The root override is for offline tests only."""
+    if absolute not in OUTPUTS or str(Path(absolute)) != absolute:
+        raise RotationError('path is not an exact collector output')
+    group, mode_text = OUTPUTS[absolute]
+    gid = grp.getgrnam(group).gr_gid
+    mode = int(mode_text, 8)
+    path = Path(absolute)
+    parent = _directory(root, path.parent.parts[1:])
+    lock = None
+    try:
+        lock_name = '.' + path.name + '.rotate.lock'
+        lock = os.open(lock_name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW |
+                       os.O_CLOEXEC | os.O_NONBLOCK, 0o600, dir_fd=parent)
+        info = os.fstat(lock)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o600):
+            raise RotationError('unsafe rotation lock')
+        # Never wait indefinitely on a conflicting writer or stale administrator
+        # invocation. A failure is reported to omfile; it must not truncate data.
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        current = _file(parent, path.name, gid, mode)
+        if current is None or current.st_size < LIMIT:
+            return False
+        # Validate the entire bounded set before deleting/renaming even one file.
+        present = {}
+        for index in range(1, KEEP + 1):
+            name = f'{path.name}.{index}'
+            present[index] = _file(parent, name, gid, mode) is not None
+        if present[KEEP]:
+            os.unlink(f'{path.name}.{KEEP}', dir_fd=parent)
+        for index in range(KEEP - 1, 0, -1):
+            if present[index]:
+                os.replace(f'{path.name}.{index}', f'{path.name}.{index + 1}',
+                           src_dir_fd=parent, dst_dir_fd=parent)
+        os.replace(path.name, f'{path.name}.1', src_dir_fd=parent, dst_dir_fd=parent)
+        # Persist directory changes only once per rotation, never per message.
+        os.fsync(parent)
+        return True
+    finally:
+        if lock is not None:
+            os.close(lock)
+        os.close(parent)
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0 or len(argv) != 1:
+        print('rsyslog-size-rotate: expected root and exactly one collector path', file=sys.stderr)
+        return 1
+    try:
+        rotate(argv[0])
+    except (OSError, ValueError, KeyError) as exc:
+        print(f'rsyslog-size-rotate: rotation refused: {exc}', file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main(sys.argv[1:]))

@@ -321,6 +321,7 @@ write_target_fstab() {
         fstab_entry "tmpfs" "${DIR_DATA_RUN}" "tmpfs" "${MNT_DATA_RUN_TMPFS_OPTS}" 0 0
       fi
     fstab_entry "${vtmp_src}" "${DIR_VAR_TMP}" "ext4" "${MNT_VAR_TMP_OPTS}" 0 2
+    write_rsyslog_spool_fstab
     if tmpfs_policy_enabled TMPFS_VAR_LOG; then
         fstab_entry "tmpfs" "${DIR_VAR_LOG}" "tmpfs" "${MNT_VAR_LOG_TMPFS_OPTS}" 0 0
       fi
@@ -738,5 +739,6 @@ fi
 configure_target_dbus_broker
 prepare_target_deferred_tmpfs_roots
 prepare_target_volatile_mountpoints_for_first_boot
+stage_target_logging_foundation || return $?
 installer_archive_logs_to_target copy || true
 }

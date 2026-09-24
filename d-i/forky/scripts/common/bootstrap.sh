@@ -504,6 +504,81 @@ bootstrap_fetch_seed_file() (
   fi
 )
 
+# Modules share the same source snapshot, transport and logging renderer as every
+# other installer asset. Explicit callers define order; no glob, eval or PATH
+# search chooses executable code. This resolver runs in a subshell so source
+# transfer/rendering cannot clobber the caller's phase variables.
+bootstrap_module_path() (
+  set -eu
+  umask 077
+  [ "$#" -eq 1 ] || { bootstrap_log 'fatal: one module path is required'; exit 1; }
+  case "$1" in
+    scripts/common/*.sh|scripts/runtime/modules/*.sh|scripts/desktop/components/*.sh|scripts/late/devops/*.sh) ;;
+    *) bootstrap_log "fatal: unsupported module path: $1"; exit 1 ;;
+  esac
+  bootstrap_load_source_library "${INSTALLER_SOURCE_ROOT:-}" || exit 1
+  source_validate_relative "$1" || exit 1
+  module_relative=$1
+  module_seed=$(bootstrap_require_seed_base "") || exit 1
+  # Remote code always requires the preseed-pinned payload. Explicit local
+  # source trees remain usable by the existing developer/test bootstrap path.
+  case "$module_seed" in
+    /*) ;;
+    *)
+      [ -f "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/payload.ready" ] || {
+        bootstrap_log 'fatal: remote module loading requires the authenticated payload'; exit 1;
+      } ;;
+  esac
+  installer_lifecycle_paths || { bootstrap_log 'fatal: unsafe module runtime directory'; exit 1; }
+  module_destination="${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/modules/$module_relative"
+  module_parent=${module_destination%/*}
+  module_probe=$module_parent
+  # Refuse links and writable directories before mkdir, never repair an
+  # untrusted pre-existing path into one we subsequently treat as trusted.
+  while [ "$module_probe" != / ]; do
+    [ ! -L "$module_probe" ] || { bootstrap_log 'fatal: symlinked module directory'; exit 1; }
+    if [ -e "$module_probe" ]; then
+      [ -d "$module_probe" ] || exit 1
+      case "$module_probe" in
+        "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}"/*)
+          [ "$(installer_metadata_value "$module_probe" uid)" = "$(id -u)" ] || exit 1
+          case "$(installer_metadata_value "$module_probe" mode)" in
+            700|500|750|550|755|555) ;;
+            *) bootstrap_log 'fatal: writable or unsafe module directory'; exit 1 ;;
+          esac ;;
+      esac
+    fi
+    module_probe=${module_probe%/*}; [ -n "$module_probe" ] || module_probe=/
+  done
+  if [ -e "$module_destination" ] || [ -L "$module_destination" ]; then
+    [ -f "$module_destination" ] && [ ! -L "$module_destination" ] || exit 1
+    [ "$(installer_metadata_value "$module_destination" uid)" = "$(id -u)" ] || exit 1
+    [ "$(installer_metadata_value "$module_destination" links)" = 1 ] || exit 1
+  fi
+  mkdir -p "$module_parent" || exit 1
+  case "$module_relative" in
+    scripts/common/*|scripts/runtime/modules/*)
+      # Common modules bootstrap the higher-level renderer itself. Never call
+      # its half-loaded functions while resolving those dependencies.
+      source_fetch "$module_seed" "$module_relative" "$module_destination" 0600 || exit 1 ;;
+    *)
+      bootstrap_fetch_seed_file "$module_seed" "$module_relative" "$module_destination" 0600 'installer module' || exit 1 ;;
+  esac
+  [ -s "$module_destination" ] && [ ! -L "$module_destination" ] || exit 1
+  [ "$(installer_metadata_value "$module_destination" mode)" = 600 ] || exit 1
+  printf '%s\n' "$module_destination"
+)
+
+bootstrap_source_module() {
+  # Function positional parameters are local to this call in dash and ash.
+  # Modules define functions/constants only. Phase actions run in the explicit
+  # entrypoint, after every dependency has loaded successfully.
+  set -- "$(bootstrap_module_path "$1")" || return "$?"
+  [ -n "$1" ] || return 1
+  # shellcheck disable=SC1090
+  . "$1"
+}
+
 bootstrap_source_common_lib() {
   requested_seed_base=${1:-}
   common_lib_path=${2:-$(bootstrap_phase_runner_path common-lib.sh)} || return $?

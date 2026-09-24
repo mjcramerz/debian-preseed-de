@@ -1,9 +1,8 @@
+# Package-native file writers only. Collector files rotate inline on size.
+# Reset the old managed 15-minute cadence on reinstall; no new polling service.
 [Timer]
-# Replace the vendor daily schedule with frequent bounded-growth checks.
 OnCalendar=
-OnCalendar=*-*-* *:00/__INSTALLER_LOG_ROTATE_CHECK_MINUTES__:00
-
-# Stagger hosts while keeping the maximum scheduling delay small.
-AccuracySec=1m
-RandomizedDelaySec=2m
+OnCalendar=daily
+AccuracySec=1h
+RandomizedDelaySec=1h
 Persistent=true

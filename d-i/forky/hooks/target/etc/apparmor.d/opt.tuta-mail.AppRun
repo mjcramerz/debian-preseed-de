@@ -6,6 +6,15 @@ abi "/usr/share/apparmor-features/features",
 
 profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
   #include <abstractions/electron-runtime>
+  # Electron constructs nested PID/network namespaces and a safe proc chroot.
+  # These AppArmor permissions do not grant host capabilities to the daily uid.
+  # Do not weaken the shared capability-free runtime for other applications.
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  owner @{PROC}/@{pid}/{uid_map,gid_map,setgroups} rw,
+  owner @{PROC}/@{pid}/fdinfo/ r,
+  owner @{PROC}/@{pid}/fdinfo/[0-9]* r,
   #include <abstractions/pipewire-audio>
   include if exists <abstractions/user-tmp>
 

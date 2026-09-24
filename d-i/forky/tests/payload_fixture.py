@@ -11,6 +11,7 @@ import runpy
 import os
 import shutil
 import tempfile
+import re
 SEED = Path(__file__).resolve().parents[1]
 @lru_cache(maxsize=1)
 def _logging():
@@ -40,12 +41,55 @@ def logging_text(text):
         return text
     render, values = _logging()
     return render(text, values)
+MODULE_ENTRYPOINTS = {'scripts/common/lib.sh', 'scripts/runtime/common.sh',
+                      'scripts/desktop/components.sh', 'scripts/late/devops.sh'}
+MODULE_CALL = re.compile(r"^bootstrap_source_module '([^']+)'", re.M)
+
+def is_module_entrypoint(path):
+    try:
+        return Path(path).relative_to(SEED).as_posix().removesuffix('.tmpl') in MODULE_ENTRYPOINTS
+    except ValueError:
+        return False
+
+def module_definition_view(path, *, render=True):
+    """Definition-only view for isolated legacy function tests, not a loader.
+
+    Every definition is read from its actual module in the explicit entrypoint
+    order. Production bootstrap/wiring is exercised separately, with real files,
+    in test_modular_installer.py. This view never writes into the repository.
+    """
+    original = Path(path)
+    resolved = source_path(original)
+    entry = resolved.read_text()
+    parts = ['#!/bin/sh\n']
+    if original.name.startswith('devops.sh'):
+        parts.append('set -eu\ntarget_root=${1:-/target}\n[ -d "$target_root" ] || exit 0\n')
+        parts.append('devops_codex_host_log_dir=__INSTALLER_LOG_CODEX_RUNTIME_DIR__\n')
+        if render:
+            parts[-1] = logging_text(parts[-1])
+    for relative in MODULE_CALL.findall(entry):
+        module = source_path(SEED / relative)
+        text = module.read_text()
+        if render and module.name.endswith('.tmpl'):
+            text = logging_text(text)
+        parts.append(text)
+    if original.name.startswith('devops.sh'):
+        parts.append('\ndevops_main "$@"\n')
+    return '\n'.join(parts)
+
 def read_text(path, *args, **kwargs):
-    original = Path(path); resolved = source_path(original)
+    original = Path(path)
+    if is_module_entrypoint(original):
+        return module_definition_view(original, render=not original.name.endswith('.tmpl'))
+    resolved = source_path(original)
     text = resolved.read_text(*args, **kwargs)
     return logging_text(text) if resolved != original else text
+
 def read_bytes(path):
-    original = Path(path); resolved = source_path(original)
+    original = Path(path)
+    if is_module_entrypoint(original):
+        return read_text(original).encode('utf-8')
+    resolved = source_path(original)
     data = resolved.read_bytes()
     if resolved != original and b'__INSTALLER_LOG_' in data and b'\0' not in data:
         return logging_text(data.decode('utf-8')).encode('utf-8')
@@ -58,7 +102,7 @@ def _temporary():
 @lru_cache(maxsize=None)
 def installed_script(path):
     original = Path(path); resolved = source_path(original)
-    if resolved == original and b'__INSTALLER_LOG_' not in resolved.read_bytes():
+    if not is_module_entrypoint(original) and resolved == original and b'__INSTALLER_LOG_' not in resolved.read_bytes():
         return resolved
     destination = _temporary() / original.relative_to(SEED)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -81,14 +125,14 @@ def python_library(path):
 def copy2(source, destination, **kwargs):
     original = Path(source); resolved = source_path(original)
     output = shutil.copy2(resolved, destination, **kwargs)
-    if resolved != original:
+    if resolved != original or is_module_entrypoint(original):
         Path(output).write_bytes(read_bytes(original))
     return output
 
 def copyfile(source, destination, **kwargs):
     original = Path(source); resolved = source_path(original)
     output = shutil.copyfile(resolved, destination, **kwargs)
-    if resolved != original:
+    if resolved != original or is_module_entrypoint(original):
         Path(output).write_bytes(read_bytes(original))
     return output
 def source_stat(path, **kwargs):
@@ -100,7 +144,8 @@ def source_exists(path):
 def shell_sources(code):
     """Resolve only renamed source libraries in fixture shell commands."""
     import shlex
-    for relative in ('scripts/desktop/components.sh', 'scripts/desktop/detect.sh',
+    for relative in ('scripts/common/lib.sh', 'scripts/runtime/common.sh',
+                     'scripts/desktop/components.sh', 'scripts/desktop/detect.sh',
                      'scripts/desktop/verify.sh', 'scripts/late/devops.sh',
                      'scripts/late/software.sh', 'scripts/firstboot/04-validation.sh'):
         if relative not in code:
@@ -124,7 +169,7 @@ def installed_argv(arguments):
             result[index] = str(shell_directory(Path(text)))
         elif text.startswith(str(SEED) + '/') and '\n' not in text:
             path = Path(text)
-            if path.with_name(path.name + '.tmpl').is_file():
+            if is_module_entrypoint(path) or path.with_name(path.name + '.tmpl').is_file():
                 result[index] = str(installed_script(path))
     return result
 

@@ -1,14 +1,18 @@
-# Managed local logging: journal records + one authoritative kernel input.
-# imjournal retains trusted journal metadata and resumes from a private cursor.
-# Disable only imuxsock's default system socket, not the two private managed
-# scanner/model sockets. No network inputs or journal output feedback loops.
+# Local socket transport; no journal database reader, cursor, network input,
+# or output feedback loop. journald forwards original SCM_CREDENTIALS. Only
+# kernel-attested uid/pid and live /proc executable identity are used as trust
+# evidence; application tags are routing hints, never authorization.
+# Socket forwarding has no replay after collector downtime. The host-selected
+# journal storage policy remains independent and retains structured records.
 
 global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k")
 $WorkDirectory __INSTALLER_LOG_RSYSLOG_SPOOL_DIR__
-module(load="imuxsock" SysSock.Use="off")
-module(load="imjournal" StateFile="__INSTALLER_LOG_RSYSLOG_CURSOR_NAME__" PersistStateInterval="__INSTALLER_LOG_RSYSLOG_CURSOR_INTERVAL__"
-       IgnorePreviousMessages="off" IgnoreNonValidStatefile="on"
-       Ratelimit.Interval="0" UsePid="system")
+module(load="imuxsock" SysSock.Use="on"
+       SysSock.Annotate="on" SysSock.ParseTrusted="on"
+       SysSock.UsePIDFromSystem="on" SysSock.FlowControl="off"
+       SysSock.RateLimit.Interval="__INSTALLER_LOG_SYSLOG_RATE_INTERVAL__"
+       SysSock.RateLimit.Burst="__INSTALLER_LOG_SYSLOG_RATE_BURST__"
+       SysSock.RateLimit.Severity="5")
 # journald ReadKMsg=no: imklog remains the single managed kernel-log input.
 module(load="imklog")
 
@@ -25,6 +29,6 @@ $RepeatedMsgReduction off
 main_queue(queue.size="__INSTALLER_LOG_RSYSLOG_MAIN_QUEUE_MESSAGES__" queue.workerThreads="1")
 
 # Private socket rulesets stay separate. Dedicated security routes run
-# before the per-component journal route; 99-discard stops classified
-# records. Do not restore parallel /var/log/syslog/facility copies here.
+# before constant-path fallbacks; normal user applications stop in 21-apps.
+# 99-discard stops the remaining classified records. Do not restore parallel /var/log/syslog/facility copies here.
 include(file="/etc/rsyslog.d/*.conf" mode="abort-if-missing")

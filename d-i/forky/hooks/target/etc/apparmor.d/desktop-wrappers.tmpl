@@ -3601,6 +3601,7 @@ profile labwc-network-control-action-root /usr/local/libexec/labwc-network-contr
   #include <abstractions/wrapper-perl>
 
   /usr/local/libexec/labwc-network-control-action-root rix,
+  /usr/local/libexec/network-openvpn-import rPx -> network-openvpn-import,
   /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,
   /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,
   /usr/local/lib/perl5/site_perl/runtime/ r,
@@ -3924,6 +3925,7 @@ profile apt-repo-local-software-update /usr/local/libexec/apt-repo-local-softwar
   /usr/local/libexec/apt-repo-local-software-update rix,
   /usr/local/libexec/apt-repo-local rPx -> apt-repo-local,
   /usr/local/libexec/discord-distro rPx -> discord-distro,
+  /usr/local/libexec/tuta-extract rPx -> tuta-extract,
   /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,
   /usr/local/lib/perl5/site_perl/apt-repo-local/ r,
   /usr/local/lib/perl5/site_perl/apt-repo-local/** r,
@@ -3997,7 +3999,7 @@ profile apt-repo-local-software-update /usr/local/libexec/apt-repo-local-softwar
   /var/lib/software/** rwkl,
   owner /tmp/apt-repo-local-software-update.*/ rw,
   owner /tmp/apt-repo-local-software-update.*/** rwkl,
-  owner /tmp/apt-repo-local-software-update.*/{ledger-live-linux-x86_64.AppImage,tutanota-desktop-linux.AppImage} pux,
+  owner /tmp/apt-repo-local-software-update.*/ledger-live-linux-x86_64.AppImage pux,
 
   include if exists <local/usr.local.libexec.apt-repo-local-software-update>
 }
@@ -4328,4 +4330,62 @@ profile labwc-window-switcher /usr/local/bin/labwc-window-switcher flags=(attach
   # wtype unlinks a private mkstemp keymap before passing its fd to Wayland.
   owner /tmp/wtype-?????? rw,
   include if exists <local/usr.local.bin.labwc-window-switcher>
+}
+
+# Root-authorized OpenVPN input is read only after dropping to the invoking uid.
+# Keep the existing nmcli package transition; never pass it the caller pathname.
+profile network-openvpn-import /usr/local/libexec/network-openvpn-import flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+
+  capability setuid,
+  capability setgid,
+  /usr/local/libexec/network-openvpn-import rix,
+  / r,
+  /**/ r,
+  owner /**.ovpn r,
+  /run/network-openvpn-*/ rw,
+  /run/network-openvpn-*/*.ovpn rw,
+  /usr/bin/nmcli PUx,
+  signal (send, receive) peer=network-openvpn-import,
+  signal (receive) peer=labwc-network-control-action-root,
+  include if exists <local/usr.local.libexec.network-openvpn-import>
+}
+
+# The verified image is data, never an executable. Only the packaged parser
+# enters the extraction namespace, and setpriv drops its host credentials.
+profile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  /usr/local/libexec/tuta-extract rix,
+  / r,
+  /etc/shadow r,
+  @{PROC}/ r,
+  @{PROC}/[0-9]*/status r,
+  /tmp/ r,
+  /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,
+  /run/lock/ r,
+  /run/lock/tuta-extract/{,**} rwk,
+  /usr/bin/bwrap rCx -> unpack,
+  signal (send, receive) peer=tuta-extract,
+  signal (send, receive) peer=tuta-extract//unpack,
+  signal (receive) peer=apt-repo-local-software-update,
+
+  profile unpack flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/bwrap-common>
+
+    signal (receive) peer=tuta-extract,
+    /usr/bin/{bwrap,setpriv,unsquashfs} rix,
+    /{bin,sbin,lib,lib64,usr}/ r,
+    /etc/ r,
+    /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,
+    /artifact r,
+    /output/{,**} rwkl,
+    @{PROC}/sys/kernel/cap_last_cap r,
+    @{PROC}/[0-9]*/status r,
+  }
+  include if exists <local/usr.local.libexec.tuta-extract>
 }

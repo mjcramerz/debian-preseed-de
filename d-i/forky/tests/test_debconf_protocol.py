@@ -8,6 +8,7 @@ import stat
 import tempfile
 import unittest
 
+from payload_fixture import copyfile as payload_copyfile
 from debconf_fixture import DebconfSandbox, PrivateDebconf, ProtocolSession, FIXTURES
 from test_repository_transport import FORKY, Endpoint
 from test_bootstrap_portability import generated_commands
@@ -26,7 +27,7 @@ class DebconfProtocolTests(unittest.TestCase):
         self.addCleanup(self.db.close)
         for name in ('lifecycle', 'debconf'):
             shutil.copyfile(FORKY / f'scripts/common/{name}.sh', self.box.root / f'tmp/{name}.sh')
-        shutil.copyfile(FORKY / 'scripts/runtime/common.sh', self.box.root / 'tmp/runtime.sh')
+        payload_copyfile(FORKY / 'scripts/runtime/common.sh', self.box.root / 'tmp/runtime.sh')
 
     def run_code(self, code, *, env=None, raw=False, override=None, timeout=25):
         session = ProtocolSession(self.box, self.db, code, env=env, raw=raw, override=override)
@@ -177,12 +178,11 @@ printf screen >&5
         self.assertEqual(stat.S_IMODE(diagnostics[0].stat().st_mode), 0o600)
         self.assertEqual(stat.S_IMODE(diagnostics[0].parent.stat().st_mode), 0o700)
 
-    def test_canonical_debconf_copies_are_identical(self):
-        canonical = (FORKY / 'scripts/common/debconf.sh').read_text()
+    def test_entrypoints_share_canonical_debconf_module(self):
         for rel in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):
             text = (FORKY / rel).read_text()
-            actual = text.split('# BEGIN EMBEDDED DEBCONF\n', 1)[1].split('# END EMBEDDED DEBCONF\n', 1)[0]
-            self.assertEqual(actual, canonical)
+            self.assertIn("bootstrap_source_module 'scripts/common/debconf.sh'", text)
+            self.assertNotIn('installer_debconf_request() (', text)
 
     def test_runtime_password_not_written_to_upstream_preseed_log(self):
         secret = 'Fixture-Only!not-a-real-password'

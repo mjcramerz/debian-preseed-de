@@ -454,26 +454,29 @@ render_target_resource_asset unused /{relative} 0644
             self.assertEqual(list(outside.iterdir()), [])
 
     def test_journal_default_and_nondefault_storage_survive_installer_validation(self):
-        for values in ('', 'SYSTEMD_JOURNAL_SYSTEM_MAX_USE=512M\n'
-                       'SYSTEMD_JOURNAL_RUNTIME_MAX_USE=32M\n'
-                       'SYSTEMD_JOURNAL_SYSTEM_MAX_FILES=8\nSYSTEMD_JOURNAL_RUNTIME_MAX_FILES=4'):
-            with self.subTest(override=values), tempfile.TemporaryDirectory() as tmp:
-                target = Path(tmp) / 'target'; target.mkdir()
-                self.shell(self.staging(tmp)+'''
-render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage.conf "$FILE_JOURNALD_STORAGE_CONF" 0644
-validate_target_journal_storage_policy
-''', override=values)
-                actual = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
-                self.assertIn('SystemMaxUse=512M' if values else 'SystemMaxUse=1G', actual)
-                self.assertFalse(TOKEN.search(actual))
-                if not values:
-                    fixture = SEED / 'tests/fixtures/journal-storage-original.conf'
-                    def settings(text):
-                        return dict(line.split('=', 1) for line in text.splitlines()
-                                    if '=' in line and not line.lstrip().startswith('#'))
-                    expected = settings(payload_read_text(fixture))
-                    expected['ForwardToSyslog'] = 'no'  # imjournal, not live socket forwarding
-                    self.assertEqual(settings(actual), expected)
+        for tmpfs in ('true', 'false'):
+            for values in ('', 'SYSTEMD_JOURNAL_SYSTEM_MAX_USE=512M\n'
+                           'SYSTEMD_JOURNAL_RUNTIME_MAX_USE=32M\n'
+                           'SYSTEMD_JOURNAL_SYSTEM_MAX_FILES=8\nSYSTEMD_JOURNAL_RUNTIME_MAX_FILES=4'):
+                with self.subTest(tmpfs=tmpfs, override=f'TMPFS_VAR_LOG={tmpfs}\n'+values), tempfile.TemporaryDirectory() as tmp:
+                    target = Path(tmp) / 'target'; target.mkdir()
+                    self.shell(self.staging(tmp)+'''
+    render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage.conf "$FILE_JOURNALD_STORAGE_CONF" 0644
+    validate_target_journal_storage_policy
+    ''', override=f'TMPFS_VAR_LOG={tmpfs}\n'+values)
+                    actual = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
+                    self.assertIn('SystemMaxUse=512M' if values else 'SystemMaxUse=1G', actual)
+                    self.assertFalse(TOKEN.search(actual))
+                    self.assertIn('Seal='+('no' if tmpfs == 'true' else 'yes'), actual)
+                    if not values:
+                        fixture = SEED / 'tests/fixtures/journal-storage-original.conf'
+                        def settings(text):
+                            return dict(line.split('=', 1) for line in text.splitlines()
+                                        if '=' in line and not line.lstrip().startswith('#'))
+                        expected = settings(payload_read_text(fixture))
+                        expected['ForwardToSyslog'] = 'yes'  # single native imuxsock transport
+                        expected['Seal'] = 'no' if tmpfs == 'true' else 'yes'
+                        self.assertEqual(settings(actual), expected)
 
     def test_deployment_order_and_scope_lifecycle_are_preserved(self):
         labwc = payload_read_text(SEED / 'scripts/desktop/labwc.sh')

@@ -138,7 +138,7 @@ crypto_write_config() {
     CRYPTO_HOME_CRYPT_NAME_VALUE "$(shell_single_quote "$HOME_CRYPT_NAME")" \
     CRYPTO_HOME_KEY_FILE_VALUE "$(shell_single_quote "$home_key_target")" \
     CRYPTO_INSTALL_PASSPHRASE_FILE_VALUE "$(shell_single_quote "$install_passphrase_target")" \
-    CRYPTO_TPM2_FINAL_PCRS_VALUE "$(shell_single_quote 7+14)"
+    CRYPTO_TPM2_FINAL_PCRS_VALUE "$(shell_single_quote 7+8+9+14)"
 }
 
 crypto_write_crypttab() {
@@ -235,9 +235,13 @@ crypto_verify_initramfs() {
     if grep -q 'etc/cryptsetup-keys.d/crypthome.key$' "$listing"; then
       crypto_fatal "root-contained /home key leaked into ${relative_initrd}"
     fi
-    if grep -q 'usr/local/lib/crypto/install-passphrase$' "$listing"; then
-      crypto_fatal "installer passphrase file leaked into ${relative_initrd}"
-    fi
+    # Compare normalized archive members, not an obsolete hard-coded location.
+    for secret_path in "${install_passphrase_target:-/var/lib/tpm2-enrollment/install-passphrase}" \
+      /usr/local/lib/crypto/install-passphrase /var/lib/tpm2-enrollment/config.env; do
+      if sed 's,^\./,,; s,^/,,; s,/$,,' "$listing" | grep -Fqx "${secret_path#/}"; then
+        crypto_fatal "installer enrollment material leaked into ${relative_initrd}"
+      fi
+    done
     rm -f "$listing"
   done
   [ "$found_initrd" = true ] || crypto_fatal "no target initramfs image was found"
@@ -356,6 +360,19 @@ crypto_stage_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot)" \
   /etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot \
   0755
+crypto_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tpm2-policy-check)" \
+  /usr/local/libexec/tpm2-policy-check \
+  0755
+crypto_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/grub.d/45-tpm2-measured-boot.cfg)" \
+  /etc/default/grub.d/45-tpm2-measured-boot.cfg \
+  0644
+crypto_stage_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/usr.local.sbin.tpm2-enroll.sh)" \
+  /etc/apparmor.d/usr.local.sbin.tpm2-enroll.sh \
+  0644
+run_in_target "enable packaged GRUB TPM measurements" /usr/sbin/update-grub
 crypto_stage_target_asset \
   "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/usr/local/sbin/tpm2-enroll.sh)" \
   /usr/local/sbin/tpm2-enroll.sh \

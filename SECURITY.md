@@ -197,3 +197,10 @@ Additional primary implementation references (consulted 2026-09-06):
 - uBOL managed settings: https://github.com/uBlockOrigin/uBOL-home/wiki/Managed-settings
 - Privacy Badger managed schema: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/data/schema.json
 - Privacy Badger import merge: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/js/storage.js
+
+## Scoped repair and release gates (2026-09-24)
+
+See [the security repair](docs/security-hardening.md) for firewall ownership,
+privileged import/extraction boundaries, measured-boot enrollment, journal
+sealing, and the limits of same-UID lifecycle isolation. Historical reports
+are in `docs/validation/history/`; they are not acceptance results for this revision.

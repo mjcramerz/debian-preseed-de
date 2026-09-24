@@ -6,7 +6,7 @@ are downloaded, never installed. Set CUDA_TEST_APT_ROOT to an extracted Debian
 APT/libapt-pkg tree to repeat the same tests with a different APT version.
 """
 from __future__ import annotations
-from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import installed_script, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
 from payload_fixture import copy2 as payload_copy2, read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import email.utils
@@ -198,7 +198,7 @@ bootstrap_source_common_support_libs() { :; }
 """)
         env = {**os.environ, **self.env, 'INSTALLER_BOOTSTRAP_LIB': str(bootstrap),
                'INSTALLER_CUDA_PREPKGSEL_ENV_DIR': str(self.root/'hook-env'),
-               'CUDA_TEST_LIB': str(LIB), 'CUDA_TEST_SEED': str(SEED),
+               'CUDA_TEST_LIB': str(installed_script(LIB)), 'CUDA_TEST_SEED': str(SEED),
                'CUDA_TEST_SELECTED': '0' if selected else '1',
                'CUDA_TEST_APT_STATUS': str(apt_status), 'CUDA_TEST_CALLS': str(calls)}
         result = subprocess.run(payload_installed_argv(['/bin/sh', str(SEED/'hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh')]),

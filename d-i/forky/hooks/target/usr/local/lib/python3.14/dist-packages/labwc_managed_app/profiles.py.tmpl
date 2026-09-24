@@ -141,7 +141,6 @@ APPS = {
         },
         "intel_args": [],
         "nvidia_env": {
-            "MOZ_DISABLE_RDD_SANDBOX": "1",
             "MOZ_ENABLE_WAYLAND": "1",
             "MOZ_WEBRENDER": "1",
         },
@@ -664,7 +663,7 @@ PERSISTENT_SANDBOX_CONFIG = {
         "config_args": (),
         "dbus_names": TUTA_DBUS_NAMES,
         "dbus_own_names": TUTA_DBUS_OWN_NAMES,
-        "inner_sandbox_args": ("--no-sandbox",),
+        "inner_sandbox_args": ("--enable-sandbox",),
         "persistent_paths": TUTA_PERSISTENT_PATHS,
         "require_session_bus": True,
         "require_system_bus": True,

@@ -2,6 +2,7 @@
 
 Only disposable roots are changed. No calibration, cgroup write or uevent runs.
 """
+from payload_fixture import copyfile as payload_module_copyfile, installed_script
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import hashlib
 import json
@@ -61,7 +62,7 @@ class IOCostTests(unittest.TestCase):
                     'INSTALLER_SOURCE_ROOT': str(FORKY), 'FIXTURE_SOURCE': str(FORKY)}
         if os.geteuid() == 0:
             os.chown(self.target, 0, 0)
-        self.code = '\n'.join('. ' + shlex.quote(str(FORKY / name)) for name in
+        self.code = '\n'.join('. ' + shlex.quote(str(installed_script(FORKY / name))) for name in
                               ('scripts/common/lib.sh', 'scripts/common/target.sh',
                                'scripts/late/target-assets.sh', 'scripts/late/iocost.sh'))
         self.code += '\nfetch_hook() { cp -- "$FIXTURE_SOURCE/$1" "$2"; }\n'
@@ -189,7 +190,7 @@ class IOCostTests(unittest.TestCase):
         for name in sources:
             destination = outer / 'repo' / name
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(FORKY / name, destination)
+            payload_module_copyfile(FORKY / name, destination)
         for binary in ('/usr/bin/systemd-hwdb', '/usr/bin/env', '/usr/lib/udev/iocost'):
             copy_binary(outer / 'target', binary)
         native = outer / 'target' / COMPAT

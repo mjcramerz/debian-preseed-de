@@ -98,7 +98,7 @@ if [ -f /child-wait ]; then : > /child-ready; sleep 30; fi
 
 
 def allocator_source() -> str:
-    text = (SEED / "scripts/late/devops.sh.tmpl").read_text()
+    text = (SEED / "scripts/late/devops/codex-release.sh").read_text()
     start = text.index("devops_install_pinned_codex() (")
     end = text.index("\n)\n\ndevops_install_codex_from_clone()", start) + 3
     return text[start:end]

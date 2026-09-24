@@ -48,7 +48,7 @@ def module(name, relative):
 
 journal = module('managed_journal_check_r3', 'usr/local/libexec/journal-check')
 layout = module('managed_log_layout_r3', 'usr/local/libexec/log-layout')
-BASE = '[Journal]\nStorage=volatile\nForwardToSyslog=no\nReadKMsg=no\n'
+BASE = '[Journal]\nStorage=volatile\nForwardToSyslog=yes\nReadKMsg=no\nSeal=no\n'
 
 
 class JournalPolicyTests(unittest.TestCase):
@@ -74,7 +74,7 @@ validate_target_journal_storage_policy
                     self.assertEqual(result.returncode, 0)
                     rendered = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
                     self.assertEqual(journal.journal_settings(rendered)['Storage'], value)
-                    self.assertIn('ForwardToSyslog=no\n', rendered)
+                    self.assertIn('ForwardToSyslog=yes\n', rendered)
                     self.assertIn('ReadKMsg=no\n', rendered)
                     self.assertEqual(payload_read_bytes(persistent), b'old journal untouched')
                     self.assertEqual(payload_read_bytes(fstab), b'original mount policy\n')
@@ -116,7 +116,7 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
 
     def test_conflicts_duplicates_missing_and_multiline_fail_closed(self):
         journal.check(BASE, BASE)
-        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'yes'), ('ReadKMsg', 'yes')]:
+        for key, bad in [('Storage', 'persistent'), ('ForwardToSyslog', 'no'), ('ReadKMsg', 'yes')]:
             with self.subTest(key=key):
                 with self.assertRaises(journal.PolicyError):
                     journal.check(BASE, BASE + f'{key}={bad}\n')
@@ -150,7 +150,7 @@ render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage
                 journal.check(BASE, effective())
             (etc / '99-conflict.conf').symlink_to('/dev/null')
             journal.check(BASE, effective())
-            (etc / '90-local.conf').write_text('[Journal]\nForwardToSyslog=yes\n')
+            (etc / '90-local.conf').write_text('[Journal]\nForwardToSyslog=no\n')
             with self.assertRaises(journal.PolicyError):
                 journal.check(BASE, effective())
 
@@ -269,37 +269,38 @@ class LogLayoutTests(unittest.TestCase):
 class RoutingContractTests(unittest.TestCase):
     def test_journal_input_and_private_sockets_are_not_duplicated(self):
         text = payload_read_text(TARGET / 'etc/rsyslog.conf')
-        self.assertIn('module(load="imuxsock" SysSock.Use="off")', text)
-        self.assertEqual(text.count('module(load="imjournal"'), 1)
+        self.assertIn('module(load="imuxsock" SysSock.Use="on"', text)
+        self.assertIn('SysSock.Annotate="on" SysSock.ParseTrusted="on"', text)
+        self.assertNotIn('module(load="imjournal"', text)
         self.assertEqual(text.count('module(load="imklog")'), 1)
-        self.assertIn('StateFile="imjournal.state"', text)
+        self.assertNotIn('StateFile=', text)
         self.assertNotIn('load="omjournal"', text)
         for name in ('38-openai-chatgpt.conf', '39-security-scanners.conf'):
             private = payload_read_text(TARGET / 'etc/rsyslog.d' / name)
             self.assertIn('type="imuxsock"', private)
             self.assertIn('CreatePath="off"', private)
 
-    def test_destinations_are_constants_and_records_escape_each_field(self):
+    def test_destinations_are_constant_plain_text_and_bounded(self):
         text = payload_read_text(TARGET / NEW_ASSETS[0])
-        self.assertGreater(len(set(re.findall(r'set \$\.managed_logfile = "([^"]+)";', text))), 80)
-        header = text.split('template(name="ManagedComponentPath"', 1)[0]
-        for line in header.splitlines():
-            if line.strip().startswith('property('): self.assertIn('format="jsonf"', line)
-        for forbidden in ('$all-json', '_CMDLINE', '/runtime.log', '/vendor.log'):
-            self.assertNotIn(forbidden, text)
+        apps = payload_read_text(TARGET / 'etc/rsyslog.d/21-apps.conf')
+        self.assertEqual(set(re.findall(r'file="([^"]+)"', text)),
+                         {'/var/log/managed/system/system.log', '/var/log/managed/system/kernel.log'})
+        for forbidden in ('$all-json', '_CMDLINE', 'format="jsonf"', 're_match(',
+                          'managed_identity', 'dynaFile=', 'managed_logfile'):
+            self.assertNotIn(forbidden, text + apps)
+        self.assertIn('template="RSYSLOG_FileFormat"', text + apps)
         self.assertIn('createDirs="off"', text)
-        self.assertIn('queue.saveOnShutdown="on"', text)
+        self.assertIn('queue.saveOnShutdown="on"', apps)
+        self.assertIn('queue.timeoutEnqueue="0"', apps)
 
-    def test_component_predicates_route_adb_and_thunar_and_known_apps(self):
-        text = payload_read_text(TARGET / NEW_ASSETS[0])
-        rules = re.findall(r'else if re_match\(\$\.managed_identity, "([^"]+)"\) then \{\n *set \$\.managed_logfile = "([^"]+)";', text)
-        expected = {'adb':'system/adb/adb.log', 'thunar':'desktop/thunar/thunar.log',
-                    'tuta':'apps/tuta/tuta.log','waybar':'desktop/waybar/waybar.log',
-                    'codex':'models/codex/codex.log'}
-        for name, relative in expected.items():
-            found = next((dest for regex,dest in rules if re.search(regex,name+' '+name+'.service')), None)
-            self.assertIsNotNone(found, name)
-            self.assertEqual(found, '/var/log/managed/'+relative, name)
+    def test_applications_have_one_credential_based_route(self):
+        text = payload_read_text(TARGET / 'etc/rsyslog.d/21-apps.conf')
+        self.assertEqual(re.findall(r'file="([^"]+)"', text), ['/var/log/managed/apps/apps.log'])
+        self.assertIn('exists($!uid)', text)
+        self.assertIn('cnum($!uid) >= 1000', text)
+        self.assertIn('cnum($!uid) <= 59999', text)
+        self.assertIn('stop', text)
+        self.assertNotIn('$programname', text)
 
     def test_no_active_file_mirroring_and_native_audit_output(self):
         for path in (TARGET/'etc/rsyslog.d').iterdir():
@@ -313,14 +314,16 @@ class RoutingContractTests(unittest.TestCase):
         plugin = payload_read_text(TARGET/'etc/audit/plugins.d/syslog.conf')
         self.assertIn('active = yes',plugin)
 
-    def test_protected_outputs_are_created_and_rotated(self):
+    def test_protected_outputs_have_one_rotation_owner(self):
         configs = ''.join(logging_text(p.read_text()) for p in (TARGET/'etc/tmpfiles.d').glob('*') if p.is_file())
         rotations = ''.join(logging_text(p.read_text()) for p in (TARGET/'etc/logrotate.d').glob('*') if p.is_file())
+        callback = module('size_rotation_contract', 'usr/local/libexec/rsyslog-size-rotate')
         for path in layout.PROTECTED_FILES:
             self.assertIn('f '+path+' ',configs, path)
-            self.assertIn(path,rotations,path)
-        self.assertNotIn('/security/vendor.log',rotations)
-        self.assertNotIn('/security/runtime.log',rotations)
+            self.assertIn(path, callback.OUTPUTS, path)
+            self.assertNotIn(path, rotations, path)
+        self.assertEqual(callback.LIMIT, 2 * 1024 * 1024)
+        self.assertEqual(callback.KEEP, 4)
 
 
 @unittest.skipUnless(os.geteuid() == 0 and shutil.which('rsyslogd'),
@@ -340,73 +343,9 @@ class NativeRsyslogTests(unittest.TestCase):
             result = subprocess.run(['rsyslogd', '-N1', '-f', str(config)], text=True, capture_output=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_runtime_delivery_json_injection_rotation_and_restart(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp); (root / 'spool').mkdir(); logroot = root / 'logs'
-            outputs = {'apps':'apps/tuta/tuta.log','security':'security/clamav-service/clamav-service.log',
-                       'system':'system/fwupd/fwupd.log','desktop':'desktop/waybar/waybar.log',
-                       'models':'models/codex/codex.log'}
-            for relative in outputs.values():
-                path = logroot/relative; path.parent.mkdir(parents=True); path.touch(); path.chmod(0o640)
-            other = logroot/'system/services/services.log'; other.parent.mkdir(parents=True); other.touch()
-            sock = root / 'input.sock'; config = root / 'rsyslog.conf'
-            route = payload_read_text(TARGET / 'etc/rsyslog.d/44-components.conf').replace('/var/log/managed/', str(logroot) + '/')
-            config.write_text(f'global(workDirectory="{root / "spool"}")\n'
-                'module(load="imuxsock" SysSock.Use="off")\n'
-                f'input(type="imuxsock" Socket="{sock}" RateLimit.Interval="0")\n' + route)
-            stderr = (root / 'stderr').open('w+')
-            try:
-                process = subprocess.Popen(['rsyslogd', '-n', '-i', str(root / 'pid'), '-f', str(config)], stdout=stderr, stderr=stderr)
-                try:
-                    deadline = time.monotonic() + 10
-                    while not sock.exists() and process.poll() is None and time.monotonic() < deadline:
-                        time.sleep(.05)
-                    self.assertTrue(sock.exists())
-                    sources = {'apps': 'labwc-tuta', 'security': 'clamav', 'system': 'fwupd',
-                               'desktop': 'labwc-waybar', 'models': 'codex-app-server'}
-                    def send(marker):
-                        for category, tag in sources.items():
-                            subprocess.run(['logger', '--socket', str(sock), '--tag', tag, '--', marker + ':' + category], check=True)
-                    def wait_for(marker):
-                        end = time.monotonic() + 10
-                        while time.monotonic() < end:
-                            if all((logroot / outputs[c]).exists() and marker in payload_read_text(logroot / outputs[c]) for c in CATEGORIES):
-                                return
-                            if process.poll() is not None:
-                                break
-                            time.sleep(.1)
-                        stderr.flush(); self.fail('runtime routing timeout: ' + payload_read_text(root / 'stderr'))
-                    send('r3-before'); wait_for('r3-before')
-                    for category in CATEGORIES:
-                        path = logroot / outputs[category]
-                        for line in payload_read_text(path).splitlines():
-                            self.assertIsInstance(json.loads(line), dict)
-                        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
-                        path.rename(path.with_name('runtime.log.1'))
-                    process.send_signal(signal.SIGHUP)
-                    send('r3-after'); wait_for('r3-after')
-                    process.terminate(); process.wait(timeout=15)
-                    sock.unlink(missing_ok=True)
-                    process = subprocess.Popen(['rsyslogd', '-n', '-i', str(root / 'pid'), '-f', str(config)], stdout=stderr, stderr=stderr)
-                    deadline = time.monotonic() + 10
-                    while not sock.exists() and process.poll() is None and time.monotonic() < deadline:
-                        time.sleep(.05)
-                    self.assertTrue(sock.exists())
-                    send('r3-restarted'); wait_for('r3-restarted')
-                    for category in CATEGORIES:
-                        self.assertIn('r3-after', payload_read_text(logroot / outputs[category]))
-                    subprocess.run(['logger', '--socket', str(sock), '--tag', '../../escape', '--', 'quote=" slash=\\ control=\nend'], check=True)
-                    time.sleep(.2)
-                finally:
-                    if process.poll() is None:
-                        process.terminate()
-                    process.wait(timeout=15)
-                for path in logroot.rglob('*.log'):
-                    for line in payload_read_text(path).splitlines():
-                        json.loads(line)
-                self.assertEqual(set(p.name for p in logroot.iterdir()), set(CATEGORIES))
-            finally:
-                stderr.close()
+    def test_runtime_delivery_size_rotation_and_restart(self):
+        from test_logging_size_20260924 import exercise_native_rsyslog
+        exercise_native_rsyslog(self)
 
 
 if __name__ == '__main__':

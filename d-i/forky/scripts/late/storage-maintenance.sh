@@ -288,11 +288,9 @@ stage_target_systemd_resource_policy_assets() (
 validate_target_journal_storage_policy() (
   set -eu
   journal_path=$(target_asset_host_path "$FILE_JOURNALD_STORAGE_CONF") || exit 1
-  case "${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}" in
-    true) journal_storage=volatile ;;
-    false) journal_storage=persistent ;;
-    *) installer_fatal "SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false"; exit 1 ;;
-  esac
+  journal_policy=$(systemd_journal_policy_map) || exit 1
+  journal_storage=$(printf '%s\n' "$journal_policy" | sed -n 's/^SYSTEMD_JOURNAL_STORAGE=//p')
+  journal_seal=$(printf '%s\n' "$journal_policy" | sed -n 's/^SYSTEMD_JOURNAL_SEAL=//p')
   # A duplicate setting could override the expected value despite a successful
   # grep. Require exactly one assignment for every managed directive.
   awk '
@@ -305,6 +303,7 @@ validate_target_journal_storage_policy() (
   ' "$journal_path" || { installer_fatal "duplicate managed journald directive"; exit 1; }
   for required_line in \
     "Storage=$journal_storage" \
+    "Seal=$journal_seal" \
     "SystemMaxUse=$SYSTEMD_JOURNAL_SYSTEM_MAX_USE" \
     "SystemKeepFree=$SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE" \
     "SystemMaxFileSize=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE" \
@@ -314,7 +313,7 @@ validate_target_journal_storage_policy() (
     "RuntimeMaxFileSize=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE" \
     "RuntimeMaxFiles=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILES" \
     'MaxRetentionSec=1month' \
-    'ForwardToSyslog=no' \
+    'ForwardToSyslog=yes' \
     'ForwardToKMsg=no' \
     'ReadKMsg=no'
   do

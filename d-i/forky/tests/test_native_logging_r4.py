@@ -40,7 +40,7 @@ class CatalogTests(unittest.TestCase):
         result=self.validate(text);self.assertNotEqual(result.returncode,0,result.stdout)
         self.assertEqual(result.stdout,'','invalid catalog must not produce a partial map')
     def test_all_paths_have_consumers_and_templates_have_suffixes(self):
-        result=CHECKER['check']();self.assertGreaterEqual(result['variables'],267);self.assertEqual(result['profiles'],10)
+        result=CHECKER['check']();self.assertEqual(result['variables'],len(VALUES));self.assertLess(result['variables'],120);self.assertEqual(result['profiles'],10)
     def test_validator_matches_busybox(self):
         baseline=self.validate(self.original);self.assertEqual(baseline.returncode,0,baseline.stderr)
         if shutil.which('busybox'):
@@ -77,7 +77,7 @@ class CatalogTests(unittest.TestCase):
         for profile in sorted((SEED/'hosts/profiles').glob('*.env')):
             logical=('override-' if profile.stem in overrides else '')+profile.stem
             dest=root/(profile.stem+'.env')
-            command='\n'.join(('. '+shlex.quote(str(SEED/'scripts/common/lib.sh')),
+            command='\n'.join(('. '+shlex.quote(str(installed_script(SEED/'scripts/common/lib.sh'))),
                 'installer_ensure_repo_env "$INSTALLER_SOURCE_ROOT"','installer_classes_cache_ensure',
                 'installer_fetch_host_env "$INSTALLER_SOURCE_ROOT" '+shlex.quote(logical)+' '+shlex.quote(str(dest)),
                 'set -a','. '+shlex.quote(str(dest)),'env | grep "^LOG_"'))
@@ -193,16 +193,16 @@ class ActualPublisherTests(unittest.TestCase):
         self.source=self.root/'source';self.source.mkdir()
         for rel in ('scripts/common/logging.sh','scripts/common/logging-validate.awk','scripts/common/logging-render.awk','hosts/logging/observability.env','hosts/logging/observability-schema.tsv'):
             dest=self.source/rel;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(SEED/rel,dest)
-        self.asset=self.source/'hooks/target/etc/example.conf.tmpl';self.asset.parent.mkdir(parents=True);self.asset.write_text('log=__INSTALLER_LOG_ADB_FILE__\n')
+        self.asset=self.source/'hooks/target/etc/example.conf.tmpl';self.asset.parent.mkdir(parents=True);self.asset.write_text('log=__INSTALLER_LOG_APPLICATIONS_FILE__\n')
         self.dest=self.root/'installed.conf';self.dest.write_bytes(b'old config\n');self.dest.chmod(0o640)
     def run_publish(self,prelude=''):
-        code='. '+shlex.quote(str(SEED/'scripts/common/lib.sh'))+'\n'+prelude+'\ninstaller_fetch_seed_path "$SOURCE" hooks/target/etc/example.conf "$OUTPUT" 0640'
+        code='. '+shlex.quote(str(installed_script(SEED/'scripts/common/lib.sh')))+'\n'+prelude+'\ninstaller_fetch_seed_path "$SOURCE" hooks/target/etc/example.conf "$OUTPUT" 0640'
         return subprocess.run(['/bin/sh','-eu','-c',code],capture_output=True,text=True,timeout=20,
             env={**os.environ,'SOURCE':str(self.source),'OUTPUT':str(self.dest),'INSTALLER_SOURCE_ROOT':str(self.source),
                 'INSTALLER_SOURCE_LIBRARY':str(SEED/'scripts/common/source.sh'),'INSTALLER_RUNTIME_DIR':str(self.root/'runtime'),'INSTALLER_CMDLINE':''})
     def test_atomic_rendered_publication_preserves_source_and_mode(self):
         raw=self.asset.read_bytes();result=self.run_publish();self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(self.dest.read_text(),'log='+VALUES['LOG_ADB_FILE']+'\n');self.assertEqual(self.dest.stat().st_mode&0o777,0o640)
+        self.assertEqual(self.dest.read_text(),'log='+VALUES['LOG_APPLICATIONS_FILE']+'\n');self.assertEqual(self.dest.stat().st_mode&0o777,0o640)
         self.assertEqual(self.asset.read_bytes(),raw);self.assertFalse(list(self.root.glob('installed.conf.*')))
     def test_unknown_token_never_replaces_destination(self):
         self.asset.write_text('__INSTALLER_LOG_UNKNOWN__\n');result=self.run_publish();self.assertNotEqual(result.returncode,0)
@@ -215,15 +215,15 @@ class ActualPublisherTests(unittest.TestCase):
     def test_existence_probe_does_not_poison_source_cache(self):
         result=self.run_publish('installer_load_source_library "$SOURCE"\nsource_exists "$SOURCE" hooks/target/etc/example.conf\nsource_exists "$SOURCE" hooks/target/etc/example.conf')
         self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(self.dest.read_text(),'log='+VALUES['LOG_ADB_FILE']+'\n')
+        self.assertEqual(self.dest.read_text(),'log='+VALUES['LOG_APPLICATIONS_FILE']+'\n')
         self.assertFalse(list((self.root/'runtime').rglob('hooks/target/etc/example.conf')))
     def test_symlink_source_rejected(self):
         self.asset.unlink();self.asset.symlink_to(self.dest);result=self.run_publish();self.assertNotEqual(result.returncode,0);self.assertEqual(self.dest.read_bytes(),b'old config\n')
 
 class NativeWiringTests(unittest.TestCase):
     def test_adb_thunar_and_debugsys_categories(self):
-        self.assertTrue(VALUES['LOG_ADB_FILE'].startswith(VALUES['LOG_SYSTEM_DIR']+'/'))
-        self.assertTrue(VALUES['LOG_THUNAR_FILE'].startswith(VALUES['LOG_DESKTOP_DIR']+'/'))
+        self.assertEqual(VALUES['LOG_APPLICATIONS_FILE'],VALUES['LOG_APPS_DIR']+'/apps.log')
+        self.assertNotIn('LOG_THUNAR_FILE',VALUES)
         for rel in ('usr/local/libexec/debugsys.py','etc/systemd/system/debugsys-boot-report.service'):
             text=logging_text(source_path(TARGET/rel).read_text());self.assertIn(VALUES['LOG_DEBUGSYS_DIR'],text);self.assertNotIn('/var/log/debugsys',text)
     def test_native_clamav_parent_is_not_collector_writable_destination(self):

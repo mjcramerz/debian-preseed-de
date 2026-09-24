@@ -1,0 +1,232 @@
+[
+  {
+    "lines": 650,
+    "path": "d-i/forky/scripts/common/modules/class-metadata.sh",
+    "sha256": "cb5ffa1029b381c3eb69177dc2822c22acc702b08f95a6c459d6804add66e7f4"
+  },
+  {
+    "lines": 455,
+    "path": "d-i/forky/scripts/common/modules/class-plan.sh",
+    "sha256": "0558cb183c9ef769fd35bd544415831809471a28b8d410b59c7e6493128e8a57"
+  },
+  {
+    "lines": 523,
+    "path": "d-i/forky/scripts/common/modules/class-selection.sh",
+    "sha256": "ea36ad62b4d5e9c32370e071c8f4c03b12fb8e1477cba3d6aaf80bb11a8e6998"
+  },
+  {
+    "lines": 425,
+    "path": "d-i/forky/scripts/common/modules/context-target.sh",
+    "sha256": "e30d4b10dedd3637c02200d6880be67f5f3e94f620fd257387157f6f20a02d8f"
+  },
+  {
+    "lines": 250,
+    "path": "d-i/forky/scripts/common/modules/credentials-probes.sh",
+    "sha256": "1e06ea0645c5b220c22a63b127f3554590c3b59134a4d0322c97ee3ba5fc95d0"
+  },
+  {
+    "lines": 462,
+    "path": "d-i/forky/scripts/common/modules/files-logging.sh",
+    "sha256": "618613c1e7f55c555e803c11d0213e524a70b5caa16b2a0e01087404983d8047"
+  },
+  {
+    "lines": 332,
+    "path": "d-i/forky/scripts/common/modules/observability.sh",
+    "sha256": "b522ca9b148cfc12c77106f8146375cdf07f9fb550261b3575eef06bb6d78e7d"
+  },
+  {
+    "lines": 262,
+    "path": "d-i/forky/scripts/common/modules/profiles.sh",
+    "sha256": "6e66be227dd318d42352bcd983608af292583705d32b770375634d2aa7827f5d"
+  },
+  {
+    "lines": 555,
+    "path": "d-i/forky/scripts/common/modules/repository-apt.sh",
+    "sha256": "a64a7d29c07b4db3a4dd26a6810d31ade992cbc5c45edf217547824c937302b6"
+  },
+  {
+    "lines": 398,
+    "path": "d-i/forky/scripts/common/modules/runtime-console.sh",
+    "sha256": "fda37dfe0d578c1a34d9423371d6ddbd7b9bcf3bcc6cc1cb2f52169ccb29c59f"
+  },
+  {
+    "lines": 83,
+    "path": "d-i/forky/scripts/runtime/modules/answers.sh",
+    "sha256": "79f33633379460626651a105e13cd352a0d82731ee36ca9950299488207f0c26"
+  },
+  {
+    "lines": 96,
+    "path": "d-i/forky/scripts/runtime/modules/arithmetic.sh",
+    "sha256": "b119753d9d3a028674f412361dd542bed43419f1043b21b532e1d849ad6d8d31"
+  },
+  {
+    "lines": 84,
+    "path": "d-i/forky/scripts/runtime/modules/base.sh",
+    "sha256": "074c24230a423b2965acdd1a52b94175a2761df3ca0bd86122e83ae6656c3ba9"
+  },
+  {
+    "lines": 96,
+    "path": "d-i/forky/scripts/runtime/modules/classes.sh",
+    "sha256": "900148e4c6575461613b120bbd6a167240d4c256376c5461765cee6768797864"
+  },
+  {
+    "lines": 114,
+    "path": "d-i/forky/scripts/runtime/modules/crypto.sh",
+    "sha256": "ba8aeb30334afd5acaf6e16ec377efa319e95b6cf7dd9312df757ec78396627c"
+  },
+  {
+    "lines": 207,
+    "path": "d-i/forky/scripts/runtime/modules/devices.sh",
+    "sha256": "e94c623f46786bfdab90e336827468a3b835a7f7d27dcca6636e58264658a097"
+  },
+  {
+    "lines": 108,
+    "path": "d-i/forky/scripts/runtime/modules/identity.sh",
+    "sha256": "d1937598c9caad49c2bab3e9765e0113dfa30b8c69e4ecd4fa6c35649bb04f6d"
+  },
+  {
+    "lines": 57,
+    "path": "d-i/forky/scripts/runtime/modules/recipes.sh",
+    "sha256": "54356847d9afc362e4c5cde8462172e7e09523be936bb86b6995a8d21c049a9e"
+  },
+  {
+    "lines": 376,
+    "path": "d-i/forky/scripts/desktop/components/artifacts-identities.sh",
+    "sha256": "1f4a295ed601fcaaa81dfa198bab306c5a8eb97ff51d17752b3969f4e5847de3"
+  },
+  {
+    "lines": 416,
+    "path": "d-i/forky/scripts/desktop/components/core-renderers.sh.tmpl",
+    "sha256": "6ac6b30edb6cf4fd9f63d108507815246cca50a6ebaaccfc37082d3cb7331e14"
+  },
+  {
+    "lines": 351,
+    "path": "d-i/forky/scripts/desktop/components/desktop-config.sh",
+    "sha256": "849873f54815c1ccdb8b50c2587a96b26677f469eb448ad32d9e8c46f987c70f"
+  },
+  {
+    "lines": 473,
+    "path": "d-i/forky/scripts/desktop/components/desktop-helpers.sh",
+    "sha256": "b7efe9461e304242a01ea1565fc31082a503c40d15815ca4d07dc2516ff86be9"
+  },
+  {
+    "lines": 351,
+    "path": "d-i/forky/scripts/desktop/components/devices-network.sh",
+    "sha256": "b7576dfab166fcce9c843a847702d52e25a176e4e91c5afb2f9d7ed1ec294d64"
+  },
+  {
+    "lines": 277,
+    "path": "d-i/forky/scripts/desktop/components/gpg-bootstrap.sh",
+    "sha256": "848ff142a536a1bc53d718cd88d0da0c31f6ac9a3d5f262cde901378d9cabd3b"
+  },
+  {
+    "lines": 287,
+    "path": "d-i/forky/scripts/desktop/components/logging.sh.tmpl",
+    "sha256": "61c88e265f09a320b2fb9288752b71e985088cbc9fcca9c6dcc70fc5cd185160"
+  },
+  {
+    "lines": 367,
+    "path": "d-i/forky/scripts/desktop/components/managed-apps.sh",
+    "sha256": "e5b55c4ec527037dc63fe5c4a98c249220e915ef59377d04d2fb7fb6bcbc7969"
+  },
+  {
+    "lines": 418,
+    "path": "d-i/forky/scripts/desktop/components/rendering-access.sh",
+    "sha256": "107fcd771b087e339ed8d5525ee64ef18b597233e4817d108da6806d0d1cdd32"
+  },
+  {
+    "lines": 184,
+    "path": "d-i/forky/scripts/desktop/components/services.sh",
+    "sha256": "dc2a2eed45bc3d9442bf0f520b99e5b689eaf0062b1ca26cf92b9a1a4bc1f0bd"
+  },
+  {
+    "lines": 374,
+    "path": "d-i/forky/scripts/desktop/components/stage-assets.sh",
+    "sha256": "827efdaa7de934f58ce8aefb71db55ba69db5068ab7d12704416636e1f8b4155"
+  },
+  {
+    "lines": 529,
+    "path": "d-i/forky/scripts/desktop/components/target-assets.sh",
+    "sha256": "43fe5c292d7fa153f142734ec697cfc641f9f8c74bb3cef326e7919c6a25322b"
+  },
+  {
+    "lines": 206,
+    "path": "d-i/forky/scripts/desktop/components/user-config.sh",
+    "sha256": "18b879af5447e5a2c40b773da11e28976ecda208c748698893ba60283c8d1f0b"
+  },
+  {
+    "lines": 328,
+    "path": "d-i/forky/scripts/desktop/components/user-session.sh",
+    "sha256": "c3663f52f7717e9d8ab47fc49b0b04b94173131b0823e1d218687627f1f680d1"
+  },
+  {
+    "lines": 46,
+    "path": "d-i/forky/scripts/late/devops/account-execution.sh",
+    "sha256": "2913a2fd63736345c7b493706c280d32e808bcd961c19bd5720a66e75db4d874"
+  },
+  {
+    "lines": 404,
+    "path": "d-i/forky/scripts/late/devops/bazelisk-node.sh",
+    "sha256": "408c8e2386fd9727f373823e208b4e6dbc07e882df8b7b18c3d7736701b7cceb"
+  },
+  {
+    "lines": 257,
+    "path": "d-i/forky/scripts/late/devops/codex-appserver.sh",
+    "sha256": "060c6953e5caa8ada0615864c5b8c154c2ab25d074ad02c62099e368f60a24d9"
+  },
+  {
+    "lines": 308,
+    "path": "d-i/forky/scripts/late/devops/codex-layout.sh",
+    "sha256": "4609ff78850ab6aed2c6ecd030b71621801d203fb985da336f8a58f3b3e2a269"
+  },
+  {
+    "lines": 725,
+    "path": "d-i/forky/scripts/late/devops/codex-release.sh",
+    "sha256": "99bf765e5ee1b4ff763a5d4353e1c7ad64ed40e147a22c04e215a2b84d87204c"
+  },
+  {
+    "lines": 679,
+    "path": "d-i/forky/scripts/late/devops/main-orchestration.sh",
+    "sha256": "f3abbdc02d19e40a897e9a5069ee2ea08f689e21119feb7615deec4ae1b0493f"
+  },
+  {
+    "lines": 368,
+    "path": "d-i/forky/scripts/late/devops/policy-resolution.sh.tmpl",
+    "sha256": "4531cf515f603dccc1fd8229e853b33985cbde8266f08267ea50d7ecbda18234"
+  },
+  {
+    "lines": 138,
+    "path": "d-i/forky/scripts/late/devops/publication-layout.sh",
+    "sha256": "bf5db826a50d1b40ff3ff727f782a07b6e17376616a31a193742bf5802bdc046"
+  },
+  {
+    "lines": 254,
+    "path": "d-i/forky/scripts/late/devops/publication-services.sh",
+    "sha256": "651270ad9573729de73e970b8f1fe6866b2f6cbe7314d32adbc208b3624aacfc"
+  },
+  {
+    "lines": 376,
+    "path": "d-i/forky/scripts/late/devops/signing-key.sh",
+    "sha256": "90c38cd0c2fd695773d8f2a892a27c7265eb60b007b73c1db647c5eae34071fa"
+  },
+  {
+    "lines": 384,
+    "path": "d-i/forky/scripts/late/devops/tool-configs.sh",
+    "sha256": "59d39099c45739c1db93e40fc6b75970f0d8d2a25cde6fdd2f4e704a1e206205"
+  },
+  {
+    "lines": 455,
+    "path": "d-i/forky/scripts/late/devops/upstream-policy.sh",
+    "sha256": "fdf05f764c3bbc53a60cc6e697ed6069b79c74d8b693246a193aa188233ae53e"
+  },
+  {
+    "lines": 368,
+    "path": "d-i/forky/scripts/late/devops/upstream-rust.sh",
+    "sha256": "071a1235585a7af9490a5f87a291f78d686ea29cad345a13ec10f46c3dbdaa00"
+  },
+  {
+    "lines": 266,
+    "path": "d-i/forky/scripts/late/devops/validation-base.sh",
+    "sha256": "5821cd1cf922dea95c45a43e2b54f926e376c811358edf4dba5292d04eed93af"
+  }
+]

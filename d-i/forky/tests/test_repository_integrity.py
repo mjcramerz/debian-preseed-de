@@ -48,7 +48,8 @@ class RepositoryIntegrityTests(unittest.TestCase):
         override_names = {r['Name'] for r in records() if r['Group'] == 'profile'}
         profiles = sorted((FORKY/'hosts/profiles').glob('*.env'))
         with tempfile.TemporaryDirectory() as temp:
-            commands = ['. "$INSTALLER_SOURCE_ROOT/scripts/common/lib.sh"',
+            commands = ['. "$INSTALLER_SOURCE_ROOT/scripts/common/bootstrap.sh"',
+                        'bootstrap_source_common_lib "$INSTALLER_SOURCE_ROOT"',
                         'installer_ensure_repo_env "$INSTALLER_SOURCE_ROOT"',
                         'installer_classes_cache_ensure']
             for profile in profiles:

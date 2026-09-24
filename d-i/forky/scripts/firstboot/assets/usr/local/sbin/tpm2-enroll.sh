@@ -5,11 +5,12 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 umask 077
 
-CONFIG_FILE=${TPM2_ENROLL_CONFIG_FILE:-/var/lib/tpm2-enrollment/config.env}
-STATE_DIR=${TPM2_ENROLL_STATE_DIR:-/var/lib/tpm2-enrollment}
-PENDING_FILE=${TPM2_ENROLL_PENDING_FILE:-${STATE_DIR}/tpm2-enroll.pending}
-COMPLETE_FILE=${TPM2_ENROLL_COMPLETE_FILE:-${STATE_DIR}/tpm2-enroll.complete}
-LOCK_FILE=${TPM2_ENROLL_LOCK_FILE:-/run/lock/tpm2-enroll.lock}
+CONFIG_FILE=/var/lib/tpm2-enrollment/config.env
+STATE_DIR=/var/lib/tpm2-enrollment
+PENDING_FILE=${STATE_DIR}/tpm2-enroll.pending
+COMPLETE_FILE=${STATE_DIR}/tpm2-enroll.complete
+LOCK_FILE=${STATE_DIR}/enrollment.lock
+POLICY_CHECK=/usr/local/libexec/tpm2-policy-check
 TTY_STATE=
 SECRET_DIR=
 SECRET_VALUE=
@@ -165,7 +166,7 @@ enroll_tpm2_pin() {
       --unlock-key-file="$fallback_key" \
       --tpm2-device=auto \
       --tpm2-with-pin=yes \
-      --tpm2-pcrs="$pcrs" \
+      --tpm2-pcrs=7:sha256+8:sha256+9:sha256+14:sha256 \
       "$device"
 
   systemd-cryptenroll "$device" 2>/dev/null | grep -qi tpm2 ||
@@ -175,19 +176,10 @@ enroll_tpm2_pin() {
 verify_tpm2_pin_unlock() {
   device=$1
   credential_dir=$2
-  pcrs=$3
-
-  CREDENTIALS_DIRECTORY="$credential_dir" \
-    systemd-cryptenroll \
-      --wipe-slot=tpm2 \
-      --unlock-tpm2-device=auto \
-      --tpm2-device=auto \
-      --tpm2-with-pin=yes \
-      --tpm2-pcrs="$pcrs" \
-      "$device"
-
-  systemd-cryptenroll "$device" 2>/dev/null | grep -qi tpm2 ||
-    fatal "TPM2 token verification rotation failed for $device"
+  # This opens no mapping, creates no replacement token and permits no recovery
+  # fallback. Compare LUKS metadata before/after the exact final token test.
+  "$POLICY_CHECK" --verify "$device" <"${credential_dir}/cryptenroll.tpm2-pin" ||
+    fatal "read-only TPM2+PIN verification failed for $device"
 }
 
 remove_install_passphrase_slots() {
@@ -230,10 +222,12 @@ cleanup() {
 [ "$(id -u)" -eq 0 ] || fatal "run this helper through sudo"
 [ -r "$CONFIG_FILE" ] || fatal "missing crypto configuration: $CONFIG_FILE"
 [ -r /dev/tty ] || fatal "an interactive terminal is required"
-[ -e "$PENDING_FILE" ] || {
-  [ -e "$COMPLETE_FILE" ] && info "TPM2 enrollment is already complete"
-  exit 0
-}
+"$POLICY_CHECK" --check-config || fatal "unsafe crypto configuration metadata or policy"
+case "${1:-}" in
+  '') [ "$#" -eq 0 ] || fatal "unexpected argument" ;;
+  --reenroll) [ "$#" -eq 1 ] || fatal "unexpected argument" ;;
+  *) fatal "usage: tpm2-enroll.sh [--reenroll]" ;;
+esac
 
 require_command awk
 require_command cmp
@@ -246,9 +240,21 @@ require_command readlink
 require_command stty
 require_command systemd-cryptenroll
 
-install -d -m 0755 "$(dirname "$LOCK_FILE")"
+# State is root-owned and not writable by the desktop user. Do not create a
+# predictable lock beneath a world-writable /run/lock directory.
+[ ! -L "$LOCK_FILE" ] || fatal "unsafe enrollment lock"
 exec 9>"$LOCK_FILE"
 flock -n 9 || fatal "another TPM2 enrollment process is already running"
+if [ "${1:-}" = --reenroll ]; then
+  "$POLICY_CHECK" --begin || fatal "cannot start a new enrollment generation"
+fi
+enrollment_phase=$("$POLICY_CHECK" --phase) || fatal "invalid enrollment state"
+case "$enrollment_phase" in
+  complete) info "enrollment is complete; use --reenroll after a boot-policy update"; exit 0 ;;
+  reboot) info "enrollment is verified in this boot; reboot and run this helper again to confirm it"; exit 0 ;;
+  pending|confirm) ;;
+  *) fatal "invalid enrollment phase" ;;
+esac
 
 # shellcheck disable=SC1090
 . "$CONFIG_FILE"
@@ -270,7 +276,7 @@ case "$INSTALL_PASSPHRASE_FILE:$HOME_KEY_FILE" in
     fatal "INSTALL_PASSPHRASE_FILE and HOME_KEY_FILE contain unsupported path syntax"
     ;;
 esac
-[ "$TPM2_FINAL_PCRS" = 7+14 ] || fatal "TPM2_FINAL_PCRS must be 7+14"
+[ "$TPM2_FINAL_PCRS" = 7+8+9+14 ] || fatal "TPM2_FINAL_PCRS must be 7+8+9+14"
 if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "$PRIMARY_USER" ]; then
   fatal "TPM2 enrollment must be run by ${PRIMARY_USER}, not ${SUDO_USER}"
 fi
@@ -296,9 +302,15 @@ printf '%s\n' "$tpm2_device_list" | grep -Eq '/dev/tpm(rm)?[0-9]+' ||
 mokutil --sb-state 2>/dev/null | grep -q '^SecureBoot enabled' ||
   fatal "UEFI Secure Boot must be enabled before final TPM2 enrollment"
 
+"$POLICY_CHECK" --boot-evidence || fatal "measured-boot evidence is incomplete; enrollment remains pending"
+"$POLICY_CHECK" --initramfs || fatal "initramfs secret-exclusion verification failed"
+
 trap cleanup EXIT HUP INT TERM
 
-read_secret 'New recovery passphrase (minimum 20 characters; use 6+ random words or a password manager): '
+if [ "$enrollment_phase" = confirm ]; then
+  info "Confirming the existing enrollment after reboot; no token or keyslot will be changed"
+fi
+read_secret 'Recovery passphrase (existing when confirming; otherwise a new minimum-20-character secret): '
 fallback_passphrase=$SECRET_VALUE
 SECRET_VALUE=
 [ "${#fallback_passphrase}" -ge 20 ] || fatal "recovery passphrase must be at least 20 characters"
@@ -311,7 +323,7 @@ fallback_confirm=$SECRET_VALUE
 SECRET_VALUE=
 [ "$fallback_passphrase" = "$fallback_confirm" ] || fatal "recovery passphrases do not match"
 
-read_secret 'New TPM2 PIN (6-32 digits): '
+read_secret 'TPM2 PIN (existing when confirming; otherwise new; 6-32 digits): '
 tpm_pin=$SECRET_VALUE
 SECRET_VALUE=
 case "$tpm_pin" in
@@ -337,41 +349,40 @@ if [ -n "$install_key" ] && cmp -s "$install_key" "$fallback_key"; then
   fatal "recovery passphrase must differ from the temporary installer passphrase"
 fi
 
-for device in "$root_device" "$home_device"; do
-  add_fallback_passphrase "$device" "$install_key" "$fallback_key"
-done
+if [ "$enrollment_phase" = pending ]; then
+  for device in "$root_device" "$home_device"; do
+    add_fallback_passphrase "$device" "$install_key" "$fallback_key"
+  done
 
-for device in "$root_device" "$home_device"; do
-  enroll_tpm2_pin "$device" "$credential_dir" "$fallback_key" "$TPM2_FINAL_PCRS"
-done
+  for device in "$root_device" "$home_device"; do
+    enroll_tpm2_pin "$device" "$credential_dir" "$fallback_key" "$TPM2_FINAL_PCRS"
+  done
+fi
 
 for device in "$root_device" "$home_device"; do
   verify_tpm2_pin_unlock "$device" "$credential_dir" "$TPM2_FINAL_PCRS"
 done
 
 for device in "$root_device" "$home_device"; do
-  remove_install_passphrase_slots "$device" "$install_key" "$fallback_key"
+  if [ "$enrollment_phase" = pending ]; then
+    remove_install_passphrase_slots "$device" "$install_key" "$fallback_key"
+  fi
   passphrase_works "$device" "$fallback_key" || fatal "recovery passphrase stopped working for $device"
+  verify_fallback_pbkdf "$device" "$fallback_key"
 done
 
-install -d -m 0700 "$STATE_DIR"
-{
-  printf 'status=complete\n'
-  printf 'completed_at=%s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  printf 'root_luks_uuid=%s\n' "$ROOT_LUKS_UUID"
-  printf 'home_luks_uuid=%s\n' "$HOME_LUKS_UUID"
-  printf 'tpm2_pcrs=%s\n' "$TPM2_FINAL_PCRS"
-  printf 'recovery_pbkdf=argon2id\n'
-  printf 'recovery_iter_time_ms=5000\n'
-} >"$COMPLETE_FILE"
-chmod 0600 "$COMPLETE_FILE"
-rm -f "$INSTALL_PASSPHRASE_FILE"
-rm -f "$PENDING_FILE"
-
-if command -v systemctl >/dev/null 2>&1; then
-  systemctl start --no-block secondboot.service >/dev/null 2>&1 ||
-    info "warning: could not queue completed bootstrap cleanup"
+if [ "$enrollment_phase" = pending ]; then
+  rm -f "$INSTALL_PASSPHRASE_FILE"
+  "$POLICY_CHECK" --record enrolled || fatal "could not durably record the enrollment generation"
+  info "TPM2+PIN enrollment verified; release remains pending until confirmation after a reboot"
+  info "Reboot and run this helper again with the SAME recovery passphrase and PIN"
+else
+  "$POLICY_CHECK" --record complete || fatal "post-reboot release confirmation failed"
+  "$POLICY_CHECK" --release-check || fatal "TPM release gate failed"
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl start --no-block secondboot.service >/dev/null 2>&1 ||
+      info "warning: could not queue completed bootstrap cleanup"
+  fi
+  info "TPM2+PIN enrollment confirmed after reboot for encrypted root and home"
 fi
-
-info "TPM2+PIN enrollment completed for encrypted root and home"
-info "Store the recovery passphrase offline; it is required after TPM/PCR policy changes"
+info "Keep the recovery passphrase offline; measured boot changes require recovery and --reenroll"

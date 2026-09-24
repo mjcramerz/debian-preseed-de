@@ -24,12 +24,14 @@ ruleset(name="managed_apparmor_log_writer") {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="ManagedAppArmorAuditLine"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
 if (
-  ($.managed_audit_dispatch == "on" or $inputname == "imklog" or
-   ($inputname == "imjournal" and $!_TRANSPORT == "kernel")) and
+  ($.managed_audit_dispatch == "on" or $inputname == "imklog") and
   ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR")
 ) then {
   set $.managed_security_routed = "on";
@@ -50,6 +52,9 @@ if (
       dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
       createDirs="on"
       template="ManagedAppArmorDesktopSignal"
+      rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+      rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+      rotation.sizeLimitCommandPassFileName="on"
     )
   }
 }

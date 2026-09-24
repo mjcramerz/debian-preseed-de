@@ -3,7 +3,8 @@
 # cannot fall through to general system logs. Its protected parent directory
 # is created before rsyslog starts.
 
-ruleset(name="managed_security_scanner_input" queue.type="LinkedList") {
+ruleset(name="managed_security_scanner_input" queue.type="LinkedList"
+        queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.workerThreads="1") {
 if ($programname == "lynis-scan") then {
   set $.managed_security_routed = "on";
   action(
@@ -18,6 +19,9 @@ if ($programname == "lynis-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -35,6 +39,9 @@ if ($programname == "rkhunter-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -52,6 +59,9 @@ if ($programname == "chkrootkit-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -69,6 +79,9 @@ if ($programname == "debsecan-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -86,6 +99,9 @@ if ($programname == "debsums-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -103,6 +119,9 @@ if ($programname == "spectre-meltdown-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -120,6 +139,9 @@ if ($programname == "fwupd-security-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 
@@ -137,6 +159,9 @@ if ($programname == "clamav-scan") then {
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }
 

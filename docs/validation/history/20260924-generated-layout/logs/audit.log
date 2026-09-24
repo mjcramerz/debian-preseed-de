@@ -1,0 +1,24 @@
+{
+  "requested_unique_files": 1283,
+  "total_with_installers_and_hosts": 1462,
+  "check_counts": {
+    "blocked-dependency": 158,
+    "blocked-tool": 11,
+    "inventory-only": 582,
+    "pass": 485,
+    "structure-pass": 215,
+    "template-needs-render": 11
+  },
+  "kind_counts": {
+    "apparmor-policy": 84,
+    "config-or-data": 498,
+    "javascript": 11,
+    "json": 45,
+    "perl": 181,
+    "python": 123,
+    "shell": 278,
+    "systemd-structure": 215,
+    "toml": 11,
+    "xml": 16
+  }
+}

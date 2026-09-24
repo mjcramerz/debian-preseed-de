@@ -349,3 +349,17 @@ write_target_fstab_records() (
   chmod 0644 "$fstab_work/rendered" || exit 1
   mv -fT -- "$fstab_work/rendered" /target/etc/fstab || exit 1
 )
+
+# Both storage-family hooks publish this foundation before dispatch runs any
+# selected class helper. Private model policies may depend on these ancestors;
+# desktop setup is later and must not be their prerequisite. Do not apply it
+# before the final /var/log mount setup. Class helpers and rsyslog preflight
+# existing paths immediately before their own tmpfiles invocation.
+stage_target_logging_foundation() {
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/59-log-layout.conf)" \
+    /etc/tmpfiles.d/59-log-layout.conf 0644 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/65-audit-syslog.conf)" \
+    /etc/tmpfiles.d/65-audit-syslog.conf 0644 || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)" \
+    /usr/local/libexec/log-layout 0755 || return $?
+}

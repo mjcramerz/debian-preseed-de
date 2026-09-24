@@ -89,11 +89,12 @@ class CredentialFixture(unittest.TestCase):
         self.assertNotIn(self.values['PRESEED_ROOT_PASSWORD'], result.stderr)
 
 class InitrdCredentialTests(CredentialFixture):
-    def test_both_embedded_readers_are_identical_to_canonical_source(self):
-        for lib,_ in LIBS:
-            text = payload_read_text(lib).split('# BEGIN EMBEDDED INITRD CREDENTIALS\n',1)[1]
-            embedded = text.split('# END EMBEDDED INITRD CREDENTIALS\n',1)[0]
-            self.assertEqual(embedded, payload_read_text(CANONICAL))
+    def test_both_entrypoints_source_one_canonical_reader(self):
+        for lib, _ in LIBS:
+            entry = lib.read_text()
+            self.assertIn("bootstrap_source_module 'scripts/common/credentials.sh'", entry)
+            self.assertNotIn('preseed_env_read_value() (', entry)
+            self.assertIn(payload_read_text(CANONICAL), payload_read_text(lib))
 
     @skip_unless_trusted_credential_ancestry
     def test_full_supplied_env_format_all_mappings_all_shells(self):

@@ -5,11 +5,19 @@ repo=$1
 destination=$2
 LABWC_WORKSPACE_COUNT=${3:-4}
 LABWC_WINDOW_SWITCHER_STYLE=${4:-thumbnail}
+# This fixture stubs transport, not rendering or the ordered module lists.
+# The real authenticated loader is exercised by test_modular_installer.py.
+bootstrap_source_module() {
+  case "$1" in scripts/common/*.sh|scripts/desktop/components/*.sh) ;; *) return 1 ;; esac
+  set -- "$repo/d-i/forky/$1"
+  [ -f "$1" ] || set -- "$1.tmpl"
+  . "$1"
+}
 . "$repo/d-i/forky/scripts/common/lib.sh"
 . "$repo/d-i/forky/scripts/common/target.sh"
 . "$repo/d-i/forky/scripts/late/target-assets.sh"
 . "$repo/d-i/forky/scripts/desktop/detect.sh.tmpl"
-. "$repo/d-i/forky/scripts/desktop/components.sh.tmpl"
+. "$repo/d-i/forky/scripts/desktop/components.sh"
 INSTALLER_TARGET_DIR=$destination
 TMP_ENV_DIR=$destination/tmp
 mkdir -p "$TMP_ENV_DIR"

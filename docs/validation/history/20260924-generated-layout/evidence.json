@@ -1,0 +1,73 @@
+{
+  "utc": "2026-09-24T17:35:35.458838+00:00",
+  "requested_target": {
+    "debian": "Forky",
+    "systemd": "261.2"
+  },
+  "execution_environment": {
+    "debian": "13.3 (Trixie)",
+    "systemd": "257.9-1~deb13u1",
+    "apparmor_parser": "4.1.0",
+    "visudo": "1.9.16p2",
+    "python": "3.13.5",
+    "perl": "5.40.1"
+  },
+  "source_freeze": {
+    "files_checked": 1812,
+    "changed_during_final_run": [],
+    "additional_source_files": [],
+    "scope": "Repository source, tests, generated products and root files; excludes docs, VCS and caches.",
+    "snapshot_sha256": "28fb808f257fc116696257e118bfdf4501f7855f82d1365bb294ca6c954c7d7f"
+  },
+  "apparmor": {
+    "results": [
+      {
+        "policy": "opt.tuta-mail.AppRun",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+      },
+      {
+        "policy": "usr.local.sbin.tpm2-enroll.sh",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n"
+      },
+      {
+        "policy": "desktop-wrappers (including import and extraction domains)",
+        "returncode": 0,
+        "stderr": "Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)\n",
+        "limits": "Offline AppArmor 4.1 syntax compilation only; no enforced runtime target."
+      }
+    ],
+    "kind": "Offline syntax compilation of rendered policies, not kernel loading or enforcement.",
+    "rendering": "Real installer path/theme rendering with packaged and repository abstractions.",
+    "command": "apparmor_parser -Q -T -K -I <merged-staging> -b <merged-staging> <rendered-profile>",
+    "kernel_interface_warning": "The parser reports the unavailable container kernel interface. Policy syntax compilation returned success; runtime mediation was not tested."
+  },
+  "focused_checks": {
+    "security_tests_in_final_installer_suite": 24,
+    "security_tests_skipped": 1,
+    "skip_reason": "Live nftables transaction unavailable: nft is not installed.",
+    "generator_tests_in_final_tools_suite": 6,
+    "classification_tests_in_final_tools_suite": 2,
+    "note": "Focused counts are subsets of the full suite, not additional passing tests."
+  },
+  "unavailable_runtime_tools": [
+    "nft",
+    "bwrap",
+    "unsquashfs",
+    "mksquashfs",
+    "cryptsetup",
+    "systemd-cryptenroll",
+    "shellcheck"
+  ],
+  "limits": [
+    "No Debian installer boot, disk partitioning, package installation or target service activation.",
+    "No physical TPM, Secure Boot, PCR invalidation or reboot acceptance.",
+    "No live firewall coexistence or real AppImage parser sandbox execution.",
+    "No live Tuta/Mullvad GPU, Zoom/Discord private Xwayland, suspend/resume or hardware benchmark.",
+    "Perl dependency blocks, missing optional tools and unrendered templates remain identified in audit.json; they are not runtime passes.",
+    "Journal key provisioning used a controlled fixture: no real host sealing keys were generated."
+  ]
+}

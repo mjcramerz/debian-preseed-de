@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 MANAGED = Path('/etc/systemd/journald.conf.d/10-storage.conf')
-CRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg')
+CRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg', 'Seal')
 
 
 class PolicyError(ValueError):
@@ -52,8 +52,12 @@ def check(managed_text: str, effective_text: str) -> None:
     managed = journal_settings(managed_text, unique=True)
     if managed.get('Storage') not in ('persistent', 'volatile'):
         raise PolicyError('managed Storage must be persistent or volatile')
-    if any(managed.get(key) != 'no' for key in ('ForwardToSyslog', 'ReadKMsg')):
-        raise PolicyError('managed imjournal/imklog input policy is incomplete')
+    if managed.get('ForwardToSyslog') != 'yes' or managed.get('ReadKMsg') != 'no':
+        raise PolicyError('managed imuxsock/imklog input policy is incomplete')
+    if managed.get('Seal') not in ('yes', 'no'):
+        raise PolicyError('managed Seal must be explicitly yes or no')
+    if managed['Storage'] == 'volatile' and managed['Seal'] != 'no':
+        raise PolicyError('volatile journals must not claim forward-secure sealing')
     effective = journal_settings(effective_text)
     for key in CRITICAL:
         if effective.get(key) != managed[key]:

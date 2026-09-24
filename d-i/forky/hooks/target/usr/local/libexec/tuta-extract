@@ -1,0 +1,283 @@
+#!/usr/bin/python3 -I
+"""Extract a verified Type-2 AppImage without executing its ELF runtime.
+
+Input is a root-private signed artifact and its expected SHA-256. The package
+unsquashfs parser runs as a dedicated locked host uid/gid inside a private filesystem, PID,
+IPC, UTS and network namespace. Namespace failure is fatal; no unsafe fallback.
+Publication is to a new root-owned path only; callers own generation rollback.
+"""
+from __future__ import annotations
+import fcntl
+import grp
+import hashlib
+import os
+from pathlib import Path
+import pwd
+import resource
+import signal
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+
+MAX_IMAGE = 536_870_912
+MAX_TREE = 2_147_483_648
+MAX_ENTRIES = 100_000
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"}
+
+
+def trusted_directory(path: Path) -> None:
+    if not path.is_absolute() or str(path) != os.path.normpath(str(path)):
+        raise ValueError("noncanonical absolute directory")
+    for parent in (path, *path.parents):
+        info = parent.lstat()
+        sticky_ancestor = parent != path and bool(info.st_mode & stat.S_ISVTX)
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or (info.st_mode & 0o022 and not sticky_ancestor)):
+            raise ValueError("unsafe extraction directory metadata")
+
+
+def squashfs_offset(stream) -> int:
+    """Read bounded ELF metadata; never run --appimage-offset/--appimage-extract."""
+    header = stream.read(64)
+    if (len(header) != 64 or header[:6] != b"\x7fELF\x02\x01" or header[8:11] != b"AI\x02"
+            or struct.unpack_from("<H", header, 18)[0] != 62):
+        raise ValueError("expected an x86-64 Type-2 AppImage")
+    section_offset = struct.unpack_from("<Q", header, 40)[0]
+    section_size, section_count = struct.unpack_from("<HH", header, 58)
+    if section_size != 64 or not 1 <= section_count <= 8192:
+        raise ValueError("unsupported ELF section table")
+    end = section_offset + section_size * section_count
+    length = os.fstat(stream.fileno()).st_size
+    if section_offset < 64 or end > length - 96:
+        raise ValueError("ELF section table outside artifact")
+    for index in range(section_count):
+        stream.seek(section_offset + index * section_size)
+        section = stream.read(section_size)
+        section_type = struct.unpack_from("<I", section, 4)[0]
+        offset, size = struct.unpack_from("<QQ", section, 24)
+        if section_type != 8:  # SHT_NOBITS occupies no bytes in the ELF file.
+            if offset + size > length:
+                raise ValueError("ELF section outside artifact")
+            end = max(end, offset + size)
+    stream.seek(end)
+    superblock = stream.read(96)
+    if len(superblock) != 96 or superblock[:4] != b"hsqs":
+        raise ValueError("Type-2 image has no SquashFS at the ELF boundary")
+    inodes = struct.unpack_from("<I", superblock, 4)[0]
+    major, minor = struct.unpack_from("<HH", superblock, 28)
+    used = struct.unpack_from("<Q", superblock, 40)[0]
+    if (major, minor) != (4, 0) or not 1 <= inodes <= MAX_ENTRIES or not 96 <= used <= length - end:
+        raise ValueError("unsupported or oversized SquashFS metadata")
+    return end
+
+
+def parser_limits() -> None:
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    resource.setrlimit(resource.RLIMIT_CPU, (120, 120))
+    resource.setrlimit(resource.RLIMIT_AS, (1_073_741_824, 1_073_741_824))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_IMAGE, MAX_IMAGE))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+
+
+def sandbox_command(artifact: Path, output: Path, offset: int, uid: int, gid: int) -> list[str]:
+    argv = ["/usr/bin/bwrap", "--die-with-parent", "--new-session", "--unshare-pid",
+            "--unshare-ipc", "--unshare-net", "--unshare-uts", "--clearenv",
+            "--setenv", "PATH", ENV["PATH"], "--setenv", "LC_ALL", "C",
+            "--ro-bind", "/usr", "/usr"]
+    for directory in ("/bin", "/sbin", "/lib", "/lib64"):
+        if os.path.islink(directory):
+            argv += ["--symlink", os.readlink(directory), directory]
+        elif os.path.isdir(directory):
+            argv += ["--ro-bind", directory, directory]
+    argv += ["--dir", "/etc", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+             "--ro-bind", str(artifact), "/artifact", "--bind", str(output), "/output",
+             "--chdir", "/output", "--cap-drop", "ALL",
+             "--cap-add", "CAP_SETUID", "--cap-add", "CAP_SETGID", "--cap-add", "CAP_SETPCAP",
+             "/usr/bin/setpriv", f"--reuid={uid}", f"--regid={gid}", "--clear-groups",
+             "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all", "--no-new-privs",
+             "/usr/bin/unsquashfs", "-no-progress", "-no-xattrs", "-processors", "1",
+             "-offset", str(offset), "-dest", "/output/tree", "/artifact"]
+    return argv
+
+
+def normalize_tree(root: Path) -> None:
+    info = root.lstat()
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError("extraction did not produce a directory")
+    count = 0
+    total = 0
+    for directory, names, files in os.walk(root, followlinks=False):
+        for name in names + files:
+            path = Path(directory) / name
+            info = path.lstat()
+            count += 1
+            if count > MAX_ENTRIES:
+                raise ValueError("too many extracted entries")
+            if stat.S_ISLNK(info.st_mode):
+                target = os.readlink(path)
+                if os.path.isabs(target) or not path.resolve().is_relative_to(root):
+                    raise ValueError("extracted symlink escapes application tree")
+                os.chown(path, 0, 0, follow_symlinks=False)
+            elif stat.S_ISDIR(info.st_mode):
+                os.chown(path, 0, 0)
+                os.chmod(path, 0o755)
+            elif stat.S_ISREG(info.st_mode):
+                if info.st_nlink != 1:
+                    raise ValueError("hard-linked extraction entry")
+                total += info.st_size
+                if total > MAX_TREE:
+                    raise ValueError("extracted application is too large")
+                os.chown(path, 0, 0)
+                os.chmod(path, 0o755 if info.st_mode & 0o111 else 0o644)
+                with path.open("rb") as stream:
+                    os.fsync(stream.fileno())
+            else:
+                raise ValueError("special file in extracted application")
+    os.chown(root, 0, 0)
+    os.chmod(root, 0o755)
+    app = root / "AppRun"
+    info = app.lstat()
+    if not stat.S_ISREG(info.st_mode) or not info.st_mode & 0o111:
+        raise ValueError("AppRun must be a regular executable, not a link")
+
+
+def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) -> None:
+    if os.geteuid() != 0 or len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
+        raise ValueError("root and an expected SHA-256 are required")
+    trusted_directory(source.parent)
+    trusted_directory(destination.parent)
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("extraction destination must not exist")
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as stream, tempfile.TemporaryDirectory(prefix=".tuta-extract-", dir=destination.parent) as temporary:
+        private = Path(temporary)
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or info.st_mode & 0o022 or info.st_nlink != 1 or not 96 < info.st_size <= MAX_IMAGE):
+            raise ValueError("unsafe extraction artifact metadata")
+        artifact = private / "image"
+        digest = hashlib.sha256()
+        copied = 0
+        with artifact.open("xb") as snapshot:
+            while block := stream.read(1_048_576):
+                copied += len(block)
+                if copied > MAX_IMAGE:
+                    raise ValueError("artifact grew while reading")
+                snapshot.write(block)
+                digest.update(block)
+        if copied != info.st_size or digest.hexdigest() != expected:
+            raise ValueError("artifact snapshot does not match verified hash")
+        os.chmod(artifact, 0o444)
+        with artifact.open("rb") as snapshot:
+            offset = squashfs_offset(snapshot)
+        output = private / "output"
+        output.mkdir(mode=0o700)
+        os.chown(output, uid, gid)
+        # Its root-owned 0700 ancestor prevents other host processes with uid
+        # the parser identity reaching the output. Only the bound sandbox path is accessible.
+        process = subprocess.Popen(sandbox_command(artifact, output, offset, uid, gid), env=ENV,
+                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, start_new_session=True,
+                                   preexec_fn=parser_limits)
+        try:
+            deadline = time.monotonic() + 180
+            while True:
+                try:
+                    status = process.wait(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    if time.monotonic() >= deadline:
+                        raise ValueError("isolated extractor exceeded time limit")
+                    # Best-effort expansion watchdog in addition to kernel
+                    # per-file/CPU/AS limits. This is not a filesystem quota.
+                    tree_budget(output)
+        except BaseException:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            raise
+        if status != 0:
+            raise ValueError("isolated packaged extractor failed")
+        tree = output / "tree"
+        normalize_tree(tree)
+        os.rename(tree, destination)
+        directory_fd = os.open(destination.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
+def tree_budget(root: Path) -> None:
+    total = 0
+    count = 0
+    for directory, names, files in os.walk(root, followlinks=False):
+        for name in names + files:
+            info = (Path(directory) / name).lstat()
+            count += 1
+            if stat.S_ISREG(info.st_mode):
+                total += info.st_size
+            if total > MAX_TREE or count > MAX_ENTRIES:
+                raise ValueError("isolated extractor exceeded output budget")
+
+
+def extractor_identity() -> tuple[int, int]:
+    account = pwd.getpwnam('tuta-extract')
+    group = grp.getgrnam('tuta-extract')
+    if (account.pw_uid <= 0 or account.pw_gid <= 0 or account.pw_gid != group.gr_gid
+            or account.pw_dir != '/nonexistent' or account.pw_shell != '/usr/sbin/nologin'
+            or group.gr_mem
+            or [p.pw_name for p in pwd.getpwall() if p.pw_uid == account.pw_uid] != ['tuta-extract']
+            or any(p.pw_name != 'tuta-extract' and p.pw_gid == account.pw_gid for p in pwd.getpwall())):
+        raise ValueError("extractor identity is not dedicated and non-login")
+    entries = [line.split(':') for line in Path('/etc/shadow').read_text().splitlines()
+               if line.startswith('tuta-extract:')]
+    if len(entries) != 1 or not entries[0][1].startswith(('!', '*')):
+        raise ValueError("extractor account must remain locked")
+    # Serialized extraction plus a dedicated, locked principal avoids treating
+    # a shared nobody uid (or mere PID/cgroup isolation) as a security boundary.
+    for path in Path('/proc').glob('[0-9]*/status'):
+        try:
+            lines = path.read_text().splitlines()
+        except FileNotFoundError:
+            continue
+        for line in lines:
+            if line.startswith('Uid:') and str(account.pw_uid) in line.split()[1:]:
+                raise ValueError("extractor identity already has a process; refusing shared-uid execution")
+    return account.pw_uid, account.pw_gid
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 3:
+        raise ValueError("usage: tuta-extract ARTIFACT NEW_DESTINATION SHA256")
+    os.umask(0o077)
+    if os.geteuid() != 0:
+        raise ValueError("root is required")
+    lock_directory = Path('/run/lock/tuta-extract')
+    try:
+        lock_directory.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    trusted_directory(lock_directory)
+    if stat.S_IMODE(lock_directory.lstat().st_mode) != 0o700:
+        raise ValueError("extractor lock directory must be private")
+    lock = os.open(lock_directory / 'lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    with os.fdopen(lock, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or stat.S_IMODE(info.st_mode) != 0o600):
+            raise ValueError("unsafe extractor lock")
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        uid, gid = extractor_identity()
+        extract(Path(argv[0]), Path(argv[1]), argv[2], uid, gid)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, KeyError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        print("fatal: verified Tuta extraction failed (" + type(error).__name__ + ")", file=sys.stderr)
+        sys.exit(1)

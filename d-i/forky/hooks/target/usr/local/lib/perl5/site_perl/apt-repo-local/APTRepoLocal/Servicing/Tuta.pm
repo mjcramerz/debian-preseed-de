@@ -168,11 +168,9 @@ sub apply {
     my $image = "$work/tutanota-desktop-linux.AppImage";
     copy($stored, $image)
         or return (1, 'publish');
-    chmod 0700, $image
-        or return (1, 'extract');
-    system('/usr/bin/env', "TMPDIR=$work", $image, '--appimage-extract') == 0
-        or return (1, 'extract');
     my $extracted = "$work/squashfs-root";
+    system('/usr/local/libexec/tuta-extract', $image, $extracted, $hash) == 0
+        or return (1, 'extract');
     -d $extracted && !-l $extracted && -x "$extracted/AppRun"
         or return (1, 'extract');
 

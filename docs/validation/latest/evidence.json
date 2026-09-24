@@ -1,0 +1,35 @@
+{
+  "environment_files": 24,
+  "environment_files_unchanged_from_previous_delivery": true,
+  "frozen_set_unchanged": true,
+  "frozen_source_test_product_files": 1799,
+  "function_definition_inventories_preserved": true,
+  "hardware_fixture_success": true,
+  "largest_module_lines": 725,
+  "module_count": 46,
+  "original_accounting_counts": {
+    "historical-report-moved-unchanged": 4,
+    "path-retained": 1735,
+    "reorganized-runtime-modules": 1
+  },
+  "profile_generator_absent": true,
+  "profiles": 10,
+  "revision": "runtime modules under d-i/forky; directly editable environments",
+  "root_src_absent": true,
+  "runtime_limits": [
+    "Offline/loopback checks, not a booted Debian installer.",
+    "Systemd unit checks are lexical structure only.",
+    "Blocked dependencies, inventory-only files and unrendered templates are not passing runtime tests.",
+    "No package availability, partitioning, hardware, Secure Boot or service activation acceptance test was performed.",
+    "Browser export coverage is static, not live site testing or GUI import acceptance.",
+    "Offline parser/dependency checks with fixture executables and session/AppArmor dependencies; no target units started.",
+    "AppArmor policies compiled without kernel loading; on-target enforcement remains required."
+  ],
+  "unchanged_target_environment_hardware_files": 1292,
+  "validation_success": true,
+  "versions": {
+    "python": "Python 3.13.5",
+    "systemd": "systemd 257 (257.9-1~deb13u1)",
+    "validation_distribution": "PRETTY_NAME=\"Debian GNU/Linux 13 (trixie)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"13\"\nVERSION=\"13 (trixie)\"\nVERSION_CODENAME=trixie\nDEBIAN_VERSION_FULL=13.3\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n"
+  }
+}

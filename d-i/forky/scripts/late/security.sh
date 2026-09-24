@@ -1233,9 +1233,7 @@ clear_target_nftables_assets() {
     /target/etc/nftables.d/10-base.nft \
     /target/etc/nftables.d/20-filter.nft \
     /target/etc/nftables.d/30-nat.nft \
-    /target/etc/nftables.d/90-local.nft \
-    /target/etc/nftables.d/95-firewall-security.nft \
-    /target/etc/nftables/firewall-security.rules
+    /target/etc/nftables.d/90-local.nft
 
   for service_asset in $(nftables_service_assets); do
     rm -f "/target/etc/nftables/services/${service_asset}.yml"
@@ -1305,6 +1303,7 @@ configure_target_nftables() {
     /target/etc/nftables/profiles \
     /target/etc/nftables/services \
     /target/etc/nftables.d \
+    /target/etc/nftables.local.d \
     /target/etc/systemd/system/nftables.service.d \
     /target/usr/local/sbin
 
@@ -1317,9 +1316,7 @@ configure_target_nftables() {
     /target/etc/nftables.d/10-base.nft \
     /target/etc/nftables.d/20-filter.nft \
     /target/etc/nftables.d/30-nat.nft \
-    /target/etc/nftables.d/90-local.nft \
-    /target/etc/nftables.d/95-firewall-security.nft \
-    /target/etc/nftables/firewall-security.rules
+    /target/etc/nftables.d/90-local.nft
   for service_asset in $(nftables_service_assets); do
     rm -f "/target/etc/nftables/services/${service_asset}.yml"
   done
@@ -1335,14 +1332,20 @@ configure_target_nftables() {
     nftables_interface_placeholder_map
   stage_target_nftables_all_service_assets
   write_target_nftables_default_config "$selected_profile" "${requested_profile:-default}" "$selected_services" "$runtime_cidrs"
-  stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/nftables/firewall-security.rules)" \
-    /etc/nftables/firewall-security.rules \
-    0644
-  stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/nftables.d/95-firewall-security.nft)" \
-    /etc/nftables.d/95-firewall-security.nft \
-    0644
+  # These are administrator state, not disposable generated policy. Seed them
+  # once only. A suspicious existing path fails instead of being silently erased.
+  for local_state in /etc/nftables/firewall-security.rules /etc/nftables.d/95-firewall-security.nft; do
+    if [ -e "/target${local_state}" ] || [ -L "/target${local_state}" ]; then
+      [ -f "/target${local_state}" ] && [ ! -L "/target${local_state}" ] ||
+        installer_fatal "unsafe persistent firewall state: $local_state"
+      case "$(installer_metadata_value "/target${local_state}" uid_gid_mode_links)" in
+        0:0:600:1|0:0:640:1|0:0:644:1) ;;
+        *) installer_fatal "unsafe persistent firewall state metadata: $local_state" ;;
+      esac
+    else
+      stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "${local_state#/}")" "$local_state" 0644
+    fi
+  done
 
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/nftables.service.d/override.conf)" \

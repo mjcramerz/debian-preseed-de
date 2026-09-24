@@ -256,7 +256,7 @@ class BootLogTests(unittest.TestCase):
         unit = read_text(TARGET / 'etc/systemd/system/labwc-package-sleep-guard.service')
         route = read_text(TARGET / 'etc/rsyslog.d/19-power.conf')
         self.assertIn('StandardOutput=journal', unit)
-        self.assertIn('labwc-package-sleep-guard.service', route)
+        self.assertIn('$programname == "labwc-package-sleep-guard"', route)
         self.assertIn('file="/var/lib/journal/power/actions.log"', route)
         self.assertIn('  stop', route)
         self.assertNotIn('imfile', route)

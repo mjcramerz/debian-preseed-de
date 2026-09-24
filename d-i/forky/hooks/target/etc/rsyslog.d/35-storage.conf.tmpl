@@ -81,6 +81,9 @@ if (
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="RSYSLOG_TraditionalFileFormat"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
   action(
     name="managed_storage_desktop_signal"
@@ -94,5 +97,8 @@ if (
     dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
     createDirs="on"
     template="ManagedStorageDesktopSignal"
+    rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+    rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+    rotation.sizeLimitCommandPassFileName="on"
   )
 }

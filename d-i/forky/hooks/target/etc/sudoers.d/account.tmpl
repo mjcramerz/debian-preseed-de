@@ -3,16 +3,18 @@
 #
 # The daily account keeps ordinary sudo behind a password. Podman/Docker
 # management is unprivileged via the devops Unix socket; no sudo bridge exists.
-# NOPASSWD remains limited to the existing read-only system inspection helpers.
+# NOPASSWD uses exact argv or anchored single-unit regexes, never argument globs.
+# An empty argument string is required for the argument-free dmesg command.
+# Supported sudo >= 1.9.10 (Forky); visudo validation is mandatory.
 
 Cmnd_Alias READONLY_SYSTEM_INSPECTION = \
     /usr/bin/systemctl --no-pager status, \
-    /usr/bin/systemctl --no-pager status *, \
+    /usr/bin/systemctl ^--no-pager status [A-Za-z0-9][A-Za-z0-9_.@-]*$, \
     /usr/bin/systemctl --no-pager list-units --failed, \
     /usr/bin/systemctl --no-pager list-timers --all, \
     /usr/bin/journalctl --no-pager -n 200, \
-    /usr/bin/journalctl --no-pager -u * -n 200, \
-    /usr/bin/dmesg, \
+    /usr/bin/journalctl ^--no-pager -u [A-Za-z0-9][A-Za-z0-9_.@-]* -n 200$, \
+    /usr/bin/dmesg "", \
     /usr/bin/dmesg -T, \
     /usr/bin/ss -tulpn
 

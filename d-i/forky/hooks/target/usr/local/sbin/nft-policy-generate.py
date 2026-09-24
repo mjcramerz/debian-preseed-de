@@ -535,8 +535,18 @@ def render_nftables_conf(policy: Mapping[str, Any], paths: Mapping[str, Path]) -
     if not shebang.startswith("#!") or "\n" in shebang or "\r" in shebang:
         raise PolicyError("generator.nftables_conf.shebang must be a single line starting with #!")
     lines = [shebang, "", "# Managed by nft-policy-generate.py. Do not edit generated fragments directly."]
-    if as_bool(conf_settings.get("flush_ruleset"), True):
-        lines.append("flush ruleset")
+    if as_bool(conf_settings.get("flush_ruleset"), False):
+        raise PolicyError("global ruleset flushing is forbidden; this project owns only labwc_filter/labwc_nat")
+    nft = as_dict(policy.get("nftables"), "nftables")
+    ownership = (nft.get("family", "inet"), nft.get("filter_table", "labwc_filter"),
+                 nft.get("nat_family", "ip"), nft.get("nat_table", "labwc_nat"))
+    if ownership != ("inet", "labwc_filter", "ip", "labwc_nat"):
+        raise PolicyError("managed firewall table identities are fixed; do not claim another owner's tables")
+    # destroy is idempotent on first boot. Both removals and the complete new
+    # generation are ONE nft transaction. Never enumerate/restore other owners.
+    # Destroy NAT even when disabled now, so a previous managed NAT cannot linger.
+    lines.extend(["# Reserved exclusively for this installer; other tables are untouched.",
+                  "destroy table inet labwc_filter", "destroy table ip labwc_nat"])
     lines.append("")
     for key in ("defines", "base", "filter", "nat", "local"):
         lines.append(f"include {quote_nft_string(include_path_for(paths[key]))}")
@@ -598,7 +608,7 @@ def render_base(policy: Mapping[str, Any]) -> str:
     nft = as_dict(policy.get("nftables"), "nftables")
     policies = as_dict(policy.get("policies"), "policies")
     family = validate_nft_family(nft.get("family", "inet"), "nftables.family", NFT_FAMILIES)
-    table = validate_nft_identifier(nft.get("filter_table", "filter"), "nftables.filter_table")
+    table = validate_nft_identifier(nft.get("filter_table", "labwc_filter"), "nftables.filter_table")
     chains = as_dict(nft.get("chain_names"), "nftables.chain_names")
     input_chain = validate_nft_identifier(chains.get("input", "input"), "nftables.chain_names.input")
     forward_chain = validate_nft_identifier(chains.get("forward", "forward"), "nftables.chain_names.forward")
@@ -660,7 +670,7 @@ def family_table(policy: Mapping[str, Any]) -> Tuple[str, str]:
     nft = as_dict(policy.get("nftables"), "nftables")
     return (
         validate_nft_family(nft.get("family", "inet"), "nftables.family", NFT_FAMILIES),
-        validate_nft_identifier(nft.get("filter_table", "filter"), "nftables.filter_table"),
+        validate_nft_identifier(nft.get("filter_table", "labwc_filter"), "nftables.filter_table"),
     )
 
 
@@ -1414,7 +1424,7 @@ def render_nat(policy: Mapping[str, Any], maps: Mapping[str, Dict[str, Any]]) ->
     nat_required = enabled or masq_enabled
 
     family = validate_nft_family(nft.get("nat_family", "ip"), "nftables.nat_family", NFT_NAT_FAMILIES)
-    table = validate_nft_identifier(nft.get("nat_table", "nat"), "nftables.nat_table")
+    table = validate_nft_identifier(nft.get("nat_table", "labwc_nat"), "nftables.nat_table")
     lines = ["# Managed by nft-policy-generate.py.", "# NAT rules", ""]
     if not nat_required:
         if container_wants_nat:
@@ -1477,6 +1487,7 @@ def render_local(policy: Mapping[str, Any]) -> str:
         return """# Managed by nft-policy-generate.py.
 # Raw local nft is permitted by profile, but this generator does not emit raw YAML snippets.
 include "/etc/nftables.d/95-firewall-security.nft"
+include "/etc/nftables.local.d/*.nft"
 """
     return """# Managed by nft-policy-generate.py.
 # Local override fragment.
@@ -1485,6 +1496,7 @@ include "/etc/nftables.d/95-firewall-security.nft"
 # controlled extension points. The Firewall Security launcher owns the included
 # persistent fragment; do not add hand-written rules to this generated file.
 include "/etc/nftables.d/95-firewall-security.nft"
+include "/etc/nftables.local.d/*.nft"
 """
 
 

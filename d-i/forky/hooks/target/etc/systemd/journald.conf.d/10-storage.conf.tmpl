@@ -1,7 +1,7 @@
 # Managed journal policy. Rendered from the selected installation profile.
 # Storage changes only the journal backend, never partitioning, mounts, or old
 # /var/log/journal data. The same owned file is replaced atomically on reruns.
-# imjournal reads retained userspace records with a cursor, including volatile
+# Forward once to imuxsock; imklog remains the only kernel reader.
 # journals. Disable the parallel syslog socket feed to prevent duplicates.
 # imklog remains the single kernel source; auditd owns audit-netlink as before.
 # Private scanner/model sockets continue to bypass the journal deliberately.
@@ -9,7 +9,9 @@
 [Journal]
 Storage=__SYSTEMD_JOURNAL_STORAGE__
 Compress=yes
-Seal=yes
+# RAM/volatile logs do not claim durable forward-secure sealing. Disk-backed
+# journals require journal-sealing.service and off-host verification-key export.
+Seal=__SYSTEMD_JOURNAL_SEAL__
 SplitMode=uid
 SyncIntervalSec=5m
 
@@ -27,7 +29,7 @@ RuntimeMaxFiles=__SYSTEMD_JOURNAL_RUNTIME_MAX_FILES__
 MaxRetentionSec=1month
 MaxFileSec=1week
 
-ForwardToSyslog=no
+ForwardToSyslog=yes
 ForwardToKMsg=no
 ForwardToConsole=no
 ForwardToWall=yes

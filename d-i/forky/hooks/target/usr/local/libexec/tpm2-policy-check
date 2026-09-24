@@ -1,0 +1,327 @@
+#!/usr/bin/python3 -I
+"""Read-only TPM evidence checks and durable enrollment/release state.
+
+No enrollment, slot deletion or PCR extension is performed by this helper.
+PIN verification uses cryptsetup's token-only test path, never key fallback.
+"""
+from __future__ import annotations
+import datetime
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import struct
+import subprocess
+import sys
+import tempfile
+
+STATE = Path("/var/lib/tpm2-enrollment")
+PCRS = (7, 8, 9, 14)
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C", "SYSTEMD_LOG_LEVEL": "warning"}
+
+
+def private_read(path: Path, limit: int = 65536) -> bytes:
+    for parent in (path.parent, *path.parent.parents):
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ValueError("unsafe crypto state parent")
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(fd, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) not in (0o400, 0o600)
+                or not 0 < info.st_size <= limit):
+            raise ValueError("unsafe crypto state file")
+        data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ValueError("oversized crypto state")
+        return data
+
+
+def config() -> dict[str, str]:
+    raw = private_read(STATE / "config.env").decode("ascii")
+    values: dict[str, str] = {}
+    for line in raw.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"([A-Z0-9_]+)='([A-Za-z0-9_./+@-]+)'", line)
+        if not match or match[1] in values:
+            raise ValueError("unexpected crypto configuration syntax")
+        values[match[1]] = match[2]
+    for name in ("ROOT_LUKS_UUID", "HOME_LUKS_UUID"):
+        if not re.fullmatch(r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}", values.get(name, "")):
+            raise ValueError("invalid crypto UUID")
+    if values.get("TPM2_FINAL_PCRS") != "+".join(map(str, PCRS)):
+        raise ValueError("unsupported final TPM policy")
+    if values.get("INSTALL_PASSPHRASE_FILE") != str(STATE / "install-passphrase"):
+        raise ValueError("unexpected bootstrap secret path")
+    if values.get("HOME_KEY_FILE") != "/etc/cryptsetup-keys.d/crypthome.key":
+        raise ValueError("unexpected home key path")
+    return values
+
+
+def command(argv: list[str], *, data: bytes | None = None, timeout: int = 30) -> bytes:
+    result = subprocess.run(argv, input=data, env=ENV, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, timeout=timeout, check=False)
+    if result.returncode or len(result.stdout) > 16_777_216:
+        raise ValueError("crypto evidence command failed: " + Path(argv[0]).name)
+    return result.stdout
+
+
+def metadata(device: str) -> dict:
+    return json.loads(command(["/usr/sbin/cryptsetup", "luksDump", "--dump-json-metadata", device]))
+
+
+def validate_token(document: dict) -> str:
+    tokens = [(identity, token) for identity, token in document.get("tokens", {}).items()
+              if token.get("type") == "systemd-tpm2"]
+    if len(tokens) != 1:
+        raise ValueError("exactly one final TPM token is required; old bootstrap tokens must be absent")
+    identity, token = tokens[0]
+    if (not re.fullmatch(r"[0-9]+", identity) or token.get("tpm2-pin") is not True
+            or token.get("tpm2-pcr-bank") != "sha256"
+            or token.get("tpm2-pcrs") != list(PCRS)
+            or token.get("tpm2-pubkey-pcrs", []) or token.get("tpm2-pcrlock", False)):
+        raise ValueError("TPM token is not the required PIN and SHA-256 PCR policy")
+    slots = token.get("keyslots", [])
+    if (len(slots) != 1 or slots[0] not in document.get("keyslots", {})
+            or document["keyslots"][slots[0]].get("type") != "luks2"):
+        raise ValueError("TPM token keyslot is missing or invalid")
+    return identity
+
+
+def replay_eventlog(data: bytes) -> tuple[dict[int, bytes], bool, bool]:
+    """Parse bounded TCG PC Client 2.0 records and replay the SHA-256 bank.
+
+    A nonzero PCR alone does not establish that the initrd or command line was
+    measured. Require those events AND compare replay to the actual TPM bank.
+    """
+    if not 32 <= len(data) <= 16_777_216:
+        raise ValueError("invalid TPM event log size")
+    _, event_type = struct.unpack_from("<II", data, 0)
+    first_size = struct.unpack_from("<I", data, 28)[0]
+    first_end = 32 + first_size
+    if event_type != 3 or first_end > len(data):
+        raise ValueError("missing TPM2 Spec ID event")
+    spec = data[32:first_end]
+    if len(spec) < 29 or not spec.startswith(b"Spec ID Event03\x00"):
+        raise ValueError("unsupported TPM event log format")
+    count = struct.unpack_from("<I", spec, 24)[0]
+    if not 1 <= count <= 16 or 28 + 4 * count >= len(spec):
+        raise ValueError("invalid TPM algorithm table")
+    algorithms = dict(struct.unpack_from("<HH", spec, 28 + 4 * i) for i in range(count))
+    if len(algorithms) != count or algorithms.get(11) != 32 or any(not 1 <= n <= 64 for n in algorithms.values()):
+        raise ValueError("unsupported TPM digest sizes")
+    values = {index: bytes(32) for index in PCRS}
+    initrd = cmdline = False
+    offset = first_end
+    while offset < len(data):
+        if len(data) - offset < 12:
+            raise ValueError("truncated TPM record")
+        index, kind, count = struct.unpack_from("<III", data, offset)
+        offset += 12
+        if not 1 <= count <= len(algorithms):
+            raise ValueError("invalid TPM digest count")
+        digests = {}
+        for _ in range(count):
+            if offset + 2 > len(data):
+                raise ValueError("truncated TPM algorithm")
+            algorithm = struct.unpack_from("<H", data, offset)[0]
+            offset += 2
+            size = algorithms.get(algorithm, 0)
+            if not size or algorithm in digests or offset + size > len(data):
+                raise ValueError("invalid TPM digest")
+            digests[algorithm] = data[offset:offset + size]
+            offset += size
+        if offset + 4 > len(data):
+            raise ValueError("truncated TPM event length")
+        size = struct.unpack_from("<I", data, offset)[0]
+        offset += 4
+        if offset + size > len(data):
+            raise ValueError("truncated TPM event data")
+        event = data[offset:offset + size].replace(b"\x00", b"").lower()
+        offset += size
+        if index in values and kind != 3:
+            if 11 not in digests:
+                raise ValueError("measured event is missing SHA-256")
+            values[index] = hashlib.sha256(values[index] + digests[11]).digest()
+            initrd |= index == 9 and kind in (6, 13) and (b"initrd" in event or b"initramfs" in event)
+            cmdline |= index == 8 and kind == 13 and b"kernel_cmdline:" in event
+    return values, initrd, cmdline
+
+
+def verify_boot_evidence() -> dict[str, str]:
+    cleaned = private_read(STATE / "boot-artifacts-cleaned").decode("ascii").strip()
+    if cleaned == boot_id():
+        raise ValueError("reboot after firstboot initramfs cleanup before final TPM enrollment")
+    if Path("/etc/initramfs-tools/scripts/installer-health-common").exists():
+        raise ValueError("firstboot initramfs cleanup has not completed")
+    if b"SecureBoot enabled" not in command(["/usr/bin/mokutil", "--sb-state"]):
+        raise ValueError("Secure Boot is not enabled")
+    log = Path("/sys/kernel/security/tpm0/binary_bios_measurements")
+    with log.open("rb") as stream:
+        replay, initrd, cmdline = replay_eventlog(stream.read(16_777_217))
+    if not initrd or not cmdline:
+        raise ValueError("initrd and GRUB kernel command line measurements are required")
+    raw = command(["/usr/bin/tpm2_pcrread", "sha256:" + ",".join(map(str, PCRS))]).decode("ascii")
+    actual = {int(i): bytes.fromhex(d) for i, d in re.findall(r"(?m)^\s*([0-9]+)\s*:\s*0x([0-9a-fA-F]{64})\s*$", raw)}
+    if actual != replay or any(value == bytes(32) for value in actual.values()):
+        raise ValueError("TPM PCR values do not match measured-boot evidence")
+    return {str(index): value.hex() for index, value in actual.items()}
+
+
+def verify_pin(device: str, pin: bytes) -> None:
+    if not re.fullmatch(rb"[0-9]{6,32}", pin):
+        raise ValueError("invalid PIN input")
+    before = metadata(device)
+    identity = validate_token(before)
+    # stdin is the PIN prompt input. --key-file would instead select a LUKS
+    # passphrase path, which must NOT be used as a token verification substitute.
+    command(["/usr/sbin/cryptsetup", "open", "--test-passphrase", "--type", "luks2",
+             "--token-only", "--token-id", identity, "--tries", "1", device], data=pin + b"\n", timeout=90)
+    if metadata(device) != before:
+        raise ValueError("LUKS metadata changed during read-only verification")
+
+
+def verify_initramfs() -> None:
+    forbidden = {"var/lib/tpm2-enrollment/install-passphrase", "usr/local/lib/crypto/install-passphrase",
+                 "var/lib/tpm2-enrollment/config.env", "etc/cryptsetup-keys.d/crypthome.key"}
+    images = sorted(Path("/boot").glob("initrd.img-*"))
+    if not images:
+        raise ValueError("no installed initramfs images")
+    for image in images:
+        listing = command(["/usr/bin/lsinitramfs", str(image)], timeout=120).decode("utf-8")
+        names = {line.removeprefix("./").lstrip("/").rstrip("/") for line in listing.splitlines()}
+        if names & forbidden:
+            raise ValueError("private crypto material found in an initramfs")
+
+
+def atomic_write(path: Path, data: bytes, mode: int = 0o600) -> None:
+    if path.exists() or path.is_symlink():
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1:
+            raise ValueError("unsafe crypto state destination")
+    fd, name = tempfile.mkstemp(prefix=".enrollment-", dir=STATE)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            os.fchmod(stream.fileno(), mode)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(name, path)
+        sync_state()
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def sync_state() -> None:
+    fd = os.open(STATE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def boot_id() -> str:
+    value = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    if not re.fullmatch(r"[0-9a-f-]{36}", value):
+        raise ValueError("invalid boot identity")
+    return value
+
+
+def fingerprints(values: dict[str, str]) -> dict[str, str]:
+    result = {}
+    for field in ("ROOT_LUKS_UUID", "HOME_LUKS_UUID"):
+        document = metadata("/dev/disk/by-uuid/" + values[field])
+        validate_token(document)
+        result[values[field]] = hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return result
+
+
+def record_state(values: dict[str, str], status: str) -> None:
+    boot_pcrs = verify_boot_evidence()
+    verify_initramfs()
+    if (STATE / "install-passphrase").exists():
+        raise ValueError("bootstrap secret must be removed before recording enrollment")
+    previous = None
+    if status == "complete":
+        previous = json.loads(private_read(STATE / "enrollment.json"))
+        if previous.get("status") not in ("enrolled", "complete") or previous.get("enrolled_boot_id") == boot_id():
+            raise ValueError("a separate boot is required before release confirmation")
+    proof = fingerprints(values)
+    if previous and (previous.get("luks_metadata_sha256") != proof or previous.get("boot_pcrs") != boot_pcrs):
+        raise ValueError("enrollment changed before boot confirmation; reenroll explicitly")
+    record = {"version": 1, "status": status, "pcr_bank": "sha256", "pcrs": list(PCRS),
+              "luks_metadata_sha256": proof, "boot_pcrs": boot_pcrs, "confirmed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "enrolled_boot_id": previous["enrolled_boot_id"] if previous else boot_id(),
+              "verified_boot_id": boot_id()}
+    atomic_write(STATE / "enrollment.json", (json.dumps(record, sort_keys=True, indent=2) + "\n").encode())
+    if status == "complete":
+        atomic_write(STATE / "tpm2-enroll.complete", b"status=complete\npolicy=sha256:7+8+9+14+pin\n")
+        (STATE / "tpm2-enroll.pending").unlink(missing_ok=True)
+        sync_state()
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() != 0:
+        raise ValueError("root is required")
+    values = config()  # Verify metadata before the shell front end sources it.
+    action = argv[0] if argv else ""
+    if argv == ["--check-config"]:
+        return 0
+    if argv == ["--boot-evidence"]:
+        verify_boot_evidence()
+    elif argv == ["--initramfs"]:
+        verify_initramfs()
+    elif len(argv) == 2 and action == "--verify":
+        verify_pin(argv[1], sys.stdin.buffer.read(33))
+    elif argv == ["--mark-boot-artifacts"]:
+        atomic_write(STATE / "boot-artifacts-cleaned", (boot_id() + "\n").encode())
+    elif argv == ["--begin"]:
+        atomic_write(STATE / "tpm2-enroll.pending", (values["PRIMARY_USER"] + "\n").encode(), 0o644)
+        (STATE / "tpm2-enroll.complete").unlink(missing_ok=True)
+        atomic_write(STATE / "enrollment.json", b'{"status":"pending"}\n')
+    elif argv == ["--phase"]:
+        path = STATE / "enrollment.json"
+        record = json.loads(private_read(path)) if path.exists() else {"status": "pending"}
+        status = record.get("status")
+        if status == "enrolled":
+            print("reboot" if record.get("enrolled_boot_id") == boot_id() else "confirm")
+        elif status == "complete":
+            # Interrupted multi-file publication requires confirmation again,
+            # never silently clearing a pending gate from a partial transaction.
+            incomplete = (STATE / "tpm2-enroll.pending").exists() or not (STATE / "tpm2-enroll.complete").exists()
+            print("confirm" if incomplete else "complete")
+        elif status == "pending":
+            print("pending")
+        else:
+            raise ValueError("unknown enrollment phase")
+    elif len(argv) == 2 and action == "--record" and argv[1] in ("enrolled", "complete"):
+        record_state(values, argv[1])
+    elif argv == ["--release-check"]:
+        record = json.loads(private_read(STATE / "enrollment.json"))
+        if record.get("status") != "complete" or record.get("enrolled_boot_id") == record.get("verified_boot_id"):
+            raise ValueError("post-reboot enrollment confirmation is incomplete")
+        if (STATE / "tpm2-enroll.pending").exists() or (STATE / "install-passphrase").exists():
+            raise ValueError("bootstrap state is still pending")
+        private_read(STATE / "tpm2-enroll.complete")
+        if record.get("luks_metadata_sha256") != fingerprints(values):
+            raise ValueError("LUKS metadata changed after verification")
+        if verify_boot_evidence() != record.get("boot_pcrs"):
+            raise ValueError("boot policy changed after confirmation; boot the desired image and reenroll")
+        verify_initramfs()
+        print("TPM release evidence is complete; recovery and PIN verification were recorded after reboot")
+    else:
+        raise ValueError("unsupported TPM policy operation")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, KeyError, TypeError, struct.error, subprocess.SubprocessError) as error:
+        print("tpm2-policy-check: " + str(error), file=sys.stderr)
+        sys.exit(1)

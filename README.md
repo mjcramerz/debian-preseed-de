@@ -5,17 +5,50 @@ Wayland desktop. The deployment target is Debian Forky with systemd 261.2.
 Review the selected host profile, disk identifiers and credentials before use;
 installation repartitions the selected disks.
 
+The [2026-09-24 logging repair](docs/validation/history/LOGGING-REPAIR-20260924.md) documents the
+shared tmpfiles prerequisite fix, unified `apps.log`, 2 MiB writer-driven rotation,
+and current validation limits. It supersedes older logging descriptions.
+
+The current [security repair and operating gates](docs/security-hardening.md)
+cover A01-A09, rsyslog tmpfs, and the installer module/loading contract. Run `python3 -B tools/build.py`
+after editing sources; run `python3 -B tools/build.py --check` before publishing.
+
 ## Source layout
 
 - `d-i/forky/repo.env`: repository role, path contract and default selections.
 - `d-i/forky/classes/`: package selections, class metadata and hardware assets.
 - `d-i/forky/hosts/installer/`: shared settings, including `btrfs.env` and `f2fs.env`.
-- `d-i/forky/hosts/profiles/`: ten host profiles; review these for your hardware.
+- `d-i/forky/hosts/profiles/`: ten directly editable host environments; the builder never overwrites them.
 - `d-i/forky/hooks/installer/`: installer hooks and pre-pkgsel APT policy.
 - `d-i/forky/hooks/target/`: target-side files and renderable configuration.
-- `d-i/forky/scripts/`: installer, first-boot and desktop deployment logic.
+- `d-i/forky/scripts/`: small installer entrypoints and shared runtime modules, detailed below.
 - `d-i/forky/tests/` and `tools/`: executable regression tests and build checks.
 - `browser-config/`: private browser configuration inputs.
+
+### Installer implementation
+
+All executable installer sources live in `d-i/forky/`; there is no parallel
+root authoring tree or profile generator. Edit the `.env` files where they are.
+Shared paths, filesystem and logging policy remain in `hosts/installer/` and
+`hosts/logging/`; per-host choices remain in `hosts/profiles/`.
+
+```text
+scripts/common/bootstrap.sh      shared, snapshot-backed module loader
+scripts/common/lib.sh            ordered common entrypoint
+scripts/common/modules/          paths, logging, profiles and class resolution
+scripts/runtime/common.sh        shared storage-runtime entrypoint
+scripts/runtime/modules/         arithmetic, identity, crypto and recipe helpers
+scripts/desktop/components.sh    ordered desktop component entrypoint
+scripts/desktop/components/      application, session and service definitions
+scripts/late/devops.sh.tmpl       DevOps entrypoint and explicit main invocation
+scripts/late/devops/             validation, toolchain and publication modules
+```
+
+Modules are actual runtime dependencies in the pinned payload, not fragments
+concatenated back into large generated scripts. The explicit entrypoints define
+load order. Missing dependencies fail closed; templates use the existing logging
+renderer. The credential and debconf helpers are shared by the common and storage
+runtimes instead of being embedded into both.
 
 Custom launchers are sourced from
 `hooks/target/usr/local/share/applications/`. Package-owned launchers remain in
@@ -45,8 +78,13 @@ make audit
 make validate
 ```
 
-The builder regenerates `d-i/forky/preseed.cfg`, `payload.manifest` and
-`payload.tar.gz` together. Do not hand-edit these generated files. The validation
+The builder refreshes `d-i/forky/preseed.cfg`, `payload.manifest` and
+`payload.tar.gz`, checks module references, and refreshes the existing browser
+artifacts and self-contained lifecycle bootstrap. **It never generates, repairs
+or overwrites environment files or runtime modules.** Editing an environment
+requires rebuilding the payload/pins before publishing; rebuilding packages your
+edited bytes, it does not replace them with defaults. Do not hand-edit the three
+snapshot products. The validation
 runner records results under `.build/validation/` by default. Parser checks
 need the corresponding tools and Perl modules; missing dependencies must be
 reported as blocked or skipped, not treated as successful execution.

@@ -596,13 +596,15 @@ case " $(id -nG "$account_user") " in
 esac
 ' sh "$ACCOUNT_USERNAME"
 
+  run_in_target "preflight shared logging paths before ChatGPT tmpfiles" \
+    /usr/local/libexec/log-layout --preflight || return $?
   run_in_target \
     "create protected managed ChatGPT log paths" \
     /usr/bin/systemd-tmpfiles \
     --create \
     /etc/tmpfiles.d/59-log-layout.conf \
     /etc/tmpfiles.d/65-audit-syslog.conf \
-    "$chatgpt_tmpfiles"
+    "$chatgpt_tmpfiles" || return $?
   # shellcheck disable=SC2016
   run_in_target "verify managed ChatGPT log path policy" /bin/sh -eu -c '
 chatgpt_fatal() {
@@ -1994,6 +1996,17 @@ case "$tuta_file_type" in
   *) software_fatal "Tuta Mail AppImage has an unexpected file type: ${tuta_file_type:-unset}" ;;
 esac
 
+software_stage_seed_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tuta-extract)" \
+  /usr/local/libexec/tuta-extract 0755
+
+software_stage_seed_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/lib/sysusers.d/tuta-extract.conf)" \
+  /usr/lib/sysusers.d/tuta-extract.conf 0644
+chroot "$target_root" /usr/bin/systemd-sysusers /usr/lib/sysusers.d/tuta-extract.conf
+
+tuta_verified_sha256=$(chroot "$target_root" /usr/bin/sha256sum "$tuta_appimage" | awk '{print $1}')
+
 # shellcheck disable=SC2016
 chroot "$target_root" /bin/sh -eu -c '
 work_dir=$1
@@ -2012,11 +2025,7 @@ rollback() {
 trap rollback EXIT HUP INT TERM
 
 rm -rf "$work_dir/squashfs-root" "$new_dir" "$backup_dir"
-chmod 0700 "$appimage"
-(
-  cd "$work_dir"
-  "$appimage" --appimage-extract >/dev/null
-)
+/usr/local/libexec/tuta-extract "$appimage" "$work_dir/squashfs-root" "$4"
 [ -x "$work_dir/squashfs-root/AppRun" ]
 
 cp -a "$work_dir/squashfs-root" "$new_dir"
@@ -2033,7 +2042,7 @@ mv "$new_dir" "$install_dir"
 [ -x "$install_dir/AppRun" ]
 rm -rf "$backup_dir"
 trap - EXIT HUP INT TERM
-' sh "$work_dir" "$tuta_appimage" "$tuta_install_dir"
+' sh "$work_dir" "$tuta_appimage" "$tuta_install_dir" "$tuta_verified_sha256"
 
 tuta_icon_source=$(
   # shellcheck disable=SC2016

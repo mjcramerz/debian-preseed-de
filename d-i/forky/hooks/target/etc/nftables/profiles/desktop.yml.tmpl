@@ -25,7 +25,7 @@ generator:
     - /etc/nftables.d/90-local.nft
   nftables_conf:
     shebang: '#!/usr/sbin/nft -f'
-    flush_ruleset: true
+    flush_ruleset: false
     include_order:
     - /etc/nftables.d/00-defines.nft
     - /etc/nftables.d/10-base.nft
@@ -34,9 +34,9 @@ generator:
     - /etc/nftables.d/90-local.nft
 nftables:
   family: inet
-  filter_table: filter
+  filter_table: labwc_filter
   nat_family: ip
-  nat_table: nat
+  nat_table: labwc_nat
   chain_names:
     input: input
     forward: forward

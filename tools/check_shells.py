@@ -46,6 +46,11 @@ def shell_sources(root: Path):
         first = data.split(b'\n', 1)[0].decode('utf-8', errors='replace')
         name = path.name.removesuffix('.tmpl')
         relative = path.relative_to(root).as_posix()
+        # AppArmor attachment filenames may end in .sh; they are policy, not
+        # shell source. An actual shell shebang still takes precedence.
+        if '/etc/apparmor.d/' in '/' + relative and not (
+                first.startswith('#!') and re.search(r'\b(sh|dash|ash|bash)\b', first)):
+            continue
         if name.startswith('.bash') or (first.startswith('#!') and re.search(r'\bbash\b', first)):
             yield path, 'bash'
         elif (name.endswith(('.sh', '.env')) or name == '.profile'

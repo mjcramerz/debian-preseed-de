@@ -11,7 +11,6 @@ import gzip
 import hashlib
 import io
 import os
-import tempfile
 from pathlib import Path
 import re
 import runpy
@@ -246,73 +245,32 @@ d-i clock-setup/ntp seen true
                     raise ValueError(f'invalid generated {fields[1]}: {parsed.stderr.strip()}')
     return text.encode()
 
-def sync_apt_helpers(check: bool) -> None:
-    begin = '# BEGIN EMBEDDED APT SOURCES\n'
-    end = '# END EMBEDDED APT SOURCES\n'
-    path = SEED / 'scripts/common/lib.sh'
-    text = path.read_text()
-    before, rest = text.split(begin, 1)
-    _, after = rest.split(end, 1)
-    expected = before + begin + (SEED / 'scripts/common/apt-sources.sh').read_text() + end + after
-    if expected != text:
-        if check:
-            raise ValueError('stale APT source helper embedding')
-        path.write_text(expected)
-
-def sync_credential_helpers(check: bool) -> None:
-    """Embed one canonical reader in early/standalone libs without boot deps."""
-    begin = '# BEGIN EMBEDDED INITRD CREDENTIALS\n'
-    end = '# END EMBEDDED INITRD CREDENTIALS\n'
-    canonical = (SEED / 'scripts/common/credentials.sh').read_text()
-    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):
+def sync_embedded_helper(label: str, canonical_name: str,
+                         destinations: tuple[str, ...], check: bool) -> None:
+    """Publish a single canonical helper; standalone installer readers stay flat."""
+    begin, end = f'# BEGIN EMBEDDED {label}\n', f'# END EMBEDDED {label}\n'
+    canonical = (SEED / 'scripts/common' / canonical_name).read_text()
+    publisher = runpy.run_path(str(ROOT / 'tools/publication.py'))['atomic_write']
+    for name in destinations:
         path = SEED / name
         text = path.read_text()
         if text.count(begin) != 1 or text.count(end) != 1:
-            raise ValueError(f'credential embedding markers invalid: {name}')
+            raise ValueError(f'invalid {label} embedding markers: {name}')
         before, rest = text.split(begin, 1)
         _, after = rest.split(end, 1)
         expected = before + begin + canonical + end + after
         if text == expected:
             continue
         if check:
-            raise ValueError(f'stale embedded credentials in {name}; run tools/build.py')
-        fd, temporary = tempfile.mkstemp(prefix='.credentials.', dir=path.parent)
-        try:
-            with os.fdopen(fd, 'w') as stream:
-                stream.write(expected)
-            os.chmod(temporary, path.stat().st_mode & 0o777)
-            os.replace(temporary, path)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
+            raise ValueError(f'stale {label} embedding: {name}; run tools/build.py')
+        publisher(path, expected.encode(), path.stat().st_mode & 0o777)
 
-def sync_debconf_helpers(check: bool) -> None:
-    begin, end = '# BEGIN EMBEDDED DEBCONF\n', '# END EMBEDDED DEBCONF\n'
-    canonical = (SEED / 'scripts/common/debconf.sh').read_text()
-    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):
-        path = SEED / name
-        text = path.read_text()
-        before, rest = text.split(begin, 1)
-        _, after = rest.split(end, 1)
-        expected = before + begin + canonical + end + after
-        if text != expected:
-            if check:
-                raise ValueError(f'stale debconf embedding: {name}')
-            path.write_text(expected)
 
 def sync_lifecycle_helpers(check: bool) -> None:
-    begin, end = '# BEGIN EMBEDDED LIFECYCLE\n', '# END EMBEDDED LIFECYCLE\n'
-    canonical = (SEED / 'scripts/common/lifecycle.sh').read_text()
-    for name in ('scripts/common/source.sh', 'scripts/common/lib.sh'):
-        path = SEED / name
-        text = path.read_text()
-        before, rest = text.split(begin, 1)
-        _, after = rest.split(end, 1)
-        expected = before + begin + canonical + end + after
-        if text != expected:
-            if check:
-                raise ValueError(f'stale lifecycle embedding: {name}')
-            path.write_text(expected)
+    # This is the sole bootstrap embedding: needed before a snapshot exists.
+    sync_embedded_helper('LIFECYCLE', 'lifecycle.sh',
+                         ('scripts/common/source.sh',), check)
+
 
 def build() -> dict[str, bytes]:
     paths = payload_files()
@@ -357,7 +315,7 @@ def validate_systemd_profiles() -> None:
     for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
         values = {}
         for line in profile.read_text().splitlines():
-            if not line.startswith('SYSTEMD_'):
+            if not line.startswith(('SYSTEMD_', 'TMPFS_VAR_LOG=')):
                 continue
             match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
             if not match or match[1] in values:
@@ -409,15 +367,14 @@ def main() -> int:
         # ANY release products. Shell syntax alone cannot detect invalid pins.
         subprocess.run([resolve_python_interpreter(), '-I', '-B',
                         str(ROOT / 'tools/check_resctl_bench.py')], check=True)
+        module_checker = runpy.run_path(str(ROOT / 'tools/check_modules.py'))
+        module_checker['check'](SEED)
         validate_iocost_profiles()
         validate_systemd_profiles()
         validate_tomat_profiles()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)
-        sync_credential_helpers(args.check)
-        sync_debconf_helpers(args.check)
         sync_lifecycle_helpers(args.check)
-        sync_apt_helpers(args.check)
         products = build()
         stale = [name for name, data in products.items() if not (SEED / name).is_file() or (SEED / name).read_bytes() != data]
         if args.check:
@@ -426,18 +383,8 @@ def main() -> int:
                 return 1
             print('snapshot, pins and preseed are current')
         else:
-            for name, data in products.items():
-                fd, temporary = tempfile.mkstemp(prefix='.' + name + '.', dir=SEED)
-                try:
-                    with os.fdopen(fd, 'wb') as stream:
-                        stream.write(data)
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    os.chmod(temporary, 0o644)
-                    os.replace(temporary, SEED / name)
-                finally:
-                    if os.path.exists(temporary):
-                        os.unlink(temporary)
+            publisher = runpy.run_path(str(ROOT / 'tools/publication.py'))
+            publisher['publish_snapshot'](SEED, products)
             print(f'built {len(products["payload.manifest"].splitlines())} payload files; publish the complete repository atomically')
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:

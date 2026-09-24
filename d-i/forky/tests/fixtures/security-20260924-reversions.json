@@ -1,0 +1,857 @@
+{
+  "scope": "Exact reviewed deltas from supplied upload for A01-A09, rsyslog spool, metadata guard and canonical authoring. Historical workload baselines are unchanged.",
+  "files": {
+    "README.md": {
+      "previous_sha256": "9291e89d9922b40e79c9a967e9413a6b4dd7c8cf99ad76cfc5a085e978408980",
+      "current_sha256": "f0cef46fe7e3c668b2b44dd9ae07a351a849324360b977a8248ea164b6e0f313",
+      "hunks": [
+        {
+          "current": "Review the selected host profile, disk identifiers and credentials before use;\ninstallation repartitions the selected disks.\n\nThe [2026-09-24 logging repair](docs/validation/history/LOGGING-REPAIR-20260924.md) documents the\nshared tmpfiles prerequisite fix, unified `apps.log`, 2 MiB writer-driven rotation,\nand current validation limits. It supersedes older logging descriptions.\n\nThe current [security repair and operating gates](docs/security-hardening.md)\ncover A01-A09, rsyslog tmpfs, and canonical authoring. Run `python3 -B tools/build.py`\nafter editing sources; run `python3 -B tools/build.py --check` before publishing.\n\n## Source layout\n\n- `d-i/forky/repo.env`: repository role, path contract and default selections.\n- `d-i/forky/classes/`: package selections, class metadata and hardware assets.\n- `d-i/forky/hosts/installer/`: shared settings, including `btrfs.env` and `f2fs.env`.\n- `src/installer/`: canonical profile schema, shared defaults, host overrides and ordered shell modules.\n- `d-i/forky/hosts/profiles/`: ten generated flat host profiles; review these for your hardware, but edit their canonical overrides.\n- `d-i/forky/hooks/installer/`: installer hooks and pre-pkgsel APT policy.\n- `d-i/forky/hooks/target/`: target-side files and renderable configuration.\n- `d-i/forky/scripts/`: installer, first-boot and desktop deployment logic.\n",
+          "previous": "Review the selected host profile, disk identifiers and credentials before use;\ninstallation repartitions the selected disks.\n\nThe [2026-09-24 logging repair](LOGGING-REPAIR-20260924.md) documents the\nshared tmpfiles prerequisite fix, unified `apps.log`, 2 MiB writer-driven rotation,\nand current validation limits. It supersedes older logging descriptions.\n\n## Source layout\n\n- `d-i/forky/repo.env`: repository role, path contract and default selections.\n- `d-i/forky/classes/`: package selections, class metadata and hardware assets.\n- `d-i/forky/hosts/installer/`: shared settings, including `btrfs.env` and `f2fs.env`.\n- `d-i/forky/hosts/profiles/`: ten host profiles; review these for your hardware.\n- `d-i/forky/hooks/installer/`: installer hooks and pre-pkgsel APT policy.\n- `d-i/forky/hooks/target/`: target-side files and renderable configuration.\n- `d-i/forky/scripts/`: installer, first-boot and desktop deployment logic.\n"
+        }
+      ]
+    },
+    "SECURITY.md": {
+      "previous_sha256": "e6b4125c5bbdd29dbc2768d9de2b3e66976971a297d1e119fb3cc6943d663b3a",
+      "current_sha256": "b028813f90b4355be07e566e2f9bd71366705cf79002f7c1593916ae83b747dd",
+      "hunks": [
+        {
+          "current": "- uBOL managed settings: https://github.com/uBlockOrigin/uBOL-home/wiki/Managed-settings\n- Privacy Badger managed schema: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/data/schema.json\n- Privacy Badger import merge: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/js/storage.js\n\n## Scoped repair and release gates (2026-09-24)\n\nSee [the security repair](docs/security-hardening.md) for firewall ownership,\nprivileged import/extraction boundaries, measured-boot enrollment, journal\nsealing, and the limits of same-UID lifecycle isolation. Historical reports\nare in `docs/validation/history/`; they are not acceptance results for this revision.\n",
+          "previous": "- uBOL managed settings: https://github.com/uBlockOrigin/uBOL-home/wiki/Managed-settings\n- Privacy Badger managed schema: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/data/schema.json\n- Privacy Badger import merge: https://raw.githubusercontent.com/EFForg/privacybadger/master/src/js/storage.js\n"
+        }
+      ]
+    },
+    "d-i/forky/classes/class-addon/crypto.cfg": {
+      "previous_sha256": "72e149e28997bb94ed368f07780950af885e25e7c09148cedd78e45880c8dcaa",
+      "current_sha256": "6684597bc039350f0cc8991863a56d8281c39f48430d21a80ca74be8b6af777a",
+      "hunks": [
+        {
+          "current": "# deferred TPM2+PIN plus recovery-passphrase enrollment.\nd-i anna/choose_modules multiselect crypto-dm-modules\nd-i anna/choose_modules seen true\nd-i pkgsel/include string cryptsetup-initramfs systemd-cryptsetup systemd-tpm tpm2-tools tpm-udev mokutil python3\nd-i pkgsel/include seen true\n",
+          "previous": "# deferred TPM2+PIN plus recovery-passphrase enrollment.\nd-i anna/choose_modules multiselect crypto-dm-modules\nd-i anna/choose_modules seen true\nd-i pkgsel/include string cryptsetup-initramfs systemd-cryptsetup systemd-tpm tpm2-tools tpm-udev mokutil\nd-i pkgsel/include seen true\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers.tmpl": {
+      "previous_sha256": "90fc4e79202ab39515a151e05eb0076632b1e20594a5315041b6abf8fac963f4",
+      "current_sha256": "e56029b76e4f22bc92397dd2400271c4969019b2c9b19e2310fd318c8462423f",
+      "hunks": [
+        {
+          "current": "  #include <abstractions/wrapper-perl>\n\n  /usr/local/libexec/labwc-network-control-action-root rix,\n  /usr/local/libexec/network-openvpn-import rPx -> network-openvpn-import,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,\n  /usr/local/lib/perl5/site_perl/runtime/ r,\n",
+          "previous": "  #include <abstractions/wrapper-perl>\n\n  /usr/local/libexec/labwc-network-control-action-root rix,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,\n  /usr/local/lib/perl5/site_perl/runtime/ r,\n"
+        },
+        {
+          "current": "  /usr/local/libexec/apt-repo-local-software-update rix,\n  /usr/local/libexec/apt-repo-local rPx -> apt-repo-local,\n  /usr/local/libexec/discord-distro rPx -> discord-distro,\n  /usr/local/libexec/tuta-extract rPx -> tuta-extract,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/ r,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/** r,\n",
+          "previous": "  /usr/local/libexec/apt-repo-local-software-update rix,\n  /usr/local/libexec/apt-repo-local rPx -> apt-repo-local,\n  /usr/local/libexec/discord-distro rPx -> discord-distro,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/ r,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/** r,\n"
+        },
+        {
+          "current": "  /var/lib/software/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ rw,\n  owner /tmp/apt-repo-local-software-update.*/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ledger-live-linux-x86_64.AppImage pux,\n\n  include if exists <local/usr.local.libexec.apt-repo-local-software-update>\n}\n",
+          "previous": "  /var/lib/software/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ rw,\n  owner /tmp/apt-repo-local-software-update.*/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/{ledger-live-linux-x86_64.AppImage,tutanota-desktop-linux.AppImage} pux,\n\n  include if exists <local/usr.local.libexec.apt-repo-local-software-update>\n}\n"
+        },
+        {
+          "current": "  owner /tmp/wtype-?????? rw,\n  include if exists <local/usr.local.bin.labwc-window-switcher>\n}\n\n# Root-authorized OpenVPN input is read only after dropping to the invoking uid.\n# Keep the existing nmcli package transition; never pass it the caller pathname.\nprofile network-openvpn-import /usr/local/libexec/network-openvpn-import flags=(attach_disconnected) {\n  #include <abstractions/wrapper-python>\n\n  capability setuid,\n  capability setgid,\n  /usr/local/libexec/network-openvpn-import rix,\n  / r,\n  /**/ r,\n  owner /**.ovpn r,\n  /run/network-openvpn-*/ rw,\n  /run/network-openvpn-*/*.ovpn rw,\n  /usr/bin/nmcli PUx,\n  signal (send, receive) peer=network-openvpn-import,\n  signal (receive) peer=labwc-network-control-action-root,\n  include if exists <local/usr.local.libexec.network-openvpn-import>\n}\n\n# The verified image is data, never an executable. Only the packaged parser\n# enters the extraction namespace, and setpriv drops its host credentials.\nprofile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected) {\n  #include <abstractions/wrapper-python>\n\n  capability chown,\n  capability dac_override,\n  capability fowner,\n  /usr/local/libexec/tuta-extract rix,\n  / r,\n  /etc/shadow r,\n  @{PROC}/ r,\n  @{PROC}/[0-9]*/status r,\n  /tmp/ r,\n  /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,\n  /run/lock/ r,\n  /run/lock/tuta-extract/{,**} rwk,\n  /usr/bin/bwrap rCx -> unpack,\n  signal (send, receive) peer=tuta-extract,\n  signal (send, receive) peer=tuta-extract//unpack,\n  signal (receive) peer=apt-repo-local-software-update,\n\n  profile unpack flags=(attach_disconnected, mediate_deleted) {\n    #include <abstractions/base>\n    #include <abstractions/bwrap-common>\n\n    signal (receive) peer=tuta-extract,\n    /usr/bin/{bwrap,setpriv,unsquashfs} rix,\n    /{bin,sbin,lib,lib64,usr}/ r,\n    /etc/ r,\n    /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,\n    /artifact r,\n    /output/{,**} rwkl,\n    @{PROC}/sys/kernel/cap_last_cap r,\n    @{PROC}/[0-9]*/status r,\n  }\n  include if exists <local/usr.local.libexec.tuta-extract>\n}\n",
+          "previous": "  owner /tmp/wtype-?????? rw,\n  include if exists <local/usr.local.bin.labwc-window-switcher>\n}\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/apparmor.d/desktop-wrappers": {
+      "previous_sha256": "90fc4e79202ab39515a151e05eb0076632b1e20594a5315041b6abf8fac963f4",
+      "current_sha256": "e56029b76e4f22bc92397dd2400271c4969019b2c9b19e2310fd318c8462423f",
+      "hunks": [
+        {
+          "current": "  #include <abstractions/wrapper-perl>\n\n  /usr/local/libexec/labwc-network-control-action-root rix,\n  /usr/local/libexec/network-openvpn-import rPx -> network-openvpn-import,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,\n  /usr/local/lib/perl5/site_perl/runtime/ r,\n",
+          "previous": "  #include <abstractions/wrapper-perl>\n\n  /usr/local/libexec/labwc-network-control-action-root rix,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/ r,\n  /usr/local/lib/perl5/site_perl/labwc-network-control-action/** r,\n  /usr/local/lib/perl5/site_perl/runtime/ r,\n"
+        },
+        {
+          "current": "  /usr/local/libexec/apt-repo-local-software-update rix,\n  /usr/local/libexec/apt-repo-local rPx -> apt-repo-local,\n  /usr/local/libexec/discord-distro rPx -> discord-distro,\n  /usr/local/libexec/tuta-extract rPx -> tuta-extract,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/ r,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/** r,\n",
+          "previous": "  /usr/local/libexec/apt-repo-local-software-update rix,\n  /usr/local/libexec/apt-repo-local rPx -> apt-repo-local,\n  /usr/local/libexec/discord-distro rPx -> discord-distro,\n  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/ r,\n  /usr/local/lib/perl5/site_perl/apt-repo-local/** r,\n"
+        },
+        {
+          "current": "  /var/lib/software/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ rw,\n  owner /tmp/apt-repo-local-software-update.*/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ledger-live-linux-x86_64.AppImage pux,\n\n  include if exists <local/usr.local.libexec.apt-repo-local-software-update>\n}\n",
+          "previous": "  /var/lib/software/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/ rw,\n  owner /tmp/apt-repo-local-software-update.*/** rwkl,\n  owner /tmp/apt-repo-local-software-update.*/{ledger-live-linux-x86_64.AppImage,tutanota-desktop-linux.AppImage} pux,\n\n  include if exists <local/usr.local.libexec.apt-repo-local-software-update>\n}\n"
+        },
+        {
+          "current": "  owner /tmp/wtype-?????? rw,\n  include if exists <local/usr.local.bin.labwc-window-switcher>\n}\n\n# Root-authorized OpenVPN input is read only after dropping to the invoking uid.\n# Keep the existing nmcli package transition; never pass it the caller pathname.\nprofile network-openvpn-import /usr/local/libexec/network-openvpn-import flags=(attach_disconnected) {\n  #include <abstractions/wrapper-python>\n\n  capability setuid,\n  capability setgid,\n  /usr/local/libexec/network-openvpn-import rix,\n  / r,\n  /**/ r,\n  owner /**.ovpn r,\n  /run/network-openvpn-*/ rw,\n  /run/network-openvpn-*/*.ovpn rw,\n  /usr/bin/nmcli PUx,\n  signal (send, receive) peer=network-openvpn-import,\n  signal (receive) peer=labwc-network-control-action-root,\n  include if exists <local/usr.local.libexec.network-openvpn-import>\n}\n\n# The verified image is data, never an executable. Only the packaged parser\n# enters the extraction namespace, and setpriv drops its host credentials.\nprofile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected) {\n  #include <abstractions/wrapper-python>\n\n  capability chown,\n  capability dac_override,\n  capability fowner,\n  /usr/local/libexec/tuta-extract rix,\n  / r,\n  /etc/shadow r,\n  @{PROC}/ r,\n  @{PROC}/[0-9]*/status r,\n  /tmp/ r,\n  /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,\n  /run/lock/ r,\n  /run/lock/tuta-extract/{,**} rwk,\n  /usr/bin/bwrap rCx -> unpack,\n  signal (send, receive) peer=tuta-extract,\n  signal (send, receive) peer=tuta-extract//unpack,\n  signal (receive) peer=apt-repo-local-software-update,\n\n  profile unpack flags=(attach_disconnected, mediate_deleted) {\n    #include <abstractions/base>\n    #include <abstractions/bwrap-common>\n\n    signal (receive) peer=tuta-extract,\n    /usr/bin/{bwrap,setpriv,unsquashfs} rix,\n    /{bin,sbin,lib,lib64,usr}/ r,\n    /etc/ r,\n    /tmp/{installer-software,apt-repo-local-software-update.*}/{,**} rwkl,\n    /artifact r,\n    /output/{,**} rwkl,\n    @{PROC}/sys/kernel/cap_last_cap r,\n    @{PROC}/[0-9]*/status r,\n  }\n  include if exists <local/usr.local.libexec.tuta-extract>\n}\n",
+          "previous": "  owner /tmp/wtype-?????? rw,\n  include if exists <local/usr.local.bin.labwc-window-switcher>\n}\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/apparmor.d/opt.tuta-mail.AppRun": {
+      "previous_sha256": "b61d6b6e6c3375f1dc2901c2896b3c3eee7c89831a340b21acd2a7eff746aa6c",
+      "current_sha256": "93da1ad6c1b74dfcf69d60e2b8bec9b45c92166ef2cfdcbf65d82dd200e65667",
+      "hunks": [
+        {
+          "current": "\nprofile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {\n  #include <abstractions/electron-runtime>\n  # Electron constructs nested PID/network namespaces and a safe proc chroot.\n  # These AppArmor permissions do not grant host capabilities to the daily uid.\n  # Do not weaken the shared capability-free runtime for other applications.\n  userns,\n  capability sys_admin,\n  capability sys_chroot,\n  owner @{PROC}/@{pid}/{uid_map,gid_map,setgroups} rw,\n  owner @{PROC}/@{pid}/fdinfo/ r,\n  owner @{PROC}/@{pid}/fdinfo/[0-9]* r,\n  #include <abstractions/pipewire-audio>\n  include if exists <abstractions/user-tmp>\n\n",
+          "previous": "\nprofile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {\n  #include <abstractions/electron-runtime>\n  #include <abstractions/pipewire-audio>\n  include if exists <abstractions/user-tmp>\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/nftables/profiles/baseline.yml.tmpl": {
+      "previous_sha256": "a7438f7b2aaa44691cf32381486cd58ad2a3f69e5091811474d11a61a51398a1",
+      "current_sha256": "7c5fccb4dff6e9e45b2e6b76485bda4e644138c0af5b7a5e4dffd9b4bd16b2c3",
+      "hunks": [
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: false\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: true\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n"
+        },
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: labwc_filter\n  nat_family: ip\n  nat_table: labwc_nat\n  chain_names:\n    input: input\n    forward: forward\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: filter\n  nat_family: ip\n  nat_table: nat\n  chain_names:\n    input: input\n    forward: forward\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/nftables/profiles/baseline.yml": {
+      "previous_sha256": "a7438f7b2aaa44691cf32381486cd58ad2a3f69e5091811474d11a61a51398a1",
+      "current_sha256": "7c5fccb4dff6e9e45b2e6b76485bda4e644138c0af5b7a5e4dffd9b4bd16b2c3",
+      "hunks": [
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: false\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: true\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n"
+        },
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: labwc_filter\n  nat_family: ip\n  nat_table: labwc_nat\n  chain_names:\n    input: input\n    forward: forward\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: filter\n  nat_family: ip\n  nat_table: nat\n  chain_names:\n    input: input\n    forward: forward\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/nftables/profiles/desktop.yml.tmpl": {
+      "previous_sha256": "a51151a357964d56f6ea1ab5041ef40305a185aa3544a55c33502184247a53a0",
+      "current_sha256": "3567c24abad2e01db6ad1258f3684273ffb06c229ba42ba60d2f30f613729fbf",
+      "hunks": [
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: false\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: true\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n"
+        },
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: labwc_filter\n  nat_family: ip\n  nat_table: labwc_nat\n  chain_names:\n    input: input\n    forward: forward\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: filter\n  nat_family: ip\n  nat_table: nat\n  chain_names:\n    input: input\n    forward: forward\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/nftables/profiles/desktop.yml": {
+      "previous_sha256": "a51151a357964d56f6ea1ab5041ef40305a185aa3544a55c33502184247a53a0",
+      "current_sha256": "3567c24abad2e01db6ad1258f3684273ffb06c229ba42ba60d2f30f613729fbf",
+      "hunks": [
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: false\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\n  nftables_conf:\n    shebang: '#!/usr/sbin/nft -f'\n    flush_ruleset: true\n    include_order:\n    - /etc/nftables.d/00-defines.nft\n    - /etc/nftables.d/10-base.nft\n"
+        },
+        {
+          "current": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: labwc_filter\n  nat_family: ip\n  nat_table: labwc_nat\n  chain_names:\n    input: input\n    forward: forward\n",
+          "previous": "    - /etc/nftables.d/90-local.nft\nnftables:\n  family: inet\n  filter_table: filter\n  nat_family: ip\n  nat_table: nat\n  chain_names:\n    input: input\n    forward: forward\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/sudoers.d/account.tmpl": {
+      "previous_sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
+      "current_sha256": "1b9e9e9af1b92c7034acae86ad0671389d1379a7c96808d21c9bcb0d31d20536",
+      "hunks": [
+        {
+          "current": "#\n# The daily account keeps ordinary sudo behind a password. Podman/Docker\n# management is unprivileged via the devops Unix socket; no sudo bridge exists.\n# NOPASSWD uses exact argv or anchored single-unit regexes, never argument globs.\n# An empty argument string is required for the argument-free dmesg command.\n# Supported sudo >= 1.9.10 (Forky); visudo validation is mandatory.\n\nCmnd_Alias READONLY_SYSTEM_INSPECTION = \\\n    /usr/bin/systemctl --no-pager status, \\\n    /usr/bin/systemctl ^--no-pager status [A-Za-z0-9][A-Za-z0-9_.@-]*$, \\\n    /usr/bin/systemctl --no-pager list-units --failed, \\\n    /usr/bin/systemctl --no-pager list-timers --all, \\\n    /usr/bin/journalctl --no-pager -n 200, \\\n    /usr/bin/journalctl ^--no-pager -u [A-Za-z0-9][A-Za-z0-9_.@-]* -n 200$, \\\n    /usr/bin/dmesg \"\", \\\n    /usr/bin/dmesg -T, \\\n    /usr/bin/ss -tulpn\n\n",
+          "previous": "#\n# The daily account keeps ordinary sudo behind a password. Podman/Docker\n# management is unprivileged via the devops Unix socket; no sudo bridge exists.\n# NOPASSWD remains limited to the existing read-only system inspection helpers.\n\nCmnd_Alias READONLY_SYSTEM_INSPECTION = \\\n    /usr/bin/systemctl --no-pager status, \\\n    /usr/bin/systemctl --no-pager status *, \\\n    /usr/bin/systemctl --no-pager list-units --failed, \\\n    /usr/bin/systemctl --no-pager list-timers --all, \\\n    /usr/bin/journalctl --no-pager -n 200, \\\n    /usr/bin/journalctl --no-pager -u * -n 200, \\\n    /usr/bin/dmesg, \\\n    /usr/bin/dmesg -T, \\\n    /usr/bin/ss -tulpn\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/sudoers.d/account": {
+      "previous_sha256": "3714080c0bd18a99bf410cfe101ffe9d4e060414ca4b4c006d6f67086ff0cec9",
+      "current_sha256": "1b9e9e9af1b92c7034acae86ad0671389d1379a7c96808d21c9bcb0d31d20536",
+      "hunks": [
+        {
+          "current": "#\n# The daily account keeps ordinary sudo behind a password. Podman/Docker\n# management is unprivileged via the devops Unix socket; no sudo bridge exists.\n# NOPASSWD uses exact argv or anchored single-unit regexes, never argument globs.\n# An empty argument string is required for the argument-free dmesg command.\n# Supported sudo >= 1.9.10 (Forky); visudo validation is mandatory.\n\nCmnd_Alias READONLY_SYSTEM_INSPECTION = \\\n    /usr/bin/systemctl --no-pager status, \\\n    /usr/bin/systemctl ^--no-pager status [A-Za-z0-9][A-Za-z0-9_.@-]*$, \\\n    /usr/bin/systemctl --no-pager list-units --failed, \\\n    /usr/bin/systemctl --no-pager list-timers --all, \\\n    /usr/bin/journalctl --no-pager -n 200, \\\n    /usr/bin/journalctl ^--no-pager -u [A-Za-z0-9][A-Za-z0-9_.@-]* -n 200$, \\\n    /usr/bin/dmesg \"\", \\\n    /usr/bin/dmesg -T, \\\n    /usr/bin/ss -tulpn\n\n",
+          "previous": "#\n# The daily account keeps ordinary sudo behind a password. Podman/Docker\n# management is unprivileged via the devops Unix socket; no sudo bridge exists.\n# NOPASSWD remains limited to the existing read-only system inspection helpers.\n\nCmnd_Alias READONLY_SYSTEM_INSPECTION = \\\n    /usr/bin/systemctl --no-pager status, \\\n    /usr/bin/systemctl --no-pager status *, \\\n    /usr/bin/systemctl --no-pager list-units --failed, \\\n    /usr/bin/systemctl --no-pager list-timers --all, \\\n    /usr/bin/journalctl --no-pager -n 200, \\\n    /usr/bin/journalctl --no-pager -u * -n 200, \\\n    /usr/bin/dmesg, \\\n    /usr/bin/dmesg -T, \\\n    /usr/bin/ss -tulpn\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/systemd/journald.conf.d/10-storage.conf.tmpl": {
+      "previous_sha256": "d6befec27a1d90e1135ca3813c6bc70aa1d04e9b95a0256c9119dc416ba60c6f",
+      "current_sha256": "ebe6e52dc71b3a9718d67f89b62a08c0895b745d7f7c2303ec50e4f3f96bf7cb",
+      "hunks": [
+        {
+          "current": "[Journal]\nStorage=__SYSTEMD_JOURNAL_STORAGE__\nCompress=yes\n# RAM/volatile logs do not claim durable forward-secure sealing. Disk-backed\n# journals require journal-sealing.service and off-host verification-key export.\nSeal=__SYSTEMD_JOURNAL_SEAL__\nSplitMode=uid\nSyncIntervalSec=5m\n\n",
+          "previous": "[Journal]\nStorage=__SYSTEMD_JOURNAL_STORAGE__\nCompress=yes\nSeal=yes\nSplitMode=uid\nSyncIntervalSec=5m\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/systemd/journald.conf.d/10-storage.conf": {
+      "previous_sha256": "d6befec27a1d90e1135ca3813c6bc70aa1d04e9b95a0256c9119dc416ba60c6f",
+      "current_sha256": "ebe6e52dc71b3a9718d67f89b62a08c0895b745d7f7c2303ec50e4f3f96bf7cb",
+      "hunks": [
+        {
+          "current": "[Journal]\nStorage=__SYSTEMD_JOURNAL_STORAGE__\nCompress=yes\n# RAM/volatile logs do not claim durable forward-secure sealing. Disk-backed\n# journals require journal-sealing.service and off-host verification-key export.\nSeal=__SYSTEMD_JOURNAL_SEAL__\nSplitMode=uid\nSyncIntervalSec=5m\n\n",
+          "previous": "[Journal]\nStorage=__SYSTEMD_JOURNAL_STORAGE__\nCompress=yes\nSeal=yes\nSplitMode=uid\nSyncIntervalSec=5m\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/etc/systemd/system/nftables.service.d/override.conf": {
+      "previous_sha256": "3fb5828c8fd7ebc1004d07bcd5e7a09699462a90bb88d5c7ad402bb35efb27cf",
+      "current_sha256": "561e36ab0577191d9d530d2b6b7ddcfff99805920d54d6bd57ca06580d5c8fdc",
+      "hunks": [
+        {
+          "current": "After=systemd-sysctl.service\n\n[Service]\n# The vendor stop action flushes the entire ruleset. Keep protection installed\n# on stop; restart replaces only our two tables in the normal atomic load.\nExecStop=\nExecStop=/usr/bin/true\nExecStartPre=\nExecStartPre=/usr/sbin/nft -c -f /etc/nftables.conf\nExecReload=\n",
+          "previous": "After=systemd-sysctl.service\n\n[Service]\nExecStartPre=\nExecStartPre=/usr/sbin/nft -c -f /etc/nftables.conf\nExecReload=\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Tuta.pm": {
+      "previous_sha256": "3f6fab440663c564bdd00f6439ce6a6d286c58b289dab4cfb6044088689cc187",
+      "current_sha256": "8d52a437f282fb987df5b5b14ab8ba2e802bc147405a156e0158ac1649e0ed92",
+      "hunks": [
+        {
+          "current": "    my $image = \"$work/tutanota-desktop-linux.AppImage\";\n    copy($stored, $image)\n        or return (1, 'publish');\n    my $extracted = \"$work/squashfs-root\";\n    system('/usr/local/libexec/tuta-extract', $image, $extracted, $hash) == 0\n        or return (1, 'extract');\n    -d $extracted && !-l $extracted && -x \"$extracted/AppRun\"\n        or return (1, 'extract');\n\n",
+          "previous": "    my $image = \"$work/tutanota-desktop-linux.AppImage\";\n    copy($stored, $image)\n        or return (1, 'publish');\n    chmod 0700, $image\n        or return (1, 'extract');\n    system('/usr/bin/env', \"TMPDIR=$work\", $image, '--appimage-extract') == 0\n        or return (1, 'extract');\n    my $extracted = \"$work/squashfs-root\";\n    -d $extracted && !-l $extracted && -x \"$extracted/AppRun\"\n        or return (1, 'extract');\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/labwc-network-control-action/LabwcNetworkControlAction/Root.pm": {
+      "previous_sha256": "cf6310bbdadaf6a4ade9b17272220317ada7b1b896b31c92a53025f5bcbaab9b",
+      "current_sha256": "6561ddcd6daf232e0049b1d7855f9e10ced18de316776e863ad87873ee3c5325",
+      "hunks": [
+        {
+          "current": "    $confirmation eq 'confirmed-network-action'\n        or die(($type eq 'openvpn' ? 'OpenVPN' : 'WireGuard') . \" import confirmation is missing\\n\");\n    if ($type eq 'openvpn') {\n        # Never let the privileged parser reopen a checked caller-owned path.\n        # The shared helper drops uid for the read, validates a bounded snapshot,\n        # and passes only the root-private copy to NetworkManager.\n        $self->_require_networkmanager();\n        $self->command()->run_or_die(\n            'importing the OpenVPN snapshot',\n            '/usr/local/libexec/network-openvpn-import', $invoker_uid, $path,\n        );\n        return 0;\n    }\n    elsif ($type eq 'wireguard') {\n        $path = $self->validator()->wireguard_import_file(path => $path);\n",
+          "previous": "    $confirmation eq 'confirmed-network-action'\n        or die(($type eq 'openvpn' ? 'OpenVPN' : 'WireGuard') . \" import confirmation is missing\\n\");\n    if ($type eq 'openvpn') {\n        $path = $self->validator()->import_file(\n            label     => 'OpenVPN profile',\n            path      => $path,\n            suffix    => '.ovpn',\n            owner_uid => $invoker_uid,\n        );\n    }\n    elsif ($type eq 'wireguard') {\n        $path = $self->validator()->wireguard_import_file(path => $path);\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_firewall/renderer.py": {
+      "previous_sha256": "236159f041b284c57bb5b9081d3154978c6c70350443e2fbb509f4a3e899b6df",
+      "current_sha256": "c6ec0ce311e4bd4a2738ae69a156bcddb76eb9bccff1de304ca922e190182342",
+      "hunks": [
+        {
+          "current": "            f'comment \"firewall-security {rule.rule_id}\"'\n        )\n        if rule.scope == \"any\":\n            lines.append(f\"add rule inet labwc_filter {chain} {suffix}\")\n        elif rule.scope == \"lan\":\n            lines.append(\n                f\"add rule inet labwc_filter {chain} ip {address_direction} {LAN_IPV4} {suffix}\"\n            )\n            lines.append(\n                f\"add rule inet labwc_filter {chain} ip6 {address_direction} {LAN_IPV6} {suffix}\"\n            )\n        else:\n            family = \"ip\" if \":\" not in rule.cidr else \"ip6\"\n            lines.append(\n                f\"add rule inet labwc_filter {chain} {family} {address_direction} \"\n                f\"{rule.cidr} {suffix}\"\n            )\n    if not rules:\n",
+          "previous": "            f'comment \"firewall-security {rule.rule_id}\"'\n        )\n        if rule.scope == \"any\":\n            lines.append(f\"add rule inet filter {chain} {suffix}\")\n        elif rule.scope == \"lan\":\n            lines.append(\n                f\"add rule inet filter {chain} ip {address_direction} {LAN_IPV4} {suffix}\"\n            )\n            lines.append(\n                f\"add rule inet filter {chain} ip6 {address_direction} {LAN_IPV6} {suffix}\"\n            )\n        else:\n            family = \"ip\" if \":\" not in rule.cidr else \"ip6\"\n            lines.append(\n                f\"add rule inet filter {chain} {family} {address_direction} \"\n                f\"{rule.cidr} {suffix}\"\n            )\n    if not rules:\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/generic.py": {
+      "previous_sha256": "d2c357e64f60be4ed5f8b452383c179d6ef1e4c1e38f07af2dc35e837a3d0866",
+      "current_sha256": "23530cd1bfc12be53484eb61eed0efff5e607ad3f037274dbddc34493db02755",
+      "hunks": [
+        {
+          "current": "A separate transient service is used even when launched from a terminal. The\nservice is created by the host user manager, outside the compositor namespace. Native toolkit selection uses environment variables;\nChromium switches are passed only to Electron payloads.\n\nThis is lifecycle/resource ownership, not an application security boundary.\nThe same uid still controls its files, user manager and permitted IPC endpoints;\nuse an explicit AppArmor/bubblewrap policy (or a distinct uid/VM) for confinement.\n\"\"\"\nfrom __future__ import annotations\n\n",
+          "previous": "A separate transient service is used even when launched from a terminal. The\nservice is created by the host user manager, outside the compositor namespace. Native toolkit selection uses environment variables;\nChromium switches are passed only to Electron payloads.\n\"\"\"\nfrom __future__ import annotations\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py.tmpl": {
+      "previous_sha256": "5942bc31e8af8f8a90313154e9a9aaca271bd751cd8793b50589c067c9cae728",
+      "current_sha256": "bc89a7bbc9224bb2edad908e7862da32376d7cb8877537683339ff7820f1f2db",
+      "hunks": [
+        {
+          "current": "        },\n        \"intel_args\": [],\n        \"nvidia_env\": {\n            \"MOZ_ENABLE_WAYLAND\": \"1\",\n            \"MOZ_WEBRENDER\": \"1\",\n        },\n",
+          "previous": "        },\n        \"intel_args\": [],\n        \"nvidia_env\": {\n            \"MOZ_DISABLE_RDD_SANDBOX\": \"1\",\n            \"MOZ_ENABLE_WAYLAND\": \"1\",\n            \"MOZ_WEBRENDER\": \"1\",\n        },\n"
+        },
+        {
+          "current": "        \"config_args\": (),\n        \"dbus_names\": TUTA_DBUS_NAMES,\n        \"dbus_own_names\": TUTA_DBUS_OWN_NAMES,\n        \"inner_sandbox_args\": (\"--enable-sandbox\",),\n        \"persistent_paths\": TUTA_PERSISTENT_PATHS,\n        \"require_session_bus\": True,\n        \"require_system_bus\": True,\n",
+          "previous": "        \"config_args\": (),\n        \"dbus_names\": TUTA_DBUS_NAMES,\n        \"dbus_own_names\": TUTA_DBUS_OWN_NAMES,\n        \"inner_sandbox_args\": (\"--no-sandbox\",),\n        \"persistent_paths\": TUTA_PERSISTENT_PATHS,\n        \"require_session_bus\": True,\n        \"require_system_bus\": True,\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/lib/python3.14/dist-packages/labwc_managed_app/profiles.py": {
+      "previous_sha256": "5942bc31e8af8f8a90313154e9a9aaca271bd751cd8793b50589c067c9cae728",
+      "current_sha256": "bc89a7bbc9224bb2edad908e7862da32376d7cb8877537683339ff7820f1f2db",
+      "hunks": [
+        {
+          "current": "        },\n        \"intel_args\": [],\n        \"nvidia_env\": {\n            \"MOZ_ENABLE_WAYLAND\": \"1\",\n            \"MOZ_WEBRENDER\": \"1\",\n        },\n",
+          "previous": "        },\n        \"intel_args\": [],\n        \"nvidia_env\": {\n            \"MOZ_DISABLE_RDD_SANDBOX\": \"1\",\n            \"MOZ_ENABLE_WAYLAND\": \"1\",\n            \"MOZ_WEBRENDER\": \"1\",\n        },\n"
+        },
+        {
+          "current": "        \"config_args\": (),\n        \"dbus_names\": TUTA_DBUS_NAMES,\n        \"dbus_own_names\": TUTA_DBUS_OWN_NAMES,\n        \"inner_sandbox_args\": (\"--enable-sandbox\",),\n        \"persistent_paths\": TUTA_PERSISTENT_PATHS,\n        \"require_session_bus\": True,\n        \"require_system_bus\": True,\n",
+          "previous": "        \"config_args\": (),\n        \"dbus_names\": TUTA_DBUS_NAMES,\n        \"dbus_own_names\": TUTA_DBUS_OWN_NAMES,\n        \"inner_sandbox_args\": (\"--no-sandbox\",),\n        \"persistent_paths\": TUTA_PERSISTENT_PATHS,\n        \"require_session_bus\": True,\n        \"require_system_bus\": True,\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/libexec/journal-check": {
+      "previous_sha256": "cf6aa29851794ffbd69aa352dc5b42f53ba2ca366b53883f172c7e2e19cf323f",
+      "current_sha256": "0cb17dcefcae28181b8871948dae4da4e2795d0c65fc3a7bd4b5ac4907475edc",
+      "hunks": [
+        {
+          "current": "import sys\n\nMANAGED = Path('/etc/systemd/journald.conf.d/10-storage.conf')\nCRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg', 'Seal')\n\n\nclass PolicyError(ValueError):\n",
+          "previous": "import sys\n\nMANAGED = Path('/etc/systemd/journald.conf.d/10-storage.conf')\nCRITICAL = ('Storage', 'ForwardToSyslog', 'ReadKMsg')\n\n\nclass PolicyError(ValueError):\n"
+        },
+        {
+          "current": "        raise PolicyError('managed Storage must be persistent or volatile')\n    if managed.get('ForwardToSyslog') != 'yes' or managed.get('ReadKMsg') != 'no':\n        raise PolicyError('managed imuxsock/imklog input policy is incomplete')\n    if managed.get('Seal') not in ('yes', 'no'):\n        raise PolicyError('managed Seal must be explicitly yes or no')\n    if managed['Storage'] == 'volatile' and managed['Seal'] != 'no':\n        raise PolicyError('volatile journals must not claim forward-secure sealing')\n    effective = journal_settings(effective_text)\n    for key in CRITICAL:\n        if effective.get(key) != managed[key]:\n",
+          "previous": "        raise PolicyError('managed Storage must be persistent or volatile')\n    if managed.get('ForwardToSyslog') != 'yes' or managed.get('ReadKMsg') != 'no':\n        raise PolicyError('managed imuxsock/imklog input policy is incomplete')\n    effective = journal_settings(effective_text)\n    for key in CRITICAL:\n        if effective.get(key) != managed[key]:\n"
+        }
+      ]
+    },
+    "d-i/forky/hooks/target/usr/local/sbin/nft-policy-generate.py": {
+      "previous_sha256": "4ddfaff4dc1c8b44618d5a5bf0ec6c1e6e691eed03d0a93b5f4b6ae19492be0d",
+      "current_sha256": "5d877b807df7e575b1280f2bb4be731ca004a743d4c650716c59ff2c2e06aa3e",
+      "hunks": [
+        {
+          "current": "    if not shebang.startswith(\"#!\") or \"\\n\" in shebang or \"\\r\" in shebang:\n        raise PolicyError(\"generator.nftables_conf.shebang must be a single line starting with #!\")\n    lines = [shebang, \"\", \"# Managed by nft-policy-generate.py. Do not edit generated fragments directly.\"]\n    if as_bool(conf_settings.get(\"flush_ruleset\"), False):\n        raise PolicyError(\"global ruleset flushing is forbidden; this project owns only labwc_filter/labwc_nat\")\n    nft = as_dict(policy.get(\"nftables\"), \"nftables\")\n    ownership = (nft.get(\"family\", \"inet\"), nft.get(\"filter_table\", \"labwc_filter\"),\n                 nft.get(\"nat_family\", \"ip\"), nft.get(\"nat_table\", \"labwc_nat\"))\n    if ownership != (\"inet\", \"labwc_filter\", \"ip\", \"labwc_nat\"):\n        raise PolicyError(\"managed firewall table identities are fixed; do not claim another owner's tables\")\n    # destroy is idempotent on first boot. Both removals and the complete new\n    # generation are ONE nft transaction. Never enumerate/restore other owners.\n    # Destroy NAT even when disabled now, so a previous managed NAT cannot linger.\n    lines.extend([\"# Reserved exclusively for this installer; other tables are untouched.\",\n                  \"destroy table inet labwc_filter\", \"destroy table ip labwc_nat\"])\n    lines.append(\"\")\n    for key in (\"defines\", \"base\", \"filter\", \"nat\", \"local\"):\n        lines.append(f\"include {quote_nft_string(include_path_for(paths[key]))}\")\n",
+          "previous": "    if not shebang.startswith(\"#!\") or \"\\n\" in shebang or \"\\r\" in shebang:\n        raise PolicyError(\"generator.nftables_conf.shebang must be a single line starting with #!\")\n    lines = [shebang, \"\", \"# Managed by nft-policy-generate.py. Do not edit generated fragments directly.\"]\n    if as_bool(conf_settings.get(\"flush_ruleset\"), True):\n        lines.append(\"flush ruleset\")\n    lines.append(\"\")\n    for key in (\"defines\", \"base\", \"filter\", \"nat\", \"local\"):\n        lines.append(f\"include {quote_nft_string(include_path_for(paths[key]))}\")\n"
+        },
+        {
+          "current": "    nft = as_dict(policy.get(\"nftables\"), \"nftables\")\n    policies = as_dict(policy.get(\"policies\"), \"policies\")\n    family = validate_nft_family(nft.get(\"family\", \"inet\"), \"nftables.family\", NFT_FAMILIES)\n    table = validate_nft_identifier(nft.get(\"filter_table\", \"labwc_filter\"), \"nftables.filter_table\")\n    chains = as_dict(nft.get(\"chain_names\"), \"nftables.chain_names\")\n    input_chain = validate_nft_identifier(chains.get(\"input\", \"input\"), \"nftables.chain_names.input\")\n    forward_chain = validate_nft_identifier(chains.get(\"forward\", \"forward\"), \"nftables.chain_names.forward\")\n",
+          "previous": "    nft = as_dict(policy.get(\"nftables\"), \"nftables\")\n    policies = as_dict(policy.get(\"policies\"), \"policies\")\n    family = validate_nft_family(nft.get(\"family\", \"inet\"), \"nftables.family\", NFT_FAMILIES)\n    table = validate_nft_identifier(nft.get(\"filter_table\", \"filter\"), \"nftables.filter_table\")\n    chains = as_dict(nft.get(\"chain_names\"), \"nftables.chain_names\")\n    input_chain = validate_nft_identifier(chains.get(\"input\", \"input\"), \"nftables.chain_names.input\")\n    forward_chain = validate_nft_identifier(chains.get(\"forward\", \"forward\"), \"nftables.chain_names.forward\")\n"
+        },
+        {
+          "current": "    nft = as_dict(policy.get(\"nftables\"), \"nftables\")\n    return (\n        validate_nft_family(nft.get(\"family\", \"inet\"), \"nftables.family\", NFT_FAMILIES),\n        validate_nft_identifier(nft.get(\"filter_table\", \"labwc_filter\"), \"nftables.filter_table\"),\n    )\n\n\n",
+          "previous": "    nft = as_dict(policy.get(\"nftables\"), \"nftables\")\n    return (\n        validate_nft_family(nft.get(\"family\", \"inet\"), \"nftables.family\", NFT_FAMILIES),\n        validate_nft_identifier(nft.get(\"filter_table\", \"filter\"), \"nftables.filter_table\"),\n    )\n\n\n"
+        },
+        {
+          "current": "    nat_required = enabled or masq_enabled\n\n    family = validate_nft_family(nft.get(\"nat_family\", \"ip\"), \"nftables.nat_family\", NFT_NAT_FAMILIES)\n    table = validate_nft_identifier(nft.get(\"nat_table\", \"labwc_nat\"), \"nftables.nat_table\")\n    lines = [\"# Managed by nft-policy-generate.py.\", \"# NAT rules\", \"\"]\n    if not nat_required:\n        if container_wants_nat:\n",
+          "previous": "    nat_required = enabled or masq_enabled\n\n    family = validate_nft_family(nft.get(\"nat_family\", \"ip\"), \"nftables.nat_family\", NFT_NAT_FAMILIES)\n    table = validate_nft_identifier(nft.get(\"nat_table\", \"nat\"), \"nftables.nat_table\")\n    lines = [\"# Managed by nft-policy-generate.py.\", \"# NAT rules\", \"\"]\n    if not nat_required:\n        if container_wants_nat:\n"
+        },
+        {
+          "current": "        return \"\"\"# Managed by nft-policy-generate.py.\n# Raw local nft is permitted by profile, but this generator does not emit raw YAML snippets.\ninclude \"/etc/nftables.d/95-firewall-security.nft\"\ninclude \"/etc/nftables.local.d/*.nft\"\n\"\"\"\n    return \"\"\"# Managed by nft-policy-generate.py.\n# Local override fragment.\n",
+          "previous": "        return \"\"\"# Managed by nft-policy-generate.py.\n# Raw local nft is permitted by profile, but this generator does not emit raw YAML snippets.\ninclude \"/etc/nftables.d/95-firewall-security.nft\"\n\"\"\"\n    return \"\"\"# Managed by nft-policy-generate.py.\n# Local override fragment.\n"
+        },
+        {
+          "current": "# controlled extension points. The Firewall Security launcher owns the included\n# persistent fragment; do not add hand-written rules to this generated file.\ninclude \"/etc/nftables.d/95-firewall-security.nft\"\ninclude \"/etc/nftables.local.d/*.nft\"\n\"\"\"\n\n\n",
+          "previous": "# controlled extension points. The Firewall Security launcher owns the included\n# persistent fragment; do not add hand-written rules to this generated file.\ninclude \"/etc/nftables.d/95-firewall-security.nft\"\n\"\"\"\n\n\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/installer/layout.env": {
+      "previous_sha256": "d84cec43a06d89d941c5c7249bfa0ee02e83dff019e5ba52cb6b717f5fea4f02",
+      "current_sha256": "0cd5b7a45f281c291331a332f86c2defe837aea1d8289e39389cef3bec39462d",
+      "hunks": [
+        {
+          "current": "MNT_VAR_LOG_JOURNAL_OPTS=\"${MNT_EXT_NOATIME},${MNT_SEC_NODEV_NOSUID_NOEXEC},x-systemd.requires-mounts-for=${DIR_VAR_LOG}\"\nMNT_TMP_BASE_OPTS=\"rw,nodev,nosuid,mode=1777,huge=within_size\"\nMNT_DEV_SHM_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=1777,huge=within_size\"\nMNT_VAR_SPOOL_RSYSLOG_TMPFS_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=0700,huge=within_size\"\nMNT_VAR_LOG_TMPFS_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=0755\"\n\n# debconf executes package config helpers from /var/cache/debconf/tmp.ci during\n",
+          "previous": "MNT_VAR_LOG_JOURNAL_OPTS=\"${MNT_EXT_NOATIME},${MNT_SEC_NODEV_NOSUID_NOEXEC},x-systemd.requires-mounts-for=${DIR_VAR_LOG}\"\nMNT_TMP_BASE_OPTS=\"rw,nodev,nosuid,mode=1777,huge=within_size\"\nMNT_DEV_SHM_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=1777,huge=within_size\"\nMNT_VAR_LOG_TMPFS_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=0755\"\n\n# debconf executes package config helpers from /var/cache/debconf/tmp.ci during\n"
+        },
+        {
+          "current": "MNT_DATA_RUN_TMPFS_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=0755\"\nMNT_TMP_OPTS=\"${MNT_TMP_BASE_OPTS},size=${SIZE_TMPFS_TMP_PCT}%\"\nMNT_DEV_SHM_OPTS=\"${MNT_DEV_SHM_BASE_OPTS},size=${SIZE_TMPFS_DEV_SHM_PCT}%\"\n# One profile input; retain the requested spelling only as a derived alias.\nSIZE_TMPFS_RSYSLOG_SPOOL_MIB=\"${SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB}\"\nMNT_VAR_SPOOL_RSYSLOG_TMPFS_OPTS=\"${MNT_VAR_SPOOL_RSYSLOG_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_RSYSLOG_SPOOL_MIB}M,x-systemd.requires-mounts-for=${DIR_VAR_SPOOL}\"\nMNT_VAR_LOG_TMPFS_OPTS=\"${MNT_VAR_LOG_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_VAR_LOG_PCT}%\"\nMNT_VAR_CACHE_TMPFS_OPTS=\"${MNT_VAR_CACHE_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_VAR_CACHE_PCT}%\"\nMNT_APT_LISTS_TMPFS_OPTS=\"${MNT_APT_LISTS_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_APT_LISTS_PCT}%\"\n",
+          "previous": "MNT_DATA_RUN_TMPFS_BASE_OPTS=\"rw,${MNT_SEC_NODEV_NOSUID_NOEXEC},mode=0755\"\nMNT_TMP_OPTS=\"${MNT_TMP_BASE_OPTS},size=${SIZE_TMPFS_TMP_PCT}%\"\nMNT_DEV_SHM_OPTS=\"${MNT_DEV_SHM_BASE_OPTS},size=${SIZE_TMPFS_DEV_SHM_PCT}%\"\nMNT_VAR_LOG_TMPFS_OPTS=\"${MNT_VAR_LOG_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_VAR_LOG_PCT}%\"\nMNT_VAR_CACHE_TMPFS_OPTS=\"${MNT_VAR_CACHE_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_VAR_CACHE_PCT}%\"\nMNT_APT_LISTS_TMPFS_OPTS=\"${MNT_APT_LISTS_TMPFS_BASE_OPTS},size=${SIZE_TMPFS_APT_LISTS_PCT}%\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/installer/runtime.env": {
+      "previous_sha256": "b044f3847e120dc53825014adbdbe971acad206def6239dddc11824f12abcf7d",
+      "current_sha256": "28d3e08f4f3d38615cd474e76189b39d1f396f1985dfcb2c4db524e8f4ba6f14",
+      "hunks": [
+        {
+          "current": "DIR_VAR_CACHE=\"${DIR_VAR}/cache\"\nDIR_VAR_TMP=\"${DIR_VAR}/tmp\"\nDIR_VAR_SPOOL=\"${DIR_VAR}/spool\"\nDIR_VAR_SPOOL_RSYSLOG=\"${DIR_VAR_SPOOL}/rsyslog\"\nDIR_VAR_LOG_JOURNAL=\"${DIR_VAR_LOG}/journal\"\nDIR_VAR_LIB=\"${DIR_VAR}/lib\"\nDIR_VAR_LIB_SHSIGNED=\"${DIR_VAR_LIB}/shim-signed\"\n",
+          "previous": "DIR_VAR_CACHE=\"${DIR_VAR}/cache\"\nDIR_VAR_TMP=\"${DIR_VAR}/tmp\"\nDIR_VAR_SPOOL=\"${DIR_VAR}/spool\"\nDIR_VAR_LOG_JOURNAL=\"${DIR_VAR_LOG}/journal\"\nDIR_VAR_LIB=\"${DIR_VAR}/lib\"\nDIR_VAR_LIB_SHSIGNED=\"${DIR_VAR_LIB}/shim-signed\"\n"
+        },
+        {
+          "current": "FILE_TMPFS_PRE_CLEAN_SERVICE=\"${DIR_SYSTEMD_SYSTEM}/tmpfs-pre-clean.service\"\nFILE_TMPFS_PRE_CLEAN_TMP_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/tmp.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_DEV_SHM_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/dev-shm.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_VAR_SPOOL_RSYSLOG_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-spool-rsyslog.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_VAR_LOG_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-log.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_VAR_CACHE_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-cache.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_APT_LISTS_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-lib-apt-lists.mount.d/override.conf\"\n",
+          "previous": "FILE_TMPFS_PRE_CLEAN_SERVICE=\"${DIR_SYSTEMD_SYSTEM}/tmpfs-pre-clean.service\"\nFILE_TMPFS_PRE_CLEAN_TMP_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/tmp.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_DEV_SHM_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/dev-shm.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_VAR_LOG_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-log.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_VAR_CACHE_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-cache.mount.d/override.conf\"\nFILE_TMPFS_PRE_CLEAN_APT_LISTS_MOUNT_OVERRIDE=\"${DIR_SYSTEMD_SYSTEM}/var-lib-apt-lists.mount.d/override.conf\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-duo.env": {
+      "previous_sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067",
+      "current_sha256": "79e878ad8aae06680da1ca1b0c18d179390f6a23280e3f2775474dcb6cf486da",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-flex-duo.env": {
+      "previous_sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785",
+      "current_sha256": "a72345b46ad2b970f2db07bb0fcc603628222f75091212c00e5627f6c8ab1173",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"15\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"15\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-flex.env": {
+      "previous_sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa",
+      "current_sha256": "f0998dcb0447536d181379cc31188dd48eab89381c16b6336a6109813c6ac557",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"220\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-p15s-duo.env": {
+      "previous_sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa",
+      "current_sha256": "c6128dabd48bbac03ff9071475784f4d018432dde6e8b28a8ae111ecc9bd7811",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de-p15s.env": {
+      "previous_sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188",
+      "current_sha256": "e0b56b35f93e07ebd00816b1a6729dcf078bbf0e5426f915dc87861b7a34c063",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/btrfs-de.env": {
+      "previous_sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3",
+      "current_sha256": "792ab1495887e8f188d3c9abae20140d58eaf0d8987d8f1c356a183158310c78",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"true\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"10\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"60\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-hp14-duo.env": {
+      "previous_sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9",
+      "current_sha256": "d19c7aaadda19ef4e5090d3fe1befd82adc3120f16ca1a2cb7481cbeb41785a6",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-hp14.env": {
+      "previous_sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9",
+      "current_sha256": "33169856796ba24211f980deea6e1bb681d613aa4d74cda3523d2d334020b6c0",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-x360-duo.env": {
+      "previous_sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d",
+      "current_sha256": "9791673fb1e21c47269b3ac649c42d28d66bb37f1967afeea07cf008e178355d",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n"
+        }
+      ]
+    },
+    "d-i/forky/hosts/profiles/f2fs-de-x360.env": {
+      "previous_sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5",
+      "current_sha256": "192bcf5862bdc749117818716bc3f2acafa883710e430e2db93e46809436992d",
+      "hunks": [
+        {
+          "current": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_SPOOL_RSYSLOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n",
+          "previous": "SYNCTHING_TCP_PORT=\"35000\"\n\nTMPFS_VAR_LOG=\"true\"\nTMPFS_VAR_CACHE=\"true\"\nTMPFS_VAR_LIB_APT_LISTS=\"false\"\nTMPFS_DEV_SHM=\"true\"\n"
+        },
+        {
+          "current": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\nSIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=\"256\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n",
+          "previous": "SIZE_TMPFS_APT_LISTS_PCT=\"5\"\nSIZE_TMPFS_COREDUMP_PCT=\"5\"\nSIZE_TMPFS_DATA_RUN_MIB=\"100\"\n\n# Logical ZRAM scales with detected usable RAM and is capped, not preallocated.\nZRAM_PCT=\"180\"\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/common/lib.sh": {
+      "previous_sha256": "99ed8c8b8cf7c90a5cc60cc2c8a488664022ab054e6acc5412d1055308bc1252",
+      "current_sha256": "f9eab5b7f3c92f236ae3fdb95fc360000fd3679d01ef3b5c2a10499ab38c83e9",
+      "hunks": [
+        {
+          "current": "#!/bin/sh\n# Generated from src/installer/manifest.json; edit canonical modules, then run tools/build.py.\n\n# BEGIN EMBEDDED DEBCONF\n#!/bin/sh\n",
+          "previous": "#!/bin/sh\n\n# BEGIN EMBEDDED DEBCONF\n#!/bin/sh\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/desktop/components.sh.tmpl": {
+      "previous_sha256": "809f02e6a2206b215470b56e4f216b80ddcf9f97cd4998d09bbe516e704a0e84",
+      "current_sha256": "02591e4c0863717b45d4f90f7e3a3cd41dc47da164df62fda143244af47d6e7a",
+      "hunks": [
+        {
+          "current": "#!/bin/sh\n# Generated from src/installer/manifest.json; edit canonical modules, then run tools/build.py.\n# Labwc target asset staging and service enablement helpers.\n\ndesktop_normalize_system_perl_module_parents() {\n",
+          "previous": "#!/bin/sh\n# Labwc target asset staging and service enablement helpers.\n\ndesktop_normalize_system_perl_module_parents() {\n"
+        },
+        {
+          "current": "}\n\ndesktop_stage_labwc_network_control_action_perl_modules() {\n  desktop_stage_role_asset \\\n    \"usr/local/libexec/network-openvpn-import\" \\\n    \"/usr/local/libexec/network-openvpn-import\" \\\n    0755\n  desktop_labwc_network_control_action_perl_modules |\n    while IFS= read -r labwc_network_control_action_module; do\n      [ -n \"$labwc_network_control_action_module\" ] || continue\n",
+          "previous": "}\n\ndesktop_stage_labwc_network_control_action_perl_modules() {\n  desktop_labwc_network_control_action_perl_modules |\n    while IFS= read -r labwc_network_control_action_module; do\n      [ -n \"$labwc_network_control_action_module\" ] || continue\n"
+        },
+        {
+          "current": "    /usr/local/libexec/journal-check \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-sealing)\" \\\n    /usr/local/libexec/journal-sealing \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/journal-sealing.service)\" \\\n    /etc/systemd/system/journal-sealing.service \\\n    0644\n  stage_target_systemd_unit_enabled journal-sealing.service system\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)\" \\\n    /usr/local/libexec/log-layout \\\n    0755\n",
+          "previous": "    /usr/local/libexec/journal-check \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)\" \\\n    /usr/local/libexec/log-layout \\\n    0755\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/desktop/components.sh": {
+      "previous_sha256": "809f02e6a2206b215470b56e4f216b80ddcf9f97cd4998d09bbe516e704a0e84",
+      "current_sha256": "02591e4c0863717b45d4f90f7e3a3cd41dc47da164df62fda143244af47d6e7a",
+      "hunks": [
+        {
+          "current": "#!/bin/sh\n# Generated from src/installer/manifest.json; edit canonical modules, then run tools/build.py.\n# Labwc target asset staging and service enablement helpers.\n\ndesktop_normalize_system_perl_module_parents() {\n",
+          "previous": "#!/bin/sh\n# Labwc target asset staging and service enablement helpers.\n\ndesktop_normalize_system_perl_module_parents() {\n"
+        },
+        {
+          "current": "}\n\ndesktop_stage_labwc_network_control_action_perl_modules() {\n  desktop_stage_role_asset \\\n    \"usr/local/libexec/network-openvpn-import\" \\\n    \"/usr/local/libexec/network-openvpn-import\" \\\n    0755\n  desktop_labwc_network_control_action_perl_modules |\n    while IFS= read -r labwc_network_control_action_module; do\n      [ -n \"$labwc_network_control_action_module\" ] || continue\n",
+          "previous": "}\n\ndesktop_stage_labwc_network_control_action_perl_modules() {\n  desktop_labwc_network_control_action_perl_modules |\n    while IFS= read -r labwc_network_control_action_module; do\n      [ -n \"$labwc_network_control_action_module\" ] || continue\n"
+        },
+        {
+          "current": "    /usr/local/libexec/journal-check \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/journal-sealing)\" \\\n    /usr/local/libexec/journal-sealing \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/journal-sealing.service)\" \\\n    /etc/systemd/system/journal-sealing.service \\\n    0644\n  stage_target_systemd_unit_enabled journal-sealing.service system\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)\" \\\n    /usr/local/libexec/log-layout \\\n    0755\n",
+          "previous": "    /usr/local/libexec/journal-check \\\n    0755\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/log-layout)\" \\\n    /usr/local/libexec/log-layout \\\n    0755\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl": {
+      "previous_sha256": "12e0500e7a124ceb55846cc5735736f748c244b572953e6a0d878c6b13c1e75a",
+      "current_sha256": "64a955a1686be7b6a621a686271aa5995f22286b1eead30f2be44476c3a7db61",
+      "hunks": [
+        {
+          "current": "\nprofile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n  /usr/local/libexec/tpm2-policy-check rix,\n  /usr/bin/python3{,.[0-9]*} rix,\n  /var/lib/tpm2-enrollment/.enrollment-* rwk,\n  /var/lib/tpm2-enrollment/boot-artifacts-cleaned rwk,\n  /proc/sys/kernel/random/boot_id r,\n\n\n  capability dac_override,\n  unix,\n",
+          "previous": "\nprofile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n\n  capability dac_override,\n  unix,\n"
+        },
+        {
+          "current": "\n  include if exists <local/usr.local.bin.tpm2-enroll-launch>\n}\n",
+          "previous": "\n  include if exists <local/usr.local.bin.tpm2-enroll-launch>\n}\n\nprofile tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {\n  #include <abstractions/wrapper-terminal>\n  #include <abstractions/wrapper-base>\n\n  /usr/local/sbin/tpm2-enroll.sh rix,\n  /usr/bin/{awk,chmod,cmp,date,dirname,flock,gawk,grep,id,install,mawk,mktemp,nawk,readlink,rm,stty} rix,\n  /usr/bin/{mokutil,systemctl,systemd-cryptenroll} PUx,\n  /usr/{bin,sbin}/cryptsetup PUx,\n  /dev/tty rw,\n  /dev/disk/by-uuid/ r,\n  /dev/disk/by-uuid/* r,\n  /dev/mapper/ r,\n  /dev/mapper/* r,\n  /dev/{mmcblk[0-9]*p[0-9]*,nvme[0-9]*n[0-9]*p[0-9]*,sd[a-z][0-9]*,vd[a-z][0-9]*} r,\n  /etc/cryptsetup-keys.d/crypthome.key r,\n  /run/lock/tpm2-enroll.lock rwk,\n  owner /run/tpm2-enroll.*/ rw,\n  owner /run/tpm2-enroll.*/** rwkl,\n  /var/lib/tpm2-enrollment/ rw,\n  /var/lib/tpm2-enrollment/config.env r,\n  /var/lib/tpm2-enrollment/install-passphrase rw,\n  /var/lib/tpm2-enrollment/tpm2-enroll.complete rwk,\n  /var/lib/tpm2-enrollment/tpm2-enroll.pending rw,\n\n  include if exists <local/usr.local.sbin.tpm2-enroll.sh>\n}\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/firstboot/assets/etc/apparmor.d/firstboot": {
+      "previous_sha256": "12e0500e7a124ceb55846cc5735736f748c244b572953e6a0d878c6b13c1e75a",
+      "current_sha256": "64a955a1686be7b6a621a686271aa5995f22286b1eead30f2be44476c3a7db61",
+      "hunks": [
+        {
+          "current": "\nprofile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n  /usr/local/libexec/tpm2-policy-check rix,\n  /usr/bin/python3{,.[0-9]*} rix,\n  /var/lib/tpm2-enrollment/.enrollment-* rwk,\n  /var/lib/tpm2-enrollment/boot-artifacts-cleaned rwk,\n  /proc/sys/kernel/random/boot_id r,\n\n\n  capability dac_override,\n  unix,\n",
+          "previous": "\nprofile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {\n  #include <abstractions/wrapper-base>\n\n  capability dac_override,\n  unix,\n"
+        },
+        {
+          "current": "\n  include if exists <local/usr.local.bin.tpm2-enroll-launch>\n}\n",
+          "previous": "\n  include if exists <local/usr.local.bin.tpm2-enroll-launch>\n}\n\nprofile tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {\n  #include <abstractions/wrapper-terminal>\n  #include <abstractions/wrapper-base>\n\n  /usr/local/sbin/tpm2-enroll.sh rix,\n  /usr/bin/{awk,chmod,cmp,date,dirname,flock,gawk,grep,id,install,mawk,mktemp,nawk,readlink,rm,stty} rix,\n  /usr/bin/{mokutil,systemctl,systemd-cryptenroll} PUx,\n  /usr/{bin,sbin}/cryptsetup PUx,\n  /dev/tty rw,\n  /dev/disk/by-uuid/ r,\n  /dev/disk/by-uuid/* r,\n  /dev/mapper/ r,\n  /dev/mapper/* r,\n  /dev/{mmcblk[0-9]*p[0-9]*,nvme[0-9]*n[0-9]*p[0-9]*,sd[a-z][0-9]*,vd[a-z][0-9]*} r,\n  /etc/cryptsetup-keys.d/crypthome.key r,\n  /run/lock/tpm2-enroll.lock rwk,\n  owner /run/tpm2-enroll.*/ rw,\n  owner /run/tpm2-enroll.*/** rwkl,\n  /var/lib/tpm2-enrollment/ rw,\n  /var/lib/tpm2-enrollment/config.env r,\n  /var/lib/tpm2-enrollment/install-passphrase rw,\n  /var/lib/tpm2-enrollment/tpm2-enroll.complete rwk,\n  /var/lib/tpm2-enrollment/tpm2-enroll.pending rw,\n\n  include if exists <local/usr.local.sbin.tpm2-enroll.sh>\n}\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/firstboot/assets/usr/local/sbin/tpm2-enroll.sh": {
+      "previous_sha256": "ba746050ab0c47c3fbb7a07c23981349fa230f5a127c773c071d547197caf94c",
+      "current_sha256": "a0de6735090cec378e2a7d171cb63821b5548a6368ccd71e5e2dcb27701f4a09",
+      "hunks": [
+        {
+          "current": "export PATH\numask 077\n\nCONFIG_FILE=/var/lib/tpm2-enrollment/config.env\nSTATE_DIR=/var/lib/tpm2-enrollment\nPENDING_FILE=${STATE_DIR}/tpm2-enroll.pending\nCOMPLETE_FILE=${STATE_DIR}/tpm2-enroll.complete\nLOCK_FILE=${STATE_DIR}/enrollment.lock\nPOLICY_CHECK=/usr/local/libexec/tpm2-policy-check\nTTY_STATE=\nSECRET_DIR=\nSECRET_VALUE=\n",
+          "previous": "export PATH\numask 077\n\nCONFIG_FILE=${TPM2_ENROLL_CONFIG_FILE:-/var/lib/tpm2-enrollment/config.env}\nSTATE_DIR=${TPM2_ENROLL_STATE_DIR:-/var/lib/tpm2-enrollment}\nPENDING_FILE=${TPM2_ENROLL_PENDING_FILE:-${STATE_DIR}/tpm2-enroll.pending}\nCOMPLETE_FILE=${TPM2_ENROLL_COMPLETE_FILE:-${STATE_DIR}/tpm2-enroll.complete}\nLOCK_FILE=${TPM2_ENROLL_LOCK_FILE:-/run/lock/tpm2-enroll.lock}\nTTY_STATE=\nSECRET_DIR=\nSECRET_VALUE=\n"
+        },
+        {
+          "current": "      --unlock-key-file=\"$fallback_key\" \\\n      --tpm2-device=auto \\\n      --tpm2-with-pin=yes \\\n      --tpm2-pcrs=7:sha256+8:sha256+9:sha256+14:sha256 \\\n      \"$device\"\n\n  systemd-cryptenroll \"$device\" 2>/dev/null | grep -qi tpm2 ||\n",
+          "previous": "      --unlock-key-file=\"$fallback_key\" \\\n      --tpm2-device=auto \\\n      --tpm2-with-pin=yes \\\n      --tpm2-pcrs=\"$pcrs\" \\\n      \"$device\"\n\n  systemd-cryptenroll \"$device\" 2>/dev/null | grep -qi tpm2 ||\n"
+        },
+        {
+          "current": "verify_tpm2_pin_unlock() {\n  device=$1\n  credential_dir=$2\n  # This opens no mapping, creates no replacement token and permits no recovery\n  # fallback. Compare LUKS metadata before/after the exact final token test.\n  \"$POLICY_CHECK\" --verify \"$device\" <\"${credential_dir}/cryptenroll.tpm2-pin\" ||\n    fatal \"read-only TPM2+PIN verification failed for $device\"\n}\n\nremove_install_passphrase_slots() {\n",
+          "previous": "verify_tpm2_pin_unlock() {\n  device=$1\n  credential_dir=$2\n  pcrs=$3\n\n  CREDENTIALS_DIRECTORY=\"$credential_dir\" \\\n    systemd-cryptenroll \\\n      --wipe-slot=tpm2 \\\n      --unlock-tpm2-device=auto \\\n      --tpm2-device=auto \\\n      --tpm2-with-pin=yes \\\n      --tpm2-pcrs=\"$pcrs\" \\\n      \"$device\"\n\n  systemd-cryptenroll \"$device\" 2>/dev/null | grep -qi tpm2 ||\n    fatal \"TPM2 token verification rotation failed for $device\"\n}\n\nremove_install_passphrase_slots() {\n"
+        },
+        {
+          "current": "[ \"$(id -u)\" -eq 0 ] || fatal \"run this helper through sudo\"\n[ -r \"$CONFIG_FILE\" ] || fatal \"missing crypto configuration: $CONFIG_FILE\"\n[ -r /dev/tty ] || fatal \"an interactive terminal is required\"\n\"$POLICY_CHECK\" --check-config || fatal \"unsafe crypto configuration metadata or policy\"\ncase \"${1:-}\" in\n  '') [ \"$#\" -eq 0 ] || fatal \"unexpected argument\" ;;\n  --reenroll) [ \"$#\" -eq 1 ] || fatal \"unexpected argument\" ;;\n  *) fatal \"usage: tpm2-enroll.sh [--reenroll]\" ;;\nesac\n\nrequire_command awk\nrequire_command cmp\n",
+          "previous": "[ \"$(id -u)\" -eq 0 ] || fatal \"run this helper through sudo\"\n[ -r \"$CONFIG_FILE\" ] || fatal \"missing crypto configuration: $CONFIG_FILE\"\n[ -r /dev/tty ] || fatal \"an interactive terminal is required\"\n[ -e \"$PENDING_FILE\" ] || {\n  [ -e \"$COMPLETE_FILE\" ] && info \"TPM2 enrollment is already complete\"\n  exit 0\n}\n\nrequire_command awk\nrequire_command cmp\n"
+        },
+        {
+          "current": "require_command stty\nrequire_command systemd-cryptenroll\n\n# State is root-owned and not writable by the desktop user. Do not create a\n# predictable lock beneath a world-writable /run/lock directory.\n[ ! -L \"$LOCK_FILE\" ] || fatal \"unsafe enrollment lock\"\nexec 9>\"$LOCK_FILE\"\nflock -n 9 || fatal \"another TPM2 enrollment process is already running\"\nif [ \"${1:-}\" = --reenroll ]; then\n  \"$POLICY_CHECK\" --begin || fatal \"cannot start a new enrollment generation\"\nfi\nenrollment_phase=$(\"$POLICY_CHECK\" --phase) || fatal \"invalid enrollment state\"\ncase \"$enrollment_phase\" in\n  complete) info \"enrollment is complete; use --reenroll after a boot-policy update\"; exit 0 ;;\n  reboot) info \"enrollment is verified in this boot; reboot and run this helper again to confirm it\"; exit 0 ;;\n  pending|confirm) ;;\n  *) fatal \"invalid enrollment phase\" ;;\nesac\n\n# shellcheck disable=SC1090\n. \"$CONFIG_FILE\"\n",
+          "previous": "require_command stty\nrequire_command systemd-cryptenroll\n\ninstall -d -m 0755 \"$(dirname \"$LOCK_FILE\")\"\nexec 9>\"$LOCK_FILE\"\nflock -n 9 || fatal \"another TPM2 enrollment process is already running\"\n\n# shellcheck disable=SC1090\n. \"$CONFIG_FILE\"\n"
+        },
+        {
+          "current": "    fatal \"INSTALL_PASSPHRASE_FILE and HOME_KEY_FILE contain unsupported path syntax\"\n    ;;\nesac\n[ \"$TPM2_FINAL_PCRS\" = 7+8+9+14 ] || fatal \"TPM2_FINAL_PCRS must be 7+8+9+14\"\nif [ -n \"${SUDO_USER:-}\" ] && [ \"$SUDO_USER\" != \"$PRIMARY_USER\" ]; then\n  fatal \"TPM2 enrollment must be run by ${PRIMARY_USER}, not ${SUDO_USER}\"\nfi\n",
+          "previous": "    fatal \"INSTALL_PASSPHRASE_FILE and HOME_KEY_FILE contain unsupported path syntax\"\n    ;;\nesac\n[ \"$TPM2_FINAL_PCRS\" = 7+14 ] || fatal \"TPM2_FINAL_PCRS must be 7+14\"\nif [ -n \"${SUDO_USER:-}\" ] && [ \"$SUDO_USER\" != \"$PRIMARY_USER\" ]; then\n  fatal \"TPM2 enrollment must be run by ${PRIMARY_USER}, not ${SUDO_USER}\"\nfi\n"
+        },
+        {
+          "current": "mokutil --sb-state 2>/dev/null | grep -q '^SecureBoot enabled' ||\n  fatal \"UEFI Secure Boot must be enabled before final TPM2 enrollment\"\n\n\"$POLICY_CHECK\" --boot-evidence || fatal \"measured-boot evidence is incomplete; enrollment remains pending\"\n\"$POLICY_CHECK\" --initramfs || fatal \"initramfs secret-exclusion verification failed\"\n\ntrap cleanup EXIT HUP INT TERM\n\nif [ \"$enrollment_phase\" = confirm ]; then\n  info \"Confirming the existing enrollment after reboot; no token or keyslot will be changed\"\nfi\nread_secret 'Recovery passphrase (existing when confirming; otherwise a new minimum-20-character secret): '\nfallback_passphrase=$SECRET_VALUE\nSECRET_VALUE=\n[ \"${#fallback_passphrase}\" -ge 20 ] || fatal \"recovery passphrase must be at least 20 characters\"\n",
+          "previous": "mokutil --sb-state 2>/dev/null | grep -q '^SecureBoot enabled' ||\n  fatal \"UEFI Secure Boot must be enabled before final TPM2 enrollment\"\n\ntrap cleanup EXIT HUP INT TERM\n\nread_secret 'New recovery passphrase (minimum 20 characters; use 6+ random words or a password manager): '\nfallback_passphrase=$SECRET_VALUE\nSECRET_VALUE=\n[ \"${#fallback_passphrase}\" -ge 20 ] || fatal \"recovery passphrase must be at least 20 characters\"\n"
+        },
+        {
+          "current": "SECRET_VALUE=\n[ \"$fallback_passphrase\" = \"$fallback_confirm\" ] || fatal \"recovery passphrases do not match\"\n\nread_secret 'TPM2 PIN (existing when confirming; otherwise new; 6-32 digits): '\ntpm_pin=$SECRET_VALUE\nSECRET_VALUE=\ncase \"$tpm_pin\" in\n",
+          "previous": "SECRET_VALUE=\n[ \"$fallback_passphrase\" = \"$fallback_confirm\" ] || fatal \"recovery passphrases do not match\"\n\nread_secret 'New TPM2 PIN (6-32 digits): '\ntpm_pin=$SECRET_VALUE\nSECRET_VALUE=\ncase \"$tpm_pin\" in\n"
+        },
+        {
+          "current": "  fatal \"recovery passphrase must differ from the temporary installer passphrase\"\nfi\n\nif [ \"$enrollment_phase\" = pending ]; then\n  for device in \"$root_device\" \"$home_device\"; do\n    add_fallback_passphrase \"$device\" \"$install_key\" \"$fallback_key\"\n  done\n\n  for device in \"$root_device\" \"$home_device\"; do\n    enroll_tpm2_pin \"$device\" \"$credential_dir\" \"$fallback_key\" \"$TPM2_FINAL_PCRS\"\n  done\nfi\n\nfor device in \"$root_device\" \"$home_device\"; do\n  verify_tpm2_pin_unlock \"$device\" \"$credential_dir\" \"$TPM2_FINAL_PCRS\"\ndone\n\nfor device in \"$root_device\" \"$home_device\"; do\n  if [ \"$enrollment_phase\" = pending ]; then\n    remove_install_passphrase_slots \"$device\" \"$install_key\" \"$fallback_key\"\n  fi\n  passphrase_works \"$device\" \"$fallback_key\" || fatal \"recovery passphrase stopped working for $device\"\n  verify_fallback_pbkdf \"$device\" \"$fallback_key\"\ndone\n\nif [ \"$enrollment_phase\" = pending ]; then\n  rm -f \"$INSTALL_PASSPHRASE_FILE\"\n  \"$POLICY_CHECK\" --record enrolled || fatal \"could not durably record the enrollment generation\"\n  info \"TPM2+PIN enrollment verified; release remains pending until confirmation after a reboot\"\n  info \"Reboot and run this helper again with the SAME recovery passphrase and PIN\"\nelse\n  \"$POLICY_CHECK\" --record complete || fatal \"post-reboot release confirmation failed\"\n  \"$POLICY_CHECK\" --release-check || fatal \"TPM release gate failed\"\n  if command -v systemctl >/dev/null 2>&1; then\n    systemctl start --no-block secondboot.service >/dev/null 2>&1 ||\n      info \"warning: could not queue completed bootstrap cleanup\"\n  fi\n  info \"TPM2+PIN enrollment confirmed after reboot for encrypted root and home\"\nfi\ninfo \"Keep the recovery passphrase offline; measured boot changes require recovery and --reenroll\"\n",
+          "previous": "  fatal \"recovery passphrase must differ from the temporary installer passphrase\"\nfi\n\nfor device in \"$root_device\" \"$home_device\"; do\n  add_fallback_passphrase \"$device\" \"$install_key\" \"$fallback_key\"\ndone\n\nfor device in \"$root_device\" \"$home_device\"; do\n  enroll_tpm2_pin \"$device\" \"$credential_dir\" \"$fallback_key\" \"$TPM2_FINAL_PCRS\"\ndone\n\nfor device in \"$root_device\" \"$home_device\"; do\n  verify_tpm2_pin_unlock \"$device\" \"$credential_dir\" \"$TPM2_FINAL_PCRS\"\ndone\n\nfor device in \"$root_device\" \"$home_device\"; do\n  remove_install_passphrase_slots \"$device\" \"$install_key\" \"$fallback_key\"\n  passphrase_works \"$device\" \"$fallback_key\" || fatal \"recovery passphrase stopped working for $device\"\ndone\n\ninstall -d -m 0700 \"$STATE_DIR\"\n{\n  printf 'status=complete\\n'\n  printf 'completed_at=%s\\n' \"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"\n  printf 'root_luks_uuid=%s\\n' \"$ROOT_LUKS_UUID\"\n  printf 'home_luks_uuid=%s\\n' \"$HOME_LUKS_UUID\"\n  printf 'tpm2_pcrs=%s\\n' \"$TPM2_FINAL_PCRS\"\n  printf 'recovery_pbkdf=argon2id\\n'\n  printf 'recovery_iter_time_ms=5000\\n'\n} >\"$COMPLETE_FILE\"\nchmod 0600 \"$COMPLETE_FILE\"\nrm -f \"$INSTALL_PASSPHRASE_FILE\"\nrm -f \"$PENDING_FILE\"\n\nif command -v systemctl >/dev/null 2>&1; then\n  systemctl start --no-block secondboot.service >/dev/null 2>&1 ||\n    info \"warning: could not queue completed bootstrap cleanup\"\nfi\n\ninfo \"TPM2+PIN enrollment completed for encrypted root and home\"\ninfo \"Store the recovery passphrase offline; it is required after TPM/PCR policy changes\"\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/firstboot/assets/var/lib/firstboot/bin/secondboot-cleanup": {
+      "previous_sha256": "13787b4caf1e56ca01c999b071e516f32b755e32733f665f52834e9a7bc70abc",
+      "current_sha256": "3424ca111beca744ca21a40712af48ab3ba8239cea29f0b779b7238410b19de6",
+      "hunks": [
+        {
+          "current": "  fi\n\n  rm -f -- \\\n    \"$crypto_install_passphrase\" \\\n    \"$crypto_pending\" \\\n    \"$(root_path /etc/profile.d/tpm2-enroll-prompt.sh)\" \\\n    \"$(root_path /etc/xdg/autostart/tpm2-enroll.desktop)\" \\\n    \"$(root_path /usr/local/bin/tpm2-enroll-launch)\" \\\n    \"$(root_path /run/lock/tpm2-enroll.lock)\"\n  rmdir \"$(root_path /var/lib/tpm2-enrollment)\" 2>/dev/null || true\n  log \"retired TPM2 bootstrap prompts; retained reenrollment helper and release evidence\"\n}\n\nremove_initramfs_health_hooks() {\n",
+          "previous": "  fi\n\n  rm -f -- \\\n    \"$crypto_config\" \\\n    \"$crypto_install_passphrase\" \\\n    \"$crypto_pending\" \\\n    \"$crypto_complete\" \\\n    \"$(root_path /etc/profile.d/tpm2-enroll-prompt.sh)\" \\\n    \"$(root_path /etc/xdg/autostart/tpm2-enroll.desktop)\" \\\n    \"$(root_path /usr/local/sbin/tpm2-enroll.sh)\" \\\n    \"$(root_path /usr/local/bin/tpm2-enroll-launch)\" \\\n    \"$(root_path /run/lock/tpm2-enroll.lock)\"\n  rmdir \"$(root_path /var/lib/tpm2-enrollment)\" 2>/dev/null || true\n  log \"removed completed TPM2 enrollment artifacts\"\n}\n\nremove_initramfs_health_hooks() {\n"
+        },
+        {
+          "current": "      exit 1\n    }\n    /usr/sbin/update-initramfs -u -k all\n  fi\n  # The final PCR-bound token must be enrolled only after booting the image\n  # produced by this cleanup, not a soon-to-be-retired diagnostic initramfs.\n  if [ \"$SECONDBOOT_ROOT\" = / ] && [ -e \"$crypto_config\" ] &&\n     { [ \"$initramfs_changed\" -eq 1 ] || [ ! -e /var/lib/tpm2-enrollment/boot-artifacts-cleaned ]; }; then\n    /usr/local/libexec/tpm2-policy-check --mark-boot-artifacts\n  fi\n}\n\n",
+          "previous": "      exit 1\n    }\n    /usr/sbin/update-initramfs -u -k all\n  fi\n}\n\n"
+        },
+        {
+          "current": "  systemctl daemon-reload >/dev/null 2>&1 || true\nfi\n\n# No bootstrap credentials survive. Permanent TPM reenrollment and release evidence remain.\nrm -f -- \"$(root_path /var/lib/firstboot/state/complete)\" \"$(root_path /var/lib/firstboot/state/lock)\"\nrmdir \"$(root_path /var/lib/firstboot/state)\" \"$(root_path /var/lib/firstboot/bin)\" \"$(root_path /var/lib/firstboot)\" 2>/dev/null || true\nlog \"removed completed first-boot artifacts and retained installation diagnostics\"\n",
+          "previous": "  systemctl daemon-reload >/dev/null 2>&1 || true\nfi\n\n# No reusable runtime code or enrollment credentials survive successful setup.\nrm -f -- \"$(root_path /var/lib/firstboot/state/complete)\" \"$(root_path /var/lib/firstboot/state/lock)\"\nrmdir \"$(root_path /var/lib/firstboot/state)\" \"$(root_path /var/lib/firstboot/bin)\" \"$(root_path /var/lib/firstboot)\" 2>/dev/null || true\nlog \"removed completed first-boot artifacts and retained installation diagnostics\"\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/btrfs-family.sh": {
+      "previous_sha256": "61b3eefaa8b43652f1ee2948ce95bee87d7a8c8f3fb8a5215f267b8a1da3969f",
+      "current_sha256": "1974d93ba180babe19cc1b12536729e9beee01c9e32b953632952266b35b59a8",
+      "hunks": [
+        {
+          "current": "        fstab_entry \"tmpfs\" \"${DIR_DATA_RUN}\" \"tmpfs\" \"${MNT_DATA_RUN_TMPFS_OPTS}\" 0 0\n      fi\n    fstab_entry \"${vtmp_src}\" \"${DIR_VAR_TMP}\" \"ext4\" \"${MNT_VAR_TMP_OPTS}\" 0 2\n    write_rsyslog_spool_fstab\n    if tmpfs_policy_enabled TMPFS_VAR_LOG; then\n        fstab_entry \"tmpfs\" \"${DIR_VAR_LOG}\" \"tmpfs\" \"${MNT_VAR_LOG_TMPFS_OPTS}\" 0 0\n      fi\n",
+          "previous": "        fstab_entry \"tmpfs\" \"${DIR_DATA_RUN}\" \"tmpfs\" \"${MNT_DATA_RUN_TMPFS_OPTS}\" 0 0\n      fi\n    fstab_entry \"${vtmp_src}\" \"${DIR_VAR_TMP}\" \"ext4\" \"${MNT_VAR_TMP_OPTS}\" 0 2\n    if tmpfs_policy_enabled TMPFS_VAR_LOG; then\n        fstab_entry \"tmpfs\" \"${DIR_VAR_LOG}\" \"tmpfs\" \"${MNT_VAR_LOG_TMPFS_OPTS}\" 0 0\n      fi\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/crypto.sh": {
+      "previous_sha256": "f59b84bbf3b7b58f8d9d1c0e254d4c406da5da02d8b572c4358fe52896be17c6",
+      "current_sha256": "5a7b50dcda9777ed6310a216009224f64bef4fec21a5fae4c1e398d295df71a1",
+      "hunks": [
+        {
+          "current": "    CRYPTO_HOME_CRYPT_NAME_VALUE \"$(shell_single_quote \"$HOME_CRYPT_NAME\")\" \\\n    CRYPTO_HOME_KEY_FILE_VALUE \"$(shell_single_quote \"$home_key_target\")\" \\\n    CRYPTO_INSTALL_PASSPHRASE_FILE_VALUE \"$(shell_single_quote \"$install_passphrase_target\")\" \\\n    CRYPTO_TPM2_FINAL_PCRS_VALUE \"$(shell_single_quote 7+8+9+14)\"\n}\n\ncrypto_write_crypttab() {\n",
+          "previous": "    CRYPTO_HOME_CRYPT_NAME_VALUE \"$(shell_single_quote \"$HOME_CRYPT_NAME\")\" \\\n    CRYPTO_HOME_KEY_FILE_VALUE \"$(shell_single_quote \"$home_key_target\")\" \\\n    CRYPTO_INSTALL_PASSPHRASE_FILE_VALUE \"$(shell_single_quote \"$install_passphrase_target\")\" \\\n    CRYPTO_TPM2_FINAL_PCRS_VALUE \"$(shell_single_quote 7+14)\"\n}\n\ncrypto_write_crypttab() {\n"
+        },
+        {
+          "current": "    if grep -q 'etc/cryptsetup-keys.d/crypthome.key$' \"$listing\"; then\n      crypto_fatal \"root-contained /home key leaked into ${relative_initrd}\"\n    fi\n    # Compare normalized archive members, not an obsolete hard-coded location.\n    for secret_path in \"${install_passphrase_target:-/var/lib/tpm2-enrollment/install-passphrase}\" \\\n      /usr/local/lib/crypto/install-passphrase /var/lib/tpm2-enrollment/config.env; do\n      if sed 's,^\\./,,; s,^/,,; s,/$,,' \"$listing\" | grep -Fqx \"${secret_path#/}\"; then\n        crypto_fatal \"installer enrollment material leaked into ${relative_initrd}\"\n      fi\n    done\n    rm -f \"$listing\"\n  done\n  [ \"$found_initrd\" = true ] || crypto_fatal \"no target initramfs image was found\"\n",
+          "previous": "    if grep -q 'etc/cryptsetup-keys.d/crypthome.key$' \"$listing\"; then\n      crypto_fatal \"root-contained /home key leaked into ${relative_initrd}\"\n    fi\n    if grep -q 'usr/local/lib/crypto/install-passphrase$' \"$listing\"; then\n      crypto_fatal \"installer passphrase file leaked into ${relative_initrd}\"\n    fi\n    rm -f \"$listing\"\n  done\n  [ \"$found_initrd\" = true ] || crypto_fatal \"no target initramfs image was found\"\n"
+        },
+        {
+          "current": "  /etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot \\\n  0755\ncrypto_stage_target_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tpm2-policy-check)\" \\\n  /usr/local/libexec/tpm2-policy-check \\\n  0755\ncrypto_stage_target_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/grub.d/45-tpm2-measured-boot.cfg)\" \\\n  /etc/default/grub.d/45-tpm2-measured-boot.cfg \\\n  0644\ncrypto_stage_target_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/usr.local.sbin.tpm2-enroll.sh)\" \\\n  /etc/apparmor.d/usr.local.sbin.tpm2-enroll.sh \\\n  0644\nrun_in_target \"enable packaged GRUB TPM measurements\" /usr/sbin/update-grub\ncrypto_stage_target_asset \\\n  \"$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/usr/local/sbin/tpm2-enroll.sh)\" \\\n  /usr/local/sbin/tpm2-enroll.sh \\\n  0755\n",
+          "previous": "  /etc/initramfs-tools/scripts/local-top/00-tpm2-cryptroot \\\n  0755\ncrypto_stage_target_asset \\\n  \"$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/usr/local/sbin/tpm2-enroll.sh)\" \\\n  /usr/local/sbin/tpm2-enroll.sh \\\n  0755\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/devops.sh.tmpl": {
+      "previous_sha256": "d7141553e537e3df750b68afd1b4f69e3aa090d61f3d84c35e8937a55056cc50",
+      "current_sha256": "1f520a91faf1137e18a398056ee517b9dcccc1a7ec9cd3d00dd7f1dcf1c1fefa",
+      "hunks": [
+        {
+          "current": "#!/bin/sh\n# Generated from src/installer/manifest.json; edit canonical modules, then run tools/build.py.\nset -eu\n\ntarget_root=${1:-/target}\n",
+          "previous": "#!/bin/sh\nset -eu\n\ntarget_root=${1:-/target}\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/devops.sh": {
+      "previous_sha256": "d7141553e537e3df750b68afd1b4f69e3aa090d61f3d84c35e8937a55056cc50",
+      "current_sha256": "1f520a91faf1137e18a398056ee517b9dcccc1a7ec9cd3d00dd7f1dcf1c1fefa",
+      "hunks": [
+        {
+          "current": "#!/bin/sh\n# Generated from src/installer/manifest.json; edit canonical modules, then run tools/build.py.\nset -eu\n\ntarget_root=${1:-/target}\n",
+          "previous": "#!/bin/sh\nset -eu\n\ntarget_root=${1:-/target}\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/f2fs-family.sh": {
+      "previous_sha256": "d4043ba972332c1ce7fa8c5c8638145dc1cf839816ff7c9e2d81feef5c8d8eca",
+      "current_sha256": "13305800329495d1bd6a79727611df505543c0481ddb924834f4dbd5f9f162e0",
+      "hunks": [
+        {
+          "current": "    if tmpfs_policy_enabled TMPFS_DATA_RUN; then\n      fstab_entry tmpfs \"$DIR_DATA_RUN\" tmpfs \"$MNT_DATA_RUN_TMPFS_OPTS\" 0 0\n    fi\n    write_rsyslog_spool_fstab\n    if tmpfs_policy_enabled TMPFS_VAR_LOG; then\n      fstab_entry tmpfs \"$DIR_VAR_LOG\" tmpfs \"$MNT_VAR_LOG_TMPFS_OPTS\" 0 0\n    fi\n",
+          "previous": "    if tmpfs_policy_enabled TMPFS_DATA_RUN; then\n      fstab_entry tmpfs \"$DIR_DATA_RUN\" tmpfs \"$MNT_DATA_RUN_TMPFS_OPTS\" 0 0\n    fi\n    if tmpfs_policy_enabled TMPFS_VAR_LOG; then\n      fstab_entry tmpfs \"$DIR_VAR_LOG\" tmpfs \"$MNT_VAR_LOG_TMPFS_OPTS\" 0 0\n    fi\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/security.sh": {
+      "previous_sha256": "54d628810a661941a4916a65a08372703251040adc2946aa5f589b9ede8c2141",
+      "current_sha256": "c841f396af0913db51a481900a97b92ebedc9f17e11680cf6b2941237cdf3a25",
+      "hunks": [
+        {
+          "current": "    /target/etc/nftables.d/10-base.nft \\\n    /target/etc/nftables.d/20-filter.nft \\\n    /target/etc/nftables.d/30-nat.nft \\\n    /target/etc/nftables.d/90-local.nft\n\n  for service_asset in $(nftables_service_assets); do\n    rm -f \"/target/etc/nftables/services/${service_asset}.yml\"\n",
+          "previous": "    /target/etc/nftables.d/10-base.nft \\\n    /target/etc/nftables.d/20-filter.nft \\\n    /target/etc/nftables.d/30-nat.nft \\\n    /target/etc/nftables.d/90-local.nft \\\n    /target/etc/nftables.d/95-firewall-security.nft \\\n    /target/etc/nftables/firewall-security.rules\n\n  for service_asset in $(nftables_service_assets); do\n    rm -f \"/target/etc/nftables/services/${service_asset}.yml\"\n"
+        },
+        {
+          "current": "    /target/etc/nftables/profiles \\\n    /target/etc/nftables/services \\\n    /target/etc/nftables.d \\\n    /target/etc/nftables.local.d \\\n    /target/etc/systemd/system/nftables.service.d \\\n    /target/usr/local/sbin\n\n",
+          "previous": "    /target/etc/nftables/profiles \\\n    /target/etc/nftables/services \\\n    /target/etc/nftables.d \\\n    /target/etc/systemd/system/nftables.service.d \\\n    /target/usr/local/sbin\n\n"
+        },
+        {
+          "current": "    /target/etc/nftables.d/10-base.nft \\\n    /target/etc/nftables.d/20-filter.nft \\\n    /target/etc/nftables.d/30-nat.nft \\\n    /target/etc/nftables.d/90-local.nft\n  for service_asset in $(nftables_service_assets); do\n    rm -f \"/target/etc/nftables/services/${service_asset}.yml\"\n  done\n",
+          "previous": "    /target/etc/nftables.d/10-base.nft \\\n    /target/etc/nftables.d/20-filter.nft \\\n    /target/etc/nftables.d/30-nat.nft \\\n    /target/etc/nftables.d/90-local.nft \\\n    /target/etc/nftables.d/95-firewall-security.nft \\\n    /target/etc/nftables/firewall-security.rules\n  for service_asset in $(nftables_service_assets); do\n    rm -f \"/target/etc/nftables/services/${service_asset}.yml\"\n  done\n"
+        },
+        {
+          "current": "    nftables_interface_placeholder_map\n  stage_target_nftables_all_service_assets\n  write_target_nftables_default_config \"$selected_profile\" \"${requested_profile:-default}\" \"$selected_services\" \"$runtime_cidrs\"\n  # These are administrator state, not disposable generated policy. Seed them\n  # once only. A suspicious existing path fails instead of being silently erased.\n  for local_state in /etc/nftables/firewall-security.rules /etc/nftables.d/95-firewall-security.nft; do\n    if [ -e \"/target${local_state}\" ] || [ -L \"/target${local_state}\" ]; then\n      [ -f \"/target${local_state}\" ] && [ ! -L \"/target${local_state}\" ] ||\n        installer_fatal \"unsafe persistent firewall state: $local_state\"\n      case \"$(installer_metadata_value \"/target${local_state}\" uid_gid_mode_links)\" in\n        0:0:600:1|0:0:640:1|0:0:644:1) ;;\n        *) installer_fatal \"unsafe persistent firewall state metadata: $local_state\" ;;\n      esac\n    else\n      stage_target_asset \"$(installer_repo_join_var DIR_HOOKS_TARGET \"${local_state#/}\")\" \"$local_state\" 0644\n    fi\n  done\n\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/nftables.service.d/override.conf)\" \\\n",
+          "previous": "    nftables_interface_placeholder_map\n  stage_target_nftables_all_service_assets\n  write_target_nftables_default_config \"$selected_profile\" \"${requested_profile:-default}\" \"$selected_services\" \"$runtime_cidrs\"\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/nftables/firewall-security.rules)\" \\\n    /etc/nftables/firewall-security.rules \\\n    0644\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/nftables.d/95-firewall-security.nft)\" \\\n    /etc/nftables.d/95-firewall-security.nft \\\n    0644\n\n  stage_target_asset \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/nftables.service.d/override.conf)\" \\\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/software.sh.tmpl": {
+      "previous_sha256": "ac7d7668d287e145094cc7393e4c6b26544a508993260cdf17af758358befd26",
+      "current_sha256": "4a29607a01e9c00a81cc47775d237b8ec69600679532e0e886ce9da914eeeeb9",
+      "hunks": [
+        {
+          "current": "  *) software_fatal \"Tuta Mail AppImage has an unexpected file type: ${tuta_file_type:-unset}\" ;;\nesac\n\nsoftware_stage_seed_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tuta-extract)\" \\\n  /usr/local/libexec/tuta-extract 0755\n\nsoftware_stage_seed_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/lib/sysusers.d/tuta-extract.conf)\" \\\n  /usr/lib/sysusers.d/tuta-extract.conf 0644\nchroot \"$target_root\" /usr/bin/systemd-sysusers /usr/lib/sysusers.d/tuta-extract.conf\n\ntuta_verified_sha256=$(chroot \"$target_root\" /usr/bin/sha256sum \"$tuta_appimage\" | awk '{print $1}')\n\n# shellcheck disable=SC2016\nchroot \"$target_root\" /bin/sh -eu -c '\nwork_dir=$1\n",
+          "previous": "  *) software_fatal \"Tuta Mail AppImage has an unexpected file type: ${tuta_file_type:-unset}\" ;;\nesac\n\n# shellcheck disable=SC2016\nchroot \"$target_root\" /bin/sh -eu -c '\nwork_dir=$1\n"
+        },
+        {
+          "current": "trap rollback EXIT HUP INT TERM\n\nrm -rf \"$work_dir/squashfs-root\" \"$new_dir\" \"$backup_dir\"\n/usr/local/libexec/tuta-extract \"$appimage\" \"$work_dir/squashfs-root\" \"$4\"\n[ -x \"$work_dir/squashfs-root/AppRun\" ]\n\ncp -a \"$work_dir/squashfs-root\" \"$new_dir\"\n",
+          "previous": "trap rollback EXIT HUP INT TERM\n\nrm -rf \"$work_dir/squashfs-root\" \"$new_dir\" \"$backup_dir\"\nchmod 0700 \"$appimage\"\n(\n  cd \"$work_dir\"\n  \"$appimage\" --appimage-extract >/dev/null\n)\n[ -x \"$work_dir/squashfs-root/AppRun\" ]\n\ncp -a \"$work_dir/squashfs-root\" \"$new_dir\"\n"
+        },
+        {
+          "current": "[ -x \"$install_dir/AppRun\" ]\nrm -rf \"$backup_dir\"\ntrap - EXIT HUP INT TERM\n' sh \"$work_dir\" \"$tuta_appimage\" \"$tuta_install_dir\" \"$tuta_verified_sha256\"\n\ntuta_icon_source=$(\n  # shellcheck disable=SC2016\n",
+          "previous": "[ -x \"$install_dir/AppRun\" ]\nrm -rf \"$backup_dir\"\ntrap - EXIT HUP INT TERM\n' sh \"$work_dir\" \"$tuta_appimage\" \"$tuta_install_dir\"\n\ntuta_icon_source=$(\n  # shellcheck disable=SC2016\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/software.sh": {
+      "previous_sha256": "ac7d7668d287e145094cc7393e4c6b26544a508993260cdf17af758358befd26",
+      "current_sha256": "4a29607a01e9c00a81cc47775d237b8ec69600679532e0e886ce9da914eeeeb9",
+      "hunks": [
+        {
+          "current": "  *) software_fatal \"Tuta Mail AppImage has an unexpected file type: ${tuta_file_type:-unset}\" ;;\nesac\n\nsoftware_stage_seed_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tuta-extract)\" \\\n  /usr/local/libexec/tuta-extract 0755\n\nsoftware_stage_seed_asset \\\n  \"$(installer_repo_join_var DIR_HOOKS_TARGET usr/lib/sysusers.d/tuta-extract.conf)\" \\\n  /usr/lib/sysusers.d/tuta-extract.conf 0644\nchroot \"$target_root\" /usr/bin/systemd-sysusers /usr/lib/sysusers.d/tuta-extract.conf\n\ntuta_verified_sha256=$(chroot \"$target_root\" /usr/bin/sha256sum \"$tuta_appimage\" | awk '{print $1}')\n\n# shellcheck disable=SC2016\nchroot \"$target_root\" /bin/sh -eu -c '\nwork_dir=$1\n",
+          "previous": "  *) software_fatal \"Tuta Mail AppImage has an unexpected file type: ${tuta_file_type:-unset}\" ;;\nesac\n\n# shellcheck disable=SC2016\nchroot \"$target_root\" /bin/sh -eu -c '\nwork_dir=$1\n"
+        },
+        {
+          "current": "trap rollback EXIT HUP INT TERM\n\nrm -rf \"$work_dir/squashfs-root\" \"$new_dir\" \"$backup_dir\"\n/usr/local/libexec/tuta-extract \"$appimage\" \"$work_dir/squashfs-root\" \"$4\"\n[ -x \"$work_dir/squashfs-root/AppRun\" ]\n\ncp -a \"$work_dir/squashfs-root\" \"$new_dir\"\n",
+          "previous": "trap rollback EXIT HUP INT TERM\n\nrm -rf \"$work_dir/squashfs-root\" \"$new_dir\" \"$backup_dir\"\nchmod 0700 \"$appimage\"\n(\n  cd \"$work_dir\"\n  \"$appimage\" --appimage-extract >/dev/null\n)\n[ -x \"$work_dir/squashfs-root/AppRun\" ]\n\ncp -a \"$work_dir/squashfs-root\" \"$new_dir\"\n"
+        },
+        {
+          "current": "[ -x \"$install_dir/AppRun\" ]\nrm -rf \"$backup_dir\"\ntrap - EXIT HUP INT TERM\n' sh \"$work_dir\" \"$tuta_appimage\" \"$tuta_install_dir\" \"$tuta_verified_sha256\"\n\ntuta_icon_source=$(\n  # shellcheck disable=SC2016\n",
+          "previous": "[ -x \"$install_dir/AppRun\" ]\nrm -rf \"$backup_dir\"\ntrap - EXIT HUP INT TERM\n' sh \"$work_dir\" \"$tuta_appimage\" \"$tuta_install_dir\"\n\ntuta_icon_source=$(\n  # shellcheck disable=SC2016\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/storage-maintenance.sh": {
+      "previous_sha256": "8e30c3d4e72ae92e62ba11ce74cf2cae48f740f7b7b1f7c89a3b4b01a8d3a6f4",
+      "current_sha256": "8b5d3d781eaee1cec62439d2ef5b6a73cd4b9eee14fd3aba5b0b60dd3207b8c4",
+      "hunks": [
+        {
+          "current": "validate_target_journal_storage_policy() (\n  set -eu\n  journal_path=$(target_asset_host_path \"$FILE_JOURNALD_STORAGE_CONF\") || exit 1\n  journal_policy=$(systemd_journal_policy_map) || exit 1\n  journal_storage=$(printf '%s\\n' \"$journal_policy\" | sed -n 's/^SYSTEMD_JOURNAL_STORAGE=//p')\n  journal_seal=$(printf '%s\\n' \"$journal_policy\" | sed -n 's/^SYSTEMD_JOURNAL_SEAL=//p')\n  # A duplicate setting could override the expected value despite a successful\n  # grep. Require exactly one assignment for every managed directive.\n  awk '\n",
+          "previous": "validate_target_journal_storage_policy() (\n  set -eu\n  journal_path=$(target_asset_host_path \"$FILE_JOURNALD_STORAGE_CONF\") || exit 1\n  case \"${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}\" in\n    true) journal_storage=volatile ;;\n    false) journal_storage=persistent ;;\n    *) installer_fatal \"SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false\"; exit 1 ;;\n  esac\n  # A duplicate setting could override the expected value despite a successful\n  # grep. Require exactly one assignment for every managed directive.\n  awk '\n"
+        },
+        {
+          "current": "  ' \"$journal_path\" || { installer_fatal \"duplicate managed journald directive\"; exit 1; }\n  for required_line in \\\n    \"Storage=$journal_storage\" \\\n    \"Seal=$journal_seal\" \\\n    \"SystemMaxUse=$SYSTEMD_JOURNAL_SYSTEM_MAX_USE\" \\\n    \"SystemKeepFree=$SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE\" \\\n    \"SystemMaxFileSize=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE\" \\\n",
+          "previous": "  ' \"$journal_path\" || { installer_fatal \"duplicate managed journald directive\"; exit 1; }\n  for required_line in \\\n    \"Storage=$journal_storage\" \\\n    \"SystemMaxUse=$SYSTEMD_JOURNAL_SYSTEM_MAX_USE\" \\\n    \"SystemKeepFree=$SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE\" \\\n    \"SystemMaxFileSize=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE\" \\\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/tailscale.sh": {
+      "previous_sha256": "47e070477bd6b03e5dcb52917422f1c2ddca183a13952936bded4ded7c1777cf",
+      "current_sha256": "3d273df2582b8e8724ad83f0c58668130a849f357909c7c807f3ad5c2353ea9e",
+      "hunks": [
+        {
+          "current": "  [ ! -L \"${target_root}${config_file}\" ] || tailscale_fatal \"configuration must not be a symlink: $config_file\"\n  if [ -e \"${target_root}${config_file}\" ]; then\n    case \"$(installer_metadata_value \"${target_root}${config_file}\" uid_gid_mode_links)\" in\n      0:0:400:1|0:0:440:1|0:0:444:1|0:0:600:1|0:0:640:1|0:0:644:1|0:0:700:1|0:0:750:1|0:0:755:1) ;;\n      *) tailscale_fatal \"unsafe existing configuration metadata: $config_file ($(installer_metadata_value \"${target_root}${config_file}\" uid_gid_mode_links))\" ;;\n    esac\n  fi\ndone\n",
+          "previous": "  [ ! -L \"${target_root}${config_file}\" ] || tailscale_fatal \"configuration must not be a symlink: $config_file\"\n  if [ -e \"${target_root}${config_file}\" ]; then\n    case \"$(installer_metadata_value \"${target_root}${config_file}\" uid_gid_mode_links)\" in\n      0:0:644:1|0:0:600:1) ;;\n      *) tailscale_fatal \"unsafe existing configuration metadata: $config_file\" ;;\n    esac\n  fi\ndone\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/templates.sh": {
+      "previous_sha256": "70ba1f43d1758cda38535d2dc677a8465197e533e50633b9aad6c9cac0b9a9ef",
+      "current_sha256": "f9d1f3fb4a2d1b6e41a8444b6c2bd2f0b4d9bde13ccafa8ef4b646f7b6a17008",
+      "hunks": [
+        {
+          "current": "# This allowlist is intentionally limited to managed resource-policy assets.\n# Existing zram/Podman policies and the generic renderer remain independent.\n# Values are data: indirect variable names below are literal, never user input.\nsystemd_journal_policy_map() (\n  set -eu\n  case \"${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}\" in\n    true) journal_storage=volatile ;;\n",
+          "previous": "# This allowlist is intentionally limited to managed resource-policy assets.\n# Existing zram/Podman policies and the generic renderer remain independent.\n# Values are data: indirect variable names below are literal, never user input.\nsystemd_resource_placeholder_map() (\n  set -eu\n  case \"${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}\" in\n    true) journal_storage=volatile ;;\n"
+        },
+        {
+          "current": "    *) installer_fatal \"SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false\"; exit 1 ;;\n  esac\n  printf 'SYSTEMD_JOURNAL_STORAGE=%s\\n' \"$journal_storage\"\n  case \"${TMPFS_VAR_LOG-}\" in\n    true) journal_seal=no ;;\n    false) [ \"$journal_storage\" = persistent ] && journal_seal=yes || journal_seal=no ;;\n    *) installer_fatal \"TMPFS_VAR_LOG must be true or false\"; exit 1 ;;\n  esac\n  printf 'SYSTEMD_JOURNAL_SEAL=%s\\n' \"$journal_seal\"\n\n)\n\nsystemd_resource_placeholder_map() (\n  set -eu\n  systemd_journal_policy_map || exit 1\n  case \"${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}\" in\n    true) io_accounting=yes ;;\n    false) io_accounting=no ;;\n",
+          "previous": "    *) installer_fatal \"SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false\"; exit 1 ;;\n  esac\n  printf 'SYSTEMD_JOURNAL_STORAGE=%s\\n' \"$journal_storage\"\n  case \"${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}\" in\n    true) io_accounting=yes ;;\n    false) io_accounting=no ;;\n"
+        }
+      ]
+    },
+    "d-i/forky/scripts/late/volatile-storage.sh": {
+      "previous_sha256": "e02e972dc86fa5e30536570b1ea35820a6d64acac3f6f20e8346c55ba4319805",
+      "current_sha256": "9ea5890017d641812b4341da24087059af9732ed8f078af2fc2250febcb5a242",
+      "hunks": [
+        {
+          "current": "dir_data_run_mnt=${13}\ndir_var_tmp=${14}\ndir_tmp=${15}\ntmpfs_var_spool_rsyslog=${16}\ndir_var_spool_rsyslog=${17}\n\nif bool_is_true \"$tmpfs_var_spool_rsyslog\"; then\n  ensure_dir \"$dir_var_spool_rsyslog\" 0700 root root\nfi\n\nif bool_is_true \"$tmpfs_var_log\"; then\n  ensure_dir \"$dir_var_log\" 0755 root root\n",
+          "previous": "dir_data_run_mnt=${13}\ndir_var_tmp=${14}\ndir_tmp=${15}\n\nif bool_is_true \"$tmpfs_var_log\"; then\n  ensure_dir \"$dir_var_log\" 0755 root root\n"
+        },
+        {
+          "current": "    \"${DIR_DATA_RUN:-}\" \\\n    \"${DIR_DATA_RUN_MNT:-}\" \\\n    \"${DIR_VAR_TMP:-}\" \\\n    \"${DIR_TMP:-/tmp}\" \\\n    \"${TMPFS_VAR_SPOOL_RSYSLOG:-false}\" \\\n    \"${DIR_VAR_SPOOL_RSYSLOG:-/var/spool/rsyslog}\"\n\n  purge_target_cdrom_apt_sources\n}\n",
+          "previous": "    \"${DIR_DATA_RUN:-}\" \\\n    \"${DIR_DATA_RUN_MNT:-}\" \\\n    \"${DIR_VAR_TMP:-}\" \\\n    \"${DIR_TMP:-/tmp}\"\n\n  purge_target_cdrom_apt_sources\n}\n"
+        },
+        {
+          "current": "dir_tmp=${12}\ndir_var_tmp=${13}\ndir_dev_shm=${14}\ntmpfs_var_spool_rsyslog=${15}\ndir_var_spool_rsyslog=${16}\n\nnormalize_tmpfs_dir \"$tmpfs_var_spool_rsyslog\" \"$dir_var_spool_rsyslog\" 0700\n\nnormalize_tmpfs_dir \"$tmpfs_var_log\" \"$dir_var_log\" 0755\nnormalize_tmpfs_dir \"$tmpfs_var_cache\" \"$dir_var_cache\" 0755\n",
+          "previous": "dir_tmp=${12}\ndir_var_tmp=${13}\ndir_dev_shm=${14}\n\nnormalize_tmpfs_dir \"$tmpfs_var_log\" \"$dir_var_log\" 0755\nnormalize_tmpfs_dir \"$tmpfs_var_cache\" \"$dir_var_cache\" 0755\n"
+        },
+        {
+          "current": "    \"${DIR_SYSTEMD_COREDUMP}\" \\\n    \"${DIR_TMP}\" \\\n    \"${DIR_VAR_TMP}\" \\\n    \"${DIR_DEV_SHM}\" \\\n    \"${TMPFS_VAR_SPOOL_RSYSLOG}\" \\\n    \"${DIR_VAR_SPOOL_RSYSLOG}\"\n}\n\nstage_target_tmpfs_pre_clean_mount_override_if_enabled() {\n",
+          "previous": "    \"${DIR_SYSTEMD_COREDUMP}\" \\\n    \"${DIR_TMP}\" \\\n    \"${DIR_VAR_TMP}\" \\\n    \"${DIR_DEV_SHM}\"\n}\n\nstage_target_tmpfs_pre_clean_mount_override_if_enabled() {\n"
+        },
+        {
+          "current": "  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_DEV_SHM \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dev-shm.mount.d/override.conf)\" \\\n    \"${FILE_TMPFS_PRE_CLEAN_DEV_SHM_MOUNT_OVERRIDE}\"\n  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_VAR_SPOOL_RSYSLOG \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/var-spool-rsyslog.mount.d/override.conf)\" \\\n    \"${FILE_TMPFS_PRE_CLEAN_VAR_SPOOL_RSYSLOG_MOUNT_OVERRIDE}\"\n  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_VAR_LOG \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/var-log.mount.d/override.conf)\" \\\n    \"${FILE_TMPFS_PRE_CLEAN_VAR_LOG_MOUNT_OVERRIDE}\"\n",
+          "previous": "  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_DEV_SHM \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dev-shm.mount.d/override.conf)\" \\\n    \"${FILE_TMPFS_PRE_CLEAN_DEV_SHM_MOUNT_OVERRIDE}\"\n  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_VAR_LOG \\\n    \"$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/var-log.mount.d/override.conf)\" \\\n    \"${FILE_TMPFS_PRE_CLEAN_VAR_LOG_MOUNT_OVERRIDE}\"\n"
+        },
+        {
+          "current": "validate_tmpfs_policy_env() {\n  for var_name in \\\n    TMPFS_VAR_LOG \\\n    TMPFS_VAR_SPOOL_RSYSLOG \\\n    TMPFS_VAR_CACHE \\\n    TMPFS_VAR_LIB_APT_LISTS \\\n    TMPFS_DEV_SHM \\\n",
+          "previous": "validate_tmpfs_policy_env() {\n  for var_name in \\\n    TMPFS_VAR_LOG \\\n    TMPFS_VAR_CACHE \\\n    TMPFS_VAR_LIB_APT_LISTS \\\n    TMPFS_DEV_SHM \\\n"
+        },
+        {
+          "current": "    [ -n \"$var_value\" ] || installer_fatal \"${var_name} must be set\"\n    require_policy_bool \"$var_name\" \"$var_value\"\n  done\n  # Reject injection, zero, leading zeros and unbounded limits before fstab output.\n  case \"${SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB:-}\" in\n    ''|0*|*[!0-9]*) installer_fatal \"invalid SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB\" ;;\n  esac\n  [ \"${#SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB}\" -le 5 ] &&\n    [ \"$SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB\" -le 65536 ] ||\n    installer_fatal \"rsyslog spool tmpfs must be 1..65536 MiB\"\n  [ \"$DIR_VAR_SPOOL_RSYSLOG\" = /var/spool/rsyslog ] &&\n    [ \"${LOG_RSYSLOG_SPOOL_DIR:-/var/spool/rsyslog}\" = \"$DIR_VAR_SPOOL_RSYSLOG\" ] ||\n    installer_fatal \"rsyslog work directory and tmpfs mount path disagree\"\n}\n\ntmpfs_policy_enabled() {\n",
+          "previous": "    [ -n \"$var_value\" ] || installer_fatal \"${var_name} must be set\"\n    require_policy_bool \"$var_name\" \"$var_value\"\n  done\n}\n\ntmpfs_policy_enabled() {\n"
+        },
+        {
+          "current": "    \"tmp.mount\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_DEV_SHM dev-shm.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LOG var-log.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_SPOOL_RSYSLOG var-spool-rsyslog.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_CACHE var-cache.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LIB_APT_LISTS var-lib-apt-lists.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_SYSTEMD_COREDUMP var-lib-systemd-coredump.mount)\" \\\n",
+          "previous": "    \"tmp.mount\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_DEV_SHM dev-shm.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LOG var-log.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_CACHE var-cache.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LIB_APT_LISTS var-lib-apt-lists.mount)\" \\\n    \"$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_SYSTEMD_COREDUMP var-lib-systemd-coredump.mount)\" \\\n"
+        },
+        {
+          "current": "  # /dev/shm is inherited with /dev before real-root services can run. It has\n  # no persistent backing tree to scrub, so keep only its mount-unit ordering.\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LOG \"$DIR_VAR_LOG\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_SPOOL_RSYSLOG \"$DIR_VAR_SPOOL_RSYSLOG\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_CACHE \"$DIR_VAR_CACHE\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LIB_APT_LISTS \"$DIR_APT_LISTS\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\"\n",
+          "previous": "  # /dev/shm is inherited with /dev before real-root services can run. It has\n  # no persistent backing tree to scrub, so keep only its mount-unit ordering.\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LOG \"$DIR_VAR_LOG\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_CACHE \"$DIR_VAR_CACHE\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LIB_APT_LISTS \"$DIR_APT_LISTS\"\n  tmpfs_pre_clean_condition_line_if_enabled TMPFS_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\"\n"
+        },
+        {
+          "current": "}\n\ntmpfs_pre_clean_requires_mounts_for_enabled_policy() {\n  if tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG; then\n    printf 'RequiresMountsFor=%s\\n' \"$DIR_VAR_SPOOL\"\n  fi\n  if tmpfs_policy_enabled TMPFS_DATA_RUN; then\n    printf 'RequiresMountsFor=%s\\n' \"$DIR_DATA\"\n  fi\n",
+          "previous": "}\n\ntmpfs_pre_clean_requires_mounts_for_enabled_policy() {\n  if tmpfs_policy_enabled TMPFS_DATA_RUN; then\n    printf 'RequiresMountsFor=%s\\n' \"$DIR_DATA\"\n  fi\n"
+        },
+        {
+          "current": "  join_words \\\n    \"$DIR_TMP\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_LOG \"$DIR_VAR_LOG\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_SPOOL_RSYSLOG \"$DIR_VAR_SPOOL_RSYSLOG\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_CACHE \"$DIR_VAR_CACHE\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_LIB_APT_LISTS \"$DIR_APT_LISTS\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\")\" \\\n",
+          "previous": "  join_words \\\n    \"$DIR_TMP\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_LOG \"$DIR_VAR_LOG\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_CACHE \"$DIR_VAR_CACHE\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_VAR_LIB_APT_LISTS \"$DIR_APT_LISTS\")\" \\\n    \"$(tmpfs_policy_path_if_enabled TMPFS_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\")\" \\\n"
+        },
+        {
+          "current": "  join_words \\\n    \"DIR_TMP|$DIR_TMP\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LOG DIR_VAR_LOG \"$DIR_VAR_LOG\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_SPOOL_RSYSLOG DIR_VAR_SPOOL_RSYSLOG \"$DIR_VAR_SPOOL_RSYSLOG\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_CACHE DIR_VAR_CACHE \"$DIR_VAR_CACHE\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS \"$DIR_APT_LISTS\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_SYSTEMD_COREDUMP DIR_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\")\" \\\n",
+          "previous": "  join_words \\\n    \"DIR_TMP|$DIR_TMP\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LOG DIR_VAR_LOG \"$DIR_VAR_LOG\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_CACHE DIR_VAR_CACHE \"$DIR_VAR_CACHE\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS \"$DIR_APT_LISTS\")\" \\\n    \"$(tmpfs_pre_clean_target_if_enabled TMPFS_SYSTEMD_COREDUMP DIR_SYSTEMD_COREDUMP \"$DIR_SYSTEMD_COREDUMP\")\" \\\n"
+        },
+        {
+          "current": "\ntmpfs_pre_clean_policy_enabled() {\n  tmpfs_policy_enabled TMPFS_VAR_LOG ||\n    tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG ||\n    tmpfs_policy_enabled TMPFS_VAR_CACHE ||\n    tmpfs_policy_enabled TMPFS_VAR_LIB_APT_LISTS ||\n    tmpfs_policy_enabled TMPFS_SYSTEMD_COREDUMP ||\n",
+          "previous": "\ntmpfs_pre_clean_policy_enabled() {\n  tmpfs_policy_enabled TMPFS_VAR_LOG ||\n    tmpfs_policy_enabled TMPFS_VAR_CACHE ||\n    tmpfs_policy_enabled TMPFS_VAR_LIB_APT_LISTS ||\n    tmpfs_policy_enabled TMPFS_SYSTEMD_COREDUMP ||\n"
+        },
+        {
+          "current": "tmpfs_policy_placeholder_map() {\n  for var_name in \\\n    TMPFS_VAR_LOG \\\n    TMPFS_VAR_SPOOL_RSYSLOG \\\n    TMPFS_VAR_CACHE \\\n    TMPFS_VAR_LIB_APT_LISTS \\\n    TMPFS_DEV_SHM \\\n",
+          "previous": "tmpfs_policy_placeholder_map() {\n  for var_name in \\\n    TMPFS_VAR_LOG \\\n    TMPFS_VAR_CACHE \\\n    TMPFS_VAR_LIB_APT_LISTS \\\n    TMPFS_DEV_SHM \\\n"
+        },
+        {
+          "current": "  replace_placeholder_line_block \"$target_path\" \"__INSTALLER_TMPFS_PRE_CLEAN_CONDITION_LINES__\" \"$tmpfs_pre_clean_condition_lines\"\n  replace_placeholder_line_block \"$target_path\" \"__INSTALLER_TMPFS_PRE_CLEAN_REQUIRES_MOUNTS_FOR__\" \"$tmpfs_pre_clean_requires_mounts_for\"\n}\n\n# The logging queue is independent of the root filesystem family.\nwrite_rsyslog_spool_fstab() {\n  if tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG; then\n    fstab_entry tmpfs \"$DIR_VAR_SPOOL_RSYSLOG\" tmpfs \"$MNT_VAR_SPOOL_RSYSLOG_TMPFS_OPTS\" 0 0\n  fi\n}\n",
+          "previous": "  replace_placeholder_line_block \"$target_path\" \"__INSTALLER_TMPFS_PRE_CLEAN_CONDITION_LINES__\" \"$tmpfs_pre_clean_condition_lines\"\n  replace_placeholder_line_block \"$target_path\" \"__INSTALLER_TMPFS_PRE_CLEAN_REQUIRES_MOUNTS_FOR__\" \"$tmpfs_pre_clean_requires_mounts_for\"\n}\n"
+        }
+      ]
+    },
+    "tools/build.py": {
+      "previous_sha256": "99b951d3d94b49fc18aad22fb1353f1cfb68103961fd7663ec901d192728a8d8",
+      "current_sha256": "9a79781a7944b6e60fb9badb01af2d0519707ef360e5bca581f5fdd8dd66a30e",
+      "hunks": [
+        {
+          "current": "                    raise ValueError(f'invalid generated {fields[1]}: {parsed.stderr.strip()}')\n    return text.encode()\n\ndef sync_embedded_helper(label: str, canonical_name: str,\n                         destinations: tuple[str, ...], check: bool) -> None:\n    \"\"\"Publish a single canonical helper; standalone installer readers stay flat.\"\"\"\n    begin, end = f'# BEGIN EMBEDDED {label}\\n', f'# END EMBEDDED {label}\\n'\n    canonical = (SEED / 'scripts/common' / canonical_name).read_text()\n    publisher = runpy.run_path(str(ROOT / 'tools/generate_installer.py'))['atomic_write']\n    for name in destinations:\n        path = SEED / name\n        text = path.read_text()\n        if text.count(begin) != 1 or text.count(end) != 1:\n            raise ValueError(f'invalid {label} embedding markers: {name}')\n        before, rest = text.split(begin, 1)\n        _, after = rest.split(end, 1)\n        expected = before + begin + canonical + end + after\n        if text == expected:\n            continue\n        if check:\n            raise ValueError(f'stale {label} embedding: {name}; run tools/build.py')\n        publisher(path, expected.encode(), path.stat().st_mode & 0o777)\n\n\ndef sync_apt_helpers(check: bool) -> None:\n    sync_embedded_helper('APT SOURCES', 'apt-sources.sh', ('scripts/common/lib.sh',), check)\n\n\ndef sync_credential_helpers(check: bool) -> None:\n    sync_embedded_helper('INITRD CREDENTIALS', 'credentials.sh',\n                         ('scripts/common/lib.sh', 'scripts/runtime/common.sh'), check)\n\n\ndef sync_debconf_helpers(check: bool) -> None:\n    sync_embedded_helper('DEBCONF', 'debconf.sh',\n                         ('scripts/common/lib.sh', 'scripts/runtime/common.sh'), check)\n\n\ndef sync_lifecycle_helpers(check: bool) -> None:\n    sync_embedded_helper('LIFECYCLE', 'lifecycle.sh',\n                         ('scripts/common/source.sh', 'scripts/common/lib.sh'), check)\n\ndef build() -> dict[str, bytes]:\n    paths = payload_files()\n",
+          "previous": "                    raise ValueError(f'invalid generated {fields[1]}: {parsed.stderr.strip()}')\n    return text.encode()\n\ndef sync_apt_helpers(check: bool) -> None:\n    begin = '# BEGIN EMBEDDED APT SOURCES\\n'\n    end = '# END EMBEDDED APT SOURCES\\n'\n    path = SEED / 'scripts/common/lib.sh'\n    text = path.read_text()\n    before, rest = text.split(begin, 1)\n    _, after = rest.split(end, 1)\n    expected = before + begin + (SEED / 'scripts/common/apt-sources.sh').read_text() + end + after\n    if expected != text:\n        if check:\n            raise ValueError('stale APT source helper embedding')\n        path.write_text(expected)\n\ndef sync_credential_helpers(check: bool) -> None:\n    \"\"\"Embed one canonical reader in early/standalone libs without boot deps.\"\"\"\n    begin = '# BEGIN EMBEDDED INITRD CREDENTIALS\\n'\n    end = '# END EMBEDDED INITRD CREDENTIALS\\n'\n    canonical = (SEED / 'scripts/common/credentials.sh').read_text()\n    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):\n        path = SEED / name\n        text = path.read_text()\n        if text.count(begin) != 1 or text.count(end) != 1:\n            raise ValueError(f'credential embedding markers invalid: {name}')\n        before, rest = text.split(begin, 1)\n        _, after = rest.split(end, 1)\n        expected = before + begin + canonical + end + after\n        if text == expected:\n            continue\n        if check:\n            raise ValueError(f'stale embedded credentials in {name}; run tools/build.py')\n        fd, temporary = tempfile.mkstemp(prefix='.credentials.', dir=path.parent)\n        try:\n            with os.fdopen(fd, 'w') as stream:\n                stream.write(expected)\n            os.chmod(temporary, path.stat().st_mode & 0o777)\n            os.replace(temporary, path)\n        finally:\n            if os.path.exists(temporary):\n                os.unlink(temporary)\n\ndef sync_debconf_helpers(check: bool) -> None:\n    begin, end = '# BEGIN EMBEDDED DEBCONF\\n', '# END EMBEDDED DEBCONF\\n'\n    canonical = (SEED / 'scripts/common/debconf.sh').read_text()\n    for name in ('scripts/common/lib.sh', 'scripts/runtime/common.sh'):\n        path = SEED / name\n        text = path.read_text()\n        before, rest = text.split(begin, 1)\n        _, after = rest.split(end, 1)\n        expected = before + begin + canonical + end + after\n        if text != expected:\n            if check:\n                raise ValueError(f'stale debconf embedding: {name}')\n            path.write_text(expected)\n\ndef sync_lifecycle_helpers(check: bool) -> None:\n    begin, end = '# BEGIN EMBEDDED LIFECYCLE\\n', '# END EMBEDDED LIFECYCLE\\n'\n    canonical = (SEED / 'scripts/common/lifecycle.sh').read_text()\n    for name in ('scripts/common/source.sh', 'scripts/common/lib.sh'):\n        path = SEED / name\n        text = path.read_text()\n        before, rest = text.split(begin, 1)\n        _, after = rest.split(end, 1)\n        expected = before + begin + canonical + end + after\n        if text != expected:\n            if check:\n                raise ValueError(f'stale lifecycle embedding: {name}')\n            path.write_text(expected)\n\ndef build() -> dict[str, bytes]:\n    paths = payload_files()\n"
+        },
+        {
+          "current": "    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):\n        values = {}\n        for line in profile.read_text().splitlines():\n            if not line.startswith(('SYSTEMD_', 'TMPFS_VAR_LOG=')):\n                continue\n            match = re.fullmatch(r'([A-Z0-9_]+)=\"([^\"\\\\$`\\x00-\\x1f\\x7f]*)\"', line)\n            if not match or match[1] in values:\n",
+          "previous": "    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):\n        values = {}\n        for line in profile.read_text().splitlines():\n            if not line.startswith('SYSTEMD_'):\n                continue\n            match = re.fullmatch(r'([A-Z0-9_]+)=\"([^\"\\\\$`\\x00-\\x1f\\x7f]*)\"', line)\n            if not match or match[1] in values:\n"
+        },
+        {
+          "current": "        # ANY release products. Shell syntax alone cannot detect invalid pins.\n        subprocess.run([resolve_python_interpreter(), '-I', '-B',\n                        str(ROOT / 'tools/check_resctl_bench.py')], check=True)\n        subprocess.run([resolve_python_interpreter(), \"-I\", \"-B\",\n                        str(ROOT / \"tools/generate_installer.py\")] +\n                       ([\"--check\"] if args.check else []), check=True)\n        # Recheck the newly resolved canonical values before release products.\n        subprocess.run([resolve_python_interpreter(), '-I', '-B',\n                        str(ROOT / 'tools/check_resctl_bench.py')], check=True)\n        validate_iocost_profiles()\n        validate_systemd_profiles()\n        validate_tomat_profiles()\n",
+          "previous": "        # ANY release products. Shell syntax alone cannot detect invalid pins.\n        subprocess.run([resolve_python_interpreter(), '-I', '-B',\n                        str(ROOT / 'tools/check_resctl_bench.py')], check=True)\n        validate_iocost_profiles()\n        validate_systemd_profiles()\n        validate_tomat_profiles()\n"
+        }
+      ]
+    },
+    "tools/check_shells.py": {
+      "previous_sha256": "2a352449a471b5acd9bb4fccf98fb3d455f81fd54f46b1abb01cfa7f2b5457cc",
+      "current_sha256": "af7f832e6284f227ee0f844c2f0d567d8d0e8e2428b8d20158757a61135a2a59",
+      "hunks": [
+        {
+          "current": "        first = data.split(b'\\n', 1)[0].decode('utf-8', errors='replace')\n        name = path.name.removesuffix('.tmpl')\n        relative = path.relative_to(root).as_posix()\n        # AppArmor attachment filenames may end in .sh; they are policy, not\n        # shell source. An actual shell shebang still takes precedence.\n        if '/etc/apparmor.d/' in '/' + relative and not (\n                first.startswith('#!') and re.search(r'\\b(sh|dash|ash|bash)\\b', first)):\n            continue\n        if name.startswith('.bash') or (first.startswith('#!') and re.search(r'\\bbash\\b', first)):\n            yield path, 'bash'\n        elif (name.endswith(('.sh', '.env')) or name == '.profile'\n",
+          "previous": "        first = data.split(b'\\n', 1)[0].decode('utf-8', errors='replace')\n        name = path.name.removesuffix('.tmpl')\n        relative = path.relative_to(root).as_posix()\n        if name.startswith('.bash') or (first.startswith('#!') and re.search(r'\\bbash\\b', first)):\n            yield path, 'bash'\n        elif (name.endswith(('.sh', '.env')) or name == '.profile'\n"
+        }
+      ]
+    }
+  }
+}

@@ -4,6 +4,7 @@ The transport endpoint and runtime effects are fixtures. Profile resolution,
 ordered composition, filesystem publication and strict-shell sourcing are real.
 """
 from __future__ import annotations
+from payload_fixture import installed_script
 from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
 from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import os
@@ -20,7 +21,7 @@ from test_repository_integrity import records
 from test_environment import skip_unless_process_tree_visibility
 
 FORKY = Path(__file__).resolve().parents[1]
-LIB = FORKY / 'scripts/common/lib.sh'
+LIB = installed_script(FORKY / 'scripts/common/lib.sh')
 CORE = FORKY / 'scripts/late/core.sh'
 Q = shlex.quote
 

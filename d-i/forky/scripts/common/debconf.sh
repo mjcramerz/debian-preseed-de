@@ -1,5 +1,5 @@
 #!/bin/sh
-# Canonical debconf transport. Embedded in common/lib.sh and runtime/common.sh.
+# Canonical debconf transport, imported by both common entrypoints.
 # d-i's shell debconf-set-selections is NOT the installed system's Perl tool:
 # it requires a filename, has no --checkonly, and uses stdin + FD 3 as a live
 # protocol connection. Never pipe answer data into that connection.

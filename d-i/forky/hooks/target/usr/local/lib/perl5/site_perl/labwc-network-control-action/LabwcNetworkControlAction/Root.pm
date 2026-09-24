@@ -240,12 +240,15 @@ sub _import_network_profile {
     $confirmation eq 'confirmed-network-action'
         or die(($type eq 'openvpn' ? 'OpenVPN' : 'WireGuard') . " import confirmation is missing\n");
     if ($type eq 'openvpn') {
-        $path = $self->validator()->import_file(
-            label     => 'OpenVPN profile',
-            path      => $path,
-            suffix    => '.ovpn',
-            owner_uid => $invoker_uid,
+        # Never let the privileged parser reopen a checked caller-owned path.
+        # The shared helper drops uid for the read, validates a bounded snapshot,
+        # and passes only the root-private copy to NetworkManager.
+        $self->_require_networkmanager();
+        $self->command()->run_or_die(
+            'importing the OpenVPN snapshot',
+            '/usr/local/libexec/network-openvpn-import', $invoker_uid, $path,
         );
+        return 0;
     }
     elsif ($type eq 'wireguard') {
         $path = $self->validator()->wireguard_import_file(path => $path);

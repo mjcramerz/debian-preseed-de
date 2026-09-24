@@ -1,1 +1,2 @@
-# ADB is rotated by /etc/logrotate.d/rsyslog.
+# Collector-owned files rotate at 2 MiB in omfile via rsyslog-size-rotate.
+# No second rotator, copytruncate, compression job, or rsyslog HUP.

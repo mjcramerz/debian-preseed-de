@@ -181,6 +181,12 @@ profile crowdsec-firstboot /var/lib/firstboot/bin/crowdsec-firstboot flags=(atta
 
 profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {
   #include <abstractions/wrapper-base>
+  /usr/local/libexec/tpm2-policy-check rix,
+  /usr/bin/python3{,.[0-9]*} rix,
+  /var/lib/tpm2-enrollment/.enrollment-* rwk,
+  /var/lib/tpm2-enrollment/boot-artifacts-cleaned rwk,
+  /proc/sys/kernel/random/boot_id r,
+
 
   capability dac_override,
   unix,
@@ -276,31 +282,4 @@ profile tpm2-enroll-launch /usr/local/bin/tpm2-enroll-launch flags=(attach_disco
   /var/lib/tpm2-enrollment/tpm2-enroll.pending r,
 
   include if exists <local/usr.local.bin.tpm2-enroll-launch>
-}
-
-profile tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {
-  #include <abstractions/wrapper-terminal>
-  #include <abstractions/wrapper-base>
-
-  /usr/local/sbin/tpm2-enroll.sh rix,
-  /usr/bin/{awk,chmod,cmp,date,dirname,flock,gawk,grep,id,install,mawk,mktemp,nawk,readlink,rm,stty} rix,
-  /usr/bin/{mokutil,systemctl,systemd-cryptenroll} PUx,
-  /usr/{bin,sbin}/cryptsetup PUx,
-  /dev/tty rw,
-  /dev/disk/by-uuid/ r,
-  /dev/disk/by-uuid/* r,
-  /dev/mapper/ r,
-  /dev/mapper/* r,
-  /dev/{mmcblk[0-9]*p[0-9]*,nvme[0-9]*n[0-9]*p[0-9]*,sd[a-z][0-9]*,vd[a-z][0-9]*} r,
-  /etc/cryptsetup-keys.d/crypthome.key r,
-  /run/lock/tpm2-enroll.lock rwk,
-  owner /run/tpm2-enroll.*/ rw,
-  owner /run/tpm2-enroll.*/** rwkl,
-  /var/lib/tpm2-enrollment/ rw,
-  /var/lib/tpm2-enrollment/config.env r,
-  /var/lib/tpm2-enrollment/install-passphrase rw,
-  /var/lib/tpm2-enrollment/tpm2-enroll.complete rwk,
-  /var/lib/tpm2-enrollment/tpm2-enroll.pending rw,
-
-  include if exists <local/usr.local.sbin.tpm2-enroll.sh>
 }

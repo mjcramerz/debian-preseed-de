@@ -20,6 +20,7 @@ import tempfile
 import unittest
 
 from test_hardware_restore import FORKY, copy_binary, make_chroot
+from payload_fixture import installed_script
 
 SHELLS = [["/bin/sh"]]
 if shutil.which("busybox"):
@@ -121,6 +122,11 @@ fixture_target_call() (
 attempt_in_target() { fixture_target_call "$@"; }
 run_in_target() { fixture_target_call "$@"; }
 '''
+
+# Isolated publisher fixtures need definitions only; actual payload/module
+# loading is exercised separately by test_modular_installer.py.
+PREAMBLE = PREAMBLE.replace('. "$FORKY/scripts/common/lib.sh"',
+    '. ' + shlex.quote(str(installed_script(FORKY / 'scripts/common/lib.sh'))))
 
 
 class PrivateStageTests(unittest.TestCase):

@@ -5,6 +5,7 @@ After=systemd-journald.service systemd-tmpfiles-setup.service
 
 [Service]
 LimitNOFILE=__INSTALLER_LOG_RSYSLOG_MAX_OPEN_FILES__
+ExecStartPre=/usr/bin/test -x /usr/local/libexec/rsyslog-size-rotate
 ExecStartPre=/usr/local/libexec/journal-check
 ExecStartPre=/usr/local/libexec/log-layout --preflight
 ExecStartPre=/usr/bin/systemd-tmpfiles --create /etc/tmpfiles.d/59-log-layout.conf /etc/tmpfiles.d/60-security-logs.conf /etc/tmpfiles.d/65-audit-syslog.conf

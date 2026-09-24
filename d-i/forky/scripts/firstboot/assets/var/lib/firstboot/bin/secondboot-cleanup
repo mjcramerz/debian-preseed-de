@@ -162,17 +162,14 @@ cleanup_tpm2_enrollment() {
   fi
 
   rm -f -- \
-    "$crypto_config" \
     "$crypto_install_passphrase" \
     "$crypto_pending" \
-    "$crypto_complete" \
     "$(root_path /etc/profile.d/tpm2-enroll-prompt.sh)" \
     "$(root_path /etc/xdg/autostart/tpm2-enroll.desktop)" \
-    "$(root_path /usr/local/sbin/tpm2-enroll.sh)" \
     "$(root_path /usr/local/bin/tpm2-enroll-launch)" \
     "$(root_path /run/lock/tpm2-enroll.lock)"
   rmdir "$(root_path /var/lib/tpm2-enrollment)" 2>/dev/null || true
-  log "removed completed TPM2 enrollment artifacts"
+  log "retired TPM2 bootstrap prompts; retained reenrollment helper and release evidence"
 }
 
 remove_initramfs_health_hooks() {
@@ -205,6 +202,12 @@ remove_initramfs_health_hooks() {
       exit 1
     }
     /usr/sbin/update-initramfs -u -k all
+  fi
+  # The final PCR-bound token must be enrolled only after booting the image
+  # produced by this cleanup, not a soon-to-be-retired diagnostic initramfs.
+  if [ "$SECONDBOOT_ROOT" = / ] && [ -e "$crypto_config" ] &&
+     { [ "$initramfs_changed" -eq 1 ] || [ ! -e /var/lib/tpm2-enrollment/boot-artifacts-cleaned ]; }; then
+    /usr/local/libexec/tpm2-policy-check --mark-boot-artifacts
   fi
 }
 
@@ -271,7 +274,7 @@ if [ "$SECONDBOOT_ROOT" = / ] && command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload >/dev/null 2>&1 || true
 fi
 
-# No reusable runtime code or enrollment credentials survive successful setup.
+# No bootstrap credentials survive. Permanent TPM reenrollment and release evidence remain.
 rm -f -- "$(root_path /var/lib/firstboot/state/complete)" "$(root_path /var/lib/firstboot/state/lock)"
 rmdir "$(root_path /var/lib/firstboot/state)" "$(root_path /var/lib/firstboot/bin)" "$(root_path /var/lib/firstboot)" 2>/dev/null || true
 log "removed completed first-boot artifacts and retained installation diagnostics"

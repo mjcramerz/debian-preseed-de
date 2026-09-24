@@ -230,11 +230,11 @@ host_variant=$(crowdsec_host_variant)
 : "${FILE_CROWDSEC_ENROLL_TOKEN:?FILE_CROWDSEC_ENROLL_TOKEN must be set}"
 : "${FILE_CROWDSEC_COMPLETE:?FILE_CROWDSEC_COMPLETE must be set}"
 : "${FILE_CROWDSEC_STATUS:?FILE_CROWDSEC_STATUS must be set}"
-: "${LOG_CROWDSEC_SERVICE_FILE:?LOG_CROWDSEC_SERVICE_FILE must be set}"
+: "${LOG_SYSTEM_SERVICES_FILE:?LOG_SYSTEM_SERVICES_FILE must be set}"
 token_file=$FILE_CROWDSEC_ENROLL_TOKEN
 complete_file=$FILE_CROWDSEC_COMPLETE
 status_file=$FILE_CROWDSEC_STATUS
-log_file=$LOG_CROWDSEC_SERVICE_FILE
+log_file=$LOG_SYSTEM_SERVICES_FILE
 
 crowdsec_validate_abs_target_path "$token_file"
 crowdsec_validate_abs_target_path "$complete_file"

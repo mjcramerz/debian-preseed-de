@@ -395,7 +395,7 @@ render_target_template() (
 # This allowlist is intentionally limited to managed resource-policy assets.
 # Existing zram/Podman policies and the generic renderer remain independent.
 # Values are data: indirect variable names below are literal, never user input.
-systemd_resource_placeholder_map() (
+systemd_journal_policy_map() (
   set -eu
   case "${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}" in
     true) journal_storage=volatile ;;
@@ -403,6 +403,18 @@ systemd_resource_placeholder_map() (
     *) installer_fatal "SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false"; exit 1 ;;
   esac
   printf 'SYSTEMD_JOURNAL_STORAGE=%s\n' "$journal_storage"
+  case "${TMPFS_VAR_LOG-}" in
+    true) journal_seal=no ;;
+    false) [ "$journal_storage" = persistent ] && journal_seal=yes || journal_seal=no ;;
+    *) installer_fatal "TMPFS_VAR_LOG must be true or false"; exit 1 ;;
+  esac
+  printf 'SYSTEMD_JOURNAL_SEAL=%s\n' "$journal_seal"
+
+)
+
+systemd_resource_placeholder_map() (
+  set -eu
+  systemd_journal_policy_map || exit 1
   case "${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}" in
     true) io_accounting=yes ;;
     false) io_accounting=no ;;

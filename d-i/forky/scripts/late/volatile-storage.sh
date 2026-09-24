@@ -114,6 +114,12 @@ dir_data_run=${12}
 dir_data_run_mnt=${13}
 dir_var_tmp=${14}
 dir_tmp=${15}
+tmpfs_var_spool_rsyslog=${16}
+dir_var_spool_rsyslog=${17}
+
+if bool_is_true "$tmpfs_var_spool_rsyslog"; then
+  ensure_dir "$dir_var_spool_rsyslog" 0700 root root
+fi
 
 if bool_is_true "$tmpfs_var_log"; then
   ensure_dir "$dir_var_log" 0755 root root
@@ -154,7 +160,9 @@ ensure_dir "$dir_tmp" 1777 root root
     "${DIR_DATA_RUN:-}" \
     "${DIR_DATA_RUN_MNT:-}" \
     "${DIR_VAR_TMP:-}" \
-    "${DIR_TMP:-/tmp}"
+    "${DIR_TMP:-/tmp}" \
+    "${TMPFS_VAR_SPOOL_RSYSLOG:-false}" \
+    "${DIR_VAR_SPOOL_RSYSLOG:-/var/spool/rsyslog}"
 
   purge_target_cdrom_apt_sources
 }
@@ -200,6 +208,10 @@ dir_systemd_coredump=${11}
 dir_tmp=${12}
 dir_var_tmp=${13}
 dir_dev_shm=${14}
+tmpfs_var_spool_rsyslog=${15}
+dir_var_spool_rsyslog=${16}
+
+normalize_tmpfs_dir "$tmpfs_var_spool_rsyslog" "$dir_var_spool_rsyslog" 0700
 
 normalize_tmpfs_dir "$tmpfs_var_log" "$dir_var_log" 0755
 normalize_tmpfs_dir "$tmpfs_var_cache" "$dir_var_cache" 0755
@@ -224,7 +236,9 @@ chmod 1777 "$dir_var_tmp"
     "${DIR_SYSTEMD_COREDUMP}" \
     "${DIR_TMP}" \
     "${DIR_VAR_TMP}" \
-    "${DIR_DEV_SHM}"
+    "${DIR_DEV_SHM}" \
+    "${TMPFS_VAR_SPOOL_RSYSLOG}" \
+    "${DIR_VAR_SPOOL_RSYSLOG}"
 }
 
 stage_target_tmpfs_pre_clean_mount_override_if_enabled() {
@@ -319,6 +333,9 @@ install_target_tmpfs_pre_clean_assets() {
   stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_DEV_SHM \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dev-shm.mount.d/override.conf)" \
     "${FILE_TMPFS_PRE_CLEAN_DEV_SHM_MOUNT_OVERRIDE}"
+  stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_VAR_SPOOL_RSYSLOG \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/var-spool-rsyslog.mount.d/override.conf)" \
+    "${FILE_TMPFS_PRE_CLEAN_VAR_SPOOL_RSYSLOG_MOUNT_OVERRIDE}"
   stage_target_tmpfs_pre_clean_mount_override_if_enabled TMPFS_VAR_LOG \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/var-log.mount.d/override.conf)" \
     "${FILE_TMPFS_PRE_CLEAN_VAR_LOG_MOUNT_OVERRIDE}"
@@ -391,6 +408,7 @@ require_policy_bool() {
 validate_tmpfs_policy_env() {
   for var_name in \
     TMPFS_VAR_LOG \
+    TMPFS_VAR_SPOOL_RSYSLOG \
     TMPFS_VAR_CACHE \
     TMPFS_VAR_LIB_APT_LISTS \
     TMPFS_DEV_SHM \
@@ -401,6 +419,16 @@ validate_tmpfs_policy_env() {
     [ -n "$var_value" ] || installer_fatal "${var_name} must be set"
     require_policy_bool "$var_name" "$var_value"
   done
+  # Reject injection, zero, leading zeros and unbounded limits before fstab output.
+  case "${SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB:-}" in
+    ''|0*|*[!0-9]*) installer_fatal "invalid SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB" ;;
+  esac
+  [ "${#SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB}" -le 5 ] &&
+    [ "$SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB" -le 65536 ] ||
+    installer_fatal "rsyslog spool tmpfs must be 1..65536 MiB"
+  [ "$DIR_VAR_SPOOL_RSYSLOG" = /var/spool/rsyslog ] &&
+    [ "${LOG_RSYSLOG_SPOOL_DIR:-/var/spool/rsyslog}" = "$DIR_VAR_SPOOL_RSYSLOG" ] ||
+    installer_fatal "rsyslog work directory and tmpfs mount path disagree"
 }
 
 tmpfs_policy_enabled() {
@@ -431,6 +459,7 @@ tmpfs_pre_clean_mount_units_for_enabled_policy() {
     "tmp.mount" \
     "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_DEV_SHM dev-shm.mount)" \
     "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LOG var-log.mount)" \
+    "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_SPOOL_RSYSLOG var-spool-rsyslog.mount)" \
     "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_CACHE var-cache.mount)" \
     "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_VAR_LIB_APT_LISTS var-lib-apt-lists.mount)" \
     "$(tmpfs_pre_clean_mount_unit_if_enabled TMPFS_SYSTEMD_COREDUMP var-lib-systemd-coredump.mount)" \
@@ -453,6 +482,7 @@ tmpfs_pre_clean_condition_lines_for_enabled_policy() {
   # /dev/shm is inherited with /dev before real-root services can run. It has
   # no persistent backing tree to scrub, so keep only its mount-unit ordering.
   tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LOG "$DIR_VAR_LOG"
+  tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_SPOOL_RSYSLOG "$DIR_VAR_SPOOL_RSYSLOG"
   tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_CACHE "$DIR_VAR_CACHE"
   tmpfs_pre_clean_condition_line_if_enabled TMPFS_VAR_LIB_APT_LISTS "$DIR_APT_LISTS"
   tmpfs_pre_clean_condition_line_if_enabled TMPFS_SYSTEMD_COREDUMP "$DIR_SYSTEMD_COREDUMP"
@@ -460,6 +490,9 @@ tmpfs_pre_clean_condition_lines_for_enabled_policy() {
 }
 
 tmpfs_pre_clean_requires_mounts_for_enabled_policy() {
+  if tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG; then
+    printf 'RequiresMountsFor=%s\n' "$DIR_VAR_SPOOL"
+  fi
   if tmpfs_policy_enabled TMPFS_DATA_RUN; then
     printf 'RequiresMountsFor=%s\n' "$DIR_DATA"
   fi
@@ -469,6 +502,7 @@ tmpfs_pre_clean_read_write_paths_for_enabled_policy() {
   join_words \
     "$DIR_TMP" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_LOG "$DIR_VAR_LOG")" \
+    "$(tmpfs_policy_path_if_enabled TMPFS_VAR_SPOOL_RSYSLOG "$DIR_VAR_SPOOL_RSYSLOG")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_CACHE "$DIR_VAR_CACHE")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_VAR_LIB_APT_LISTS "$DIR_APT_LISTS")" \
     "$(tmpfs_policy_path_if_enabled TMPFS_SYSTEMD_COREDUMP "$DIR_SYSTEMD_COREDUMP")" \
@@ -488,6 +522,7 @@ tmpfs_pre_clean_targets_for_enabled_policy() {
   join_words \
     "DIR_TMP|$DIR_TMP" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LOG DIR_VAR_LOG "$DIR_VAR_LOG")" \
+    "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_SPOOL_RSYSLOG DIR_VAR_SPOOL_RSYSLOG "$DIR_VAR_SPOOL_RSYSLOG")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_CACHE DIR_VAR_CACHE "$DIR_VAR_CACHE")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS "$DIR_APT_LISTS")" \
     "$(tmpfs_pre_clean_target_if_enabled TMPFS_SYSTEMD_COREDUMP DIR_SYSTEMD_COREDUMP "$DIR_SYSTEMD_COREDUMP")" \
@@ -496,6 +531,7 @@ tmpfs_pre_clean_targets_for_enabled_policy() {
 
 tmpfs_pre_clean_policy_enabled() {
   tmpfs_policy_enabled TMPFS_VAR_LOG ||
+    tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG ||
     tmpfs_policy_enabled TMPFS_VAR_CACHE ||
     tmpfs_policy_enabled TMPFS_VAR_LIB_APT_LISTS ||
     tmpfs_policy_enabled TMPFS_SYSTEMD_COREDUMP ||
@@ -514,6 +550,7 @@ join_words() {
 tmpfs_policy_placeholder_map() {
   for var_name in \
     TMPFS_VAR_LOG \
+    TMPFS_VAR_SPOOL_RSYSLOG \
     TMPFS_VAR_CACHE \
     TMPFS_VAR_LIB_APT_LISTS \
     TMPFS_DEV_SHM \
@@ -548,4 +585,11 @@ apply_tmpfs_pre_clean_placeholders() {
   mv "$target_path.scalar.$$" "$target_path"
   replace_placeholder_line_block "$target_path" "__INSTALLER_TMPFS_PRE_CLEAN_CONDITION_LINES__" "$tmpfs_pre_clean_condition_lines"
   replace_placeholder_line_block "$target_path" "__INSTALLER_TMPFS_PRE_CLEAN_REQUIRES_MOUNTS_FOR__" "$tmpfs_pre_clean_requires_mounts_for"
+}
+
+# The logging queue is independent of the root filesystem family.
+write_rsyslog_spool_fstab() {
+  if tmpfs_policy_enabled TMPFS_VAR_SPOOL_RSYSLOG; then
+    fstab_entry tmpfs "$DIR_VAR_SPOOL_RSYSLOG" tmpfs "$MNT_VAR_SPOOL_RSYSLOG_TMPFS_OPTS" 0 0
+  fi
 }

@@ -25,6 +25,11 @@ def _native_monitor():
     return json.loads((Path(__file__).parent / 'fixtures/native-monitor-20260924-reversions.json').read_text())['files']
 
 
+@lru_cache(maxsize=1)
+def _security_review():
+    return json.loads((Path(__file__).parent / 'fixtures/security-20260924-reversions.json').read_text())['files']
+
+
 def current_path(relative):
     return _source_layout().get(relative, {}).get('current_path',
         _followup().get(relative, {}).get('current_path',
@@ -32,6 +37,16 @@ def current_path(relative):
 
 
 def uploaded_bytes(relative, data):
+    security = _security_review().get(relative)
+    if security is not None:
+        text = data.decode()
+        for hunk in security['hunks']:
+            if text.count(hunk['current']) != 1:
+                raise AssertionError(f'{relative}: reviewed security hunk changed or is ambiguous')
+            text = text.replace(hunk['current'], hunk['previous'], 1)
+        data = text.encode()
+        if hashlib.sha256(data).hexdigest() != security['previous_sha256']:
+            raise AssertionError(f'{relative}: unreviewed change outside security repair')
     native = _native_monitor().get(relative)
     if native is not None:
         text = data.decode()

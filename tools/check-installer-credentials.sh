@@ -12,8 +12,12 @@ if [ "$#" -gt 2 ]; then
   exit 2
 fi
 check_repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+# Load only the shared definitions this offline diagnostic needs. It does not
+# initialize installer bootstrap or download a payload.
 # shellcheck disable=SC1091
-. "$check_repo/d-i/forky/scripts/common/lib.sh"
+. "$check_repo/d-i/forky/scripts/common/credentials.sh"
+# shellcheck disable=SC1091
+. "$check_repo/d-i/forky/scripts/common/modules/credentials-probes.sh"
 INSTALLER_PRESEED_ENV_FILE=${1:-/preseed.env}
 INSTALLER_CMDLINE_FILE=${2:-/proc/cmdline}
 unset INSTALLER_CMDLINE INSTALLER_CMDLINE_CACHE INSTALLER_CMDLINE_CACHE_READY

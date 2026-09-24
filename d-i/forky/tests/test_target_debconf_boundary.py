@@ -5,6 +5,7 @@ The Debian in-target/confmodule/debconf-get clients are real; chroot-setup is an
 explicitly reduced protocol fixture and log-output a descriptor-preserving shim.
 """
 from __future__ import annotations
+from payload_fixture import read_text as payload_module_text
 import hashlib
 import os
 from pathlib import Path
@@ -316,7 +317,7 @@ print "perl-passthrough-ok\\n";
                              ('scripts/common/source.sh', '/tmp/source.sh'),
                              ('scripts/late/target-assets.sh', '/tmp/target-assets.sh'),
                              ('scripts/late/iocost.sh', '/tmp/iocost.sh')]:
-            self.write(dest.lstrip('/'), (SEED/source).read_text())
+            self.write(dest.lstrip('/'), payload_module_text(SEED/source))
         for asset in ASSETS:
             path = 'hooks/target/'+asset+'.tmpl'
             self.write('seed/'+path, (SEED/path).read_text())

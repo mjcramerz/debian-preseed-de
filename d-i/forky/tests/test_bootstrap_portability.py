@@ -124,9 +124,11 @@ class TimeoutPortabilityTests(unittest.TestCase):
                 self.assertIn('installer_bounded_seconds()', body)
                 self.assertIn('for lc_interval in $lc_intervals', body)
         canonical = LC.read_text()
-        for path in (SOURCE, FORKY / 'scripts/common/lib.sh'):
+        for path in (SOURCE,):
             embedded = path.read_text().split('# BEGIN EMBEDDED LIFECYCLE\n', 1)[1].split('# END EMBEDDED LIFECYCLE\n', 1)[0]
             self.assertEqual(embedded, canonical)
+        self.assertIn("bootstrap_source_module 'scripts/common/lifecycle.sh'",
+                      (FORKY / 'scripts/common/lib.sh').read_text())
 
     def test_bounded_command_preserves_status_with_leading_zero_budget(self):
         for name, shell in SHELLS:

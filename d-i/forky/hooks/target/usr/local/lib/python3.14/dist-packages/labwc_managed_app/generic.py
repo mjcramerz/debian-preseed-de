@@ -3,6 +3,10 @@
 A separate transient service is used even when launched from a terminal. The
 service is created by the host user manager, outside the compositor namespace. Native toolkit selection uses environment variables;
 Chromium switches are passed only to Electron payloads.
+
+This is lifecycle/resource ownership, not an application security boundary.
+The same uid still controls its files, user manager and permitted IPC endpoints;
+use an explicit AppArmor/bubblewrap policy (or a distinct uid/VM) for confinement.
 """
 from __future__ import annotations
 

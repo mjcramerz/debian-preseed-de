@@ -1,0 +1,161 @@
+{
+  "matched_files": 93,
+  "unchanged": [
+    "d-i/forky/classes/configs/hardware.cfg",
+    "d-i/forky/hooks/target/etc/apparmor.d/Discord",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-desktop-parent",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-fuzzel-parent",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-intel",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-management-parent",
+    "d-i/forky/hooks/target/etc/apparmor.d/abstractions/hardware-tuning-nvidia",
+    "d-i/forky/hooks/target/etc/apparmor.d/hardware-tuning",
+    "d-i/forky/hooks/target/etc/apparmor.d/usr.bin.zoom",
+    "d-i/forky/hooks/target/etc/hardware-tuning/broker.json.tmpl",
+    "d-i/forky/hooks/target/etc/hardware-tuning/intel.json.tmpl",
+    "d-i/forky/hooks/target/etc/hardware-tuning/nvidia.json.tmpl",
+    "d-i/forky/hooks/target/etc/modprobe.d/05-mei-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/10-net-proto-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/20-virtualization-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/30-legacy-bus-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/40-filesystem-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/50-nouveau-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/60-ses-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/70-vfio-pci.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/71-thunderbolt.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/72-nvme-blacklist.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/73-nvme.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/74-usbcore.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/75-cfg80211.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/76-iwlwifi.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/77-e1000e.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/78-snd-hda-intel.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/79-chromebook.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/79-ideapad-acpi.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/79-thinkpad-acpi.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/80-i915.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/81-amdgpu.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/82-nvidia.conf",
+    "d-i/forky/hooks/target/etc/modprobe.d/90-zram.conf",
+    "d-i/forky/hooks/target/etc/polkit-1/rules.d/70-hardware-peripherals.rules",
+    "d-i/forky/hooks/target/etc/skel-desktop/.config/zoom/zoomus.conf.tmpl",
+    "d-i/forky/hooks/target/etc/sysctl.d/10-baseline.conf",
+    "d-i/forky/hooks/target/etc/sysctl.d/20-storage-memory.conf",
+    "d-i/forky/hooks/target/etc/sysctl.d/25-storage-static.conf.tmpl",
+    "d-i/forky/hooks/target/etc/sysctl.d/90-codex-bwrap.conf.tmpl",
+    "d-i/forky/hooks/target/etc/sysctl.d/90-podman-rootless.conf",
+    "d-i/forky/hooks/target/etc/sysctl.d/profiles/balanced/40-balanced.conf.tmpl",
+    "d-i/forky/hooks/target/etc/sysctl.d/profiles/hardened/40-hardened.conf.tmpl",
+    "d-i/forky/hooks/target/etc/sysctl.d/profiles/performance/40-performance.conf.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-autostart.service",
+    "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning-sleep.service",
+    "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning.service.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/system/hardware-tuning.socket.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-balanced.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-high.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-performance.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-intel-silent.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-balanced.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-high.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-performance.service",
+    "d-i/forky/hooks/target/etc/systemd/user/hardware-tuning-nvidia-silent.service",
+    "d-i/forky/hooks/target/etc/systemd/user/labwc-devops-.service.d/85-hardware-tuning.conf.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/user/labwc-electron-.service.d/85-hardware-tuning.conf.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/user/labwc-native-.service.d/85-hardware-tuning.conf.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/user/labwc-wayland-.service.d/85-hardware-tuning.conf.tmpl",
+    "d-i/forky/hooks/target/etc/systemd/user/llama-server.service.d/85-hardware-tuning.conf.tmpl",
+    "d-i/forky/hooks/target/etc/udev/rules.d/51-android-debug-bridge.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/52-samsung-download-mode.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/53-ledger-wallet.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/61-ch341a-programmers.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/71-nvidia-char-links.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/85-wifi-regdom.rules",
+    "d-i/forky/hooks/target/etc/udev/rules.d/90-udisks-behavior.rules",
+    "d-i/forky/hooks/target/usr/local/bin/discord",
+    "d-i/forky/hooks/target/usr/local/bin/labwc-hardware-tuning",
+    "d-i/forky/hooks/target/usr/local/bin/zoom",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/broker.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/client.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/common.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/engine.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/intel.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/nvidia.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/policy_owner.py",
+    "d-i/forky/hooks/target/usr/local/lib/hardware_tuning/system_state.py",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Discord.pm",
+    "d-i/forky/hooks/target/usr/local/lib/perl5/site_perl/zram-writeback/Zram/Tuning.pm",
+    "d-i/forky/hooks/target/usr/local/libexec/discord-distro",
+    "d-i/forky/hooks/target/usr/local/libexec/hardware-tuning-policy",
+    "d-i/forky/hooks/target/usr/local/libexec/hardware-tuning-worker",
+    "d-i/forky/hooks/target/usr/local/libexec/hardware-tuningd",
+    "d-i/forky/hooks/target/usr/local/libexec/labwc-zoom-discord-compat-runtime",
+    "d-i/forky/hooks/target/usr/local/share/applications/discord.desktop.tmpl",
+    "d-i/forky/scripts/desktop/hardware-tuning-assets.list",
+    "d-i/forky/scripts/desktop/hardware-tuning-config.py",
+    "d-i/forky/scripts/desktop/hardware-tuning.sh",
+    "d-i/forky/scripts/desktop/xwayland.sh",
+    "tools/check_hardware_tuning.py"
+  ],
+  "changed": [],
+  "profiles": {
+    "btrfs-de-duo.env": {
+      "original_sha256": "42a5f09dae655790f57179c767c2c8aeb986017807e9db0cf6bd59e62f015067",
+      "preserved_except_two_requested_assignments": true
+    },
+    "btrfs-de-flex-duo.env": {
+      "original_sha256": "7c6e8fd2e2ea6dc384076d56f3bee4ee8b6719da6f18cafc45b8231bdef7a785",
+      "preserved_except_two_requested_assignments": true
+    },
+    "btrfs-de-flex.env": {
+      "original_sha256": "2991bf569b621b11d926f87301636ec7ca5db7870fcd1368c9eb0aab29b617aa",
+      "preserved_except_two_requested_assignments": true
+    },
+    "btrfs-de-p15s-duo.env": {
+      "original_sha256": "c4bc79918749dc12b0b98338c69ccbde8144217248c02380e90ecb878b9e23fa",
+      "preserved_except_two_requested_assignments": true
+    },
+    "btrfs-de-p15s.env": {
+      "original_sha256": "b6748e6cfbc2d296d9760d1c19939cccc9c5bda98ff6b8e0ecb42a9d6012c188",
+      "preserved_except_two_requested_assignments": true
+    },
+    "btrfs-de.env": {
+      "original_sha256": "27d705448e90a4c1990c5f342365d64884ab1e315e218b685ec6f675cce337e3",
+      "preserved_except_two_requested_assignments": true
+    },
+    "f2fs-de-hp14-duo.env": {
+      "original_sha256": "930f4570d51aa733c899775403572509c14499540457370bdebf37a037f7f0d9",
+      "preserved_except_two_requested_assignments": true
+    },
+    "f2fs-de-hp14.env": {
+      "original_sha256": "b889960f78728108c5390edc8e86666a227a64417233792ab69e27f1004b4bf9",
+      "preserved_except_two_requested_assignments": true
+    },
+    "f2fs-de-x360-duo.env": {
+      "original_sha256": "70dbea287a3e7bb05932a83467ee6ea6558563b66c4467cd3be58d3fb7fd144d",
+      "preserved_except_two_requested_assignments": true
+    },
+    "f2fs-de-x360.env": {
+      "original_sha256": "f0eca6b4ad0a78fc3909c3c9f44006e46b6d78bad5c9afc461fd218fa3f372d5",
+      "preserved_except_two_requested_assignments": true
+    }
+  },
+  "shared_application_policies": {
+    "zoom": {
+      "dictionaries": 3,
+      "unchanged": true
+    },
+    "discord": {
+      "dictionaries": 3,
+      "unchanged": true
+    }
+  },
+  "shared_apparmor_private_xwayland_blocks": {
+    "labwc-discord-command": true,
+    "labwc-zoom-discord-compat-runtime": true,
+    "labwc-wayland-compat-app": true,
+    "wayland-compat-slirp4netns": true,
+    "labwc-xwayland-direct-exec-deny": true,
+    "labwc-xkbcomp-direct-exec-deny": true,
+    "labwc-zoom-command": true,
+    "discord-distro": true
+  }
+}

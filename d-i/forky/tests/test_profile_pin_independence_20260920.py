@@ -57,13 +57,15 @@ def pin_text(pins: dict[str, str]) -> str:
     return ''.join(f'RESCTL_BENCH_{key}="{value}"\n' for key, value in pins.items())
 
 
-def update_profile(path: Path, number: int) -> None:
+def update_profile(path: Path, number: int, *, append_missing: bool = False) -> None:
     values = {**{'RESCTL_BENCH_' + k: v for k, v in resctl_fixture(number).items()},
               **tomat_fixture(number)}
     text = path.read_text()
     for key, value in values.items():
         text, count = re.subn(r'^' + key + r'="[^"\n]*"$', f'{key}="{value}"', text, flags=re.M)
-        if count != 1:
+        if count == 0 and append_missing:
+            text += f'{key}="{value}"\n'
+        elif count != 1:
             raise AssertionError(f'{path.name}: expected exactly one {key}')
     path.write_text(text)
 
@@ -161,6 +163,7 @@ class BuildAndDispatchTests(unittest.TestCase):
             self.assertEqual(len(profiles), 10)
             for index, profile in enumerate(profiles):
                 update_profile(profile, index)
+                # Directly edited profiles must survive both real build targets.
             before = {str(p.relative_to(seed)): p.read_bytes() for p in profiles}
             env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
             for target in ('build', 'check'):

@@ -1,0 +1,416 @@
+#!/bin/sh
+# Sourced installer module; edit this file directly.
+
+desktop_render_labwc_default_config() {
+  : "${ACCOUNT_USERNAME:?ACCOUNT_USERNAME must be set}"
+  : "${LABWC_INTEL_ACCELERATION_AVAILABLE:?Labwc Intel acceleration availability must be resolved}"
+  : "${LABWC_NVIDIA_ACCELERATION_AVAILABLE:?Labwc NVIDIA acceleration availability must be resolved}"
+  desktop_validate_bool \
+    LABWC_INTEL_ACCELERATION_AVAILABLE \
+    "$LABWC_INTEL_ACCELERATION_AVAILABLE"
+  desktop_validate_bool \
+    LABWC_NVIDIA_ACCELERATION_AVAILABLE \
+    "$LABWC_NVIDIA_ACCELERATION_AVAILABLE"
+  defaults_path=${LABWC_DESKTOP_DEFAULTS_FILE:-/etc/labwc/desktop.conf}
+  primary_account_ids=$(desktop_primary_account_ids "${ACCOUNT_USERNAME:-}" || true)
+  primary_account_uid=1000
+  primary_account_gid=1000
+  qbittorrent_root="/run/media/${ACCOUNT_USERNAME}/bittorrent"
+
+  case "${primary_account_ids:-}" in
+    [0-9]*:[0-9]*)
+      primary_account_uid=${primary_account_ids%%:*}
+      primary_account_gid=${primary_account_ids#*:}
+      ;;
+  esac
+
+  desktop_render_role_target_template \
+    etc/labwc/desktop.conf.tmpl \
+    "$defaults_path" \
+    0644 \
+    LABWC_PRIMARY_UID "$(desktop_shell_config_value "$primary_account_uid")" \
+    LABWC_PRIMARY_GID "$(desktop_shell_config_value "$primary_account_gid")" \
+    DESKTOP_APPARMOR_STATE "$(desktop_shell_config_value "${DESKTOP_APPARMOR_STATE:?DESKTOP_APPARMOR_STATE must be set by the desktop host profile}")" \
+    LABWC_DESKTOP_SESSION_NAME "$(desktop_shell_config_value "${LABWC_DESKTOP_SESSION_NAME:-Labwc}")" \
+    LABWC_DESKTOP_SESSION_COMMAND "$(desktop_shell_config_value "${LABWC_DESKTOP_SESSION_COMMAND:-/usr/local/bin/labwc-session}")" \
+    LABWC_WLR_RENDERER "$(desktop_shell_config_value "${LABWC_WLR_RENDERER-gles2}")" \
+    LABWC_GSK_RENDERER "$(desktop_shell_config_value "${LABWC_GSK_RENDERER-opengl}")" \
+    LABWC_GDK_DISABLE "$(desktop_shell_config_value "${LABWC_GDK_DISABLE-vulkan}")" \
+    LABWC_WLR_NO_HARDWARE_CURSORS "$(desktop_shell_config_value "${LABWC_WLR_NO_HARDWARE_CURSORS-1}")" \
+    LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT "$(desktop_shell_config_value "${LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT-1}")" \
+    LABWC_INTEL_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_INTEL_ACCELERATION_AVAILABLE")" \
+    LABWC_NVIDIA_ACCELERATION_AVAILABLE "$(desktop_shell_config_value "$LABWC_NVIDIA_ACCELERATION_AVAILABLE")" \
+    LABWC_MANAGED_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_MANAGED_APP_DEFAULT_EXEC")" \
+    LABWC_ELECTRON_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_ELECTRON_APP_DEFAULT_EXEC")" \
+    LABWC_WAYLAND_APP_DEFAULT_EXEC "$(desktop_shell_config_value "$LABWC_WAYLAND_APP_DEFAULT_EXEC")" \
+    LABWC_WORKSPACE_COUNT "$(desktop_shell_config_value "${LABWC_WORKSPACE_COUNT:-4}")" \
+    LABWC_WINDOW_SWITCHER_STYLE "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}")" \
+    LABWC_WINDOW_SWITCHER_ORDER "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_ORDER:-focus}")" \
+    LABWC_WINDOW_SWITCHER_PREVIEW "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_PREVIEW:-yes}")" \
+    LABWC_WINDOW_SWITCHER_OUTLINES "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_OUTLINES:-yes}")" \
+    LABWC_WINDOW_SWITCHER_UNSHADE "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_UNSHADE:-yes}")" \
+    LABWC_WINDOW_SWITCHER_OSD_OUTPUT "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_OSD_OUTPUT:-focused}")" \
+    LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT "$(desktop_shell_config_value "${LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT:-all}")" \
+    LABWC_WALLPAPER_PATH "$(desktop_shell_config_value "${LABWC_WALLPAPER_PATH}")" \
+    LABWC_LOCK_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_LOCK_BACKGROUND_PATH}")" \
+    LABWC_GREETER_BACKGROUND_PATH "$(desktop_shell_config_value "${LABWC_GREETER_BACKGROUND_PATH}")" \
+    LABWC_OUTPUT_POLICY "$(desktop_shell_config_value "${LABWC_OUTPUT_POLICY:-auto}")" \
+    LABWC_OUTPUT_INTERNAL_PREFIXES "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_PREFIXES:-eDP LVDS DSI}")" \
+    LABWC_OUTPUT_INTERNAL_PREFERRED_WIDTH "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_PREFERRED_WIDTH:-}")" \
+    LABWC_OUTPUT_INTERNAL_PREFERRED_HEIGHT "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_PREFERRED_HEIGHT:-}")" \
+    LABWC_OUTPUT_INTERNAL_PREFERRED_REFRESH_HZ "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_PREFERRED_REFRESH_HZ:-}")" \
+    LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH "$(desktop_shell_config_value "${LABWC_OUTPUT_EXTERNAL_PREFERRED_WIDTH:-}")" \
+    LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT "$(desktop_shell_config_value "${LABWC_OUTPUT_EXTERNAL_PREFERRED_HEIGHT:-}")" \
+    LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ "$(desktop_shell_config_value "${LABWC_OUTPUT_EXTERNAL_PREFERRED_REFRESH_HZ:-}")" \
+    LABWC_OUTPUT_FALLBACK_REFRESH_HZ "$(desktop_shell_config_value "${LABWC_OUTPUT_FALLBACK_REFRESH_HZ:-60}")" \
+    LABWC_OUTPUT_SCALE "$(desktop_shell_config_value "${LABWC_OUTPUT_SCALE:-1}")" \
+    LABWC_OUTPUT_INTERNAL_SCALE "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_SCALE:-1}")" \
+    LABWC_OUTPUT_EXTERNAL_SCALE "$(desktop_shell_config_value "${LABWC_OUTPUT_EXTERNAL_SCALE:-1}")" \
+    LABWC_OUTPUT_HOTPLUG_DEBOUNCE_SECONDS "$(desktop_shell_config_value "${LABWC_OUTPUT_HOTPLUG_DEBOUNCE_SECONDS:-1}")" \
+    LABWC_OUTPUT_INTERNAL_REFRESH_DELAY_SECONDS "$(desktop_shell_config_value "${LABWC_OUTPUT_INTERNAL_REFRESH_DELAY_SECONDS:-0}")" \
+    LABWC_KEYBOARD_REPEAT_RATE "$(desktop_shell_config_value "${LABWC_KEYBOARD_REPEAT_RATE:-40}")" \
+    LABWC_KEYBOARD_REPEAT_DELAY "$(desktop_shell_config_value "${LABWC_KEYBOARD_REPEAT_DELAY:-250}")" \
+    LABWC_DETECTED_OUTPUTS "$(desktop_shell_config_value "${LABWC_DETECTED_OUTPUTS:-}")" \
+    LABWC_DETECTED_INTERNAL_OUTPUTS "$(desktop_shell_config_value "${LABWC_DETECTED_INTERNAL_OUTPUTS:-}")" \
+    LABWC_DETECTED_EXTERNAL_OUTPUTS "$(desktop_shell_config_value "${LABWC_DETECTED_EXTERNAL_OUTPUTS:-}")" \
+    LABWC_DETECTED_PRIMARY_OUTPUT "$(desktop_shell_config_value "${LABWC_DETECTED_PRIMARY_OUTPUT:-}")" \
+    LABWC_GREETER_USER "$(desktop_shell_config_value "${LABWC_GREETER_USER:-greeter}")" \
+    LABWC_GREETER_VT "$(desktop_shell_config_value "${LABWC_GREETER_VT:-1}")" \
+    LABWC_GREETER_COMMAND "$(desktop_shell_config_value "${LABWC_GREETER_COMMAND:-/usr/local/bin/labwc-greeter-session}")" \
+    LABWC_GREETER_WLR_RENDERER "$(desktop_shell_config_value "${LABWC_GREETER_WLR_RENDERER-gles2}")" \
+    LABWC_GREETER_GSK_RENDERER "$(desktop_shell_config_value "${LABWC_GREETER_GSK_RENDERER-opengl}")" \
+    LABWC_GREETER_GDK_DISABLE "$(desktop_shell_config_value "${LABWC_GREETER_GDK_DISABLE-vulkan}")" \
+    LABWC_GREETER_WLR_NO_HARDWARE_CURSORS "$(desktop_shell_config_value "${LABWC_GREETER_WLR_NO_HARDWARE_CURSORS-1}")" \
+    LABWC_GREETER_INTERNAL_SCALE "$(desktop_shell_config_value "${LABWC_GREETER_INTERNAL_SCALE:-1}")" \
+    LABWC_GREETER_EXTERNAL_SCALE "$(desktop_shell_config_value "${LABWC_GREETER_EXTERNAL_SCALE:-1}")" \
+    LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS "$(desktop_shell_config_value "${LABWC_GREETER_HOTPLUG_DEBOUNCE_SECONDS:-0}")" \
+    LABWC_TERMINAL_PRIMARY "$(desktop_shell_config_value "${LABWC_TERMINAL_PRIMARY:-foot}")" \
+    LABWC_TERMINAL_FALLBACK "$(desktop_shell_config_value "${LABWC_TERMINAL_FALLBACK:-kitty}")" \
+    LABWC_TERMINAL_FONT_FAMILY "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_FAMILY}")" \
+    LABWC_TERMINAL_FONT_SIZE "$(desktop_shell_config_value "${LABWC_TERMINAL_FONT_SIZE:-12}")" \
+    LABWC_LAUNCHER_COMMAND "$(desktop_shell_config_value "${LABWC_LAUNCHER_COMMAND:-labwc-fuzzel launcher}")" \
+    LABWC_MENU_COMMAND "$(desktop_shell_config_value "${LABWC_MENU_COMMAND:-labwc-main-menu}")" \
+    LABWC_FILE_MANAGER_COMMAND "$(desktop_shell_config_value "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
+    LABWC_AUDIO_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \
+    LABWC_DISPLAY_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_DISPLAY_CONTROL_COMMAND:-labwc-display-configuration}")" \
+    LABWC_CALENDAR_COMMAND "$(desktop_shell_config_value "${LABWC_CALENDAR_COMMAND:-labwc-calendar}")" \
+    LABWC_BRIGHTNESS_CONTROL_COMMAND "$(desktop_shell_config_value "${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control}")" \
+    LABWC_POWER_SETTINGS_COMMAND "$(desktop_shell_config_value "${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}")" \
+    LABWC_KEYBOARD_LAYOUTS "$(desktop_shell_config_value "${LABWC_KEYBOARD_LAYOUTS:-us se}")" \
+    LABWC_KEYBOARD_DEFAULT_LAYOUT "$(desktop_shell_config_value "${LABWC_KEYBOARD_DEFAULT_LAYOUT:-us}")" \
+    LABWC_FONT_WINDOW_SIZE "$(desktop_shell_config_value "${LABWC_FONT_WINDOW_SIZE:-12}")" \
+    LABWC_FONT_MENU_SIZE "$(desktop_shell_config_value "${LABWC_FONT_MENU_SIZE:-13}")" \
+    LABWC_FONT_OSD_SIZE "$(desktop_shell_config_value "${LABWC_FONT_OSD_SIZE:-13}")" \
+    LABWC_MOUSE_POINTER_SPEED "$(desktop_shell_config_value "${LABWC_MOUSE_POINTER_SPEED:-0.55}")" \
+    LABWC_MOUSE_ACCEL_PROFILE "$(desktop_shell_config_value "${LABWC_MOUSE_ACCEL_PROFILE:-flat}")" \
+    LABWC_GTK_FONT_SIZE "$(desktop_shell_config_value "${LABWC_GTK_FONT_SIZE:-12}")" \
+    LABWC_QT_FONT_SIZE "$(desktop_shell_config_value "${LABWC_QT_FONT_SIZE:-11}")" \
+    LABWC_QT_FIXED_FONT_SIZE "$(desktop_shell_config_value "${LABWC_QT_FIXED_FONT_SIZE:-12}")" \
+    LABWC_GREETER_FONT_SIZE "$(desktop_shell_config_value "${LABWC_GREETER_FONT_SIZE:-14}")" \
+    LABWC_GREETER_CLOCK_FONT_SIZE "$(desktop_shell_config_value "${LABWC_GREETER_CLOCK_FONT_SIZE:-104}")" \
+    LABWC_GREETER_PANEL_MARGIN "$(desktop_shell_config_value "${LABWC_GREETER_PANEL_MARGIN:-}")" \
+    LABWC_GREETER_PANEL_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_PANEL_MIN_WIDTH:-}")" \
+    LABWC_GREETER_PANEL_PADDING_Y "$(desktop_shell_config_value "${LABWC_GREETER_PANEL_PADDING_Y:-}")" \
+    LABWC_GREETER_PANEL_PADDING_X "$(desktop_shell_config_value "${LABWC_GREETER_PANEL_PADDING_X:-}")" \
+    LABWC_GREETER_CONTROL_MIN_HEIGHT "$(desktop_shell_config_value "${LABWC_GREETER_CONTROL_MIN_HEIGHT:-}")" \
+    LABWC_GREETER_ENTRY_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_ENTRY_MIN_WIDTH:-}")" \
+    LABWC_GREETER_SHELL_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_SHELL_MIN_WIDTH:-}")" \
+    LABWC_GREETER_BUTTON_MIN_WIDTH "$(desktop_shell_config_value "${LABWC_GREETER_BUTTON_MIN_WIDTH:-}")" \
+    FUZZEL_INTERNAL_FONT_SIZE "$(desktop_shell_config_value "$FUZZEL_INTERNAL_FONT_SIZE")" \
+    FUZZEL_INTERNAL_HORIZONTAL_PADDING "$(desktop_shell_config_value "$FUZZEL_INTERNAL_HORIZONTAL_PADDING")" \
+    FUZZEL_INTERNAL_VERTICAL_PADDING "$(desktop_shell_config_value "$FUZZEL_INTERNAL_VERTICAL_PADDING")" \
+    FUZZEL_INTERNAL_INNER_PADDING "$(desktop_shell_config_value "$FUZZEL_INTERNAL_INNER_PADDING")" \
+    FUZZEL_INTERNAL_LINE_HEIGHT "$(desktop_shell_config_value "$FUZZEL_INTERNAL_LINE_HEIGHT")" \
+    FUZZEL_INTERNAL_BORDER_WIDTH "$(desktop_shell_config_value "$FUZZEL_INTERNAL_BORDER_WIDTH")" \
+    FUZZEL_INTERNAL_BORDER_RADIUS "$(desktop_shell_config_value "$FUZZEL_INTERNAL_BORDER_RADIUS")" \
+    FUZZEL_EXTERNAL_FONT_SIZE "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_FONT_SIZE")" \
+    FUZZEL_EXTERNAL_HORIZONTAL_PADDING "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_HORIZONTAL_PADDING")" \
+    FUZZEL_EXTERNAL_VERTICAL_PADDING "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_VERTICAL_PADDING")" \
+    FUZZEL_EXTERNAL_INNER_PADDING "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_INNER_PADDING")" \
+    FUZZEL_EXTERNAL_LINE_HEIGHT "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_LINE_HEIGHT")" \
+    FUZZEL_EXTERNAL_BORDER_WIDTH "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_BORDER_WIDTH")" \
+    FUZZEL_EXTERNAL_BORDER_RADIUS "$(desktop_shell_config_value "$FUZZEL_EXTERNAL_BORDER_RADIUS")" \
+    FUZZEL_DEFAULT_FONT_SIZE "$(desktop_shell_config_value "$FUZZEL_DEFAULT_FONT_SIZE")" \
+    FUZZEL_DEFAULT_HORIZONTAL_PADDING "$(desktop_shell_config_value "$FUZZEL_DEFAULT_HORIZONTAL_PADDING")" \
+    FUZZEL_DEFAULT_VERTICAL_PADDING "$(desktop_shell_config_value "$FUZZEL_DEFAULT_VERTICAL_PADDING")" \
+    FUZZEL_DEFAULT_INNER_PADDING "$(desktop_shell_config_value "$FUZZEL_DEFAULT_INNER_PADDING")" \
+    FUZZEL_DEFAULT_LINE_HEIGHT "$(desktop_shell_config_value "$FUZZEL_DEFAULT_LINE_HEIGHT")" \
+    FUZZEL_DEFAULT_BORDER_WIDTH "$(desktop_shell_config_value "$FUZZEL_DEFAULT_BORDER_WIDTH")" \
+    FUZZEL_DEFAULT_BORDER_RADIUS "$(desktop_shell_config_value "$FUZZEL_DEFAULT_BORDER_RADIUS")" \
+    FUZZEL_LAUNCHER_INTERNAL_WIDTH "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_INTERNAL_WIDTH")" \
+    FUZZEL_LAUNCHER_INTERNAL_LINES "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_INTERNAL_LINES")" \
+    FUZZEL_LAUNCHER_EXTERNAL_WIDTH "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_EXTERNAL_WIDTH")" \
+    FUZZEL_LAUNCHER_EXTERNAL_LINES "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_EXTERNAL_LINES")" \
+    FUZZEL_LAUNCHER_DEFAULT_WIDTH "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_DEFAULT_WIDTH")" \
+    FUZZEL_LAUNCHER_DEFAULT_LINES "$(desktop_shell_config_value "$FUZZEL_LAUNCHER_DEFAULT_LINES")" \
+    FUZZEL_MENU_INTERNAL_WIDTH "$(desktop_shell_config_value "$FUZZEL_MENU_INTERNAL_WIDTH")" \
+    FUZZEL_MENU_INTERNAL_LINES "$(desktop_shell_config_value "$FUZZEL_MENU_INTERNAL_LINES")" \
+    FUZZEL_MENU_EXTERNAL_WIDTH "$(desktop_shell_config_value "$FUZZEL_MENU_EXTERNAL_WIDTH")" \
+    FUZZEL_MENU_EXTERNAL_LINES "$(desktop_shell_config_value "$FUZZEL_MENU_EXTERNAL_LINES")" \
+    FUZZEL_MENU_DEFAULT_WIDTH "$(desktop_shell_config_value "$FUZZEL_MENU_DEFAULT_WIDTH")" \
+    FUZZEL_MENU_DEFAULT_LINES "$(desktop_shell_config_value "$FUZZEL_MENU_DEFAULT_LINES")" \
+    LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_MINIMUM_ICON_SIZE:-50}")" \
+    LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_MAXIMUM_ICON_SIZE:-80}")" \
+    LABWC_CRYSTAL_DOCK_TOOLTIP_FONT_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_TOOLTIP_FONT_SIZE:-13}")" \
+    LABWC_CRYSTAL_DOCK_APP_MENU_ICON_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_APP_MENU_ICON_SIZE:-40}")" \
+    LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_APP_MENU_FONT_SIZE:-15}")" \
+    LABWC_CRYSTAL_DOCK_CLOCK_FONT_SCALE_FACTOR "$(desktop_shell_config_value "${LABWC_CRYSTAL_DOCK_CLOCK_FONT_SCALE_FACTOR:-1.0}")" \
+    LABWC_ENABLE_WAYBAR "$(desktop_shell_config_value "${LABWC_ENABLE_WAYBAR:-true}")" \
+    LABWC_ENABLE_KANSHI "$(desktop_shell_config_value "${LABWC_ENABLE_KANSHI:-false}")" \
+    LABWC_ENABLE_MAKO "$(desktop_shell_config_value "${LABWC_ENABLE_MAKO:-true}")" \
+    LABWC_ENABLE_SWAYIDLE "$(desktop_shell_config_value "${LABWC_ENABLE_SWAYIDLE:-true}")" \
+    LABWC_ENABLE_SWAYBG "$(desktop_shell_config_value "${LABWC_ENABLE_SWAYBG:-true}")" \
+    LABWC_ENABLE_POLKIT_AGENT "$(desktop_shell_config_value "${LABWC_ENABLE_POLKIT_AGENT:-true}")" \
+    LABWC_ENABLE_XDG_DESKTOP_PORTAL "$(desktop_shell_config_value "${LABWC_ENABLE_XDG_DESKTOP_PORTAL:-true}")" \
+    LABWC_IDLE_LOCK_SECONDS "$(desktop_shell_config_value "${LABWC_IDLE_LOCK_SECONDS:-1800}")" \
+    LABWC_IDLE_DPMS_SECONDS "$(desktop_shell_config_value "${LABWC_IDLE_DPMS_SECONDS:-3600}")" \
+    LABWC_IDLE_SUSPEND_SECONDS "$(desktop_shell_config_value "${LABWC_IDLE_SUSPEND_SECONDS:-0}")" \
+    LABWC_CURSOR_THEME "$(desktop_shell_config_value "${LABWC_CURSOR_THEME}")" \
+    LABWC_CURSOR_SIZE "$(desktop_shell_config_value "${LABWC_CURSOR_SIZE:-24}")" \
+    LABWC_DESKTOP_GTK_THEME "$(desktop_shell_config_value "${LABWC_DESKTOP_GTK_THEME}")" \
+    LABWC_GDK_BACKEND "$(desktop_shell_config_value "${LABWC_GDK_BACKEND:-wayland}")" \
+    LABWC_QT_QPA_PLATFORM "$(desktop_shell_config_value "${LABWC_QT_QPA_PLATFORM:-wayland}")" \
+    LABWC_SDL_VIDEODRIVER "$(desktop_shell_config_value "${LABWC_SDL_VIDEODRIVER:-wayland}")" \
+    LABWC_CLUTTER_BACKEND "$(desktop_shell_config_value "${LABWC_CLUTTER_BACKEND:-wayland}")" \
+    LABWC_DESKTOP_GTK_ICON_THEME "$(desktop_shell_config_value "${LABWC_DESKTOP_GTK_ICON_THEME}")" \
+    LABWC_DESKTOP_QT_PLATFORMTHEME "$(desktop_shell_config_value "${LABWC_DESKTOP_QT_PLATFORMTHEME}")" \
+    LABWC_DESKTOP_QT_STYLE_OVERRIDE "$(desktop_shell_config_value "${LABWC_DESKTOP_QT_STYLE_OVERRIDE}")" \
+    LABWC_QBITTORRENT_USER "$(desktop_shell_config_value "$ACCOUNT_USERNAME")" \
+    LABWC_QBITTORRENT_ROOT "$(desktop_shell_config_value "$qbittorrent_root")" \
+    LABWC_QBITTORRENT_PORT "$(desktop_shell_config_value "${LABWC_QBITTORRENT_PORT:-50309}")"
+  desktop_log "rendered_labwc_default_config target=${defaults_path} primary_uid=${primary_account_uid} primary_gid=${primary_account_gid}"
+}
+
+desktop_render_greetd_config() {
+  desktop_render_role_target_template \
+    "etc/greetd/config.toml.tmpl" \
+    "/etc/greetd/config.toml" \
+    0644 \
+    LABWC_GREETER_VT "${LABWC_GREETER_VT:-1}" \
+    LABWC_GREETER_COMMAND_ESCAPED "$(desktop_toml_escape "${LABWC_GREETER_COMMAND:-/usr/local/bin/labwc-greeter-session}")" \
+    LABWC_GREETER_USER_ESCAPED "$(desktop_toml_escape "${LABWC_GREETER_USER:-greeter}")"
+  desktop_log "rendered_greetd_config user=${LABWC_GREETER_USER:-greeter} vt=${LABWC_GREETER_VT:-1}"
+}
+
+desktop_validate_cargo_policy() {
+  : "${DEVOPS_CARGO_RUSTC_WRAPPER:?DEVOPS_CARGO_RUSTC_WRAPPER must be set by the desktop host profile}"
+  : "${DEVOPS_CARGO_TARGET_TRIPLE:?DEVOPS_CARGO_TARGET_TRIPLE must be set by the desktop host profile}"
+  : "${DEVOPS_CARGO_TARGET_LINKER:?DEVOPS_CARGO_TARGET_LINKER must be set by the desktop host profile}"
+  : "${DEVOPS_CARGO_TARGET_CPU:?DEVOPS_CARGO_TARGET_CPU must be set by the desktop host profile}"
+  : "${DEVOPS_CARGO_LINKER_ARGUMENT:?DEVOPS_CARGO_LINKER_ARGUMENT must be set by the desktop host profile}"
+
+  [ "$DEVOPS_CARGO_RUSTC_WRAPPER" = sccache ] ||
+    desktop_fatal "DEVOPS_CARGO_RUSTC_WRAPPER must remain sccache"
+  [ "$DEVOPS_CARGO_TARGET_TRIPLE" = x86_64-unknown-linux-gnu ] ||
+    desktop_fatal "DEVOPS_CARGO_TARGET_TRIPLE must remain x86_64-unknown-linux-gnu"
+  [ "$DEVOPS_CARGO_TARGET_LINKER" = clang-24 ] ||
+    desktop_fatal "DEVOPS_CARGO_TARGET_LINKER must remain clang-24"
+  [ "$DEVOPS_CARGO_LINKER_ARGUMENT" = -fuse-ld=mold ] ||
+    desktop_fatal "DEVOPS_CARGO_LINKER_ARGUMENT must remain -fuse-ld=mold"
+  if ! printf '%s\n' "$DEVOPS_CARGO_TARGET_CPU" |
+    LC_ALL=C grep -Eq '^[a-z0-9][a-z0-9_.-]*$'
+  then
+    desktop_fatal "DEVOPS_CARGO_TARGET_CPU must be a lowercase rustc target CPU token"
+  fi
+}
+
+desktop_render_cargo_config() {
+  desktop_validate_cargo_policy
+  desktop_render_role_target_template \
+    "etc/skel-desktop/.config/cargo/config.toml.tmpl" \
+    "/etc/skel-desktop/.config/cargo/config.toml" \
+    0644 \
+    DEVOPS_CARGO_RUSTC_WRAPPER "$DEVOPS_CARGO_RUSTC_WRAPPER" \
+    DEVOPS_CARGO_TARGET_TRIPLE "$DEVOPS_CARGO_TARGET_TRIPLE" \
+    DEVOPS_CARGO_TARGET_LINKER "$DEVOPS_CARGO_TARGET_LINKER" \
+    DEVOPS_CARGO_TARGET_CPU "$DEVOPS_CARGO_TARGET_CPU" \
+    DEVOPS_CARGO_LINKER_ARGUMENT "$DEVOPS_CARGO_LINKER_ARGUMENT"
+  desktop_log \
+    "rendered_cargo_config target_cpu=${DEVOPS_CARGO_TARGET_CPU} jobs=cargo-default"
+}
+
+desktop_render_labwc_rc_xml() {
+  # Rendering is also used independently of the full desktop policy validator.
+  [ "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" = thumbnail ] ||
+    desktop_fatal "LABWC_WINDOW_SWITCHER_STYLE must be thumbnail (native window previews)"
+  workspace_count=${LABWC_WORKSPACE_COUNT:-4}
+  rc_path=/etc/skel-desktop/.config/labwc/rc.xml
+
+  desktop_render_role_target_template_deferred \
+    "etc/skel-desktop/.config/labwc/rc.xml.tmpl" \
+    "$rc_path" \
+    0644 \
+    LABWC_WORKSPACE_COUNT "$workspace_count" \
+    LABWC_WINDOW_SWITCHER_STYLE "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}" \
+    LABWC_WINDOW_SWITCHER_ORDER "${LABWC_WINDOW_SWITCHER_ORDER:-focus}" \
+    LABWC_WINDOW_SWITCHER_PREVIEW "${LABWC_WINDOW_SWITCHER_PREVIEW:-yes}" \
+    LABWC_WINDOW_SWITCHER_OUTLINES "${LABWC_WINDOW_SWITCHER_OUTLINES:-yes}" \
+    LABWC_WINDOW_SWITCHER_UNSHADE "${LABWC_WINDOW_SWITCHER_UNSHADE:-yes}" \
+    LABWC_WINDOW_SWITCHER_OSD_OUTPUT "${LABWC_WINDOW_SWITCHER_OSD_OUTPUT:-focused}" \
+    LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT "${LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT:-all}" \
+    LABWC_DESKTOP_GTK_ICON_THEME "$(desktop_xml_attribute_escape "${LABWC_DESKTOP_GTK_ICON_THEME}")" \
+    LABWC_FILE_MANAGER_COMMAND "$(desktop_xml_attribute_escape "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
+    LABWC_AUDIO_CONTROL_COMMAND "$(desktop_xml_attribute_escape "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \
+    LABWC_KEYBOARD_REPEAT_RATE "${LABWC_KEYBOARD_REPEAT_RATE:-40}" \
+    LABWC_KEYBOARD_REPEAT_DELAY "${LABWC_KEYBOARD_REPEAT_DELAY:-250}" \
+    LABWC_FONT_WINDOW_SIZE "${LABWC_FONT_WINDOW_SIZE:-12}" \
+    LABWC_FONT_MENU_SIZE "${LABWC_FONT_MENU_SIZE:-13}" \
+    LABWC_FONT_OSD_SIZE "${LABWC_FONT_OSD_SIZE:-13}" \
+    LABWC_MOUSE_POINTER_SPEED "${LABWC_MOUSE_POINTER_SPEED:-0.55}" \
+    LABWC_MOUSE_ACCEL_PROFILE "${LABWC_MOUSE_ACCEL_PROFILE:-flat}"
+  desktop_replace_block_placeholder_in_target \
+    "$rc_path" \
+    "__INSTALLER_LABWC_WORKSPACE_NAME_LINES__" \
+    "$(desktop_labwc_workspace_name_lines)"
+  desktop_replace_block_placeholder_in_target \
+    "$rc_path" \
+    "__INSTALLER_LABWC_WORKSPACE_KEYBIND_LINES__" \
+    "$(desktop_labwc_workspace_keybind_lines)"
+  desktop_replace_block_placeholder_in_target \
+    "$rc_path" \
+    "__INSTALLER_LABWC_RECORDING_KEYBIND_LINES__" \
+    "$(desktop_labwc_recording_keybind_lines)"
+  desktop_assert_role_target_template_resolved "etc/skel-desktop/.config/labwc/rc.xml.tmpl" "$rc_path"
+  desktop_log "rendered_labwc_rc_xml workspaces=${workspace_count}"
+}
+
+# Geometry keys/ranges are shared by validation and rendering. This metadata
+# is consumed only by the installer; runtime reads native Waybar JSON and CSS.
+desktop_waybar_geometry_schema() {
+  if [ ! -s "$TMP_ENV_DIR/waybar-geometry.tsv" ]; then
+    fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_DESKTOP waybar-geometry.tsv)" "$TMP_ENV_DIR/waybar-geometry.tsv"
+  fi
+}
+
+desktop_waybar_geometry_validate() (
+  desktop_waybar_geometry_schema || exit 1
+  for wb_class in INTERNAL EXTERNAL; do
+    while IFS="$(printf '\t')" read -r wb_key wb_kind wb_min wb_max; do
+      case "$wb_key" in ''|'#'*) continue ;; *[!A-Z0-9_]*) desktop_fatal "invalid Waybar geometry key" ;; esac
+      wb_name="LABWC_WAYBAR_${wb_class}_${wb_key}"
+      eval "wb_value=\${${wb_name}-}"
+      if [ "$wb_kind" = uint ]; then
+        case "$wb_value" in ''|*[!0-9]*|0[0-9]*) desktop_fatal "Waybar geometry must use canonical decimal integers: $wb_name" ;; esac
+        [ "${#wb_value}" -le 4 ] || desktop_fatal "Waybar geometry exceeds its numeric budget: $wb_name"
+        desktop_validate_uint_range "$wb_name" "$wb_value" "$wb_min" "$wb_max"
+      elif [ "$wb_kind" = px-tuple ]; then
+        # Length tuples contain fixed numbers of non-negative pixel lengths,
+        # never arbitrary CSS or a value inherited from the other output class.
+        printf '%s\n' "$wb_value" | awk -v count="$wb_min" -v maximum="$wb_max" '
+          NF != count { exit 1 }
+          { for (i=1; i<=NF; i++) {
+              if ($i !~ /^(0|[1-9][0-9]*)px$/) exit 1;
+              sub(/px$/, "", $i); if ($i + 0 > maximum) exit 1
+            } }
+          END { if (NR != 1) exit 1 }
+        ' || desktop_fatal "invalid Waybar geometry: $wb_name"
+      else
+        desktop_fatal "unknown Waybar geometry type: $wb_kind"
+      fi
+    done < "$TMP_ENV_DIR/waybar-geometry.tsv"
+  done
+  while IFS="$(printf '\t')" read -r wb_key wb_kind wb_min wb_max; do
+    case "$wb_key" in
+      MENU_BUTTON_*) continue ;;
+      MENU_*|TOOLTIP_*|POPUP_*) ;;
+      *) continue ;;
+    esac
+    eval "wb_internal=\${LABWC_WAYBAR_INTERNAL_${wb_key}-}"
+    eval "wb_external=\${LABWC_WAYBAR_EXTERNAL_${wb_key}-}"
+    [ "$wb_internal" = "$wb_external" ] ||
+      desktop_fatal "native Waybar GTK popup geometry must match INTERNAL/EXTERNAL: $wb_key"
+  done < "$TMP_ENV_DIR/waybar-geometry.tsv"
+)
+
+# One literal renderer for config, CSS and native menus. Schema validation is
+# mandatory before any geometry reaches JSON, CSS or GtkBuilder XML.
+desktop_render_waybar_asset() (
+  wb_asset=$1
+  shift
+  case "$wb_asset" in
+    config|style.css|audio-menu.xml|calendar-menu.xml|notifications-menu.xml|power-menu.xml|tomat-menu.xml) ;;
+    *) desktop_fatal "unsupported Waybar asset: $wb_asset" ;;
+  esac
+  desktop_waybar_geometry_validate
+  for wb_class in INTERNAL EXTERNAL; do
+    while IFS="$(printf '\t')" read -r wb_key wb_kind wb_min wb_max; do
+      case "$wb_key" in ''|'#'*) continue ;; esac
+      wb_name="LABWC_WAYBAR_${wb_class}_${wb_key}"
+      eval "wb_value=\${${wb_name}-}"
+      set -- "$@" "$wb_name" "$wb_value"
+    done < "$TMP_ENV_DIR/waybar-geometry.tsv"
+  done
+  desktop_render_role_target_template \
+    "etc/skel-desktop/.config/waybar/${wb_asset}.tmpl" \
+    "/etc/skel-desktop/.config/waybar/${wb_asset}" 0644 "$@"
+)
+
+desktop_render_waybar_config() (
+  # Do not let a failed command substitution turn into an empty JSON selector.
+  wb_internal_outputs=$(desktop_waybar_internal_outputs_json) || desktop_fatal "cannot render internal Waybar outputs"
+  wb_external_outputs=$(desktop_waybar_external_outputs_json) || desktop_fatal "cannot render external Waybar outputs"
+  wb_modules_left=$(desktop_waybar_modules_left_json) || desktop_fatal "cannot render Waybar left modules"
+  wb_modules_right=$(desktop_waybar_modules_right_json) || desktop_fatal "cannot render Waybar right modules"
+  desktop_render_waybar_asset config \
+    LABWC_WAYBAR_INTERNAL_OUTPUTS "$wb_internal_outputs" \
+    LABWC_WAYBAR_EXTERNAL_OUTPUTS "$wb_external_outputs" \
+    LABWC_WAYBAR_MODULES_LEFT "$wb_modules_left" \
+    LABWC_WAYBAR_MODULES_RIGHT "$wb_modules_right" \
+    LABWC_MANAGED_APP_DEFAULT_EXEC "$(desktop_double_quote_escape "${LABWC_MANAGED_APP_DEFAULT_EXEC:?LABWC_MANAGED_APP_DEFAULT_EXEC must be set by the desktop host profile}")" \
+    LABWC_FILE_MANAGER_COMMAND "$(desktop_double_quote_escape "${LABWC_FILE_MANAGER_COMMAND:-thunar}")" \
+    LABWC_CALENDAR_COMMAND "$(desktop_double_quote_escape "${LABWC_CALENDAR_COMMAND:-labwc-calendar}")" \
+    LABWC_AUDIO_CONTROL_COMMAND "$(desktop_double_quote_escape "${LABWC_AUDIO_CONTROL_COMMAND:-pavucontrol}")" \
+    LABWC_WAYBAR_PULSEAUDIO_RIGHT_CLICK_COMMAND "$(desktop_waybar_pulseaudio_right_click_command)" \
+    LABWC_BRIGHTNESS_CONTROL_COMMAND "$(desktop_double_quote_escape "${LABWC_BRIGHTNESS_CONTROL_COMMAND:-labwc-brightness-control}")" \
+    LABWC_CAPTURE_COMMAND "$(desktop_double_quote_escape "${LABWC_CAPTURE_COMMAND:-labwc-capture}")" \
+    LABWC_POWER_SETTINGS_COMMAND "$(desktop_double_quote_escape "${LABWC_POWER_SETTINGS_COMMAND:-labwc-power-settings}")"
+  desktop_log "rendered_waybar_config bars=internal,external processes=1"
+)
+
+desktop_render_waybar_style() {
+  desktop_render_waybar_asset style.css
+}
+
+desktop_render_gtkgreet_css() {
+  greeter_font_size=${LABWC_GREETER_FONT_SIZE:-17}
+  greeter_clock_font_size=${LABWC_GREETER_CLOCK_FONT_SIZE:-104}
+  greeter_background_url="file://${LABWC_GREETER_BACKGROUND_PATH}"
+  greeter_panel_margin=${LABWC_GREETER_PANEL_MARGIN:-$((greeter_font_size * 2))}
+  greeter_panel_min_width=${LABWC_GREETER_PANEL_MIN_WIDTH:-$((greeter_font_size * 44))}
+  greeter_panel_padding_y=${LABWC_GREETER_PANEL_PADDING_Y:-$((greeter_font_size * 2))}
+  greeter_panel_padding_x=${LABWC_GREETER_PANEL_PADDING_X:-$((greeter_font_size * 2 + 8))}
+  greeter_label_font_size=$((greeter_font_size + 2))
+  greeter_control_font_size=$((greeter_font_size + 3))
+  greeter_control_min_height=${LABWC_GREETER_CONTROL_MIN_HEIGHT:-$((greeter_font_size * 3 + 8))}
+  greeter_entry_min_width=${LABWC_GREETER_ENTRY_MIN_WIDTH:-$((greeter_font_size * 34))}
+  greeter_shell_min_width=${LABWC_GREETER_SHELL_MIN_WIDTH:-$greeter_entry_min_width}
+  greeter_button_min_width=${LABWC_GREETER_BUTTON_MIN_WIDTH:-$((greeter_font_size * 13))}
+
+  desktop_render_role_target_template \
+    "etc/greetd/gtkgreet.css" \
+    "/etc/greetd/gtkgreet.css" \
+    0644 \
+    LABWC_GREETER_BACKGROUND_URL "$(desktop_double_quote_escape "$greeter_background_url")" \
+    LABWC_GREETER_CLOCK_FONT_SIZE "$greeter_clock_font_size" \
+    LABWC_GREETER_PANEL_MARGIN "$greeter_panel_margin" \
+    LABWC_GREETER_PANEL_MIN_WIDTH "$greeter_panel_min_width" \
+    LABWC_GREETER_PANEL_PADDING_Y "$greeter_panel_padding_y" \
+    LABWC_GREETER_PANEL_PADDING_X "$greeter_panel_padding_x" \
+    LABWC_GREETER_LABEL_FONT_SIZE "$greeter_label_font_size" \
+    LABWC_GREETER_CONTROL_FONT_SIZE "$greeter_control_font_size" \
+    LABWC_GREETER_CONTROL_MIN_HEIGHT "$greeter_control_min_height" \
+    LABWC_GREETER_ENTRY_MIN_WIDTH "$greeter_entry_min_width" \
+    LABWC_GREETER_SHELL_MIN_WIDTH "$greeter_shell_min_width" \
+    LABWC_GREETER_BUTTON_MIN_WIDTH "$greeter_button_min_width"
+  desktop_log "rendered_gtkgreet_css font_size=${greeter_font_size} clock_font_size=${greeter_clock_font_size} panel_min_width=${greeter_panel_min_width} entry_min_width=${greeter_entry_min_width}"
+}
+
+desktop_render_greeter_power_rule() {
+  desktop_render_role_target_template \
+    "etc/polkit-1/rules.d/10-greetd-power.rules.tmpl" \
+    "/etc/polkit-1/rules.d/10-greetd-power.rules" \
+    0644 \
+    LABWC_GREETER_USER "$(desktop_double_quote_escape "${LABWC_GREETER_USER:-greeter}")"
+  desktop_log "rendered_greeter_power_rule user=${LABWC_GREETER_USER:-greeter}"
+}
+

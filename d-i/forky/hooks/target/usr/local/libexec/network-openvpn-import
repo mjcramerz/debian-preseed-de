@@ -1,0 +1,165 @@
+#!/usr/bin/python3 -I
+"""Authorized OpenVPN import: unprivileged read -> immutable snapshot -> parser.
+
+The pkexec front end supplies the authenticated uid. This helper grants no
+independent authorization. Only self-contained profiles are accepted: external
+files and executable/plugin directives belong in administrator-managed profiles.
+"""
+from __future__ import annotations
+import ctypes
+import os
+from pathlib import Path
+import pwd
+import re
+import resource
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+
+LIMIT = 1_048_576
+ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "HOME": "/root", "LC_ALL": "C"}
+INLINE = {"ca", "cert", "key", "pkcs12", "extra-certs", "tls-auth", "tls-crypt", "tls-crypt-v2"}
+ZERO = set("client tls-client pull nobind persist-key persist-tun auth-nocache float remote-random remote-random-hostname mute-replay-warnings auth-retry-none explicit-exit-notify".split())
+ONE = set("proto dev dev-type cipher data-ciphers data-ciphers-fallback auth verb mute resolv-retry connect-retry-max connect-timeout server-poll-timeout reneg-sec reneg-bytes reneg-pkts ping ping-restart ping-exit tun-mtu link-mtu mssfix key-direction remote-cert-tls tls-version-min tls-version-max tls-cipher tls-ciphersuites route-metric route-delay topology sndbuf rcvbuf compress comp-lzo allow-compression auth-retry verify-x509-name tls-remote tun-mtu-extra fast-io".split())
+RANGES = {"remote": (1, 3), "route": (1, 4), "route-ipv6": (1, 3), "dhcp-option": (2, 2), "connect-retry": (1, 2), "keepalive": (2, 2), "http-proxy": (2, 2), "socks-proxy": (1, 2), "verify-x509-name": (1, 2), "explicit-exit-notify": (0, 1), "mssfix": (0, 2), "comp-lzo": (0, 1), "compress": (0, 1), "fast-io": (0, 0), "auth-user-pass": (0, 0)}
+
+
+def validate_profile(data: bytes) -> None:
+    if not 0 < len(data) <= LIMIT:
+        raise ValueError("OpenVPN profile is empty or too large")
+    text = data.decode("utf-8", errors="strict")
+    if any((ord(c) < 32 and c not in "\t\r\n") or 127 <= ord(c) <= 159 or c in "\u2028\u2029" for c in text):
+        raise ValueError("control character in OpenVPN profile")
+    active = None
+    blobs: set[str] = set()
+    for number, raw in enumerate(text.split("\n"), 1):
+        line = raw.strip()
+        if active:
+            if line == f"</{active}>":
+                active = None
+            elif "<" in line or ">" in line:
+                raise ValueError(f"unexpected inline tag at line {number}")
+            continue
+        if not line or line.startswith(("#", ";")):
+            continue
+        match = re.fullmatch(r"<([a-z0-9-]+)>", line)
+        if match:
+            active = match[1]
+            if active not in INLINE or active in blobs:
+                raise ValueError(f"unsupported or repeated inline block at line {number}")
+            blobs.add(active)
+            continue
+        # Reject continuations and alternative spellings rather than interpreting
+        # a different grammar from the privileged NetworkManager parser.
+        if "\\" in line or line.startswith("--"):
+            raise ValueError(f"unsupported directive spelling at line {number}")
+        lexer = shlex.shlex(line, posix=True)
+        lexer.whitespace_split = True
+        lexer.commenters = "#;"
+        words = list(lexer)
+        if not words:
+            continue
+        directive, args = words[0], words[1:]
+        if directive in INLINE:
+            if args != ["[inline]"]:
+                raise ValueError("external certificate/key files are not accepted; use inline data")
+            continue
+        bounds = RANGES.get(directive)
+        if bounds is None:
+            bounds = (0, 0) if directive in ZERO else (1, 1) if directive in ONE else None
+        if bounds is None or not bounds[0] <= len(args) <= bounds[1]:
+            raise ValueError(f"unsupported directive or arguments at line {number}: {directive}")
+        if any("\n" in value or "\r" in value for value in args):
+            raise ValueError("multiline argument is forbidden")
+    if active:
+        raise ValueError("unterminated inline credential block")
+
+
+def read_as_user(uid: int, path: str) -> bytes:
+    """Called only in a separate child after dropping all inherited privilege."""
+    account = pwd.getpwuid(uid)
+    os.setgroups([])
+    os.setresgid(account.pw_gid, account.pw_gid, account.pw_gid)
+    os.setresuid(uid, uid, uid)
+    if ctypes.CDLL(None, use_errno=True).prctl(38, 1, 0, 0, 0) != 0:
+        raise OSError("cannot set no_new_privs")
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if not path.startswith("/") or path.endswith("/") or not path.endswith(".ovpn"):
+        raise ValueError("profile must be an absolute .ovpn pathname")
+    parts = path.split("/")[1:]
+    if any(part in ("", ".", "..") for part in parts):
+        raise ValueError("profile pathname is not canonical")
+    fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for component in parts[:-1]:
+            next_fd = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+        source = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=fd)
+        try:
+            before = os.fstat(source)
+            if (not stat.S_ISREG(before.st_mode) or before.st_uid != uid or before.st_nlink != 1
+                    or stat.S_IMODE(before.st_mode) not in (0o400, 0o440, 0o444, 0o600, 0o640, 0o644)
+                    or not 0 < before.st_size <= LIMIT):
+                raise ValueError("unsafe OpenVPN source metadata")
+            chunks = bytearray()
+            while len(chunks) <= LIMIT:
+                block = os.read(source, min(65536, LIMIT + 1 - len(chunks)))
+                if not block:
+                    break
+                chunks.extend(block)
+            after = os.fstat(source)
+            if (len(chunks) > LIMIT or before.st_size != len(chunks)
+                    or (before.st_size, before.st_mtime_ns, before.st_ctime_ns) !=
+                       (after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+                raise ValueError("OpenVPN source changed while copying")
+            return bytes(chunks)
+        finally:
+            os.close(source)
+    finally:
+        os.close(fd)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) == 3 and argv[0] == "--read":
+        uid = int(argv[1])
+        if os.geteuid() != 0 or uid <= 0:
+            raise ValueError("invalid import reader identity")
+        sys.stdout.buffer.write(read_as_user(uid, argv[2]))
+        return 0
+    if len(argv) != 2 or os.geteuid() != 0:
+        raise ValueError("usage: network-openvpn-import INVOKER_UID /absolute/profile.ovpn")
+    uid = int(argv[0])
+    if uid <= 0 or str(uid) != argv[0]:
+        raise ValueError("invalid authenticated invoking uid")
+    os.umask(0o077)
+    # The reader has no root access to the caller's path, including its parents.
+    result = subprocess.run(["/usr/bin/python3", "-I", __file__, "--read", str(uid), argv[1]],
+                            env=ENV, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            timeout=15, check=False)
+    if result.returncode:
+        raise ValueError("unable to snapshot the invoking user's OpenVPN profile")
+    validate_profile(result.stdout)
+    # A private root directory makes the exact bytes immutable to the caller.
+    # HOME is fixed: NetworkManager stores inline credentials under root's
+    # persistent ~/.cert, NOT next to this temporary input file.
+    with tempfile.TemporaryDirectory(prefix="network-openvpn-", dir="/run") as directory:
+        source = Path(directory) / (Path(directory).name + ".ovpn")
+        with source.open("xb") as stream:
+            stream.write(result.stdout)
+            stream.flush()
+            os.fsync(stream.fileno())
+        subprocess.run(["/usr/bin/nmcli", "--wait", "30", "connection", "import", "type", "openvpn", "file", str(source)],
+                       env=ENV, timeout=60, check=True)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        # Do not expose credential bytes, parser stdout, or caller-supplied text.
+        print("fatal: OpenVPN import rejected (" + type(error).__name__ + ")", file=sys.stderr)
+        sys.exit(1)

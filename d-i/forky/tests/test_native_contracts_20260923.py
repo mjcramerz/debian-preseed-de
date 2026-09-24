@@ -39,7 +39,8 @@ class NativeContractTests(unittest.TestCase):
         self.assertNotIn('journalctl', text)
         self.assertNotRegex(text, r'>>?\s*"?\$TAILSCALE_LOG_FILE')
         route = read_text(TARGET / 'etc/rsyslog.d/44-components.conf')
-        self.assertIn('tailscale|tailscaled', route)
+        self.assertIn('file="/var/log/managed/system/system.log"', route)
+        self.assertNotIn('re_match(', route)
         unit = read_text(SEED / 'scripts/firstboot/assets/etc/systemd/system/tailscale-bootstrap.service.tmpl')
         self.assertNotIn('EnvironmentFile=', unit)
         self.assertIn('Environment="TAILSCALE_HOSTNAME=', unit)
@@ -48,8 +49,9 @@ class NativeContractTests(unittest.TestCase):
     def test_authoritative_audit_and_requested_categories(self):
         env = read_text(SEED / 'hosts/logging/observability.env')
         self.assertIn('LOG_AUDIT_FILE="${LOG_AUDIT_DIR}/auditd.log"', env)
-        self.assertIn('LOG_ADB_DIR="${LOG_SYSTEM_DIR}/adb"', env)
-        self.assertIn('LOG_THUNAR_DIR="${LOG_DESKTOP_DIR}/thunar"', env)
+        self.assertIn('LOG_APPLICATIONS_FILE="${LOG_APPS_DIR}/apps.log"', env)
+        self.assertNotIn('LOG_ADB_DIR=', env)
+        self.assertNotIn('LOG_THUNAR_DIR=', env)
         for path in (TARGET / 'etc/audit').rglob('auditd.conf*'):
             text = read_text(path)
             self.assertIn('__INSTALLER_LOG_AUDIT_FILE__', text)
