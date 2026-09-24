@@ -1,6 +1,0 @@
-test_original_workload_policy_is_byte_identical (test_systemd_resource_policy.ResourcePolicyTests.test_original_workload_policy_is_byte_identical) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.025s
-
-OK

@@ -1,0 +1,30 @@
+# Managed local logging: journal records + one authoritative kernel input.
+# imjournal retains trusted journal metadata and resumes from a private cursor.
+# Disable only imuxsock's default system socket, not the two private managed
+# scanner/model sockets. No network inputs or journal output feedback loops.
+
+global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k")
+$WorkDirectory __INSTALLER_LOG_RSYSLOG_SPOOL_DIR__
+module(load="imuxsock" SysSock.Use="off")
+module(load="imjournal" StateFile="__INSTALLER_LOG_RSYSLOG_CURSOR_NAME__" PersistStateInterval="__INSTALLER_LOG_RSYSLOG_CURSOR_INTERVAL__"
+       IgnorePreviousMessages="off" IgnoreNonValidStatefile="on"
+       Ratelimit.Interval="0" UsePid="system")
+# journald ReadKMsg=no: imklog remains the single managed kernel-log input.
+module(load="imklog")
+
+$FileOwner __INSTALLER_LOG_OWNER__
+$FileGroup __INSTALLER_LOG_GROUP__
+$FileCreateMode __INSTALLER_LOG_FILE_MODE__
+$DirOwner __INSTALLER_LOG_OWNER__
+$DirGroup __INSTALLER_LOG_GROUP__
+$DirCreateMode __INSTALLER_LOG_DIRECTORY_MODE__
+$Umask 0027
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+$RepeatedMsgReduction off
+# Bound in-memory dispatch independently of the disk-assisted output queues.
+main_queue(queue.size="__INSTALLER_LOG_RSYSLOG_MAIN_QUEUE_MESSAGES__" queue.workerThreads="1")
+
+# Private socket rulesets stay separate. Dedicated security routes run
+# before the per-component journal route; 99-discard stops classified
+# records. Do not restore parallel /var/log/syslog/facility copies here.
+include(file="/etc/rsyslog.d/*.conf" mode="abort-if-missing")

@@ -1,0 +1,31 @@
+# Route Whisper application output, user-unit lifecycle diagnostics, and
+# AppArmor profile-mode messages to one protected managed log.
+
+if (
+  $programname == "whisper-record-toggle"
+  or (
+    $programname == "systemd"
+    and (
+      $msg contains "whisper-record.service"
+      or $msg contains "whisper-transcribe.service"
+      or $msg contains "whisper-server.service"
+      or $msg contains "labwc-mute-default-microphone.service"
+    )
+  )
+  or $msg contains "whisper-local-transcription"
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_whisper_log"
+    type="omfile"
+    file="__INSTALLER_LOG_WHISPER_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}

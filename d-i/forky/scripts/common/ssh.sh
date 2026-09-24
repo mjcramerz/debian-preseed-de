@@ -330,7 +330,7 @@ managed_git_ssh_target_action() (
   secret=$(preseed_env_read_value git_ssh_passphrase) || installer_fatal "PRESEED_GIT_SSH_PASSPHRASE is required in the private initrd"
   case "$secret" in ''|*[![:print:]]*) installer_fatal "Git SSH passphrase must be nonempty printable single-line text" ;; esac
   [ "${#secret}" -le 4096 ] || installer_fatal "Git SSH passphrase exceeds size limit"
-  stage=$(mktemp -d "${target}/tmp/managed-git-ssh.XXXXXX") || exit 1
+  stage=$(mktemp -d "${target}/tmp/git-ssh.XXXXXX") || exit 1
   own_proc=0
   own_dev=0
   managed_ssh_cleanup() {
@@ -365,20 +365,22 @@ managed_git_ssh_target_action() (
     mount --bind /dev "${target}/dev" || installer_fatal "cannot bind target devices for SSH/GPG"
     own_dev=1
   fi
+  for ssh_install_asset in ssh-install.py ssh-install-askpass clone.conf.tmpl; do
+    fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_LATE "ssh/$ssh_install_asset")" "$stage/$ssh_install_asset"
+    case "$ssh_install_asset" in *.tmpl) chmod 0600 "$stage/$ssh_install_asset" ;; *) chmod 0700 "$stage/$ssh_install_asset" ;; esac
+  done
   install -m 0600 /git_ed25519 "$stage/private"
   install -m 0600 /git_ed25519.pub "$stage/public"
   # These files are encrypted key material only. The passphrase goes through
   # stdin, then a sealed Linux memfd used by SSH_ASKPASS, never a disk file.
   printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \
     HOME=/root USER=root LOGNAME=root PATH=/usr/sbin:/usr/bin:/sbin:/bin LC_ALL=C.UTF-8 \
-    /usr/bin/python3 -I -B /usr/local/libexec/managed-ssh-install.py \
+    /usr/bin/python3 -I -B "${stage#"$target"}/ssh-install.py" \
     "$action" "$ACCOUNT_USERNAME" "${stage#"$target"}" "$@"
 )
 
 provision_target_git_ssh_identity() {
   xssh_helpers_role_selected || return 0
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-ssh-install.py)" /usr/local/libexec/managed-ssh-install.py 0700
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-ssh-install-askpass)" /usr/local/libexec/managed-ssh-install-askpass 0700
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/ssh/managed_git_known_hosts)" /etc/ssh/managed_git_known_hosts 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/ssh/git_known_hosts)" /etc/ssh/git_known_hosts 0644
   managed_git_ssh_target_action provision || installer_fatal "managed Git SSH identity provisioning failed"
 }

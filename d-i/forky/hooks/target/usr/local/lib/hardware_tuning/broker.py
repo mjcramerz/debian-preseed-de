@@ -577,7 +577,7 @@ def main() -> int:
     if os.geteuid() != 0 or os.environ.get("LISTEN_PID") != str(os.getpid()) or os.environ.get("LISTEN_FDS") != "1":
         raise TuningError("hardware-tuningd requires one root-owned systemd activation socket")
     label = Path("/proc/self/attr/current").read_text(encoding="ascii").strip()
-    if label != "managed-hardware-tuning-broker (enforce)":
+    if label != "hardware-tuning-broker (enforce)":
         raise TuningError("the enforced hardware-tuning broker AppArmor profile is required")
     listener = socket.socket(fileno=3)
     if listener.family != socket.AF_UNIX or listener.type != socket.SOCK_STREAM:

@@ -4,7 +4,6 @@
 DefaultDependencies=no
 Conflicts=shutdown.target
 Before=shutdown.target
-BindsTo=labwc-compositor.service
 Description=Periodic Fruux calendar synchronization
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 ConditionEnvironment=WAYLAND_DISPLAY

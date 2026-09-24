@@ -12,6 +12,8 @@ if ! command -v runtime_fatal >/dev/null 2>&1; then
   fi
 fi
 
+RUNTIME_RECIPE_TEMPLATES="f2fs-01.recipe.tmpl f2fs-02.recipe.tmpl f2fs-03.recipe.tmpl f2fs-04.recipe.tmpl f2fs-05.recipe.tmpl f2fs-06.recipe.tmpl f2fs-07.recipe.tmpl f2fs-08.recipe.tmpl f2fs-09.recipe.tmpl f2fs-10.recipe.tmpl"
+
 runtime_secure_boot_state_mode() {
   secure_boot_mode=${SECURE_BOOT_MODE:-}
   secure_boot_state_mode=${SECURE_BOOT_STATE_MODE:-}
@@ -634,104 +636,55 @@ runtime_write_runtime_env() {
 runtime_emit_debian_partition_recipe() {
   # Keep the parted-visible filesystem token on ext4 while the explicit
   # filesystem stanza drives the custom partman F2FS backend.
-  cat <<EOF
-    ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ext4
-        \$primary{ } \$bootable{ }
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /boot }
-    .
-EOF
+  runtime_render_recipe f2fs-01.recipe.tmpl \
+    DEV_PART_BOOT_MB "${DEV_PART_BOOT_MB}"
   if runtime_root_home_crypto_enabled; then
-    cat <<EOF
-    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 ext4
-        method{ crypto } format{ }
-        crypto_type{ luks }
-        cipher{ aes }
-        keysize{ 512 }
-        ivalgorithm{ xts-plain64 }
-        keytype{ passphrase }
-        keyhash{ sha256 }
-        use_filesystem{ } filesystem{ f2fs }
-        mountpoint{ / }
-    .
-EOF
+    runtime_render_recipe f2fs-02.recipe.tmpl \
+      ROOT_PRIORITY "$((DEV_PART_ROOT_MB + 1))" \
+      DEV_PART_ROOT_MB "${DEV_PART_ROOT_MB}"
   else
-    cat <<EOF
-    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ f2fs }
-        mountpoint{ / }
-    .
-EOF
+    runtime_render_recipe f2fs-03.recipe.tmpl \
+      ROOT_PRIORITY "$((DEV_PART_ROOT_MB + 1))" \
+      DEV_PART_ROOT_MB "${DEV_PART_ROOT_MB}"
   fi
   if [ "$DEV_PART_HOME_MB" -gt 0 ]; then
     if runtime_root_home_crypto_enabled; then
-      cat <<EOF
-    ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} free
-        method{ keep }
-    .
-EOF
+      runtime_render_recipe f2fs-04.recipe.tmpl \
+        DEV_PART_HOME_MB "${DEV_PART_HOME_MB}"
     else
-      cat <<EOF
-    ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ f2fs }
-        mountpoint{ /home }
-    .
-EOF
+      runtime_render_recipe f2fs-05.recipe.tmpl \
+        DEV_PART_HOME_MB "${DEV_PART_HOME_MB}"
     fi
   fi
   if [ "$DEV_PART_POOL_MB" -gt 0 ]; then
-    cat <<EOF
-    ${DEV_PART_POOL_MB} ${DEV_PART_POOL_MB} ${DEV_PART_POOL_MB} ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /pool }
-    .
-EOF
+    runtime_render_recipe f2fs-06.recipe.tmpl \
+      DEV_PART_POOL_MB "${DEV_PART_POOL_MB}"
   fi
   if [ "$DEV_PART_VAR_LIB_SHSIGNED_MB" -gt 0 ]; then
-    cat <<EOF
-    ${DEV_PART_VAR_LIB_SHSIGNED_MB} ${DEV_PART_VAR_LIB_SHSIGNED_MB} ${DEV_PART_VAR_LIB_SHSIGNED_MB} free
-        method{ keep }
-    .
-EOF
+    runtime_render_recipe f2fs-07.recipe.tmpl \
+      DEV_PART_VAR_LIB_SHSIGNED_MB "${DEV_PART_VAR_LIB_SHSIGNED_MB}"
   fi
-  cat <<EOF
-    ${DEV_PART_VAR_LOG_JOURNAL_MB} ${DEV_PART_VAR_LOG_JOURNAL_MB} ${DEV_PART_VAR_LOG_JOURNAL_MB} ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /var/log/journal }
-    .
-    ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} free
-        method{ keep }
-    .
-    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} free
-        method{ keep }
-    .
-EOF
+  runtime_render_recipe f2fs-08.recipe.tmpl \
+    DEV_PART_VAR_LOG_JOURNAL_MB "${DEV_PART_VAR_LOG_JOURNAL_MB}" \
+    DEV_PART_RAW_SWAP_MB "${DEV_PART_RAW_SWAP_MB}" \
+    DEV_PART_RAW_ZRAM_MB "${DEV_PART_RAW_ZRAM_MB}"
 }
 
 runtime_emit_default_recipe() {
-  cat <<EOF
-${PARTMAN_RECIPE_NAME} ::
-    ${DEV_PART_EFI_MB} ${DEV_PART_EFI_MB} ${DEV_PART_EFI_MB} free
-        \$iflabel{ gpt } \$primary{ } \$reusemethod{ } \$bootable{ }
-        method{ efi } format{ }
-    .
-EOF
+  runtime_render_recipe f2fs-09.recipe.tmpl \
+    PARTMAN_RECIPE_NAME "${PARTMAN_RECIPE_NAME}" \
+    DEV_PART_EFI_MB "${DEV_PART_EFI_MB}"
   runtime_emit_debian_partition_recipe
 }
 
 runtime_emit_dualboot_recipe() {
-  cat <<EOF
-${PARTMAN_RECIPE_NAME} ::
-EOF
+  runtime_render_recipe f2fs-10.recipe.tmpl \
+    PARTMAN_RECIPE_NAME "${PARTMAN_RECIPE_NAME}"
   runtime_emit_debian_partition_recipe
 }
 
 runtime_write_expert_recipe() {
+  runtime_prepare_recipe_templates
   dest=$1
   runtime_apply_layout_from_cmdline
   runtime_compute_layout_sizing

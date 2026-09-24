@@ -7,18 +7,19 @@ import subprocess
 import tempfile
 import unittest
 
-from test_local_apt_repository import repo, fixture
+from test_local_apt_repository import repo, fixture, install_source_template
 
 
 @unittest.skipUnless(os.geteuid() == 0 and shutil.which('apt-get') and shutil.which('gpg'),
                      'requires root and the distribution APT/GnuPG tools')
 class AptIntegrationTests(unittest.TestCase):
     def test_signed_file_repository_changes_candidate_without_installing(self):
-        base = Path('/var/lib/local-apt-tests')
+        base = Path('/var/lib/apt-repo-local-tests')
         base.mkdir(mode=0o755, exist_ok=True)
         work = Path(tempfile.mkdtemp(dir=base))
         os.chmod(work, 0o755)
         repository = repo.Repository(work / 'software', work / 'etc')
+        install_source_template(repository)
         try:
             lists = work / 'lists'
             lists.mkdir(mode=0o755)

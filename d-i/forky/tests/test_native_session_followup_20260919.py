@@ -5,6 +5,9 @@ It does not start a compositor or claim live Wayland acceptance. Source-builder
 and source-patcher tests were retired with those implementations on 2026-09-20.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 from pathlib import Path
 import subprocess
 import tempfile
@@ -18,7 +21,7 @@ TARGET = FORKY / 'hooks/target'
 
 class OutputAuthorityTests(unittest.TestCase):
     def perl(self, script):
-        production = (TARGET / 'usr/local/libexec/labwc-output-watch').read_text()
+        production = render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-output-watch'))
         # Only skip the Moo-based CLI classes and the executable entry point.
         # The production main-package functions are not rewritten.
         main = production.split('package main;', 1)[1].split('unless (caller) {', 1)[0]
@@ -28,7 +31,7 @@ class OutputAuthorityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'case.pl'
             p.write_text(text)
-            result = subprocess.run(['perl', '-I' + str(TARGET / 'usr/local/lib/perl5/site_perl/managed-runtime'), str(p)],
+            result = subprocess.run(payload_installed_argv(['perl', '-I' + str(TARGET / 'usr/local/lib/perl5/site_perl/runtime'), str(p)]),
                                     capture_output=True, text=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
@@ -133,18 +136,18 @@ die 'unsafe control retained' if $warning =~ /\e/;
 ''')
 
     def test_kanshi_launch_respects_pause_marker(self):
-        script = (TARGET / 'usr/local/libexec/labwc-kanshi').read_text()
+        script = render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-kanshi'))
         self.assertIn('output-authority.paused', script)
         self.assertLess(script.index('output-authority.paused'), script.index('exec "$kanshi_cmd"'))
 
 
 class ThemeTests(unittest.TestCase):
     def test_native_thumbnail_emerald_uses_alpha_not_global_opacity(self):
-        theme = (TARGET / 'etc/skel-desktop/.config/labwc/themerc-override').read_text()
+        theme = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/themerc-override'))
         prefix = 'osd.window-switcher.style-thumbnail.item.active.'
         self.assertIn(prefix + 'bg.color: #50C87826', theme)
         self.assertIn(prefix + 'border.color: #50C878', theme)
-        rc = ET.fromstring((TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text())
+        rc = ET.fromstring(render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl')))
         action = rc.find(".//keybind[@key='F13']/action")
         self.assertEqual(action.get('name'), 'NextWindow')
         self.assertIsNone(action.get('menu'))

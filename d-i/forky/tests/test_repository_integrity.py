@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Repository boundaries, preserved profiles and relocation contracts."""
 from __future__ import annotations
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import hashlib
 import json
 import os
@@ -15,11 +16,11 @@ import unittest
 
 FORKY = Path(__file__).resolve().parents[1]
 ROOT = FORKY.parents[1]
-ROLE = re.search(r'^REPOSITORY_ROLE="([^"]+)"', (FORKY/'repo.env').read_text(), re.M).group(1)
+ROLE = re.search(r'^REPOSITORY_ROLE="([^"]+)"', payload_read_text(FORKY/'repo.env'), re.M).group(1)
 
 def records():
     for file in sorted((FORKY/'classes/configs').glob('*.cfg')):
-        for stanza in re.split(r'\n\s*\n', file.read_text()):
+        for stanza in re.split(r'\n\s*\n', payload_read_text(file)):
             fields = dict(line.split(': ', 1) for line in stanza.splitlines()
                           if ': ' in line and not line.startswith('#'))
             if fields.get('Type') == 'class':
@@ -34,7 +35,7 @@ class RepositoryIntegrityTests(unittest.TestCase):
         self.assertFalse(any(p.is_dir() for p in (FORKY/'hosts/profiles').iterdir()))
         self.assertFalse((FORKY/'hosts/shared').exists())
     def test_profiles_match_current_or_original_provenance(self):
-        ledger = json.loads((ROOT/'docs/migration-map.json').read_text())
+        ledger = json.loads(payload_read_text(ROOT/'d-i/forky/tests/fixtures/contracts/profile-provenance.json'))
         profile_records = {item['destination']:item for item in ledger['files']
                            if item['destination'].startswith('d-i/forky/hosts/profiles/')}
         files = list((FORKY/'hosts/profiles').glob('*.env'))
@@ -42,7 +43,7 @@ class RepositoryIntegrityTests(unittest.TestCase):
         for path in files:
             with self.subTest(profile=path.name):
                 item = profile_records[str(path.relative_to(ROOT))]
-                self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), item.get('current_sha256', item['source_sha256']))
+                self.assertEqual(hashlib.sha256(payload_read_bytes(path)).hexdigest(), item.get('current_sha256', item['source_sha256']))
     def test_each_flat_profile_composes(self):
         override_names = {r['Name'] for r in records() if r['Group'] == 'profile'}
         profiles = sorted((FORKY/'hosts/profiles').glob('*.env'))
@@ -63,7 +64,7 @@ class RepositoryIntegrityTests(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
             for profile in profiles:
                 with self.subTest(profile=profile.name):
-                    self.assertTrue((Path(temp)/profile.name).read_bytes().startswith(profile.read_bytes()))
+                    self.assertTrue(payload_read_bytes(Path(temp)/profile.name).startswith(payload_read_bytes(profile)))
     def test_role_scoped_entries(self):
         other = 'desktop' if ROLE == 'server' else 'server'
         self.assertTrue((FORKY/'classes/class-select/role'/f'{ROLE}.cfg').exists())
@@ -90,7 +91,7 @@ class RepositoryIntegrityTests(unittest.TestCase):
         for directory in ('scripts','hooks/installer'):
             for path in (FORKY/directory).rglob('*'):
                 if path.is_file():
-                    self.assertIsNone(old.search(path.read_text()),str(path.relative_to(FORKY)))
+                    self.assertIsNone(old.search(payload_read_text(path)),str(path.relative_to(FORKY)))
     def test_no_symlinks_published(self):
         for path in FORKY.rglob('*'):
             self.assertFalse(path.is_symlink(),str(path.relative_to(FORKY)))

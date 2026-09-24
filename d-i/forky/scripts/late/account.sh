@@ -15,9 +15,9 @@ stage_target_account_shell_assets() {
   install -d -m 0755 /target/etc/skel-desktop/.profile.d
   chown root:root /target/etc/skel-desktop /target/etc/skel-desktop/.profile.d
   chmod 0755 /target/etc/skel-desktop /target/etc/skel-desktop/.profile.d
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.profile.installer-base)" /etc/skel-desktop/.profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.bash_profile.installer-base)" /etc/skel-desktop/.bash_profile 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.bashrc.installer-base)" /etc/skel-desktop/.bashrc 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE assets/etc/skel-desktop/.profile.installer-base)" /etc/skel-desktop/.profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE assets/etc/skel-desktop/.bash_profile.installer-base)" /etc/skel-desktop/.bash_profile 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE assets/etc/skel-desktop/.bashrc.installer-base)" /etc/skel-desktop/.bashrc 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.dircolors)" /etc/skel-desktop/.dircolors 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/skel-desktop/.vimrc)" /etc/skel-desktop/.vimrc 0644
   chown root:root /target/etc/skel-desktop/.profile /target/etc/skel-desktop/.bash_profile /target/etc/skel-desktop/.bashrc

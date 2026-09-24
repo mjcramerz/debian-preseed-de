@@ -5,8 +5,8 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile bitwarden /opt/Bitwarden/bitwarden flags=(attach_disconnected) {
-  #include <abstractions/managed-electron-application>
-  ptrace (readby) peer=managed-desktop-launcher,
+  #include <abstractions/electron-application>
+  ptrace (readby) peer=desktop-launcher,
   include if exists <abstractions/user-tmp>
 
   network inet stream,

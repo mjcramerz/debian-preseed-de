@@ -5,6 +5,8 @@ No deployment identity, private initrd, network, installed service or mount is
 used. Shell transport tests replace only the target boundary, not crypto.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
 import importlib.util
 import io
@@ -21,7 +23,7 @@ import unittest
 from unittest import mock
 
 SEED = Path(__file__).resolve().parents[1]
-SOURCE = SEED / 'hooks/target/usr/local/libexec/managed-ssh-install.py'
+SOURCE = SEED / 'scripts/late/ssh/ssh-install.py'
 COMPONENTS = SEED / 'scripts/desktop/components.sh'
 spec = importlib.util.spec_from_file_location('gpg_recipient_integration', SOURCE)
 ssh = importlib.util.module_from_spec(spec)
@@ -85,7 +87,7 @@ class SealValidationTests(unittest.TestCase):
         self.calls = []
         self.public, self.private = public_listing(), secret_listing()
         self.ciphertext = b'fixture encrypted bytes'
-        self.blob = self.home / '.local/share/managed-ssh/git-key-passphrase.gpg'
+        self.blob = self.home / '.local/share/ssh/git-key-passphrase.gpg'
         self.patch = mock.patch.object(ssh, 'checked', side_effect=self.checked)
         self.patch.start()
         self.addCleanup(self.patch.stop)
@@ -107,7 +109,7 @@ class SealValidationTests(unittest.TestCase):
     def refused(self):
         with self.assertRaises(ssh.InstallError):
             self.seal()
-        self.assertFalse(self.blob.exists())
+        self.assertFalse(payload_source_exists(self.blob))
         self.assertFalse(any('--encrypt' in argv for argv, _ in self.calls))
         self.assertIn('--kill', self.calls[-1][0])
 
@@ -119,8 +121,8 @@ class SealValidationTests(unittest.TestCase):
             self.assertEqual(argv[-2:], ['--', FP])
         encrypt = next(argv for argv, _ in self.calls if '--encrypt' in argv)
         self.assertEqual(encrypt[encrypt.index('--recipient') + 1], SUB + '!')
-        self.assertEqual(self.blob.read_bytes(), self.ciphertext)
-        self.assertEqual(stat.S_IMODE(self.blob.stat().st_mode), 0o600)
+        self.assertEqual(payload_read_bytes(self.blob), self.ciphertext)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.blob).st_mode), 0o600)
 
     def test_invalid_fingerprint_refused_before_launch(self):
         for value in ('', 'A'*16, 'A'*41, FP.lower(), FP+'!', '--all'):
@@ -187,7 +189,7 @@ class SealValidationTests(unittest.TestCase):
         self.ciphertext = b''
         with self.assertRaises(ssh.InstallError):
             self.seal()
-        self.assertEqual(self.blob.read_bytes(), b'previous ciphertext')
+        self.assertEqual(payload_read_bytes(self.blob), b'previous ciphertext')
         self.assertIn('--kill', self.calls[-1][0])
 
     def test_gpg_failure_preserves_existing_ciphertext_and_stops_agent(self):
@@ -199,26 +201,26 @@ class SealValidationTests(unittest.TestCase):
             return original(argv, **kwargs)
         with mock.patch.object(ssh, 'checked', side_effect=failed), self.assertRaises(ssh.InstallError):
             self.seal()
-        self.assertEqual(self.blob.read_bytes(), b'previous ciphertext')
+        self.assertEqual(payload_read_bytes(self.blob), b'previous ciphertext')
         self.assertIn('--kill', self.calls[-1][0])
 
 
 class CliTests(unittest.TestCase):
     def test_seal_requires_explicit_fingerprint_no_keyring_fallback(self):
-        p = subprocess.run([sys.executable, '-I', '-B', str(SOURCE), 'seal', 'nobody',
-                            '/tmp/managed-git-ssh.FIXTURE'], input=b'', capture_output=True)
+        p = subprocess.run(payload_installed_argv([sys.executable, '-I', '-B', str(SOURCE), 'seal', 'nobody',
+                            '/tmp/git-ssh.FIXTURE']), input=b'', capture_output=True)
         self.assertEqual(p.returncode, 1)
         self.assertIn(b'--gpg-fingerprint is required only for the seal action', p.stderr)
 
     def test_fingerprint_argument_not_accepted_for_provision(self):
-        p = subprocess.run([sys.executable, '-I', '-B', str(SOURCE), 'provision', 'nobody',
-                            '/tmp/managed-git-ssh.FIXTURE', '--gpg-fingerprint', FP], input=b'', capture_output=True)
+        p = subprocess.run(payload_installed_argv([sys.executable, '-I', '-B', str(SOURCE), 'provision', 'nobody',
+                            '/tmp/git-ssh.FIXTURE', '--gpg-fingerprint', FP]), input=b'', capture_output=True)
         self.assertEqual(p.returncode, 1)
         self.assertIn(b'--gpg-fingerprint is required only', p.stderr)
 
 
 def bootstrap_body():
-    source = COMPONENTS.read_text()
+    source = payload_read_text(COMPONENTS)
     start = source.index('  if ! attempt_in_target "bootstrap primary account GPG key for KWallet"')
     start = source.index("/bin/sh -c '\n", start) + len("/bin/sh -c '\n")
     end = source.index("\n' sh \"$ACCOUNT_USERNAME\"", start)
@@ -230,7 +232,7 @@ def bootstrap_body():
 class RealBootstrapIntegrationTests(unittest.TestCase):
     def test_real_bootstrap_mixed_keyring_seal_cold_decrypt_and_idempotent_retry(self):
         account = pwd.getpwnam('nobody')
-        with tempfile.TemporaryDirectory(prefix='managed-gpg-integration-', dir='/home') as name, \
+        with tempfile.TemporaryDirectory(prefix='x-gpg-integration-', dir='/home') as name, \
                 tempfile.TemporaryDirectory(prefix='gpg-root-stage-') as rootname:
             home, stage = Path(name), Path(rootname)
             os.chown(home, account.pw_uid, account.pw_gid)
@@ -241,12 +243,12 @@ class RealBootstrapIntegrationTests(unittest.TestCase):
                       f'HOME={home}', f'GNUPGHOME={gnupg}', f'USER={account.pw_name}',
                       'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8']
             def gpg(*args, data=None):
-                p = subprocess.run(prefix + ['/usr/bin/gpg', '--no-options', '--batch'] + list(args),
+                p = subprocess.run(payload_installed_argv(prefix + ['/usr/bin/gpg', '--no-options', '--batch'] + list(args)),
                                    input=data, capture_output=True, timeout=60)
                 self.assertEqual(p.returncode, 0, p.stderr.decode(errors='replace'))
                 return p.stdout
             def stop():
-                subprocess.run(prefix + ['/usr/bin/gpgconf', '--kill', 'gpg-agent'],
+                subprocess.run(payload_installed_argv(prefix + ['/usr/bin/gpgconf', '--kill', 'gpg-agent']),
                                capture_output=True, timeout=15)
             passphrase = b'Disposable GPG fixture only - not deployment input!'
             ssh_secret = b'Disposable SSH fixture - spaces and % supported!'
@@ -263,7 +265,7 @@ class RealBootstrapIntegrationTests(unittest.TestCase):
                 aptly_public = gpg('--export', aptly_fp)
                 stop()
                 template = stage / 'gpg-agent.conf'
-                template.write_bytes((SEED/'hooks/target/etc/skel-desktop/.gnupg/gpg-agent.conf').read_bytes())
+                template.write_bytes(payload_read_bytes(SEED/'hooks/target/etc/skel-desktop/.gnupg/gpg-agent.conf'))
                 stub = stage / 'pinentry-qt'
                 stub.write_text('#!/bin/sh\nexit 99\n')
                 stub.chmod(0o700)
@@ -273,35 +275,35 @@ class RealBootstrapIntegrationTests(unittest.TestCase):
                 for attempt in range(2):
                     passfile, fingerprint_file = stage/'passphrase', stage/'fingerprint'
                     passfile.write_bytes(passphrase+b'\n'); passfile.chmod(0o600)
-                    p = subprocess.run(['/bin/sh', '-c', body, 'sh', account.pw_name, str(home),
-                                        'Managed desktop fixture', str(passfile), str(fingerprint_file)],
+                    p = subprocess.run(payload_installed_argv(['/bin/sh', '-c', body, 'sh', account.pw_name, str(home),
+                                        'Managed desktop fixture', str(passfile), str(fingerprint_file)]),
                                        env=dict(os.environ, PATH=str(stage)+':/usr/sbin:/usr/bin:/sbin:/bin',
                                                 LC_ALL='C.UTF-8'), capture_output=True, timeout=90)
                     self.assertEqual(p.returncode, 0, p.stderr.decode(errors='replace'))
                     self.assertNotIn(passphrase, p.stdout+p.stderr)
-                    self.assertFalse(passfile.exists())
-                    self.assertEqual(fingerprint_file.stat().st_uid, 0)
-                    self.assertEqual(stat.S_IMODE(fingerprint_file.stat().st_mode), 0o600)
-                    fingerprint = fingerprint_file.read_text().strip()
+                    self.assertFalse(payload_source_exists(passfile))
+                    self.assertEqual(payload_source_stat(fingerprint_file).st_uid, 0)
+                    self.assertEqual(stat.S_IMODE(payload_source_stat(fingerprint_file).st_mode), 0o600)
+                    fingerprint = payload_read_text(fingerprint_file).strip()
                     if output_fingerprint is not None:
                         self.assertEqual(fingerprint, output_fingerprint)
                     output_fingerprint = fingerprint
                     self.assertNotEqual(fingerprint, aptly_fp)
                     ssh.seal(account, home, ssh_secret, fingerprint)
-                    blob = home/'.local/share/managed-ssh/git-key-passphrase.gpg'
-                    self.assertEqual(blob.stat().st_uid, account.pw_uid)
-                    self.assertEqual(stat.S_IMODE(blob.stat().st_mode), 0o600)
+                    blob = home/'.local/share/ssh/git-key-passphrase.gpg'
+                    self.assertEqual(payload_source_stat(blob).st_uid, account.pw_uid)
+                    self.assertEqual(stat.S_IMODE(payload_source_stat(blob).st_mode), 0o600)
                     # The seal action explicitly stopped its listing agent. A
                     # fresh loopback decrypt supplies ONLY the GPG passphrase.
-                    self.assertFalse((gnupg/'S.gpg-agent').exists())
+                    self.assertFalse(payload_source_exists(gnupg/'S.gpg-agent'))
                     plaintext = gpg('--pinentry-mode', 'loopback', '--passphrase-fd', '0',
                                     '--decrypt', str(blob), data=passphrase+b'\n')
                     self.assertEqual(plaintext, ssh_secret)
                     self.assertEqual(gpg('--export', aptly_fp), aptly_public)
                     self.assertIn(aptly_fp.encode(), gpg('--with-colons', '--list-secret-keys', '--', aptly_fp))
                     for path in home.rglob('*'):
-                        if path.is_file() and not path.is_symlink():
-                            self.assertNotIn(ssh_secret, path.read_bytes(), str(path))
+                        if payload_source_is_file(path) and not path.is_symlink():
+                            self.assertNotIn(ssh_secret, payload_read_bytes(path), str(path))
                     stop()
             finally:
                 stop()
@@ -311,7 +313,7 @@ class ShellHandoffTests(unittest.TestCase):
     def run_fixture(self, kind):
         with tempfile.TemporaryDirectory(prefix='gpg-handoff-') as tmp:
             target = Path(tmp)/'target'; target.mkdir()
-            source = COMPONENTS.read_text()
+            source = payload_read_text(COMPONENTS)
             start = source.index('desktop_bootstrap_primary_account_gpg_key() {')
             end = source.index('\ndesktop_user_unit_template_dir()', start)
             function = source[start:end].replace('/target', str(target))
@@ -356,7 +358,7 @@ printf '%s\\n' completed
             shells = [['/bin/dash'], ['/bin/bash']]
             if shutil.which('busybox'): shells.append([shutil.which('busybox'), 'ash'])
             for shell in shells:
-                p = subprocess.run(shell+['-c', script], env=dict(os.environ, KIND=kind, TARGET=str(target),
+                p = subprocess.run(payload_installed_argv(shell+['-c', script]), env=dict(os.environ, KIND=kind, TARGET=str(target),
                                                                FINGERPRINT=FP), capture_output=True, timeout=15)
                 self.assertEqual(list((target/'tmp').glob('desktop-gpg.*')), [])
                 self.assertNotIn(b'not-a-real-secret', p.stdout+p.stderr)
@@ -377,14 +379,14 @@ printf '%s\\n' completed
                     self.assertNotIn(b'completed', p.stdout)
 
     def test_no_unscoped_seal_call_left_in_desktop_flow(self):
-        source = COMPONENTS.read_text()
+        source = payload_read_text(COMPONENTS)
         self.assertNotIn('managed_git_ssh_target_action seal ||', source)
         self.assertEqual(source.count('managed_git_ssh_target_action seal --gpg-fingerprint'), 1)
 
 
 class LoggedTransportTests(unittest.TestCase):
     def test_adopted_package_transactions_disable_pty_like_other_installs(self):
-        source = (SEED/'scripts/late/software.sh').read_text()
+        source = payload_read_text(SEED/'scripts/late/software.sh')
         start = source.index('for software_binary_package in $software_binary_packages; do')
         end = source.index('\ndone', start)
         block = source[start:end]
@@ -403,7 +405,7 @@ class LoggedTransportTests(unittest.TestCase):
 target_exec /bin/sh -c 'printf "%s:%s\\n" "$LANG" "$LC_ALL"'
 target_exec /usr/bin/env LC_ALL=C /bin/sh -c 'printf "%s\\n" "$LC_ALL"'
 '''
-            p = subprocess.run(['/bin/sh', '-c', script], env=dict(os.environ, PATH=str(root)+':/usr/bin:/bin',
+            p = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]), env=dict(os.environ, PATH=str(root)+':/usr/bin:/bin',
                               LANG='not_an_installed_locale', LC_ALL='not_an_installed_locale',
                               LOCPATH='/does/not/exist'), capture_output=True, timeout=10)
             self.assertEqual(p.returncode, 0, p.stderr)

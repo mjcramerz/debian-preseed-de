@@ -12,10 +12,26 @@ def main(args: list[str]) -> int:
     if args == ["session-ready"]:
         runtime = os.environ.get("XDG_RUNTIME_DIR", "")
         display = os.environ.get("WAYLAND_DISPLAY", "")
-        if not runtime or not display:
+        uid = os.getuid()
+        if runtime != f"/run/user/{uid}" or not display or display in {".", ".."}:
             return 1
-        socket = Path(display) if display.startswith("/") else Path(runtime) / display
-        if not stat.S_ISSOCK(socket.stat().st_mode):
+        if "/" in display or "\0" in display:
+            return 1
+        directory = Path(runtime)
+        metadata = directory.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid
+                or metadata.st_mode & 0o077):
+            return 1
+        # lstat also sees broken symlinks. Errors other than absence must
+        # propagate to the fail-closed entry point, never mean "ready".
+        try:
+            (directory / "labwc-session-closing").lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            return 1
+        metadata = (directory / display).lstat()
+        if not stat.S_ISSOCK(metadata.st_mode) or metadata.st_uid != uid:
             return 1
         command = ["/usr/bin/systemctl", "--user", "--quiet", "is-active", "labwc-session.target"]
         timeout = 3
@@ -36,13 +52,8 @@ def main(args: list[str]) -> int:
             proc = Path(f"/proc/{pid}")
             if proc.stat().st_uid != os.getuid():
                 return 1
-            arguments = (proc / "cmdline").read_bytes().split(b"\0")
-            expected = [b"/usr/local/libexec/labwc-panel-run", b"waybar"]
-            # Accept the fixed, root-owned supervisor, not an arbitrary Python
-            # process. Retain compatibility with a direct Waybar during reload.
-            supervised = arguments[1:4] == [b"-I", *expected]
-            direct = (proc / "comm").read_text().strip() == "waybar"
-            if not (supervised or direct):
+            # Check the executable inode, not the forgeable process name.
+            if not (proc / "exe").samefile("/usr/bin/waybar"):
                 return 1
             signal.pidfd_send_signal(fd, signal.SIGUSR2)
             return 0

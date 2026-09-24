@@ -5,6 +5,8 @@ The failing function is the one in the supplied 580.142 make.log and NVIDIA's
 covered separately. Test the actual generated DKMS wrapper, not a second patch.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import os
 from pathlib import Path
@@ -33,7 +35,7 @@ HEADER = '#include "conftest.h"\n#include <linux/string.h>\n'
 
 
 def wrapper_text() -> str:
-    return HOOK.read_text().split("<<'EOF'\n", 1)[1].split('\nEOF', 1)[0]
+    return payload_read_text(HOOK).split("<<'EOF'\n", 1)[1].split('\nEOF', 1)[0]
 
 
 class NvidiaLegacyDkmsTests(unittest.TestCase):
@@ -46,8 +48,8 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
 
     def run_patch(self, path: Path, shell=None, env=None):
         return subprocess.run(
-            [*(shell or ['/bin/sh']), '-eu', '-c',
-             self.patch_functions + '\npatch_nv_os_interface "$1"\n', 'sh', str(path)],
+            payload_installed_argv([*(shell or ['/bin/sh']), '-eu', '-c',
+             self.patch_functions + '\npatch_nv_os_interface "$1"\n', 'sh', str(path)]),
             capture_output=True, text=True, timeout=10, env=env or self.env,
         )
 
@@ -77,12 +79,12 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
         suffix = '\n/* unrelated code after */\n'
         path = self.source(content=prefix + OLD + suffix)
         path.chmod(0o640)
-        before = path.stat()
+        before = payload_source_stat(path)
         result = self.run_patch(path)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(path.read_text(), prefix + NEW + suffix)
+        self.assertEqual(payload_read_text(path), prefix + NEW + suffix)
         self.assertIn('Applied NVIDIA 580 Linux 7.2', result.stderr)
-        after = path.stat()
+        after = payload_source_stat(path)
         self.assertEqual(stat.S_IMODE(after.st_mode), 0o640)
         self.assertEqual((after.st_uid, after.st_gid), (before.st_uid, before.st_gid))
         self.assertEqual(list(self.root.glob('*.tmp.*')), [])
@@ -90,12 +92,12 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
     def test_idempotent_without_touching_mtime_or_inode(self):
         path = self.source()
         self.assertEqual(self.run_patch(path).returncode, 0)
-        before = path.stat()
+        before = payload_source_stat(path)
         again = self.run_patch(path)
         self.assertEqual(again.returncode, 0, again.stderr)
-        self.assertEqual(path.read_text(), NEW)
-        self.assertEqual(path.stat().st_ino, before.st_ino)
-        self.assertEqual(path.stat().st_mtime_ns, before.st_mtime_ns)
+        self.assertEqual(payload_read_text(path), NEW)
+        self.assertEqual(payload_source_stat(path).st_ino, before.st_ino)
+        self.assertEqual(payload_source_stat(path).st_mtime_ns, before.st_mtime_ns)
         self.assertEqual(again.stderr, '')
 
     def test_already_fixed_source_does_not_need_write_access(self):
@@ -110,22 +112,22 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
         result = self.run_patch(path, env={**self.env, 'PATH': str(bindir) + ':' + self.env['PATH']})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
-        self.assertEqual(path.read_text(), NEW)
+        self.assertEqual(payload_read_text(path), NEW)
 
     def test_accepts_equivalent_vendor_fix_without_marker(self):
         content = NEW.replace(f'    /* {MARKER} */\n', '')
         path = self.source(content=content)
-        inode = path.stat().st_ino
+        inode = payload_source_stat(path).st_ino
         result = self.run_patch(path)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(path.read_text(), content)
-        self.assertEqual(path.stat().st_ino, inode)
+        self.assertEqual(payload_read_text(path), content)
+        self.assertEqual(payload_source_stat(path).st_ino, inode)
 
     def test_handles_tabs_and_crlf_in_known_function(self):
         path = self.source(content=OLD.replace('    ', '\t').replace('\n', '\r\n'))
         result = self.run_patch(path)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(path.read_text(), NEW)
+        self.assertEqual(payload_read_text(path), NEW)
 
     def test_unknown_duplicate_or_partial_function_fails_without_edit(self):
         cases = {
@@ -145,13 +147,13 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
         for label, content in cases.items():
             with self.subTest(label=label):
                 path = self.source(content=content)
-                original = path.read_bytes()
-                inode = path.stat().st_ino
+                original = payload_read_bytes(path)
+                inode = payload_source_stat(path).st_ino
                 result = self.run_patch(path)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
                 self.assertIn('unrecognized NVIDIA 580 os_get_current_process_name', result.stderr)
-                self.assertEqual(path.read_bytes(), original)
-                self.assertEqual(path.stat().st_ino, inode)
+                self.assertEqual(payload_read_bytes(path), original)
+                self.assertEqual(payload_source_stat(path).st_ino, inode)
                 self.assertEqual(list(self.root.glob('*.tmp.*')), [])
 
     def test_unreadable_missing_source_fails(self):
@@ -170,7 +172,7 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
                 path = self.source()
                 result = self.run_patch(path, env={**self.env, 'PATH': str(bindir) + ':' + self.env['PATH']})
                 self.assertNotEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(path.read_text(), OLD)
+                self.assertEqual(payload_read_text(path), OLD)
                 self.assertEqual(list(self.root.glob('*.tmp.*')), [])
 
     @unittest.skipUnless(shutil.which('busybox'), 'BusyBox not installed')
@@ -182,7 +184,7 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
         result = self.run_patch(path, shell=[shutil.which('busybox'), 'sh'],
                                 env={**self.env, 'PATH': str(bindir) + ':' + self.env['PATH']})
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(path.read_text(), NEW)
+        self.assertEqual(payload_read_text(path), NEW)
 
     def test_wrapper_covers_source_build_symlink_and_nested_layout(self):
         roots = ['usr/src/nvidia-580.142', 'usr/src/nvidia-current-580.142',
@@ -197,16 +199,16 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
         other = self.source('usr/src/nvidia-590.48.01/nvidia/os-interface.c')
         other_dkms = self.source('var/lib/dkms/nvidia/570.86/build/nvidia/os-interface.c')
         script = self.sandbox_wrapper('printf "<%s>\\n" "$@"\nexit 23\n')
-        result = subprocess.run([str(script), 'build', '-m', 'nvidia', 'space in argument'],
+        result = subprocess.run(payload_installed_argv([str(script), 'build', '-m', 'nvidia', 'space in argument']),
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 23, result.stderr)
         self.assertEqual(result.stdout, '<build>\n<-m>\n<nvidia>\n<space in argument>\n')
         for path in paths:
-            self.assertEqual(path.read_text(), NEW)
+            self.assertEqual(payload_read_text(path), NEW)
         self.assertEqual(link.resolve(), (self.root / roots[0]).resolve())
         self.assertTrue(link.is_symlink())
-        self.assertEqual(other.read_text(), OLD)
-        self.assertEqual(other_dkms.read_text(), OLD)
+        self.assertEqual(payload_read_text(other), OLD)
+        self.assertEqual(payload_read_text(other_dkms), OLD)
 
     def test_wrapper_patches_before_dkms_source_copy_and_after_reunpack(self):
         path = self.source('usr/src/nvidia-580.142/nvidia/os-interface.c')
@@ -217,23 +219,23 @@ class NvidiaLegacyDkmsTests(unittest.TestCase):
                 # A package reinstall overwrites /usr/src: no stamp may cause
                 # a future DKMS invocation to skip the compatibility repair.
                 path.write_text(OLD)
-                result = subprocess.run([str(script), operation], capture_output=True, text=True, timeout=10)
+                result = subprocess.run(payload_installed_argv([str(script), operation]), capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(copy.read_text(), NEW)
+                self.assertEqual(payload_read_text(copy), NEW)
 
     def test_wrapper_does_not_invoke_real_dkms_on_patch_failure(self):
         path = self.source('usr/src/nvidia-580.142/nvidia/os-interface.c', OLD + OLD)
         called = self.root / 'called'
         script = self.sandbox_wrapper(f'touch "{called}"\n')
-        result = subprocess.run([str(script), 'build'], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(payload_installed_argv([str(script), 'build']), capture_output=True, text=True, timeout=10)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('failed to patch NVIDIA 580 OS interface', result.stderr)
-        self.assertFalse(called.exists())
-        self.assertEqual(path.read_text(), OLD + OLD)
+        self.assertFalse(payload_source_exists(called))
+        self.assertEqual(payload_read_text(path), OLD + OLD)
 
     def test_wrapper_passes_through_when_no_580_sources_exist(self):
         script = self.sandbox_wrapper('printf "%s\\n" "$1"\n')
-        result = subprocess.run([str(script), 'status'], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(payload_installed_argv([str(script), 'status']), capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, 'status\n')
 
@@ -300,18 +302,18 @@ int main(void) {
         self.assertEqual(result.returncode, 0, result.stderr)
         fixture = self.root / 'contract.c'
         binary = self.root / 'contract'
-        fixture.write_text(prelude + path.read_text() + main)
-        result = subprocess.run([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror',
+        fixture.write_text(prelude + payload_read_text(path) + main)
+        result = subprocess.run(payload_installed_argv([compiler, '-std=c11', '-Wall', '-Wextra', '-Werror',
                                  '-fsanitize=undefined', '-fno-sanitize-recover=all',
-                                 str(fixture), '-o', str(binary)], capture_output=True, text=True, timeout=30)
+                                 str(fixture), '-o', str(binary)]), capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-        result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(payload_installed_argv([str(binary)]), capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('1040 buffer cases', result.stdout)
         # Prove the same compiler fixture rejects the original failing call.
         fixture.write_text(prelude + OLD + main)
-        result = subprocess.run([compiler, '-std=c11', '-Werror', '-c', str(fixture),
-                                 '-o', str(self.root / 'bad.o')], capture_output=True, text=True, timeout=30)
+        result = subprocess.run(payload_installed_argv([compiler, '-std=c11', '-Werror', '-c', str(fixture),
+                                 '-o', str(self.root / 'bad.o')]), capture_output=True, text=True, timeout=30)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('strncpy', result.stderr)
 

@@ -549,6 +549,37 @@ source_fetch() (
   case "$mode" in [0-7][0-7][0-7]|0[0-7][0-7][0-7]) ;; *) source_error 'invalid fetched file mode'; exit 1 ;; esac
   root=$(source_cache_root "$base") || exit 1
   cache=$root/$rel
+  # A .tmpl is a source distinction, never an installed filename. Resolve only
+  # regular snapshot members; never probe a moving remote source for aliases.
+  case "$rel" in
+    *.tmpl) ;;
+    *)
+      if [ -e "$cache.tmpl" ] || [ -L "$cache.tmpl" ]; then
+        [ ! -e "$cache" ] && [ ! -L "$cache" ] &&
+          [ -f "$cache.tmpl" ] && [ ! -L "$cache.tmpl" ] || {
+            source_error "ambiguous or unsafe template source: $rel"; exit 1;
+          }
+        rel=$rel.tmpl; cache=$cache.tmpl
+      fi
+      ;;
+  esac
+  # Resolve an explicit local source only before a snapshot is authenticated.
+  # Never probe moving remote aliases or bypass a verified payload.
+  if [ ! -e "$cache" ] && [ ! -L "$cache" ] &&
+     [ ! -f "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/payload.ready" ]; then
+    case "$base:$rel" in
+      /*:*.tmpl) : ;;
+      /*:*)
+        if [ -e "${base%/}/$rel.tmpl" ] || [ -L "${base%/}/$rel.tmpl" ]; then
+          [ ! -e "${base%/}/$rel" ] && [ ! -L "${base%/}/$rel" ] &&
+            [ -f "${base%/}/$rel.tmpl" ] && [ ! -L "${base%/}/$rel.tmpl" ] || {
+              source_error "ambiguous or unsafe local template: $rel"; exit 1;
+            }
+          rel=$rel.tmpl; cache=$root/$rel
+        fi ;;
+    esac
+  fi
+  [ ! -L "$cache" ] || { source_error "symlinked repository source: $rel"; exit 1; }
   if [ ! -f "$cache" ]; then
     # Once a snapshot is validated, never mix it with a moving remote branch.
     if [ -f "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/payload.ready" ]; then source_error "file absent from validated payload: $rel"; exit 1; fi
@@ -568,9 +599,17 @@ source_exists() (
   set -eu
   source_validate_relative "$2" || exit 1
   root=$(source_cache_root "$1") || exit 1
-  [ ! -f "$root/$2" ] || exit 0
+  if [ -f "$root/$2" ] || [ -f "$root/$2.tmpl" ]; then
+    [ ! -L "$root/$2" ] && [ ! -L "$root/$2.tmpl" ] || exit 1
+    [ ! -e "$root/$2" ] || [ ! -e "$root/$2.tmpl" ] || exit 1
+    exit 0
+  fi
   [ ! -f "${INSTALLER_RUNTIME_DIR:-/tmp/install-runtime}/bootstrap/payload.ready" ] || exit 1
-  source_fetch "$1" "$2" "$root/$2" 0600
+  # Never create a logical alias inside the immutable source cache.
+  mkdir -p "$(dirname "$root")" || exit 1
+  probe=$(mktemp "${root}.exists.XXXXXX") || exit 1
+  trap 'rm -f -- "$probe"' 0
+  source_fetch "$1" "$2" "$probe" 0600
 )
 
 source_bootstrap() (

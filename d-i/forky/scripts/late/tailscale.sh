@@ -97,8 +97,7 @@ tailscale_stage_target_asset() {
   tailscale_validate_abs_target_path "$target_path"
   bootstrap_fetch_seed_file "$seed_base" "$repo_path" "$tmp_asset" 0600 "tailscale asset ${repo_path}"
   target_normalize_systemd_config_parent_modes "$target_path" "$target_root"
-  install -d -m 0755 "${target_root}$(dirname "$target_path")"
-  chmod 0755 "${target_root}$(dirname "$target_path")"
+  [ -d "${target_root}$(dirname "$target_path")" ] || install -d -m 0755 "${target_root}$(dirname "$target_path")"
   install -m "$mode" "$tmp_asset" "$target_host_path"
   chmod "$mode" "$target_host_path"
   rm -f "$tmp_asset"
@@ -109,20 +108,24 @@ tailscale_render_target_asset() {
   target_path=$2
   mode=$3
   shift 3
+  asset_renderer=installer_apply_scalar_placeholders
+  if [ "${1:-}" = --environment ]; then
+    asset_renderer=installer_apply_systemd_environment_placeholders
+    shift
+  fi
   tmp_asset="${tmp_env_dir}/$(basename "$target_path").src.$$"
   tmp_rendered="${tmp_env_dir}/$(basename "$target_path").out.$$"
   target_host_path="${target_root}${target_path}"
 
   tailscale_validate_abs_target_path "$target_path"
   bootstrap_fetch_seed_file "$seed_base" "$repo_path" "$tmp_asset" 0600 "tailscale template ${repo_path}"
-  installer_apply_scalar_placeholders "$tmp_asset" "$tmp_rendered" "$@"
+  "$asset_renderer" "$tmp_asset" "$tmp_rendered" "$@"
   if grep -Eq '__INSTALLER_[A-Z0-9_]+__' "$tmp_rendered"; then
     rm -f "$tmp_asset" "$tmp_rendered"
     tailscale_fatal "tailscale template rendered with unresolved placeholders: ${repo_path}"
   fi
   target_normalize_systemd_config_parent_modes "$target_path" "$target_root"
-  install -d -m 0755 "${target_root}$(dirname "$target_path")"
-  chmod 0755 "${target_root}$(dirname "$target_path")"
+  [ -d "${target_root}$(dirname "$target_path")" ] || install -d -m 0755 "${target_root}$(dirname "$target_path")"
   install -m "$mode" "$tmp_rendered" "$target_host_path"
   chmod "$mode" "$target_host_path"
   rm -f "$tmp_asset" "$tmp_rendered"
@@ -221,7 +224,6 @@ tailscale_validate_iface_name TAILSCALE_INTERFACE "$tailscale_interface"
 tailscale_interface_log_regex=$(printf '%s\n' "$tailscale_interface" | sed 's/[.]/[.]/g')
 
 : "${FILE_TAILSCALED_DEFAULT:?FILE_TAILSCALED_DEFAULT must be set}"
-: "${FILE_TAILSCALE_MANAGED_DEFAULT:?FILE_TAILSCALE_MANAGED_DEFAULT must be set}"
 : "${FILE_TAILSCALE_MANAGED_HELPER:?FILE_TAILSCALE_MANAGED_HELPER must be set}"
 : "${FILE_TAILSCALE_BOOTSTRAP_SERVICE:?FILE_TAILSCALE_BOOTSTRAP_SERVICE must be set}"
 : "${FILE_TAILSCALED_SERVICE_OVERRIDE:?FILE_TAILSCALED_SERVICE_OVERRIDE must be set}"
@@ -229,25 +231,58 @@ tailscale_interface_log_regex=$(printf '%s\n' "$tailscale_interface" | sed 's/[.
 : "${FILE_TAILSCALE_AUTH_KEY:?FILE_TAILSCALE_AUTH_KEY must be set}"
 : "${FILE_TAILSCALE_COMPLETE:?FILE_TAILSCALE_COMPLETE must be set}"
 : "${FILE_TAILSCALE_STATUS:?FILE_TAILSCALE_STATUS must be set}"
-: "${FILE_TAILSCALE_LOG:?FILE_TAILSCALE_LOG must be set}"
+: "${LOG_NETWORK_FILE:?LOG_NETWORK_FILE must be set}"
 : "${FILE_MANAGED_SYNCTHING_DEFAULT:?FILE_MANAGED_SYNCTHING_DEFAULT must be set}"
 : "${FILE_MANAGED_SYNCTHING_HELPER:?FILE_MANAGED_SYNCTHING_HELPER must be set}"
 : "${FILE_MANAGED_SYNCTHING_SERVICE:?FILE_MANAGED_SYNCTHING_SERVICE must be set}"
 
+for config_file in "$FILE_TAILSCALED_DEFAULT" "$FILE_MANAGED_SYNCTHING_DEFAULT"; do
+  config_parent="${target_root}$(dirname "$config_file")"
+  [ ! -L "$config_parent" ] || tailscale_fatal "configuration directory must not be a symlink: $config_parent"
+  if [ ! -e "$config_parent" ]; then
+    install -d -m 0755 "$config_parent" || tailscale_fatal "cannot create configuration directory: $config_parent"
+  fi
+  [ -d "$config_parent" ] || tailscale_fatal "configuration parent is not a directory: $config_parent"
+  [ "$(readlink -f "$config_parent")" = "$config_parent" ] ||
+    tailscale_fatal "configuration directory must be a direct path: $config_parent"
+  [ "$(installer_metadata_value "$config_parent" uid_gid_mode)" = 0:0:755 ] ||
+    tailscale_fatal "unsafe configuration directory: $config_parent"
+  [ ! -e "${target_root}${config_file}" ] || [ -f "${target_root}${config_file}" ] ||
+    tailscale_fatal "configuration is not a regular file: $config_file"
+  [ ! -L "${target_root}${config_file}" ] || tailscale_fatal "configuration must not be a symlink: $config_file"
+  if [ -e "${target_root}${config_file}" ]; then
+    case "$(installer_metadata_value "${target_root}${config_file}" uid_gid_mode_links)" in
+      0:0:644:1|0:0:600:1) ;;
+      *) tailscale_fatal "unsafe existing configuration metadata: $config_file" ;;
+    esac
+  fi
+done
+unset config_file config_parent
+
+tailscale_validate_abs_target_path /var/lib/firstboot/bin
+install -d -m 0700 "${target_root}/var/lib/firstboot" "${target_root}/var/lib/firstboot/bin"
+
 auth_key_file=$FILE_TAILSCALE_AUTH_KEY
 complete_file=$FILE_TAILSCALE_COMPLETE
 status_file=$FILE_TAILSCALE_STATUS
-log_file=$FILE_TAILSCALE_LOG
+log_file=$LOG_NETWORK_FILE
 
 install -d -m 0700 \
   "${target_root}$(dirname "$auth_key_file")" \
   "${target_root}$(dirname "$complete_file")" \
-  "${target_root}$(dirname "$status_file")" \
-  "${target_root}$(dirname "$log_file")"
+  "${target_root}$(dirname "$status_file")"
 
 if auth_key=$(tailscale_cmdline_token 2>/dev/null); then
-  printf '%s\n' "$auth_key" >"${target_root}${auth_key_file}"
-  chmod 0600 "${target_root}${auth_key_file}" 2>/dev/null || true
+  auth_destination="${target_root}${auth_key_file}"
+  [ ! -e "$auth_destination" ] && [ ! -L "$auth_destination" ] ||
+    tailscale_fatal "refusing an existing Tailscale enrollment credential"
+  auth_temporary=$(mktemp "${auth_destination}.XXXXXX") || tailscale_fatal "cannot stage Tailscale credential"
+  if ! (umask 077; printf '%s\n' "$auth_key" >"$auth_temporary" &&
+        chmod 0600 "$auth_temporary" && mv -fT -- "$auth_temporary" "$auth_destination"); then
+    rm -f -- "$auth_temporary"
+    tailscale_fatal "cannot publish Tailscale enrollment credential"
+  fi
+  unset auth_temporary auth_destination
   tailscale_info "staged optional Tailscale auth key for deferred post-boot bootstrap"
 else
   rm -f "${target_root}${auth_key_file}"
@@ -258,24 +293,46 @@ else
 fi
 unset auth_key 2>/dev/null || true
 
-{
-  write_shell_config_var PORT "${TAILSCALE_UDP_PORT:-41641}"
-  # This is Tailscale's supported upload opt-out. It intentionally disables
-  # Tailscale technical support and is incompatible with tailnets that require
-  # data-plane audit logging, but it does not replace or disable local journal
-  # diagnostics, control connectivity, DERP, or direct peer transport.
-  write_shell_config_var FLAGS "--tun=${tailscale_interface} --no-logs-no-support"
-} >"${target_root}${FILE_TAILSCALED_DEFAULT}"
-chmod 0644 "${target_root}${FILE_TAILSCALED_DEFAULT}" 2>/dev/null || true
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/tailscaled.tmpl)" \
+  "$FILE_TAILSCALED_DEFAULT" 0644 \
+  PORT "$(installer_shell_quote "${TAILSCALE_UDP_PORT:-41641}")" \
+  FLAGS "$(installer_shell_quote "--tun=${tailscale_interface} --no-logs-no-support")"
 
 tailscale_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/tailscale-managed-up)" \
+  "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/var/lib/firstboot/bin/tailscale-up)" \
   "${FILE_TAILSCALE_MANAGED_HELPER}" \
   0755
-tailscale_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/tailscale-managed-bootstrap.service)" \
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/tailscale-bootstrap.service.tmpl)" \
   "${FILE_TAILSCALE_BOOTSTRAP_SERVICE}" \
-  0644
+  0644 --environment \
+  TAILSCALE_AUTH_KEY_FILE "$auth_key_file" \
+  TAILSCALE_COMPLETE_FILE "$complete_file" \
+  TAILSCALE_STATUS_FILE "$status_file" \
+  TAILSCALE_LOG_FILE "$log_file" \
+  TAILSCALE_HOSTNAME "$SYSTEM_HOSTNAME" \
+  TAILSCALE_INTERFACE "$tailscale_interface" \
+  TAILSCALE_UDP_PORT "${TAILSCALE_UDP_PORT:-41641}" \
+  TAILSCALE_ACCEPT_DNS "${TAILSCALE_ACCEPT_DNS:-false}" \
+  TAILSCALE_ACCEPT_ROUTES "${TAILSCALE_ACCEPT_ROUTES:-false}" \
+  TAILSCALE_RUN_SSH_SERVER "${TAILSCALE_RUN_SSH_SERVER:-true}" \
+  TAILSCALE_NETFILTER_MODE "${TAILSCALE_NETFILTER_MODE:-off}" \
+  TAILSCALE_OPERATOR_USER "${TAILSCALE_OPERATOR_USER:-$ACCOUNT_USERNAME}" \
+  TAILSCALE_ACCEPT_RISK "${TAILSCALE_ACCEPT_RISK:-}" \
+  TAILSCALE_ADVERTISE_TAGS "${TAILSCALE_ADVERTISE_TAGS:-}" \
+  TAILSCALE_ADVERTISE_ROUTES "${TAILSCALE_ADVERTISE_ROUTES:-}" \
+  TAILSCALE_ADVERTISE_EXIT_NODE "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}" \
+  TAILSCALE_EXIT_NODE "${TAILSCALE_EXIT_NODE:-}" \
+  TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS "${TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS:-false}" \
+  TAILSCALE_SHIELDS_UP "${TAILSCALE_SHIELDS_UP:-false}" \
+  TAILSCALE_REPORT_POSTURE "${TAILSCALE_REPORT_POSTURE:-false}" \
+  TAILSCALE_SNAT_SUBNET_ROUTES "${TAILSCALE_SNAT_SUBNET_ROUTES:-true}" \
+  TAILSCALE_STATEFUL_FILTERING "${TAILSCALE_STATEFUL_FILTERING:-false}" \
+  TAILSCALE_AUTH_KEY_REQUIRED "${TAILSCALE_AUTH_KEY_REQUIRED:-true}" \
+  TAILSCALE_FORCE_REAUTH "${TAILSCALE_FORCE_REAUTH:-false}" \
+  TAILSCALE_TIMEOUT "${TAILSCALE_TIMEOUT:-2m}" \
+  TAILSCALE_DAEMON_WAIT_SECONDS "${TAILSCALE_DAEMON_WAIT_SECONDS:-60}"
 tailscale_render_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/tailscaled.service.d/override.conf.tmpl)" \
   "${FILE_TAILSCALED_SERVICE_OVERRIDE}" \
@@ -286,11 +343,11 @@ tailscale_stage_target_asset \
   "${FILE_TAILSCALE_TUN_MODULES_LOAD}" \
   0644
 tailscale_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-syncthing-configure)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/syncthing-configure)" \
   "${FILE_MANAGED_SYNCTHING_HELPER}" \
   0755
 tailscale_render_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-syncthing.service.tmpl)" \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/syncthing.service.tmpl)" \
   "${FILE_MANAGED_SYNCTHING_SERVICE}" \
   0644 \
   ACCOUNT_USERNAME "$ACCOUNT_USERNAME" \
@@ -298,58 +355,30 @@ tailscale_render_target_asset \
   DIR_HOME_SYNCTHING "$DIR_HOME_SYNCTHING" \
   DIR_HOME_SYNCTHING_STATE "$DIR_HOME_SYNCTHING_STATE"
 tailscale_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf)" \
-  /etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf 0644
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/syncthing.service.d/60-resource-class.conf)" \
+  /etc/systemd/system/syncthing.service.d/60-resource-class.conf 0644
 
-{
-  write_shell_config_var TAILSCALE_AUTH_KEY_FILE "$auth_key_file"
-  write_shell_config_var TAILSCALE_COMPLETE_FILE "$complete_file"
-  write_shell_config_var TAILSCALE_STATUS_FILE "$status_file"
-  write_shell_config_var TAILSCALE_LOG_FILE "$log_file"
-  write_shell_config_var TAILSCALE_HOSTNAME "$SYSTEM_HOSTNAME"
-  write_shell_config_var TAILSCALE_INTERFACE "$tailscale_interface"
-  write_shell_config_var TAILSCALE_UDP_PORT "${TAILSCALE_UDP_PORT:-41641}"
-  write_shell_config_var TAILSCALE_ACCEPT_DNS "${TAILSCALE_ACCEPT_DNS:-false}"
-  write_shell_config_var TAILSCALE_ACCEPT_ROUTES "${TAILSCALE_ACCEPT_ROUTES:-false}"
-  write_shell_config_var TAILSCALE_RUN_SSH_SERVER "${TAILSCALE_RUN_SSH_SERVER:-true}"
-  write_shell_config_var TAILSCALE_NETFILTER_MODE "${TAILSCALE_NETFILTER_MODE:-off}"
-  write_shell_config_var TAILSCALE_OPERATOR_USER "${TAILSCALE_OPERATOR_USER:-$ACCOUNT_USERNAME}"
-  write_shell_config_var TAILSCALE_ACCEPT_RISK "${TAILSCALE_ACCEPT_RISK:-}"
-  write_shell_config_var TAILSCALE_ADVERTISE_TAGS "${TAILSCALE_ADVERTISE_TAGS:-}"
-  write_shell_config_var TAILSCALE_ADVERTISE_ROUTES "${TAILSCALE_ADVERTISE_ROUTES:-}"
-  write_shell_config_var TAILSCALE_ADVERTISE_EXIT_NODE "${TAILSCALE_ADVERTISE_EXIT_NODE:-false}"
-  write_shell_config_var TAILSCALE_EXIT_NODE "${TAILSCALE_EXIT_NODE:-}"
-  write_shell_config_var TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS "${TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS:-false}"
-  write_shell_config_var TAILSCALE_SHIELDS_UP "${TAILSCALE_SHIELDS_UP:-false}"
-  write_shell_config_var TAILSCALE_REPORT_POSTURE "${TAILSCALE_REPORT_POSTURE:-false}"
-  write_shell_config_var TAILSCALE_SNAT_SUBNET_ROUTES "${TAILSCALE_SNAT_SUBNET_ROUTES:-true}"
-  write_shell_config_var TAILSCALE_STATEFUL_FILTERING "${TAILSCALE_STATEFUL_FILTERING:-false}"
-  write_shell_config_var TAILSCALE_AUTH_KEY_REQUIRED "${TAILSCALE_AUTH_KEY_REQUIRED:-true}"
-  write_shell_config_var TAILSCALE_FORCE_REAUTH "${TAILSCALE_FORCE_REAUTH:-false}"
-  write_shell_config_var TAILSCALE_TIMEOUT "${TAILSCALE_TIMEOUT:-2m}"
-  write_shell_config_var TAILSCALE_DAEMON_WAIT_SECONDS "${TAILSCALE_DAEMON_WAIT_SECONDS:-60}"
-} >"${target_root}${FILE_TAILSCALE_MANAGED_DEFAULT}"
-chmod 0644 "${target_root}${FILE_TAILSCALE_MANAGED_DEFAULT}" 2>/dev/null || true
 
-{
-  write_shell_config_var SYNCTHING_TCP_PORT "${SYNCTHING_TCP_PORT:-35000}"
-  write_shell_config_var SYNCTHING_USER "$ACCOUNT_USERNAME"
-  write_shell_config_var SYNCTHING_DATA_DIR "$DIR_HOME_SYNCTHING"
-  write_shell_config_var SYNCTHING_STATE_DIR "$DIR_HOME_SYNCTHING_STATE"
-  write_shell_config_var SYNCTHING_GUI_ENABLED false
-} >"${target_root}${FILE_MANAGED_SYNCTHING_DEFAULT}"
-chmod 0644 "${target_root}${FILE_MANAGED_SYNCTHING_DEFAULT}" 2>/dev/null || true
+
+tailscale_render_target_asset \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/syncthing/service.conf.tmpl)" \
+  "$FILE_MANAGED_SYNCTHING_DEFAULT" 0644 \
+  SYNCTHING_TCP_PORT "$(installer_shell_quote "${SYNCTHING_TCP_PORT:-35000}")" \
+  SYNCTHING_USER "$(installer_shell_quote "$ACCOUNT_USERNAME")" \
+  SYNCTHING_DATA_DIR "$(installer_shell_quote "$DIR_HOME_SYNCTHING")" \
+  SYNCTHING_STATE_DIR "$(installer_shell_quote "$DIR_HOME_SYNCTHING_STATE")" \
+  SYNCTHING_GUI_ENABLED "$(installer_shell_quote false)"
 
 tailscale_run_target_chroot "prepare managed syncthing state during install" /bin/sh -eu -c '
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
-test -r /usr/local/libexec/managed-syncthing-configure
-/usr/sbin/runuser -u "$1" -- /usr/local/libexec/managed-syncthing-configure --prepare
+test -r /usr/local/libexec/syncthing-configure
+/usr/sbin/runuser -u "$1" -- /usr/local/libexec/syncthing-configure --prepare
 ' sh "$ACCOUNT_USERNAME"
 
 tailscale_unstage_vendor_syncthing_unit "$ACCOUNT_USERNAME"
 tailscale_stage_target_unit tailscaled.service
-tailscale_stage_target_unit tailscale-managed-bootstrap.service
-tailscale_stage_target_unit managed-syncthing.service
+tailscale_stage_target_unit tailscale-bootstrap.service
+tailscale_stage_target_unit syncthing.service
 
 tailscale_info "staged Tailscale + Syncthing target assets for account=${ACCOUNT_USERNAME}"

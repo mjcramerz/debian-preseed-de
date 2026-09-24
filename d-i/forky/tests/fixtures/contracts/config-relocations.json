@@ -1,0 +1,13 @@
+{
+  "etc/installer/runtime.conf": "etc/system-runtime.conf",
+  "etc/secure-boot/config": "etc/secure-boot.conf",
+  "etc/default/chatgpt": "etc/chatgpt/package-policy.conf",
+  "etc/default/codex-app-server": "etc/codex/app-server.env",
+  "etc/default/crowdsec-firstboot": "etc/crowdsec/bootstrap.env",
+  "etc/default/syncthing": "etc/syncthing/service.conf",
+  "etc/default/swap-fallback.conf": "etc/swap-fallback.conf",
+  "etc/default/zram-writeback": "etc/zram-writeback/setup.conf",
+  "etc/zram-writeback.conf": "etc/zram-writeback/policy.conf",
+  "etc/network/config": "etc/network/host.conf",
+  "etc/grub-profiles/config": "etc/default/grub-profiles"
+}

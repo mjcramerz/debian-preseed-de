@@ -9,6 +9,8 @@ Full module loading remains part of audit_codebase.py and the existing managed
 external-software tests. The Python publisher and dpkg-deb are executed directly.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 
 import gzip
 import hashlib
@@ -27,9 +29,9 @@ import tempfile
 import unittest
 
 FORKY = Path(__file__).resolve().parents[1]
-PERL_LIB = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl/external-managed-software'
-SERVICING = PERL_LIB / 'ExternalSoftware/Servicing'
-HELPER = FORKY / 'hooks/target/usr/local/libexec/local-apt-repository'
+PERL_LIB = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local'
+SERVICING = PERL_LIB / 'APTRepoLocal/Servicing'
+HELPER = FORKY / 'hooks/target/usr/local/libexec/apt-repo-local'
 MAX_DEB = 1 << 32
 MAX_PUBLISHER = 1 << 31
 OLD_BOUND = 1 << 29
@@ -38,7 +40,7 @@ ENV = {**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': '/usr/sbin:/usr/bin:/sbin:/bin
 
 def method(filename: str, name: str) -> str:
     """Take a complete top-level method verbatim, without rewriting its body."""
-    text = (SERVICING / filename).read_text()
+    text = payload_read_text(SERVICING / filename)
     match = re.search(rf'^sub {re.escape(name)}\s*\{{.*?(?=^sub [A-Za-z_]|^1;\s*$)',
                       text, re.M | re.S)
     if match is None:
@@ -53,19 +55,19 @@ def perl_program() -> str:
     common = '''use strict; use warnings;
 use Fcntl qw(:DEFAULT O_NOFOLLOW O_NONBLOCK S_IFMT S_IFREG);
 use Errno qw(EINTR); use Digest::SHA; use JSON::PP;
-use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES MAX_DOWNLOAD_BYTES);
+use APTRepoLocal::Servicing::ArtifactLimits qw(MAX_DEB_BYTES MAX_DOWNLOAD_BYTES);
 '''
     constants = '\n'.join(re.findall(r'^use constant\s+.*?;',
-                                     (SERVICING / 'ChatGPT.pm').read_text(), re.M | re.S))
-    return ('package ExternalSoftware::Servicing::Atomic;\n' + common
+                                     payload_read_text(SERVICING / 'ChatGPT.pm'), re.M | re.S))
+    return ('package APTRepoLocal::Servicing::Atomic;\n' + common
             + method('Atomic.pm', 'assert_absolute_path')
             + method('Atomic.pm', 'read_limited') + method('Atomic.pm', 'sha256_file')
-            + 'package ExternalSoftware::Servicing::ChatGPT;\n' + common + constants + '\n'
+            + 'package APTRepoLocal::Servicing::ChatGPT;\n' + common + constants + '\n'
             + method('ChatGPT.pm', 'spec')
-            + 'package ExternalSoftware::Servicing::Deb;\n' + common
+            + 'package APTRepoLocal::Servicing::Deb;\n' + common
             + method('Deb.pm', '_capture') + method('Deb.pm', 'control')
             + method('Deb.pm', 'validate') + method('Deb.pm', 'validate_spec')
-            + 'package ExternalSoftware::Servicing::Repository;\n' + common
+            + 'package APTRepoLocal::Servicing::Repository;\n' + common
             + "use constant HELPER => '/fixture/catalogue-transport';\n"
             + 'sub directory { return $_[0]->{directory}; }\n'
             + 'sub _capture { return $_[0]->{catalogue}; }\n'
@@ -74,24 +76,24 @@ use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES MAX_DOWNLOAD_BY
             + '''package main;
 use strict; use warnings; use JSON::PP;
 my ($action, $path, $extra) = @ARGV;
-my $deb = bless {}, 'ExternalSoftware::Servicing::Deb';
-my $spec = ExternalSoftware::Servicing::ChatGPT->spec();
+my $deb = bless {}, 'APTRepoLocal::Servicing::Deb';
+my $spec = APTRepoLocal::Servicing::ChatGPT->spec();
 my $result;
 if ($action eq 'limit') {
-    $result = ExternalSoftware::Servicing::ArtifactLimits::MAX_DEB_BYTES();
+    $result = APTRepoLocal::Servicing::ArtifactLimits::MAX_DEB_BYTES();
 } elsif ($action eq 'spec-limit') {
     $result = $spec->{maximum};
 } elsif ($action eq 'path') {
-    $result = ExternalSoftware::Servicing::Atomic->assert_absolute_path('fixture', $path);
+    $result = APTRepoLocal::Servicing::Atomic->assert_absolute_path('fixture', $path);
 } elsif ($action eq 'digest') {
-    my ($size, $sha256) = ExternalSoftware::Servicing::Atomic->sha256_file($path, $extra);
+    my ($size, $sha256) = APTRepoLocal::Servicing::Atomic->sha256_file($path, $extra);
     $result = { size => $size, sha256 => $sha256 };
 } elsif ($action eq 'validate') {
     $result = $deb->validate_spec($path, $spec, "$spec->{label} retained archive");
 } elsif ($action eq 'changed') {
-    my $original = \\&ExternalSoftware::Servicing::Deb::control;
+    my $original = \\&APTRepoLocal::Servicing::Deb::control;
     no warnings 'redefine';
-    local *ExternalSoftware::Servicing::Deb::control = sub {
+    local *APTRepoLocal::Servicing::Deb::control = sub {
         my $value = $original->(@_);
         if ($_[2] eq 'Architecture') {
             open my $out, '>>', $_[1] or die "fixture append: $!";
@@ -102,11 +104,11 @@ if ($action eq 'limit') {
     $result = $deb->validate_spec($path, $spec);
 } elsif ($action eq 'latest') {
     my $repository = bless { directory => $path, catalogue => $extra },
-        'ExternalSoftware::Servicing::Repository';
+        'APTRepoLocal::Servicing::Repository';
     $result = $repository->latest($deb, $spec);
 } elsif ($action eq 'latest-bitwarden') {
     my $repository = bless { directory => $path, catalogue => $extra },
-        'ExternalSoftware::Servicing::Repository';
+        'APTRepoLocal::Servicing::Repository';
     $spec = { %$spec, name => 'bitwarden', packages => ['bitwarden'], label => 'Bitwarden' };
     $result = $repository->latest($deb, $spec);
 } else {
@@ -149,15 +151,15 @@ def sparse_deb(path: Path, size: int = 8192, *, package: str = 'chatgpt',
         output.seek(member.size, os.SEEK_CUR)
         output.write(b'\0' * (data_size - 512 - member.size))
     path.chmod(0o600)
-    if path.stat().st_size != size:
+    if payload_source_stat(path).st_size != size:
         raise AssertionError('fixture size mismatch')
 
 
 def run_perl(action: str, path: object = '', extra: object = '', *, memory_limit: bool = False):
     def limit_memory():
         resource.setrlimit(resource.RLIMIT_AS, (128 << 20, 128 << 20))
-    return subprocess.run(['/usr/bin/perl', '-I', str(PERL_LIB), '-e', perl_program(),
-                           action, str(path), str(extra)], text=True, capture_output=True,
+    return subprocess.run(payload_installed_argv(['/usr/bin/perl', '-I', str(PERL_LIB), '-e', perl_program(),
+                           action, str(path), str(extra)]), text=True, capture_output=True,
                           env=ENV, timeout=45,
                           preexec_fn=limit_memory if memory_limit else None)
 
@@ -201,13 +203,13 @@ class RetainedPackageBoundsTests(unittest.TestCase):
         self.assertEqual(result_value(run_perl('spec-limit')), MAX_PUBLISHER)
 
     def test_limit_module_is_in_the_installer_staging_inventory(self):
-        script = (FORKY / 'scripts/late/software.sh').read_text()
+        script = payload_read_text(FORKY / 'scripts/late/software.sh')
         inventory = re.search(r"software_perl_modules\(\) \{\s*cat <<'EOF'\n(.*?)\nEOF", script, re.S)
         self.assertIsNotNone(inventory)
         entries = inventory[1].splitlines()
-        self.assertEqual(entries.count('ExternalSoftware/Servicing/ArtifactLimits.pm'), 1)
+        self.assertEqual(entries.count('APTRepoLocal/Servicing/ArtifactLimits.pm'), 1)
         for entry in entries:
-            self.assertTrue((PERL_LIB / entry).is_file(), entry)
+            self.assertTrue(payload_source_is_file(PERL_LIB / entry), entry)
 
     def test_small_valid_debian_archive_still_passes(self):
         self.assertEqual(result_value(run_perl('validate', self.small)),
@@ -217,11 +219,11 @@ class RetainedPackageBoundsTests(unittest.TestCase):
         fields = self.publisher['inspect_deb'](self.large, {'amd64'})
         self.assertEqual(fields['Package'], 'chatgpt')
         self.assertEqual(result_value(run_perl('validate', self.large))['version'], fields['Version'])
-        self.assertGreater(self.large.stat().st_size, OLD_BOUND)
+        self.assertGreater(payload_source_stat(self.large).st_size, OLD_BOUND)
 
     def test_real_archive_exactly_at_four_gib_is_accepted(self):
         self.assertEqual(result_value(run_perl('validate', self.at_limit))['package'], 'chatgpt')
-        self.assertEqual(self.at_limit.stat().st_size, MAX_DEB)
+        self.assertEqual(payload_source_stat(self.at_limit).st_size, MAX_DEB)
 
     def test_one_byte_over_limit_reports_actual_size_path_and_ceiling(self):
         path = self.directory / 'oversized.deb'
@@ -306,7 +308,7 @@ class RetainedPackageBoundsTests(unittest.TestCase):
 
     def test_modification_during_metadata_validation_is_rejected(self):
         path = self.directory / 'changing.deb'
-        shutil.copyfile(self.small, path)
+        payload_copyfile(self.small, path)
         self.assert_rejected(path, 'package changed during validation', action='changed')
 
     def test_valid_tilde_version_filename_is_accepted(self):
@@ -325,7 +327,7 @@ class RetainedPackageBoundsTests(unittest.TestCase):
         with self.large.open('rb') as source:
             expected = hashlib.file_digest(source, 'sha256').hexdigest()
         self.assertEqual(result_value(run_perl('digest', self.large, MAX_DEB, memory_limit=True)),
-                         {'size': self.large.stat().st_size, 'sha256': expected})
+                         {'size': payload_source_stat(self.large).st_size, 'sha256': expected})
 
     def test_digest_keeps_explicit_smaller_transport_limits(self):
         self.assert_rejected(self.large, 'not a bounded regular file', action='digest', extra=OLD_BOUND)

@@ -13,13 +13,13 @@ use Zram::Error qw(fatal);
 has defaults_path => (
     is      => 'ro',
     isa     => Str,
-    default => sub { $ENV{ZRAM_DEFAULT_PATH} // '/etc/default/zram-writeback' },
+    default => sub { $ENV{ZRAM_DEFAULT_PATH} // '/etc/zram-writeback/setup.conf' },
 );
 
 has policy_path => (
     is      => 'ro',
     isa     => Str,
-    default => sub { $ENV{ZRAM_POLICY_CONFIG} // '/etc/zram-writeback.conf' },
+    default => sub { $ENV{ZRAM_POLICY_CONFIG} // '/etc/zram-writeback/policy.conf' },
 );
 
 has enabled => (

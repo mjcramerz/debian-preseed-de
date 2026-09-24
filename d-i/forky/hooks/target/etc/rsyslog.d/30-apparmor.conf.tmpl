@@ -1,0 +1,55 @@
+# Native audit dispatch and early kernel events only. Preserve libapparmor text.
+template(
+  name="ManagedAppArmorAuditLine"
+  type="string"
+  string="%msg:R,ERE,1,FIELD:^node=[^ ]+ (.*)$--end%\n"
+)
+
+template(
+  name="ManagedAppArmorDesktopSignal"
+  type="string"
+  string="apparmor\n"
+)
+
+ruleset(name="managed_apparmor_log_writer") {
+  action(
+    name="managed_apparmor_log"
+    type="omfile"
+    file="__INSTALLER_LOG_APPARMOR_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="ManagedAppArmorAuditLine"
+  )
+}
+
+if (
+  ($.managed_audit_dispatch == "on" or $inputname == "imklog" or
+   ($inputname == "imjournal" and $!_TRANSPORT == "kernel")) and
+  ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR")
+) then {
+  set $.managed_security_routed = "on";
+  call managed_apparmor_log_writer
+  if (
+    $msg contains 'apparmor="DENIED"' or
+    $msg contains "type=APPARMOR_DENIED"
+  ) then {
+    action(
+      name="managed_apparmor_desktop_signal"
+      type="omfile"
+      file="/var/lib/labwc-notifications/security/apparmor.signal"
+      fileOwner="__INSTALLER_LOG_OWNER__"
+      fileGroup="logreader"
+      fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+      dirOwner="__INSTALLER_LOG_OWNER__"
+      dirGroup="logreader"
+      dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+      createDirs="on"
+      template="ManagedAppArmorDesktopSignal"
+    )
+  }
+}

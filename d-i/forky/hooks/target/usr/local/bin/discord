@@ -11,9 +11,9 @@ if os.geteuid() == 0:
     raise SystemExit(1)
 
 os.execv(
-    "/usr/local/bin/labwc-managed-wayland-compat-app",
+    "/usr/local/bin/labwc-wayland-compat-app",
     [
-        "/usr/local/bin/labwc-managed-wayland-compat-app",
+        "/usr/local/bin/labwc-wayland-compat-app",
         "auto",
         "discord",
         *sys.argv[1:],

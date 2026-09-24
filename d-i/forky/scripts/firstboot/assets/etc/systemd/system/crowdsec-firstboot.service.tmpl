@@ -1,0 +1,31 @@
+[Unit]
+Description=CrowdSec post-boot bootstrap and optional console enrollment
+Documentation=https://docs.crowdsec.net/
+Wants=network-online.target nss-lookup.target time-sync.target auditd.service
+After=network-online.target nss-lookup.target time-sync.target auditd.service
+ConditionPathExists=!/var/lib/firstboot/crowdsec/complete
+OnSuccess=secondboot.service
+StartLimitIntervalSec=infinity
+StartLimitBurst=3
+
+[Service]
+Environment="CROWDSEC_HOST_VARIANT=__INSTALLER_CROWDSEC_HOST_VARIANT__"
+Environment="CROWDSEC_ENROLL_TOKEN_FILE=__INSTALLER_CROWDSEC_ENROLL_TOKEN_FILE__"
+Environment="CROWDSEC_COMPLETE_FILE=__INSTALLER_CROWDSEC_COMPLETE_FILE__"
+Environment="CROWDSEC_STATUS_FILE=__INSTALLER_CROWDSEC_STATUS_FILE__"
+Type=oneshot
+Environment=CROWDSEC_ENROLL_ATTEMPTS=6
+Environment=CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=10
+ExecStart=/var/lib/firstboot/bin/crowdsec-firstboot
+StandardOutput=journal
+StandardError=journal
+Restart=on-failure
+RestartSec=30s
+RestartPreventExitStatus=2
+TimeoutStartSec=10min
+User=root
+Group=root
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

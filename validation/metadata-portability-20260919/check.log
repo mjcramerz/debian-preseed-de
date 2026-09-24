@@ -1,6 +1,0 @@
-python3 -B tools/build.py --check
-resctl-bench: 13 profiles have identical, valid release pins (offline)
-Browser artifacts current
-snapshot, pins and preseed are current
-python3 -B tools/check_shells.py
-282 shell files; 575 parser checks; PASS

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """NVIDIA storage guard and offline activation fixture checks, without a GPU."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_text as payload_read_text
 import importlib.machinery
 import importlib.util
 import os
@@ -21,7 +24,7 @@ PHASES = ('suspend', 'suspend-then-hibernate', 'hibernate', 'resume')
 
 
 def load_guard():
-    loader = importlib.machinery.SourceFileLoader('nvidia_vram_check', str(GUARD))
+    loader = importlib.machinery.SourceFileLoader('nvidia_vram_check', str(installed_script(GUARD)))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
@@ -99,13 +102,13 @@ class NvidiaGuardTests(unittest.TestCase):
     def test_system_sleep_requires_successful_nvidia_preparation(self):
         for mode in ('suspend', 'suspend-then-hibernate', 'hibernate', 'hybrid-sleep'):
             phase = 'hibernate' if mode == 'hybrid-sleep' else mode
-            text = (TARGET / f'etc/systemd/system/systemd-{mode}.service.d/20-nvidia-preserve.conf').read_text()
+            text = payload_read_text(TARGET / f'etc/systemd/system/systemd-{mode}.service.d/20-nvidia-preserve.conf')
             self.assertIn(f'Requires=nvidia-{phase}.service', text)
             self.assertIn(f'After=nvidia-{phase}.service', text)
 
     def test_dropins_cover_all_sleep_modes_but_never_block_resume_on_space(self):
         for phase in PHASES:
-            text = (TARGET / f'etc/systemd/system/nvidia-{phase}.service.d/20-managed-vram.conf').read_text()
+            text = payload_read_text(TARGET / f'etc/systemd/system/nvidia-{phase}.service.d/20-vram.conf')
             self.assertIn('RequiresMountsFor=/var/lib/nvidia-vram', text)
             self.assertIn('TimeoutStartSec=120s', text)
             self.assertIn('UMask=0077', text)
@@ -143,7 +146,7 @@ stage_target_asset() {{ :; }}
 run_in_target() {{ shift; {q(shutil.which('chroot'))} {q(str(root))} "$@"; }}
 configure_target_nvidia_power_management true
 '''
-        return subprocess.run(['/bin/sh', '-eu', '-c', code], env={**os.environ, 'PATH':'/bin:/usr/bin'},
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', code]), env={**os.environ, 'PATH':'/bin:/usr/bin'},
                               text=True, capture_output=True, timeout=15)
 
     def test_offline_enable_all_four_units_without_start(self):
@@ -152,13 +155,13 @@ configure_target_nvidia_power_management true
             self.fixture(root)
             result = self.activate(root)
             self.assertEqual(result.returncode, 0, result.stderr)
-            arguments = (root / 'systemctl.args').read_text()
+            arguments = payload_read_text(root / 'systemctl.args')
             self.assertTrue(arguments.startswith('--no-reload enable '))
             self.assertNotIn('--now', arguments)
             for phase in PHASES:
                 self.assertIn(f'nvidia-{phase}.service', arguments)
-            self.assertEqual((root / 'guard.args').read_text().strip(), '--directory-only')
-            self.assertEqual(stat.S_IMODE((root / 'var/lib/nvidia-vram').stat().st_mode), 0o700)
+            self.assertEqual(payload_read_text(root / 'guard.args').strip(), '--directory-only')
+            self.assertEqual(stat.S_IMODE(payload_source_stat(root / 'var/lib/nvidia-vram').st_mode), 0o700)
 
     def test_missing_vendor_unit_stops_instead_of_partial_activation(self):
         for missing in PHASES:
@@ -168,7 +171,7 @@ configure_target_nvidia_power_management true
                 result = self.activate(root)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(f'nvidia-{missing}.service', result.stderr)
-                self.assertFalse((root / 'systemctl.args').exists())
+                self.assertFalse(payload_source_exists(root / 'systemctl.args'))
 
     def test_missing_vendor_recovery_hook_stops(self):
         with tempfile.TemporaryDirectory() as name:

@@ -1,0 +1,33 @@
+{
+  "generator_source": "d-i/forky/hooks/target/etc/grub.d/40_custom.tmpl",
+  "config_source": "d-i/forky/hooks/target/etc/default/grub-profiles.tmpl",
+  "installed_config": "/etc/default/grub-profiles",
+  "installed_generator": "/etc/grub.d/40_custom",
+  "config_variables": {
+    "dev_part_boot": "DEV_PART_BOOT",
+    "dev_part_root": "grub_root_device",
+    "dev_part_efi": "DEV_PART_EFI",
+    "bootprofile_default": "BOOTPROFILE_DEFAULT",
+    "bootprofile_performance": "BOOTPROFILE_PERFORMANCE",
+    "bootprofile_hardened": "BOOTPROFILE_HARDENED",
+    "grub_root_flags": "GRUB_ROOT_FLAGS",
+    "grub_initramfs_flags": "GRUB_INITRAMFS_FLAGS",
+    "grub_nvme_flags": "GRUB_NVME_FLAGS",
+    "grub_cgroup_flags": "GRUB_CGROUP_FLAGS",
+    "grub_security_core_flags": "GRUB_SECURITY_CORE_FLAGS",
+    "grub_blacklist_flags": "GRUB_BLACKLIST_FLAGS",
+    "grub_vfio_flags": "GRUB_VFIO_FLAGS",
+    "grub_memory_core_flags": "GRUB_MEMORY_CORE_FLAGS",
+    "grub_hardening_flags": "GRUB_HARDENING_FLAGS",
+    "grub_aspm_flags": "GRUB_ASPM_FLAGS",
+    "grub_systemd_mask_flags": "GRUB_SYSTEMD_MASK_FLAGS",
+    "grub_profile_default_flags": "GRUB_PROFILE_DEFAULT_FLAGS",
+    "grub_profile_performance_flags": "GRUB_PROFILE_PERFORMANCE_FLAGS",
+    "grub_profile_hardened_flags": "GRUB_PROFILE_HARDENED_FLAGS",
+    "mok_der_path": "FILE_SECURE_BOOT_MOK_CERT_DER",
+    "grub_default_entry": "GRUB_DEFAULT_ENTRY",
+    "rescue_usb_uuid": "grub_rescue_uuid",
+    "grub_gfxpayload_linux": "GRUB_DISPLAY_GFXPAYLOAD_LINUX",
+    "dualboot_enabled": "DUALBOOT_ENABLED"
+  }
+}

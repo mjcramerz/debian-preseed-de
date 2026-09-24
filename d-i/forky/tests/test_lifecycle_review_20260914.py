@@ -4,6 +4,9 @@ Signal tests operate only on disposable fixture children, never system services.
 The unit checks are a reviewed allowlist, not a claim of live namespace support.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import importlib.machinery
 import importlib.util
 import io
@@ -22,12 +25,12 @@ from unittest import mock
 
 TARGET = Path(__file__).resolve().parents[1] / 'hooks/target'
 SYSTEM = TARGET/'etc/systemd/system'
-PRIVATE = {'bluetooth-controller-init.service', 'managed-nvidia-char-links.service',
+PRIVATE = {'bluetooth-controller-init.service', 'nvidia-char-links.service',
            'zram-writeback.service.tmpl', 'zram-writebackd.service.tmpl'}
 
 
 def load(name, path):
-    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    loader = importlib.machinery.SourceFileLoader(name, str(installed_script(path)))
     spec = importlib.util.spec_from_loader(name, loader)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -36,7 +39,7 @@ def load(name, path):
 
 
 gitops = load('review_gitops', TARGET/'usr/local/bin/gitops')
-ssh = load('review_ssh', TARGET/'usr/local/libexec/managed-ssh-install.py')
+ssh = load('review_ssh', TARGET/'usr/local/libexec/ssh-install.py')
 power = load('review_power', TARGET/'usr/local/libexec/labwc-admin-action-worker')
 debug = load('review_debug', TARGET/'usr/local/libexec/debugsys.py')
 
@@ -44,7 +47,7 @@ debug = load('review_debug', TARGET/'usr/local/libexec/debugsys.py')
 def assignments(path, section='Service'):
     active = ''
     values = {}
-    for line in path.read_text().splitlines():
+    for line in payload_read_text(path).splitlines():
         if line.startswith('['):
             active = line.strip('[]')
         elif active == section and '=' in line and not line.lstrip().startswith('#'):
@@ -57,7 +60,7 @@ class UnitBoundaryTests(unittest.TestCase):
     def test_private_pids_is_exactly_the_four_reviewed_system_units(self):
         found = set()
         for path in TARGET.rglob('*'):
-            if path.is_file() and path.name.endswith(('.service', '.service.tmpl', '.conf')):
+            if payload_source_is_file(path) and path.name.endswith(('.service', '.service.tmpl', '.conf')):
                 if 'yes' in assignments(path).get('PrivatePIDs', []):
                     self.assertEqual(path.parent, SYSTEM)
                     found.add(path.name)
@@ -100,7 +103,10 @@ class UnitBoundaryTests(unittest.TestCase):
             self.assertIn('labwc-session.target', data['Requisite'])
             self.assertIn('labwc-session.target', data['After'])
             self.assertIn('labwc-session.target', data['PartOf'])
-            self.assertIn('labwc-compositor.service', data['BindsTo'])
+            for relation in ('BindsTo', 'Requires', 'Wants'):
+                values = ' '.join(data.get(relation, []))
+                self.assertNotIn('labwc-compositor.service', values)
+                self.assertNotIn('labwc-session.target', values)
             self.assertNotIn('ExecStart', assignments(path))
             self.assertNotIn('ListenStream', assignments(path, 'Socket'))
 
@@ -113,9 +119,9 @@ class UnitBoundaryTests(unittest.TestCase):
         self.assertIn('labwc-session.target', ' '.join(assignments(path, 'Unit')['After']))
 
     def test_namespace_init_helpers_handle_term(self):
-        self.assertIn("trap 'exit 143' TERM", (TARGET/'usr/local/libexec/bluetooth-controller-init').read_text())
-        self.assertIn('signal.signal(sig,', (TARGET/'usr/local/libexec/managed-nvidia-char-links').read_text())
-        self.assertIn('$SIG{TERM} = sub { exit 143; };', (TARGET/'usr/local/libexec/zram-writeback.tmpl').read_text())
+        self.assertIn("trap 'exit 143' TERM", payload_read_text(TARGET/'usr/local/libexec/bluetooth-controller-init'))
+        self.assertIn('signal.signal(sig,', payload_read_text(TARGET/'usr/local/libexec/nvidia-char-links'))
+        self.assertIn('$SIG{TERM} = sub { exit 143; };', payload_read_text(TARGET/'usr/local/libexec/zram-writeback.tmpl'))
 
     def test_transient_forking_lock_explicitly_keeps_host_namespaces(self):
         worker = power.Worker(1000, 'fixture', 'suspend')
@@ -192,8 +198,8 @@ class PublicKeyModeTests(Fixture):
         public = self.root/'.ssh/id_git_ed25519.pub'
         public.chmod(0o644)
         ssh.publish_pair(self.root, b'new-private', b'new-public', 0, 0)
-        self.assertEqual(public.read_bytes(), b'new-public')
-        self.assertEqual((self.root/'.local/share/managed-ssh/private/id_git_ed25519').read_bytes(), b'new-private')
+        self.assertEqual(payload_read_bytes(public), b'new-public')
+        self.assertEqual(payload_read_bytes(self.root/'.local/share/ssh/private/id_git_ed25519'), b'new-private')
 
     @unittest.skipUnless(os.geteuid() == 0, 'root-owned destination fixture')
     def test_failed_pair_update_preserves_old_contents_and_modes(self):
@@ -207,27 +213,27 @@ class PublicKeyModeTests(Fixture):
             return original(path, data, *args)
         with mock.patch.object(ssh, 'publish', side_effect=fail_once), self.assertRaises(OSError):
             ssh.publish_pair(self.root, b'new-private', b'new-public', 0, 0)
-        private = self.root/'.local/share/managed-ssh/private/id_git_ed25519'
-        self.assertEqual(private.read_bytes(), b'old-private')
-        self.assertEqual(stat.S_IMODE(private.stat().st_mode), 0o600)
-        self.assertEqual(public.read_bytes(), b'old-public')
-        self.assertEqual(stat.S_IMODE(public.stat().st_mode), 0o644)
+        private = self.root/'.local/share/ssh/private/id_git_ed25519'
+        self.assertEqual(payload_read_bytes(private), b'old-private')
+        self.assertEqual(stat.S_IMODE(payload_source_stat(private).st_mode), 0o600)
+        self.assertEqual(payload_read_bytes(public), b'old-public')
+        self.assertEqual(stat.S_IMODE(payload_source_stat(public).st_mode), 0o644)
 
 
 class GitSSHFlowTests(Fixture):
     def invoke(self, action, *, signed=False, metadata=True, uid='1000', active=True):
         # Rewrite absolute dependencies ONLY in this isolated test copy.
-        script = (TARGET/'usr/local/bin/git-ssh').read_text()
+        script = payload_read_text(TARGET/'usr/local/bin/git-ssh')
         checks = self.root/'checks'
         checks.write_text('managed_ssh_context() { public=/fixture.pub; ' + ('true' if metadata else 'false') + '; }\nmanaged_ssh_socket() { true; }\n')
         idcmd = self.root/'id'; idcmd.write_text('#!/bin/sh\nprintf "%s\\n" '+shlex.quote(uid)+'\n'); idcmd.chmod(0o700)
         systemctl = self.root/'systemctl'
         systemctl.write_text('#!/bin/sh\n' + ('' if active else '[ "$2" != is-active ] || exit 3\n') + 'exit 0\n'); systemctl.chmod(0o700)
         add = self.root/'ssh-add'; add.write_text('#!/bin/sh\nexit '+('0' if signed else '1')+'\n'); add.chmod(0o700)
-        script = script.replace('/usr/local/libexec/managed-ssh-checks', shlex.quote(str(checks)))
+        script = script.replace('/usr/local/libexec/ssh-checks', shlex.quote(str(checks)))
         for original, replacement in (('/usr/bin/id', idcmd), ('/usr/bin/systemctl', systemctl), ('/usr/bin/ssh-add', add)):
             script = script.replace(original, shlex.quote(str(replacement)))
-        return subprocess.run(['/bin/sh', '-c', script, 'fixture', action], capture_output=True, text=True, timeout=5)
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-c', script, 'fixture', action]), capture_output=True, text=True, timeout=5)
 
     def test_skipped_loader_cannot_report_success_without_identity(self):
         result = self.invoke('unlock', signed=False)
@@ -256,7 +262,7 @@ class LifecycleTests(Fixture):
     def assert_dead(self, pid):
         for _ in range(50):
             try:
-                text = Path(f'/proc/{pid}/stat').read_text()
+                text = payload_read_text(Path(f'/proc/{pid}/stat'))
             except FileNotFoundError:
                 return
             if text.rsplit(')', 1)[1].split()[0] == 'Z':
@@ -274,15 +280,15 @@ class LifecycleTests(Fixture):
                 code = ('import runpy,sys; m=runpy.run_path(sys.argv[1]); '
                         'm["install_signal_handlers"](); '
                         'm["git"]("-c", "alias.fixture=!"+sys.argv[2], "fixture")')
-                proc = subprocess.Popen([sys.executable, '-B', '-c', code,
-                    str(TARGET/'usr/local/bin/gitops'), str(helper)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                proc = subprocess.Popen(payload_installed_argv([sys.executable, '-B', '-c', code,
+                    str(TARGET/'usr/local/bin/gitops'), str(helper)]), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 child = None
                 try:
                     deadline = time.monotonic() + 5
-                    while not pidfile.exists() and proc.poll() is None and time.monotonic() < deadline:
+                    while not payload_source_exists(pidfile) and proc.poll() is None and time.monotonic() < deadline:
                         time.sleep(.01)
-                    self.assertTrue(pidfile.exists(), 'fixture never started')
-                    child = int(pidfile.read_text())
+                    self.assertTrue(payload_source_exists(pidfile), 'fixture never started')
+                    child = int(payload_read_text(pidfile))
                     proc.send_signal(sig)
                     _, err = proc.communicate(timeout=5)
                     self.assertEqual(proc.returncode, 128 + sig, err)
@@ -318,13 +324,13 @@ class LifecycleTests(Fixture):
         self.assertTrue(fake.stderr.closed)
 
     def test_pinentry_signal_permissions_are_peer_specific_and_symmetric(self):
-        text = (TARGET/'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        loader = text.split('profile managed-labwc-ssh-key-load ', 1)[1].split('\n}', 1)[0]
-        pinentry = text.split('profile managed-labwc-ssh-pinentry ', 1)[1].split('\n}', 1)[0]
-        self.assertIn('signal (send) set=(term, kill, int, hup) peer=managed-labwc-ssh-pinentry,', loader)
-        self.assertIn('signal (receive) set=(term, kill, int, hup) peer=managed-labwc-ssh-key-load,', pinentry)
-        self.assertIn('signal (receive) set=(chld) peer=managed-labwc-ssh-pinentry,', loader)
-        self.assertIn('signal (send) set=(chld) peer=managed-labwc-ssh-key-load,', pinentry)
+        text = payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers')
+        loader = text.split('profile labwc-ssh-key-load ', 1)[1].split('\n}', 1)[0]
+        pinentry = text.split('profile labwc-ssh-pinentry ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('signal (send) set=(term, kill, int, hup) peer=labwc-ssh-pinentry,', loader)
+        self.assertIn('signal (receive) set=(term, kill, int, hup) peer=labwc-ssh-key-load,', pinentry)
+        self.assertIn('signal (receive) set=(chld) peer=labwc-ssh-pinentry,', loader)
+        self.assertIn('signal (send) set=(chld) peer=labwc-ssh-key-load,', pinentry)
         self.assertNotIn('signal (send),', loader)
         self.assertNotIn('network inet', loader)
 
@@ -341,7 +347,7 @@ class DiagnosticsTests(unittest.TestCase):
         self.assertTrue(any('uid_map,gid_map' in value for value in debug.FILES['security']))
 
     def test_dynamic_filesystem_query_obeys_report_command_budget(self):
-        source = (TARGET/'usr/local/libexec/debugsys.py').read_text()
+        source = payload_read_text(TARGET/'usr/local/libexec/debugsys.py')
         self.assertIn("self.command(category,'root-filesystem-type'", source)
         self.assertNotIn("run(['findmnt','-n','-o','FSTYPE','/']", source)
 

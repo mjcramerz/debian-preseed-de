@@ -5,6 +5,8 @@ The real standalone helper's idempotent path uses a local version fixture, not
 an external download. No account is created and /run/user is never modified.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 import importlib.util
 import json
 import os
@@ -35,7 +37,7 @@ def load_module():
 
 def alive(pid):
     try:
-        state = Path(f'/proc/{pid}/stat').read_text().rpartition(')')[2].split()[0]
+        state = payload_read_text(Path(f'/proc/{pid}/stat')).rpartition(')')[2].split()[0]
         return state != 'Z'
     except FileNotFoundError:
         return False
@@ -76,9 +78,9 @@ class CodexSessionTests(unittest.TestCase):
     def assert_clean(self):
         entries = list(self.parent.iterdir())
         self.assertEqual([p.name for p in entries], [f'{self.account.pw_uid}.lock'])
-        self.assertEqual(stat.S_IMODE(entries[0].stat().st_mode), 0o600)
-        self.assertEqual(entries[0].stat().st_uid, 0)
-        self.assertEqual(stat.S_IMODE(self.parent.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(entries[0]).st_mode), 0o600)
+        self.assertEqual(payload_source_stat(entries[0]).st_uid, 0)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.parent).st_mode), 0o755)
 
     def test_actual_uid_drop_and_private_runtime_cleanup(self):
         self.write_helper('''
@@ -94,7 +96,7 @@ INNER
 ''')
         with mock.patch.dict(os.environ, {'SHOULD_NOT_LEAK': 'parent-secret'}):
             self.assertEqual(self.run_installer(), 0)
-        receipt = json.loads((self.home / 'receipt').read_text())
+        receipt = json.loads(payload_read_text(self.home / 'receipt'))
         self.assertEqual(receipt['uid'], self.account.pw_uid)
         self.assertEqual(receipt['gid'], self.account.pw_gid)
         self.assertEqual(receipt['mode'], 0o700)
@@ -102,7 +104,7 @@ INNER
         self.assertEqual(receipt['tmp'], receipt['runtime'])
         self.assertTrue(receipt['runtime'].startswith(str(self.parent) + '/'))
         self.assertIsNone(receipt['secret'])
-        self.assertFalse(Path(receipt['runtime']).exists())
+        self.assertFalse(payload_source_exists(Path(receipt['runtime'])))
         self.assert_clean()
 
     def test_helper_in_deployed_root_owned_sticky_group_directory(self):
@@ -110,7 +112,7 @@ INNER
         self.root.chmod(0o3770)
         self.write_helper('printf success > "$HOME/receipt"\n')
         self.assertEqual(self.run_installer(), 0)
-        self.assertEqual((self.home / 'receipt').read_text(), 'success')
+        self.assertEqual(payload_read_text(self.home / 'receipt'), 'success')
         self.assert_clean()
 
     def test_child_exit_status_propagates_and_runtime_is_removed(self):
@@ -121,10 +123,10 @@ INNER
     def test_private_runtime_is_unique_and_lock_inode_is_persistent(self):
         self.write_helper('printf "%s\\n" "$XDG_RUNTIME_DIR" >> "$HOME/receipt"\n')
         self.assertEqual(self.run_installer(), 0)
-        inode = (self.parent / f'{self.account.pw_uid}.lock').stat().st_ino
+        inode = payload_source_stat(self.parent / f'{self.account.pw_uid}.lock').st_ino
         self.assertEqual(self.run_installer(), 0)
-        self.assertEqual((self.parent / f'{self.account.pw_uid}.lock').stat().st_ino, inode)
-        a, b = (self.home / 'receipt').read_text().splitlines()
+        self.assertEqual(payload_source_stat(self.parent / f'{self.account.pw_uid}.lock').st_ino, inode)
+        a, b = payload_read_text(self.home / 'receipt').splitlines()
         self.assertNotEqual(a, b)
         self.assert_clean()
 
@@ -145,7 +147,7 @@ INNER
         os.chown(self.helper, self.account.pw_uid, self.account.pw_gid)
         with self.assertRaisesRegex(ValueError, 'root-owned'):
             self.run_installer()
-        self.assertFalse((self.home / 'receipt').exists())
+        self.assertFalse(payload_source_exists(self.home / 'receipt'))
 
     def test_group_writable_nonsticky_helper_parent_rejected(self):
         self.write_helper('exit 0\n')
@@ -176,7 +178,7 @@ INNER
         self.write_helper('sleep 60 &\nprintf "%s\\n" "$!" > "$HOME/child.pid"\nexit 0\n')
         with mock.patch.object(self.module, 'STOP_TIMEOUT', 0.4):
             self.assertEqual(self.run_installer(), 0)
-        self.assertFalse(alive(int((self.home / 'child.pid').read_text())))
+        self.assertFalse(alive(int(payload_read_text(self.home / 'child.pid'))))
         self.assert_clean()
 
     def test_deadline_kills_term_ignoring_process_group(self):
@@ -190,7 +192,7 @@ wait
         with mock.patch.object(self.module, 'STOP_TIMEOUT', 0.3):
             self.assertEqual(self.run_installer(timeout=0.3), 124)
         self.assertLess(time.monotonic() - start, 4)
-        for pid in map(int, (self.home / 'children').read_text().split()):
+        for pid in map(int, payload_read_text(self.home / 'children').split()):
             self.assertFalse(alive(pid), pid)
         self.assert_clean()
 
@@ -210,19 +212,19 @@ m.pwd.getpwnam = lambda name: account
 m.STOP_TIMEOUT = 0.5
 sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r}), timeout=5))
 ''')
-        process = subprocess.Popen([sys.executable, '-B', str(driver)], stdout=subprocess.PIPE,
+        process = subprocess.Popen(payload_installed_argv([sys.executable, '-B', str(driver)]), stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, text=True)
         try:
             deadline = time.monotonic() + 4
-            while not (self.home / 'children').exists() and time.monotonic() < deadline:
+            while not payload_source_exists(self.home / 'children') and time.monotonic() < deadline:
                 time.sleep(0.02)
-            self.assertTrue((self.home / 'children').exists())
+            self.assertTrue(payload_source_exists(self.home / 'children'))
             process.send_signal(signal.SIGTERM)
             time.sleep(0.08)
             process.send_signal(signal.SIGTERM)
             stdout, stderr = process.communicate(timeout=5)
             self.assertEqual(process.returncode, 143, stderr)
-            for pid in map(int, (self.home / 'children').read_text().split()):
+            for pid in map(int, payload_read_text(self.home / 'children').split()):
                 self.assertFalse(alive(pid), pid)
             self.assert_clean()
         finally:
@@ -231,7 +233,7 @@ sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r})
                 process.communicate(timeout=3)
 
     def test_real_standalone_idempotent_path_needs_no_login_runtime(self):
-        self.helper.write_text(STANDALONE.read_text())
+        self.helper.write_text(payload_read_text(STANDALONE))
         self.helper.chmod(0o755)
         codex_root = self.home / 'codex'
         codex_home = codex_root / 'usr/home'
@@ -261,7 +263,7 @@ sys.exit(m.main({self.args!r}, runtime_parent=pathlib.Path({str(self.parent)!r})
         self.assertEqual(self.run_installer(), 0)
         self.assertEqual(self.run_installer(), 0)
         self.assertEqual((codex_home / 'packages').readlink(), packages)
-        self.assertFalse((self.home / 'profile-was-sourced').exists())
+        self.assertFalse(payload_source_exists(self.home / 'profile-was-sourced'))
         self.assert_clean()
 
 
@@ -325,7 +327,7 @@ case "$path" in
 esac
 ''')
 
-        devops = (FORKY / 'scripts/late/devops.sh').read_text()
+        devops = payload_read_text(FORKY / 'scripts/late/devops.sh')
         layout = devops.split('devops_prepare_codex_layout() {', 1)[1].split(
             '\n}\n\ndevops_apply_codex_tmpfiles() {', 1
         )[0]
@@ -363,7 +365,7 @@ devops_prepare_codex_layout() {{
 
     def run_layout(self, body='devops_prepare_codex_layout\n', **environment):
         return subprocess.run(
-            ['/bin/sh', '-c', self.script + body],
+            payload_installed_argv(['/bin/sh', '-c', self.script + body]),
             env={**self.env, **environment},
             text=True,
             capture_output=True,
@@ -389,14 +391,14 @@ devops_prepare_codex_layout() {{
             with self.subTest(directory=directory):
                 self.assertTrue(directory.is_dir())
                 self.assertFalse(directory.is_symlink())
-                self.assertEqual(stat.S_IMODE(directory.stat().st_mode), expected_mode)
+                self.assertEqual(stat.S_IMODE(payload_source_stat(directory).st_mode), expected_mode)
 
     def test_existing_root_with_wrong_metadata_is_rejected(self):
         self.codex_root.mkdir(parents=True, mode=0o770)
         result = self.run_layout(TEST_CODEX_ROOT_STAT=f'{os.getuid()}:{os.getgid()}:770')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('unexpected ownership or mode', result.stderr)
-        self.assertFalse((self.codex_root / 'share').exists())
+        self.assertFalse(payload_source_exists(self.codex_root / 'share'))
 
     def test_symlink_root_is_rejected_without_touching_destination(self):
         outside = self.root / 'outside'
@@ -422,7 +424,7 @@ devops_prepare_codex_layout() {{
 
 class CodexDeploymentContractTests(unittest.TestCase):
     def test_managed_codex_release_is_preflighted_before_publication(self):
-        devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
+        devops = payload_read_text(FORKY / 'scripts/late/devops.sh', encoding='utf-8')
         function = devops.split('devops_install_codex_from_clone() {', 1)[1].split(
             '\n}\n\ndevops_run_as_account() {', 1
         )[0]
@@ -450,7 +452,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
         )
 
     def test_managed_codex_publication_rolls_back_only_new_paths(self):
-        devops = (FORKY / 'scripts/late/devops.sh').read_text(encoding='utf-8')
+        devops = payload_read_text(FORKY / 'scripts/late/devops.sh', encoding='utf-8')
         function = devops.split('devops_install_codex_from_clone() {', 1)[1].split(
             '\n}\n\ndevops_run_as_account() {', 1
         )[0]
@@ -468,7 +470,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
         )
 
     def test_absolute_current_link_is_normalized_before_package_relocation(self):
-        text = STANDALONE.read_text(encoding='utf-8')
+        text = payload_read_text(STANDALONE, encoding='utf-8')
         function = text.split('normalize_managed_current_link() {', 1)[1].split(
             '\n}\n\nverify_managed_install() {', 1
         )[0]
@@ -497,7 +499,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
             current.symlink_to(release)
 
             result = subprocess.run(
-                ['/bin/dash', '-c', script, 'normalize-current', str(packages)],
+                payload_installed_argv(['/bin/dash', '-c', script, 'normalize-current', str(packages)]),
                 env={'LC_ALL': 'C'},
                 text=True,
                 capture_output=True,
@@ -508,11 +510,11 @@ class CodexDeploymentContractTests(unittest.TestCase):
 
             published = root / 'published-packages'
             packages.rename(published)
-            self.assertTrue((published / 'standalone/current/bin/codex').is_file())
+            self.assertTrue(payload_source_is_file(published / 'standalone/current/bin/codex'))
             current_binary = published / 'standalone/current/codex'
-            self.assertTrue(current_binary.is_file())
+            self.assertTrue(payload_source_is_file(current_binary))
             version = subprocess.run(
-                [str(current_binary), '--version'],
+                payload_installed_argv([str(current_binary), '--version']),
                 env={'LC_ALL': 'C'},
                 text=True,
                 capture_output=True,
@@ -522,7 +524,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
             self.assertEqual(version.stdout, 'codex-cli 0.153.4\n')
 
     def test_target_installer_runs_after_desktop_home_population(self):
-        text = STANDALONE.read_text()
+        text = payload_read_text(STANDALONE)
         self.assertNotIn('. "$profile_path"', text)
         self.assertNotIn('devops_de_apply_environment', text)
         self.assertIn('CODEX_HOME="$installer_codex_home"', text)
@@ -555,8 +557,8 @@ class CodexDeploymentContractTests(unittest.TestCase):
         )
 
         old_path = FORKY / 'scripts/late/codex-standalone-install'
-        self.assertFalse(old_path.exists())
-        devops = (FORKY / 'scripts/late/devops.sh').read_text()
+        self.assertFalse(payload_source_exists(old_path))
+        devops = payload_read_text(FORKY / 'scripts/late/devops.sh')
         self.assertIn(
             'DIR_HOOKS_TARGET usr/local/bin/codex-standalone-install',
             devops,
@@ -567,7 +569,7 @@ class CodexDeploymentContractTests(unittest.TestCase):
         )
         self.assertNotIn('devops_install_codex_standalone', devops)
 
-        desktop = (FORKY / 'scripts/desktop/labwc.sh').read_text()
+        desktop = payload_read_text(FORKY / 'scripts/desktop/labwc.sh')
         function = desktop.split('desktop_install_codex_standalone() (', 1)[1].split('\n)\n', 1)[0]
         self.assertIn('run_in_target', function)
         self.assertIn('/usr/bin/python3 "$session_helper"', function)

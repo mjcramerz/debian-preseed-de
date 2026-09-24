@@ -186,8 +186,8 @@ done
 '
 
 qemu_render_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/incus-host-managed.tmpl)" \
-  /etc/default/incus-host-managed \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/incus/host.conf.tmpl)" \
+  /etc/incus/host.conf \
   0644 \
   DIR_POOL_INCUS "$DIR_POOL_INCUS" \
   INCUS_BRIDGE_NAME "$INCUS_BRIDGE_NAME"
@@ -209,16 +209,16 @@ qemu_render_target_asset \
   0644 \
   INCUS_BRIDGE_NAME "$INCUS_BRIDGE_NAME"
 qemu_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/incus-host-managed)" \
-  /usr/local/libexec/incus-host-managed \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/incus-host)" \
+  /usr/local/libexec/incus-host \
   0755
 qemu_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/incus-host-managed.service)" \
-  /etc/systemd/system/incus-host-managed.service \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/incus-host.service)" \
+  /etc/systemd/system/incus-host.service \
   0644
 qemu_stage_target_asset \
-  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf)" \
-  /etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf \
+  "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/incus-user.service.d/20-bootstrap.conf)" \
+  /etc/systemd/system/incus-user.service.d/20-bootstrap.conf \
   0644
 qemu_stage_target_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/sysusers.d/swtpm-sysusers.conf)" \
@@ -226,7 +226,7 @@ qemu_stage_target_asset \
   0644
 
 run_in_target "prepare direct QEMU and Incus storage roots" \
-  /usr/local/libexec/incus-host-managed --prepare-install
+  /usr/local/libexec/incus-host --prepare-install
 
 # shellcheck disable=SC2016
 run_in_target "grant confined virtualization groups to primary account" /bin/sh -eu -c '
@@ -271,7 +271,7 @@ install -o "$account_uid" -g "$account_gid" -m 0600 \
 
 for service_unit in \
   incus.service incus-lxcfs.service incus-startup.service incus-user.service \
-  incus-host-managed.service
+  incus-host.service
 do
   qemu_disable_target_unit "$service_unit"
 done

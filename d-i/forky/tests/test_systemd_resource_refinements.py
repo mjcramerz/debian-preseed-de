@@ -4,6 +4,8 @@ No managers are started: --test prints the loaded graph and never runs units.
 Synthetic fragments isolate drop-in semantics from unavailable desktop packages.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import ast
 import os
@@ -24,15 +26,15 @@ SYSTEM = 'etc/systemd/system'
 VENDOR_UNITS = ('hyprpolkitagent', 'mako', 'ssh-agent', 'wireplumber',
                 'pipewire', 'pipewire-pulse', 'filter-chain', 'xdg-desktop-portal')
 POLICIES = sorted(p for directory in (USER, VENDOR, SYSTEM)
-                  for p in (base.TARGET / directory).glob('*/*.conf')
-                  if p.name in ('60-resource-class.conf', '60-resources.conf',
+                  for p in (base.TARGET / directory).glob('*/*.conf*')
+                  if p.name.removesuffix('.tmpl') in ('60-resource-class.conf', '60-resources.conf',
                                 '70-no-core.conf', '60-poll-limit.conf',
                                 '60-resource-delegation.conf'))
 SUFFIX = '0123456789abcdef0123456789abcdef'
 
 
 def active_lines(path):
-    return [line for line in path.read_text().splitlines()
+    return [line for line in payload_read_text(path).splitlines()
             if line.strip() and not line.lstrip().startswith('#')]
 
 
@@ -45,15 +47,18 @@ class ResourceRefinementTests(unittest.TestCase):
         """Copy the real policy files, render with the production POSIX helper."""
         rendered = []
         for source in POLICIES:
-            dest = Path(directory) / source.parent.name / source.name
+            dest = Path(directory) / source.parent.name / source.name.removesuffix('.tmpl')
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(source.read_bytes())
+            dest.write_bytes(payload_read_bytes(source))
             dest.chmod(0o644)
             rendered.append(dest)
         commands = 'TMP_ENV_DIR=' + shlex.quote(str(directory)) + '\n'
         commands += '\n'.join('apply_systemd_resource_placeholders ' + shlex.quote(str(p))
                               for p in rendered)
         self.runner.shell(commands, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
+        # Mirror installer publication modes after atomic template rendering.
+        for path in rendered:
+            path.chmod(0o644)
         return rendered
 
     def fixtures(self, directory, enabled='true'):
@@ -90,10 +95,12 @@ class ResourceRefinementTests(unittest.TestCase):
             else:
                 body += '[' + suffix.capitalize() + ']\n'
             (directory / name).write_text(body)
+            (directory / name).chmod(0o644)
         # Include every fixture in the offline graph; no service is executed.
         (directory / 'resource-policy.target').write_text(
             '[Unit]\nDescription=Offline resource-policy graph\nDefaultDependencies=no\nWants=' +
             ' '.join(n for n in sorted(names) if '@.' not in n) + '\n')
+        (directory / 'resource-policy.target').chmod(0o644)
         return names
 
     def test_all_available_vendor_units_get_only_their_dropins(self):
@@ -108,9 +115,9 @@ class ResourceRefinementTests(unittest.TestCase):
                 installed = list((target / VENDOR).rglob('*.conf'))
                 self.assertEqual(len(installed), 10)
                 for path in installed:
-                    self.assertFalse(base.TOKEN.search(path.read_text()))
-                    self.assertNotIn('IOWeight=', path.read_text())
-                    self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+                    self.assertFalse(base.TOKEN.search(payload_read_text(path)))
+                    self.assertNotIn('IOWeight=', payload_read_text(path))
+                    self.assertEqual(payload_source_stat(path).st_mode & 0o777, 0o644)
                 for name in ('pipewire', 'pipewire-pulse', 'filter-chain'):
                     self.assertEqual(active_lines(target / VENDOR / f'{name}.service.d/60-resources.conf'),
                                      ['[Service]', 'CPUWeight=200'])
@@ -137,34 +144,36 @@ class ResourceRefinementTests(unittest.TestCase):
             with self.subTest(io=enabled), tempfile.TemporaryDirectory() as tmp:
                 names = self.fixtures(tmp, enabled)
                 env = dict(os.environ, SYSTEMD_UNIT_PATH=tmp + ':', SYSTEMD_LOG_LEVEL='warning')
-                result = subprocess.run(['systemd-analyze', '--generators=no', '--man=no', 'verify',
-                                         *(str(Path(tmp) / n) for n in sorted(names))],
+                result = subprocess.run(payload_installed_argv(['systemd-analyze', '--generators=no', '--man=no', 'verify',
+                                         *(str(Path(tmp) / n) for n in sorted(names))]),
                                         env=env, text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotRegex(result.stderr, r'Unknown (key|section)|Failed to parse|Invalid argument')
 
     def test_offline_manager_effective_prefixes_weights_and_core_limits(self):
         executable = Path('/usr/lib/systemd/systemd')
-        if not executable.is_file():
+        if not payload_source_is_file(executable):
             self.skipTest('systemd executable unavailable')
         if os.geteuid() != 0:
             self.skipTest('isolated UID test requires root to drop privileges')
         for enabled in ('true', 'false'):
             with self.subTest(io=enabled), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp); root.chmod(0o755)
-                units = root / 'units'; units.mkdir(mode=0o755)
+                units = root / 'units'; units.mkdir(mode=0o755); units.chmod(0o755)
                 self.fixtures(units, enabled)
                 for directory in units.iterdir():
                     if directory.is_dir():
                         directory.chmod(0o755)
-                for label in ('home', 'run', 'config'):
+                for label in ('home', 'run', 'config', 'data'):
                     p = root / label; p.mkdir(mode=0o700); os.chown(p, 65534, 65534)
                 env = dict(os.environ, HOME=str(root / 'home'), XDG_RUNTIME_DIR=str(root / 'run'),
-                           XDG_CONFIG_HOME=str(root / 'config'), SYSTEMD_UNIT_PATH=str(units) + ':',
+                           XDG_CONFIG_HOME=str(root / 'config'), XDG_DATA_HOME=str(root / 'data'),
+                           XDG_DATA_DIRS='/usr/local/share:/usr/share',
+                           SYSTEMD_UNIT_PATH=str(units) + ':',
                            SYSTEMD_LOG_LEVEL='warning', SYSTEMD_LOG_TARGET='console')
                 def unprivileged():
                     os.setgroups([]); os.setgid(65534); os.setuid(65534)
-                result = subprocess.run([str(executable), '--user', '--test', '--unit=resource-policy.target'],
+                result = subprocess.run(payload_installed_argv([str(executable), '--user', '--test', '--unit=resource-policy.target']),
                     env=env, preexec_fn=unprivileged, text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotRegex(result.stderr, r'Unknown (key|section)|Failed to parse|Invalid argument')
@@ -192,10 +201,10 @@ class ResourceRefinementTests(unittest.TestCase):
                     self.assertEqual(property_of(name + '.service', 'CPUWeight'), '200')
                     self.assertEqual(property_of(name + '.service', 'IOWeight'), unset)
                     self.assertEqual(property_of(name + '.service', 'Slice'), 'session.slice')
-                for name in ('local-apt-' + SUFFIX, 'timeshift-' + SUFFIX,
-                             'apt-daily', 'apt-daily-upgrade', 'managed-clamav-signature-update'):
+                for name in ('apt-repo-local-' + SUFFIX, 'timeshift-' + SUFFIX,
+                             'apt-daily', 'apt-daily-upgrade', 'clamav-signature-update'):
                     self.assertEqual(property_of(name + '.service', 'Slice'), 'system-maintenance.slice')
-                self.assertEqual(property_of('managed-syncthing.service', 'Slice'), 'system-background.slice')
+                self.assertEqual(property_of('syncthing.service', 'Slice'), 'system-background.slice')
                 for cls, weight in (('maintenance', '30'), ('background', '50')):
                     self.assertEqual(property_of(f'system-{cls}.slice', 'Slice'), 'system.slice')
                     self.assertEqual(property_of(f'system-{cls}.slice', 'CPUWeight'), weight)
@@ -228,8 +237,8 @@ class ResourceRefinementTests(unittest.TestCase):
                 r'LimitRTPRIO|LimitMEMLOCK|KillMode|Restart|NoNewPrivileges)=')
 
     def test_runtime_service_prefixes_match_existing_launchers(self):
-        app = (base.TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py').read_text()
-        locker = (base.TARGET / 'usr/local/libexec/labwc-admin-action-worker').read_text()
+        app = payload_read_text(base.TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app/session.py')
+        locker = payload_read_text(base.TARGET / 'usr/local/libexec/labwc-admin-action-worker')
         function = next(node for node in ast.parse(app).body
                         if isinstance(node, ast.FunctionDef) and node.name == '_session_unit')
         namespace = {'re': re, 'uuid': uuid, 'fail': self.fail}
@@ -240,13 +249,13 @@ class ResourceRefinementTests(unittest.TestCase):
         self.assertIn('labwc-power-lock-', locker)
         self.assertIn('--slice=app.slice', app)
         for prefix in ('labwc-bitwarden-', 'labwc-power-lock-'):
-            self.assertTrue((base.TARGET / USER / f'{prefix}.service.d/70-no-core.conf').is_file())
-        self.assertFalse((base.TARGET / USER / 'labwc-.service.d/70-no-core.conf').exists())
+            self.assertTrue(payload_source_is_file(base.TARGET / USER / f'{prefix}.service.d/70-no-core.conf'))
+        self.assertFalse(payload_source_exists(base.TARGET / USER / 'labwc-.service.d/70-no-core.conf'))
 
     def test_storage_and_socket_controls_are_independent(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = base.TARGET / SYSTEM / 'systemd-coredump.socket.d/60-poll-limit.conf'
-            dest = Path(tmp) / 'socket.conf'; dest.write_bytes(source.read_bytes())
+            dest = Path(tmp) / 'socket.conf'; dest.write_bytes(payload_read_bytes(source))
             self.runner.shell('TMP_ENV_DIR=' + shlex.quote(tmp) + '\napply_systemd_resource_placeholders ' +
                               shlex.quote(str(dest)), override='''
 SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE=false
@@ -254,8 +263,8 @@ SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC=5
 SYSTEMD_COREDUMP_POLL_LIMIT_BURST=32
 ''')
             self.assertEqual(active_lines(dest), ['[Socket]', 'PollLimitIntervalSec=5s', 'PollLimitBurst=32'])
-            self.assertNotIn('TriggerLimitBurst=', source.read_text())
-            self.assertNotIn('MaxConnectionsPerSource=', source.read_text())
+            self.assertNotIn('TriggerLimitBurst=', payload_read_text(source))
+            self.assertNotIn('MaxConnectionsPerSource=', payload_read_text(source))
 
     def test_optional_service_assets_run_through_existing_publishers(self):
         # Exercise production publishers, not complete network/package installers.
@@ -263,21 +272,21 @@ SYSTEMD_COREDUMP_POLL_LIMIT_BURST=32
         cases = (
             ('scripts/late/software.sh',
              ('software_fatal', 'software_validate_abs_path', 'software_stage_seed_asset'),
-             'software_stage_seed_asset', 'local-apt-', True),
+             'software_stage_seed_asset', 'apt-repo-local-', True),
             ('scripts/late/tailscale.sh',
              ('tailscale_fatal', 'tailscale_validate_abs_target_path', 'tailscale_stage_target_asset'),
-             'tailscale_stage_target_asset', 'managed-syncthing', True),
+             'tailscale_stage_target_asset', 'syncthing', True),
             ('scripts/late/btrfs-family.sh',
              ('btrfs_validate_shared_target_relpath', 'btrfs_stage_shared_target_asset'),
              'btrfs_stage_shared_target_asset', 'timeshift-', False),
             ('scripts/desktop/components.sh', (),
-             'desktop_stage_role_asset', 'managed-clamav-signature-update', False),
+             'desktop_stage_role_asset', 'clamav-signature-update', False),
         )
         for script, functions, publisher, unit, repo_prefix in cases:
             with self.subTest(publisher=publisher), tempfile.TemporaryDirectory() as tmp:
                 target = Path(tmp) / 'target'; target.mkdir()
                 relative = f'etc/systemd/system/{unit}.service.d/60-resource-class.conf'
-                text = (base.SEED / script).read_text()
+                text = payload_read_text(base.SEED / script)
                 definitions = []
                 for name in functions:
                     match = re.search(r'^' + re.escape(name) + r'\(\) [{(]\n.*?^[})]', text, re.M | re.S)
@@ -291,22 +300,22 @@ SYSTEMD_COREDUMP_POLL_LIMIT_BURST=32
                 command += f'{publisher} {shlex.quote(source)} /{relative} 0644\n'
                 self.runner.shell(command)
                 dest = target / relative
-                self.assertEqual(dest.read_bytes(), (base.TARGET / relative).read_bytes())
-                self.assertEqual(dest.stat().st_mode & 0o777, 0o644)
-                self.assertEqual(dest.parent.stat().st_mode & 0o777, 0o755)
+                self.assertEqual(payload_read_bytes(dest), payload_read_bytes(base.TARGET / relative))
+                self.assertEqual(payload_source_stat(dest).st_mode & 0o777, 0o644)
+                self.assertEqual(payload_source_stat(dest.parent).st_mode & 0o777, 0o755)
 
     def test_optional_system_service_policies_have_staging_owners(self):
         pairs = {
-            'scripts/late/software.sh': 'etc/systemd/system/local-apt-.service.d/60-resource-class.conf',
-            'scripts/late/tailscale.sh': 'etc/systemd/system/managed-syncthing.service.d/60-resource-class.conf',
+            'scripts/late/software.sh': 'etc/systemd/system/apt-repo-local-.service.d/60-resource-class.conf',
+            'scripts/late/tailscale.sh': 'etc/systemd/system/syncthing.service.d/60-resource-class.conf',
             'scripts/late/btrfs-family.sh': 'etc/systemd/system/timeshift-.service.d/60-resource-class.conf',
             'scripts/desktop/components.sh':
-                'etc/systemd/system/managed-clamav-signature-update.service.d/60-resource-class.conf',
+                'etc/systemd/system/clamav-signature-update.service.d/60-resource-class.conf',
         }
         for script, relative in pairs.items():
             with self.subTest(script=script):
-                self.assertTrue((base.TARGET / relative).is_file())
-                text = (base.SEED / script).read_text()
+                self.assertTrue(payload_source_is_file(base.TARGET / relative))
+                text = payload_read_text(base.SEED / script)
                 self.assertIn(relative, text)
                 # The references must be in a stage operation, not just in a comment.
                 normalized = text.replace('\\\n', ' ')

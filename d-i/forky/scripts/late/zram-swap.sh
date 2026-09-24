@@ -170,22 +170,25 @@ validate_raw_storage_partition() {
   fi
 }
 
+swap_fallback_placeholder_map() {
+  write_shell_config_var SWAP_FALLBACK_RAW_PARTUUID "${SWAP_FALLBACK_RAW_PARTUUID}"
+  write_shell_config_var SWAP_FALLBACK_RAW_DEVICE "${SWAP_FALLBACK_RAW_DEVICE}"
+  write_shell_config_var SWAP_FALLBACK_MAPPER_NAME "${SWAP_FALLBACK_MAPPER_NAME}"
+  write_shell_config_var SWAP_FALLBACK_MAPPER "${SWAP_FALLBACK_MAPPER}"
+  write_shell_config_var SWAP_FALLBACK_PRIORITY "${SWAP_FALLBACK_PRIORITY}"
+  write_shell_config_var DMCRYPT_EPHEMERAL_CIPHER "${DMCRYPT_EPHEMERAL_CIPHER}"
+  write_shell_config_var DMCRYPT_EPHEMERAL_KEY_SIZE "${DMCRYPT_EPHEMERAL_KEY_SIZE}"
+  write_shell_config_var DMCRYPT_EPHEMERAL_HASH "${DMCRYPT_EPHEMERAL_HASH}"
+  write_shell_config_var DMCRYPT_RANDOM_KEY_FILE "${DMCRYPT_RANDOM_KEY_FILE}"
+}
+
 write_target_swap_fallback_config() {
   validate_raw_storage_partition "$SWAP_FALLBACK_RAW_DEVICE" "$DEV_PART_RAW_SWAP_MB"
   SWAP_FALLBACK_RAW_PARTUUID=$(raw_partition_partuuid "$SWAP_FALLBACK_RAW_DEVICE")
   SWAP_FALLBACK_RAW_DEVICE=$(stable_raw_partition_path "$SWAP_FALLBACK_RAW_DEVICE")
-  {
-    write_shell_config_var SWAP_FALLBACK_RAW_PARTUUID "${SWAP_FALLBACK_RAW_PARTUUID}"
-    write_shell_config_var SWAP_FALLBACK_RAW_DEVICE "${SWAP_FALLBACK_RAW_DEVICE}"
-    write_shell_config_var SWAP_FALLBACK_MAPPER_NAME "${SWAP_FALLBACK_MAPPER_NAME}"
-    write_shell_config_var SWAP_FALLBACK_MAPPER "${SWAP_FALLBACK_MAPPER}"
-    write_shell_config_var SWAP_FALLBACK_PRIORITY "${SWAP_FALLBACK_PRIORITY}"
-    write_shell_config_var DMCRYPT_EPHEMERAL_CIPHER "${DMCRYPT_EPHEMERAL_CIPHER}"
-    write_shell_config_var DMCRYPT_EPHEMERAL_KEY_SIZE "${DMCRYPT_EPHEMERAL_KEY_SIZE}"
-    write_shell_config_var DMCRYPT_EPHEMERAL_HASH "${DMCRYPT_EPHEMERAL_HASH}"
-    write_shell_config_var DMCRYPT_RANDOM_KEY_FILE "${DMCRYPT_RANDOM_KEY_FILE}"
-  } >"/target${FILE_SWAP_FALLBACK_CONFIG}"
-  chmod 0600 "/target${FILE_SWAP_FALLBACK_CONFIG}"
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/swap-fallback.conf.tmpl)" \
+    "$FILE_SWAP_FALLBACK_CONFIG" 0600 swap_fallback_placeholder_map
 }
 
 zram_perl_modules() {
@@ -252,8 +255,8 @@ stage_target_zram_assets() {
   validate_raw_storage_partition "$ZRAM_BACKING_RAW_DEVICE" "$DEV_PART_RAW_ZRAM_MB"
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modprobe.d/90-zram.conf)" "${FILE_MODPROBE_ZRAM}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/modules-load.d/40-zram.conf)" "${FILE_MODULES_LOAD_ZRAM}" 0644
-  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/zram-writeback.tmpl)" "${FILE_ZRAM_DEFAULT}" 0644
-  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/zram-writeback.conf)" "${FILE_ZRAM_CONFIG}" 0644
+  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/zram-writeback/setup.conf.tmpl)" "${FILE_ZRAM_DEFAULT}" 0644
+  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/zram-writeback/policy.conf)" "${FILE_ZRAM_CONFIG}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/60-zram-writeback.conf)" "${FILE_ZRAM_TMPFILES}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/36-zram.conf)" "${FILE_ZRAM_RSYSLOG}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/zram)" "${FILE_ZRAM_LOGROTATE}" 0644

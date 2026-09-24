@@ -1,0 +1,211 @@
+#!/usr/bin/python3 -I
+"""Terminal-only data adapter for the existing management dmenu protocol.
+
+No commands, previews, external bindings, or action execution live here.
+The caller's fixed dispatch and privilege-separated action handlers remain the
+only action authority. Graphical menus continue using labwc-fuzzel normally.
+"""
+import argparse
+import os
+import re
+import subprocess
+import sys
+import unicodedata
+
+FZF = '/usr/bin/fzf'
+MAX_BYTES = 1024 * 1024
+MAX_ROWS = 4096
+MAX_LABEL = 4096
+ICONS = {
+    'System & Recovery': ('__THEME_FZF_MANAGEMENT_SYSTEM_RECOVERY_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_SYSTEM_RECOVERY_ICON_COLOR__'), 'Network & Remote': ('__THEME_FZF_MANAGEMENT_NETWORK_REMOTE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_NETWORK_REMOTE_ICON_COLOR__'),
+    'Security & Accounts': ('__THEME_FZF_MANAGEMENT_SECURITY_ACCOUNTS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_SECURITY_ACCOUNTS_ICON_COLOR__'), 'Devices & Desktop': ('__THEME_FZF_MANAGEMENT_DEVICES_DESKTOP_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DEVICES_DESKTOP_ICON_COLOR__'),
+    'Containers & AI': ('__THEME_FZF_MANAGEMENT_CONTAINERS_AI_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_CONTAINERS_AI_ICON_COLOR__'), 'Files & Documents': ('__THEME_FZF_MANAGEMENT_FILES_DOCUMENTS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_FILES_DOCUMENTS_ICON_COLOR__'),
+    'Maintenance & Health': ('__THEME_FZF_MANAGEMENT_MAINTENANCE_HEALTH_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_MAINTENANCE_HEALTH_ICON_COLOR__'), 'Recovery & Repair': ('__THEME_FZF_MANAGEMENT_RECOVERY_REPAIR_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_RECOVERY_REPAIR_ICON_COLOR__'),
+    'Protection & Firewall': ('__THEME_FZF_MANAGEMENT_PROTECTION_FIREWALL_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_PROTECTION_FIREWALL_ICON_COLOR__'), 'Users & Groups': ('__THEME_FZF_MANAGEMENT_USERS_GROUPS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_USERS_GROUPS_ICON_COLOR__'),
+    'Connection Profiles': ('__THEME_FZF_MANAGEMENT_CONNECTION_PROFILES_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_CONNECTION_PROFILES_ICON_COLOR__'), 'VPN Connections': ('__THEME_FZF_MANAGEMENT_VPN_CONNECTIONS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_VPN_CONNECTIONS_ICON_COLOR__'),
+    'WireGuard Connections': ('__THEME_FZF_MANAGEMENT_WIREGUARD_CONNECTIONS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_WIREGUARD_CONNECTIONS_ICON_COLOR__'), 'DNS Configuration': ('__THEME_FZF_MANAGEMENT_DNS_CONFIGURATION_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DNS_CONFIGURATION_ICON_COLOR__'),
+    'Network Discovery': ('__THEME_FZF_MANAGEMENT_NETWORK_DISCOVERY_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_NETWORK_DISCOVERY_ICON_COLOR__'), 'Remote Desktop': ('__THEME_FZF_MANAGEMENT_REMOTE_DESKTOP_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_REMOTE_DESKTOP_ICON_COLOR__'),
+    'Displays & Layout': ('__THEME_FZF_MANAGEMENT_DISPLAYS_LAYOUT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DISPLAYS_LAYOUT_ICON_COLOR__'), 'Refresh Display Layout': ('__THEME_FZF_MANAGEMENT_REFRESH_DISPLAY_LAYOUT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_REFRESH_DISPLAY_LAYOUT_ICON_COLOR__'),
+    'Power Profile': ('__THEME_FZF_MANAGEMENT_POWER_PROFILE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_POWER_PROFILE_ICON_COLOR__'), 'Hardware Tuning': ('__THEME_FZF_MANAGEMENT_HARDWARE_TUNING_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_HARDWARE_TUNING_ICON_COLOR__'), 'Keyboard Layout': ('__THEME_FZF_MANAGEMENT_KEYBOARD_LAYOUT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_KEYBOARD_LAYOUT_ICON_COLOR__'),
+    'Audio Control': ('__THEME_FZF_MANAGEMENT_AUDIO_CONTROL_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_AUDIO_CONTROL_ICON_COLOR__'), 'Restart Dock': ('__THEME_FZF_MANAGEMENT_RESTART_DOCK_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_RESTART_DOCK_ICON_COLOR__'),
+    'Android Devices': ('__THEME_FZF_MANAGEMENT_ANDROID_DEVICES_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_ANDROID_DEVICES_ICON_COLOR__'), 'Bluetooth Devices': ('__THEME_FZF_MANAGEMENT_BLUETOOTH_DEVICES_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_BLUETOOTH_DEVICES_ICON_COLOR__'),
+    'Brightness': ('__THEME_FZF_MANAGEMENT_BRIGHTNESS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_BRIGHTNESS_ICON_COLOR__'), 'Containers': ('__THEME_FZF_MANAGEMENT_CONTAINERS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_CONTAINERS_ICON_COLOR__'), 'AI & Copilots': ('__THEME_FZF_MANAGEMENT_AI_COPILOTS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_AI_COPILOTS_ICON_COLOR__'),
+    'Documents & Media': ('__THEME_FZF_MANAGEMENT_DOCUMENTS_MEDIA_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DOCUMENTS_MEDIA_ICON_COLOR__'), 'Drives & Backups': ('__THEME_FZF_MANAGEMENT_DRIVES_BACKUPS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DRIVES_BACKUPS_ICON_COLOR__'),
+    'Overview & Health': ('__THEME_FZF_MANAGEMENT_OVERVIEW_HEALTH_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_OVERVIEW_HEALTH_ICON_COLOR__'), 'Services & Logs': ('__THEME_FZF_MANAGEMENT_SERVICES_LOGS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_SERVICES_LOGS_ICON_COLOR__'),
+    'Packages & Firmware': ('__THEME_FZF_MANAGEMENT_PACKAGES_FIRMWARE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_PACKAGES_FIRMWARE_ICON_COLOR__'), 'Storage & Filesystems': ('__THEME_FZF_MANAGEMENT_STORAGE_FILESYSTEMS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_STORAGE_FILESYSTEMS_ICON_COLOR__'),
+    'Audio & Desktop': ('__THEME_FZF_MANAGEMENT_AUDIO_DESKTOP_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_AUDIO_DESKTOP_ICON_COLOR__'), 'Network & DNS': ('__THEME_FZF_MANAGEMENT_NETWORK_DNS_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_NETWORK_DNS_ICON_COLOR__'),
+    'Desktop & Services': ('__THEME_FZF_MANAGEMENT_DESKTOP_SERVICES_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DESKTOP_SERVICES_ICON_COLOR__'), 'Packages & Boot': ('__THEME_FZF_MANAGEMENT_PACKAGES_BOOT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_PACKAGES_BOOT_ICON_COLOR__'),
+    'Snapshots & Storage': ('__THEME_FZF_MANAGEMENT_SNAPSHOTS_STORAGE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_SNAPSHOTS_STORAGE_ICON_COLOR__'), 'Memory & Cleanup': ('__THEME_FZF_MANAGEMENT_MEMORY_CLEANUP_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_MEMORY_CLEANUP_ICON_COLOR__'),
+    'Back': ('__THEME_FZF_MANAGEMENT_BACK_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_BACK_ICON_COLOR__'), 'Exit': ('__THEME_FZF_MANAGEMENT_EXIT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_EXIT_ICON_COLOR__'), 'Cancel': ('__THEME_FZF_MANAGEMENT_CANCEL_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_CANCEL_ICON_COLOR__'),
+}
+
+# Topic icons refine ordinary child actions without affecting their raw value.
+TOPIC_ICONS = (
+    (r'AppArmor|Security|Firewall|Protection|Audit|Malware|Vulnerability', ('__THEME_FZF_MANAGEMENT_TOPIC_APPARMOR_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_APPARMOR_ICON_COLOR__')),
+    (r'Package|Upgrade|Initramfs|GRUB|Firmware', ('__THEME_FZF_MANAGEMENT_TOPIC_PACKAGE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_PACKAGE_ICON_COLOR__')),
+    (r'Disk|Drive|Btrfs|NVMe|Storage|Snapshot|Backup', ('__THEME_FZF_MANAGEMENT_TOPIC_DISK_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_DISK_ICON_COLOR__')),
+    (r'Network|DNS|Resolver|Connection|VPN|WireGuard|Nmap|Capture', ('__THEME_FZF_MANAGEMENT_TOPIC_NETWORK_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_NETWORK_ICON_COLOR__')),
+    (r'Audio|PipeWire|WirePlumber|Volume|Microphone', ('__THEME_FZF_MANAGEMENT_TOPIC_AUDIO_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_AUDIO_ICON_COLOR__')),
+    (r'User|Group|Account|Password', ('__THEME_FZF_MANAGEMENT_TOPIC_USER_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_USER_ICON_COLOR__')),
+    (r'Android|ADB|Fastboot|Phone|Samsung', ('__THEME_FZF_MANAGEMENT_TOPIC_ANDROID_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_ANDROID_ICON_COLOR__')),
+    (r'Bluetooth', ('__THEME_FZF_MANAGEMENT_TOPIC_BLUETOOTH_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_BLUETOOTH_ICON_COLOR__')),
+    (r'Service|Unit|Timer|Journal|Log', ('__THEME_FZF_MANAGEMENT_TOPIC_SERVICE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_SERVICE_ICON_COLOR__')),
+    (r'DOCX|PDF|Document|Text', ('__THEME_FZF_MANAGEMENT_TOPIC_DOCX_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_DOCX_ICON_COLOR__')),
+    (r'Image|Photo|Video|Media', ('__THEME_FZF_MANAGEMENT_TOPIC_IMAGE_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_IMAGE_ICON_COLOR__')),
+    (r'Memory|Cache|Swap|zram', ('__THEME_FZF_MANAGEMENT_TOPIC_MEMORY_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_TOPIC_MEMORY_ICON_COLOR__')),
+)
+
+
+def icon_style_for(name: str) -> tuple[str, str]:
+    if name in ICONS:
+        return ICONS[name]
+    return next((icon for pattern, icon in TOPIC_ICONS if re.search(pattern, name)), ('__THEME_FZF_MANAGEMENT_DEFAULT_ICON_GLYPH__', '__THEME_FZF_MANAGEMENT_DEFAULT_ICON_COLOR__'))
+
+
+def icon_for(name: str) -> str:
+    return icon_style_for(name)[0]
+
+
+def clean_display(value: str) -> str:
+    # Do not let device/file names supply terminal escapes or bidi controls.
+    return ''.join(c if c.isprintable() and unicodedata.category(c) != 'Cf'
+                   else '\\u%04x' % ord(c) for c in value)
+
+
+
+def clean_icon(value: str) -> str:
+    # Catalog glyphs may use private-use Nerd Font codepoints and emoji joiners.
+    # Preserve those, but never allow controls/bidi escapes into the terminal.
+    return ''.join(c if c.isprintable() or unicodedata.category(c) == 'Co' or c == '\u200d'
+                   else '\\u%04x' % ord(c) for c in value)
+
+
+def display_name(raw: str, prompt: str) -> str:
+    name = raw.removeprefix('\u2b9e ').removeprefix('\u2190 ')
+    if prompt.startswith(('Maintenance / ', 'Recovery / ')):
+        name = name.removeprefix('Show ').removeprefix('List ')
+    return name
+
+
+def display_choices(rows: list[str], prompt: str) -> dict[str, str]:
+    displayed = {}
+    for raw in dict.fromkeys(rows):
+        name = display_name(raw, prompt)
+        icon = clean_icon(icon_for(name))
+        base = icon + '  ' + clean_display(name)
+        label, number = base, 2
+        while label in displayed:
+            label = f'{base} [{number}]'
+            number += 1
+        displayed[label] = raw
+    return displayed
+
+
+def color_choices(displayed: dict[str, str], prompt: str) -> tuple[list[str], dict[str, str], bool]:
+    """Only our validated glyph/color pair may create an ANSI escape.
+
+    Keep the exact original-data map. Accept only an offered decorated label or
+    its known plain counterpart, never arbitrary output with escapes stripped.
+    `inherit` emits no escapes and preserves fzf's native state/match colors.
+    """
+    offered = []
+    accepted = dict(displayed)
+    ansi = False
+    for label, raw in displayed.items():
+        glyph, color = icon_style_for(display_name(raw, prompt))
+        glyph = clean_icon(glyph)
+        decorated = label
+        if color != 'inherit':
+            if not re.fullmatch(r'#[0-9a-fA-F]{6}', color):
+                raise ValueError('invalid managed icon color')
+            channels = ';'.join(str(int(color[offset:offset+2], 16)) for offset in (1, 3, 5))
+            if not label.startswith(glyph + '  '):
+                raise ValueError('managed icon/label mismatch')
+            # Reset foreground only: preserve fzf's selected-row background.
+            decorated = f'\x1b[38;2;{channels}m{glyph}\x1b[39m' + label[len(glyph):]
+            ansi = True
+        offered.append(decorated)
+        accepted[decorated] = raw
+    return offered, accepted, ansi
+
+
+def safe_environment() -> dict[str, str]:
+    # fzf defaults may contain execute/become/reload/preview shell bindings.
+    # Management action lists never inherit any user-defined FZF_* option.
+    return {key: value for key, value in os.environ.items()
+            if not key.startswith('FZF_')}
+
+
+def select(rows: list[str], prompt: str, *, text_input: bool = False,
+           tty=None) -> tuple[int, str | None]:
+    displayed = display_choices(rows, prompt) if not text_input else {}
+    offered, accepted, ansi = color_choices(displayed, prompt) if not text_input else (rows, {}, False)
+    if not offered and not text_input:
+        return 1, None
+    header = 'Enter: select   Esc / Alt-Left: back   Type to filter'
+    bindings = 'esc:abort,ctrl-c:abort,alt-left:abort'
+    if text_input:
+        # These are internal fzf actions, never shell-based transform/become.
+        header = 'Enter: suggestion or new value   Ctrl-Y: typed value   Esc: cancel'
+        bindings += ',enter:accept-or-print-query,ctrl-y:print-query'
+    command = [FZF, '--height=100%', '--layout=reverse', '--border',
+               '--cycle', '--no-multi', '--no-sort', '--ansi' if ansi else '--no-ansi',
+               '--prompt=' + clean_display(prompt) + '> ',
+               '--header=' + header, '--bind=' + bindings]
+    result = subprocess.run(command, input=''.join(row + '\n' for row in offered),
+                            text=True, stdout=subprocess.PIPE, stderr=tty,
+                            env=safe_environment(), check=False)
+    if result.returncode in (1, 130):
+        return 1, None
+    if result.returncode:
+        return 2, None
+    selected = result.stdout.removesuffix('\n')
+    if text_input:
+        if not selected or len(selected) > MAX_LABEL or any(
+                not c.isprintable() or unicodedata.category(c) == 'Cf' for c in selected):
+            return 1, None
+        return 0, selected
+    # A malicious/faulty picker can never turn free-form text into an action.
+    return (0, accepted[selected]) if selected in accepted else (1, None)
+
+
+def main(argv: list[str]) -> int:
+    if os.geteuid() == 0:
+        raise ValueError('management menus must run as the desktop user')
+    if argv[:1] == ['menu']:
+        argv = argv[1:]
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--dmenu', action='store_true')
+    mode.add_argument('--dmenu0', action='store_true')
+    parser.add_argument('--prompt', default='Choose')
+    args = parser.parse_args(argv)
+    data = sys.stdin.buffer.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise ValueError('menu input exceeds 1 MiB')
+    separator = '\0' if args.dmenu0 else '\n'
+    rows = [row for row in data.decode('utf-8', 'strict').split(separator) if row]
+    if len(rows) > MAX_ROWS or any(len(row) > MAX_LABEL for row in rows):
+        raise ValueError('menu input limit exceeded')
+    # Reject line controls in text suggestions; ordinary choices are escaped
+    # and mapped back losslessly instead (including NUL-delimited filenames).
+    input_mode = os.environ.get('LABWC_MENU_INPUT_MODE', 'choice')
+    if input_mode not in ('choice', 'text'):
+        raise ValueError('LABWC_MENU_INPUT_MODE must be choice or text')
+    text_input = input_mode == 'text'
+    if text_input and any(any(not c.isprintable() or unicodedata.category(c) == 'Cf'
+                              for c in row) for row in rows):
+        raise ValueError('control character in input suggestion')
+    with open('/dev/tty', 'w', encoding='utf-8') as tty:
+        status, selected = select(rows, args.prompt, text_input=text_input, tty=tty)
+    if status == 0:
+        sys.stdout.write(selected + separator)
+    return status
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main(sys.argv[1:]))
+    except (OSError, ValueError, UnicodeError) as error:
+        print('labwc-fzf-menu: ' + str(error), file=sys.stderr)
+        raise SystemExit(2)

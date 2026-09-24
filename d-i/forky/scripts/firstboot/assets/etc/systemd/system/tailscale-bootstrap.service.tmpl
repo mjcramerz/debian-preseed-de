@@ -1,0 +1,63 @@
+[Unit]
+Description=Managed Tailscale bootstrap
+After=network-online.target nss-lookup.target time-sync.target nftables.service tailscaled.service
+Wants=network-online.target nss-lookup.target time-sync.target tailscaled.service
+Requires=nftables.service
+ConditionPathExists=!/var/lib/firstboot/tailscale/complete
+ConditionFileIsExecutable=/var/lib/firstboot/bin/tailscale-up
+OnSuccess=secondboot.service
+# A transient control-plane outage must not cause rapid reauthentication or
+# recycle the long-running daemon. The bootstrap helper fails independently and
+# systemd spaces later attempts; tailscaled.service owns its own restart policy.
+StartLimitIntervalSec=8h
+StartLimitBurst=8
+
+[Service]
+Environment="TAILSCALE_AUTH_KEY_FILE=__INSTALLER_TAILSCALE_AUTH_KEY_FILE__"
+Environment="TAILSCALE_COMPLETE_FILE=__INSTALLER_TAILSCALE_COMPLETE_FILE__"
+Environment="TAILSCALE_STATUS_FILE=__INSTALLER_TAILSCALE_STATUS_FILE__"
+Environment="TAILSCALE_LOG_FILE=__INSTALLER_TAILSCALE_LOG_FILE__"
+Environment="TAILSCALE_HOSTNAME=__INSTALLER_TAILSCALE_HOSTNAME__"
+Environment="TAILSCALE_INTERFACE=__INSTALLER_TAILSCALE_INTERFACE__"
+Environment="TAILSCALE_UDP_PORT=__INSTALLER_TAILSCALE_UDP_PORT__"
+Environment="TAILSCALE_ACCEPT_DNS=__INSTALLER_TAILSCALE_ACCEPT_DNS__"
+Environment="TAILSCALE_ACCEPT_ROUTES=__INSTALLER_TAILSCALE_ACCEPT_ROUTES__"
+Environment="TAILSCALE_RUN_SSH_SERVER=__INSTALLER_TAILSCALE_RUN_SSH_SERVER__"
+Environment="TAILSCALE_NETFILTER_MODE=__INSTALLER_TAILSCALE_NETFILTER_MODE__"
+Environment="TAILSCALE_OPERATOR_USER=__INSTALLER_TAILSCALE_OPERATOR_USER__"
+Environment="TAILSCALE_ACCEPT_RISK=__INSTALLER_TAILSCALE_ACCEPT_RISK__"
+Environment="TAILSCALE_ADVERTISE_TAGS=__INSTALLER_TAILSCALE_ADVERTISE_TAGS__"
+Environment="TAILSCALE_ADVERTISE_ROUTES=__INSTALLER_TAILSCALE_ADVERTISE_ROUTES__"
+Environment="TAILSCALE_ADVERTISE_EXIT_NODE=__INSTALLER_TAILSCALE_ADVERTISE_EXIT_NODE__"
+Environment="TAILSCALE_EXIT_NODE=__INSTALLER_TAILSCALE_EXIT_NODE__"
+Environment="TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS=__INSTALLER_TAILSCALE_EXIT_NODE_ALLOW_LAN_ACCESS__"
+Environment="TAILSCALE_SHIELDS_UP=__INSTALLER_TAILSCALE_SHIELDS_UP__"
+Environment="TAILSCALE_REPORT_POSTURE=__INSTALLER_TAILSCALE_REPORT_POSTURE__"
+Environment="TAILSCALE_SNAT_SUBNET_ROUTES=__INSTALLER_TAILSCALE_SNAT_SUBNET_ROUTES__"
+Environment="TAILSCALE_STATEFUL_FILTERING=__INSTALLER_TAILSCALE_STATEFUL_FILTERING__"
+Environment="TAILSCALE_AUTH_KEY_REQUIRED=__INSTALLER_TAILSCALE_AUTH_KEY_REQUIRED__"
+Environment="TAILSCALE_FORCE_REAUTH=__INSTALLER_TAILSCALE_FORCE_REAUTH__"
+Environment="TAILSCALE_TIMEOUT=__INSTALLER_TAILSCALE_TIMEOUT__"
+Environment="TAILSCALE_DAEMON_WAIT_SECONDS=__INSTALLER_TAILSCALE_DAEMON_WAIT_SECONDS__"
+Type=oneshot
+ExecStart=/var/lib/firstboot/bin/tailscale-up --if-auth-key-present
+Restart=on-failure
+RestartSec=15min
+TimeoutStartSec=15min
+TimeoutStopSec=30s
+UMask=0077
+PrivateTmp=true
+# The wrapper performs an explicit AppArmor transition into usr.bin.tailscale.
+# no_new_privs would make the kernel reject that named transition.
+NoNewPrivileges=false
+ProtectControlGroups=true
+ProtectKernelLogs=true
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

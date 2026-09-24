@@ -1,0 +1,6 @@
+# zram writeback runtime state.
+d /run/zram 0750 root root -
+f /run/zram/zram-writeback.lock 0600 root root -
+d /var/lib/zram-writeback 0700 root root -
+d __INSTALLER_LOG_ZRAM_DIR__ __INSTALLER_LOG_DIRECTORY_MODE__ root __INSTALLER_LOG_GROUP__ -
+f __INSTALLER_LOG_ZRAM_FILE__ __INSTALLER_LOG_FILE_MODE__ root __INSTALLER_LOG_GROUP__ -

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Follow-up incident regressions: disposable processes, never target services."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import python_library
+from payload_fixture import read_text as payload_read_text
 
 import contextlib
 import io
@@ -19,7 +22,7 @@ from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
-PACKAGE = TARGET / 'usr/local/lib/python3.14/dist-packages'
+PACKAGE = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 sys.path.insert(0, str(PACKAGE))
 from labwc_managed_app import cli, dbus_proxy, profiles, runtime
 
@@ -34,7 +37,7 @@ raise SystemExit(cli._run_spotify([sys.executable, '-B', '-c', sys.argv[1]], dic
 
 class SpotifySupervisionTests(unittest.TestCase):
     def fixture(self, code, **kwargs):
-        return subprocess.Popen([sys.executable, '-B', '-c', RUNNER, code],
+        return subprocess.Popen(payload_installed_argv([sys.executable, '-B', '-c', RUNNER, code]),
                                 env=dict(os.environ, PYTHONPATH=str(PACKAGE)),
                                 start_new_session=True, **kwargs)
 
@@ -47,7 +50,7 @@ class SpotifySupervisionTests(unittest.TestCase):
     def wait_file(self, path):
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
-            if path.exists() and path.read_text():
+            if payload_source_exists(path) and payload_read_text(path):
                 return
             time.sleep(0.01)
         self.fail('fixture did not become ready')
@@ -71,7 +74,7 @@ while True: os.write(1, b'x' * 65536)
                 process.send_signal(signal.SIGTERM)
                 self.assertEqual(process.wait(timeout=3), 137)
                 with self.assertRaises(ProcessLookupError):
-                    os.kill(int(pidfile.read_text()), 0)
+                    os.kill(int(payload_read_text(pidfile)), 0)
             finally:
                 self.cleanup(process)
 
@@ -144,7 +147,7 @@ time.sleep(20)
                     cli._run_spotify([sys.executable, '-B', '-c', code], dict(os.environ))
             self.assertEqual(previous, {sig: signal.getsignal(sig) for sig in signals})
             with self.assertRaises(ProcessLookupError):
-                os.kill(int(pidfile.read_text()), 0)
+                os.kill(int(payload_read_text(pidfile)), 0)
 
     def test_exact_handoff_on_real_pipe(self):
         process = self.fixture('print("Opening in existing browser session."); raise SystemExit(1)',
@@ -189,8 +192,8 @@ class TutaLiveProxyTests(unittest.TestCase):
                 '<auth>EXTERNAL</auth><policy context="default">'
                 '<allow user="*"/><allow own="*"/><allow send_destination="*"/>'
                 '<allow receive_sender="*"/></policy></busconfig>')
-            daemon = subprocess.Popen([shutil.which('dbus-daemon'), '--nofork', '--nopidfile',
-                '--print-address=1', '--config-file=' + str(config)],
+            daemon = subprocess.Popen(payload_installed_argv([shutil.which('dbus-daemon'), '--nofork', '--nopidfile',
+                '--print-address=1', '--config-file=' + str(config)]),
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             proxy = lifecycle = proxy_socket = None
             try:
@@ -213,9 +216,9 @@ class TutaLiveProxyTests(unittest.TestCase):
                         required=True, runtime=operations)
                 dbus_proxy.require_running_dbus_proxy(proxy, proxy_socket, runtime=operations)
                 def request(name):
-                    return subprocess.run([shutil.which('busctl'), '--timeout=2s',
+                    return subprocess.run(payload_installed_argv([shutil.which('busctl'), '--timeout=2s',
                         '--address=unix:path=' + proxy_socket, 'call', 'org.freedesktop.DBus',
-                        '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'RequestName', 'su', name, '0'],
+                        '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'RequestName', 'su', name, '0']),
                         capture_output=True, text=True, timeout=5)
                 allowed = request('org.freedesktop.StatusNotifierItem-2-1')
                 self.assertEqual(allowed.returncode, 0, allowed.stderr)
@@ -235,7 +238,7 @@ class TutaLiveProxyTests(unittest.TestCase):
                     daemon.kill()
                     daemon.communicate(timeout=3)
             self.assertEqual(proxy.returncode, 0, diagnostics)
-            self.assertFalse(Path(proxy_socket).exists())
+            self.assertFalse(payload_source_exists(Path(proxy_socket)))
 
 
 if __name__ == '__main__':

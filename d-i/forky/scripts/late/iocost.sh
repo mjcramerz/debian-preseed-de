@@ -3,91 +3,123 @@
 # No benchmark, live uevent, service or manual cgroup write is performed here.
 
 iocost_placeholder_map() (
-  # No profile text is executed or exported. Every consumed scalar is explicit.
+  # Scope exports to this subshell and its validators. Never evaluate profile
+  # values as code. Read raw values through awk ENVIRON, not line-split `env`.
   case "${IOCOST_CALIBRATED_ENABLE+x}${IOCOST_CALIBRATE_ENABLED+x}${IO_COST_CALIBRATE_ENABLE+x}" in
     "") ;;
     *) printf "%s\n" "IOCost: unsupported enable-variable spelling" >&2; exit 1 ;;
   esac
-  printf '%s=%s\n' \
-    IOCOST_CALIBRATE_ENABLE "${IOCOST_CALIBRATE_ENABLE-}" \
-    IOCOST_DEVICE_MODEL_MATCH "${IOCOST_DEVICE_MODEL_MATCH-}" \
-    IOCOST_DEVICE_FWREV_MATCH "${IOCOST_DEVICE_FWREV_MATCH-}" \
-    IOCOST_TARGET_SOLUTION "${IOCOST_TARGET_SOLUTION-}" \
-    IOCOST_SOLUTIONS "${IOCOST_SOLUTIONS-}" \
-    IOCOST_MODEL_RBPS "${IOCOST_MODEL_RBPS-}" \
-    IOCOST_MODEL_RSEQIOPS "${IOCOST_MODEL_RSEQIOPS-}" \
-    IOCOST_MODEL_RRANDIOPS "${IOCOST_MODEL_RRANDIOPS-}" \
-    IOCOST_MODEL_WBPS "${IOCOST_MODEL_WBPS-}" \
-    IOCOST_MODEL_WSEQIOPS "${IOCOST_MODEL_WSEQIOPS-}" \
-    IOCOST_MODEL_WRANDIOPS "${IOCOST_MODEL_WRANDIOPS-}" \
-    IOCOST_QOS_ISOLATION_RPCT "${IOCOST_QOS_ISOLATION_RPCT-}" \
-    IOCOST_QOS_ISOLATION_RLAT "${IOCOST_QOS_ISOLATION_RLAT-}" \
-    IOCOST_QOS_ISOLATION_WPCT "${IOCOST_QOS_ISOLATION_WPCT-}" \
-    IOCOST_QOS_ISOLATION_WLAT "${IOCOST_QOS_ISOLATION_WLAT-}" \
-    IOCOST_QOS_ISOLATION_MIN "${IOCOST_QOS_ISOLATION_MIN-}" \
-    IOCOST_QOS_ISOLATION_MAX "${IOCOST_QOS_ISOLATION_MAX-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT "${IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT "${IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT "${IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT "${IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_MIN "${IOCOST_QOS_ISOLATED_BANDWIDTH_MIN-}" \
-    IOCOST_QOS_ISOLATED_BANDWIDTH_MAX "${IOCOST_QOS_ISOLATED_BANDWIDTH_MAX-}" \
-    IOCOST_QOS_BANDWIDTH_RPCT "${IOCOST_QOS_BANDWIDTH_RPCT-}" \
-    IOCOST_QOS_BANDWIDTH_RLAT "${IOCOST_QOS_BANDWIDTH_RLAT-}" \
-    IOCOST_QOS_BANDWIDTH_WPCT "${IOCOST_QOS_BANDWIDTH_WPCT-}" \
-    IOCOST_QOS_BANDWIDTH_WLAT "${IOCOST_QOS_BANDWIDTH_WLAT-}" \
-    IOCOST_QOS_BANDWIDTH_MIN "${IOCOST_QOS_BANDWIDTH_MIN-}" \
-    IOCOST_QOS_BANDWIDTH_MAX "${IOCOST_QOS_BANDWIDTH_MAX-}" \
-    IOCOST_QOS_NAIVE_RPCT "${IOCOST_QOS_NAIVE_RPCT-}" \
-    IOCOST_QOS_NAIVE_RLAT "${IOCOST_QOS_NAIVE_RLAT-}" \
-    IOCOST_QOS_NAIVE_WPCT "${IOCOST_QOS_NAIVE_WPCT-}" \
-    IOCOST_QOS_NAIVE_WLAT "${IOCOST_QOS_NAIVE_WLAT-}" \
-    IOCOST_QOS_NAIVE_MIN "${IOCOST_QOS_NAIVE_MIN-}" \
-    IOCOST_QOS_NAIVE_MAX "${IOCOST_QOS_NAIVE_MAX-}" |
-  LC_ALL=C awk '
+  case "${IOCOST_MODEL_RBPS+x}${IOCOST_MODEL_RSEQIOPS+x}${IOCOST_MODEL_RRANDIOPS+x}${IOCOST_MODEL_WBPS+x}${IOCOST_MODEL_WSEQIOPS+x}${IOCOST_MODEL_WRANDIOPS+x}" in
+    "") ;;
+    *) printf "%s\n" "IOCost: shared model fields are obsolete; supply each solution model" >&2; exit 1 ;;
+  esac
+  export IOCOST_CALIBRATE_ENABLE IOCOST_DEVICE_MODEL_MATCH IOCOST_DEVICE_FWREV_MATCH
+  export IOCOST_TARGET_SOLUTION IOCOST_SOLUTIONS
+  # Reserved groups provide an explicit future-benchmark inventory in every
+  # profile. Additional solution names use the identical twelve-field schema.
+  # Restrict names BEFORE using them as variable names; hyphen-to-underscore is
+  # injective because underscores, uppercase and all other punctuation are banned.
+  iocost_keys=$(LC_ALL=C awk '
+    function fail(message) { print "IOCost: " message > "/dev/stderr"; exit 1 }
+    BEGIN {
+      list=ENVIRON["IOCOST_SOLUTIONS"]
+      count=split(list, solutions, " "); joined=""
+      if (length(list)>2048 || count<1 || count>32) fail("invalid solution count or list length")
+      for (i=1;i<=count;i++) {
+        s=solutions[i]
+        if (length(s)>48 || s !~ /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/ || (s in seen)) fail("invalid or duplicate solution")
+        seen[s]=1; joined=joined (i==1 ? "" : " ") s
+      }
+      if (joined!=list || !(ENVIRON["IOCOST_TARGET_SOLUTION"] in seen)) fail("target solution must be in the canonical solution list")
+      n=split("IOCOST_CALIBRATE_ENABLE IOCOST_DEVICE_MODEL_MATCH IOCOST_DEVICE_FWREV_MATCH IOCOST_TARGET_SOLUTION IOCOST_SOLUTIONS", keys, " ")
+      for (i=1;i<=n;i++) print keys[i]
+      groups=split("isolation isolated-bandwidth bandwidth naive params-naive rlat-99-q1 rlat-99-q2 rlat-99-q3 rlat-99-q4", names, " ")
+      for (i=1;i<=groups;i++) reserved[names[i]]=1
+      for (i=1;i<=count;i++) if (!(solutions[i] in reserved)) names[++groups]=solutions[i]
+      nm=split("RBPS RSEQIOPS RRANDIOPS WBPS WSEQIOPS WRANDIOPS", model_fields, " ")
+      nq=split("RPCT RLAT WPCT WLAT MIN MAX", qos_fields, " ")
+      for (i=1;i<=groups;i++) {
+        group=toupper(names[i]); gsub(/-/, "_", group)
+        for (j=1;j<=nm;j++) print "IOCOST_MODEL_" group "_" model_fields[j]
+        for (j=1;j<=nq;j++) print "IOCOST_QOS_" group "_" qos_fields[j]
+      }
+    }') || exit 1
+  # Only validator-generated identifiers are expanded as shell words. export
+  # does not perform indirect evaluation of their values. No caller state leaks.
+  set -f
+  IFS=' 	
+'
+  for iocost_key in $iocost_keys; do export "$iocost_key"; done
+  printf '%s\n' "$iocost_keys" | LC_ALL=C awk '
     function fail(message) { print "IOCost: " message > "/dev/stderr"; bad=1; exit 1 }
     function number(key, low, high, fraction, v) {
       v=value[key]
-      if (length(v)>16 || (fraction ? v !~ /^[0-9]+([.][0-9][0-9]?)?$/ : v !~ /^[1-9][0-9]*$/) || v+0<low || v+0>high)
+      if (length(v)>16 || (fraction ? v !~ /^(0|[1-9][0-9]*)([.][0-9][0-9]?)?$/ : v !~ /^(0|[1-9][0-9]*)$/) || v+0<low || v+0>high)
         fail("invalid numeric field " key)
     }
-    BEGIN {
-      n=split("IOCOST_CALIBRATE_ENABLE IOCOST_DEVICE_MODEL_MATCH IOCOST_DEVICE_FWREV_MATCH IOCOST_TARGET_SOLUTION IOCOST_SOLUTIONS IOCOST_MODEL_RBPS IOCOST_MODEL_RSEQIOPS IOCOST_MODEL_RRANDIOPS IOCOST_MODEL_WBPS IOCOST_MODEL_WSEQIOPS IOCOST_MODEL_WRANDIOPS IOCOST_QOS_ISOLATION_RPCT IOCOST_QOS_ISOLATION_RLAT IOCOST_QOS_ISOLATION_WPCT IOCOST_QOS_ISOLATION_WLAT IOCOST_QOS_ISOLATION_MIN IOCOST_QOS_ISOLATION_MAX IOCOST_QOS_ISOLATED_BANDWIDTH_RPCT IOCOST_QOS_ISOLATED_BANDWIDTH_RLAT IOCOST_QOS_ISOLATED_BANDWIDTH_WPCT IOCOST_QOS_ISOLATED_BANDWIDTH_WLAT IOCOST_QOS_ISOLATED_BANDWIDTH_MIN IOCOST_QOS_ISOLATED_BANDWIDTH_MAX IOCOST_QOS_BANDWIDTH_RPCT IOCOST_QOS_BANDWIDTH_RLAT IOCOST_QOS_BANDWIDTH_WPCT IOCOST_QOS_BANDWIDTH_WLAT IOCOST_QOS_BANDWIDTH_MIN IOCOST_QOS_BANDWIDTH_MAX IOCOST_QOS_NAIVE_RPCT IOCOST_QOS_NAIVE_RLAT IOCOST_QOS_NAIVE_WPCT IOCOST_QOS_NAIVE_WLAT IOCOST_QOS_NAIVE_MIN IOCOST_QOS_NAIVE_MAX", keys, " ")
-      for (i=1;i<=n;i++) allowed[keys[i]]=1
-    }
     {
-      eq=index($0,"="); key=substr($0,1,eq-1)
-      if (!eq || !(key in allowed) || (key in value)) fail("unknown, duplicate or injected field")
-      value[key]=substr($0,eq+1)
-      if (value[key]=="" || value[key] ~ /[[:cntrl:]]/) fail("empty or control-containing field " key)
+      key=$0; keys[NR]=key
+      if (!(key in ENVIRON)) fail("missing field " key)
+      value[key]=ENVIRON[key]
+      if (value[key] ~ /[[:cntrl:]]/) fail("control-containing field " key)
+      if (value[key]=="" && key !~ /^IOCOST_(MODEL|QOS)_/) fail("empty field " key)
     }
     END {
       if (bad) exit 1
-      if (NR!=n) fail("incomplete profile")
       if (value["IOCOST_CALIBRATE_ENABLE"]!="true" && value["IOCOST_CALIBRATE_ENABLE"]!="false") fail("boolean must be true or false")
       model=value["IOCOST_DEVICE_MODEL_MATCH"]; literal=model; sub(/[*]$/,"",literal)
       if (length(model)>128 || length(literal)<8 || model !~ /^[A-Za-z0-9][A-Za-z0-9._ -]*[*]?$/) fail("unsafe or overly broad model match")
       fw=value["IOCOST_DEVICE_FWREV_MATCH"]
       if (length(fw)>64 || (fw!="*" && fw !~ /^[A-Za-z0-9][A-Za-z0-9._-]*[*]?$/)) fail("unsafe firmware match")
-      count=split(value["IOCOST_SOLUTIONS"], solutions, " "); joined=""
-      for(i=1;i<=count;i++) {
-        s=solutions[i]
-        if(s !~ /^(isolation|isolated-bandwidth|bandwidth|naive)$/ || (s in seen)) fail("invalid or duplicate solution")
-        seen[s]=1; joined=joined (i==1 ? "" : " ") s
-      }
-      if(joined!=value["IOCOST_SOLUTIONS"] || !(value["IOCOST_TARGET_SOLUTION"] in seen)) fail("target solution must be in the canonical solution list")
-      for(i=1;i<=n;i++) {
+      count=split(value["IOCOST_SOLUTIONS"], solutions, " ")
+      for (i=1;i<=count;i++) { s=toupper(solutions[i]); gsub(/-/,"_",s); selected[s]=1 }
+      for (i=1;i<=NR;i++) {
         key=keys[i]
-        if(key ~ /^IOCOST_MODEL_/) number(key,1,key ~ /BPS$/ ? 1000000000000 : 1000000000,0)
-        if(key ~ /^IOCOST_QOS_.*_[RW]PCT$/) number(key,0,100,1)
-        if(key ~ /^IOCOST_QOS_.*_[RW]LAT$/) number(key,1,60000000,0)
-        if(key ~ /^IOCOST_QOS_.*_(MIN|MAX)$/) number(key,0.01,10000,1)
+        if (key !~ /^IOCOST_(MODEL|QOS)_/) continue
+        group=key; sub(/^IOCOST_(MODEL|QOS)_/,"",group); sub(/_[A-Z]+$/,"",group)
+        if (!(group in selected)) {
+          if (value[key]!="") fail("parameter for unlisted solution " key)
+          continue
+        }
+        if (key ~ /^IOCOST_MODEL_/) number(key,1,key ~ /BPS$/ ? 1000000000000 : 1000000000,0)
+        if (key ~ /^IOCOST_QOS_.*_[RW]PCT$/) number(key,0,100,1)
+        if (key ~ /^IOCOST_QOS_.*_[RW]LAT$/) number(key,0,60000000,0)
+        if (key ~ /^IOCOST_QOS_.*_(MIN|MAX)$/) number(key,1,10000,1)
       }
-      split("ISOLATION ISOLATED_BANDWIDTH BANDWIDTH NAIVE", groups, " ")
-      for(i=1;i<=4;i++) if(value["IOCOST_QOS_" groups[i] "_MIN"]+0>value["IOCOST_QOS_" groups[i] "_MAX"]+0) fail("QoS minimum exceeds maximum")
-      for(i=1;i<=n;i++) printf "%s=%s\n",keys[i],value[keys[i]]
+      for (group in selected) {
+        prefix="IOCOST_QOS_" group "_"
+        if (value[prefix "MIN"]+0>value[prefix "MAX"]+0) fail("QoS minimum exceeds maximum")
+        if ((value[prefix "RPCT"]+0>0 && value[prefix "RLAT"]+0==0) ||
+            (value[prefix "WPCT"]+0>0 && value[prefix "WLAT"]+0==0)) fail("nonzero percentile requires positive latency")
+      }
+      for (i=1;i<=NR;i++) printf "%s=%s\n",keys[i],value[keys[i]]
     }'
 )
+
+# Input is the already validated scalar map, never raw profile/benchmark text.
+# Generate all native properties from each solution own model and QoS fields.
+# No fixed solution inventory is embedded in the hwdb template or this renderer.
+iocost_hwdb_properties() {
+  LC_ALL=C awk '
+    { eq=index($0,"="); value[substr($0,1,eq-1)]=substr($0,eq+1) }
+    END {
+      print "IOCOST_SOLUTIONS=" value["IOCOST_SOLUTIONS"]
+      count=split(value["IOCOST_SOLUTIONS"], solutions, " ")
+      nm=split("RBPS RSEQIOPS RRANDIOPS WBPS WSEQIOPS WRANDIOPS", model_fields, " ")
+      nq=split("RPCT RLAT WPCT WLAT MIN MAX", qos_fields, " ")
+      for (i=1;i<=count;i++) {
+        group=toupper(solutions[i]); gsub(/-/,"_",group)
+        prefix="IOCOST_MODEL_" group
+        printf "%s=",prefix
+        for (j=1;j<=nm;j++) printf "%s%s=%s",j==1 ? "" : " ",tolower(model_fields[j]),value[prefix "_" model_fields[j]]
+        printf "\n"
+        prefix="IOCOST_QOS_" group
+        printf "%s=",prefix
+        for (j=1;j<=nq;j++) printf "%s%s=%s",j==1 ? "" : " ",tolower(qos_fields[j]),value[prefix "_" qos_fields[j]]
+        printf "\n"
+      }
+    }'
+}
 
 # The paths below are installer-owned constants, never profile destinations.
 iocost_assets() {
@@ -187,9 +219,95 @@ iocost_restore_legacy_link() (
   mv -fT -- "$iocost_link_work/link" "$iocost_link_path" || exit 1
 )
 
+# Exact strings and simple globs use the shell matcher without eval. For two
+# globs (or bracket/escape syntax), only disjoint literal prefixes prove safety;
+# uncertainty is an overlap, never permission to overwrite administrator policy.
+iocost_patterns_may_overlap() (
+  case "$1:$2" in *'['*|*'\'*) ;;
+    *)
+      case "$1" in *'*'*|*'?'*) ;; *) case "$1" in $2) exit 0 ;; *) exit 1 ;; esac ;; esac
+      case "$2" in *'*'*|*'?'*) ;; *) case "$2" in $1) exit 0 ;; *) exit 1 ;; esac ;; esac
+      ;;
+  esac
+  iocost_prefix_a=${1%%[\*\?\[\\]*}
+  iocost_prefix_b=${2%%[\*\?\[\\]*}
+  case "$iocost_prefix_a" in "$iocost_prefix_b"*) exit 0 ;; esac
+  case "$iocost_prefix_b" in "$iocost_prefix_a"*) exit 0 ;; esac
+  exit 1
+)
+
+# A single database query cannot validate a wildcard over every firmware.
+# Check effective native hwdb source records as well as querying the database.
+# Lower-priority values of declared keys are legitimately replaced by our rule;
+# extra keys merge, and differing later values conflict. Do not delete either.
+iocost_check_hwdb_overrides() (
+  : >"$iocost_work/hwdb-seen" || exit 1
+  # Native hwdb directories in descending same-basename priority (hwdb(7)).
+  for iocost_directory in etc/udev/hwdb.d usr/lib/udev/hwdb.d; do
+    iocost_safe_parents "$iocost_directory/.iocost-check" || exit 1
+    for iocost_source in "$iocost_root/$iocost_directory/"*.hwdb; do
+      [ -e "$iocost_source" ] || [ -L "$iocost_source" ] || continue
+      iocost_basename=${iocost_source##*/}
+      case "$iocost_basename" in *[!A-Za-z0-9._-]*)
+        printf '%s\n' 'IOCost: unsafe hwdb source filename; original preserved' >&2; exit 1 ;;
+      esac
+      if grep -Fxq -- "$iocost_basename" "$iocost_work/hwdb-seen"; then continue; fi
+      printf '%s\n' "$iocost_basename" >>"$iocost_work/hwdb-seen" || exit 1
+      # The current installer-owned record will be replaced as one whole file.
+      [ "$iocost_basename" != 70-unattended-installer-iocost.hwdb ] || continue
+      if [ -L "$iocost_source" ] && [ "$(readlink "$iocost_source")" = /dev/null ]; then continue; fi
+      iocost_safe_database "$iocost_source" || { printf '%s\n' "IOCost: unsafe hwdb source preserved: $iocost_source" >&2; exit 1; }
+      # Make NUL visible to BusyBox awk rather than allowing line truncation.
+      LC_ALL=C tr '\000' '\001' <"$iocost_source" >"$iocost_work/hwdb-source" || exit 1
+      LC_ALL=C awk -v basename="$iocost_basename" '
+        function finish_record( i) {
+          if (conflict) for (i=1;i<=matches;i++) print patterns[i]
+          matches=0; conflict=0; properties=0
+        }
+        NR==FNR {
+          eq=index($0,"="); key=substr($0,1,eq-1)
+          expected[key]=substr($0,eq+1); next
+        }
+        { line=$0; gsub(/\t/,"",line); if (line ~ /[[:cntrl:]]/) {bad=1; exit 1} }
+        /^[[:space:]]*#/ {next}
+        /^[[:space:]]*$/ {finish_record(); next}
+        /^[^[:space:]]/ {
+          if (properties) finish_record()
+          patterns[++matches]=$0; next
+        }
+        {
+          properties=1; line=$0; sub(/^[[:space:]]+/,"",line)
+          eq=index(line,"="); key=substr(line,1,eq-1); val=substr(line,eq+1)
+          if (key ~ /^IOCOST_/ && (!(key in expected) ||
+              (basename>"70-unattended-installer-iocost.hwdb" && val!=expected[key]))) conflict=1
+        }
+        END {if (bad) exit 1; finish_record()}
+      ' "$iocost_work/expected-properties" "$iocost_work/hwdb-source" >"$iocost_work/hwdb-conflicts" || exit 1
+      while IFS= read -r iocost_pattern; do
+        case "$iocost_pattern" in
+          block::name:*:fwrev:*:)
+            iocost_other_model=${iocost_pattern#block::name:}
+            iocost_other_model=${iocost_other_model%:fwrev:*}
+            iocost_other_fw=${iocost_pattern##*:fwrev:}
+            iocost_other_fw=${iocost_other_fw%:}
+            iocost_patterns_may_overlap "$IOCOST_DEVICE_MODEL_MATCH" "$iocost_other_model" || continue
+            iocost_patterns_may_overlap "$IOCOST_DEVICE_FWREV_MATCH" "$iocost_other_fw" || continue
+            ;;
+          *)
+            iocost_patterns_may_overlap "block::name:$IOCOST_DEVICE_MODEL_MATCH:fwrev:$IOCOST_DEVICE_FWREV_MATCH:" "$iocost_pattern" || continue
+            ;;
+        esac
+        printf '%s\n' "IOCost: conflicting or potentially overlapping hwdb record preserved: $iocost_source: $iocost_pattern" >&2
+        exit 1
+      done <"$iocost_work/hwdb-conflicts"
+    done
+  done
+)
+
 iocost_verify_database() (
   iocost_query_root=$1
   iocost_query_output=$2
+  if [ "$iocost_query_root" = / ]; then iocost_check_hwdb_overrides || exit 1; fi
   iocost_model_probe=${IOCOST_DEVICE_MODEL_MATCH%\*}
   iocost_firmware_probe=${IOCOST_DEVICE_FWREV_MATCH%\*}
   [ -n "$iocost_firmware_probe" ] || iocost_firmware_probe=installer-probe
@@ -360,12 +478,34 @@ stage_target_iocost() (
         END {if(bad || section!=1 || targets!=needs)exit 1}
       ' "$iocost_work/new/etc/udev/$iocost_name" || exit 1
     done
-    LC_ALL=C awk '/^ IOCOST_/ {print substr($0,2)}' \
-      "$iocost_work/new/etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb" | LC_ALL=C sort >"$iocost_work/expected-properties" || exit 1
-    [ "$(wc -l <"$iocost_work/expected-properties")" -eq 9 ] || exit 1
+    # Compute expectations independently from the rendered template. Append
+    # only validated model/QoS properties, then require the exact whole record:
+    # one match, one solution list and one pair per solution. Reject additional
+    # matches/properties, duplicates or changed values before any publication.
+    iocost_hwdb=$iocost_work/new/etc/udev/hwdb.d/70-unattended-installer-iocost.hwdb
+    printf '%s\n' "$iocost_map" | iocost_hwdb_properties >"$iocost_work/properties" || exit 1
+    LC_ALL=C sort "$iocost_work/properties" >"$iocost_work/expected-properties" || exit 1
+    LC_ALL=C awk 'NR>1 {print " " $0}' "$iocost_work/properties" >>"$iocost_hwdb" || exit 1
+    LC_ALL=C awk -v match_line="block::name:$IOCOST_DEVICE_MODEL_MATCH:fwrev:$IOCOST_DEVICE_FWREV_MATCH:" '
+      NR==FNR { expected[$0]=1; next }
+      /^#/ || /^$/ {next}
+      $0==match_line {matches++; next}
+      /^ IOCOST_/ {
+        property=substr($0,2)
+        if (!(property in expected) || seen[property]++ || matches!=1) {bad=1; exit 1}
+        next
+      }
+      {bad=1; exit 1}
+      END {
+        if (matches!=1) bad=1
+        for (property in expected) if (seen[property]!=1) bad=1
+        exit bad ? 1 : 0
+      }
+    ' "$iocost_work/expected-properties" "$iocost_hwdb" || exit 1
     # Compile/query the private rendered root first. No target config is live yet.
     iocost_native_hwdb --root="/${iocost_work##*/}/new" --strict update || exit 1
     iocost_verify_database "/${iocost_work##*/}/new" "$iocost_work/query-staged" || exit 1
+    iocost_check_hwdb_overrides || exit 1
   fi
   # Take all recovery copies before the first target rename/unlink.
   while IFS= read -r iocost_rel; do

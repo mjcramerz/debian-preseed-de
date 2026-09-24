@@ -1,9 +1,0 @@
-{
-  "payload_live_external_call_matches": [],
-  "comments_only_matches": [],
-  "notes": [
-    "Native language APIs, kernel proc filenames, historical evidence and deliberate negative regression strings are not external commands.",
-    "Source/payload bytes and manifest hashes independently agree."
-  ],
-  "generated_preseed_external_command_matches": []
-}

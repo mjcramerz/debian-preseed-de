@@ -1,8 +1,0 @@
-{
-  "identical": true,
-  "sha256": {
-    "d-i/forky/payload.tar.gz": "5e02dfb4f0613b4f99ccfb7d5a7fae9b760bfca3547b921a143195d2cf42b3b6",
-    "d-i/forky/payload.manifest": "6350a6c1b995ddd66409c4dc8cff3d874f0d62bb6a1ec49ce71bc4e6eca54cc1",
-    "d-i/forky/preseed.cfg": "f5f71feb565d1d585643d5b65e358ae3ae9ca452011598c82022d1512bd6c691"
-  }
-}

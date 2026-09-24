@@ -1,8 +1,0 @@
-{
-  "returncode": 1,
-  "stdout": "",
-  "stderr": "IOCost: unmanaged native config preserved\n",
-  "native_unchanged": true,
-  "package": "257.9-1~deb13u1",
-  "native_sha256": "39f985861cb49e86be2434029800eca9be9b9704f0ddb6d67465a3e037587c41"
-}

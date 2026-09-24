@@ -168,7 +168,7 @@ has samsung_firmware_maximum_archive_bytes => (
 has samsung_firmware_format => (
     is      => 'ro',
     isa     => Str,
-    default => sub { 'managed-samsung-firmware-v1' },
+    default => sub { 'samsung-firmware-v1' },
 );
 
 sub from_environment {

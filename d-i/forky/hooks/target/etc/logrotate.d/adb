@@ -1,17 +1,1 @@
-/var/log/managed/adb/adb.log
-{
-	daily
-	rotate 4
-	maxage 7
-	maxsize 4M
-	missingok
-	notifempty
-	compress
-	delaycompress
-	create 0640 root adm
-	su root adm
-	sharedscripts
-	postrotate
-		/usr/lib/rsyslog/rsyslog-rotate
-	endscript
-}
+# ADB is rotated by /etc/logrotate.d/rsyslog.

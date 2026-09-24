@@ -1,9 +1,0 @@
-managed-desktop-utilities exit=0
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-
-managed-desktop-wrappers exit=0
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-
-managed-labwc-session exit=0
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-

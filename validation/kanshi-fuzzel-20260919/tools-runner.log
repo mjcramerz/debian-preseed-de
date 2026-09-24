@@ -1,9 +1,0 @@
-{"module": "test_apt_vendor_normalization.py", "returncode": 0, "tests": 13, "skipped": 0, "seconds": 0.423, "log": "tools-test_apt_vendor_normalization.log"}
-{"module": "test_installed_session_failures_20260913.py", "returncode": 0, "tests": 23, "skipped": 0, "seconds": 1.851, "log": "tools-test_installed_session_failures_20260913.log"}
-{"module": "test_labwc_power_handoff.py", "returncode": 0, "tests": 24, "skipped": 0, "seconds": 0.478, "log": "tools-test_labwc_power_handoff.log"}
-{"module": "test_local_apt_integration.py", "returncode": 0, "tests": 1, "skipped": 0, "seconds": 3.599, "log": "tools-test_local_apt_integration.log"}
-{"module": "test_local_apt_refresh.py", "returncode": 0, "tests": 37, "skipped": 0, "seconds": 31.392, "log": "tools-test_local_apt_refresh.log"}
-{"module": "test_local_apt_repository.py", "returncode": 0, "tests": 15, "skipped": 0, "seconds": 11.24, "log": "tools-test_local_apt_repository.log"}
-{"module": "test_persisted_package_policy.py", "returncode": 0, "tests": 12, "skipped": 0, "seconds": 17.059, "log": "tools-test_persisted_package_policy.log"}
-{"module": "test_scoped_desktop_fixes.py", "returncode": 0, "tests": 11, "skipped": 0, "seconds": 17.04, "log": "tools-test_scoped_desktop_fixes.log"}
-{"module": "test_scoped_lifecycle_keyrings.py", "returncode": 0, "tests": 43, "skipped": 0, "seconds": 3.248, "log": "tools-test_scoped_lifecycle_keyrings.log"}

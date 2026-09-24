@@ -1,0 +1,50 @@
+# The managed nftables generator emits prefixes in the form:
+#   nftables accept <service>
+#   nftables accept output
+#   nftables drop <chain>
+#   nftables audit output (legacy compatibility)
+# Keep all managed firewall verdicts in one searchable security log.
+
+template(
+  name="ManagedFirewallDesktopSignal"
+  type="string"
+  string="firewall\n"
+)
+
+if (
+  $syslogfacility-text == "kern" and (
+    $msg contains "nftables accept " or
+    $msg contains "nftables drop " or
+    $msg contains "nftables audit "
+  )
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_nftables_log"
+    type="omfile"
+    file="__INSTALLER_LOG_NFTABLES_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+  if ($msg contains "nftables drop ") then {
+    action(
+      name="managed_firewall_desktop_signal"
+      type="omfile"
+      file="/var/lib/labwc-notifications/security/firewall.signal"
+      fileOwner="__INSTALLER_LOG_OWNER__"
+      fileGroup="logreader"
+      fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+      dirOwner="__INSTALLER_LOG_OWNER__"
+      dirGroup="logreader"
+      dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+      createDirs="on"
+      template="ManagedFirewallDesktopSignal"
+    )
+  }
+}

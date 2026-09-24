@@ -6,6 +6,10 @@ selects the existing constructor-only adapter for core Perl behavior tests; it
 is not production Moo validation and never enters the installer payload.
 """
 from __future__ import annotations
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import configparser
 import json
 import os
@@ -29,7 +33,7 @@ LIB = TARGET / 'usr/local/lib/perl5/site_perl'
 
 class DesktopRepairTests(unittest.TestCase):
     def test_both_bars_launch_after_button_release_in_bounded_singleton_service(self):
-        text = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         blocks = re.findall(r'"custom/window-switcher": \{(.*?)\n  \}', text, re.S)
         self.assertEqual(len(blocks), 2)
         for block in blocks:
@@ -47,8 +51,9 @@ class DesktopRepairTests(unittest.TestCase):
             self.assertNotIn('--scope', argv)
 
     def test_icons_use_centered_symbolic_images_independent_of_font_metrics(self):
-        css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
-        text = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        from waybar_fixture import style
+        css = style(FORKY / 'hosts/profiles/btrfs-de.env', 'external')
+        text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         for name in ('wayscriber', 'apps'):
             blocks = re.findall(r'"custom/' + name + r'": \{(.*?)\n  \}', text, re.S)
             self.assertEqual(len(blocks), 2)
@@ -56,13 +61,17 @@ class DesktopRepairTests(unittest.TestCase):
                 self.assertIn('"format": " "', block)
                 self.assertIn('"align": 0.5', block)
                 self.assertIn('"justify": "center"', block)
-            block = re.search(r'#custom-' + name + r' \{(.*?)\}', css, re.S)[1]
+            block = ''.join(re.findall(r'(?:^|\n)#custom-' + name + r' \{(.*?)\}', css, re.S))
             self.assertIn(f'background-image: -gtk-recolor(url("icons/{name}-symbolic.svg"));', block)
-            self.assertIn('padding: 0 7px;', block)
+            geometry = ''.join(body for selectors, body in re.findall(r'([^{}]+)\{([^{}]*)\}', css)
+                               if f'window#waybar.external #custom-{name}' in
+                               {selector.strip() for selector in selectors.split(',')})
+            self.assertIn('padding: 0px 7px;', geometry)
             icon = TARGET / f'etc/skel-desktop/.config/waybar/icons/{name}-symbolic.svg'
-            self.assertEqual(ET.fromstring(icon.read_text()).attrib['viewBox'], '0 0 24 24')
-            stage = (FORKY / 'scripts/desktop/components.sh').read_text()
-            self.assertIn(f'/etc/skel-desktop/.config/waybar/icons/{name}-symbolic.svg 0644', stage)
+            self.assertEqual(ET.fromstring(render_theme_defaults(payload_read_text(icon))).attrib['viewBox'], '0 0 24 24')
+            stage = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
+            self.assertIn('  desktop_stage_waybar_theme_icons', stage)
+            self.assertIn('WAYBAR_BUTTON_' + name.upper() + '_NORMAL_ICON_PATH', stage)
             self.assertRegex(css, rf'#custom-{name}:hover \{{[^}}]*background-image: -gtk-recolor')
         self.assertIn('background-position: center;', css)
         self.assertIn('background-size: 18px 18px, 100% 100%;', css)
@@ -75,19 +84,19 @@ class DesktopRepairTests(unittest.TestCase):
             wtype.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n')
             wtype.chmod(0o755)
             wrapper = root / 'switcher'
-            wrapper.write_text((TARGET / 'usr/local/bin/labwc-window-switcher').read_text().replace(
+            wrapper.write_text(render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-window-switcher')).replace(
                 '/usr/bin/wtype', str(wtype)))
             wrapper.chmod(0o755)
             def drop():
                 os.setgroups([]); os.setgid(65534); os.setuid(65534)
-            result = subprocess.run(['/bin/sh', str(wrapper)], preexec_fn=drop,
+            result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper)]), preexec_fn=drop,
                                     text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.splitlines(), ['-P', 'F13', '-p', 'F13'])
-            result = subprocess.run(['/bin/sh', str(wrapper), 'arbitrary-key'],
+            result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper), 'arbitrary-key']),
                                     text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 2)
-            result = subprocess.run(['/bin/sh', str(wrapper)], text=True, capture_output=True, timeout=5)
+            result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper)]), text=True, capture_output=True, timeout=5)
             self.assertNotEqual(result.returncode, 0)
             self.assertEqual(result.stdout, '')
 
@@ -100,20 +109,20 @@ class DesktopRepairTests(unittest.TestCase):
                              'signal.signal(signal.SIGTERM, signal.SIG_IGN)\ntime.sleep(60)\n')
             wtype.chmod(0o755)
             wrapper = root / 'switcher'
-            wrapper.write_text((TARGET / 'usr/local/bin/labwc-window-switcher').read_text().replace(
+            wrapper.write_text(render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-window-switcher')).replace(
                 '/usr/bin/wtype', str(wtype)))
             wrapper.chmod(0o755)
             def drop():
                 os.setgroups([]); os.setgid(65534); os.setuid(65534)
             start = time.monotonic()
-            result = subprocess.run(['/bin/sh', str(wrapper)], preexec_fn=drop,
+            result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper)]), preexec_fn=drop,
                                     capture_output=True, timeout=5)
             self.assertIn(result.returncode, (-9, 137))
             self.assertLess(time.monotonic() - start, 4.5)
 
     def test_firstboot_permission_matches_root_read_of_user_owned_directory_only(self):
-        text = (TARGET / 'etc/apparmor.d/managed-system-wrappers').read_text()
-        profile = re.search(r'^profile managed-firstboot .*?^}', text, re.M | re.S)[0]
+        text = payload_read_text(FORKY / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl')
+        profile = re.search(r'^profile firstboot .*?^}', text, re.M | re.S)[0]
         self.assertIn('  @{HOME}/.config/systemd/user/ r,', profile)
         self.assertNotIn('owner @{HOME}/.config/systemd/user/', profile)
         self.assertNotIn('@{HOME}/.config/systemd/user/**', profile)
@@ -139,7 +148,7 @@ class RefreshUnitTests(unittest.TestCase):
         for kind in ('daily', 'weekly', 'monthly'):
             job = self.unit('timeshift-' + kind + '.service')['Service']
             self.assertEqual(job['ExecStartPost'], '/usr/bin/systemctl --no-block start grub-btrfs-refresh.service')
-        stage = (FORKY / 'scripts/late/btrfs-family.sh').read_text()
+        stage = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/btrfs-family.sh'))
         self.assertIn('etc/systemd/system/grub-btrfs-refresh.timer /etc/systemd/system/grub-btrfs-refresh.timer 0644', stage)
         self.assertIn('grub-btrfs-refresh.path \\\n    grub-btrfs-refresh.timer', stage)
 
@@ -162,16 +171,16 @@ class CustomGrubRepairTests(unittest.TestCase):
     def test_effective_snapshot_export_matches_hardware_policy_without_writes(self):
         result = self.invoke(install=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        before = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
-        result = subprocess.run([shutil.which('chroot'), str(self.root), '/generator', '--snapshot-config'],
+        before = {str(p.relative_to(self.root)): render_theme_bytes(payload_read_bytes(p)) for p in self.root.rglob('*') if payload_source_is_file(p)}
+        result = subprocess.run(payload_installed_argv([shutil.which('chroot'), str(self.root), '/generator', '--snapshot-config']),
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('grub_hardware_flags=', result.stdout)
         for flag in ('vfio-pci.ids=8086:02e0', 'nvidia-drm.modeset=1', 'iommu.strict=1'):
             self.assertIn(flag, result.stdout)
-        after = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        after = {str(p.relative_to(self.root)): render_theme_bytes(payload_read_bytes(p)) for p in self.root.rglob('*') if payload_source_is_file(p)}
         self.assertEqual(before, after)
-        self.assertNotIn('vfio-pci.ids', (self.root / 'etc/default/grub-profiles.conf').read_text())
+        self.assertNotIn('vfio-pci.ids', render_theme_defaults(payload_read_text(self.root / 'etc/default/grub-profiles')))
 
     def test_checker_failure_preserves_last_good_menu_and_cleans_private_temp(self):
         output = self.root / 'boot/grub/custom.cfg'
@@ -180,7 +189,7 @@ class CustomGrubRepairTests(unittest.TestCase):
         result = self.invoke(install=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('failed syntax validation', result.stderr)
-        self.assertEqual(output.read_text(), 'last-good-menu\n')
+        self.assertEqual(render_theme_defaults(payload_read_text(output)), 'last-good-menu\n')
         self.assertEqual(list(output.parent.glob('.custom.cfg.*')), [])
 
     def test_missing_checker_is_not_treated_as_success(self):
@@ -188,17 +197,18 @@ class CustomGrubRepairTests(unittest.TestCase):
         result = self.invoke(install=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('grub-script-check is unavailable', result.stderr)
-        self.assertFalse((self.root / 'boot/grub/custom.cfg').exists())
+        self.assertFalse(payload_source_exists(self.root / 'boot/grub/custom.cfg'))
 
     def test_unsafe_flags_are_rejected_before_any_config_publication(self):
         self.args[6] = 'rootfstype=btrfs; reboot'
         result = self.invoke(install=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root / 'etc/default/grub-profiles.conf').exists())
+        # The staged input exists; invalid flags must not publish a menu.
+        self.assertFalse(payload_source_exists(self.root / 'boot/grub/custom.cfg'))
 
     def test_user_writable_sourced_config_is_rejected(self):
         self.assertEqual(self.invoke(install=True).returncode, 0)
-        (self.root / 'etc/default/grub-profiles.conf').chmod(0o666)
+        (self.root / 'etc/default/grub-profiles').chmod(0o666)
         result = self.invoke()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('writable by non-root', result.stderr)
@@ -207,7 +217,7 @@ class CustomGrubRepairTests(unittest.TestCase):
         (self.root / 'etc/default/grub-btrfs').mkdir()
         (self.root / 'etc/default/grub-btrfs/config').touch()
         self.assertEqual(self.invoke(install=True).returncode, 0)
-        text = (self.root / 'boot/grub/custom.cfg').read_text()
+        text = render_theme_defaults(payload_read_text(self.root / 'boot/grub/custom.cfg'))
         self.assertIn('if [ -f "${prefix}/grub-btrfs.cfg" ]; then', text)
 
 
@@ -215,7 +225,7 @@ class TimeshiftPerlRepairTests(runtime.PerlFixture):
     def setUp(self):
         super().setUp()
         self.env['PERL5LIB'] = ':'.join(filter(None, [self.env.get('PERL5LIB'),
-            str(LIB / 'timeshift-managed'), str(LIB / 'managed-runtime')]))
+            str(LIB / 'timeshift'), str(LIB / 'runtime')]))
         self.env['FIXTURE_ROOT'] = str(self.root)
         checker = self.root / 'checker'
         checker.write_text('#!/bin/sh\n[ -s "$1" ]\n'); checker.chmod(0o755)
@@ -246,7 +256,7 @@ my $g = TimeshiftManaged::GrubRefresh->new(logger=>$logger, command=>$command,
 sub write_file { my ($path,$data)=@_; open my $f,'>',$path or die $!; print {$f} $data; close $f or die $!; }
 sub assert { die $_[1] unless $_[0]; }
 '''
-        result = subprocess.run([runtime.PERL, '-e', preamble + '\n' + body],
+        result = subprocess.run(payload_installed_argv([runtime.PERL, '-e', preamble + '\n' + body]),
                                 env=self.env, capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         return result

@@ -1,0 +1,410 @@
+#!/bin/sh
+set -eu
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+umask 077
+
+CROWDSEC_STATE_DIR=${CROWDSEC_STATE_DIR:-/var/lib/firstboot/crowdsec}
+# Informational path only: stdout/stderr are natively collected by the service.
+CROWDSEC_LOG_FILE=${CROWDSEC_LOG_FILE:-__INSTALLER_LOG_CROWDSEC_SERVICE_FILE__}
+CROWDSEC_STATUS_FILE=${CROWDSEC_STATUS_FILE:-${CROWDSEC_STATE_DIR}/status.env}
+CROWDSEC_COMPLETE_FILE=${CROWDSEC_COMPLETE_FILE:-${CROWDSEC_STATE_DIR}/complete}
+CROWDSEC_ENROLL_TOKEN_FILE=${CROWDSEC_ENROLL_TOKEN_FILE:-${CROWDSEC_STATE_DIR}/enroll.token}
+CROWDSEC_HOST_VARIANT=${CROWDSEC_HOST_VARIANT:-server}
+CROWDSEC_ENROLL_ATTEMPTS=${CROWDSEC_ENROLL_ATTEMPTS:-6}
+CROWDSEC_ENROLL_RETRY_DELAY_SECONDS=${CROWDSEC_ENROLL_RETRY_DELAY_SECONDS:-10}
+
+# State is root-only; never continue after failure to retain diagnostics.
+for path in "$CROWDSEC_STATE_DIR" "$CROWDSEC_STATUS_FILE" "$CROWDSEC_COMPLETE_FILE" "$CROWDSEC_ENROLL_TOKEN_FILE"; do
+  case "$path" in /*) ;; *) exit 1 ;; esac
+  case "$path" in *'/../'*|*'/./'*|*/..|*/.) exit 1 ;; esac
+  parent=$path
+  while [ "$parent" != / ]; do
+    [ ! -L "$parent" ] || exit 1
+    if [ -e "$parent" ]; then
+      [ "$(find -P "$parent" -maxdepth 0 -printf %U)" = 0 ] || exit 1
+      case "$(find -P "$parent" -maxdepth 0 -printf %m)" in *[2367][0-7]|*[0-7][2367]) exit 1 ;; esac
+    fi
+    parent=${parent%/*}; [ -n "$parent" ] || parent=/
+  done
+done
+install -d -m 0700 "$CROWDSEC_STATE_DIR"
+work_dir=$(mktemp -d "$CROWDSEC_STATE_DIR/.firstboot.XXXXXX")
+cleanup_work() { status=$?; trap - 0; rm -rf -- "$work_dir"; exit "$status"; }
+trap cleanup_work 0
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf '%s\n' unknown-time
+}
+
+log_line() {
+  stage=$1
+  level=$2
+  component=$3
+  shift 3
+  line=$(printf '%s stage=%s level=%s component=%s %s' \
+    "$(timestamp)" "$stage" "$level" "$component" "$*")
+  printf '%s\n' "$line"
+}
+
+require_positive_integer() {
+  label=$1
+  value=$2
+  case "$value" in
+    ''|*[!0-9]*)
+      log_line bootstrap error crowdsec "invalid_${label}=${value:-unset}"
+      return 1
+      ;;
+  esac
+  [ "$value" -ge 1 ] || {
+    log_line bootstrap error crowdsec "invalid_${label}=${value}"
+    return 1
+  }
+}
+
+write_status() {
+  status_value=$1
+  enrollment_value=$2
+  tmp_status=$(mktemp "${CROWDSEC_STATUS_FILE}.XXXXXX") || return $?
+  {
+    printf 'timestamp=%s\n' "$(timestamp)"
+    printf 'status=%s\n' "$status_value"
+    printf 'enrollment=%s\n' "$enrollment_value"
+  } >"$tmp_status" || return $?
+  chmod 0600 "$tmp_status" || return $?
+  mv -f "$tmp_status" "$CROWDSEC_STATUS_FILE"
+}
+
+write_complete_marker() {
+  enrollment_value=$1
+  tmp_complete=$(mktemp "${CROWDSEC_COMPLETE_FILE}.XXXXXX") || return $?
+  {
+    printf 'timestamp=%s\n' "$(timestamp)"
+    printf 'host_variant=%s\n' "$CROWDSEC_HOST_VARIANT"
+    printf 'enrollment=%s\n' "$enrollment_value"
+    printf 'log_file=%s\n' "$CROWDSEC_LOG_FILE"
+  } >"$tmp_complete" || return $?
+  chmod 0600 "$tmp_complete" || return $?
+  mv -f "$tmp_complete" "$CROWDSEC_COMPLETE_FILE"
+}
+
+wait_for_unit() {
+  unit_name=$1
+  attempts=${2:-45}
+
+  while [ "$attempts" -gt 0 ]; do
+    if systemctl is-active --quiet "$unit_name"; then
+      return 0
+    fi
+    sleep 2
+    attempts=$((attempts - 1))
+  done
+  return 1
+}
+
+wait_for_lapi() {
+  attempts=${1:-45}
+
+  while [ "$attempts" -gt 0 ]; do
+    if timeout --kill-after=5 10 cscli lapi status >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+    attempts=$((attempts - 1))
+  done
+  return 1
+}
+
+wait_for_host_resolution() {
+  host_name=$1
+  attempts=${2:-45}
+
+  command -v getent >/dev/null 2>&1 || return 0
+  while [ "$attempts" -gt 0 ]; do
+    if timeout --kill-after=5 10 getent ahosts "$host_name" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+    attempts=$((attempts - 1))
+  done
+  return 1
+}
+
+stop_bootstrap_services() {
+  systemctl stop crowdsec-firewall-bouncer.service crowdsec.service >/dev/null 2>&1 || true
+}
+
+run_crowdsec_command() {
+  command_requirement=$1
+  shift
+  command_name=$1
+  shift
+  command_output=$(mktemp "$work_dir/command.XXXXXX") || return $?
+
+  if timeout --kill-after=10 120 "$@" >"$command_output" 2>&1; then
+    rm -f -- "$command_output"
+    return 0
+  fi
+
+  if grep -Eiq '403|forbidden|permission denied' "$command_output" 2>/dev/null; then
+    command_reason=remote-forbidden
+  else
+    command_reason=command-failed
+  fi
+  command_level=warning
+  [ "$command_requirement" = required ] && command_level=error
+  log_line bootstrap "$command_level" crowdsec "${command_name}=failed reason=${command_reason}"
+  rm -f -- "$command_output"
+  return 1
+}
+
+run_optional_crowdsec_command() {
+  run_crowdsec_command optional "$@"
+}
+
+run_required_crowdsec_command() {
+  run_crowdsec_command required "$@"
+}
+
+normalize_crowdsec_token() {
+  crowdsec_token_value=$1
+
+  case "$crowdsec_token_value" in
+    \"*\")
+      crowdsec_token_value=${crowdsec_token_value#\"}
+      crowdsec_token_value=${crowdsec_token_value%\"}
+      ;;
+    \'*\')
+      crowdsec_token_value=${crowdsec_token_value#\'}
+      crowdsec_token_value=${crowdsec_token_value%\'}
+      ;;
+  esac
+
+  [ -n "$crowdsec_token_value" ] || return 1
+  case "$crowdsec_token_value" in
+    *[![:print:]]*|*[[:space:]]*)
+      return 1
+      ;;
+  esac
+  printf '%s\n' "$crowdsec_token_value"
+}
+
+ensure_bouncer_api_key() {
+  # The package postinst enrolled the key after engine initialization. Never
+  # delete/rotate an unknown key on retry. Verify the actual effective secret.
+  /usr/local/libexec/crowdsec-bouncer-verify
+}
+
+crowdsec_config_path() {
+  config_key=$1
+  config_path=$(cscli config show -o raw --key "$config_key" 2>/dev/null || true)
+  [ -n "$config_path" ] || return 1
+  [ "${#config_path}" -le 4096 ] || return 1
+  case "$config_path" in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  case "$config_path" in
+    *[![:print:]]*|*[[:space:]]*) return 1 ;;
+  esac
+  printf '%s\n' "$config_path"
+}
+
+ensure_capi_registration() {
+  online_credentials_file=$(
+    crowdsec_config_path Config.API.Server.OnlineClient.CredentialsFilePath
+  ) || {
+    log_line bootstrap error crowdsec "capi_credentials_path=invalid"
+    return 1
+  }
+
+  if [ -s "$online_credentials_file" ]; then
+    log_line bootstrap info crowdsec "capi_registration=present"
+    return 0
+  fi
+
+  log_line bootstrap info crowdsec "capi_registration=start"
+  run_required_crowdsec_command capi-register cscli capi register --error || return 1
+  [ -s "$online_credentials_file" ] || {
+    log_line bootstrap error crowdsec "capi_registration=missing-credentials"
+    return 1
+  }
+  log_line bootstrap info crowdsec "capi_registration=complete"
+}
+
+read_token() {
+  [ -s "$CROWDSEC_ENROLL_TOKEN_FILE" ] || return 1
+  [ ! -L "$CROWDSEC_ENROLL_TOKEN_FILE" ] &&
+    [ "$(find -P "$CROWDSEC_ENROLL_TOKEN_FILE" -maxdepth 0 -printf %U:%m:%n)" = 0:600:1 ] || return 1
+  IFS= read -r crowdsec_token <"$CROWDSEC_ENROLL_TOKEN_FILE" || crowdsec_token=
+  crowdsec_token=$(normalize_crowdsec_token "$crowdsec_token") || return 1
+  tmp_token=$(mktemp "${CROWDSEC_ENROLL_TOKEN_FILE}.XXXXXX") || return $?
+  printf '%s\n' "$crowdsec_token" >"$tmp_token" 2>/dev/null || {
+    rm -f -- "$tmp_token"
+    return 1
+  }
+  chmod 0600 "$tmp_token" || return $?
+  mv -f "$tmp_token" "$CROWDSEC_ENROLL_TOKEN_FILE" || return $?
+  printf '%s\n' "$crowdsec_token"
+}
+
+remove_enrollment_token() {
+  [ -e "$CROWDSEC_ENROLL_TOKEN_FILE" ] || return 0
+  if [ -f "$CROWDSEC_ENROLL_TOKEN_FILE" ] && [ ! -L "$CROWDSEC_ENROLL_TOKEN_FILE" ]; then
+    chmod 0600 "$CROWDSEC_ENROLL_TOKEN_FILE" 2>/dev/null || true
+    : >"$CROWDSEC_ENROLL_TOKEN_FILE" 2>/dev/null || true
+  fi
+  rm -f -- "$CROWDSEC_ENROLL_TOKEN_FILE"
+}
+
+enroll_console() {
+  crowdsec_token=$1
+  host_name=$2
+  attempt=1
+
+  while [ "$attempt" -le "$CROWDSEC_ENROLL_ATTEMPTS" ]; do
+    log_line bootstrap info crowdsec "console_enrollment=attempt hostname=${host_name} attempt=${attempt}/${CROWDSEC_ENROLL_ATTEMPTS}"
+    enroll_output=$(mktemp "$work_dir/enroll.XXXXXX") || return $?
+    if timeout --kill-after=10 60 cscli console enroll --overwrite --name "$host_name" "$crowdsec_token" >"$enroll_output" 2>&1; then
+      rm -f -- "$enroll_output"
+      return 0
+    fi
+    if grep -Eiq 'attachment key provided is not valid|api error: forbidden|forbidden|invalid' "$enroll_output" 2>/dev/null; then
+      rm -f -- "$enroll_output"
+      return 2
+    fi
+    rm -f -- "$enroll_output"
+    [ "$attempt" -lt "$CROWDSEC_ENROLL_ATTEMPTS" ] || break
+    log_line bootstrap warning crowdsec "console_enrollment=retry hostname=${host_name} attempt=${attempt}/${CROWDSEC_ENROLL_ATTEMPTS}"
+    sleep "$CROWDSEC_ENROLL_RETRY_DELAY_SECONDS"
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
+log_line bootstrap info crowdsec "start=true host_variant=${CROWDSEC_HOST_VARIANT}"
+
+command -v cscli >/dev/null 2>&1 || {
+  log_line bootstrap error crowdsec "missing=cscli"
+  write_status 1 error
+  exit 1
+}
+command -v systemctl >/dev/null 2>&1 || {
+  log_line bootstrap error crowdsec "missing=systemctl"
+  write_status 1 error
+  exit 1
+}
+require_positive_integer enroll_attempts "$CROWDSEC_ENROLL_ATTEMPTS" || {
+  write_status 1 error
+  exit 1
+}
+require_positive_integer enroll_retry_delay_seconds "$CROWDSEC_ENROLL_RETRY_DELAY_SECONDS" || {
+  write_status 1 error
+  exit 1
+}
+
+wait_for_host_resolution api.crowdsec.net 45 || {
+  log_line bootstrap error crowdsec "crowdsec_dns_not_ready=true"
+  write_status 1 error
+  exit 1
+}
+
+systemctl start crowdsec.service >/dev/null
+
+wait_for_unit crowdsec.service 45 || {
+  stop_bootstrap_services
+  log_line bootstrap error crowdsec "crowdsec_service_not_active=true"
+  write_status 1 error
+  exit 1
+}
+wait_for_lapi 45 || {
+  stop_bootstrap_services
+  log_line bootstrap error crowdsec "crowdsec_lapi_not_ready=true"
+  write_status 1 error
+  exit 1
+}
+
+log_line bootstrap info crowdsec "hub_update=true"
+if ! run_optional_crowdsec_command hub-update cscli hub update; then
+  log_line bootstrap warning crowdsec "hub_update=fallback-to-packaged-index"
+fi
+log_line bootstrap info crowdsec "installing_collections=true collections=crowdsecurity/linux,crowdsecurity/auditd"
+run_required_crowdsec_command collections-install \
+  cscli collections install crowdsecurity/linux crowdsecurity/auditd --ignore || {
+  stop_bootstrap_services
+  write_status 1 error
+  exit 1
+}
+ensure_capi_registration || {
+  stop_bootstrap_services
+  write_status 1 error
+  exit 1
+}
+ensure_bouncer_api_key || {
+  log_line bootstrap error crowdsec "bouncer_api_key_missing=true"
+  write_status 1 error
+  exit 1
+}
+
+log_line bootstrap info crowdsec "restarting_services=true"
+systemctl restart crowdsec.service
+systemctl restart crowdsec-firewall-bouncer.service
+
+wait_for_unit crowdsec.service 45 || {
+  stop_bootstrap_services
+  log_line bootstrap error crowdsec "crowdsec_service_restart_failed=true"
+  write_status 1 error
+  exit 1
+}
+wait_for_unit crowdsec-firewall-bouncer.service 45 || {
+  stop_bootstrap_services
+  log_line bootstrap error crowdsec "crowdsec_bouncer_restart_failed=true"
+  write_status 1 error
+  exit 1
+}
+
+enrollment_status=skipped
+if crowdsec_token=$(read_token 2>/dev/null); then
+  host_name=$(hostname -f 2>/dev/null || hostname 2>/dev/null || printf '%s\n' crowdsec-node)
+  if enroll_console "$crowdsec_token" "$host_name"; then
+    enrollment_status=enrolled
+  else
+    enroll_status=$?
+    unset crowdsec_token
+    if [ "$enroll_status" -eq 2 ]; then
+      enrollment_status=invalid-token
+      systemctl enable crowdsec.service crowdsec-firewall-bouncer.service >/dev/null
+      write_status 2 "$enrollment_status"
+      log_line bootstrap error crowdsec \
+        "console_enrollment=pending reason=invalid-token hostname=${host_name} token_retained=true"
+      exit 2
+    else
+      log_line bootstrap error crowdsec "console_enrollment=failed hostname=${host_name} attempts=${CROWDSEC_ENROLL_ATTEMPTS}"
+      write_status 1 failed
+      exit 1
+    fi
+  fi
+  unset crowdsec_token
+else
+  if [ -e "$CROWDSEC_ENROLL_TOKEN_FILE" ]; then
+    write_status 2 invalid-token
+    log_line bootstrap error crowdsec "console_enrollment=failed reason=malformed-token"
+    exit 2
+  fi
+  log_line bootstrap info crowdsec "console_enrollment=skipped reason=no-token"
+fi
+
+systemctl enable crowdsec.service crowdsec-firewall-bouncer.service >/dev/null
+
+remove_enrollment_token
+
+# Keep the condition-gated unit enabled: failure before the final marker must
+# remain retryable, including after a power loss. No intermediate success.
+write_status 0 "$enrollment_status"
+write_complete_marker "$enrollment_status"
+log_line complete info crowdsec "status=pass enrollment=${enrollment_status}"

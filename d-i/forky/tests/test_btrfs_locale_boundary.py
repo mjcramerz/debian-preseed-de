@@ -6,6 +6,8 @@ regular-file images. The root-only chroot test copies existing binaries, never
 compiles them, and never mounts anything.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import copy2 as payload_copy2, read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import os
 from pathlib import Path
@@ -19,7 +21,7 @@ import unittest
 
 SEED = Path(__file__).resolve().parents[1]
 TARGET = SEED / 'scripts/common/target.sh'
-LAYOUT = SEED / 'hosts/installer/layout-btrfs.env'
+LAYOUT = SEED / 'hosts/installer/btrfs.env'
 CATEGORIES = (
     'LC_CTYPE', 'LC_NUMERIC', 'LC_TIME', 'LC_COLLATE', 'LC_MONETARY',
     'LC_MESSAGES', 'LC_PAPER', 'LC_NAME', 'LC_ADDRESS', 'LC_TELEPHONE',
@@ -35,7 +37,7 @@ DEBCONF = (
     'DEBCONF_USE_CDEBCONF', 'DEBCONF_DEBUG', 'DEBCONF_NOWARNINGS',
     'DEBCONF_TERSE', 'DEBIAN_FRONTEND',
 )
-SHELLS = [[path] for path in ('/bin/dash', '/bin/bash') if Path(path).exists()]
+SHELLS = [[path] for path in ('/bin/dash', '/bin/bash') if payload_source_exists(Path(path))]
 if shutil.which('busybox'):
     SHELLS.append([shutil.which('busybox'), 'ash'])
 
@@ -92,7 +94,7 @@ class LocaleBoundaryTests(unittest.TestCase):
         script += '\n'.join('export '+key+'=installer_debconf' for key in DEBCONF)+'\n'
         script += 'export http_proxy=http://fixture.invalid:3142 KEEP_FIXTURE=yes\n'
         script += code
-        return subprocess.run([*shell, '-c', script], input=stdin, capture_output=True,
+        return subprocess.run(payload_installed_argv([*shell, '-c', script]), input=stdin, capture_output=True,
                               env={'PATH':str(self.bin), 'HOME':'/root', 'LANG':'C', 'LC_ALL':'C'},
                               timeout=10)
 
@@ -110,7 +112,7 @@ class LocaleBoundaryTests(unittest.TestCase):
             with self.subTest(shell=shell):
                 p=self.run_code(shell, 'target_exec /usr/bin/env -0')
                 self.assertEqual(p.returncode, 0, p.stderr)
-                bridge=env_parse((self.work/'in-target.env').read_bytes())
+                bridge=env_parse(payload_read_bytes(self.work/'in-target.env'))
                 self.assertEqual(bridge['LANG'], 'C')
                 self.assertEqual(bridge['LC_ALL'], 'C')
                 self.assertEqual(bridge['IT_LANG_OVERRIDE'], 'C')
@@ -156,7 +158,7 @@ class LocaleBoundaryTests(unittest.TestCase):
             with self.subTest(shell=shell):
                 p=self.run_code(shell, 'target_exec /usr/bin/env -0', root=str(self.fake_root))
                 self.assertEqual(p.returncode, 0, p.stderr)
-                bridge=env_parse((self.work/'chroot.env').read_bytes())
+                bridge=env_parse(payload_read_bytes(self.work/'chroot.env'))
                 self.assertEqual(bridge['LANG'], 'C')
                 self.assertEqual(bridge['LC_ALL'], 'C')
                 for key in (*CATEGORIES, *EXTRA_LOCALE):
@@ -166,14 +168,14 @@ class LocaleBoundaryTests(unittest.TestCase):
                 self.assertNotIn('KEEP_FIXTURE', child)
                 self.assertNotIn('http_proxy', child)
                 self.assertNotIn('DEBCONF_FRONTEND', child)
-                self.assertEqual((self.work/'chroot.arg').read_text().strip(), str(self.fake_root))
+                self.assertEqual(payload_read_text(self.work/'chroot.arg').strip(), str(self.fake_root))
 
     def test_custom_root_uses_chroot_even_when_in_target_exists(self):
         self.bridge('in-target', fail=90)
         self.bridge('chroot')
         p=self.run_code(SHELLS[0], 'target_exec /usr/bin/env -0', root=str(self.fake_root))
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertFalse((self.work/'in-target.env').exists())
+        self.assertFalse(payload_source_exists(self.work/'in-target.env'))
         self.assert_clean_child(env_parse(p.stdout))
 
     def test_normalization_never_changes_callers_locale_or_debconf(self):
@@ -197,7 +199,7 @@ class LocaleBoundaryTests(unittest.TestCase):
             with self.subTest(shell=shell):
                 p=self.run_code(shell, 'target_exec /usr/bin/true')
                 self.assertEqual(p.returncode, 37)
-                self.assertFalse((self.work/'chroot.env').exists())
+                self.assertFalse(payload_source_exists(self.work/'chroot.env'))
 
     def test_failed_target_status_preserved_both_branches(self):
         for kind in ('in-target', 'chroot'):
@@ -243,21 +245,21 @@ class LocaleBoundaryTests(unittest.TestCase):
                                 stdin=b'fixture data with spaces\n')
                 self.assertEqual(p.returncode, 0, p.stderr)
                 self.assertEqual(p.stdout,b'fixture data with spaces\n')
-                self.assertEqual(fd.read_text(),'literal ; $x * spaced\n')
+                self.assertEqual(payload_read_text(fd),'literal ; $x * spaced\n')
 
     def test_nondefault_root_without_chroot_fails_closed(self):
         self.bridge('in-target')
         p=self.run_code(SHELLS[0], 'target_exec /usr/bin/true', root=str(self.fake_root))
         self.assertEqual(p.returncode, 79)
         self.assertIn(b'non-default installer target root', p.stderr)
-        self.assertFalse((self.work/'in-target.env').exists())
+        self.assertFalse(payload_source_exists(self.work/'in-target.env'))
 
 
 class BtrfsFeatureTests(unittest.TestCase):
     @staticmethod
     def options():
-        p=subprocess.run(['/bin/sh','-c', '. "$1"; printf "%s\\0" "$MKFS_BTRFS_ROOT_OPTS" "$MKFS_BTRFS_HOME_OPTS" "$MKFS_BTRFS_OPT_OPTS"',
-                          'sh',str(LAYOUT)], capture_output=True,timeout=10,
+        p=subprocess.run(payload_installed_argv(['/bin/sh','-c', '. "$1"; printf "%s\\0" "$MKFS_BTRFS_ROOT_OPTS" "$MKFS_BTRFS_HOME_OPTS" "$MKFS_BTRFS_OPT_OPTS"',
+                          'sh',str(LAYOUT)]), capture_output=True,timeout=10,
                          env={'PATH':'/usr/bin:/bin','LANG':'C','LC_ALL':'C'})
         if p.returncode:
             raise AssertionError(p.stderr)
@@ -272,24 +274,24 @@ class BtrfsFeatureTests(unittest.TestCase):
     def test_no_deprecated_mkfs_options_remain_in_active_configuration(self):
         for directory in ('hosts','scripts','hooks/installer'):
             for path in (SEED/directory).rglob('*'):
-                if path.is_file():
-                    text=path.read_text()
+                if payload_source_is_file(path):
+                    text=payload_read_text(path)
                     self.assertNotIn('--runtime-features',text,str(path))
                     self.assertNotRegex(text,r'mkfs\.btrfs[^\n]*\s-R(?:\s|$)',str(path))
 
     def test_shared_policy_retains_mount_and_boot_space_cache(self):
-        text=LAYOUT.read_text()
+        text=payload_read_text(LAYOUT)
         for variable in ('MNT_BTRFS_BASE','GRUB_ROOT_FLAGS'):
             line=next(x for x in text.splitlines() if x.startswith(variable+'='))
             self.assertIn('space_cache=v2',line)
-        hook=(SEED/'hooks/installer/partman/finish.d/99-storage-layout.sh').read_text()
+        hook=payload_read_text(SEED/'hooks/installer/partman/finish.d/99-storage-layout.sh')
         for tier in ('ROOT','HOME','OPT'):
             self.assertIn(f'ensure_btrfs_filesystem "$DEV_PART_{tier}" "$MKFS_BTRFS_{tier}_OPTS" "$FS_LABEL_{tier}"',hook)
 
     def test_btrfs_and_vm_host_compositions_receive_the_new_policy(self):
         overrides=set()
         for config in (SEED/'classes/configs').glob('*.cfg'):
-            for stanza in re.split(r'\n\s*\n',config.read_text()):
+            for stanza in re.split(r'\n\s*\n',payload_read_text(config)):
                 fields=dict(line.split(': ',1) for line in stanza.splitlines()
                             if ': ' in line and not line.startswith('#'))
                 if fields.get('Type')=='class' and fields.get('Group')=='profile':
@@ -307,10 +309,10 @@ class BtrfsFeatureTests(unittest.TestCase):
             env={**os.environ,'LANG':'C','LC_ALL':'C','INSTALLER_RUNTIME_DIR':str(work),
                  'INSTALLER_CMDLINE':'','INSTALLER_SOURCE_ROOT':str(SEED),
                  'INSTALLER_SOURCE_LIBRARY':str(SEED/'scripts/common/source.sh')}
-            p=subprocess.run(['/bin/sh','-eu','-c','\n'.join(commands)],env=env,capture_output=True,timeout=45)
+            p=subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c','\n'.join(commands)]),env=env,capture_output=True,timeout=45)
             self.assertEqual(p.returncode,0,p.stderr)
             for profile in profiles:
-                text=(work/profile.name).read_text()
+                text=payload_read_text(work/profile.name)
                 self.assertNotIn('--runtime-features',text,profile.name)
                 for tier in ('ROOT','HOME','OPT'):
                     line=next(x for x in text.splitlines() if x.startswith('MKFS_BTRFS_'+tier+'_OPTS='))
@@ -321,7 +323,7 @@ class BtrfsFeatureTests(unittest.TestCase):
             for path in (TARGET,LAYOUT):
                 member=archive.extractfile(str(path.relative_to(SEED)))
                 self.assertIsNotNone(member)
-                self.assertEqual(member.read(),path.read_bytes(),str(path))
+                self.assertEqual(member.read(),payload_read_bytes(path),str(path))
 
     @unittest.skipUnless(shutil.which('mkfs.btrfs') and shutil.which('btrfs'),
                          'real btrfs-progs executables unavailable; no mock claimed as format validation')
@@ -332,12 +334,12 @@ class BtrfsFeatureTests(unittest.TestCase):
                     image=Path(name)/(label+'.img')
                     with image.open('xb') as stream:
                         stream.truncate(256*1024*1024)
-                    self.assertTrue(image.is_file())
-                    p=subprocess.run(['mkfs.btrfs',*argv,str(image)],capture_output=True,timeout=30,
+                    self.assertTrue(payload_source_is_file(image))
+                    p=subprocess.run(payload_installed_argv(['mkfs.btrfs',*argv,str(image)]),capture_output=True,timeout=30,
                                      env={**os.environ,'LANG':'C','LC_ALL':'C'})
                     self.assertEqual(p.returncode,0,p.stderr)
                     self.assertNotIn(b'runtime features are deprecated',p.stderr+p.stdout)
-                    q=subprocess.run(['btrfs','inspect-internal','dump-super',str(image)],
+                    q=subprocess.run(payload_installed_argv(['btrfs','inspect-internal','dump-super',str(image)]),
                                      capture_output=True,timeout=10)
                     self.assertEqual(q.returncode,0,q.stderr)
                     for feature in (b'FREE_SPACE_TREE',b'FREE_SPACE_TREE_VALID',b'EXTENDED_IREF',b'SKINNY_METADATA',b'NO_HOLES'):
@@ -355,15 +357,15 @@ class RealChrootLocaleTests(unittest.TestCase):
             for binary in ('/usr/bin/env','/bin/dash','/usr/bin/locale'):
                 dest=root/binary.lstrip('/')
                 dest.parent.mkdir(parents=True,exist_ok=True)
-                shutil.copy2(binary,dest)
-                p=subprocess.run(['ldd',binary],capture_output=True,text=True,timeout=10)
+                payload_copy2(binary,dest)
+                p=subprocess.run(payload_installed_argv(['ldd',binary]),capture_output=True,text=True,timeout=10)
                 self.assertEqual(p.returncode,0,p.stderr)
                 for library in re.findall(r'(/[^\s()]+)',p.stdout):
                     source=Path(library)
-                    if source.is_file():
+                    if payload_source_is_file(source):
                         dest=root/library.lstrip('/')
                         dest.parent.mkdir(parents=True,exist_ok=True)
-                        shutil.copy2(source,dest)
+                        payload_copy2(source,dest)
             (root/'bin/sh').symlink_to('dash')
             # C.UTF-8 data belongs to Debian's base libc, not locale-gen or the
             # installer LOCPATH. Copy only this standard base data when present.
@@ -375,12 +377,12 @@ class RealChrootLocaleTests(unittest.TestCase):
             script+='target_exec /usr/bin/env -u LC_ALL /bin/sh -c '+shlex.quote(
                 'test -z "${LC_CTYPE+x}${LC_MESSAGES+x}${LANGUAGE+x}${LOCPATH+x}${GCONV_PATH+x}" || exit 90; '
                 '/usr/bin/locale charmap')
-            p=subprocess.run(['/bin/dash','-c',script],capture_output=True,timeout=15,
+            p=subprocess.run(payload_installed_argv(['/bin/dash','-c',script]),capture_output=True,timeout=15,
                              env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LANG':'C','LC_ALL':'C'})
             self.assertEqual(p.returncode,0,p.stderr)
             self.assertEqual(p.stdout,b'UTF-8\n')
             self.assertEqual(p.stderr,b'')
-            self.assertFalse((root/'etc/locale.gen').exists())
+            self.assertFalse(payload_source_exists(root/'etc/locale.gen'))
 
 
 if __name__=='__main__':

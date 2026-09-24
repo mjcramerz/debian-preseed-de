@@ -4,6 +4,8 @@ All backends are fixtures; no real power, audio, calendar, or user-manager
 operation is run. Actual GTK Builder tests live in test_native_tomat_20260920.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_path as payload_source_path
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import contextlib
 import ctypes.util
@@ -57,7 +59,7 @@ class MenuContractTests(unittest.TestCase):
                 self.assertNotIn(event, entry)
                 self.assertNotIn(event + '-release', entry)
                 self.assertNotIn(event, entry.get('actions', {}))
-                tree = ET.parse(SKEL / 'waybar' / (name + '-menu.xml'))
+                tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))
                 roots = tree.findall('./object[@class="GtkMenu"][@id="menu"]')
                 self.assertEqual(len(roots), 1)
                 ids = [node.get('id') for node in tree.iter('object') if node.get('id')]
@@ -104,27 +106,28 @@ class MenuContractTests(unittest.TestCase):
             self.assertEqual(actual, set(helper.ACTIONS) | {'center'})
 
     def test_all_five_menu_assets_are_explicitly_staged(self):
-        source = (FORKY / 'scripts/desktop/components.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         start = source.index('desktop_stage_waybar_native_menus() {')
         function = source[start:source.index('\n}\n', start) + 3]
         with tempfile.TemporaryDirectory() as work:
-            script = ('desktop_stage_role_asset() { printf "%s\\t%s\\t%s\\n" "$1" "$2" "$3"; }\n'
+            script = ('desktop_render_waybar_asset() { printf "etc/skel-desktop/.config/waybar/%s\\t/etc/skel-desktop/.config/waybar/%s\\t0644\\n" "$1" "$1"; }\n'
+                      'desktop_stage_role_asset() { printf "%s\\t%s\\t%s\\n" "$1" "$2" "$3"; }\n'
                       'desktop_whisper_addon_selected() { return 1; }\n'
                       'run_in_target() { :; }\n' + function + '\ndesktop_stage_waybar_native_menus\n')
-            result = subprocess.run(['/bin/sh', '-eu', '-c', script], text=True,
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script]), text=True,
                                     capture_output=True, timeout=5, cwd=work, check=True)
         staged = [line.split('\t') for line in result.stdout.splitlines()]
         for _, name, _ in MODULES:
             path = f'etc/skel-desktop/.config/waybar/{name}-menu.xml'
             self.assertIn([path, '/' + path, '0644'], staged)
-            self.assertTrue((TARGET / path).is_file())
+            self.assertTrue(payload_source_is_file(TARGET / path))
 
     def test_optional_whisper_is_disabled_not_dangling_and_reversible(self):
-        source = (FORKY / 'scripts/desktop/components.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         code = source.split('run_in_target "configure optional native audio menu" /usr/bin/python3 -I -c \'\n', 1)[1].split("\n' \"$native_menu_whisper\"", 1)[0]
         with tempfile.TemporaryDirectory() as work:
             path = Path(work) / 'audio-menu.xml'
-            path.write_bytes((SKEL / 'waybar/audio-menu.xml').read_bytes())
+            path.write_bytes(payload_read_bytes(SKEL / 'waybar/audio-menu.xml'))
             original_ids = {obj.get('id') for obj in ET.parse(path).iter('object') if obj.get('id')}
             for enabled in ('0', '1', '0'):
                 with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', enabled]):
@@ -140,21 +143,21 @@ class MenuContractTests(unittest.TestCase):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
             self.skipTest('native GTK3 / Xvfb unavailable')
         result = subprocess.run(
-            ['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
-             str(FORKY / 'tests/fixtures/native-menu-whisper-gtk.py'), str(FORKY)],
+            payload_installed_argv(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
+             str(FORKY / 'tests/fixtures/native-menu-whisper-gtk.py'), str(FORKY)]),
             env={**os.environ, 'GDK_BACKEND': 'x11', 'NO_AT_BRIDGE': '1'},
             text=True, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.count('PASS: actual staged GtkMenu'), 3)
 
     def test_installer_checks_every_menu_and_required_gtk_dependency(self):
-        source = (FORKY / 'scripts/desktop/verify.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/desktop/verify.sh')
         function = source.split('desktop_verify_native_menus() {', 1)[1].split('\ndesktop_verify_target_staging()', 1)[0]
         for _, name, _ in MODULES:
             self.assertIn('"' + name + '"', function)
         for text in ('menus=5', 'unwired native menu leaf', '--no-block', 'optional Whisper menu/service availability differs'):
             self.assertIn(text, function)
-        packages = (FORKY / 'classes/class-select/role/desktop.cfg').read_text().split()
+        packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
         for package in ('python3-gi', 'gir1.2-gtk-3.0', 'mako-notifier', 'khal', 'todoman/trixie'):
             self.assertIn(package, packages)
 
@@ -230,7 +233,7 @@ class NotificationDataTests(unittest.TestCase):
         self.assertIsNone(result['active'])
 
     def test_content_is_not_logged_or_launched_and_gui_refresh_is_bounded(self):
-        source = (LIBEXEC / 'labwc-notifications').read_text()
+        source = payload_read_text(LIBEXEC / 'labwc-notifications')
         for unsafe in ('set_markup(', 'set_uri(', 'shell=True', 'os.system(', 'webbrowser.'):
             self.assertNotIn(unsafe, source)
         for required in ('max_workers=1', 'self.cancel.set()', 'wait=True, cancel_futures=True',
@@ -342,10 +345,10 @@ if name in {'khal','todoman'}:
 
     def run_action(self, action, input='', extras=(), **environment):
         self.log.unlink(missing_ok=True)
-        result = subprocess.run(['/bin/sh', str(LIBEXEC / 'labwc-calendar'), action, *extras],
+        result = subprocess.run(payload_installed_argv(['/bin/sh', str(LIBEXEC / 'labwc-calendar'), action, *extras]),
                                 input=input, env={**self.env, **environment}, capture_output=True,
                                 text=True, timeout=5)
-        self.calls = [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+        self.calls = [json.loads(line) for line in payload_read_text(self.log).splitlines()] if payload_source_exists(self.log) else []
         return result
 
     def test_every_public_calendar_action_opens_a_terminal(self):
@@ -422,11 +425,11 @@ if name in {'khal','todoman'}:
             self.assertEqual(self.calls, [])
 
     def test_calendar_cancellation_executables_are_confined_and_allowed(self):
-        source = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        profile = source.split('profile managed-labwc-calendar ', 1)[1].split('\nprofile ', 1)[0]
+        source = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        profile = source.split('profile labwc-calendar ', 1)[1].split('\nprofile ', 1)[0]
         self.assertIn('/{,usr/}bin/{kill,sleep} rix,', profile)
         self.assertIn('signal (send) set=(term, kill) peer=unconfined,', profile)
-        self.assertIn('/usr/local/bin/labwc-terminal rPx -> managed-labwc-terminal,', profile)
+        self.assertIn('/usr/local/bin/labwc-terminal rPx -> labwc-terminal,', profile)
 
 
 if __name__ == '__main__':

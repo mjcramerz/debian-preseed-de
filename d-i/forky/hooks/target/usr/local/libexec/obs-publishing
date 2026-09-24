@@ -88,7 +88,7 @@ def require_private_regular_file(
 ) -> bytes:
     flags = os.O_RDONLY
     if not hasattr(os, "O_NOFOLLOW"):
-        fail("the kernel does not support no-follow managed-file reads")
+        fail("the kernel does not support no-follow file reads")
     flags |= os.O_NOFOLLOW
     try:
         descriptor = os.open(path, flags)
@@ -396,7 +396,7 @@ def osc_environment_with_credentials(context: OscContext) -> dict[str, str]:
     pending_dir = context.state_dir / ".credentials.pending"
     username_path = pending_dir / "obs-username"
     password_path = pending_dir / "obs-password"
-    identity_service = f"managed-osc:{context.service}"
+    identity_service = f"osc:{context.service}"
     keyring_module = load_keyring(context.credentials_backend)
     if pending_exists(username_path):
         import_pending_secret(

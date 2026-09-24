@@ -541,15 +541,7 @@ installer_apt_bootstrap_source() (
     "$protocol" "$host" "$directory" "$suite" >"$tmp"
   chmod 0644 "$tmp"
   mv -f "$tmp" "$target/etc/apt/sources.list"
-  tmp=$(mktemp "$target/etc/apt/apt.conf.d/.installer-network.XXXXXX")
-  cat >"$tmp" <<'EOF'
-Acquire::Retries "3";
-Acquire::http::Timeout "45";
-Acquire::https::Timeout "45";
-APT::Update::Error-Mode "any";
-EOF
-  chmod 0644 "$tmp"
-  mv -f "$tmp" "$target/etc/apt/apt.conf.d/99installer-network"
+  # Bootstrap retries/timeouts are command options, never permanent target policy.
 )
 # END EMBEDDED APT SOURCES
 
@@ -1373,6 +1365,39 @@ installer_fatal() {
 installer_shell_quote() {
   printf "'%s'" "$(printf '%s' "${1-}" | sed "s/'/'\\\\''/g")"
 }
+
+# Quote the VALUE inside a double-quoted Environment="KEY=value" unit entry.
+# Reject controls; escape unit syntax and literal percent specifiers. Never eval.
+installer_systemd_environment_value() (
+  [ "$#" -eq 1 ] || exit 64
+  LC_ALL=C; export LC_ALL
+  # case sees embedded/trailing newlines, unlike a line-oriented grep. These
+  # bootstrap values are bounded ASCII identifiers, paths and command flags.
+  case "$1" in *[![:print:]]*)
+    printf '%s\n' 'fatal: non-printable systemd environment value' >&2; exit 1 ;;
+  esac
+  [ "${#1}" -le 4096 ] || exit 1
+  printf '%s' "$1" | sed 's/[\\"]/\\&/g; s/%/%%/g'
+)
+
+# Validate and escape before substitution, propagating failures instead of
+# hiding them inside nested command-substitution arguments to a renderer.
+installer_apply_systemd_environment_placeholders() (
+  set -eu
+  environment_input=$1
+  environment_output=$2
+  shift 2
+  remaining=$#
+  [ $((remaining % 2)) -eq 0 ] || exit 64
+  while [ "$remaining" -gt 0 ]; do
+    environment_name=$1
+    environment_value=$(installer_systemd_environment_value "$2") || exit 1
+    shift 2
+    set -- "$@" "$environment_name" "$environment_value"
+    remaining=$((remaining - 2))
+  done
+  installer_apply_scalar_placeholders "$environment_input" "$environment_output" "$@"
+)
 
 installer_cmdline() {
   if [ -n "${INSTALLER_CMDLINE:-}" ]; then
@@ -2340,7 +2365,9 @@ installer_repo_dir_input_is_var() {
 
 installer_loaded_repo_dir_value() {
   case "${1:-}" in
+    DIR_HOSTS_THEMES) printf '%s\n' "${DIR_HOSTS_THEMES:-}" ;;
     DIR_HOSTS_PROFILES) printf '%s\n' "${DIR_HOSTS_PROFILES:-}" ;;
+    DIR_HOSTS_LOGGING) printf '%s\n' "${DIR_HOSTS_LOGGING:-}" ;;
     DIR_HOSTS_INSTALLER) printf '%s\n' "${DIR_HOSTS_INSTALLER:-}" ;;
     DIR_HOOKS_INSTALLER) printf '%s\n' "${DIR_HOOKS_INSTALLER:-}" ;;
     DIR_HOOKS_TARGET) printf '%s\n' "${DIR_HOOKS_TARGET:-}" ;;
@@ -2603,9 +2630,58 @@ installer_copy_seed_file() (
   source_fetch "$1" "$2" "$3" "${4:-0600}"
 )
 
+
+# Logging is a separately validated shared data catalog. No values are obtained
+# from log messages, application environments, or unverified remote fallbacks.
+installer_load_logging_helpers() {
+  if command -v installer_validate_logging_data >/dev/null 2>&1; then return 0; fi
+  installer_load_source_library "$1" || return 1
+  log_helper_root=$(source_cache_root "$1") || return 1
+  log_helper_path=$log_helper_root/scripts/common/logging.sh
+  if [ ! -f "$log_helper_path" ]; then
+    source_fetch "$1" scripts/common/logging.sh "$log_helper_path" 0600 || return 1
+  fi
+  [ -f "$log_helper_path" ] && [ ! -L "$log_helper_path" ] || {
+    installer_error 'logging helpers are absent from the authenticated source'; return 1;
+  }
+  # shellcheck disable=SC1090,SC1091
+  . "$log_helper_path"
+}
+
+installer_render_logging_asset() (
+  # Transport callers retain the original mode and the suffix-free destination.
+  case "$2" in hooks/target/*|scripts/late/*|scripts/desktop/*|scripts/firstboot/*) ;; *) exit 0 ;; esac
+  case "$2" in *.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.ttf|*.otf|*.gz|*.xz|*.zip|*.deb) exit 0 ;; esac
+  if LC_ALL=C grep -q '__INSTALLER_LOG_' "$3"; then
+    installer_load_logging_helpers "$1" || exit 1
+    log_cache_root=$(source_cache_root "$1") || exit 1
+    case "$3" in
+      "$log_cache_root"|"$log_cache_root"/*)
+        installer_error 'refusing to render inside the authenticated source snapshot'; exit 1 ;;
+    esac
+    installer_render_logging_file "$1" "$3" || exit 1
+  else
+    log_probe_status=$?
+    [ "$log_probe_status" = 1 ] || exit "$log_probe_status"
+  fi
+)
+
 installer_fetch_seed_path() (
   installer_load_source_library "$1" || exit 1
-  source_fetch "$1" "$2" "$3" "${4:-0600}"
+  case "$2" in
+    hooks/target/*|scripts/late/*|scripts/desktop/*|scripts/firstboot/*)
+      # Fetch and rendering form one transaction; invalid data cannot replace
+      # a destination with an unrendered source template.
+      mkdir -p "$(dirname "$3")" || exit 1
+      logging_fetch_work=$(mktemp -d "${3}.fetch-render.XXXXXX") || exit 1
+      trap 'rm -rf -- "$logging_fetch_work"' 0
+      trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM
+      chmod 0700 "$logging_fetch_work" || exit 1
+      source_fetch "$1" "$2" "$logging_fetch_work/asset" "${4:-0600}" || exit 1
+      installer_render_logging_asset "$1" "$2" "$logging_fetch_work/asset" || exit 1
+      mv -f -- "$logging_fetch_work/asset" "$3" || exit 1 ;;
+    *) source_fetch "$1" "$2" "$3" "${4:-0600}" || exit 1 ;;
+  esac
 )
 
 installer_fetch_file() {
@@ -2770,6 +2846,13 @@ installer_fetch_composite_env_paths() (
     [ -s "$composite_part_dest" ] || installer_fatal "empty required host env: ${composite_candidate}"
     /bin/sh -n "$composite_part_dest" >/dev/null 2>&1 ||
       installer_fatal "invalid shell syntax in required host env: ${composite_candidate}"
+    case "$composite_candidate" in
+      hosts/logging/observability.env)
+        installer_load_logging_helpers "$composite_seed_base" &&
+          installer_validate_logging_data "$composite_seed_base" "$composite_part_dest" "$composite_work" ||
+          installer_fatal 'invalid shared logging data; host environment was not published'
+        ;;
+    esac
     { cat "$composite_part_dest" && printf '\n'; } >>"$composite_staged" ||
       installer_fatal "cannot append required host env: ${composite_candidate}"
     composite_fetched_any=true
@@ -2831,7 +2914,8 @@ installer_fetch_host_env() {
   set -- \
     "$(installer_profile_env_path "$host_profile_env_dir" "$host_profile_env_name")" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER identity.env)" \
-    "$(installer_repo_join_var DIR_HOSTS_INSTALLER runtime.env)"
+    "$(installer_repo_join_var DIR_HOSTS_INSTALLER runtime.env)" \
+    "$(installer_repo_join_var DIR_HOSTS_LOGGING observability.env)"
 
   case "$host_variant" in
     desktop)
@@ -2846,7 +2930,7 @@ installer_fetch_host_env() {
 
   set -- "$@" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER layout.env)" \
-    "$(installer_repo_join_var DIR_HOSTS_INSTALLER "layout-${host_layout_family}.env")" \
+    "$(installer_repo_join_var DIR_HOSTS_INSTALLER "${host_layout_family}.env")" \
     "$(installer_repo_join_var DIR_HOSTS_INSTALLER boot.env)"
 
   installer_fetch_composite_env_paths \

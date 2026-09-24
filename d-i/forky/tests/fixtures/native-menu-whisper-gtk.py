@@ -9,12 +9,15 @@ import ctypes as C
 import ctypes.util
 from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from payload_fixture import read_text as payload_read_text, source_path
+from theme_fixture import render_theme_defaults
 import tempfile
 from unittest import mock
 import xml.etree.ElementTree as ET
 
 FORKY = Path(sys.argv[1]).resolve()
-source = (FORKY / 'scripts/desktop/components.sh').read_text()
+source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
 code = source.split('run_in_target "configure optional native audio menu" /usr/bin/python3 -I -c \'\n', 1)[1].split("\n' \"$native_menu_whisper\"", 1)[0]
 G = C.CDLL(ctypes.util.find_library('gtk-3'))
 O = C.CDLL(ctypes.util.find_library('gobject-2.0'))
@@ -35,7 +38,7 @@ O.g_object_unref.argtypes = [C.c_void_p]
 
 with tempfile.TemporaryDirectory() as work:
     path = Path(work) / 'audio-menu.xml'
-    path.write_bytes((FORKY / 'hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml').read_bytes())
+    path.write_text(render_theme_defaults(payload_read_text(FORKY / 'hooks/target/etc/skel-desktop/.config/waybar/audio-menu.xml')))
     for enabled in ('0', '1', '0'):
         with mock.patch('pathlib.Path', return_value=path), mock.patch.object(sys, 'argv', ['fixture', enabled]):
             exec(compile(code, 'actual-audio-staging', 'exec'), {})

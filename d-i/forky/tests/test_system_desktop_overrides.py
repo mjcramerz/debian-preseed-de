@@ -3,6 +3,8 @@
 No installed applications or system configuration are changed. Root is needed
 only to construct the same trusted-ancestry/ownership boundary as production.
 """
+from payload_fixture import source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 from contextlib import redirect_stderr
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
@@ -25,7 +27,7 @@ def load_helper(name):
     path = TARGET / 'usr/local/libexec/labwc-wrap-desktop-files'
     module = types.ModuleType(name)
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -74,8 +76,8 @@ class ReconcilerTests(unittest.TestCase):
         return [args for args, kw in self.calls if args[0] == str(self.m.DATABASE_TOOL)]
 
     def snapshot(self):
-        return {str(p.relative_to(self.root)): (p.read_bytes(), p.stat().st_mtime_ns, p.stat().st_ino)
-                for p in self.root.rglob('*') if p.is_file()}
+        return {str(p.relative_to(self.root)): (payload_read_bytes(p), payload_source_stat(p).st_mtime_ns, payload_source_stat(p).st_ino)
+                for p in self.root.rglob('*') if payload_source_is_file(p)}
 
     def test_unchanged_state_is_quiet_cheap_and_has_no_filesystem_churn(self):
         self.write(); self.run_hook()
@@ -88,49 +90,49 @@ class ReconcilerTests(unittest.TestCase):
 
     def test_addition(self):
         self.run_hook(); self.write(); self.run_hook()
-        self.assertIn('labwc-wayland-app intel -- /usr/bin/true', (self.output / 'demo.desktop').read_text())
+        self.assertIn('labwc-wayland-app intel -- /usr/bin/true', payload_read_text(self.output / 'demo.desktop'))
         self.assertEqual(len(self.db_calls()), 1)
 
     def test_modification(self):
         p = self.write(); self.run_hook()
-        p.write_text(p.read_text().replace('Name=Demo', 'Name=Changed'))
-        self.run_hook(); self.assertIn('Name=Changed', (self.output / p.name).read_text())
+        p.write_text(payload_read_text(p).replace('Name=Demo', 'Name=Changed'))
+        self.run_hook(); self.assertIn('Name=Changed', payload_read_text(self.output / p.name))
         self.assertEqual(len(self.db_calls()), 2)
 
     def test_replacement_preserving_old_mtime(self):
-        p = self.write(); self.run_hook(); old = p.stat()
+        p = self.write(); self.run_hook(); old = payload_source_stat(p)
         replacement = self.source / 'replacement'
-        replacement.write_text(p.read_text().replace('/usr/bin/true', '/usr/bin/false'))
+        replacement.write_text(payload_read_text(p).replace('/usr/bin/true', '/usr/bin/false'))
         os.utime(replacement, ns=(old.st_atime_ns, old.st_mtime_ns)); os.replace(replacement, p)
-        self.run_hook(); self.assertIn('/usr/bin/false', (self.output / p.name).read_text())
+        self.run_hook(); self.assertIn('/usr/bin/false', payload_read_text(self.output / p.name))
 
     def test_identical_replacement_reclassifies_but_does_not_rewrite_output(self):
-        p = self.write(); self.run_hook(); before = (self.output / p.name).stat()
-        replacement = self.source / 'replacement'; replacement.write_bytes(p.read_bytes())
-        os.utime(replacement, ns=(p.stat().st_atime_ns, p.stat().st_mtime_ns)); os.replace(replacement, p)
+        p = self.write(); self.run_hook(); before = payload_source_stat(self.output / p.name)
+        replacement = self.source / 'replacement'; replacement.write_bytes(payload_read_bytes(p))
+        os.utime(replacement, ns=(payload_source_stat(p).st_atime_ns, payload_source_stat(p).st_mtime_ns)); os.replace(replacement, p)
         self.package.reset_mock(); self.run_hook(); self.package.assert_called_once()
-        self.assertEqual((self.output / p.name).stat().st_ino, before.st_ino)
+        self.assertEqual(payload_source_stat(self.output / p.name).st_ino, before.st_ino)
         self.assertEqual(len(self.db_calls()), 1)
 
     def test_removed_vendor_removes_only_stale_owned_output(self):
         p = self.write(); self.run_hook(); p.unlink(); self.run_hook()
-        self.assertFalse((self.output / p.name).exists())
-        self.assertEqual(json.loads(self.m.MANIFEST.read_text()), {})
+        self.assertFalse(payload_source_exists(self.output / p.name))
+        self.assertEqual(json.loads(payload_read_text(self.m.MANIFEST)), {})
         self.assertEqual(len(self.db_calls()), 2)
 
     def test_hidden_true_false_absent(self):
         for value, expected in (('true', False), ('false', True), (None, True)):
             with self.subTest(value=value):
                 self.write(extra='' if value is None else f'Hidden={value}\n')
-                self.run_hook(); self.assertEqual((self.output / 'demo.desktop').exists(), expected)
+                self.run_hook(); self.assertEqual(payload_source_exists(self.output / 'demo.desktop'), expected)
         self.write(extra='Hidden=true\n'); self.run_hook()
-        self.assertFalse((self.output / 'demo.desktop').exists())
+        self.assertFalse(payload_source_exists(self.output / 'demo.desktop'))
 
     def test_nodisplay_true_false_absent_keep_mime_launch_isolation(self):
         for value in ('true', 'false', None):
             with self.subTest(value=value):
                 self.write(extra='' if value is None else f'NoDisplay={value}\n'); self.run_hook()
-                out = (self.output / 'demo.desktop').read_text()
+                out = payload_read_text(self.output / 'demo.desktop')
                 self.assertIn('labwc-wayland-app', out)
                 self.assertEqual('NoDisplay=' in out, value is not None)
 
@@ -139,37 +141,37 @@ class ReconcilerTests(unittest.TestCase):
             for value in ('yes', 'false-ish', 'TRUE', '1'):
                 with self.subTest(key=key, value=value):
                     self.write(extra=f'{key}={value}\n'); self.run_hook()
-                    self.assertFalse((self.output / 'demo.desktop').exists())
+                    self.assertFalse(payload_source_exists(self.output / 'demo.desktop'))
         self.assertIn('malformed', self.log.getvalue())
 
     def test_visibility_metadata_retained_not_evaluated_as_root(self):
         for desktop_filter in ('OnlyShowIn=labwc;\n', 'NotShowIn=GNOME;\n'):
             extra = desktop_filter + 'TryExec=/not/installed\n'
             self.write(extra=extra); self.run_hook()
-            self.assertIn(extra, (self.output / 'demo.desktop').read_text())
+            self.assertIn(extra, payload_read_text(self.output / 'demo.desktop'))
 
     def test_unmanaged_admin_override_preserved_and_not_repeatedly_logged(self):
         self.write(); destination = self.output / 'demo.desktop'
-        destination.write_text('administrator\n'); before = destination.stat()
+        destination.write_text('administrator\n'); before = payload_source_stat(destination)
         self.run_hook(); self.assertIn('preserving administrator override', self.log.getvalue())
         self.log.seek(0); self.log.truncate(); self.run_hook(); self.run_hook(final=False)
         self.assertEqual(self.log.getvalue(), '')
-        self.assertEqual(destination.read_text(), 'administrator\n')
-        self.assertEqual(destination.stat().st_mtime_ns, before.st_mtime_ns)
+        self.assertEqual(payload_read_text(destination), 'administrator\n')
+        self.assertEqual(payload_source_stat(destination).st_mtime_ns, before.st_mtime_ns)
         self.assertEqual(self.db_calls(), [])
 
     def test_managed_override_can_be_updated(self):
         p = self.write(); self.run_hook()
         self.write(exec_value='/usr/bin/false'); self.run_hook()
-        digest = hashlib.sha256((self.output / p.name).read_bytes()).hexdigest()
-        self.assertEqual(json.loads(self.m.MANIFEST.read_text())[p.name], digest)
+        digest = hashlib.sha256(payload_read_bytes(self.output / p.name)).hexdigest()
+        self.assertEqual(json.loads(payload_read_text(self.m.MANIFEST))[p.name], digest)
 
     def test_admin_modified_former_managed_override_is_not_overwritten_or_deleted(self):
         p = self.write(); self.run_hook(); destination = self.output / p.name
-        destination.write_text(destination.read_text().replace('Name=Demo', 'Name=Administrator'))
-        self.run_hook(); self.assertEqual(json.loads(self.m.MANIFEST.read_text()), {})
+        destination.write_text(payload_read_text(destination).replace('Name=Demo', 'Name=Administrator'))
+        self.run_hook(); self.assertEqual(json.loads(payload_read_text(self.m.MANIFEST)), {})
         p.unlink(); self.run_hook()
-        self.assertIn('Name=Administrator', destination.read_text())
+        self.assertIn('Name=Administrator', payload_read_text(destination))
 
     def test_admin_symlink_not_followed_or_deleted(self):
         self.write(); private = self.root / 'private'; private.write_text('secret')
@@ -177,7 +179,7 @@ class ReconcilerTests(unittest.TestCase):
         with mock.patch.object(self.m, 'read_desktop', wraps=self.m.read_desktop) as reader:
             self.run_hook()
             self.assertNotIn(link, [call.args[0] for call in reader.call_args_list])
-        self.assertTrue(link.is_symlink()); self.assertEqual(private.read_text(), 'secret')
+        self.assertTrue(link.is_symlink()); self.assertEqual(payload_read_text(private), 'secret')
 
     def test_invalid_utf8_admin_override_is_opaque_preserved_and_quiet(self):
         self.write(); destination = self.output / 'demo.desktop'
@@ -185,22 +187,22 @@ class ReconcilerTests(unittest.TestCase):
         self.run_hook(); self.package.reset_mock(); self.calls.clear()
         self.run_hook(); self.package.assert_not_called()
         self.assertEqual(self.calls, [])
-        self.assertEqual(destination.read_bytes(), b'Name=administrator\xff\n')
+        self.assertEqual(payload_read_bytes(destination), b'Name=administrator\xff\n')
 
     def test_invalid_utf8_vendor_does_not_block_valid_entries(self):
         invalid = self.source / 'broken.desktop'; invalid.write_bytes(b'\xff')
         self.write(); self.run_hook()
-        self.assertTrue((self.output / 'demo.desktop').is_file())
-        self.assertFalse((self.output / invalid.name).exists())
+        self.assertTrue(payload_source_is_file(self.output / 'demo.desktop'))
+        self.assertFalse(payload_source_exists(self.output / invalid.name))
         self.assertIn('skipped malformed', self.log.getvalue())
 
     def test_new_output_directories_are_searchable_despite_private_umask(self):
         self.output.rmdir()
         self.write('nested/demo.desktop'); self.run_hook()
-        self.assertEqual(stat.S_IMODE(self.output.stat().st_mode), 0o755)
-        self.assertEqual(stat.S_IMODE((self.output / 'nested').stat().st_mode), 0o755)
-        self.assertEqual(stat.S_IMODE((self.output / 'nested/demo.desktop').stat().st_mode), 0o644)
-        self.assertEqual(stat.S_IMODE(self.state.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.output).st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.output / 'nested').st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.output / 'nested/demo.desktop').st_mode), 0o644)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.state).st_mode), 0o700)
 
     def test_interrupted_pending_journal_recovers_exact_published_digest(self):
         self.write(); original = self.m.write_atomic
@@ -209,24 +211,24 @@ class ReconcilerTests(unittest.TestCase):
             return original(path, *args, **kwargs)
         with mock.patch.object(self.m, 'write_atomic', side_effect=interrupt), self.assertRaises(OSError):
             self.run_hook()
-        self.assertTrue(self.m.PENDING.exists()); self.assertTrue(self.m.DATABASE_DIRTY.exists())
-        before = (self.output / 'demo.desktop').stat().st_ino
+        self.assertTrue(payload_source_exists(self.m.PENDING)); self.assertTrue(payload_source_exists(self.m.DATABASE_DIRTY))
+        before = payload_source_stat(self.output / 'demo.desktop').st_ino
         self.run_hook()
-        self.assertFalse(self.m.PENDING.exists()); self.assertFalse(self.m.DATABASE_DIRTY.exists())
-        self.assertEqual((self.output / 'demo.desktop').stat().st_ino, before)
+        self.assertFalse(payload_source_exists(self.m.PENDING)); self.assertFalse(payload_source_exists(self.m.DATABASE_DIRTY))
+        self.assertEqual(payload_source_stat(self.output / 'demo.desktop').st_ino, before)
         self.assertEqual(len(self.db_calls()), 1)
         self.assertIn('recovering interrupted', self.log.getvalue())
 
     def test_unpublished_dirty_intent_does_not_update_database(self):
         self.m.mark_database_dirty(); self.run_hook()
-        self.assertEqual(self.db_calls(), []); self.assertFalse(self.m.DATABASE_DIRTY.exists())
+        self.assertEqual(self.db_calls(), []); self.assertFalse(payload_source_exists(self.m.DATABASE_DIRTY))
 
     def test_pending_digest_does_not_adopt_administrator_changes(self):
-        self.write(); self.run_hook(); original = json.loads(self.m.MANIFEST.read_text())
+        self.write(); self.run_hook(); original = json.loads(payload_read_text(self.m.MANIFEST))
         self.m.PENDING.write_text(json.dumps(original))
         destination = self.output / 'demo.desktop'; destination.write_text('administrator\n')
-        self.run_hook(); self.assertEqual(destination.read_text(), 'administrator\n')
-        self.assertEqual(json.loads(self.m.MANIFEST.read_text()), {})
+        self.run_hook(); self.assertEqual(payload_read_text(destination), 'administrator\n')
+        self.assertEqual(json.loads(payload_read_text(self.m.MANIFEST)), {})
 
     def test_concurrent_invocations_share_blocking_lock(self):
         self.write(); entered = threading.Event(); release = threading.Event()
@@ -255,14 +257,14 @@ class ReconcilerTests(unittest.TestCase):
         self.electron.return_value = True
         self.run_hook(final=True)
         self.assertEqual(self.package.call_count, 2)
-        self.assertIn('labwc-electron-app', (self.output / 'demo.desktop').read_text())
+        self.assertIn('labwc-electron-app', payload_read_text(self.output / 'demo.desktop'))
         for _ in range(4): self.run_hook(final=True); self.run_hook(final=False)
         self.assertEqual(self.package.call_count, 2)
 
     def test_configuration_change_and_force_reconcile(self):
         self.write(); self.run_hook()
-        self.m.DEFAULTS.write_text(self.m.DEFAULTS.read_text().replace(' intel', ' nvidia'))
-        self.run_hook(); self.assertIn(' nvidia -- ', (self.output / 'demo.desktop').read_text())
+        self.m.DEFAULTS.write_text(payload_read_text(self.m.DEFAULTS).replace(' intel', ' nvidia'))
+        self.run_hook(); self.assertIn(' nvidia -- ', payload_read_text(self.output / 'demo.desktop'))
         self.calls.clear(); self.package.reset_mock(); self.run_hook(force=True)
         self.package.assert_called_once(); self.assertEqual(self.db_calls(), [])
 
@@ -270,58 +272,58 @@ class ReconcilerTests(unittest.TestCase):
         self.write()
         with mock.patch.dict(os.environ, {'XDG_DATA_HOME': str(self.root / 'user'), 'XDG_DATA_DIRS': '/home/other'}):
             self.run_hook()
-        self.assertFalse((self.root / 'user').exists())
-        self.assertTrue((self.output / 'demo.desktop').exists())
+        self.assertFalse(payload_source_exists(self.root / 'user'))
+        self.assertTrue(payload_source_exists(self.output / 'demo.desktop'))
         self.assertTrue(all(kw['env'] == self.m.SAFE_ENV for _, kw in self.calls))
 
     def test_validation_failure_does_not_publish_or_update_database(self):
         self.write()
         self.tools.side_effect = lambda *_a, **_kw: types.SimpleNamespace(returncode=1, stdout='invalid fixture', stderr='')
         self.run_hook()
-        self.assertFalse((self.output / 'demo.desktop').exists())
-        self.assertFalse(self.m.DATABASE_DIRTY.exists())
+        self.assertFalse(payload_source_exists(self.output / 'demo.desktop'))
+        self.assertFalse(payload_source_exists(self.m.DATABASE_DIRTY))
         self.assertIn('desktop-file-validate rejected', self.log.getvalue())
 
     def test_invalid_update_retains_last_owned_wrapper_and_database(self):
         source = self.write(); self.run_hook()
-        output = self.output / source.name; before = output.read_bytes()
+        output = self.output / source.name; before = payload_read_bytes(output)
         count = len(self.db_calls())
-        source.write_text(source.read_text().replace('Name=Demo', 'Name=Changed'))
+        source.write_text(payload_read_text(source).replace('Name=Demo', 'Name=Changed'))
         with mock.patch.object(self.m, 'validate_desktop', side_effect=self.m.InvalidDesktop('invalid update')):
             self.run_hook()
-        self.assertEqual(output.read_bytes(), before)
-        self.assertIn(source.name, json.loads(self.m.MANIFEST.read_text()))
+        self.assertEqual(payload_read_bytes(output), before)
+        self.assertIn(source.name, json.loads(payload_read_text(self.m.MANIFEST)))
         self.assertEqual(len(self.db_calls()), count)
         source.write_bytes(b'\xff')
-        self.run_hook(); self.assertEqual(output.read_bytes(), before)
+        self.run_hook(); self.assertEqual(payload_read_bytes(output), before)
         self.assertEqual(len(self.db_calls()), count)
 
     def test_state_permissions_and_no_public_temporary_desktop_ids(self):
         self.write(); self.run_hook()
-        self.assertEqual(stat.S_IMODE(self.state.stat().st_mode), 0o700)
-        for path in self.state.iterdir(): self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.state).st_mode), 0o700)
+        for path in self.state.iterdir(): self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o600)
         self.assertEqual(list(self.output.iterdir()), [self.output / 'demo.desktop'])
 
     def test_missing_output_is_repaired(self):
         self.write(); self.run_hook(); (self.output / 'demo.desktop').unlink()
-        self.run_hook(); self.assertTrue((self.output / 'demo.desktop').exists())
+        self.run_hook(); self.assertTrue(payload_source_exists(self.output / 'demo.desktop'))
 
     def test_input_change_during_pass_is_not_cached_as_final(self):
         p = self.write(); once = True
         def classify(_):
             nonlocal once
             if once:
-                p.write_text(p.read_text().replace('Name=Demo', 'Name=After unpack'))
+                p.write_text(payload_read_text(p).replace('Name=Demo', 'Name=After unpack'))
                 once = False
             return False
         self.electron.side_effect = classify
-        self.run_hook(); self.assertIn('Name=After unpack', (self.output / p.name).read_text())
+        self.run_hook(); self.assertIn('Name=After unpack', payload_read_text(self.output / p.name))
         self.assertEqual(self.package.call_count, 2)
 
     def test_foreign_dpkg_root_is_safe_and_does_not_acquire_lock(self):
         self.write()
         with mock.patch.dict(os.environ, {'DPKG_ROOT': '/another/root'}): self.run_hook()
-        self.assertFalse(self.m.LOCK.exists())
+        self.assertFalse(payload_source_exists(self.m.LOCK))
 
 
 if __name__ == '__main__':

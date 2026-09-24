@@ -8,7 +8,7 @@ use IO::Select;
 use POSIX qw(WNOHANG);
 use Time::HiRes qw(usleep);
 
-my %defaults = load_defaults('/etc/default/labwc-desktop');
+my %defaults = load_defaults('/etc/labwc/desktop.conf');
 apply_env_overrides(
     \%defaults,
     qw(

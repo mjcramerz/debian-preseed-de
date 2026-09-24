@@ -3,6 +3,8 @@
 No network, benchmark, package installation or service activation occurs.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import argparse
 import contextlib
 import gzip
@@ -33,7 +35,7 @@ ARCHIVE_ROOT = 'resctl-bench-2.2.6-x86_64-unknown-linux-gnu-native-20260916-test
 def module():
     path = SEED / 'scripts/desktop/resctl-bench-install.py'
     result = types.ModuleType('resctl_installer'); result.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), result.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
     return result
 
 
@@ -111,7 +113,7 @@ class ReleasePolicyTests(unittest.TestCase):
             self.assertEqual(argv[argv.index('--url')+1], URL)
             self.assertIn('--max-filesize', argv)
             with mock.patch.object(self.installer.subprocess, 'run'):
-                self.installer.download(arguments(sha256=hashlib.sha256(path.read_bytes()).hexdigest()), path)
+                self.installer.download(arguments(sha256=hashlib.sha256(payload_read_bytes(path)).hexdigest()), path)
 
     def test_download_rejects_oversize_and_empty_response(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(self.installer.subprocess, 'run'):
@@ -122,21 +124,21 @@ class ReleasePolicyTests(unittest.TestCase):
                     self.installer.download(arguments(max_archive=1024), path)
 
     def test_desktop_pipeline_fetches_and_installs_for_all_profiles(self):
-        role = (SEED/'scripts/late/desktop.sh').read_text()
+        role = payload_read_text(SEED/'scripts/late/desktop.sh')
         modules = re.search(r'for desktop_module in ([^;]+); do', role).group(1).split()
         self.assertIn('resctl-bench', modules)
         self.assertLess(modules.index('resctl-bench'), modules.index('labwc'))
         self.assertIn('. "${desktop_module_dir}/resctl-bench.sh"', role)
-        pipeline = (SEED/'scripts/desktop/labwc.sh').read_text()
+        pipeline = payload_read_text(SEED/'scripts/desktop/labwc.sh')
         self.assertIn('  desktop_resctl_bench_preflight_target_architecture\n', pipeline)
         # Kanshi policy reconciliation is a separate pre-existing step between
         # installation and asset staging; require order, not adjacency.
         self.assertEqual(pipeline.count('  desktop_install_resctl_bench\n'), 1)
         self.assertLess(pipeline.index('  desktop_install_resctl_bench\n'),
                         pipeline.index('  desktop_stage_target_assets\n'))
-        verifier = (SEED/'scripts/desktop/verify.sh').read_text()
+        verifier = payload_read_text(SEED/'scripts/desktop/verify.sh')
         self.assertLess(verifier.index('for resctl_binary'), verifier.index('desktop_verify_target_staging()'))
-        firstboot = (SEED/'scripts/firstboot/04-validation.sh').read_text()
+        firstboot = payload_read_text(SEED/'scripts/firstboot/04-validation.sh')
         for binary in ('resctl-bench', 'rd-agent', 'rd-hashd'):
             self.assertIn('/usr/local/bin/'+binary, firstboot)
 
@@ -158,8 +160,8 @@ desktop_install_resctl_bench
 '''
                 result = runner.shell(script, check=False)
                 self.assertEqual(result.returncode, 7 if failure else 0, result.stderr)
-                self.assertFalse((root/'target/usr/local/libexec/installer-resctl-bench').exists())
-                args = (root/'target/invocation').read_text().splitlines()
+                self.assertFalse(payload_source_exists(root/'target/usr/local/libexec/installer-resctl-bench'))
+                args = payload_read_text(root/'target/invocation').splitlines()
                 checker = runpy.run_path(str(SEED.parents[1] / 'tools/check_resctl_bench.py'))
                 pins = checker['read_pins'](base.PROFILES[0])
                 for value in (*pins.values(), '/usr/bin/python3', '-I', '/usr/bin/env', '-i', '900s'):
@@ -197,9 +199,9 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(binaries, ['rd-agent', 'rd-hashd', 'resctl-bench'])
         for name, data in payload().items():
             path = root/name
-            self.assertEqual(path.read_bytes(), data)
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755 if name in {'bin/'+b for b in binaries} else 0o644)
-        self.assertFalse((self.work/'release.tar').exists())
+            self.assertEqual(payload_read_bytes(path), data)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o755 if name in {'bin/'+b for b in binaries} else 0o644)
+        self.assertFalse(payload_source_exists(self.work/'release.tar'))
 
     def test_optional_demo_is_validated_too(self):
         files = payload(); files['bin/resctl-demo'] = elf(); archive(self.path, files)
@@ -282,14 +284,14 @@ class ArchiveTests(unittest.TestCase):
             self.unpack(max_members=3)
 
     def test_gzip_truncation_is_not_accepted(self):
-        archive(self.path); self.path.write_bytes(self.path.read_bytes()[:-12])
+        archive(self.path); self.path.write_bytes(payload_read_bytes(self.path)[:-12])
         with self.assertRaises((EOFError, OSError)):
             self.unpack()
 
     def test_highly_compressible_member_is_not_limited_to_compressed_ceiling(self):
         files = payload(); files['share/doc/resctl-bench/large.txt'] = b'0' * 65536
         archive(self.path, files)
-        self.assertLess(self.path.stat().st_size, 8192)
+        self.assertLess(payload_source_stat(self.path).st_size, 8192)
         self.unpack(max_archive=8192, max_extracted=262144)
 
 
@@ -313,18 +315,18 @@ class PublicationTests(unittest.TestCase):
             self.installer.publish(arguments(), self.root, self.binaries)
         for name in self.binaries:
             path = self.installer.BIN_DIR/name
-            self.assertEqual(path.read_bytes(), elf())
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755)
-            self.assertEqual(path.stat().st_nlink, 1)
+            self.assertEqual(payload_read_bytes(path), elf())
+            self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o755)
+            self.assertEqual(payload_source_stat(path).st_nlink, 1)
         docs = self.installer.DOC_DIR
         for path in docs.rglob('*'):
-            if path.is_file():
-                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
-        meta = json.loads((docs/'INSTALLATION.json').read_text())
+            if payload_source_is_file(path):
+                self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o644)
+        meta = json.loads(payload_read_text(docs/'INSTALLATION.json'))
         self.assertEqual(meta['archive_sha256'], PIN)
         self.assertEqual(meta['tag'], TAG)
         self.assertTrue(meta['native_cpu_build'])
-        self.assertEqual((docs/'release/install.py').read_bytes(), payload()['install.py'])
+        self.assertEqual(payload_read_bytes(docs/'release/install.py'), payload()['install.py'])
         self.assertFalse(list(self.work.rglob('.resctl-bench-*')))
 
     def test_existing_unmanaged_binary_is_never_overwritten(self):
@@ -332,9 +334,9 @@ class PublicationTests(unittest.TestCase):
         existing = self.installer.BIN_DIR/'rd-hashd'; existing.write_bytes(b'keep admin file'); existing.chmod(0o755)
         with self.assertRaisesRegex(self.installer.Error, 'refusing to overwrite'):
             self.installer.publish(arguments(), self.root, self.binaries)
-        self.assertEqual(existing.read_bytes(), b'keep admin file')
-        self.assertFalse((self.installer.BIN_DIR/'resctl-bench').exists())
-        self.assertFalse((self.installer.DOC_DIR/'INSTALLATION.json').exists())
+        self.assertEqual(payload_read_bytes(existing), b'keep admin file')
+        self.assertFalse(payload_source_exists(self.installer.BIN_DIR/'resctl-bench'))
+        self.assertFalse(payload_source_exists(self.installer.DOC_DIR/'INSTALLATION.json'))
 
     def test_symlinked_destination_or_writable_parent_is_rejected(self):
         self.installer.BIN_DIR.mkdir(parents=True)
@@ -355,7 +357,7 @@ class PublicationTests(unittest.TestCase):
             return link(*args, **kwargs)
         with mock.patch.object(self.installer.os, 'link', side_effect=fail_second), self.assertRaises(OSError):
             self.installer.publish(arguments(), self.root, self.binaries)
-        self.assertEqual([p for p in (self.work/'target').rglob('*') if p.is_file()], [])
+        self.assertEqual([p for p in (self.work/'target').rglob('*') if payload_source_is_file(p)], [])
 
     def test_smoke_drops_groups_uses_fixed_version_only_and_fails_before_publish(self):
         calls = []
@@ -374,7 +376,7 @@ class PublicationTests(unittest.TestCase):
         with mock.patch.object(self.installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], -4, '', '')):
             with self.assertRaisesRegex(self.installer.Error, 'native CPU/loader/version'):
                 self.installer.smoke(self.root, self.binaries, '2.2.6', self.work/'smoke-fail')
-        self.assertFalse(self.installer.BIN_DIR.exists())
+        self.assertFalse(payload_source_exists(self.installer.BIN_DIR))
 
     def test_real_unprivileged_smoke_with_harmless_compiled_fixture(self):
         compiler = shutil.which('cc')
@@ -383,7 +385,7 @@ class PublicationTests(unittest.TestCase):
         # Distinct from the non-executable synthetic archive entries above.
         source = self.work/'version.c'
         source.write_text('#include <stdio.h>\n#include <unistd.h>\nint main(void) { if (geteuid() == 0) return 9; puts("fixture 2.2.6"); return 0; }\n')
-        subprocess.run([compiler, str(source), '-o', str(self.root/'bin/resctl-bench')], check=True, capture_output=True, timeout=30)
+        subprocess.run(payload_installed_argv([compiler, str(source), '-o', str(self.root/'bin/resctl-bench')]), check=True, capture_output=True, timeout=30)
         self.work.chmod(0o755)
         self.installer.smoke(self.root, ['resctl-bench'], '2.2.6', self.work/'real-smoke')
         with self.assertRaisesRegex(self.installer.Error, 'version incompatibility'):

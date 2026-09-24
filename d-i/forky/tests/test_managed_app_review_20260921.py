@@ -1,5 +1,8 @@
-"""R7 managed-app argument and descriptor safety regressions, without services."""
+"""R7 app argument and descriptor safety regressions, without services."""
 from __future__ import annotations
+from payload_fixture import source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import python_library
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 from contextlib import redirect_stderr
 import hashlib
@@ -14,7 +17,7 @@ import unittest
 from unittest import mock
 
 from test_dynamic_storage_sizing_20260921 import TARGET
-LIB = TARGET / 'usr/local/lib/python3.14/dist-packages'
+LIB = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 if str(LIB) not in sys.path:
     sys.path.insert(0, str(LIB))
 from labwc_managed_app import commands, generic, profiles, sandbox, user_state
@@ -87,7 +90,7 @@ class ManagedArgumentReviewTests(unittest.TestCase):
 
 class UserStateReviewTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix='managed-state-review-')
+        self.tmp = tempfile.TemporaryDirectory(prefix='x-state-review-')
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.home = self.root/'home'; self.home.mkdir(mode=0o700)
@@ -105,26 +108,26 @@ class UserStateReviewTests(unittest.TestCase):
 
     def test_new_seeded_file_and_existing_content_are_preserved(self):
         self.ensure()
-        self.assertEqual(self.path.read_bytes(), self.seed.read_bytes())
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+        self.assertEqual(payload_read_bytes(self.path), payload_read_bytes(self.seed))
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.path).st_mode), 0o600)
         self.path.write_text('{"user":true}')
         self.ensure()
-        self.assertEqual(self.path.read_text(), '{"user":true}')
+        self.assertEqual(payload_read_text(self.path), '{"user":true}')
 
     def test_unseeded_file_is_empty_private_and_not_replaced(self):
         self.ensure(seed=False)
-        self.assertEqual(self.path.read_bytes(), b'')
-        inode = self.path.stat().st_ino
+        self.assertEqual(payload_read_bytes(self.path), b'')
+        inode = payload_source_stat(self.path).st_ino
         self.path.write_text('keep'); self.ensure(seed=False)
-        self.assertEqual(self.path.stat().st_ino, inode)
-        self.assertEqual(self.path.read_text(), 'keep')
+        self.assertEqual(payload_source_stat(self.path).st_ino, inode)
+        self.assertEqual(payload_read_text(self.path), 'keep')
 
     def test_dangling_symlink_does_not_create_its_target_inside_or_outside_home(self):
         for target in (self.root/'outside', self.home/'inside'):
             with self.subTest(target=target):
                 self.path.symlink_to(target)
                 with self.assertRaises(SystemExit): self.ensure()
-                self.assertFalse(target.exists())
+                self.assertFalse(payload_source_exists(target))
                 self.assertTrue(self.path.is_symlink())
                 self.path.unlink()
 
@@ -137,8 +140,8 @@ class UserStateReviewTests(unittest.TestCase):
                 elif kind == 'fifo': os.mkfifo(self.path)
                 else: self.path.mkdir()
                 with self.assertRaises(SystemExit): self.ensure()
-                self.assertEqual(target.read_text(), 'unchanged')
-                self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o644)
+                self.assertEqual(payload_read_text(target), 'unchanged')
+                self.assertEqual(stat.S_IMODE(payload_source_stat(target).st_mode), 0o644)
                 if kind == 'directory': self.path.rmdir()
                 else: self.path.unlink()
 
@@ -147,8 +150,8 @@ class UserStateReviewTests(unittest.TestCase):
             destination.write(b'partial'); raise OSError('fixture copy interruption')
         with mock.patch.object(user_state.shutil, 'copyfileobj', side_effect=interrupted):
             with self.assertRaises(SystemExit): self.ensure()
-        self.assertFalse(self.path.exists())
-        self.ensure(); self.assertEqual(self.path.read_bytes(), self.seed.read_bytes())
+        self.assertFalse(payload_source_exists(self.path))
+        self.ensure(); self.assertEqual(payload_read_bytes(self.path), payload_read_bytes(self.seed))
 
     def test_failed_copy_does_not_unlink_a_replacement_inode(self):
         def replaced(source, destination, **_kwargs):
@@ -157,19 +160,19 @@ class UserStateReviewTests(unittest.TestCase):
             raise OSError('fixture replacement during copy')
         with mock.patch.object(user_state.shutil, 'copyfileobj', side_effect=replaced):
             with self.assertRaises(SystemExit): self.ensure()
-        self.assertEqual(self.path.read_text(), 'replacement')
+        self.assertEqual(payload_read_text(self.path), 'replacement')
 
     def test_seed_symlink_is_rejected_and_new_destination_removed(self):
         self.seed.unlink(); self.seed.symlink_to(self.root/'missing')
         with self.assertRaises(SystemExit): self.ensure()
-        self.assertFalse(self.path.exists())
+        self.assertFalse(payload_source_exists(self.path))
 
     def test_directory_ancestry_checked_before_creation(self):
         outside = self.root/'outside'; outside.mkdir()
         (self.home/'linked').symlink_to(outside, target_is_directory=True)
         with self.assertRaises(SystemExit):
             sandbox.persistent_app_directory(str(self.home), 'linked/should-not-exist')
-        self.assertFalse((outside/'should-not-exist').exists())
+        self.assertFalse(payload_source_exists(outside/'should-not-exist'))
         self.assertEqual(sandbox.persistent_app_directory(str(self.home), 'normal/child'),
                          str(self.home/'normal/child'))
 
@@ -197,7 +200,7 @@ class UserStateReviewTests(unittest.TestCase):
 
     def test_json_bounded_read_even_when_reported_size_is_stale(self):
         self.path.write_text('{"padding":"'+'x'*10000+'"}')
-        metadata = list(self.path.stat()); metadata[6] = 0
+        metadata = list(payload_source_stat(self.path)); metadata[6] = 0
         with mock.patch.object(user_state.os, 'fstat', return_value=os.stat_result(metadata)):
             with self.assertRaises(SystemExit):
                 user_state.load_user_json_object(str(self.path), 64)

@@ -1,0 +1,6 @@
+test_signals_remove_stage_without_publishing (test_codex_clone_staging.CloneStagingTests.test_signals_remove_stage_without_publishing) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.148s
+
+OK

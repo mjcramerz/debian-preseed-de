@@ -5,7 +5,10 @@ No kernel modules are loaded. Destructive late stages and vendor activation
 are not run; target publication and GRUB generation use disposable roots.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 import os
+import json
 from pathlib import Path
 import re
 import shlex
@@ -49,21 +52,21 @@ def active(text: str) -> str:
 
 
 def run_shell(code: str, env=None):
-    return subprocess.run(['/bin/sh', '-e', '-c', code], capture_output=True, text=True,
+    return subprocess.run(payload_installed_argv(['/bin/sh', '-e', '-c', code]), capture_output=True, text=True,
                           env=env, timeout=30)
 
 
 def copy_binary(root: Path, binary: str, destination=None):
     path = Path(binary)
-    dependencies = subprocess.run(['ldd', str(path)], capture_output=True, text=True, timeout=5)
+    dependencies = subprocess.run(payload_installed_argv(['ldd', str(path)]), capture_output=True, text=True, timeout=5)
     entries = [(path, Path(destination or str(path)).relative_to('/'))]
     for name in re.findall(r'(/[^\s()]+)', dependencies.stdout):
-        if Path(name).is_file():
+        if payload_source_is_file(Path(name)):
             entries.append((Path(name), Path(name).relative_to('/')))
     for source, relative in entries:
         dest = root / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, dest)
+        payload_copyfile(source, dest)
         dest.chmod(0o755)
 
 
@@ -73,6 +76,7 @@ def make_chroot(root: Path):
                  'mkdir', 'install', 'mktemp', 'rm', 'dirname', 'mv'):
         (root / 'bin' / name).symlink_to('busybox')
     copy_binary(root, '/usr/bin/find', '/bin/find')
+    copy_binary(root, '/usr/bin/awk', '/usr/bin/awk')
     for directory in ('dev', 'tmp', 'etc/default/grub.d', 'etc/grub.d', 'boot/grub'):
         (root / directory).mkdir(parents=True, exist_ok=True)
     (root / 'tmp').chmod(0o1777)
@@ -90,29 +94,29 @@ class HardwareFilesTests(unittest.TestCase):
         self.assertEqual(len(REQUESTED), 17)
         for relative, expected in REQUESTED.items():
             with self.subTest(file=relative):
-                self.assertIn(expected, active((HARDWARE / relative).read_text()))
+                self.assertIn(expected, active(payload_read_text(HARDWARE / relative)))
 
     def test_vfio_never_enables_unsafe_noiommu(self):
         for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/70-vfio-pci.conf'):
-            text = active((HARDWARE / 'etc' / name).read_text())
+            text = active(payload_read_text(HARDWARE / 'etc' / name))
             self.assertNotIn('enable_unsafe_noiommu_mode=1', text)
             self.assertNotIn('allow_unsafe_interrupts=1', text)
 
     def test_regdom_and_required_package_agree(self):
-        self.assertIn(' iw ', (FORKY / 'classes/class-auto/cpu/intel.cfg').read_text())
-        self.assertIn('wireless-regdb', (FORKY / 'fragments/apt.cfg').read_text())
-        self.assertIn('reg set SE', (HARDWARE / 'etc/udev/rules.d/85-wifi-regdom.rules').read_text())
+        self.assertIn(' iw ', payload_read_text(FORKY / 'classes/class-auto/cpu/intel.cfg'))
+        self.assertIn('wireless-regdb', payload_read_text(FORKY / 'fragments/apt.cfg'))
+        self.assertIn('reg set SE', payload_read_text(HARDWARE / 'etc/udev/rules.d/85-wifi-regdom.rules'))
 
     def test_canonical_hash_module_in_both_boot_paths(self):
         for name in ('initramfs-tools/modules.tmpl', 'modules-load.d/10-btrfs.conf'):
-            text = active((HARDWARE / 'etc' / name.replace('modules.tmpl', 'modules.nvme.tmpl').replace('10-btrfs.conf', '10-btrfs.nvme.conf')).read_text())
+            text = active(payload_read_text(HARDWARE / 'etc' / name.replace('modules.tmpl', 'modules.nvme.tmpl').replace('10-btrfs.conf', '10-btrfs.nvme.conf')))
             self.assertEqual(text.splitlines().count('xxhash_generic'), 1)
             self.assertNotIn('\nxxhash64_generic\n', '\n' + text + '\n')
             self.assertLess(text.index('xxhash_generic'), text.index('btrfs'))
 
     def test_nvidia_false_branch_removes_only_target_assets(self):
         for family in ('btrfs-family.sh', 'f2fs-family.sh'):
-            text = (FORKY / 'scripts/late' / family).read_text()
+            text = payload_read_text(FORKY / 'scripts/late' / family)
             self.assertIn('remove_target_asset "${DIR_MODPROBE_D}/82-nvidia.conf"', text)
             self.assertNotIn('rm -f \\\n      "${DIR_MODPROBE_D}/50-nouveau-blacklist.conf"', text)
 
@@ -161,7 +165,7 @@ printf 'vfio=%s\nnvme=%s\nnvidia=%s\nmodules=%s\n' "$FILE_MODPROBE_VFIO" "$FILE_
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertNotIn('kvm_intel',result.stdout)
         self.assertNotIn('kvm_amd',result.stdout)
-        self.assertTrue((FORKY/'classes/class-auto/cpu/generic-arm64.cfg').is_file())
+        self.assertTrue(payload_source_is_file(FORKY/'classes/class-auto/cpu/generic-arm64.cfg'))
 
     def test_vm_does_not_get_nvme_or_platform_vfio(self):
         text = self.policy(disk='vm', family='vm', nvidia=False)
@@ -183,7 +187,7 @@ printf 'vfio=%s\nnvme=%s\nnvidia=%s\nmodules=%s\n' "$FILE_MODPROBE_VFIO" "$FILE_
             work = Path(temp) / 'work'
             work.mkdir()
             (work / 'swap-fallback.service.tmpl').write_text('[Unit]\nDescription=fixture\n')
-            source = (FORKY / 'scripts/late/btrfs-family.sh').read_text()
+            source = payload_read_text(FORKY / 'scripts/late/btrfs-family.sh')
             function = source[source.index('write_target_kernel_tunables() {'):].split('\n}\n', 1)[0] + '\n}\n'
             q = shlex.quote
             code = self.preamble() + f'''
@@ -194,7 +198,7 @@ DIR_HOOKS_TARGET={q(str(SHARED))}; INSTALLER_SOURCE_ROOT={q(str(FORKY))}
 . {q(str(FORKY / 'scripts/late/target-assets.sh'))}
 . {q(str(FORKY / 'scripts/late/templates.sh'))}
 installer_repo_join_var() {{ eval 'base=${{'"$1"'}}'; printf '%s/%s\\n' "$base" "$2"; }}
-fetch_hook() {{ cp "$1" "$2"; }}
+fetch_hook() {{ fixture_input=$1; [ -f "$fixture_input" ] || fixture_input=$fixture_input.tmpl; cp "$fixture_input" "$2"; }}
 render_target_template_placeholder_map() {{ printf 'CPU_CRC32C_MODULE=%s\\n' "$CPU_CRC32C_MODULE"; }}
 apply_tmpfs_policy_placeholders() {{ :; }}
 apply_tmpfs_pre_clean_placeholders() {{ :; }}
@@ -229,16 +233,16 @@ write_target_kernel_tunables
                 destination = DESTINATIONS[relative]
                 path = target / destination
                 with self.subTest(destination=destination):
-                    self.assertTrue(path.is_file(), destination)
-                    self.assertIn(expected, active(path.read_text()))
-                    self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
-                    self.assertNotIn('__INSTALLER_', path.read_text())
-            modules = active((target / 'etc/initramfs-tools/modules').read_text()).splitlines()
+                    self.assertTrue(payload_source_is_file(path), destination)
+                    self.assertIn(expected, active(payload_read_text(path)))
+                    self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o644)
+                    self.assertNotIn('__INSTALLER_', payload_read_text(path))
+            modules = active(payload_read_text(target / 'etc/initramfs-tools/modules')).splitlines()
             for module in ('vfio', 'vfio_pci', 'vfio_iommu_type1', 'nvidia', 'nvidia_modeset',
                            'nvidia_uvm', 'nvidia_drm', 'kvm', 'kvm_intel', 'vhost_net', 'vhost_vsock'):
                 self.assertIn(module, modules)
-            self.assertIn('enable NVIDIA video-memory preservation', (work / 'in-target.log').read_text())
-            self.assertTrue((target / 'usr/local/libexec/nvidia-vram-check').is_file())
+            self.assertIn('enable NVIDIA video-memory preservation', payload_read_text(work / 'in-target.log'))
+            self.assertTrue(payload_source_is_file(target / 'usr/local/libexec/nvidia-vram-check'))
 
 
 class TemplateBlockTests(unittest.TestCase):
@@ -254,7 +258,7 @@ class TemplateBlockTests(unittest.TestCase):
             if scalar_map is not None:
                 code += f'render_target_scalar_placeholders {shlex.quote(str(path))} {shlex.quote(str(map_path))}\n'
             result = run_shell(code)
-            return result, path.read_text()
+            return result, payload_read_text(path)
 
     def test_all_module_lines_survive(self):
         result, text = self.render('before\n__INSTALLER_VFIO_INITRAMFS_MODULES__\nafter\n', 'vfio\nvfio_pci\nvfio_iommu_type1')
@@ -305,19 +309,27 @@ class GrubGeneratorTests(unittest.TestCase):
         (self.root / 'boot/vmlinuz-6.12-fixture').touch()
         (self.root / 'boot/initrd.img-6.12-fixture').touch()
         (self.root / 'boot/grub/grubenv').write_text('fixture\n')
-        template = (SHARED / 'etc/default/grub-profiles.tmpl').read_text()
+        template = payload_read_text(SHARED / 'etc/grub.d/40_custom.tmpl')
         template = template.replace('__INSTALLER_GRUB_MOK_MANAGER_EFI_PATH__', '/EFI/debian/mmx64.efi')
         template = template.replace('__INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH__', '/EFI/BOOT/BOOTX64.EFI')
         (self.root / 'generator').write_text(template)
         (self.root / 'generator').chmod(0o755)
-        rows = (FORKY / 'classes/configs/target-assets.tsv').read_text().splitlines()
+        fragments = self.root / 'usr/local/share/grub-profiles'
+        fragments.mkdir(parents=True)
+        for source in (SHARED / 'usr/local/share/grub-profiles').glob('*.tmpl'):
+            data = payload_read_text(source).replace('__INSTALLER_GRUB_MOK_MANAGER_EFI_PATH__', '/EFI/debian/mmx64.efi')
+            data = data.replace('__INSTALLER_GRUB_REMOVABLE_BOOT_EFI_PATH__', '/EFI/BOOT/BOOTX64.EFI')
+            path = fragments / source.name.removesuffix('.tmpl')
+            path.write_text(data)
+            path.chmod(0o644)
+        rows = payload_read_text(FORKY / 'classes/configs/target-assets.tsv').splitlines()
         for row in rows:
             if not row or row.startswith('#'):
                 continue
             group, kind, leaf, payload = row.split('\t')
             if (group, kind) in {('cpu', 'intel'), ('disk', 'nvme'), ('gpu', 'nvidia')} and leaf.startswith('etc/default/grub.d/'):
                 dest = self.root / leaf
-                shutil.copyfile(HARDWARE / payload, dest)
+                payload_copyfile(HARDWARE / payload, dest)
                 dest.chmod(0o644)
         self.args = ['/dev/boot', '/dev/root', '/dev/efi', 'balanced', 'performance', 'hardened',
                      'rootfstype=btrfs', 'fsck.mode=auto', '', 'cgroup_no_v1=all',
@@ -327,14 +339,22 @@ class GrubGeneratorTests(unittest.TestCase):
         self.assertEqual(len(self.args), 25)
 
     def invoke(self, install=False):
-        return subprocess.run([shutil.which('chroot'), str(self.root), '/bin/sh', '/generator',
-                               *(self.args if install else [])], text=True, capture_output=True,
+        if install:
+            fields = list(json.loads((FORKY.parents[1] / 'd-i/forky/tests/fixtures/contracts/grub-split.json').read_text())['config_variables'])
+            config = payload_read_text(SHARED / 'etc/default/grub-profiles.tmpl')
+            for field, value in zip(fields, self.args, strict=True):
+                config = config.replace('__INSTALLER_GRUB_CONFIG_' + field.upper() + '__', shlex.quote(value))
+            destination = self.root / 'etc/default/grub-profiles'
+            destination.write_text(config)
+            destination.chmod(0o600)
+        return subprocess.run(payload_installed_argv([shutil.which('chroot'), str(self.root), '/bin/sh', '/generator',
+                               *(['--install'] if install else [])]), text=True, capture_output=True,
                               env={'PATH': '/bin', 'SKIP_MOK_SIGNING': '1', 'LC_ALL': 'C'}, timeout=10)
 
     def test_initial_and_regenerated_menu_include_hardware_values(self):
         result = self.invoke(install=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        initial = (self.root / 'boot/grub/custom.cfg').read_text()
+        initial = payload_read_text(self.root / 'boot/grub/custom.cfg')
         regen = self.invoke()
         self.assertEqual(regen.returncode, 0, regen.stderr)
         self.assertEqual(regen.stdout, initial)
@@ -354,12 +374,12 @@ class GrubGeneratorTests(unittest.TestCase):
         self.assertEqual(self.invoke(install=True).returncode, 0)
         first, second = self.invoke(), self.invoke()
         self.assertEqual(first.stdout, second.stdout)
-        self.assertNotIn('vfio-pci.ids', (self.root / 'etc/default/grub-profiles.conf').read_text())
+        self.assertNotIn('vfio-pci.ids', payload_read_text(self.root / 'etc/default/grub-profiles'))
 
     def test_changed_hardware_dropin_takes_effect_without_reinstall(self):
         self.assertEqual(self.invoke(install=True).returncode, 0)
         path = self.root / 'etc/default/grub.d/75-intel-vfio.cfg'
-        path.write_text(path.read_text().replace('8086:02e0', '8086:1234'))
+        path.write_text(payload_read_text(path).replace('8086:02e0', '8086:1234'))
         output = self.invoke()
         self.assertEqual(output.returncode, 0, output.stderr)
         self.assertIn('8086:1234', output.stdout)

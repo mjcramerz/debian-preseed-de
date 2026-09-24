@@ -1,0 +1,31 @@
+#
+# Managed by installer late_command.
+#
+# auditd is the authoritative audit-netlink consumer and native file writer.
+# audisp-syslog forwards live events; AppArmor tooling retains its relevant records.
+# There are no file-tail or copied-log inputs.
+#
+local_events = yes
+write_logs = yes
+log_file = __INSTALLER_LOG_AUDIT_FILE__
+log_group = __INSTALLER_LOG_GROUP__
+log_format = ENRICHED
+flush = INCREMENTAL_ASYNC
+freq = 50
+max_log_file = __INSTALLER_LOG_AUDIT_MAXSIZE_MIB__
+num_logs = __INSTALLER_LOG_AUDIT_FILE_COUNT__
+priority_boost = 4
+name_format = HOSTNAME
+distribute_network = no
+max_log_file_action = ROTATE
+space_left = 25%
+space_left_action = SYSLOG
+admin_space_left = 10%
+admin_space_left_action = SUSPEND
+disk_full_action = SUSPEND
+disk_error_action = SUSPEND
+q_depth = 4096
+overflow_action = SYSLOG
+max_restarts = 10
+plugin_dir = /etc/audit/plugins.d
+end_of_event_timeout = 2

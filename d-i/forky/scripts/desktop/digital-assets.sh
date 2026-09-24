@@ -251,13 +251,13 @@ ulimit -f "$maximum_blocks"
   install -d -m 0755 "$tool_install_parent_host" /target/usr/local/bin
   install -d -m 0755 "$tool_staged_host"
   install -m 0755 "$tool_binary_host" "${tool_staged_host}/${tool_name}"
-  cat >"${tool_staged_host}/.managed-release" <<EOF
+  cat >"${tool_staged_host}/.release" <<EOF
 version=${tool_version}
 url=${tool_url}
 archive_sha256=${tool_sha256}
 architecture=${DIGITAL_ASSETS_TARGET_ARCHITECTURE}
 EOF
-  chmod 0644 "${tool_staged_host}/.managed-release"
+  chmod 0644 "${tool_staged_host}/.release"
   chown -R root:root "$tool_staged_host"
 
   [ ! -L "$tool_install_host" ] ||

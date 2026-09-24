@@ -1,9 +1,0 @@
-PROFILE managed-desktop-wrappers
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-returncode=0
-PROFILE managed-waybar-menus
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-returncode=0
-PROFILE managed-tomat
-Cache read/write disabled: interface file missing. (Kernel needs AppArmor 2.4 compatibility patch.)
-returncode=0

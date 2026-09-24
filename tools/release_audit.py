@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=ROOT/'validation/whole-tree.json')
+    parser.add_argument('--output', type=Path, default=ROOT/'.build/validation/whole-tree.json')
     args = parser.parse_args()
     records = []
     errors = []
@@ -85,7 +85,7 @@ def main() -> int:
     result = {'success':not errors,'file_count':len(records),
               'check_counts':dict(sorted(Counter(r.get('check',r.get('kind','unknown')) for r in records).items())),
               'shellcheck':'available-not-invoked' if shutil.which('shellcheck') else 'NOT RUN: executable unavailable',
-              'perl':'See make audit / validation/audit.json; missing dependencies are BLOCKED, not PASS.',
+              'perl':'See make audit / .build/validation/audit.json; missing dependencies are BLOCKED, not PASS.',
               'limits':['No code execution for Python AST or shell -n checks.',
                         'Templates require renderer/runtime tests; inventory is not runtime validation.',
                         '.git and self-generated validation evidence excluded from the source inventory.'],

@@ -1,9 +1,0 @@
-{
-  "timed_out": true,
-  "status": -9,
-  "requests": [],
-  "progress": "reached-update-mtab\n",
-  "stderr": "",
-  "interpretation": "Unmodified incoming target bridge stalled before its first frontend GET; status -9 is test-harness cleanup after the deadline, not a user-installation exit status.",
-  "fixture_limit": "Reduced chroot setup with real Debian shell clients and a private Perl Debconf frontend; no booted d-i or filesystem setup."
-}

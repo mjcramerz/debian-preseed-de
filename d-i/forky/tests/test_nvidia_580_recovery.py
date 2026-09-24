@@ -1,5 +1,7 @@
 """Exercise recovery orchestration with a fake chroot; no host packages changed."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import os
 from pathlib import Path
 import subprocess
@@ -59,17 +61,17 @@ esac
                     'RECOVERY_LOG': str(self.log)}
 
     def run_repair(self, **env):
-        p = subprocess.run(['/bin/sh', str(SCRIPT), str(self.target), self.kernel],
+        p = subprocess.run(payload_installed_argv(['/bin/sh', str(SCRIPT), str(self.target), self.kernel]),
                            env={**self.env, **env}, capture_output=True, text=True, timeout=20)
-        calls = [line.rstrip('\t').split('\t') for line in self.log.read_text().splitlines()] if self.log.exists() else []
+        calls = [line.rstrip('\t').split('\t') for line in payload_read_text(self.log).splitlines()] if payload_source_exists(self.log) else []
         return p, calls
 
     def test_success_uses_identical_wrapper_explicit_kernel_and_verifies_modules(self):
-        old = (self.target / 'usr/sbin/dkms').read_bytes()
+        old = payload_read_bytes(self.target / 'usr/sbin/dkms')
         p, calls = self.run_repair()
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertEqual((self.target / 'usr/sbin/dkms').read_text(), wrapper_text()+'\n')
-        self.assertEqual(list((self.target / 'usr/sbin').glob('dkms.before-r2.*'))[0].read_bytes(), old)
+        self.assertEqual(payload_read_text(self.target / 'usr/sbin/dkms'), wrapper_text()+'\n')
+        self.assertEqual(payload_read_bytes(list((self.target / 'usr/sbin').glob('dkms.before-r2.*'))[0]), old)
         self.assertFalse(list((self.target / 'usr/sbin').glob('dkms.r2.*')))
         build = ['/usr/sbin/dkms', 'build', '-m', 'nvidia', '-v', '580.142', '-k', self.kernel, '--force']
         install = build.copy(); install[1] = 'install'
@@ -112,10 +114,10 @@ esac
         self.assertNotIn('repair completed', p.stdout)
 
     def test_rejects_different_driver_branch_before_wrapper_change(self):
-        original = (self.target / 'usr/sbin/dkms').read_bytes()
+        original = payload_read_bytes(self.target / 'usr/sbin/dkms')
         p, _ = self.run_repair(RECOVERY_VERSION='590.1-1')
         self.assertNotEqual(p.returncode, 0)
-        self.assertEqual((self.target / 'usr/sbin/dkms').read_bytes(), original)
+        self.assertEqual(payload_read_bytes(self.target / 'usr/sbin/dkms'), original)
 
     def test_epoch_and_package_revision_are_not_part_of_dkms_version(self):
         p, calls = self.run_repair(RECOVERY_VERSION='1:580.142-2~local')

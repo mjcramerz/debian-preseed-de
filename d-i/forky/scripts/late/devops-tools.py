@@ -1165,7 +1165,7 @@ def write_release_record(
     artifact: DownloadArtifact,
     *extra_lines: str,
 ) -> None:
-    record = root / ".managed-upstream-release"
+    record = root / ".upstream-release"
     lines = [
         "schema=1",
         f"name={artifact.name}",
@@ -1840,7 +1840,7 @@ def prepare_wrangler(
     (root / "package.json").write_text(
         json.dumps(
             {
-                "name": "managed-wrangler-runtime",
+                "name": "wrangler-runtime",
                 "private": True,
                 "dependencies": {
                     policy.wrangler_package_name: artifact_item.version

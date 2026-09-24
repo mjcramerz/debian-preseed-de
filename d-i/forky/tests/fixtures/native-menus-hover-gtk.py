@@ -202,13 +202,13 @@ with tempfile.TemporaryDirectory() as temporary:
     for theme in report['themes']:
         set_property(settings, b'gtk-theme-name', C.c_char_p(theme.encode()), None)
         for profile in profiles:
-            css = Path(profile['css']).read_bytes()
-            provider = provider_new()
-            error = C.POINTER(Error)()
-            ok = load_css(provider, css, len(css), C.byref(error))
-            assert ok and not error, (profile['name'], error.contents.message.decode() if error else 'CSS load failed')
-            add_provider(screen, provider, 600)  # Same application-level priority as Waybar.
             for bar in profile['bars']:
+                css = Path(profile['css'][bar['name']]).read_bytes()
+                provider = provider_new()
+                error = C.POINTER(Error)()
+                ok = load_css(provider, css, len(css), C.byref(error))
+                assert ok and not error, (profile['name'], error.contents.message.decode() if error else 'CSS load failed')
+                add_provider(screen, provider, 600)  # Same application-level priority as Waybar.
                 for optional_enabled in (False, True):
                     for module, menu_name in modules:
                         builder = builder_new()
@@ -299,8 +299,8 @@ with tempfile.TemporaryDirectory() as temporary:
                         destroy(menu)
                         unref(builder)
                         drain()
-            remove_provider(screen, provider)
-            unref(provider)
+                remove_provider(screen, provider)
+                unref(provider)
 destroy(anchor)
 unref(icon_theme)
 assert not report['callback_errors'], report

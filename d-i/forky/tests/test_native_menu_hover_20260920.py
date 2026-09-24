@@ -5,6 +5,10 @@ patched Waybar. Backend calls are inspected/intercepted; no host control action,
 notification service, microphone or user manager is touched.
 """
 from __future__ import annotations
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_script
+from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file, source_path as payload_source_path
+from payload_fixture import read_text as payload_read_text
 
 import contextlib
 import ctypes.util
@@ -21,6 +25,7 @@ import sys
 import tempfile
 import types
 import unittest
+from theme_fixture import render_theme_defaults, render_theme_tree
 from unittest import mock
 import xml.etree.ElementTree as ET
 
@@ -30,53 +35,42 @@ from test_notifications_followup_20260920 import rendered_profile_styles
 
 
 def rendered_profile_bars():
-    """Capture substitutions from the real renderer, with only target I/O stubbed."""
-    template = (SKEL / 'waybar/config.tmpl').read_text()
-    script = r'''
-. "$1"
-. "$2/detect.sh"
-. "$2/components.sh"
-desktop_render_role_target_template_deferred() { shift 3; printf '%s\0' "$@"; }
-desktop_assert_role_target_template_resolved() { :; }
-desktop_log() { :; }
-installer_warn() { :; }
-desktop_render_waybar_config
-'''
-    result = {}
-    for profile in sorted((FORKY / 'hosts/profiles').glob('*.env')):
-        if 'LABWC_WAYBAR_FONT_SIZE=' not in profile.read_text():
-            continue
-        response = subprocess.run(
-            ['/bin/sh', '-eu', '-c', script, 'native-menu-render', str(profile),
-             str(FORKY / 'scripts/desktop')], env={'PATH': '/usr/bin:/bin'},
-            capture_output=True, check=True, timeout=10)
-        fields = response.stdout.decode().split('\0')[:-1]
-        if len(fields) % 2:
-            raise AssertionError('renderer returned an incomplete key/value pair')
-        text = template
-        for key, value in zip(fields[::2], fields[1::2]):
-            text = text.replace('__INSTALLER_' + key + '__', value)
-        if '__INSTALLER_' in text:
-            raise AssertionError('unresolved Waybar profile: ' + profile.name)
-        result[profile.stem] = json.loads(text)
-    return result
+    from waybar_fixture import profiles, rendered_assets
+    return {p.stem: json.loads(rendered_assets(p)['config']) for p in profiles()}
 
 
 def gtk_menu_report():
     """Run native GTK in a disposable X display; production stays Wayland-only."""
     with tempfile.TemporaryDirectory() as work:
         root = Path(work)
-        styles = rendered_profile_styles()
+        installed = root / 'installed'
+        source = installed / 'hooks/target/etc/skel-desktop/.config/waybar'
+        source.parent.mkdir(parents=True)
+        shutil.copytree(FORKY / 'hooks/target/etc/skel-desktop/.config/waybar', source)
+        render_theme_tree(source)
+        from waybar_fixture import rendered_assets
+        for name, content in rendered_assets(FORKY/'hosts/profiles/btrfs-de.env').items():
+            (source/name).write_text(content)
+        helpers = installed / 'hooks/target/usr/local/libexec'
+        shutil.copytree(FORKY / 'hooks/target/usr/local/libexec', helpers)
+        render_theme_tree(helpers)
+        scripts = installed / 'scripts/desktop'
+        scripts.mkdir(parents=True)
+        (scripts / 'components.sh').write_text(render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh')))
+        styles = {cls: rendered_profile_styles(cls) for cls in ('internal', 'external')}
         profiles = []
         for name, bars in rendered_profile_bars().items():
-            css = root / (name + '.css')
-            css.write_text(styles[name])
-            profiles.append({'name': name, 'css': str(css), 'bars': bars})
+            css_paths = {}
+            for cls in ('internal', 'external'):
+                css = root / (name + '-' + cls + '.css')
+                css.write_text(styles[cls][name])
+                css_paths[cls] = str(css)
+            profiles.append({'name': name, 'css': css_paths, 'bars': bars})
         data = root / 'profiles.json'
         data.write_text(json.dumps(profiles))
         result = subprocess.run(
-            ['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
-             str(FORKY / 'tests/fixtures/native-menus-hover-gtk.py'), str(FORKY), str(data)],
+            payload_installed_argv(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
+             str(FORKY / 'tests/fixtures/native-menus-hover-gtk.py'), str(installed), str(data)]),
             env={**os.environ, 'GDK_BACKEND': 'x11', 'NO_AT_BRIDGE': '1', 'G_DEBUG': 'fatal-criticals'},
             text=True, capture_output=True, timeout=90)
         if result.returncode:
@@ -101,7 +95,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                         self.assertEqual(entry['menu'], event)
                         self.assertNotIn(event, entry)
                         self.assertNotIn(event + '-release', entry)
-                        tree = ET.parse(SKEL / 'waybar' / (menu + '-menu.xml'))
+                        tree = ET.parse(payload_source_path(SKEL / 'waybar' / (menu + '-menu.xml')))
                         ids = {item.get('id') for item in tree.iter('object')
                                if item.get('class') == 'GtkMenuItem'
                                and item.find('./child[@type="submenu"]') is None}
@@ -152,7 +146,7 @@ class NativeMenuHoverTests(unittest.TestCase):
             for bar in bars:
                 for module, actions in expected.items():
                     self.assertEqual(set(bar[module]['menu-actions']), set(actions))
-                    self.assertTrue((TARGET / helpers[module].lstrip('/')).is_file())
+                    self.assertTrue(payload_source_is_file(TARGET / helpers[module].lstrip('/')))
                     for key, args in actions.items():
                         argv = shlex.split(bar[module]['menu-actions'][key])
                         self.assertEqual(argv[argv.index('--') + 1:], [helpers[module], *args])
@@ -161,7 +155,7 @@ class NativeMenuHoverTests(unittest.TestCase):
                     self.assertEqual(argv[argv.index('--') + 1:], args)
 
     def test_notifications_center_label_menu_and_secondary_click_match(self):
-        xml = ET.parse(SKEL / 'waybar/notifications-menu.xml')
+        xml = ET.parse(payload_source_path(SKEL / 'waybar/notifications-menu.xml'))
         item = xml.find('.//object[@id="notifications_center"]')
         self.assertEqual(item.findtext('./child/object[@class="GtkBox"]/child/object[@class="GtkLabel"]/property[@name="label"]'), 'Open notifications center')
         for bars in self.profiles.values():
@@ -194,6 +188,7 @@ class NotificationCenterReachabilityTests(unittest.TestCase):
 
     def invoke_cli(self, argv, *, backend_error=None, backend_output=None, privileged=False):
         """Exercise the actual __main__ exception/exit path with a fake process."""
+        cli_path = installed_script(LIBEXEC / 'labwc-notifications')
         stdout, stderr = io.StringIO(), io.StringIO()
         runtime_info = types.SimpleNamespace(st_mode=stat.S_IFDIR | 0o700, st_uid=1000)
         account = types.SimpleNamespace(pw_dir='/home/fixture', pw_name='fixture')
@@ -221,7 +216,7 @@ class NotificationCenterReachabilityTests(unittest.TestCase):
             stack.enter_context(mock.patch('pwd.getpwuid', return_value=account))
             child_mock = stack.enter_context(mock.patch('subprocess.Popen', side_effect=spawn))
             with self.assertRaises(SystemExit) as exit_result:
-                runpy.run_path(str(LIBEXEC / 'labwc-notifications'), run_name='__main__')
+                runpy.run_path(str(cli_path), run_name='__main__')
         for child in children:
             self.assertIsNotNone(child.poll())
             self.assertTrue(child.stdout.closed and child.stderr.closed)
@@ -297,7 +292,7 @@ class NotificationCenterReachabilityTests(unittest.TestCase):
         self.assertTrue(all('fixture unavailable' in message for message in result['errors']))
 
     def test_native_center_environment_and_single_instance_contract_are_preserved(self):
-        source = (LIBEXEC / 'labwc-notifications').read_text()
+        source = payload_read_text(LIBEXEC / 'labwc-notifications')
         self.assertTrue(source.startswith('#!/usr/bin/python3 -I\n'))
         for required in ('application_id=APP_ID', 'flags=Gio.ApplicationFlags.FLAGS_NONE',
                          'self.window.present()', 'max_workers=1', 'self.cancel.set()',
@@ -320,7 +315,7 @@ class NotificationCenterReachabilityTests(unittest.TestCase):
         self.assertEqual(environment['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=/run/user/1000/bus')
         for name in ('DISPLAY', 'PYTHONPATH', 'GI_TYPELIB_PATH', 'GTK_PATH', 'LD_PRELOAD'):
             self.assertNotIn(name, environment)
-        policy = (TARGET / 'etc/apparmor.d/managed-waybar-menus').read_text()
+        policy = payload_read_text(TARGET / 'etc/apparmor.d/waybar-menus')
         self.assertIn('dbus (bind) bus=session name=org.labwc.NotificationCenter,', policy)
 
 

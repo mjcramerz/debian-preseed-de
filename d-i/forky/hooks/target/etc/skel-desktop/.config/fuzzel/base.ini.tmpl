@@ -1,34 +1,25 @@
+# Common policy and palette only. Point-sized fonts/geometry come from labwc-fuzzel.
 [main]
-font=Noto Sans:size=__INSTALLER_LABWC_FUZZEL_FONT_SIZE__,Noto Color Emoji:size=__INSTALLER_LABWC_FUZZEL_FONT_SIZE__,Font Awesome 6 Free:size=__INSTALLER_LABWC_FUZZEL_FONT_SIZE__,Symbols Nerd Font Mono:size=__INSTALLER_LABWC_FUZZEL_FONT_SIZE__
 use-bold=yes
-dpi-aware=auto
+dpi-aware=yes
 terminal=/usr/local/bin/labwc-terminal
 placeholder=Type to search
-icon-theme=__INSTALLER_LABWC_ICON_THEME__
+icon-theme=__THEME_FUZZEL_MENU_ICON_THEME__
 icons-enabled=yes
 fields=filename,name,generic,keywords,comment,categories
 match-mode=fzf
 filter-desktop=yes
-show-actions=yes
-horizontal-pad=__INSTALLER_LABWC_FUZZEL_HORIZONTAL_PAD__
-vertical-pad=__INSTALLER_LABWC_FUZZEL_VERTICAL_PAD__
-inner-pad=__INSTALLER_LABWC_FUZZEL_INNER_PAD__
-line-height=__INSTALLER_LABWC_FUZZEL_LINE_HEIGHT__
 layer=overlay
 
 [colors]
-background=08111ff8
-text=f5efe3ff
-prompt=ecb860ff
-placeholder=aeb7c6ff
-input=ffffffff
-match=ecb860ff
-selection=f29f67ff
-selection-text=08111fff
-selection-match=08111fff
-counter=9fd2bfff
-border=ecb860bb
-
-[border]
-width=2
-radius=14
+background=__THEME_FUZZEL_MENU_BACKGROUND_COLOR__
+text=__THEME_FUZZEL_MENU_NORMAL_TEXT_COLOR__
+prompt=__THEME_FUZZEL_MENU_PROMPT_TEXT_COLOR__
+placeholder=__THEME_FUZZEL_MENU_PLACEHOLDER_TEXT_COLOR__
+input=__THEME_FUZZEL_MENU_INPUT_TEXT_COLOR__
+match=__THEME_FUZZEL_MENU_NORMAL_MATCH_TEXT_COLOR__
+selection=__THEME_FUZZEL_MENU_SELECTED_BACKGROUND_COLOR__
+selection-text=__THEME_FUZZEL_MENU_SELECTED_TEXT_COLOR__
+selection-match=__THEME_FUZZEL_MENU_SELECTED_MATCH_TEXT_COLOR__
+counter=__THEME_FUZZEL_MENU_COUNTER_TEXT_COLOR__
+border=__THEME_FUZZEL_MENU_OUTLINE_COLOR__

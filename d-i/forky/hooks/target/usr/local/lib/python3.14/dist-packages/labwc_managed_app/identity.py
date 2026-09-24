@@ -18,7 +18,7 @@ MANAGED_CODEX_HOME = "/data/codex/usr/home"
 MANAGED_CODEX_INSTALLATION_ID = f"{MANAGED_CODEX_HOME}/installation_id"
 HOST_MACHINE_ID_PATH = "/etc/machine-id"
 MAX_HOST_MACHINE_ID_BYTES = 64
-SYNTHETIC_IDENTITY_DOMAIN = b"labwc-managed-app/chatgpt-identity/v1"
+SYNTHETIC_IDENTITY_DOMAIN = b"labwc-app/chatgpt-identity/v1"
 
 
 @dataclass(frozen=True)
@@ -134,7 +134,7 @@ def create_synthetic_identity_files(
             "rpc: files\n"
             "netgroup: files\n"
         ),
-        "cmdline": "root=/dev/mapper/managed-root ro quiet\n",
+        "cmdline": "root=/dev/mapper/root ro quiet\n",
         "empty": "",
     }
     for name, value in content.items():

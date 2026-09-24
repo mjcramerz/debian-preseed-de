@@ -1,6 +1,0 @@
-{
-  "returncode": 0,
-  "stdout": "",
-  "stderr": "",
-  "fixture": "Only ExecStart/ConditionFileIsExecutable absolute paths relocated to repository; manual-page and generator checks disabled; no services started."
-}

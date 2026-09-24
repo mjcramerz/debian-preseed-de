@@ -1,0 +1,307 @@
+#!/usr/bin/python3 -I
+"""Configure only native logging keys; never execute config or alter log data."""
+from __future__ import annotations
+import fcntl
+import hashlib
+import os
+from pathlib import Path
+import pwd
+import re
+import secrets
+import stat
+import sys
+
+BEGIN = '# BEGIN installer managed native logging'
+END = '# END installer managed native logging'
+OBSOLETE = {'/etc/rsyslog.d/44-managed-runtime.conf': 'fb238bedea63864915ca87d5da3f30afce5887818ca29c03c136fbdb6f3574d9', '/etc/rsyslog.d/45-managed-vendor-files.conf': '78bad7eced777cea5a911e05901d37f32ee1675739db9e961693e850067facd4'}
+POLICIES = {
+    'freshclam': ('/etc/clamav/freshclam.conf', '/usr/bin/freshclam', {
+        'UpdateLogFile': '__INSTALLER_LOG_FRESHCLAM_FILE__',
+        'LogTime': 'yes', 'LogSyslog': 'no',
+        'LogFileMaxSize': '__INSTALLER_LOG_CLAMAV_MAXSIZE_MIB__M', 'LogRotate': 'yes',
+    }),
+    'clamd': ('/etc/clamav/clamd.conf', '/usr/sbin/clamd', {
+        'LogFile': '__INSTALLER_LOG_CLAMAV_FILE__',
+        'LogTime': 'yes', 'LogSyslog': 'no',
+        'LogFileMaxSize': '__INSTALLER_LOG_CLAMAV_MAXSIZE_MIB__M', 'LogRotate': 'yes',
+    }),
+    'chkrootkit': ('/etc/chkrootkit/chkrootkit.conf', '/usr/sbin/chkrootkit', {
+        'LOG_DIR': '__INSTALLER_LOG_CHKROOTKIT_DIR__',
+        'OUTPUT': '__INSTALLER_LOG_CHKROOTKIT_DAILY_FILE__',
+        'RAW_OUTPUT': '__INSTALLER_LOG_CHKROOTKIT_RAW_FILE__',
+        'EXPECTED_OUTPUT': '__INSTALLER_LOG_CHKROOTKIT_EXPECTED_FILE__',
+    }),
+}
+
+class ConfigError(ValueError):
+    pass
+
+def parent_fd(root: Path, absolute: str) -> int:
+    """Pin protected configuration parents without following symlinks."""
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        for part in Path(absolute).parts[1:-1]:
+            if part in ('', '.', '..'):
+                raise ConfigError('invalid configuration path')
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise ConfigError(f'unsafe configuration parent: {absolute}')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+def read_config(fd: int, name: str, allowed_uid: int = 0) -> tuple[bytes, os.stat_result]:
+    source = os.open(name, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+    try:
+        info = os.fstat(source)
+        if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                info.st_uid not in (0, allowed_uid) or
+                stat.S_IMODE(info.st_mode) not in (0o400, 0o440, 0o444, 0o600, 0o640, 0o644) or info.st_size > 2 * 1024 * 1024):
+            raise ConfigError(f'unsafe or oversized native configuration: {name}')
+        data = bytearray()
+        while True:
+            chunk = os.read(source, 65536)
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > 2 * 1024 * 1024:
+                raise ConfigError(f'oversized native configuration: {name}')
+        if b'\0' in data:
+            raise ConfigError(f'binary native configuration: {name}')
+        return bytes(data), info
+    finally:
+        os.close(source)
+
+def render(kind: str, raw: bytes) -> bytes:
+    """Remove only recognized logging assignments; append one validated block."""
+    text = raw.decode('utf-8')
+    if '\r' in text:
+        raise ConfigError('native configuration must use LF line endings')
+    policy = POLICIES[kind][2]
+    names = '|'.join(re.escape(key) for key in policy)
+    shell = kind == 'chkrootkit'
+    pattern = re.compile((r'^(?:export[ \t]+)?(' + names + r')=') if shell else
+                         (r'^[ \t]*(' + names + r')(?:[ \t]+|$)'))
+    out = []
+    inside = False
+    seen_block = False
+    for line in text.splitlines():
+        if line == BEGIN:
+            if inside or seen_block:
+                raise ConfigError('duplicate native logging block')
+            inside = seen_block = True
+            continue
+        if line == END:
+            if not inside:
+                raise ConfigError('unmatched native logging block')
+            inside = False
+            continue
+        match = pattern.match(line)
+        if inside:
+            if line.strip() and not match and not line.lstrip().startswith('#'):
+                raise ConfigError('unrelated setting inside managed logging block')
+            continue
+        if match:
+            if shell and (line.rstrip().endswith('\\') or ';' in line):
+                raise ConfigError('compound logging assignment requires administrator review')
+            continue
+        if shell and re.search(r'\b(' + names + r')\s*=', line) and not line.lstrip().startswith('#'):
+            raise ConfigError('conditional/indented logging assignment is unsupported')
+        out.append(line)
+    if inside:
+        raise ConfigError('unterminated native logging block')
+    out.append(BEGIN)
+    for key, value in policy.items():
+        out.append(f'{key}="{value}"' if shell else f'{key} {value}')
+    out.append(END)
+    return ('\n'.join(out) + '\n').encode('utf-8')
+
+def publish(fd: int, name: str, data: bytes, info: os.stat_result) -> None:
+    temporary = '.native-' + secrets.token_hex(16)
+    output = -1
+    try:
+        output = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=fd)
+        with os.fdopen(output, 'wb') as stream:
+            output = -1
+            stream.write(data)
+            stream.flush()
+            os.fchown(stream.fileno(), info.st_uid, info.st_gid)
+            os.fchmod(stream.fileno(), stat.S_IMODE(info.st_mode))
+            os.fsync(stream.fileno())
+        os.replace(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
+        os.fsync(fd)
+    finally:
+        if output >= 0:
+            os.close(output)
+        try:
+            os.unlink(temporary, dir_fd=fd)
+        except FileNotFoundError:
+            pass
+
+NATIVE_FILES = (
+    ('__INSTALLER_LOG_CLAMAV_FILE__', '__INSTALLER_LOG_CLAMAV_OWNER__'),
+    ('__INSTALLER_LOG_FRESHCLAM_FILE__', '__INSTALLER_LOG_CLAMAV_OWNER__'),
+    ('__INSTALLER_LOG_CROWDSEC_FILE__', 'root'),
+    ('__INSTALLER_LOG_CROWDSEC_API_FILE__', 'root'),
+    ('__INSTALLER_LOG_CROWDSEC_BOUNCER_FILE__', 'root'),
+    ('__INSTALLER_LOG_RKHUNTER_FILE__', 'root'),
+    ('__INSTALLER_LOG_LYNIS_FILE__', 'root'),
+    ('__INSTALLER_LOG_LYNIS_REPORT_FILE__', 'root'),
+    ('__INSTALLER_LOG_CHKROOTKIT_DAILY_FILE__', 'root'),
+    ('__INSTALLER_LOG_CHKROOTKIT_RAW_FILE__', 'root'),
+    ('__INSTALLER_LOG_CHKROOTKIT_EXPECTED_FILE__', 'root'),
+)
+
+def check_native_paths(root: Path = Path('/')) -> None:
+    """Reject unsafe existing native outputs without opening or creating data."""
+    for absolute, owner in NATIVE_FILES:
+        path = Path(absolute)
+        fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            missing = False
+            for index, part in enumerate(path.parts[1:-1]):
+                try:
+                    child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                                    os.O_CLOEXEC, dir_fd=fd)
+                except FileNotFoundError:
+                    missing = True
+                    break
+                os.close(fd)
+                fd = child
+                info = os.fstat(fd)
+                native_parent = index == len(path.parts[1:-1]) - 1 and owner != 'root'
+                expected = pwd.getpwnam(owner).pw_uid if native_parent else 0
+                if info.st_uid != expected or info.st_mode & 0o022:
+                    raise ConfigError(f'unsafe native log parent: {absolute}')
+            if missing:
+                continue
+            try:
+                info = os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            uid = pwd.getpwnam(owner).pw_uid if owner != 'root' else 0
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                    info.st_uid != uid or stat.S_IMODE(info.st_mode) not in (0o600, 0o640)):
+                raise ConfigError(f'unsafe native log: {absolute}')
+        finally:
+            os.close(fd)
+
+
+def configure(root: Path = Path('/'), only: str | None = None, check: bool = False) -> None:
+    check_native_paths(root)
+    prepared = []
+    committed = []
+    try:
+        for kind, (path, binary, _) in POLICIES.items():
+            if only and kind != only:
+                continue
+            target = root / path.lstrip('/')
+            if not target.exists() and not target.is_symlink():
+                if only or (root / binary.lstrip('/')).exists():
+                    raise ConfigError(f'installed native writer is missing configuration: {path}')
+                continue
+            fd = parent_fd(root, path)
+            try:
+                allowed = pwd.getpwnam('__INSTALLER_LOG_CLAMAV_OWNER__').pw_uid if kind in ('freshclam', 'clamd') else 0
+                raw, info = read_config(fd, target.name, allowed)
+                rendered = render(kind, raw)
+                if check and rendered != raw:
+                    raise ConfigError(f'native logging policy changed: {path}; rerun the installer policy step')
+                prepared.append((fd, target.name, raw, rendered, info, allowed))
+            except BaseException:
+                os.close(fd)
+                raise
+        if check:
+            return
+        for fd, name, raw, rendered, info, allowed in prepared:
+            if raw == rendered:
+                continue
+            current, current_info = read_config(fd, name, allowed)
+            if current != raw or (current_info.st_dev, current_info.st_ino) != (info.st_dev, info.st_ino):
+                raise ConfigError(f'configuration changed concurrently: {name}')
+            # Include the attempted publication: rename may have succeeded even
+            # when the subsequent directory fsync reports failure.
+            committed.append((fd, name, raw, info))
+            publish(fd, name, rendered, info)
+    except BaseException as original:
+        rollback_errors = []
+        for fd, name, raw, info in reversed(committed):
+            try:
+                publish(fd, name, raw, info)
+            except OSError as exc:
+                rollback_errors.append(f'{name}: {exc}')
+        if rollback_errors:
+            raise ConfigError('native configuration rollback failed: ' + '; '.join(rollback_errors)) from original
+        raise
+    finally:
+        for fd, *_ in prepared:
+            os.close(fd)
+
+def retire_r3(root: Path = Path('/')) -> None:
+    """Remove only byte-exact obsolete managed configs, never log files."""
+    prepared = []
+    try:
+        for path, expected in OBSOLETE.items():
+            target = root / path.lstrip('/')
+            if not target.exists() and not target.is_symlink():
+                continue
+            fd = parent_fd(root, path)
+            try:
+                raw, info = read_config(fd, target.name)
+                if hashlib.sha256(raw).hexdigest() != expected:
+                    raise ConfigError(f'preserving administrator-modified obsolete config: {path}')
+                prepared.append((fd, target.name, info))
+            except BaseException:
+                os.close(fd)
+                raise
+        for fd, name, info in prepared:
+            current = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if (current.st_dev, current.st_ino, current.st_mtime_ns, current.st_size) != (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size):
+                raise ConfigError('obsolete configuration changed concurrently')
+            os.unlink(name, dir_fd=fd)
+            os.fsync(fd)
+    finally:
+        for fd, *_ in prepared:
+            os.close(fd)
+
+def main() -> int:
+    args = sys.argv[1:]
+    if args == ['--preflight']:
+        check_native_paths()
+        return 0
+    if args[:1] == ['--check'] and len(args) == 2 and args[1] in POLICIES:
+        configure(only=args[1], check=True)
+        return 0
+    if args not in (['--configure'], ['--retire-r3']):
+        raise ConfigError('usage: native-logging --configure | --retire-r3 | --preflight | --check freshclam|clamd|chkrootkit')
+    if os.geteuid() != 0:
+        raise ConfigError('configuration requires root')
+    lock_dir = Path('/run/native-logging')
+    try:
+        lock_dir.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    info = lock_dir.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o700:
+        raise ConfigError('unsafe native logging lock directory')
+    fd = os.open(lock_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        if args == ['--retire-r3']:
+            retire_r3()
+        else:
+            configure()
+    finally:
+        os.close(fd)
+    return 0
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, KeyError, UnicodeError, ConfigError) as exc:
+        print(f'native-logging: {exc}', file=sys.stderr)
+        raise SystemExit(1)

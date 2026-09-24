@@ -1,0 +1,21 @@
+[Unit]
+Requisite=labwc-session.target
+Description=Unprivileged nvidia performance hardware tuning lease
+PartOf=nvidia-performance.target labwc-session.target
+After=labwc-session.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/labwc-hardware-tuning lease nvidia performance
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=3s
+KillMode=control-group
+Slice=background.slice
+UMask=0077
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX

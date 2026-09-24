@@ -1,0 +1,598 @@
+# Managed Git, Codex home and system diagnostics
+
+Integration: 14 September 2026. This document describes the implemented contract,
+not a claim that every machine has passed live acceptance. Repository validation
+results accompany the delivered source tree in `docs/validation-git/`.
+
+## 1. Private installation inputs
+
+Build the PRIVATE Debian installer initrd with exactly these root-owned files:
+
+```
+/preseed.env        0600
+/git_ed25519       0600   encrypted OpenSSH Ed25519 private key
+/git_ed25519.pub   0600   its single-line OpenSSH public key
+```
+
+`preseed.env` must contain `PRESEED_GIT_SSH_PASSPHRASE` with the existing private
+key's passphrase. It is separate from `PRESEED_PRIMARY_GPG_PASSPHRASE`, which
+protects the primary user's managed GPG key. Both are trusted shell assignments;
+quote and escape values correctly. The SSH passphrase must be nonempty printable
+single-line text, at most 4096 bytes. Public keys initially readable by others
+are normalized to private mode by the existing initrd input validator.
+
+The Git SSH passphrase is read ONLY from `/preseed.env`; unlike some older
+installer credentials, no kernel-command-line or inherited-environment override
+is accepted. Do not use the account password as an implicit fallback.
+
+The key files and `preseed.env` must be built/stored outside the served checkout.
+Do not publish the private initrd over the repository's HTTP service. They are
+not payload assets and are never fetched from the seed URL. `tools/build.py`
+rejects known private input filenames and files beginning with private-key PEM
+headers anywhere in the public checkout. This is a guard against mistakes, not
+a complete secret scanner: renamed archives, backups and secret assignments in
+other files still require review. Serve only the sanitized distribution, not a
+working directory containing private media or source-control internals.
+
+The public key must already be authorized for the intended GitLab/GitHub account
+or deployment identity, including read permission for the Codex home repository.
+Network access to both providers' SSH port 22 must be available where needed.
+There is no automatic account registration or credential upload.
+
+### Installer handling
+
+A temporary root-supervised OpenSSH agent proves that the passphrase opens the
+key and that the public/private pair matches (`ssh-add -T`). The passphrase is
+sent through a private stdin pipe and a sealed anonymous Linux memfd for
+SSH_ASKPASS. It is not a process argument, environment value, disk staging file,
+unit setting or account metadata field. Encrypted key staging and child process
+groups are cleaned on success, failure and catchable interruption.
+
+After the existing primary GPG bootstrap validates the user's key, the passphrase
+is encrypted to that GPG public key. The private SSH key itself retains its
+original OpenSSH encryption; it is not made passwordless or imported into
+`gpg-agent` as an SSH identity. Persistent account state is:
+
+| Path relative to home | Mode | Content |
+| --- | --- | --- |
+| `.local/share/ssh/private/id_git_ed25519` | 0600 | Original encrypted SSH private key |
+| `.local/share/ssh/git-key-passphrase.gpg` | 0600 | GPG-encrypted SSH passphrase |
+| `.ssh/id_git_ed25519.pub` | 0600 | Public identity selector |
+
+The managed directories are 0700. Installer helpers are root-owned 0700;
+runtime helpers are root-owned executables. Verification and firstboot inspect
+metadata and configuration; they never try to unlock the user's GPG key.
+
+Root, a compromised kernel, the private media builder and an attacker able to
+read process memory remain trusted boundaries. Anonymous memory can be swapped;
+this implementation does not claim hardware-backed key protection or guaranteed
+memory erasure. Same-UID processes may use an unlocked agent, and unconfined
+same-user code can read user-owned files. The new AppArmor loader domain is a
+narrow policy addition, not a replacement for the existing desktop threat model.
+
+## 2. Daily SSH/GPG use
+
+Since the 2026-09-19 session repair, login activates the SSH agent socket but
+**does not automatically unlock the encrypted private key**. Unlock is explicit
+through `git-ssh unlock`, or requested by the existing `devops` launcher. This
+avoids a cold-cache pinentry dialog timing out unattended during session startup.
+Existing installer-owned loader wants links are removed on installer reruns;
+the loader service itself, its timeout, encryption and error reporting remain.
+
+From a normal terminal inside the primary user's Labwc session:
+
+```sh
+git-ssh unlock       # default action; retry after a cancelled GPG prompt
+git-ssh status       # public fingerprints only
+git-ssh lock         # stop loader, agent service and socket
+```
+
+A cold GPG cache prompts for the GPG key's passphrase through pinentry-qt. The
+helper decrypts the sealed SSH passphrase directly into SSH_ASKPASS's pipe;
+there is no runtime plaintext passphrase file. Once loaded, Git uses the agent.
+`git-ssh unlock` is the normal way to decrypt/use the secret: it does not print it.
+There is deliberately no convenience command that dumps the passphrase to a
+terminal or clipboard. Preserve trusted offline recovery material separately.
+
+Both ordinary terminals and `devops` use
+`/run/user/UID/openssh_agent`. `devops` validates this socket and retries the
+loader. There is no per-shell `ssh-agent -s` and no `SSH_AGENT_PID` lifecycle.
+The package's `ssh-agent.socket` and `ssh-agent.service` receive only Labwc
+lifecycle drop-ins; the installer verifies the expected package-unit contract.
+An incompatible/missing package unit fails installation instead of selecting an
+unreviewed fallback. Global `sockets.target` enablement is disabled; Labwc owns
+the explicit wants link. Do not independently enable the vendor socket again.
+
+Cancelling pinentry fails the loader, not the desktop. Logging out stops the
+agent and destroys its loaded identity. GPG's existing cache is not globally
+flushed, so an immediate re-login can legitimately prompt zero times. A later
+unlock can prompt again after cache expiry. Locking the SSH agent does not clear
+the GPG cache or retroactively close already-authenticated remote connections.
+
+GitLab and GitHub have exact-host stanzas, public-key-only identity selection,
+no forwarding, batch authentication and strict host-key verification. The
+private key is outside SSH's default private-key filenames, preventing an
+unintended direct-key password prompt. Other hosts retain the existing PKI
+include and defaults; the managed Git identity is not placed under `Host *`.
+
+Host Ed25519 keys are pinned in `/etc/ssh/git_known_hosts`. A provider
+rotation fails closed: independently confirm the new key from the provider's
+authenticated documentation, update that root-owned file and the repository
+asset/tests, and rebuild before the next deployment. Never bypass checking with
+`StrictHostKeyChecking=no` or trust unverified `ssh-keyscan` output.
+
+Useful nonsecret diagnostics:
+
+```sh
+printf '%s\n' "$SSH_AUTH_SOCK"
+find -H "$XDG_RUNTIME_DIR/openssh_agent" -maxdepth 0 -printf '%u %m %y\n'
+ssh-add -l -E sha256
+ssh -G gitlab.com
+ssh -G github.com
+systemctl --user status ssh-agent.socket ssh-agent.service labwc-ssh-key-load.service
+journalctl --user -u labwc-ssh-key-load.service --since today
+```
+
+Run `ssh -T git@gitlab.com` and `ssh -T git@github.com` only when validating actual
+provider authorization. Judge the authentication banner and errors, not an
+assumption that a Git-only service provides an interactive shell or exits zero.
+Do not send private keys, passphrases or raw unreviewed debug logs for support.
+
+## 3. GitOps policy and aliases
+
+The root-owned engine is `/usr/local/bin/gitops`. Managed aliases are included
+from `/etc/gitops/aliases.gitconfig` by the user's `.config/git/config`; existing
+`.gitconfig` is not overwritten. An existing user/repository alias with the same
+name can override Git's alias resolution. Inspect `git config --show-origin
+--get-regexp '^alias\.mcr-'` when diagnosing overrides, or call `gitops` directly.
+
+Configure your real Git commit identity once if it is not already configured:
+`git config --global user.name 'Your name'` and
+`git config --global user.email 'your-verified-address@example.com'` (replace
+both placeholders). No provider email address is invented from the local login
+name. Authentication uses the SSH key; commit authorship is a separate setting.
+
+The live policy is `~/.config/gitops/gitops.env`, owned by the user, normally
+0600. It is read afresh for each invocation, as DATA, never sourced or evaluated.
+Both keys must be present exactly once:
+
+```text
+GITOPS_FORKS_MERGE_PROTECTED="AGENTS.override.md .gitlab-ci.yml .github/* debian/* local-settings/"
+GITOPS_SALSA_MERGE_PROTECTED="AGENTS.override.md .gitlab-ci.yml .github/* local-settings/"
+```
+
+This shortened example is not the complete shipped default. The installed
+lists also cover the reference workflow's CI/editor/build/release directories.
+The fork list protects `debian/*`; Salsa deliberately does not, allowing Debian
+packaging updates. Edit the two lists independently; `""` explicitly disables
+protection for that workflow. `gitops config` displays the parsed active lists.
+No environment or repository-local file can silently replace this policy.
+
+Bare names match components anywhere in the tree; `Makefile` therefore matches
+nested Makefiles too. Patterns containing `/` are repository-rooted. A literal
+folder, `folder/` or `folder/*` protects its subtree; rooted `*` spans slashes.
+`folder/*` also protects a file/symlink replacing `folder`. Normal fnmatch wildcards
+are supported, not Git pathspec magic or a shell. Absolute paths, `..`, `.git`
+components and executable shell substitutions are refused. Quote a name inside
+the quoted value when it contains spaces.
+
+### Protected-sync semantics
+
+This is explicit upstream TREE synchronization, not a generic three-way merge:
+all unprotected paths become the selected upstream snapshot; protected paths keep
+the local content AND local absence. Upstream additions to a locally absent
+protected path stay absent. Deletion, executable bits, symlinks and file/directory
+replacement collisions are handled at the Git tree level. Protect every local
+customization that must survive this operation before using `--apply`.
+
+A temporary index constructs the proposed tree; the ordinary index is untouched
+during preview. Successful application records parent ancestry and a recovery
+ref under `refs/gitops/backups/`, then fast-forwards the checked-out branch.
+Protected synchronization never runs `reset --hard`, force-pushes origin, or
+executes repository hooks. The separately opted-in mirror role described below
+can rewrite mirror refs, but only with explicit object-ID leases and recovery refs.
+Only `mcr/*` branches are writable sync targets. Dirty/staged/untracked changes,
+ignored-path collisions, sparse/skip-worktree/assume-unchanged state, active Git
+operations and submodules are refused for explicit manual review.
+
+Preview is the default for sync/cicd/update/verify-protected-sync. It normally
+fetches/prunes `origin` remote-tracking refs, but changes neither HEAD, worktree
+nor ordinary index. Use `--no-fetch` to use already-fetched refs offline. The
+local GitOps lock prevents overlapping GitOps operations, not a concurrently
+running independent editor or arbitrary Git process; final state is rechecked.
+
+Automatic upstream detection prefers the GitLab mirror namespace, then GitHub:
+`origin/gitlab/mcr/main`, corresponding local mirror refs, `main`/`master`
+variants, then the GitHub variants; finally `upstream/main` or `upstream/master`.
+Pass an explicit source revision to avoid ambiguity in multi-mirror repositories.
+
+```sh
+git mcr-branch-init          # add missing branches only; no switch or push
+git switch mcr/main
+gitops config
+git mcr-fork-sync origin/gitlab/mcr/main             # preview
+git mcr-fork-sync origin/gitlab/mcr/main --apply     # local protected sync
+# Salsa uses its own list:
+git mcr-salsa-sync origin/gitlab/mcr/main --no-fetch
+# Preview or apply mirror -> main -> staging -> release:
+git mcr-fork-cicd origin/gitlab/mcr/main
+git mcr-fork-cicd origin/gitlab/mcr/main --apply
+```
+
+### Complete managed command families
+
+| Aliases | Behavior |
+| --- | --- |
+| `mcr-branch-init`, `mcr-fork-init`, `mcr-salsa-init` | Create missing main/staging/release/feature-initial branches from optional revision or HEAD; preserve existing refs |
+| `mcr-branch-create NAME` | Create/switch a validated `mcr/*` branch |
+| `mcr-branch-delete NAME` | Delete a merged non-core local branch only |
+| `mcr-branch-show`, `mcr-repo-status` | Status, branches and remotes |
+| `mcr-repo-clone SSH-URL [DEST]` or `mcr-repo-clone <gh|glab> NAMESPACE REPO` | Clone an existing GitHub/GitLab repository through SSH |
+| `mcr-repo-mirror <gh|glab> NAMESPACE [--apply]` | Preview or configure a private, push-only promotion mirror on the other provider |
+| `mcr-repo-mirror <gh|glab> del [--apply]` | Preview or remove the local mirror remote; never delete a provider repository |
+| `mcr-repo-sync` | Non-force push of the current `mcr/*` branch to origin |
+| `mcr-branch-push` | Fast-forward promotion through main/staging/release, then atomic remote push |
+| `mcr-tag-create TAG`, `mcr-tag-push TAG` | Create annotated local tag, or explicitly push that tag |
+| `mcr-tag-delete TAG`, `mcr-tag-show` | Local tag deletion, or listing; no remote deletion |
+| `mcr-{fork,salsa}-sync [SOURCE]` | Preview/apply protected sync of the current `mcr/*` branch |
+| `mcr-{fork,salsa}-verify-protected-sync [SOURCE]` | Always preview; `--apply` does not turn verification into mutation |
+| `mcr-{fork,salsa}-cicd [SOURCE]` | Preview/apply protected mirror -> main -> staging -> release chain |
+| `mcr-{fork,salsa}-update [SOURCE]` | Same chain; on apply, also check an existing patch series on main |
+| `mcr-{fork,salsa}-push [SOURCE] --apply` | Apply chain/check existing patches, then atomic push of all three refs |
+| `mcr-{fork,salsa}-check`, `mcr-{fork,salsa}-test` | Check patch series applicability in a disposable index; no compilation/tests of application binaries |
+
+The chain preserves each branch's protected files and restores the initial
+checked-out branch. Promotion is NOT a multi-branch local rollback transaction:
+if a later step or remote push fails, earlier local commits can remain, with
+recovery refs and no force reset. Inspect status/history, resolve the specific
+problem, then rerun. The remote multi-ref push requests atomic behavior; a server
+that does not support it causes failure, not a non-atomic fallback.
+
+```sh
+git for-each-ref --format='%(refname) %(objectname)' refs/gitops/backups/
+# To inspect an earlier state without discarding work:
+git branch recovery-review refs/gitops/backups/REPLACE_WITH_RECORDED_REF
+```
+
+Patch checking reads `debian/patches/series` preferentially, or the existing
+`patches/release/series` convention. It accepts ordinary quilt names with an
+optional `-pN`, applies sequentially to a disposable index, and leaves the
+worktree unchanged. Unsupported options fail. A standalone check requires a
+series; chain update/push records when none exists rather than pretending a
+patch test ran. Remote project creation is confined to explicit mirror setup
+below. These commands do not generate age keys or start build pipelines.
+
+### Push-only GitHub / GitLab mirrors
+
+Prepare the three local promotion branches with `git mcr-branch-init`, then run
+as the desktop user with the provider CLI already authenticated:
+
+```sh
+# Example: origin is on GitLab, destination is a GitHub user or organization.
+git mcr-repo-mirror gh YOUR_NAMESPACE             # preview; no remote writes
+git mcr-repo-mirror gh YOUR_NAMESPACE --apply     # explicit destructive consent
+# Reverse direction, with a nested GitLab group:
+git mcr-repo-mirror glab YOUR_GROUP/SUBGROUP
+# Remove the LOCAL role only; the provider project and its data remain:
+git mcr-repo-mirror gh del --apply
+```
+
+Use only the example matching origin's provider; origin and mirror cannot have
+the same provider. The destination repository basename comes from origin's
+single canonical push URL. The named remote is `mirror-gh` or `mirror-glab`.
+An existing mirror with a different URL is refused instead of silently retargeted.
+Preview reports the proposed full ref IDs and deletions. `--apply` creates a
+missing project privately, or verifies and retains an existing project's
+visibility. Auth/API errors are not treated as evidence that a project is
+missing. Namespace, repository identity, and provider host are checked.
+GitHub organizations and the authenticated user's namespace are supported;
+GitLab supports owned user namespaces and nested groups with write access.
+
+Configuration makes the remote's default branch `mcr/main`, and leaves exactly
+`mcr/main`, `mcr/staging`, and `mcr/release` as its branches with no tags.
+**Applying setup to an existing repository can rewrite branches and delete all
+other remote branches and tags.** Read the preview first. Local tags, feature
+branches, origin refs/refspecs, and origin's default branch are not removed or
+retargeted. This does not create a conventional all-refs `git --mirror` backup.
+
+Before changing existing remote refs, their objects are fetched into unique
+local `refs/gitops/mirror-backups/...` recovery refs and their identities checked.
+Pushes use pinned source object IDs, a per-ref `--force-with-lease` expectation,
+and `--atomic`; there is no plain `--force` or non-atomic fallback. A concurrent
+remote change fails instead of overwriting unreviewed work. Provider protection
+rules remain in force: the tool does not unprotect branches to force success.
+Recovery refs remain local; retain the local repository when investigating a
+failure. Inspect them with:
+
+```sh
+git for-each-ref --format='%(refname) %(objectname)' refs/gitops/mirror-backups/
+```
+
+Setting the provider default branch and bootstrapping that branch necessarily
+precede deleting an old default branch. These API operations and later Git
+pushes **are not one transaction**. Failed setup can leave a private project or
+an updated default branch; the error explicitly requires inspection before retry.
+Local mirror configuration is published only after remote ref verification.
+Repeated successful setup preserves the same local configuration.
+
+Successful origin branch-push workflows (`mcr-repo-sync`, `mcr-branch-push`,
+and `mcr-{fork,salsa}-push`) subsequently send the three promotion tips to
+configured mirrors. They never send local tags or feature/upstream branches to
+mirrors. Explicit tag-push aliases still target origin only. A mirror failure
+makes the command fail, but an already successful origin push cannot be rolled
+back across providers. The output states this partial outcome. Setup normalization
+prunes remote extras; ordinary subsequent branch updates leave unrelated tags
+untouched until setup is explicitly reapplied.
+
+### Terminal reports and exact commit identities
+
+All managed aliases print their invocation and outcome. Repository commands
+print before/after state, full changed-ref IDs, and detailed commit information;
+Git's successful stdout and stderr are retained for mutating/network commands.
+Output includes operation start/completion, branch/ref changes, repository object
+format, full native commit ID, tree, parents, author/date, and subject where a
+commit exists. There is no invented commit identity for an unborn repository.
+Output is captured per subprocess, not promised as byte-by-byte live progress.
+Control characters are escaped and URL user-info is redacted in reports.
+
+The extra `SHA256(stored commit object)` value is calculated as:
+
+```text
+SHA256(b"commit " + ASCII(decimal_payload_length) + b"\0" + raw_commit_payload)
+```
+
+It fingerprints the complete canonical stored commit object. In a SHA-1-format
+repository the native commit ID is still SHA-1; the fingerprint does NOT claim
+to convert that repository or its embedded tree/parent IDs into Git's SHA-256
+object format. In a native SHA-256 repository the fingerprint matches its native
+commit ID. Both formats are covered by the offline fixtures. Failures return
+nonzero and print the state to inspect rather than a success message.
+
+## 4. Codex home
+
+All desktop profiles use:
+
+```text
+DEVOPS_CODEX_REPOSITORY_URL=git@gitlab.com:computes/misc/codex-home.git
+DEVOPS_CODEX_REPOSITORY_BRANCH=mcr/main
+```
+
+There is no `DEVOPS_CODEX_REPOSITORY_COMMIT` input. The private installer agent
+performs a full-history, single-branch SSH clone and proves the symbolic branch
+is `mcr/main` tracking `origin/mcr/main`. The main `.git/HEAD`, repository history
+and branch tracking are retained in `/data/codex/home`; no detached checkout or
+SHA pin is used. The pre-existing isolated `memories/.git` guard is unrelated to
+the main repository's `.git/HEAD` and remains in place.
+
+The existing Codex binary/version/archive verification, publication checks,
+ownership and runtime sandbox layout remain. Moving-branch deployment is
+intentionally not byte-for-byte reproducible across different upstream commits.
+The existing-state validator still refuses unexpected immutable home content
+rather than silently destroying a used Codex home during an installer rerun.
+No automatic login-time pull/reset is introduced.
+
+The host can use SSH for provisioning and GitOps, but the Codex wrapper continues
+to strip `SSH_AUTH_SOCK` and `SSH_AGENT_PID`. This change does not grant the Codex
+sandbox access to the desktop signing agent or the user's managed SSH/GPG files.
+
+## 5. debugsys
+
+Run `debugsys` from a terminal. The wrapper enters `sudo -i` and executes the
+root-owned collector with isolated Python startup and a controlled environment.
+No new Perl/Moo dependency or compilation is needed for these new components.
+Python's standard library and small POSIX/initramfs shell helpers are used.
+
+The multi-select menu accepts numbers, commas, spaces and ranges such as `1,6-9`.
+Selections are shown before execution; overlapping report categories are deduped.
+
+| Entry | Purpose |
+| --- | --- |
+| 1 | Hardware inventory and potential tuning review |
+| 2 | System health, services and boot debugging |
+| 3 | Prepare next-boot initramfs capture and rebuild all images |
+| 4 | Boot timeline and captured early-boot evidence |
+| 5 | Remove managed initramfs hooks and rebuild all images |
+| 6 | Labwc, graphics, audio and desktop-session evidence |
+| 7 | AppArmor, process isolation and security state |
+| 8 | Storage, memory pressure and device health |
+| 9 | Network, drivers and connectivity state |
+| 10 | SSH/GPG/Git integration metadata, not secret contents |
+| 11 | Comprehensive overview plus ALL read-only categories |
+| 12 | Capture status and existing report locations |
+| 0 | Exit |
+
+Entry 11 NEVER arms/rebuilds/removes boot hooks. Selecting both 3 and 5 is
+rejected. Boot-changing actions require typing `ARM` or `REMOVE`, or the explicit
+CLI `--yes`. There is no automatic reboot or hardware tuning.
+
+```sh
+debugsys report                                    # all read-only categories
+debugsys report --categories hardware storage
+debugsys report --categories desktop security credentials
+debugsys status
+debugsys boot-enable --yes                         # explicit boot change
+# Reboot normally only after success; inspect the generated report after boot.
+debugsys boot-disable --yes                        # explicit removal/rebuild
+```
+
+### Evidence and overview
+
+Reports are under `__INSTALLER_LOG_DEBUGSYS_DIR__/UTC-report-ID/`, root-only directories 0700
+and files 0600. Each contains `OVERVIEW.md`, `TUNING.md`, `manifest.json` and an
+`evidence/` directory. The overview links evidence and highlights inventory,
+CPU/power policy, memory/storage/pressure, kernel/service problems, desktop,
+security and networking. Tuning notes are evidence-linked review prompts, NOT
+benchmarks or claims that a setting should be changed on every machine.
+
+Collection covers CPU topology/cpufreq/cpuidle, DMI and firmware, PCIe/AER,
+USB/runtime power, thermal sensors/battery, vulnerabilities, GPU/DRM/backlight,
+audio/session services, systemd/journals, process names/namespaces/hardening,
+block topology/filesystems/SMART/NVMe, zram/zswap/THP/NUMA/PSI, network routes,
+listeners, DNS and NIC driver/offload settings. A subset of commands runs as the
+identified desktop user with a validated runtime bus/socket; root orchestrates
+and reads system evidence. Missing hardware, optional programs, a missing desktop
+session, denied reads, timeouts, output truncation and limits are recorded, not
+reported as successful checks.
+
+Commands have bounded time/output and process-group cleanup. Defaults: 2 MiB
+per command, 256 KiB per file, 96 MiB total evidence, 4096 file candidates per
+category, 15-minute report scheduling budget; automatic boot reports have a
+3-minute budget. New reports require 224 MiB free report-filesystem space. These
+limits are not an assurance against a kernel device stuck in uninterruptible
+I/O; later probes may be skipped. Kernel/proc/sysfs evidence is read-only. SMART
+queries avoid intentionally waking a standby disk. No stress tests, writes to
+tuning knobs, module reloads, firmware updates or packet captures occur.
+
+The manifest records command/source, outcome, byte count and SHA-256 for each
+evidence file. Common credential assignments, bearer/authorization fields,
+URL credentials, PEM private-key blocks and terminal control sequences are
+redacted where recognized. This is best-effort: logs can contain secrets in
+unrecognized formats, hostnames, serials, MAC/IP addresses and user activity.
+Review before copying/sharing. The collector never opens private-key bodies,
+GPG secret material, `/preseed.env` or `/proc/*/environ`, and never decrypts GPG.
+There is no automatic upload or deletion of old reports; manage retention
+explicitly, especially while boot capture is enabled.
+
+### Early-boot capture and rollback
+
+Inactive templates are shipped by default. Arming installs ONLY these managed
+paths and sets `/var/lib/debugsys/armed`:
+
+```
+/etc/initramfs-tools/hooks/debugsys
+/etc/initramfs-tools/scripts/init-top/debugsys
+/etc/initramfs-tools/scripts/init-premount/debugsys
+/etc/initramfs-tools/scripts/local-top/debugsys
+/etc/initramfs-tools/scripts/local-premount/debugsys
+/etc/initramfs-tools/scripts/local-bottom/debugsys
+/etc/initramfs-tools/scripts/init-bottom/debugsys
+```
+
+Both enable and removal run exactly `update-initramfs -u -k all`, then use Debian
+`linux-version list` to inspect EVERY existing installed-kernel image in `/boot`
+with `lsinitramfs` for the expected presence
+or absence of the helper and six scripts. Backup/orphan rescue images, which
+`update-initramfs -u -k all` does not update, are retained and listed in the
+transaction record. Booting an old rescue image may still run its old hooks.
+Only files with the managed marker are
+replaced/deleted; an administrator's unrelated hook is never overwritten.
+
+Each phase attempts a bounded snapshot in `/run/initramfs/debugsys`. The enabled
+`debugsys-boot-report.service` consolidates it once per boot ID into a root-only
+report after real-root startup. Capture persists across boots until explicitly
+removed. The scripts do not enable shell tracing or collect raw key files.
+They are best-effort and must not stop normal boot on an ordinary probe failure.
+
+This is not a capture of firmware, the bootloader or every kernel event before
+initramfs starts. A crash before writable `/run`, a failure before switching
+root, or reboot after failure can prevent automatic persistence. In an initramfs
+rescue shell, preserve `/run/initramfs/debugsys` manually to trusted private
+media when available; do not assume the post-boot collector has run.
+
+Before each hook transaction, root-only before-images, paths/modes and rebuild
+logs are recorded under `/var/lib/debugsys/transaction-UTC-ID/`. On failure or a
+catchable interruption the previous hooks are restored, ALL images rebuilt
+again and rollback contents verified. If rollback is incomplete, the command
+explicitly says not to reboot. Use the transaction's `before.json`, saved files
+and logs to restore ONLY those exact paths; then rerun `update-initramfs -u -k all`
+and inspect every image. Do not blindly run unreviewed shell code from a report.
+A power loss or SIGKILL cannot be transactionally caught; retain a known-good
+boot/rescue path and verify images before rebooting after an interrupted change.
+
+Removing hooks also disables future consolidation but retains past reports and
+recovery records. Evidence already present in the current boot's `/run` remains
+until reboot; it is not a sign that rebuilt future images still contain hooks.
+
+## 6. Deployment acceptance (real target required)
+
+Use a disposable machine/VM before fleet rollout. Verify both btrfs and f2fs late
+integration as relevant to the deployment. A successful static parser is not an
+AppArmor enforce-mode, SSH-server, installed-package or reboot test.
+
+Check a cold/warm/cancelled GPG unlock, fingerprint consistency, retry via
+`devops`, exact socket ownership/mode, normal terminal Git operations and agent
+termination at Labwc logout. Confirm SSH effective configuration on both hosts
+and real repository authorization. Ensure the main Codex checkout has symbolic
+`mcr/main`, the expected origin and upstream, and the sandbox has no agent socket
+capability. Exercise protected sync on a disposable remote before production.
+
+On the target, inspect loader-related AppArmor denials and validate the narrowly
+scoped policy in enforce mode. Do not add blanket home/filesystem/network rules
+to suppress errors. New package/library/pinentry behavior can require narrowly
+justified policy changes. Existing developer-tool permissions are not broadened
+by this integration.
+
+Finally, arm initramfs capture, verify all images, boot, read the combined report,
+remove the hooks, verify all images again and boot once more. Check that unrelated
+hooks and reports survive. Never treat mocked hook tests as proof of bootability.
+
+## 7. Design references
+
+The supplied *Managed Git SSH Agent Integration Research Report* provided the
+SSH/GPG separation and Labwc lifecycle blueprint. Its example `/git-ssh/...`
+paths were replaced with the requested root-initrd paths. The supplied GitOps
+and Debian hardware archives informed alias families, protection defaults and
+inventory coverage; neither was installed wholesale.
+
+Primary references checked for implementation semantics and host keys:
+
+- OpenSSH client configuration: https://manpages.debian.org/testing/openssh-client/ssh_config.5.en.html
+- OpenSSH add/agent behavior: https://manpages.debian.org/testing/openssh-client/ssh-add.1.en.html
+- GnuPG cache/pinentry policy: https://www.gnupg.org/documentation/manuals/gnupg/Agent-Options.html
+- GitHub official host keys: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
+- GitLab official host keys: https://gitlab.com/help/instance_configuration#ssh-host-keys-fingerprints
+- Debian initramfs hooks and phases: https://manpages.debian.org/testing/initramfs-tools-core/initramfs-tools.7.en.html
+- Linux CPUFreq policy evidence: https://www.kernel.org/doc/html/latest/admin-guide/pm/cpufreq.html
+- Linux pressure stall information: https://docs.kernel.org/accounting/psi.html
+
+The vendor ssh-agent unit layout follows the supplied blueprint and is checked
+against the ACTUAL installed package at staging time; no package binary is built
+or vendored by this change. `tools/build.py` regenerates repository archives,
+metadata and preseed hashes; it does not compile application software.
+
+
+## 8. Lifecycle review follow-up (14 September 2026)
+
+`git-ssh unlock` now proves the managed key can sign after starting the loader;
+a skipped session condition is not success. `git-ssh lock` still works when
+key files are missing or corrupted. The agent remains gated by the active
+Labwc target/compositor. Private credential directories must be mode 0700.
+
+GitOps TERM/HUP cancellation cleans independent Git/SSH child process groups.
+Use canonical policy paths without `./`, `//` or dot components. A rooted
+directory glob such as `vendor/*.keep/` protects every matching subtree and
+locally absent matching paths. Cancellation is not a guarantee against abrupt
+SIGKILL/power loss; inspect status and the printed recovery reference.
+
+`debugsys report --categories security credentials` now includes unit
+PID/user namespace, cgroup and agent lifetime metadata in its overview, without
+reading service environments or decrypting a key. The root-filesystem probe
+shares the overall collection budget. Hook enable/remove behavior is unchanged.
+
+Only the system Bluetooth controller initializer, NVIDIA character-link helper
+and the two zram maintenance/PSI services receive `PrivatePIDs=yes`; they retain
+`PrivateUsers=no`. Power handoff, forking lock, host diagnostics, tmpfs pre-clean,
+SSH agent and key loader are explicitly excluded. This requires systemd 257+ and
+kernel/manager namespace support, and still needs live target acceptance.
+See the repository's `docs/LIFECYCLE-ISOLATION-REVIEW-20260914.md` and
+`docs/validation-lifecycle-20260914/` for selection reasons and actual test results.
+
+## Installer recipient selection (2026-09-15 correction)
+
+The primary account's GnuPG home is intentionally shared with the imported
+Aptly signing identity. It must not be treated as a one-key keyring. Desktop
+bootstrap validates its own primary fingerprint and passes that exact full
+fingerprint to the installer-only `seal --gpg-fingerprint` action through a
+root-private temporary staging record. The record and bootstrap passphrase
+are removed on completion or failure; no runtime recipient file is needed.
+
+Sealing scopes public and secret listings to this primary, checks ultimate
+owner trust and usable encryption capability, and selects a locally available
+encryption subkey belonging to it. Signing-only or unrelated encryption keys
+can coexist; they are not modified, deleted, or selected as fallback recipients.
+A revoked, expired, disabled, missing or unusable managed identity still fails
+closed. The temporary account GPG agent is stopped after installer operations.
+The desktop loader decrypts the resulting OpenPGP ciphertext normally: its
+runtime command, GPG prompt, SSH-agent lifetime and AppArmor boundaries are
+unchanged. Never delete the Aptly key to work around an installer validation
+error, and never remove protection from either private key.

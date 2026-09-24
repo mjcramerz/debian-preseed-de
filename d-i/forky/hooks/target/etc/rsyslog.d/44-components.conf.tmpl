@@ -1,0 +1,245 @@
+# Managed native journal/syslog output, one protected destination per component.
+# There are no file-tail inputs or category-wide runtime output files.
+# Routing hints can only select validated constants, never construct filenames.
+# Trusted journal origin fields remain in each escaped JSON record.
+# Native daemon logs have one owner and are not written by this action.
+template(name="ManagedComponentJSON" type="list" option.caseSensitive="on") {
+  constant(value="{")
+  property(name="timereported" outname="timestamp" format="jsonf" dateFormat="rfc3339")
+  constant(value=",")
+  property(name="hostname" outname="host" format="jsonf")
+  constant(value=",")
+  property(name="programname" outname="program" format="jsonf")
+  constant(value=",")
+  property(name="procid" outname="pid" format="jsonf")
+  constant(value=",")
+  property(name="syslogseverity-text" outname="severity" format="jsonf")
+  constant(value=",")
+  property(name="inputname" outname="input" format="jsonf")
+  constant(value=",")
+  property(name="$!_UID" outname="uid" format="jsonf")
+  constant(value=",")
+  property(name="$!_SYSTEMD_UNIT" outname="system_unit" format="jsonf")
+  constant(value=",")
+  property(name="$!_SYSTEMD_USER_UNIT" outname="user_unit" format="jsonf")
+  constant(value=",")
+  property(name="$!_TRANSPORT" outname="transport" format="jsonf")
+  constant(value=",")
+  property(name="msg" outname="message" format="jsonf")
+  constant(value="}\n")
+}
+
+
+template(name="ManagedComponentPath" type="list") {
+  property(name="$.managed_logfile")
+}
+
+if ($.managed_security_routed != "on") then {
+  set $.managed_identity = tolower($programname & " " & $!_SYSTEMD_UNIT & " " & $!_SYSTEMD_USER_UNIT);
+  if ($inputname == "imjournal" and ($!_EXE == "/usr/lib/systemd/systemd" or $!_EXE == "/lib/systemd/systemd")) then {
+    set $.managed_identity = $.managed_identity & " " & tolower($!UNIT & " " & $!USER_UNIT);
+  }
+  if ($programname == "labwc-app") then {
+    set $.managed_identity = $.managed_identity & " " & re_extract(tolower($msg), "(^| )application=([a-z0-9-]+)( |$)", 0, 2, "");
+  }
+  if (($programname == "labwc-fuzzel-menu" or $programname == "labwc-fuzzel-action") and $msg contains "source=android-debug-bridge") then {
+    set $.managed_identity = $.managed_identity & " adb";
+  }
+  set $.managed_logfile = "__INSTALLER_LOG_SYSTEM_SERVICES_FILE__";
+  if ($inputname == "imklog" or ($inputname == "imjournal" and $!_TRANSPORT == "kernel")) then {
+    set $.managed_logfile = "__INSTALLER_LOG_KERNEL_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(sshd|sudo|su|pam|login)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_AUTH_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(apparmor|aa-notify)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_APPARMOR_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(auditd|audisp-syslog)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_AUDIT_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(chkrootkit)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CHKROOTKIT_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(clamav|clamd|freshclam|fangfrisch)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CLAMAV_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(clamscan)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CLAMSCAN_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(debsecan)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_DEBSECAN_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(debsums)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_DEBSUMS_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(fail2ban)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FAIL2BAN_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(lynis)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LYNIS_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(rkhunter)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_RKHUNTER_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(spectre-meltdown|spectre-meltdown-checker)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SPECTRE_MELTDOWN_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(crowdsec|crowdsec-firewall-bouncer)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CROWDSEC_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(nftables|nft)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_NFTABLES_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(polkitd|polkit)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_POLKIT_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(adb|android-debug-bridge)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_ADB_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(chatgpt|openai-chatgpt)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CHATGPT_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(codex)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CODEX_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(llama|llama-server)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LLAMA_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(whisper)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_WHISPER_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(ollama)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_OLLAMA_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(vllm)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_VLLM_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(thunar)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_THUNAR_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(waybar)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_WAYBAR_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(crystal-dock)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CRYSTAL_DOCK_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(satty)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SATTY_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(wayscriber)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_WAYSCRIBER_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(gtkgreet)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_GTKGREET_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(greetd)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_GREETD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(tomat)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TOMAT_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(taskview)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TASKVIEW_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(waypaper)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_WAYPAPER_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(swaybg)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SWAYBG_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(swaylock)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SWAYLOCK_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(fuzzel)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FUZZEL_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(mako)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_MAKO_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(swayidle)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SWAYIDLE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(wl-clip-persist|wl-paste|cliphist)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CLIPBOARD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(kanshi)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_KANSHI_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(wlr-randr)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_OUTPUTS_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(networkmanager|networkd|resolved|wpa_supplicant|iwd|dhclient|dhcpcd|tailscale|tailscaled)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_NETWORK_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(udevd|udisksd|udisks2)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_USB_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(bluetoothd|bluetooth)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_BLUETOOTH_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(pipewire|wireplumber|pulseaudio|rtkit-daemon)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_AUDIO_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(fwupd)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FWUPD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(mullvad-daemon)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_MULLVAD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(zram|zswap)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_ZRAM_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(timeshift)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TIMESHIFT_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(thermald|power-profiles-daemon|upowerd|upower)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CPU_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(nvidia-persistenced|nvidia-powerd|nvidia-vram-check)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_GPU_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(smartd|fstrim)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_STORAGE_SERVICE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(tuta|tutanota)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TUTA_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(bitwarden)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_BITWARDEN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(keepassxc)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_KEEPASSXC_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(sleek)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SLEEK_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(featherpad)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FEATHERPAD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(spotify)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SPOTIFY_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(mpv)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_MPV_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(focuswriter)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FOCUSWRITER_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(gnumeric)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_GNUMERIC_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(chromium)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CHROMIUM_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(google-chrome|chrome)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_CHROME_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(microsoft-edge|edge)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_EDGE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(brave)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_BRAVE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(vivaldi)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_VIVALDI_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(librewolf)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LIBREWOLF_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(floorp)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FLOORP_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(zen)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_ZEN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(tor-browser)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TOR_BROWSER_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(browser)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_BROWSERS_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(obsidian)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_OBSIDIAN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(vscode|code)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_VSCODE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(vscodium|codium)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_VSCODIUM_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(filen)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_FILEN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(qoredb)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_QOREDB_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(retroarch)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_RETROARCH_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(sqlitebrowser)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SQLITEBROWSER_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(zoom)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_ZOOM_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(discord)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_DISCORD_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(wallet|labwc-wallet)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LABWC_WALLET_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(liferea)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LIFEREA_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(telegram|telegram-desktop)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_TELEGRAM_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(mullvad-vpn)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_MULLVAD_VPN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(postman)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_POSTMAN_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(ledger-live)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LEDGER_LIVE_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(qbittorrent)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_QBITTORRENT_FILE__";
+  } else if ($programname == "labwc-app" or re_match($.managed_identity, "(^|[ /-])labwc-(wayland|electron)-")) then {
+    set $.managed_logfile = "__INSTALLER_LOG_APPLICATIONS_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(labwc)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LABWC_FILE__";
+  } else if re_match($.managed_identity, "(^|[ /-])(systemd)([.@ /-]|$)") then {
+    set $.managed_logfile = "__INSTALLER_LOG_SYSTEMD_FILE__";
+  } else if ($programname == "labwc-app") then {
+    set $.managed_logfile = "__INSTALLER_LOG_APPLICATIONS_FILE__";
+  } else if ($!_SYSTEMD_USER_UNIT != "" or $!_SYSTEMD_UNIT startswith "user@" or $!_SYSTEMD_UNIT startswith "session-") then {
+    set $.managed_logfile = "__INSTALLER_LOG_LAUNCHER_FILE__";
+  }
+  action(name="managed_component_output" type="omfile"
+         dynaFile="ManagedComponentPath" template="ManagedComponentJSON"
+         dynaFileCacheSize="128" fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="__INSTALLER_LOG_GROUP__"
+         fileCreateMode="__INSTALLER_LOG_FILE_MODE__" dirOwner="__INSTALLER_LOG_OWNER__" dirGroup="__INSTALLER_LOG_GROUP__"
+         dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__" createDirs="off"
+         action.resumeRetryCount="-1" action.resumeInterval="__INSTALLER_LOG_RSYSLOG_RESUME_SECONDS__"
+         queue.type="LinkedList" queue.filename="components"
+         queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.highWatermark="__INSTALLER_LOG_RSYSLOG_QUEUE_HIGH__"
+         queue.lowWatermark="__INSTALLER_LOG_RSYSLOG_QUEUE_LOW__" queue.maxDiskSpace="__INSTALLER_LOG_RSYSLOG_QUEUE_DISK_MIB__m"
+         queue.maxFileSize="__INSTALLER_LOG_RSYSLOG_QUEUE_SEGMENT_MIB__m" queue.saveOnShutdown="on")
+  set $.managed_security_routed = "on";
+}

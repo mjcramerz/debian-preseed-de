@@ -4,6 +4,8 @@ No writes to real sysfs, production services or driver state. The optional bus
 integration fixture runs on an isolated dbus-daemon, not the host system bus.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_text as payload_read_text
 
 import asyncio
 import contextlib
@@ -77,7 +79,7 @@ class TransactionTests(unittest.TestCase):
         tx = self.transaction(settings)
         tx.apply('high', settings)
         def before(key, value):
-            saved = json.loads(self.path.read_text())
+            saved = json.loads(payload_read_text(self.path))
             self.assertTrue(saved['entries'][0]['pending'])
             raise KeyboardInterrupt('simulated interrupted recovery')
         self.backend.before_write = before
@@ -158,7 +160,7 @@ class IntelSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(base.common.TuningError, 'one policy owner'):
                 tx.apply('silent', settings)
         self.assertEqual(next(iter(hardware.knobs.values())).read(), 100)
-        self.assertFalse(tx.path.exists())
+        self.assertFalse(payload_source_exists(tx.path))
 
     def test_unknown_policy_bus_fails_closed(self):
         hardware = self.hardware()
@@ -256,7 +258,7 @@ class IntelSafetyTests(unittest.TestCase):
         self.assertTrue(report['read_only'])
         self.assertNotIn('private-serial', json.dumps(report))
         self.assertEqual(report['thunderbolt']['domain0']['iommu_dma_protection'], '1')
-        self.assertEqual(power.read_text(), 'auto\n')
+        self.assertEqual(payload_read_text(power), 'auto\n')
 
 
 class NvidiaCostTests(unittest.TestCase):
@@ -362,7 +364,7 @@ class PolicyAndPowerTests(unittest.TestCase):
         with base.private_temp() as temporary:
             root = Path(temporary)
             with self.assertRaisesRegex(ValueError, 'unknown common'):
-                base.installer.install(root, 1000, 1000, env, ['intel'])
+                base.installer.install(root, 1000, 1000, env, ['intel'], base.FORKY / "hooks/target")
             self.assertEqual(list(root.iterdir()), [])
 
     def test_sleep_with_safe_historical_fault_succeeds_but_pending_recovery_fails(self):
@@ -395,8 +397,8 @@ class SystemBusIntegrationTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.binary = self.root / 'bus-peer'
         command = ['cc', '-Wall', '-Wextra', '-Werror', str(base.FORKY / 'tests/fixtures/hardware-policy-bus.c'), '-Wl,-l:libsystemd.so.0', '-o', str(self.binary)]
-        subprocess.run(command, check=True, capture_output=True, timeout=20)
-        self.daemon = subprocess.Popen(['dbus-daemon', '--session', '--nofork', '--print-address=1', '--address=unix:path=' + str(self.root / 'bus')], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(payload_installed_argv(command), check=True, capture_output=True, timeout=20)
+        self.daemon = subprocess.Popen(payload_installed_argv(['dbus-daemon', '--session', '--nofork', '--print-address=1', '--address=unix:path=' + str(self.root / 'bus')]), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.close, self.daemon)
         self.assertTrue(select.select([self.daemon.stdout], [], [], 5)[0], 'private bus startup timeout')
         address = self.daemon.stdout.readline().strip()
@@ -415,12 +417,12 @@ class SystemBusIntegrationTests(unittest.TestCase):
         process.stderr.close()
 
     def query(self, state):
-        peer = subprocess.Popen([str(self.binary), state], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        peer = subprocess.Popen(payload_installed_argv([str(self.binary), state]), env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.close, peer)
         self.assertTrue(select.select([peer.stdout], [], [], 5)[0], 'private service startup timeout')
         self.assertEqual(peer.stdout.readline().strip(), 'ready')
         code = 'import sys,json; sys.path.insert(0, sys.argv[1]); import system_state; print(json.dumps(system_state.power_managers()))'
-        return subprocess.run([sys.executable, '-B', '-c', code, str(base.LIB)], env=self.env, capture_output=True, text=True, timeout=5)
+        return subprocess.run(payload_installed_argv([sys.executable, '-B', '-c', code, str(base.LIB)]), env=self.env, capture_output=True, text=True, timeout=5)
 
     def test_real_typed_properties_path_encoding_and_missing_unit(self):
         result = self.query('active')

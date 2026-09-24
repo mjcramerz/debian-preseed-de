@@ -1,0 +1,57 @@
+[Unit]
+Description=Hardware tuning lifecycle broker (no direct hardware access)
+Requires=hardware-tuning.socket apparmor.service
+After=hardware-tuning.socket apparmor.service systemd-logind.service systemd-modules-load.service
+Wants=systemd-logind.service
+StartLimitIntervalSec=120s
+StartLimitBurst=3
+
+[Service]
+Type=exec
+ExecStart=/usr/local/libexec/hardware-tuningd
+ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all
+ExecStopPost=/usr/local/libexec/hardware-tuning-policy recover
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=150s
+KillMode=control-group
+Slice=system.slice
+RuntimeDirectory=hardware-tuning
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+UMask=0077
+# Executable attachment selects broker for ExecStart and worker for ExecStopPost.
+# A unit-wide AppArmorProfile would incorrectly confine recovery as the broker.
+# The broker entrypoint refuses to run unless its enforced profile is attached.
+# Intentional: the root-only worker must transition into its DIFFERENT,
+# hardware-capable AppArmor domain. It sets NNP itself immediately after exec.
+# The broker can execute only the fixed hardware and policy helpers, never a shell.
+# The policy helper cannot write hardware; the hardware worker cannot manage units.
+NoNewPrivileges=no
+PrivateUsers=no
+PrivatePIDs=no
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=no
+ReadOnlyPaths=/proc/sys /sys/kernel /sys/module
+ReadWritePaths=/run/hardware-tuning /sys/devices
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+TasksMax=32
+LimitNOFILE=256
+CapabilityBoundingSet=__INSTALLER_HARDWARE_CAPABILITIES__
+AmbientCapabilities=
+PrivateDevices=__INSTALLER_HARDWARE_PRIVATE_DEVICES__
+DevicePolicy=__INSTALLER_HARDWARE_DEVICE_POLICY__
+DeviceAllow=__INSTALLER_HARDWARE_DEVICE_ALLOW__

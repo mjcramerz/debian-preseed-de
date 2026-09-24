@@ -5,7 +5,6 @@ Description=Apply Kanshi output profiles for the Labwc session
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 ConditionEnvironment=WAYLAND_DISPLAY
 ConditionEnvironment=XDG_SESSION_TYPE=wayland
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target labwc-output-watch.service
 ConditionPathExists=%h/.config/kanshi/config
 Requisite=labwc-session.target

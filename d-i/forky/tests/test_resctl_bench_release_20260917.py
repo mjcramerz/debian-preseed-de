@@ -5,6 +5,8 @@ The --version/noexec regressions in the existing suite retain their real ELF
 fixtures and credential dropping. Tests do not weaken the integrity policy.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import contextlib
 import hashlib
@@ -42,7 +44,7 @@ def load_checker():
     path = ROOT / 'tools/check_resctl_bench.py'
     module = types.ModuleType('resctl_profile_checker')
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -116,7 +118,7 @@ class BuildIdPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'archive.tar.gz'
             path.write_bytes(b'wrong release response')
-            observed = hashlib.sha256(path.read_bytes()).hexdigest()
+            observed = hashlib.sha256(payload_read_bytes(path)).hexdigest()
             with mock.patch.object(self.installer.subprocess, 'run'), self.assertRaises(self.installer.Error) as caught:
                 self.installer.download(base.arguments(), path)
             message = str(caught.exception)
@@ -151,7 +153,7 @@ class BuildIdPolicyTests(unittest.TestCase):
             work = Path(temporary)
             path = work / 'release.tar.gz'
             base.archive(path, root=ASSET_ROOT)
-            args = base.arguments(sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            args = base.arguments(sha256=hashlib.sha256(payload_read_bytes(path)).hexdigest())
             self.installer.policy(args)
             with mock.patch.object(self.installer.subprocess, 'run'):
                 self.installer.download(args, path)
@@ -172,7 +174,7 @@ class ProfilePreflightTests(unittest.TestCase):
         self.profiles.mkdir(parents=True)
         helper = self.seed / 'scripts/desktop/resctl-bench-install.py'
         helper.parent.mkdir(parents=True)
-        shutil.copyfile(base.SEED / 'scripts/desktop/resctl-bench-install.py', helper)
+        payload_copyfile(base.SEED / 'scripts/desktop/resctl-bench-install.py', helper)
         self.profile = self.profiles / 'a.env'
         self.profile.write_text(pin_text())
 
@@ -181,7 +183,7 @@ class ProfilePreflightTests(unittest.TestCase):
         self.assertEqual(self.checker.check(), 10)
 
     def test_current_profile_provenance_matches_the_recorded_profiles(self):
-        ledger = json.loads((ROOT / 'docs/migration-map.json').read_text())
+        ledger = json.loads(payload_read_text(ROOT / 'd-i/forky/tests/fixtures/contracts/profile-provenance.json'))
         records = {item['destination']: item for item in ledger['files']
                    if item['destination'].startswith('d-i/forky/hosts/profiles/')}
         profiles = sorted((base.SEED / 'hosts/profiles').glob('*.env'))
@@ -189,7 +191,7 @@ class ProfilePreflightTests(unittest.TestCase):
         for path in profiles:
             with self.subTest(profile=path.name):
                 record = records[str(path.relative_to(ROOT))]
-                self.assertEqual(record['current_sha256'], hashlib.sha256(path.read_bytes()).hexdigest())
+                self.assertEqual(record['current_sha256'], hashlib.sha256(payload_read_bytes(path)).hexdigest())
                 self.assertRegex(record['source_sha256'], r'^[0-9a-f]{64}$')
                 self.assertRegex(record['destination_sha256'], r'^[0-9a-f]{64}$')
 
@@ -250,7 +252,7 @@ class ProfilePreflightTests(unittest.TestCase):
             self.profile.write_text(pin_text(SHA256=expression))
             with self.subTest(expression=expression), self.assertRaisesRegex(ValueError, 'literal'):
                 self.checker.check(self.seed)
-        self.assertFalse(marker.exists())
+        self.assertFalse(payload_source_exists(marker))
 
     def test_unknown_keys_and_nondecimal_or_oversized_bounds_are_rejected(self):
         self.profile.write_text(pin_text() + 'RESCTL_BENCH_IGNORE_CHECKSUM="true"\n')
@@ -265,7 +267,7 @@ class ProfilePreflightTests(unittest.TestCase):
         tools = self.root / 'tools'
         tools.mkdir()
         for name in ('build.py', 'check_resctl_bench.py'):
-            shutil.copyfile(ROOT / 'tools' / name, tools / name)
+            payload_copyfile(ROOT / 'tools' / name, tools / name)
         products = ('preseed.cfg', 'payload.tar.gz', 'payload.manifest')
         for name in products:
             (self.seed / name).write_bytes(b'untouched release sentinel\n')
@@ -276,12 +278,12 @@ class ProfilePreflightTests(unittest.TestCase):
                 (self.profiles / 'b.env').write_text(pin_text(SHA256='not-a-sha256'))
             for flag in ([], ['--check']):
                 with self.subTest(kind=kind, flag=flag):
-                    result = subprocess.run([sys.executable, '-I', '-B', str(tools / 'build.py'), *flag],
+                    result = subprocess.run(payload_installed_argv([sys.executable, '-I', '-B', str(tools / 'build.py'), *flag]),
                                             cwd='/', text=True, capture_output=True, timeout=30)
                     self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                     self.assertIn('resctl-bench preflight:', result.stderr)
                     for name in products:
-                        self.assertEqual((self.seed / name).read_bytes(), b'untouched release sentinel\n')
+                        self.assertEqual(payload_read_bytes(self.seed / name), b'untouched release sentinel\n')
 
 
 if __name__ == '__main__':

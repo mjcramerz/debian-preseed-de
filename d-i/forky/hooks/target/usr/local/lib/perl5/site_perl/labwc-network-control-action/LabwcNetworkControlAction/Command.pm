@@ -3,7 +3,7 @@ package LabwcNetworkControlAction::Command;
 use strict;
 use warnings;
 
-use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::Process qw(capture_command);
 use Moo;
 use MooX::StrictConstructor;

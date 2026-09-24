@@ -341,7 +341,7 @@ stage_target_iocost
         self.assertTrue((self.target.root/'etc/udev/hwdb.bin').is_file())
         for asset in ASSETS:
             self.assertTrue((self.target.root/asset).is_file(), asset)
-        self.assertIn('TargetSolution=isolated-bandwidth', defaults.read_text())
+        self.assertIn('TargetSolution=naive', defaults.read_text())
         self.assertFalse(list(self.target.root.glob('.installer-iocost*')))
 
     def test_real_native_hwdb_enters_target_without_deadlock(self):

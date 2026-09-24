@@ -1,7 +1,6 @@
 [Unit]
 StartLimitBurst=10
 StartLimitIntervalSec=30s
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 Description=Synchronize managed Labwc application launchers
 Requisite=labwc-session.target

@@ -179,11 +179,11 @@ def _run_spotify(command: list[str], environment: dict[str, str]) -> int:
 
 def _argument_parser(*, wayland_compat: bool) -> argparse.ArgumentParser:
     if wayland_compat:
-        program_name = "labwc-managed-wayland-compat-app"
+        program_name = "labwc-wayland-compat-app"
         application_choices = WAYLAND_COMPAT_APPS
         mode_choices = ("auto", "launch", "intel", "nvidia")
     else:
-        program_name = "labwc-managed-app"
+        program_name = "labwc-app"
         application_choices = tuple(sorted(set(APPS).difference(WAYLAND_COMPAT_APPS)))
         mode_choices = ("auto", "launch", "intel", "nvidia", "pure-privacy")
 

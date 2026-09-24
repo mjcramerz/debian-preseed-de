@@ -6,6 +6,8 @@ nvidia-uvm/uvm_pmm_gpu.c. The NVSwitch call sites match make(1).log exactly.
 Tests execute the production wrapper's embedded Perl, never a second patcher.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import os
 from pathlib import Path
 import re
@@ -120,8 +122,8 @@ def write_tree(root: Path, *, drm=True, original_process=False):
 
 
 def patch(root: Path, *, shell='/bin/sh'):
-    return subprocess.run([shell, '-eu', '-c', functions() + '\npatch_nv_72_interfaces "$1"\n',
-                           'sh', str(root)], capture_output=True, text=True, timeout=20)
+    return subprocess.run(payload_installed_argv([shell, '-eu', '-c', functions() + '\npatch_nv_72_interfaces "$1"\n',
+                           'sh', str(root)]), capture_output=True, text=True, timeout=20)
 
 
 class Nvidia72InterfaceTests(unittest.TestCase):
@@ -139,9 +141,9 @@ class Nvidia72InterfaceTests(unittest.TestCase):
 
     def test_repairs_all_remaining_string_sites_and_keeps_exported_abi(self):
         self.must_patch()
-        switch = (self.tree / 'nvidia/linux_nvswitch.c').read_text()
-        mode = (self.tree / 'nvidia-modeset/nvidia-modeset-linux.c').read_text()
-        uvm = (self.tree / 'nvidia-uvm/uvm_pmm_gpu.c').read_text()
+        switch = payload_read_text(self.tree / 'nvidia/linux_nvswitch.c')
+        mode = payload_read_text(self.tree / 'nvidia-modeset/nvidia-modeset-linux.c')
+        uvm = payload_read_text(self.tree / 'nvidia-uvm/uvm_pmm_gpu.c')
         self.assertIn('memcpy(regkey_val, regkey_val_start, regkey_val_len);', switch)
         self.assertIn("regkey_val[regkey_val_len] = '\\0';", switch)
         self.assertRegex(switch, r'char\*\s+nvswitch_os_strncpy')
@@ -157,22 +159,22 @@ class Nvidia72InterfaceTests(unittest.TestCase):
     def test_idempotent_preserves_metadata_and_no_temporary_files(self):
         path = self.tree / 'nvidia/linux_nvswitch.c'
         path.chmod(0o640)
-        owner = (path.stat().st_uid, path.stat().st_gid)
+        owner = (payload_source_stat(path).st_uid, payload_source_stat(path).st_gid)
         self.must_patch()
-        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o640)
-        self.assertEqual((path.stat().st_uid, path.stat().st_gid), owner)
-        before = {p: (p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns)
-                  for p in self.tree.rglob('*') if p.is_file()}
+        self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o640)
+        self.assertEqual((payload_source_stat(path).st_uid, payload_source_stat(path).st_gid), owner)
+        before = {p: (payload_read_bytes(p), payload_source_stat(p).st_ino, payload_source_stat(p).st_mtime_ns)
+                  for p in self.tree.rglob('*') if payload_source_is_file(p)}
         p = self.must_patch()
         self.assertEqual(p.stderr, '')
         for path, prior in before.items():
-            self.assertEqual((path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns), prior)
+            self.assertEqual((payload_read_bytes(path), payload_source_stat(path).st_ino, payload_source_stat(path).st_mtime_ns), prior)
         self.assertFalse(list(self.tree.rglob('*.nv72.*')))
 
     def test_patch_already_clean_tree_needs_no_write_access(self):
         self.must_patch()
         for p in self.tree.rglob('*'):
-            if p.is_file(): p.chmod(0o444)
+            if payload_source_is_file(p): p.chmod(0o444)
         self.must_patch()
 
     def test_readonly_unprivileged_rerun(self):
@@ -186,7 +188,7 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         script = self.root / 'readonly.sh'
         script.write_text(functions() + '\npatch_nv_72_interfaces "$1"\n')
         script.chmod(0o555)
-        p = subprocess.run(['/bin/sh', str(script), str(self.tree)], user=65534, group=65534,
+        p = subprocess.run(payload_installed_argv(['/bin/sh', str(script), str(self.tree)]), user=65534, group=65534,
                            capture_output=True, text=True, timeout=20)
         self.assertEqual(p.returncode, 0, p.stderr)
 
@@ -194,13 +196,13 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         unknown = self.tree / 'nvidia-uvm/subdir/another.c'
         unknown.parent.mkdir()
         unknown.write_text('void other(void) { strncpy(dst, src, n); }\n')
-        before = {n: (self.tree / n).read_bytes() for n in self.files}
+        before = {n: payload_read_bytes(self.tree / n) for n in self.files}
         p = patch(self.tree)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn('unhandled removed strncpy API', p.stderr)
         self.assertIn('another.c:1', p.stderr)
         for n, value in before.items():
-            self.assertEqual((self.tree / n).read_bytes(), value)
+            self.assertEqual(payload_read_bytes(self.tree / n), value)
 
     def test_audit_ignores_comments_strings_and_prefixed_identifiers(self):
         p = self.tree / 'nvidia/notes.h'
@@ -219,11 +221,11 @@ class Nvidia72InterfaceTests(unittest.TestCase):
     def test_incorrect_wrapper_body_fails_atomically(self):
         p = self.tree / 'nvidia-modeset/nvidia-modeset-linux.c'
         p.write_text(MODESET.replace('src, n)', 'src, n - 1)'))
-        before = {n: (self.tree / n).read_bytes() for n in self.files}
+        before = {n: payload_read_bytes(self.tree / n) for n in self.files}
         result = patch(self.tree)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('unrecognized NVIDIA 580 nvkms_strncpy body', result.stderr)
-        for n, value in before.items(): self.assertEqual((self.tree / n).read_bytes(), value)
+        for n, value in before.items(): self.assertEqual(payload_read_bytes(self.tree / n), value)
 
     def test_unknown_registry_bounds_fail_before_changes(self):
         p = self.tree / 'nvidia/linux_nvswitch.c'
@@ -231,7 +233,7 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         p.write_text(text)
         result = patch(self.tree)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(p.read_text(), text)
+        self.assertEqual(payload_read_text(p), text)
 
     def test_partial_own_patch_is_not_accepted_by_marker(self):
         self.must_patch()
@@ -242,12 +244,12 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         ):
             with self.subTest(file=rel):
                 p = self.tree / rel
-                good = p.read_text()
+                good = payload_read_text(p)
                 bad = good.replace(old, new)
                 p.write_text(bad)
                 result = patch(self.tree)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(p.read_text(), bad)
+                self.assertEqual(payload_read_text(p), bad)
                 p.write_text(good)
 
     def test_source_file_symlinks_rejected_without_overwriting(self):
@@ -258,7 +260,7 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         result = patch(self.tree)
         self.assertNotEqual(result.returncode, 0)
         self.assertTrue(p.is_symlink())
-        self.assertEqual(real.read_text(), SWITCH)
+        self.assertEqual(payload_read_text(real), SWITCH)
 
     def test_partial_drm_tree_is_rejected(self):
         (self.tree / 'conftest.sh').unlink()
@@ -274,7 +276,7 @@ class Nvidia72InterfaceTests(unittest.TestCase):
         text = '/* vendor implementation without removed API */\n'
         f.write_text(text)
         self.must_patch()
-        self.assertEqual(f.read_text(), text)
+        self.assertEqual(payload_read_text(f), text)
 
     def test_tabs_crlf_and_duplicate_wrapper(self):
         p = self.tree / 'nvidia-modeset/nvidia-modeset-linux.c'
@@ -289,16 +291,16 @@ class Nvidia72InterfaceTests(unittest.TestCase):
     def test_busybox_ash_runs_generated_perl_patch(self):
         script = self.root / 'patch.sh'
         script.write_text(functions() + '\npatch_nv_72_interfaces "$1"\n')
-        p = subprocess.run(['busybox', 'sh', '-eu', str(script), str(self.tree)],
+        p = subprocess.run(payload_installed_argv(['busybox', 'sh', '-eu', str(script), str(self.tree)]),
                            capture_output=True, text=True, timeout=20)
         self.assertEqual(p.returncode, 0, p.stderr)
 
     @unittest.skipUnless(shutil.which('cc'), 'C compiler unavailable')
     def test_compiled_bounded_copy_and_registry_contracts(self):
         self.must_patch()
-        switch = (self.tree / 'nvidia/linux_nvswitch.c').read_text().replace('#include <linux/string.h>', '')
-        mode = (self.tree / 'nvidia-modeset/nvidia-modeset-linux.c').read_text().replace('#include <linux/string.h>', '')
-        uvm = (self.tree / 'nvidia-uvm/uvm_pmm_gpu.c').read_text().replace('#include <linux/string.h>', '')
+        switch = payload_read_text(self.tree / 'nvidia/linux_nvswitch.c').replace('#include <linux/string.h>', '')
+        mode = payload_read_text(self.tree / 'nvidia-modeset/nvidia-modeset-linux.c').replace('#include <linux/string.h>', '')
+        uvm = payload_read_text(self.tree / 'nvidia-uvm/uvm_pmm_gpu.c').replace('#include <linux/string.h>', '')
         prelude = r'''
 #include <assert.h>
 #include <stdint.h>
@@ -380,19 +382,19 @@ int main(void) {
         c.write_text(prelude + switch + mode + uvm + main)
         for compiler_index, compiler in enumerate(filter(None, (shutil.which('cc'), shutil.which('clang')))):
             with self.subTest(compiler=compiler):
-                probe = subprocess.run([
+                probe = subprocess.run(payload_installed_argv([
                     compiler, '-std=gnu11', '-fsanitize=undefined', '-x', 'c', '-',
                     '-o', str(self.root / f'ubsan-probe-{compiler_index}'),
-                ], input='int main(void) { return 0; }\n', capture_output=True, text=True)
+                ]), input='int main(void) { return 0; }\n', capture_output=True, text=True)
                 if probe.returncode:
                     detail = next((line for line in reversed(probe.stderr.splitlines()) if line),
                                   'compiler cannot link the UBSan runtime')
                     self.skipTest(f'{compiler} cannot link -fsanitize=undefined: {detail}')
-                p = subprocess.run([compiler, '-std=gnu11', '-Wall', '-Wextra', '-Werror',
+                p = subprocess.run(payload_installed_argv([compiler, '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                     '-Wno-unused-parameter', '-O2', '-fsanitize=undefined',
-                    '-fno-sanitize-recover=undefined', str(c), '-o', str(exe)], capture_output=True, text=True)
+                    '-fno-sanitize-recover=undefined', str(c), '-o', str(exe)]), capture_output=True, text=True)
                 self.assertEqual(p.returncode,0,p.stderr)
-                p = subprocess.run([str(exe)], capture_output=True,text=True)
+                p = subprocess.run(payload_installed_argv([str(exe)]), capture_output=True,text=True)
                 self.assertEqual(p.returncode,0,p.stderr)
                 self.assertIn('18818 ABI-copy',p.stdout)
         # Every original affected translation unit fails independently: no
@@ -400,7 +402,7 @@ int main(void) {
         for name, text in [('NVSwitch',SWITCH),('modeset',MODESET),('UVM',UVM)]:
             with self.subTest(negative_control=name):
                 c.write_text(prelude + text.replace('#include <linux/string.h>',''))
-                p=subprocess.run(['cc','-std=gnu11','-c',str(c),'-o',str(self.root/'bad.o')],
+                p=subprocess.run(payload_installed_argv(['cc','-std=gnu11','-c',str(c),'-o',str(self.root/'bad.o')]),
                                  capture_output=True,text=True)
                 self.assertNotEqual(p.returncode,0)
                 self.assertIn('poisoned',p.stderr)
@@ -424,15 +426,15 @@ int main(void) {
                 for name in ('crtc','plane'):
                     vtables += f'struct drm_{name}_helper_funcs {{ int (*atomic_check)(struct drm_{name} *, struct drm_atomic_{cb_type} *); }};\n'
                 (inc/'drm/drm_modeset_helper_vtables.h').write_text(vtables)
-                p=subprocess.run(['/bin/sh',str(probe),'cc',f'-Werror -I{inc}',
-                                  'nv_installer_drm_atomic_commit_present'],capture_output=True,text=True)
+                p=subprocess.run(payload_installed_argv(['/bin/sh',str(probe),'cc',f'-Werror -I{inc}',
+                                  'nv_installer_drm_atomic_commit_present']),capture_output=True,text=True)
                 self.assertEqual(p.returncode,0,p.stderr)
                 present = kind == 'commit'
                 expected = '#define' if present else '#undef'
                 self.assertEqual(p.stdout.strip(),expected+' NV_INSTALLER_DRM_ATOMIC_COMMIT_PRESENT')
                 if kind not in ('state','commit'): continue
                 (inc/'conftest.h').write_text(p.stdout)
-                hdr=(self.tree/'nvidia-drm/nvidia-drm-conftest.h').read_text()
+                hdr=payload_read_text(self.tree/'nvidia-drm/nvidia-drm-conftest.h')
                 (inc/'compat.h').write_text(hdr)
                 # Old callback probes remain true on 6.12; they fail on 7.2
                 # before the new compatibility block selects the correct path.
@@ -454,7 +456,7 @@ int plane_check(struct drm_plane *p, struct drm_atomic_state *s) { return sizeof
 struct drm_crtc_helper_funcs c = { .atomic_check = crtc_check };
 struct drm_plane_helper_funcs p = { .atomic_check = plane_check };
 ''')
-                p=subprocess.run(['cc','-Werror',f'-I{inc}','-c',str(c),'-o',str(self.root/'drm.o')],
+                p=subprocess.run(payload_installed_argv(['cc','-Werror',f'-I{inc}','-c',str(c),'-o',str(self.root/'drm.o')]),
                                  capture_output=True,text=True)
                 self.assertEqual(p.returncode,0,p.stderr)
 
@@ -479,18 +481,18 @@ class Nvidia72WrapperIntegrationTests(unittest.TestCase):
         for operation in ('add','build','install','autoinstall'):
             p=self.root/roots[0]/'nvidia/linux_nvswitch.c'
             p.write_text(SWITCH)
-            run=subprocess.run([str(script),operation,'-m','nvidia','space in argument'],
+            run=subprocess.run(payload_installed_argv([str(script),operation,'-m','nvidia','space in argument']),
                                capture_output=True,text=True,timeout=30)
             self.assertEqual(run.returncode,27,run.stderr)
-            self.assertEqual(log.read_text(),f'<{operation}>\n<-m>\n<nvidia>\n<space in argument>\n')
+            self.assertEqual(payload_read_text(log),f'<{operation}>\n<-m>\n<nvidia>\n<space in argument>\n')
             for r in roots:
                 for sub in ('','kernel-open'):
                     tree=self.root/r/sub
-                    self.assertIn('memcpy(regkey_val', (tree/'nvidia/linux_nvswitch.c').read_text())
-                    self.assertIn('size_t copied;', (tree/'nvidia-modeset/nvidia-modeset-linux.c').read_text())
-                    self.assertIn('strscpy_pad', (tree/'nvidia-uvm/uvm_pmm_gpu.c').read_text())
-                    self.assertEqual((tree/'nvidia/os-interface.c').read_text(),NEW)
-        self.assertEqual((skipped/'nvidia/linux_nvswitch.c').read_text(),SWITCH)
+                    self.assertIn('memcpy(regkey_val', payload_read_text(tree/'nvidia/linux_nvswitch.c'))
+                    self.assertIn('size_t copied;', payload_read_text(tree/'nvidia-modeset/nvidia-modeset-linux.c'))
+                    self.assertIn('strscpy_pad', payload_read_text(tree/'nvidia-uvm/uvm_pmm_gpu.c'))
+                    self.assertEqual(payload_read_text(tree/'nvidia/os-interface.c'),NEW)
+        self.assertEqual(payload_read_text(skipped/'nvidia/linux_nvswitch.c'),SWITCH)
         self.assertTrue(link.is_symlink())
 
     def test_unknown_removed_api_does_not_call_real_dkms(self):
@@ -499,9 +501,9 @@ class Nvidia72WrapperIntegrationTests(unittest.TestCase):
         (tree/'nvidia-uvm/new.c').write_text('void f(void) { strncpy(a,b,c); }\n')
         called=self.root/'called'
         script=self.sandbox_wrapper(f'touch "{called}"\n')
-        run=subprocess.run([str(script),'build'],capture_output=True,text=True,timeout=20)
+        run=subprocess.run(payload_installed_argv([str(script),'build']),capture_output=True,text=True,timeout=20)
         self.assertNotEqual(run.returncode,0)
-        self.assertFalse(called.exists())
+        self.assertFalse(payload_source_exists(called))
         self.assertIn('unhandled removed strncpy API',run.stderr)
 
 

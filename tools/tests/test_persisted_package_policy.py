@@ -96,7 +96,7 @@ class PersistedPolicyTests(unittest.TestCase):
                 result = self.repository.repo / item['filename']
                 data = members(result, 'fsys')
                 self.assertFalse(any(repo.vendor_apt_path(name) for name in data))
-                self.assertEqual(data['etc/default/chatgpt'], b'managed default')
+                self.assertEqual(data['etc/chatgpt/package-policy.conf'], b'managed default')
                 self.assertEqual(data['usr/share/pixmaps/chatgpt.png'], b'managed chatgpt.png')
                 control = members(result, 'ctrl')
                 self.assertIn(b'configure-chatgpt', control['postinst'])
@@ -213,10 +213,10 @@ class PersistedPolicyTests(unittest.TestCase):
             self.assertIn(f'Signed-By: {self.repository.keyring}\n', source.read_text())
 
     def test_global_vendor_hooks_are_not_shipped(self):
-        self.assertFalse((TARGET / 'etc/dpkg/dpkg.cfg.d/94-local-apt-vendor-policy').exists())
+        self.assertFalse((TARGET / 'etc/dpkg/dpkg.cfg.d/94-apt-repo-local-vendor-policy').exists())
         self.assertFalse((TARGET / 'usr/local/bin/apt-local-repo').exists())
-        self.assertTrue((TARGET / 'usr/local/bin/local-apt-init').is_file())
-        bridge = (TARGET / 'usr/local/libexec/local-apt-vendor').read_text()
+        self.assertTrue((TARGET / 'usr/local/bin/apt-repo-init').is_file())
+        bridge = (TARGET / 'usr/local/libexec/apt-repo-local-vendor').read_text()
         self.assertNotIn('policy-before', bridge)
         self.assertNotIn('policy-after', bridge)
 

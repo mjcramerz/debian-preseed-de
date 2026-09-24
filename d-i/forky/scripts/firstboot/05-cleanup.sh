@@ -7,7 +7,7 @@ umask 077
 
 FIRSTBOOT_LOG_DIR=${FIRSTBOOT_LOG_DIR:-/var/lib/installer-state/logs/firstboot}
 FIRSTBOOT_DATA_DIR=${FIRSTBOOT_DATA_DIR:-${FIRSTBOOT_LOG_DIR}/data}
-FIRSTBOOT_STATE_DIR=${FIRSTBOOT_STATE_DIR:-/var/lib/installer-state/firstboot}
+FIRSTBOOT_STATE_DIR=${FIRSTBOOT_STATE_DIR:-/var/lib/firstboot/state}
 FIRSTBOOT_LOG_FILE=${FIRSTBOOT_LOG_FILE:-${FIRSTBOOT_LOG_DIR}/20-firstboot.log}
 FIRSTBOOT_COMPLETE_FILE=${FIRSTBOOT_COMPLETE_FILE:-${FIRSTBOOT_STATE_DIR}/complete}
 CLEANUP_LOG=${FIRSTBOOT_DATA_DIR}/cleanup.txt
@@ -30,9 +30,9 @@ log_line() {
     "$(timestamp)" "$stage" "$level" "$component" "$*" >>"$FIRSTBOOT_LOG_FILE"
 }
 
-if [ -r /usr/local/lib/firstboot.d/logging.sh ]; then
+if [ -r /var/lib/firstboot/lib/logging.sh ]; then
   # shellcheck disable=SC1091
-  . /usr/local/lib/firstboot.d/logging.sh
+  . /var/lib/firstboot/lib/logging.sh
 fi
 
 write_complete_marker() {

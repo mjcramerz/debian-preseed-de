@@ -1573,7 +1573,7 @@ write_target_secure_boot_payloads() {
   ensure_target_secure_boot_state_dirs
   render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/libexec/install-tools/secure-boot-tool.tmpl)" "${FILE_SECURE_BOOT_TOOL}" 0755
   render_target_asset_with_placeholder_map \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/secure-boot.conf.tmpl)" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/secure-boot.conf.tmpl)" \
     "${FILE_SECURE_BOOT_CONFIG}" \
     0600 \
     secure_boot_config_placeholder_map
@@ -1664,48 +1664,97 @@ repair_target_installed_kernels() {
   TARGET_SECURE_BOOT_RUNTIME_PREPARED=1
 }
 
-install_target_grub_profiles() {
-  profile_script="/tmp/install-grub-profiles.$$"
-  profile_script_target="/target${profile_script}"
-  install -d -m 0755 "$(dirname "$profile_script_target")"
-  command -v render_target_template >/dev/null 2>&1 || \
-    installer_fatal "render_target_template is unavailable before GRUB profile installation"
-  ensure_target_grub_profile_mounts
-  ensure_target_grubenv_ready
-  ensure_target_bootable_kernel_pairs
-  prepare_target_secure_boot_runtime
-  render_target_template "${TMP_ENV_DIR}/grub-profiles" "$profile_script_target" 0755
-  grub_root_device=$(installer_filesystem_device "${DEV_PART_ROOT}")
+# Emit quoted shell DATA from a fixed variable allowlist. Never eval values.
+render_grub_profile_config_map() (
+  set -eu
+  value=${DEV_PART_BOOT:-}
+  grub_profile_config_value GRUB_CONFIG_DEV_PART_BOOT "$value" || exit 1
+  value=${grub_root_device:-}
+  grub_profile_config_value GRUB_CONFIG_DEV_PART_ROOT "$value" || exit 1
+  value=${DEV_PART_EFI:-}
+  grub_profile_config_value GRUB_CONFIG_DEV_PART_EFI "$value" || exit 1
+  value=${BOOTPROFILE_DEFAULT:-}
+  grub_profile_config_value GRUB_CONFIG_BOOTPROFILE_DEFAULT "$value" || exit 1
+  value=${BOOTPROFILE_PERFORMANCE:-}
+  grub_profile_config_value GRUB_CONFIG_BOOTPROFILE_PERFORMANCE "$value" || exit 1
+  value=${BOOTPROFILE_HARDENED:-}
+  grub_profile_config_value GRUB_CONFIG_BOOTPROFILE_HARDENED "$value" || exit 1
+  value=${GRUB_ROOT_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_ROOT_FLAGS "$value" || exit 1
+  value=${GRUB_INITRAMFS_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_INITRAMFS_FLAGS "$value" || exit 1
+  value=${GRUB_NVME_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_NVME_FLAGS "$value" || exit 1
+  value=${GRUB_CGROUP_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_CGROUP_FLAGS "$value" || exit 1
+  value=${GRUB_SECURITY_CORE_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_SECURITY_CORE_FLAGS "$value" || exit 1
+  value=${GRUB_BLACKLIST_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_BLACKLIST_FLAGS "$value" || exit 1
+  value=${GRUB_VFIO_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_VFIO_FLAGS "$value" || exit 1
+  value=${GRUB_MEMORY_CORE_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_MEMORY_CORE_FLAGS "$value" || exit 1
+  value=${GRUB_HARDENING_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_HARDENING_FLAGS "$value" || exit 1
+  value=${GRUB_ASPM_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_ASPM_FLAGS "$value" || exit 1
+  value=${GRUB_SYSTEMD_MASK_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_SYSTEMD_MASK_FLAGS "$value" || exit 1
+  value=${GRUB_PROFILE_DEFAULT_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_PROFILE_DEFAULT_FLAGS "$value" || exit 1
+  value=${GRUB_PROFILE_PERFORMANCE_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_PROFILE_PERFORMANCE_FLAGS "$value" || exit 1
+  value=${GRUB_PROFILE_HARDENED_FLAGS:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_PROFILE_HARDENED_FLAGS "$value" || exit 1
+  value=${FILE_SECURE_BOOT_MOK_CERT_DER:-}
+  grub_profile_config_value GRUB_CONFIG_MOK_DER_PATH "$value" || exit 1
+  value=${GRUB_DEFAULT_ENTRY:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_DEFAULT_ENTRY "$value" || exit 1
+  value=${grub_rescue_uuid:-}
+  grub_profile_config_value GRUB_CONFIG_RESCUE_USB_UUID "$value" || exit 1
+  value=${GRUB_DISPLAY_GFXPAYLOAD_LINUX:-}
+  grub_profile_config_value GRUB_CONFIG_GRUB_GFXPAYLOAD_LINUX "$value" || exit 1
+  value=${DUALBOOT_ENABLED:-false}
+  grub_profile_config_value GRUB_CONFIG_DUALBOOT_ENABLED "$value" || exit 1
+ )
 
-  if ! attempt_in_target "install GRUB profile entries" /bin/sh "$profile_script" \
-    "${DEV_PART_BOOT}" \
-    "$grub_root_device" \
-    "${DEV_PART_EFI}" \
-    "${BOOTPROFILE_DEFAULT}" \
-    "${BOOTPROFILE_PERFORMANCE}" \
-    "${BOOTPROFILE_HARDENED}" \
-    "${GRUB_ROOT_FLAGS}" \
-    "${GRUB_INITRAMFS_FLAGS}" \
-    "${GRUB_NVME_FLAGS:-}" \
-    "${GRUB_CGROUP_FLAGS}" \
-    "${GRUB_SECURITY_CORE_FLAGS}" \
-    "${GRUB_BLACKLIST_FLAGS:-}" \
-    "${GRUB_VFIO_FLAGS:-}" \
-    "${GRUB_MEMORY_CORE_FLAGS}" \
-    "${GRUB_HARDENING_FLAGS}" \
-    "${GRUB_ASPM_FLAGS:-}" \
-    "${GRUB_SYSTEMD_MASK_FLAGS:-}" \
-    "${GRUB_PROFILE_DEFAULT_FLAGS}" \
-    "${GRUB_PROFILE_PERFORMANCE_FLAGS}" \
-    "${GRUB_PROFILE_HARDENED_FLAGS}" \
-    "${FILE_SECURE_BOOT_MOK_CERT_DER}" \
-    "${GRUB_DEFAULT_ENTRY}" \
-    "$(installer_rescue_usb_search_uuid)" \
-    "${GRUB_DISPLAY_GFXPAYLOAD_LINUX}" \
-    "${DUALBOOT_ENABLED:-false}"; then
-    rm -f "$profile_script_target"
-    installer_fatal "failed to install GRUB profile entries"
-  fi
-  rm -f "$profile_script_target"
-  disable_stock_kernel_menu
+grub_profile_config_value() {
+  case "$2" in
+    *'
+'*|*"$(printf '\r')"*) installer_fatal "multiline GRUB profile value: $1"; return 1 ;;
+  esac
+  # POSIX shell single-quote escaping, applied before literal substitution.
+  quoted=$(printf '%s' "$2" | sed "s/'/'\\\\''/g") || return 1
+  printf "%s='%s'\n" "$1" "$quoted"
 }
+
+install_target_grub_profiles() (
+  set -eu
+  ensure_target_grub_profile_mounts || exit 1
+  ensure_target_grubenv_ready || exit 1
+  ensure_target_bootable_kernel_pairs || exit 1
+  prepare_target_secure_boot_runtime || exit 1
+  grub_root_device=$(installer_filesystem_device "${DEV_PART_ROOT}") || exit 1
+  grub_rescue_uuid=$(installer_rescue_usb_search_uuid) || exit 1
+  install -d -m 0755 /target/etc/default /target/etc/grub.d || exit 1
+  profile_work=$(mktemp -d /target/etc/default/.grub-profiles.XXXXXX) || exit 1
+  trap 'rm -rf -- "$profile_work"' EXIT
+  trap 'exit 1' HUP INT TERM
+  cp "${TMP_ENV_DIR}/grub-profiles" "$profile_work/config" || exit 1
+  render_grub_profile_config_map >"$profile_work/map" || exit 1
+  render_target_scalar_placeholders "$profile_work/config" "$profile_work/map" || exit 1
+  installer_assert_no_unresolved_installer_placeholders "$profile_work/config" "GRUB profile defaults" || exit 1
+  chmod 0600 "$profile_work/config" || exit 1
+  [ ! -L /target/etc/default/grub-profiles ] || { installer_fatal "GRUB profile defaults must not be a symlink"; exit 1; }
+  mv -fT -- "$profile_work/config" /target/etc/default/grub-profiles || exit 1
+  install -d -m 0755 /target/usr/local/share/grub-profiles || exit 1
+  for grub_fragment in display-1.cfg.in display-2.cfg.in snapshots.cfg.in submenu.cfg.in entry.cfg.in mokmenu.cfg.in header.cfg.in rescue.cfg.in firmware.cfg.in; do
+    fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/share/grub-profiles/${grub_fragment}.tmpl")" "$profile_work/$grub_fragment" || exit 1
+    render_target_template "$profile_work/$grub_fragment" "/target/usr/local/share/grub-profiles/$grub_fragment" 0644 || exit 1
+  done
+  render_target_template "${TMP_ENV_DIR}/grub-profile-generator" /target/etc/grub.d/40_custom 0755 || exit 1
+  attempt_in_target "install GRUB profile entries" /bin/sh /etc/grub.d/40_custom --install ||
+    { installer_fatal "failed to install GRUB profile entries"; exit 1; }
+  disable_stock_kernel_menu || exit 1
+)

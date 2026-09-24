@@ -3,8 +3,8 @@ set -eu
 
 PATH=/usr/local/bin:/usr/bin:/bin
 LC_ALL=C.UTF-8
-GTK_THEME=Adwaita:light
-export PATH LC_ALL GTK_THEME
+unset GTK_THEME
+export PATH LC_ALL
 
 runtime_root=/opt/glibc/2.44-1/satty
 satty_binary=/usr/local/libexec/satty/satty

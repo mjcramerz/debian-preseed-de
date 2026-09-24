@@ -5,6 +5,8 @@ stubbed. Perl tests run the real config validator and exact sizing method; the
 latter's hardware/config access is injected so these tests need no Moo or sysfs.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import configparser
 from functools import lru_cache
@@ -36,18 +38,18 @@ KEYS = ('DEV_PART_EFI_MB', 'DEV_PART_BOOT_MB', 'DEV_PART_ROOT_MB',
 
 def profile_values(profile):
     return dict(re.findall(r'^([A-Z][A-Z0-9_]*)="([^"\n]*)"$',
-                           (FORKY / 'hosts/profiles' / f'{profile}.env').read_text(), re.M))
+                           payload_read_text(FORKY / 'hosts/profiles' / f'{profile}.env'), re.M))
 
 
 def shell(body, profile='btrfs-de-flex', *, executable='dash', check=True):
     family = 'f2fs' if profile.startswith('f2fs') else 'btrfs'
     sources = ['scripts/runtime/common.sh', f'scripts/runtime/{family}.sh',
                f'hosts/profiles/{profile}.env', 'hosts/installer/runtime.env',
-               'hosts/installer/layout.env', f'hosts/installer/layout-{family}.env']
-    code = 'set -e\n' + '\n'.join('. '+Q(str(FORKY / s)) for s in sources) + '\n'
+               'hosts/installer/layout.env', f'hosts/installer/{family}.env']
+    code = 'set -e\nRUNTIME_TEMPLATE_DIR=' + Q(str(FORKY/'scripts/runtime/templates')) + '\n' + '\n'.join('. '+Q(str(FORKY / s)) for s in sources) + '\n'
     code += 'runtime_fatal() { printf "fatal: %s\\n" "$*" >&2; exit 1; }\n'
     command = ['busybox', 'sh'] if executable == 'busybox' else [executable]
-    result = subprocess.run([*command, '-c', code+body], text=True, capture_output=True, timeout=15)
+    result = subprocess.run(payload_installed_argv([*command, '-c', code+body]), text=True, capture_output=True, timeout=15)
     if check and result.returncode:
         raise AssertionError(result.stdout+result.stderr)
     return result
@@ -93,7 +95,7 @@ def rendered_policy(profile):
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         policy = tmp / 'zram.conf'
-        policy.write_bytes((TARGET / 'etc/zram-writeback.conf').read_bytes())
+        policy.write_bytes(payload_read_bytes(TARGET / 'etc/zram-writeback/policy.conf'))
         shell(f'''
 . {Q(str(FORKY/'scripts/late/templates.sh'))}
 ZRAM_BACKING_RAW_PARTUUID=11111111-2222-3333-4444-555555555555
@@ -102,7 +104,7 @@ ZRAM_BACKING_DEVICE=/dev/mapper/zram-writeback
 render_target_template_placeholder_map > {Q(str(tmp/'map'))}
 render_target_scalar_placeholders {Q(str(policy))} {Q(str(tmp/'map'))}
 ''',profile)
-        text = policy.read_text()
+        text = payload_read_text(policy)
     assert '__' not in text, text
     parsed = configparser.ConfigParser(interpolation=None, strict=True)
     parsed.read_string(text)
@@ -113,7 +115,7 @@ def normalize(policy, *, check=True):
     # This module has no Moo dependency; no validator is stubbed or bypassed.
     code = '''use JSON::PP; use Zram::Config::Validator qw(normalize_config);
 local $/; my $raw = decode_json(<STDIN>); print encode_json(normalize_config($raw));'''
-    result = subprocess.run(['perl', '-I'+str(PERL_LIB), '-e', code],
+    result = subprocess.run(payload_installed_argv(['perl', '-I'+str(PERL_LIB), '-e', code]),
                             input=json.dumps(policy), text=True, capture_output=True, timeout=10)
     if check and result.returncode:
         raise AssertionError(result.stderr)
@@ -122,7 +124,7 @@ local $/; my $raw = decode_json(<STDIN>); print encode_json(normalize_config($ra
 
 def logical_sizes(profile, ram, backing=16384):
     config = normalize(rendered_policy(profile))
-    source = (PERL_LIB / 'Zram/Setup/Device.pm').read_text()
+    source = payload_read_text(PERL_LIB / 'Zram/Setup/Device.pm')
     function = re.search(r'^sub _dynamic_sizes \{.*?^\}', source, re.M|re.S).group()
     code = f'''
 use strict; use warnings; use JSON::PP;
@@ -135,7 +137,7 @@ sub fatal {{ die $_[0] }}
 {function}
 print encode_json([ (bless {{}}, 'main')->_dynamic_sizes() ]);
 '''
-    result = subprocess.run(['perl','-I'+str(PERL_LIB),'-e',code],
+    result = subprocess.run(payload_installed_argv(['perl','-I'+str(PERL_LIB),'-e',code]),
                             input=json.dumps(config), text=True, capture_output=True,timeout=10)
     if result.returncode:
         raise AssertionError(result.stderr)
@@ -353,7 +355,7 @@ validate_raw_storage_partition {Q(device)} {Q(str(mb))}
         self.assertNotEqual(self.validate(6443,6443*MB,device='/tmp/fixture').returncode,0)
 
     def test_both_measurements_are_wired_before_their_target_publications(self):
-        source=(FORKY/'scripts/late/zram-swap.sh').read_text()
+        source=payload_read_text(FORKY/'scripts/late/zram-swap.sh')
         stage=source.split('stage_target_zram_assets() {',1)[1]
         self.assertLess(stage.index('validate_raw_storage_partition "$ZRAM_BACKING_RAW_DEVICE" "$DEV_PART_RAW_ZRAM_MB"'),stage.index('  stage_target_asset '))
         config=source.split('write_target_swap_fallback_config() {',1)[1]

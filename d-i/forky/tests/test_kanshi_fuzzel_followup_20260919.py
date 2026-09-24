@@ -5,6 +5,9 @@ against isolated trees. Fuzzel's endpoint is a protocol fixture; this is not a
 Wayland/optical acceptance test. Real GIO discovery uses the existing C ABI probe.
 """
 from __future__ import annotations
+from payload_fixture import shell_directory, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import hashlib
 import io
 import json
@@ -25,13 +28,13 @@ import test_desktop_sandbox as sandbox
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
 BIN = TARGET / 'usr/local/bin'
-COMPONENTS = (FORKY / 'scripts/desktop/components.sh').read_text()
+COMPONENTS = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
 
 
 def load(path):
     module = types.ModuleType('tested_' + path.name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -42,7 +45,7 @@ def shell_function(text, name):
 
 class InstallerLoaderTests(unittest.TestCase):
     def test_role_loads_conditional_verifier_before_use(self):
-        loader = (FORKY / 'scripts/late/desktop.sh').read_text()
+        loader = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/desktop.sh'))
         modules = re.search(r'for desktop_module in ([^;]+); do', loader).group(1).split()
         self.assertIn('verify', modules)
         source = '. "${desktop_module_dir}/verify.sh"'
@@ -55,15 +58,21 @@ class InstallerLoaderTests(unittest.TestCase):
             prelude = """set -eu
 runtime_dir=$1
 seed=$2
+desktop_fixture=$3
 requested_seed_base=fixture
 requested_host_profile=fixture
-fetch_hook() { cp -- "$seed/$1" "$2"; }
+fetch_hook() {
+  case "$1" in
+    scripts/desktop/*) cp -- "$desktop_fixture/${1##*/}" "$2" ;;
+    *) fixture_source="$seed/$1"; [ -f "$fixture_source" ] || fixture_source=$fixture_source.tmpl; cp -- "$fixture_source" "$2" ;;
+  esac
+}
 """
             # The role function is replaced only at its call, leaving the real
             # loader's source list in place, and never running installer writes.
             tail = tail.replace('run_desktop_late_command "$requested_seed_base" "$requested_host_profile"',
                                 'command -v desktop_verify_kanshi_policy >/dev/null')
-            result = subprocess.run(['/bin/sh', '-c', prelude + tail, 'test', temp, str(FORKY)],
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', prelude + tail, 'test', temp, str(FORKY), str(shell_directory(FORKY/'scripts/desktop'))]),
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -86,14 +95,14 @@ class KanshiPackageTests(unittest.TestCase):
     def managed_tree(self):
         base = TARGET / 'etc/skel-desktop/.config/systemd/user'
         for directory in self.roots:
-            (directory / 'kanshi.service').write_bytes((base / 'kanshi.service').read_bytes())
+            (directory / 'kanshi.service').write_bytes(render_theme_bytes(payload_read_bytes(base / 'kanshi.service')))
             (directory / 'kanshi.service.d').mkdir()
             (directory / 'kanshi.service.d/60-resource-class.conf').write_bytes(
-                (base / 'kanshi.service.d/60-resource-class.conf').read_bytes())
+                render_theme_bytes(payload_read_bytes(base / 'kanshi.service.d/60-resource-class.conf')))
             wants = directory / 'labwc-session.target.wants'
             wants.mkdir()
             (wants / 'kanshi.service').symlink_to('../kanshi.service')
-        self.policy.WRAPPER.write_bytes((TARGET / 'usr/local/libexec/labwc-kanshi').read_bytes())
+        self.policy.WRAPPER.write_bytes(render_theme_bytes(payload_read_bytes(TARGET / 'usr/local/libexec/labwc-kanshi')))
 
     def test_known_fingerprints_match_all_current_installer_assets(self):
         self.managed_tree()
@@ -119,10 +128,10 @@ class KanshiPackageTests(unittest.TestCase):
                 self.policy.reconcile(False, self.home)
             command.assert_not_called()
         self.assertEqual(self.policy.cleanup_plan(self.home), [])
-        self.assertEqual(profile.read_text(), 'administrator monitor calibration\n')
-        self.assertEqual(unrelated.read_text(), 'unchanged')
-        self.assertFalse(self.policy.WRAPPER.exists())
-        self.assertFalse(any((p / 'kanshi.service.d').exists() for p in self.roots))
+        self.assertEqual(render_theme_defaults(payload_read_text(profile)), 'administrator monitor calibration\n')
+        self.assertEqual(render_theme_defaults(payload_read_text(unrelated)), 'unchanged')
+        self.assertFalse(payload_source_exists(self.policy.WRAPPER))
+        self.assertFalse(any(payload_source_exists(p / 'kanshi.service.d') for p in self.roots))
 
     def test_only_exact_package_is_purged_and_never_autoremoved(self):
         self.managed_tree()
@@ -147,15 +156,15 @@ class KanshiPackageTests(unittest.TestCase):
         with mock.patch.object(self.policy, 'command') as command, self.assertRaises(ValueError):
             self.policy.reconcile(False, self.home)
         command.assert_not_called()
-        self.assertEqual(unit.read_text(), 'administrator unit\n')
-        self.assertTrue((self.roots[0] / 'kanshi.service').exists())
+        self.assertEqual(render_theme_defaults(payload_read_text(unit)), 'administrator unit\n')
+        self.assertTrue(payload_source_exists(self.roots[0] / 'kanshi.service'))
 
     def test_unknown_dropin_and_foreign_wants_link_are_preserved(self):
         self.managed_tree()
         foreign = self.roots[2] / 'kanshi.service.d/99-admin.conf'
         foreign.write_text('admin')
         with self.assertRaises(ValueError): self.policy.cleanup_plan(self.home)
-        self.assertTrue(foreign.exists())
+        self.assertTrue(payload_source_exists(foreign))
         foreign.unlink()
         link = self.roots[2] / 'labwc-session.target.wants/kanshi.service'
         link.unlink(); link.symlink_to('/foreign.service')
@@ -206,29 +215,29 @@ class KanshiPackageTests(unittest.TestCase):
         before = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
         with self.assertRaises(subprocess.TimeoutExpired):
             self.policy.command(['/usr/bin/python3', '-c', code], timeout=.3)
-        pid = int(pidfile.read_text())
+        pid = int(render_theme_defaults(payload_read_text(pidfile)))
         with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
         self.assertEqual(before, {sig: signal.getsignal(sig) for sig in before})
 
 
 class KanshiWiringTests(unittest.TestCase):
     def test_package_class_and_all_shipped_profiles_are_opt_out(self):
-        role = (FORKY / 'classes/class-select/role/desktop.cfg').read_text()
+        role = render_theme_defaults(payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg'))
         self.assertNotIn('kanshi', role.split())
         profiles = list((FORKY / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
         for path in profiles:
-            self.assertIn('LABWC_ENABLE_KANSHI="false"', path.read_text(), path.name)
+            self.assertIn('LABWC_ENABLE_KANSHI="false"', render_theme_defaults(payload_read_text(path)), path.name)
 
     def test_boolean_policy_and_missing_default(self):
-        function = shell_function((FORKY/'scripts/desktop/detect.sh').read_text(), 'desktop_kanshi_enabled')
+        function = shell_function(render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/detect.sh')), 'desktop_kanshi_enabled')
         for value, expected in (('true',0),('yes',0),('1',0),('on',0),('false',1),('no',1),('0',1),('off',1),('',1),('typo',2)):
-            result = subprocess.run(['/bin/sh', '-c', 'desktop_fatal() { exit 2; };\n'+function+'\ndesktop_kanshi_enabled'],
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', 'desktop_fatal() { exit 2; };\n'+function+'\ndesktop_kanshi_enabled']),
                                     env={'PATH':'/usr/bin:/bin', 'LABWC_ENABLE_KANSHI':value})
             self.assertEqual(result.returncode, expected, value)
 
     def test_real_staging_gate_and_rendering_do_nothing_when_disabled(self):
-        detect = shell_function((FORKY/'scripts/desktop/detect.sh').read_text(), 'desktop_kanshi_enabled')
+        detect = shell_function(render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/detect.sh')), 'desktop_kanshi_enabled')
         gates = re.findall(r'  if desktop_kanshi_enabled; then\n(.*?)\n  fi', COMPONENTS, re.S)
         self.assertEqual(len(gates), 3)
         render = shell_function(COMPONENTS, 'desktop_render_kanshi_config')
@@ -239,7 +248,7 @@ class KanshiWiringTests(unittest.TestCase):
         desktop_stage_user_unit_wanted_by() { printf 'enable %s %s\\n' "$1" "$2"; }
         ''' + '\n'.join('if desktop_kanshi_enabled; then\n'+gate+'\nfi' for gate in gates) + '\ndesktop_render_kanshi_config'
         for value in ('false', 'true'):
-            result = subprocess.run(['/bin/sh', '-eu', '-c', script], env={'PATH':'/usr/bin:/bin','LABWC_ENABLE_KANSHI':value},
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script]), env={'PATH':'/usr/bin:/bin','LABWC_ENABLE_KANSHI':value},
                                     text=True, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             if value == 'false': self.assertEqual(result.stdout, '')
@@ -258,15 +267,15 @@ class KanshiWiringTests(unittest.TestCase):
         self.assertNotIn('kanshi',activation)
 
     def test_install_reconcile_precedes_staging_and_target_check_follows_enablement(self):
-        script = (FORKY/'scripts/desktop/labwc.sh').read_text().split('run_desktop_late_command() {',1)[1]
+        script = render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')).split('run_desktop_late_command() {',1)[1]
         self.assertLess(script.index('  desktop_install_kanshi_policy'), script.index('  desktop_stage_target_assets'))
         self.assertLess(script.index('  desktop_enable_target_services'), script.index('  desktop_verify_kanshi_policy'))
-        self.assertIn('stage_target_asset \\\n', (FORKY/'scripts/desktop/labwc.sh').read_text())
+        self.assertIn('stage_target_asset \\\n', render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')))
 
     def verifier(self):
-        installer = (FORKY/'scripts/desktop/verify.sh').read_text()
-        firstboot = (FORKY/'scripts/firstboot/04-validation.sh').read_text()
-        begin='set -eu\n. /etc/default/labwc-desktop\nhome=$1\n'
+        installer = render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
+        firstboot = render_theme_defaults(payload_read_text(FORKY/'scripts/firstboot/04-validation.sh'))
+        begin='set -eu\n. /etc/labwc/desktop.conf\nhome=$1\n'
         end='printf "desktop_kanshi_verification enabled=%s\\n" "$enabled"'
         scripts=[]
         for source in (installer,firstboot):
@@ -283,9 +292,10 @@ class KanshiWiringTests(unittest.TestCase):
             query=commands/'dpkg-query'; query.write_text('#!/bin/sh\nprintf "%s" "$QUERY_STATE"\nexit "$QUERY_STATUS"\n');query.chmod(0o700)
             script=re.sub(r'(?<![A-Za-z0-9_])/(etc|usr|bin)/', lambda m: str(root)+m.group(0), script)
             env={'PATH':str(commands)+':/usr/bin:/bin', 'QUERY_STATE':'', 'QUERY_STATUS':'1'}
-            defaults=root/'etc/default/labwc-desktop'
+            defaults=root/'etc/labwc/desktop.conf'
             def invoke():
-                return subprocess.run(['/bin/sh','-eu','-c',script,'sh',str(home)], env=env, capture_output=True,text=True)
+                return subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',script,'sh',str(home)]), env=env, capture_output=True,text=True)
+            defaults.parent.mkdir(parents=True, exist_ok=True)
             defaults.write_text('LABWC_ENABLE_KANSHI=false\n')
             self.assertEqual(invoke().returncode,0)
             env['QUERY_STATUS']='2';self.assertEqual(invoke().returncode,2)
@@ -332,11 +342,11 @@ class NativeMenuTests(unittest.TestCase):
 
     def test_search_root_and_management_configs_all_enable_native_icons(self):
         config=TARGET/'etc/skel-desktop/.config/fuzzel'
-        self.assertIn('icons-enabled=yes', (config/'menu.ini.tmpl').read_text())
-        self.assertNotIn('icons-enabled=no','\n'.join(p.read_text() for p in config.glob('*') if p.is_file()))
+        self.assertIn('icons-enabled=yes', render_theme_defaults(payload_read_text(config/'menu.ini.tmpl')))
+        self.assertNotIn('icons-enabled=no','\n'.join(render_theme_defaults(payload_read_text(p)) for p in config.glob('*') if payload_source_is_file(p)))
         for key in self.menu.ACTIONS.keys()|self.menu.SETTINGS_ACTIONS.keys()|set(self.menu.DISPLAY_CATEGORIES):
             self.assertIn(key,self.menu.MENU_ICONS)
-        self.assertIn('icon-theme=__INSTALLER_LABWC_ICON_THEME__', (config/'base.ini.tmpl').read_text())
+        self.assertIn('icon-theme=' + theme_values()['FUZZEL_MENU_ICON_THEME'], render_theme_defaults(payload_read_text(config/'base.ini.tmpl')))
 
 
 class RealGioIconTests(unittest.TestCase):
@@ -379,8 +389,8 @@ sys.exit(int(os.environ['STATUS']))
         if mode is not None: env['LABWC_MENU_INPUT_MODE']=mode
         if output is not None: env['OUTPUT_HEX']=output.hex()
         data=labels if isinstance(labels,bytes) else ''.join(x+'\n' for x in labels).encode()
-        result=subprocess.run(['/bin/sh',str(self.wrapper),'menu','--dmenu','--prompt',prompt],input=data,env=env,capture_output=True,timeout=10)
-        return result,payload.read_bytes() if payload.exists() else b''
+        result=subprocess.run(payload_installed_argv(['/bin/sh',str(self.wrapper),'menu','--dmenu','--prompt',prompt]),input=data,env=env,capture_output=True,timeout=10)
+        return result,render_theme_bytes(payload_read_bytes(payload)) if payload_source_exists(payload) else b''
 
     def test_all_six_management_groups_and_twenty_four_actions_have_native_metadata(self):
         management=load(BIN/'labwc-computer-management')
@@ -434,7 +444,7 @@ sys.exit(int(os.environ['STATUS']))
         for native,expected in ((2,1),(1,2),(127,127)):
             result,_=self.pick(['Allowed'],native=native)
             self.assertEqual(result.returncode,expected)
-            self.assertFalse((self.runtime/'labwc-fuzzel.pid').exists())
+            self.assertFalse(payload_source_exists(self.runtime/'labwc-fuzzel.pid'))
             self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
 
 
@@ -463,7 +473,7 @@ class ManagementRoutingTests(unittest.TestCase):
                     self.assertEqual(run.call_args.args[0], (exe,*route[1:]))
                     self.assertNotIn('shell',run.call_args.kwargs)
                     if exe.startswith('/usr/local/'):
-                        self.assertTrue((TARGET/exe.lstrip('/')).exists(),exe)
+                        self.assertTrue(payload_source_exists(TARGET/exe.lstrip('/')),exe)
 
     def test_ai_reuses_tty_only_in_explicit_terminal_mode(self):
         with mock.patch.dict(os.environ,{'LABWC_MENU_BACKEND':'fzf'}), \

@@ -1,0 +1,3 @@
+    <keybind key="W-r">
+      <action name="Reconfigure" />
+    </keybind>

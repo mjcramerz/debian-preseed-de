@@ -1,0 +1,151 @@
+# Managed by unattended-installer; installed only when a hardware gate succeeds.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile hardware-tuning-broker /usr/local/libexec/hardware-tuningd flags=(attach_disconnected, mediate_deleted) {
+  # Deliberately NOT wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  /usr/local/libexec/hardware-tuningd r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,broker}.py r,
+  /usr/local/libexec/hardware-tuning-worker rPx -> hardware-tuning-worker,
+  /usr/local/libexec/hardware-tuning-policy rPx -> hardware-tuning-policy,
+  unix,
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=hardware-tuning-worker,
+  signal (receive, send) peer=hardware-tuning-policy,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /run/systemd/{seats,sessions,users}/ r,
+  /run/systemd/{seats,sessions,users}/** r,
+  /sys/class/power_supply/ r,
+  /sys/class/power_supply/** r,
+  /sys/devices/**/{online,type} r,
+  /etc/hardware-tuning/ r,
+  /etc/hardware-tuning/broker.json r,
+  /run/hardware-tuning/ rw,
+  /run/hardware-tuning/control.sock rw,
+  /run/hardware-tuning/controls.json rw,
+  /run/hardware-tuning/.controls.json.tuning-* rw,
+  # No direct unit-file writes; PID 1 applies allowlisted policy operations.
+  /etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service r,
+  /etc/systemd/system/hardware-tuning-autostart.service r,
+  # No sysfs writes, device nodes, capabilities, arbitrary exec, or network.
+}
+
+profile hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker flags=(attach_disconnected, mediate_deleted) {
+  # Deliberately NOT wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  /usr/local/libexec/hardware-tuning-worker r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,engine}.py r,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=hardware-tuning-broker,
+  /etc/hardware-tuning/ r,
+  /run/hardware-tuning/ rw,
+  # Exact vendor permissions are absent if that vendor was not installed.
+  include if exists <abstractions/hardware-tuning-intel>
+  include if exists <abstractions/hardware-tuning-nvidia>
+  deny /dev/cpu/*/msr rw,
+  deny /dev/mem rw,
+  deny /dev/kmem rw,
+  # No shell/command execution, control-socket access, internet, or user-home access.
+}
+
+profile hardware-tuning-client /usr/local/bin/labwc-hardware-tuning flags=(attach_disconnected, mediate_deleted) {
+  owner /dev/pts/[0-9]* rw,
+  ptrace (readby) peer=desktop-launcher,
+  # Deliberately NOT wrapper-python: that abstraction permits shells.
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /etc/{group,nsswitch.conf,passwd} r,
+  deny owner @{HOME}/.local/lib/python*/** mrwkl,
+  deny owner @{HOME}/.cache/Python/** rwkl,
+  include if exists <abstractions/dbus-session-strict>
+  dbus (send) bus=session path=/org/freedesktop/Notifications
+    interface=org.freedesktop.Notifications member={Notify,GetCapabilities,GetServerInformation}
+    peer=(name=org.freedesktop.Notifications),
+  signal (send) set=(chld) peer=desktop-launcher,
+  signal (send) set=(chld) peer=labwc-computer-management,
+  ptrace (read) peer=desktop-launcher,
+  /usr/local/bin/labwc-hardware-tuning r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,client}.py r,
+  unix,
+  /run/hardware-tuning/ r,
+  /run/hardware-tuning/control.sock rw,
+  /usr/bin/{systemd-run,notify-send} rix,
+  /usr/share/locale/** r,
+  /run/systemd/{sessions,users}/** r,
+  owner /run/user/[0-9]*/{bus,systemd/private} rw,
+  owner /proc/[0-9]*/ r,
+  # notify-send/libsystemd resolves its own cgroup identity. No proc write or
+  # cross-user read is granted; retain confinement for inherited execution.
+  owner /proc/[0-9]*/{stat,status,cgroup} r,
+  owner /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /proc/sys/kernel/pid_max r,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=hardware-tuning-client,
+  signal (send, receive) peer=labwc-fuzzel,
+  /usr/local/bin/labwc-fuzzel rPx -> labwc-fuzzel,
+  owner @{HOME}/ r,
+  owner @{HOME}/.local/ rw,
+  owner @{HOME}/.local/state/ rw,
+  owner @{HOME}/.local/state/hardware-tuning/ rw,
+  owner @{HOME}/.local/state/hardware-tuning/*.{txt,json} rw,
+  # No hardware files, configuration/state writes, sudo, or privileged exec.
+}
+
+# Unit-management authority is NOT granted to the network-facing broker,
+# desktop client, or hardware worker. Only this root-only fixed-operation
+# helper may ask PID 1 to manage PPD and the autostart marker. AppArmor D-Bus
+# rules do not filter method arguments: the helper's immutable unit allowlist
+# is therefore part of the trusted boundary, not a claim about bus filtering.
+profile hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/python>
+  /usr/bin/python3 rix,
+  /usr/bin/python3.[0-9]* rix,
+  /usr/local/libexec/hardware-tuning-policy r,
+  /usr/local/lib/hardware_tuning/ r,
+  /usr/local/lib/hardware_tuning/{common,policy_owner,system_state}.py r,
+  /etc/{group,nsswitch.conf,passwd} r,
+  /etc/hardware-tuning/ r,
+  /etc/hardware-tuning/broker.json r,
+  /proc/[0-9]*/attr/{current,apparmor/current} r,
+  /run/hardware-tuning/ rw,
+  /run/hardware-tuning/policy-owner.json rw,
+  /run/hardware-tuning/.policy-owner.json.tuning-* rw,
+  /run/hardware-tuning/policy-owner.lock rwk,
+  /run/hardware-tuning/{intel,nvidia}.json r,
+  /run/hardware-tuning/{intel,nvidia}.lock rwk,
+  /run/dbus/system_bus_socket rw,
+  unix,
+  dbus (send) bus=system path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus member=Hello peer=(name=org.freedesktop.DBus),
+  dbus (send) bus=system path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member={LoadUnit,GetUnitFileState,EnableUnitFiles,DisableUnitFiles,MaskUnitFiles,UnmaskUnitFiles,Reload,StartUnit,StopUnit}
+    peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=system path=/org/freedesktop/systemd1{,/unit/*,/job/[0-9]*}
+    interface=org.freedesktop.DBus.Properties member=Get peer=(name=org.freedesktop.systemd1),
+  dbus (send) bus=system path=/org/freedesktop/systemd1/job/[0-9]*
+    interface=org.freedesktop.systemd1.Job member=Cancel peer=(name=org.freedesktop.systemd1),
+  signal (receive) peer=unconfined,
+  signal (receive, send) peer=hardware-tuning-broker,
+  # No systemctl, shell, arbitrary exec, sysfs writes, or device access.
+}

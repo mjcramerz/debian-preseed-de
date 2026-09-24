@@ -4,7 +4,6 @@ ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 ConditionEnvironment=WAYLAND_DISPLAY
 Requires=ssh-agent.socket
 After=labwc-session.target ssh-agent.socket labwc-kwallet-portal.service
-BindsTo=labwc-compositor.service
 Requisite=labwc-session.target
 PartOf=labwc-session.target
 

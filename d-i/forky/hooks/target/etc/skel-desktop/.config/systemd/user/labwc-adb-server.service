@@ -5,7 +5,6 @@ Description=Managed Android Debug Bridge server for the Labwc session
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 ConditionEnvironment=WAYLAND_DISPLAY
 ConditionEnvironment=XDG_SESSION_TYPE=wayland
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 ConditionFileIsExecutable=/usr/local/bin/adb
 Requisite=labwc-session.target

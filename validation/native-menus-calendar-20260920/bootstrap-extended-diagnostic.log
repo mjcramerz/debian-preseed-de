@@ -1,8 +1,0 @@
-
-DIAGNOSTIC: {
-  "fatal_record": true,
-  "elapsed_seconds": 8.394,
-  "process_returncode": null,
-  "preflight_marker": false,
-  "fatal_record_content": "format=1\nstate=FATAL\nstatus=1\nphase=prepare-context\ncomponent=preseed answers (prepare-context)\ntimestamp=2026-09-20T18:59:15Z\ndetail=unknown installer class: server; use group/class for declared classes or add classes/class-addon/server.cfg\n"
-}

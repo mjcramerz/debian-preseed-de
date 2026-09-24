@@ -1,8 +1,0 @@
-{
-  "kernel": "6.18.44",
-  "python": "Python 3.13.5",
-  "busybox": "BusyBox v1.37.0 (Debian 1:1.37.0-6+b8) multi-call binary.",
-  "findutils": "find (GNU findutils) 4.10.0",
-  "systemd_hwdb": "systemd 257 (257.9-1~deb13u1)",
-  "apparmor_parser": "AppArmor parser version 4.1.0"
-}

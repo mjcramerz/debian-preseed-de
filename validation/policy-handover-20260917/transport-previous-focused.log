@@ -1,6 +1,0 @@
-test_opposite_role_fails_before_preflight_marker (test_repository_transport.RealBootstrapTests.test_opposite_role_fails_before_preflight_marker) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 7.784s
-
-OK

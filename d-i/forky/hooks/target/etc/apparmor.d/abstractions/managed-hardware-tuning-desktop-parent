@@ -1,2 +1,0 @@
-# Installed only with a gated tuning backend. Reap the foreground DevOps helper.
-signal (receive) set=(chld) peer=managed-hardware-tuning-client,

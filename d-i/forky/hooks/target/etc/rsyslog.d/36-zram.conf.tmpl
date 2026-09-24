@@ -1,0 +1,23 @@
+# Route managed zram setup and maintenance records to a dedicated log. The
+# systemd units set these identifiers explicitly so records stay attributable
+# even when the helper is invoked through a timer or daemon service.
+
+if (
+  $programname == "zram-writeback" or
+  $programname == "zram-device-setup"
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_zram_log"
+    type="omfile"
+    file="__INSTALLER_LOG_ZRAM_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}

@@ -288,8 +288,8 @@ nftables_managed_iface_value() {
 }
 
 nftables_interface_placeholder_map() {
-  ethernet_iface=$(nftables_managed_iface_value MANAGED_NETWORK_ETHERNET_IFACE "${MANAGED_NETWORK_ETHERNET_IFACE:-}" managed-eth0)
-  wifi_iface=$(nftables_managed_iface_value MANAGED_NETWORK_WIFI_IFACE "${MANAGED_NETWORK_WIFI_IFACE:-}" managed-wifi0)
+  ethernet_iface=$(nftables_managed_iface_value MANAGED_NETWORK_ETHERNET_IFACE "${MANAGED_NETWORK_ETHERNET_IFACE:-}" eth0)
+  wifi_iface=$(nftables_managed_iface_value MANAGED_NETWORK_WIFI_IFACE "${MANAGED_NETWORK_WIFI_IFACE:-}" wifi0)
 
   [ "$ethernet_iface" != "$wifi_iface" ] ||
     installer_fatal "MANAGED_NETWORK_ETHERNET_IFACE and MANAGED_NETWORK_WIFI_IFACE must differ"
@@ -535,8 +535,8 @@ nftables_tailscale_allow_ipv6_cidrs() {
 }
 
 nftables_ssh_allow_interfaces() {
-  ethernet_iface=$(nftables_managed_iface_value MANAGED_NETWORK_ETHERNET_IFACE "${MANAGED_NETWORK_ETHERNET_IFACE:-}" managed-eth0)
-  wifi_iface=$(nftables_managed_iface_value MANAGED_NETWORK_WIFI_IFACE "${MANAGED_NETWORK_WIFI_IFACE:-}" managed-wifi0)
+  ethernet_iface=$(nftables_managed_iface_value MANAGED_NETWORK_ETHERNET_IFACE "${MANAGED_NETWORK_ETHERNET_IFACE:-}" eth0)
+  wifi_iface=$(nftables_managed_iface_value MANAGED_NETWORK_WIFI_IFACE "${MANAGED_NETWORK_WIFI_IFACE:-}" wifi0)
 
   [ "$ethernet_iface" != "$wifi_iface" ] ||
     installer_fatal "MANAGED_NETWORK_ETHERNET_IFACE and MANAGED_NETWORK_WIFI_IFACE must differ"
@@ -651,7 +651,7 @@ apparmor_managed_profile_files() {
 
 apparmor_managed_system_profile_files() {
   cat <<'EOF'
-managed-system-wrappers
+system-wrappers
 crun
 timeshift
 slirp4netns
@@ -676,12 +676,12 @@ EOF
 
 apparmor_managed_desktop_profile_files() {
   cat <<'EOF'
-managed-desktop-wrappers
-managed-document-applications
-managed-labwc-session
-managed-tomat
-managed-waybar-menus
-managed-desktop-utilities
+desktop-wrappers
+document-applications
+labwc-session
+tomat
+waybar-menus
+desktop-utilities
 whisper-local-transcription
 usr.bin.totem
 usr.bin.qoredb
@@ -835,7 +835,6 @@ apparmor_compat_desktop_local_include_files() {
 brave
 chrome
 element-desktop
-firefox
 github-desktop
 keybase
 opera
@@ -993,28 +992,28 @@ stage_target_system_apparmor_profiles() {
     "/etc/apparmor.d/abstractions/fonts.d/labwc-terminal-fonts" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-terminal)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-terminal" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-terminal)" \
+    "/etc/apparmor.d/abstractions/wrapper-terminal" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-base)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-base" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-base)" \
+    "/etc/apparmor.d/abstractions/wrapper-base" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-perl)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-perl" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-perl)" \
+    "/etc/apparmor.d/abstractions/wrapper-perl" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-crun-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-crun-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/crun-runtime)" \
+    "/etc/apparmor.d/abstractions/crun-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-timeshift-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-timeshift-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/timeshift-runtime)" \
+    "/etc/apparmor.d/abstractions/timeshift-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-python)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-python" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-python)" \
+    "/etc/apparmor.d/abstractions/wrapper-python" \
     0644
 
   for apparmor_profile in $(apparmor_managed_system_profile_files); do
@@ -1027,80 +1026,80 @@ stage_target_system_apparmor_profiles() {
 
 stage_target_desktop_apparmor_profiles() {
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-devops-toolchain-data)" \
-    "/etc/apparmor.d/abstractions/managed-devops-toolchain-data" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/devops-toolchain-data)" \
+    "/etc/apparmor.d/abstractions/devops-toolchain-data" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-user-documents)" \
-    "/etc/apparmor.d/abstractions/managed-user-documents" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/user-documents)" \
+    "/etc/apparmor.d/abstractions/user-documents" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-document-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-document-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/document-runtime)" \
+    "/etc/apparmor.d/abstractions/document-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-session-client)" \
-    "/etc/apparmor.d/abstractions/managed-session-client" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/session-client)" \
+    "/etc/apparmor.d/abstractions/session-client" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-desktop)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-desktop" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-desktop)" \
+    "/etc/apparmor.d/abstractions/wrapper-desktop" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-gui)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-gui" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-gui)" \
+    "/etc/apparmor.d/abstractions/wrapper-gui" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-wrapper-wayland)" \
-    "/etc/apparmor.d/abstractions/managed-wrapper-wayland" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/wrapper-wayland)" \
+    "/etc/apparmor.d/abstractions/wrapper-wayland" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/audio.d/managed-no-raw-audio)" \
-    "/etc/apparmor.d/abstractions/audio.d/managed-no-raw-audio" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/audio.d/no-raw-audio)" \
+    "/etc/apparmor.d/abstractions/audio.d/no-raw-audio" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-pipewire-audio)" \
-    "/etc/apparmor.d/abstractions/managed-pipewire-audio" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/pipewire-audio)" \
+    "/etc/apparmor.d/abstractions/pipewire-audio" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-bwrap-common)" \
-    "/etc/apparmor.d/abstractions/managed-bwrap-common" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-common)" \
+    "/etc/apparmor.d/abstractions/bwrap-common" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-bwrap-desktop-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-bwrap-desktop-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/bwrap-desktop-runtime)" \
+    "/etc/apparmor.d/abstractions/bwrap-desktop-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-devops-toolchain-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-devops-toolchain-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/devops-toolchain-runtime)" \
+    "/etc/apparmor.d/abstractions/devops-toolchain-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-codex-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-codex-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/codex-runtime)" \
+    "/etc/apparmor.d/abstractions/codex-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-electron-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-electron-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/electron-runtime)" \
+    "/etc/apparmor.d/abstractions/electron-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-electron-application)" \
-    "/etc/apparmor.d/abstractions/managed-electron-application" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/electron-application)" \
+    "/etc/apparmor.d/abstractions/electron-application" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-webkit-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-webkit-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/webkit-runtime)" \
+    "/etc/apparmor.d/abstractions/webkit-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-desktop-graphics)" \
-    "/etc/apparmor.d/abstractions/managed-desktop-graphics" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-graphics)" \
+    "/etc/apparmor.d/abstractions/desktop-graphics" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-desktop-runtime)" \
-    "/etc/apparmor.d/abstractions/managed-desktop-runtime" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-runtime)" \
+    "/etc/apparmor.d/abstractions/desktop-runtime" \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/managed-desktop-application)" \
-    "/etc/apparmor.d/abstractions/managed-desktop-application" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/abstractions/desktop-application)" \
+    "/etc/apparmor.d/abstractions/desktop-application" \
     0644
 
   for apparmor_profile in $(apparmor_managed_desktop_profile_files); do
@@ -1111,22 +1110,22 @@ stage_target_desktop_apparmor_profiles() {
   done
 
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/managed-desktop-application)" \
-    "/etc/apparmor.d/local/managed-desktop-application" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/desktop-application)" \
+    "/etc/apparmor.d/local/desktop-application" \
     0644
   if security_nvidia_acceleration_enabled; then
     stage_target_asset \
-      "$(installer_hardware_asset_path gpu nvidia etc/apparmor.d/local/managed-desktop-graphics)" \
-      "/etc/apparmor.d/local/managed-desktop-graphics" \
+      "$(installer_hardware_asset_path gpu nvidia etc/apparmor.d/local/desktop-graphics)" \
+      "/etc/apparmor.d/local/desktop-graphics" \
       0644
     stage_target_asset \
-      "$(installer_hardware_asset_path gpu nvidia etc/apparmor.d/local/managed-desktop-wrappers-nvidia)" \
-      "/etc/apparmor.d/local/managed-desktop-wrappers-nvidia" \
+      "$(installer_hardware_asset_path gpu nvidia etc/apparmor.d/local/desktop-wrappers-nvidia)" \
+      "/etc/apparmor.d/local/desktop-wrappers-nvidia" \
       0644
   else
     rm -f \
-      /target/etc/apparmor.d/local/managed-desktop-graphics \
-      /target/etc/apparmor.d/local/managed-desktop-wrappers-nvidia
+      /target/etc/apparmor.d/local/desktop-graphics \
+      /target/etc/apparmor.d/local/desktop-wrappers-nvidia
   fi
   for apparmor_local_include in $(apparmor_managed_local_include_files); do
     stage_target_asset \
@@ -1190,7 +1189,7 @@ stage_target_desktop_apparmor_profiles() {
     /target/etc/apparmor.d/force-complain/timeshift
   for apparmor_local_include in $(apparmor_compat_desktop_local_include_files); do
     stage_target_asset \
-      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/managed-desktop-application)" \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor.d/local/desktop-application)" \
       "/etc/apparmor.d/local/${apparmor_local_include}" \
       0644
   done
@@ -1222,7 +1221,7 @@ clear_target_nftables_assets() {
   fi
 
   rm -f \
-    /target/etc/default/nft-policy-generate \
+    /target/etc/nftables/policy.conf \
     /target/usr/local/sbin/nft-policy-generate \
     /target/etc/systemd/system/nftables.service.d/override.conf \
     /target/etc/nftables/README.md \
@@ -1267,8 +1266,8 @@ write_target_nftables_default_config() {
   NFTABLES_DEFAULT_RUNTIME_CIDRS=$runtime_cidrs
 
   render_target_asset_with_placeholder_map \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/nft-policy-generate.tmpl)" \
-    /etc/default/nft-policy-generate \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/nftables/policy.conf.tmpl)" \
+    /etc/nftables/policy.conf \
     0644 \
     nftables_default_placeholder_map
 
@@ -1427,7 +1426,6 @@ configure_target_fail2ban() {
   install -d -m 0755 \
     /target/etc/fail2ban \
     /target/etc/fail2ban/jail.d \
-    /target/etc/fail2ban/jail.d/managed \
     /target/etc/logrotate.d \
     /target/etc/systemd/system/fail2ban.service.d \
     /target/etc/tmpfiles.d
@@ -1440,40 +1438,40 @@ configure_target_fail2ban() {
   # Tailscale uses tailnet identity controls, and Syncthing's GUI is loopback-only.
   if [ "${SSH_SERVER_ENABLED:-false}" = true ]; then
     render_target_asset_with_placeholder_map \
-      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/managed/10-sshd.local.tmpl)" \
-      /etc/fail2ban/jail.d/managed/10-sshd.local \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/10-sshd.local.tmpl)" \
+      /etc/fail2ban/jail.d/10-sshd.local \
       0644 \
       fail2ban_jail_placeholder_map
     fail2ban_jail_count=$((fail2ban_jail_count + 1))
   fi
   if installer_selected_class_reference_is_selected service/web 2>/dev/null; then
     stage_target_asset \
-      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/managed/20-nginx-botsearch.local)" \
-      /etc/fail2ban/jail.d/managed/20-nginx-botsearch.local \
+      "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fail2ban/jail.d/20-nginx-botsearch.local)" \
+      /etc/fail2ban/jail.d/20-nginx-botsearch.local \
       0644
     fail2ban_jail_count=$((fail2ban_jail_count + 1))
   fi
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/fail2ban.service.d/managed.conf)" \
-    /etc/systemd/system/fail2ban.service.d/managed.conf \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/fail2ban.service.d/40-runtime.conf)" \
+    /etc/systemd/system/fail2ban.service.d/40-runtime.conf \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/62-fail2ban-managed.conf)" \
-    /etc/tmpfiles.d/62-fail2ban-managed.conf \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/62-fail2ban.conf)" \
+    /etc/tmpfiles.d/62-fail2ban.conf \
     0644
   normalize_target_tmpfiles_directory_policy \
-    /etc/tmpfiles.d/62-fail2ban-managed.conf \
+    /etc/tmpfiles.d/62-fail2ban.conf \
     "Fail2ban managed state"
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/fail2ban-managed)" \
-    /etc/logrotate.d/fail2ban-managed \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.d/fail2ban)" \
+    /etc/logrotate.d/fail2ban \
     0644
 
   run_in_target \
     "create Fail2ban managed state" \
     /usr/bin/systemd-tmpfiles \
     --create \
-    /etc/tmpfiles.d/62-fail2ban-managed.conf
+    /etc/tmpfiles.d/62-fail2ban.conf
   run_in_target \
     "validate Fail2ban configuration" \
     /usr/bin/fail2ban-client \
@@ -1482,7 +1480,7 @@ configure_target_fail2ban() {
     "validate Fail2ban log rotation" \
     /usr/sbin/logrotate \
     --debug \
-    /etc/logrotate.d/fail2ban-managed
+    /etc/logrotate.d/fail2ban
 
   if [ "$fail2ban_jail_count" -gt 0 ]; then
     stage_target_systemd_unit_enabled fail2ban.service system
@@ -1533,37 +1531,41 @@ configure_target_apparmor_auditd() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/tmpfiles.d/65-audit-syslog.conf)" "/etc/tmpfiles.d/65-audit-syslog.conf" 0644
   normalize_target_tmpfiles_directory_policy "/etc/tmpfiles.d/65-audit-syslog.conf" "audit syslog storage"
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/parser.conf)" "/etc/apparmor/parser.conf" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor.service.d/20-managed-cache.conf)" "/etc/systemd/system/apparmor.service.d/20-managed-cache.conf" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor.service.d/20-cache.conf)" "/etc/systemd/system/apparmor.service.d/20-cache.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/easyprof.conf)" "/etc/apparmor/easyprof.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/logprof.conf)" "/etc/apparmor/logprof.conf" 0644
   stage_target_system_apparmor_profiles
   if security_target_is_desktop; then
     install -d -m 0755 \
-      /target/usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes
-    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/managed-modes.conf.tmpl)" "/etc/apparmor/managed-modes.conf" 0644
-    apparmor_apply_desktop_state /target/etc/apparmor/managed-modes.conf
-    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/apparmor-managed-modes-run)" "/usr/local/libexec/apparmor-managed-modes-run" 0755
+      /target/usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apparmor/modes.conf.tmpl)" "/etc/apparmor/modes.conf" 0644
+    apparmor_apply_desktop_state /target/etc/apparmor/modes.conf
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/apparmor-modes-run)" "/usr/local/libexec/apparmor-modes-run" 0755
     apparmor_managed_modes_perl_modules | while IFS= read -r apparmor_managed_modes_module; do
       [ -n "$apparmor_managed_modes_module" ] || continue
       stage_target_asset \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/lib/perl5/site_perl/apparmor-managed-modes/${apparmor_managed_modes_module}")" \
-        "/usr/local/lib/perl5/site_perl/apparmor-managed-modes/${apparmor_managed_modes_module}" \
+        "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/lib/perl5/site_perl/apparmor-modes/${apparmor_managed_modes_module}")" \
+        "/usr/local/lib/perl5/site_perl/apparmor-modes/${apparmor_managed_modes_module}" \
         0644
     done
-    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor-managed-modes.service)" "/etc/systemd/system/apparmor-managed-modes.service" 0644
+    stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/apparmor-modes.service)" "/etc/systemd/system/apparmor-modes.service" 0644
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-policy@.service)" "/etc/systemd/system/labwc-apparmor-policy@.service" 0644
     stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/labwc-apparmor-boot-recover.service)" "/etc/systemd/system/labwc-apparmor-boot-recover.service" 0644
     stage_target_desktop_apparmor_profiles
     run_in_target \
       "apply managed AppArmor profile modes without touching the installer kernel" \
-      /usr/local/libexec/apparmor-managed-modes-run \
+      /usr/local/libexec/apparmor-modes-run \
       --no-reload
-    stage_target_systemd_unit_enabled apparmor-managed-modes.service system
+    stage_target_systemd_unit_enabled apparmor-modes.service system
   fi
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/audit/${security_class}/auditd.conf")" "/etc/audit/auditd.conf" 0640
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET "etc/audit/${security_class}/rules.d/10-security-${security_class}.rules")" "/etc/audit/rules.d/zz-security-${security_class}.rules" 0640
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/audit/plugins.d/af_unix.conf)" "/etc/audit/plugins.d/af_unix.conf" 0640
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/audit/plugins.d/syslog.conf)" "/etc/audit/plugins.d/syslog.conf" 0640
+  stage_target_asset \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/auditd.service.d/40-logging.conf)" \
+    /etc/systemd/system/auditd.service.d/40-logging.conf \
+    0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/15-audit.conf)" "/etc/rsyslog.d/15-audit.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/rsyslog.d/99-discard.conf)" "/etc/rsyslog.d/99-discard.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/logrotate.conf)" "/etc/logrotate.conf" 0644

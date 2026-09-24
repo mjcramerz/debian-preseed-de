@@ -1,0 +1,306 @@
+# Temporary firstboot profiles; removed after successful provisioning.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected) {
+  ptrace (read) peer=labwc-wrap-desktop-files,
+  #include <abstractions/wrapper-base>
+
+  unix,
+  dbus,
+  network create inet dgram,
+  network (create, bind, getattr, getopt, setopt, send, receive) netlink raw,
+  capability audit_write,
+  capability chown,
+  capability dac_read_search,
+  capability fowner,
+  capability net_admin,
+  capability setgid,
+  capability setuid,
+  capability sys_admin,
+  capability sys_ptrace,
+  capability syslog,
+
+  ptrace (read) peer=unconfined,
+  ptrace (read) peer=firstboot,
+  ptrace (read) peer=crowdsec-firstboot,
+  ptrace (read) peer=labwc-compositor,
+  ptrace (read) peer=labwc-greeter-session,
+  ptrace (read) peer=zram-writeback,
+  ptrace (read) peer=usr.sbin.tailscaled,
+
+  /var/lib/firstboot/bin/firstboot.sh rix,
+  /usr/local/libexec/dbus-broker-check rix,
+  # firstboot invokes the read-only --check path; do not grant /dev writes.
+  /usr/local/libexec/nvidia-char-links rix,
+  /usr/bin/python3{,.[0-9]*} rix,
+  /usr/bin/printf rix,
+  /dev/char/ r,
+  /dev/char/[0-9]*:[0-9]* r,
+  /dev/nvidia{[0-9]*,ctl,-modeset,-uvm,-uvm-tools} r,
+  /usr/bin/{busctl,id,find} rix,
+  /usr/bin/{dpkg-query,passwd,perl,ps,readlink} rix,
+  /usr/sbin/runuser rix,
+  /usr/bin/{flock,grep,mkdir,mktemp,sleep,timeout,desktop-file-validate} rix,
+  signal (send, receive) set=(hup, int, term, kill, cont) peer=firstboot,
+  /var/lib/firstboot/lib/ r,
+  /var/lib/firstboot/lib/logging.sh r,
+  /var/lib/firstboot/lib/import-initramfs.py r,
+  /var/lib/firstboot/lib/{01-early,02-collect,03-network,04-validation,05-cleanup}.sh rix,
+  /usr/bin/{cat,chmod,chown,cp,cut,date,dmesg,find,findmnt,getent,hostname,hostnamectl,journalctl,lsblk,mokutil,mv,networkctl,resolvectl,rm,sed,ss,systemctl,systemd-analyze,uname} rix,
+  /usr/{bin,sbin}/ip rix,
+  /usr/bin/{eglinfo,es2_info,wlr-randr} rix,
+  /usr/bin/coredumpctl rix,
+  /usr/sbin/aa-status rPx -> aa-status-reader,
+  /usr/local/libexec/apparmor-modes-run rPx -> apparmor-modes,
+
+  / r,
+  /boot/ r,
+  /boot/** r,
+  /dev/ r,
+  /dev/{kmsg,tty,urandom} r,
+  /dev/null rw,
+  /etc/ r,
+  /etc/** r,
+  /etc/labwc/desktop.conf rw,
+  /home/*/.config/qt6ct/qt6ct.conf r,
+  # Root firstboot enumerates the user-owned unit directory; owner would not match.
+  @{HOME}/.config/systemd/user/ r,
+  /run/ r,
+  /run/** r,
+  /usr/local/ r,
+  /usr/local/** r,
+  /usr/bin/pwd r,
+  /usr/lib/ r,
+  /usr/lib/** mr,
+  /usr/share/ r,
+  /usr/share/** r,
+  /var/lib/dpkg/ r,
+  /var/lib/dpkg/** r,
+  /var/lib/firstboot/ r,
+  /var/lib/firstboot/state/ rw,
+  /var/lib/firstboot/state/** rwkl,
+  /var/lib/installer-state/ rw,
+  /var/lib/installer-state/** rwkl,
+  /var/log/ r,
+  /var/log/** r,
+  __INSTALLER_LOG_INITRAMFS_DIR__/ rw,
+  __INSTALLER_LOG_INITRAMFS_DIR__/** rwk,
+  @{PROC}/ r,
+  @{PROC}/** r,
+  @{sys}/ r,
+  @{sys}/** r,
+
+  include if exists <local/usr.local.libexec.firstboot.sh>
+}
+
+profile installer-initramfs-health /etc/initramfs-tools/scripts/{init-top,init-premount,local-top,local-block,local-premount,local-bottom,init-bottom}/90-installer-health flags=(attach_disconnected) {
+  #include <abstractions/wrapper-base>
+
+  /etc/initramfs-tools/scripts/{init-top,init-premount,local-top,local-block,local-premount,local-bottom,init-bottom}/90-installer-health rix,
+  /etc/initramfs-tools/scripts/installer-health-common r,
+  /{,usr/}bin/{chmod,cp,date,ls,mkdir,mv,rm,sed,uname,wc} rix,
+
+  / r,
+  /boot/ r,
+  /boot/** r,
+  /dev/ r,
+  /dev/** r,
+  /etc/ r,
+  /etc/** r,
+  @{PROC}/ r,
+  @{PROC}/** r,
+  /run/ r,
+  /run/initramfs-health/ rw,
+  /run/initramfs-health/** rwkl,
+  @{sys}/ r,
+  @{sys}/** r,
+  /usr/ r,
+  /usr/** r,
+  /root/ r,
+
+  include if exists <local/etc.initramfs-tools.scripts.installer-health>
+}
+
+profile crowdsec-firstboot /var/lib/firstboot/bin/crowdsec-firstboot flags=(attach_disconnected) {
+  # find uses the filesystem root for metadata checks, not a recursive grant.
+  / r,
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  capability net_admin,
+  capability sys_ptrace,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network netlink raw,
+  unix,
+  dbus,
+  ptrace (read) peer=unconfined,
+  ptrace (readby) peer=firstboot,
+
+  /var/lib/firstboot/bin/crowdsec-firstboot rix,
+  /usr/local/libexec/crowdsec-bouncer-verify rix,
+  /usr/local/libexec/ r,
+  /usr/bin/{awk,chmod,date,dirname,getent,grep,hostname,install,mawk,mkdir,mktemp,mv,rm,sleep,ss,find,systemctl,timeout} rix,
+  /usr/{bin,sbin,local/bin,local/sbin}/cscli rix,
+
+  /etc/crowdsec/ rw,
+  /etc/crowdsec/** rwkl,
+  /etc/machine-id r,
+  /etc/resolv.conf r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /etc/systemd/system/ rw,
+  /etc/systemd/system/** rwkl,
+  /run/crowdsec/ rw,
+  /run/crowdsec/** rwkl,
+  /run/dbus/system_bus_socket rw,
+  /run/systemd/private rw,
+  @{PROC}/[0-9]*/mountinfo r,
+  @{PROC}/[0-9]*/stat r,
+  /sys/kernel/mm/hugepages/ r,
+  /var/lib/firstboot/crowdsec/ rw,
+  /var/lib/firstboot/crowdsec/** rwkl,
+  /var/lib/crowdsec/ rw,
+  /var/lib/crowdsec/** rwkl,
+  /var/lib/systemd/ r,
+  /var/lib/systemd/** rwkl,
+  __INSTALLER_LOG_CROWDSEC_DIR__/ rw,
+  __INSTALLER_LOG_CROWDSEC_DIR__/** rwkl,
+  owner /tmp/crowdsec-*.log rw,
+  owner /tmp/crowdsec-enroll.*.log rw,
+
+  include if exists <local/usr.local.libexec.crowdsec-firstboot>
+}
+
+profile secondboot-cleanup /var/lib/firstboot/bin/secondboot-cleanup flags=(attach_disconnected) {
+  #include <abstractions/wrapper-base>
+
+  capability dac_override,
+  unix,
+  dbus,
+
+  /var/lib/firstboot/bin/secondboot-cleanup rix,
+  /usr/bin/{chmod,grep,id,rm,rmdir} rix,
+  /usr/bin/systemctl PUx,
+  /usr/sbin/update-initramfs rPx -> update-initramfs,
+  /boot/ r,
+  /boot/** rwkl,
+  /etc/initramfs-tools/ rw,
+  /etc/initramfs-tools/** rwkl,
+  /etc/profile.d/tpm2-enroll-prompt.sh rw,
+  /etc/systemd/system/ rw,
+  /etc/systemd/system/** rwkl,
+  /etc/xdg/autostart/tpm2-enroll.desktop rw,
+  /run/dbus/system_bus_socket rw,
+  /run/initramfs-health/ rw,
+  /run/initramfs-health/** rwkl,
+  /run/lock/tpm2-enroll.lock rw,
+  /run/systemd/private rw,
+  /usr/local/bin/tpm2-enroll-launch rw,
+  /var/lib/firstboot/crowdsec/ rw,
+  /var/lib/firstboot/crowdsec/** rwkl,
+  /var/lib/tpm2-enrollment/ rw,
+  /var/lib/tpm2-enrollment/** rwkl,
+  /var/lib/firstboot/lib/ rw,
+  /var/lib/firstboot/lib/** rwkl,
+  /var/lib/firstboot/tailscale/ rw,
+  /var/lib/firstboot/tailscale/** rwkl,
+  /var/lib/firstboot/bin/{crowdsec-firstboot,firstboot.sh,secondboot-cleanup,tailscale-up} rw,
+  /usr/local/sbin/tpm2-enroll.sh rw,
+  /var/lib/firstboot/ rw,
+  /var/lib/firstboot/bin/ rw,
+  /var/lib/firstboot/state/ rw,
+  /var/lib/firstboot/state/** rw,
+  /etc/apparmor.d/firstboot rw,
+  /var/lib/installer-state/ r,
+  /var/lib/installer-state/** r,
+  /var/lib/systemd/ r,
+  /var/lib/systemd/** rwkl,
+
+  include if exists <local/usr.local.libexec.secondboot-cleanup>
+}
+
+profile tailscale-up /var/lib/firstboot/bin/tailscale-up flags=(attach_disconnected) {
+  #include <abstractions/wrapper-base>
+  #include <abstractions/wrapper-python>
+  #include <abstractions/nameservice>
+  #include <abstractions/openssl>
+
+  capability dac_override,
+  capability sys_ptrace,
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  unix,
+  dbus,
+  ptrace (read) peer=unconfined,
+
+  /var/lib/firstboot/bin/tailscale-up rix,
+  /usr/bin/{chmod,date,dirname,id,install,mv,python3,rm,sleep,systemctl,timeout,touch} rix,
+  /usr/bin/tailscale rPx -> usr.bin.tailscale,
+
+  / r,
+  /etc/resolv.conf r,
+  /etc/ssl/ r,
+  /etc/ssl/** r,
+  /run/dbus/system_bus_socket rw,
+  /run/systemd/private rw,
+  /run/tailscale/ r,
+  /run/tailscale/tailscaled.sock rw,
+  @{PROC}/[0-9]*/stat r,
+  /var/lib/firstboot/tailscale/ rw,
+  /var/lib/firstboot/tailscale/** rwkl,
+  /var/run/tailscale/ r,
+  /var/run/tailscale/tailscaled.sock rw,
+
+  include if exists <local/usr.local.libexec.tailscale-up>
+}
+
+profile tpm2-enroll-launch /usr/local/bin/tpm2-enroll-launch flags=(attach_disconnected) {
+  #include <abstractions/wrapper-terminal>
+  #include <abstractions/wrapper-base>
+
+  /usr/local/bin/tpm2-enroll-launch rix,
+  /usr/bin/{cat,id} rix,
+  /usr/bin/sudo r,
+  /usr/local/bin/labwc-terminal rPx -> labwc-terminal,
+  /usr/local/sbin/tpm2-enroll.sh r,
+  /var/lib/tpm2-enrollment/tpm2-enroll.pending r,
+
+  include if exists <local/usr.local.bin.tpm2-enroll-launch>
+}
+
+profile tpm2-enroll /usr/local/sbin/tpm2-enroll.sh flags=(attach_disconnected) {
+  #include <abstractions/wrapper-terminal>
+  #include <abstractions/wrapper-base>
+
+  /usr/local/sbin/tpm2-enroll.sh rix,
+  /usr/bin/{awk,chmod,cmp,date,dirname,flock,gawk,grep,id,install,mawk,mktemp,nawk,readlink,rm,stty} rix,
+  /usr/bin/{mokutil,systemctl,systemd-cryptenroll} PUx,
+  /usr/{bin,sbin}/cryptsetup PUx,
+  /dev/tty rw,
+  /dev/disk/by-uuid/ r,
+  /dev/disk/by-uuid/* r,
+  /dev/mapper/ r,
+  /dev/mapper/* r,
+  /dev/{mmcblk[0-9]*p[0-9]*,nvme[0-9]*n[0-9]*p[0-9]*,sd[a-z][0-9]*,vd[a-z][0-9]*} r,
+  /etc/cryptsetup-keys.d/crypthome.key r,
+  /run/lock/tpm2-enroll.lock rwk,
+  owner /run/tpm2-enroll.*/ rw,
+  owner /run/tpm2-enroll.*/** rwkl,
+  /var/lib/tpm2-enrollment/ rw,
+  /var/lib/tpm2-enrollment/config.env r,
+  /var/lib/tpm2-enrollment/install-passphrase rw,
+  /var/lib/tpm2-enrollment/tpm2-enroll.complete rwk,
+  /var/lib/tpm2-enrollment/tpm2-enroll.pending rw,
+
+  include if exists <local/usr.local.sbin.tpm2-enroll.sh>
+}

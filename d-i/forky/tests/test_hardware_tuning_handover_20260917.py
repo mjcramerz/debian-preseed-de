@@ -4,6 +4,8 @@ Includes a real libsystemd/private-D-Bus wire fixture, deterministic unit-state
 fault injection, broker recovery fixtures, and launcher confinement contracts.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
 
 import asyncio
 import contextlib
@@ -210,7 +212,7 @@ class OwnerTests(unittest.TestCase):
         with self.assertRaisesRegex(base.common.TuningError, "state directory"):
             with policy.locked(mutable / "bad.lock"):
                 self.fail("mutable ancestor accepted")
-        self.assertEqual(other.read_text(), "unchanged")
+        self.assertEqual(payload_read_text(other), "unchanged")
 
     def test_journal_symlink_and_invalid_shape_fail_closed(self):
         other = self.root / "other.json"
@@ -566,36 +568,36 @@ class ClientAndInstallTests(unittest.TestCase):
             root = Path(temp)
             waybar = root / "etc/skel-desktop/.config/waybar/config"
             waybar.parent.mkdir(parents=True)
-            waybar.write_text('{"battery":{"on-click":"unchanged"}}')
-            base.installer.install(root, 1000, 1000, base.environment(), ["intel", "nvidia"])
+            waybar.write_text('[{"name":"internal","battery":{"on-click":"unchanged"}},{"name":"external","battery":{"on-click":"unchanged"}}]')
+            base.installer.install(root, 1000, 1000, base.environment(), ["intel", "nvidia"], base.FORKY / "hooks/target")
             units = root / "etc/systemd/system"
             for name in ("hardware-tuning.service", "hardware-tuning-autostart.service", "hardware-tuning-sleep.service"):
-                self.assertIn("Slice=system.slice", (units / name).read_text())
-            broker = (units / "hardware-tuning.service").read_text()
+                self.assertIn("Slice=system.slice", payload_read_text(units / name))
+            broker = payload_read_text(units / "hardware-tuning.service")
             self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-policy recover", broker)
             self.assertNotIn("ReadWritePaths=/run/hardware-tuning /etc/systemd", broker)
-            marker = (units / "hardware-tuning-autostart.service").read_text()
+            marker = payload_read_text(units / "hardware-tuning-autostart.service")
             self.assertIn("RemainAfterExit=yes", marker)
             self.assertIn("BindsTo=hardware-tuning.service", marker)
             self.assertIn("autostart-marker", marker)
             self.assertNotIn("ExecStop=", marker)
             for path in (root / "etc/systemd/user").glob("*.target"):
-                self.assertNotIn("Slice=", path.read_text())
+                self.assertNotIn("Slice=", payload_read_text(path))
             for path in (root / "etc/systemd/user").glob("hardware-tuning-*.service"):
-                self.assertIn("Slice=background.slice", path.read_text())
+                self.assertIn("Slice=background.slice", payload_read_text(path))
 
     def test_apparmor_cgroup_read_is_owner_scoped_and_policy_domain_separate(self):
-        text = (base.FORKY / "hooks/target/etc/apparmor.d/managed-hardware-tuning").read_text()
-        client = text.split("profile managed-hardware-tuning-client ", 1)[1].split("profile managed-hardware-tuning-policy ", 1)[0]
+        text = payload_read_text(base.FORKY / "hooks/target/etc/apparmor.d/hardware-tuning")
+        client = text.split("profile hardware-tuning-client ", 1)[1].split("profile hardware-tuning-policy ", 1)[0]
         self.assertIn("owner /proc/[0-9]*/{stat,status,cgroup} r,", client)
         self.assertNotIn("systemd1.Manager", client)
-        broker = text.split("profile managed-hardware-tuning-broker ", 1)[1].split("profile managed-hardware-tuning-worker ", 1)[0]
+        broker = text.split("profile hardware-tuning-broker ", 1)[1].split("profile hardware-tuning-worker ", 1)[0]
         self.assertNotIn("systemd1.Manager", broker)
         self.assertNotIn("autostart.service rw,", broker)
-        helper = text.split("profile managed-hardware-tuning-policy ", 1)[1]
+        helper = text.split("profile hardware-tuning-policy ", 1)[1]
         self.assertNotIn("/usr/bin/systemctl", helper)
         self.assertNotIn("/sys/", helper)
-        self.assertIn("-> managed-hardware-tuning-policy", broker)
+        self.assertIn("-> hardware-tuning-policy", broker)
 
     def test_recover_all_skips_uninstalled_backend_but_keeps_existing_journal(self):
         with base.private_temp() as temp:
@@ -621,10 +623,10 @@ class NativeBusTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.binary = self.root / "peer"
-        subprocess.run(["cc", "-Wall", "-Wextra", "-Werror", str(base.FORKY / "tests/fixtures/hardware-handover-bus.c"),
-                        "-Wl,-l:libsystemd.so.0", "-o", str(self.binary)], check=True, capture_output=True, timeout=20)
-        daemon = subprocess.Popen(["dbus-daemon", "--session", "--nofork", "--print-address=1",
-                                   "--address=unix:path=" + str(self.root / "bus")],
+        subprocess.run(payload_installed_argv(["cc", "-Wall", "-Wextra", "-Werror", str(base.FORKY / "tests/fixtures/hardware-handover-bus.c"),
+                        "-Wl,-l:libsystemd.so.0", "-o", str(self.binary)]), check=True, capture_output=True, timeout=20)
+        daemon = subprocess.Popen(payload_installed_argv(["dbus-daemon", "--session", "--nofork", "--print-address=1",
+                                   "--address=unix:path=" + str(self.root / "bus")]),
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.close, daemon)
         self.assertTrue(select.select([daemon.stdout], [], [], 5)[0])
@@ -643,7 +645,7 @@ class NativeBusTests(unittest.TestCase):
         process.stdout.close(); process.stderr.close()
 
     def peer(self, mode="ok"):
-        process = subprocess.Popen([str(self.binary), mode, str(self.root / "trace")],
+        process = subprocess.Popen(payload_installed_argv([str(self.binary), mode, str(self.root / "trace")]),
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.close, process)
         self.assertTrue(select.select([process.stdout], [], [], 5)[0])
@@ -667,7 +669,7 @@ class NativeBusTests(unittest.TestCase):
         result = owner.release(True)
         self.assertEqual(result["ppd"]["file"], "enabled")
         self.assertEqual(result["autostart_unit"]["file"], "disabled")
-        trace = (self.root / "trace").read_text()
+        trace = payload_read_text(self.root / "trace")
         self.assertIn("MaskUnitFiles power-profiles-daemon.service runtime=1 force=0", trace)
         self.assertIn("MaskUnitFiles power-profiles-daemon.service runtime=0 force=0", trace)
         self.assertIn("Reload", trace)
@@ -698,7 +700,7 @@ class NativeBusTests(unittest.TestCase):
         with self.assertRaisesRegex(base.common.TuningError, "timed out"):
             manager.job("StopUnit", policy.PPD)
         self.assertLess(time.monotonic() - start, 3)
-        self.assertIn("Cancel", (self.root / "trace").read_text())
+        self.assertIn("Cancel", payload_read_text(self.root / "trace"))
 
     def test_real_missing_file_reply_is_not_accepted_as_absent_active_ppd(self):
         manager, _ = self.peer("missing-file-state")
@@ -709,7 +711,7 @@ class NativeBusTests(unittest.TestCase):
         _, owner = self.peer("other-owner")
         with self.assertRaisesRegex(base.common.TuningError, "tlp.service"):
             owner.prepare(False)
-        self.assertEqual((self.root / "trace").read_text(), "")
+        self.assertEqual(payload_read_text(self.root / "trace"), "")
 
     def test_real_missing_ppd_and_shutdown_paths(self):
         _, owner = self.peer("missing-ppd")
@@ -717,7 +719,7 @@ class NativeBusTests(unittest.TestCase):
         self.assertEqual(result["ppd"]["load"], "not-found")
         result = owner.release(True)
         self.assertFalse(result["claimed"])
-        self.assertNotIn("power-profiles-daemon.service", (self.root / "trace").read_text())
+        self.assertNotIn("power-profiles-daemon.service", payload_read_text(self.root / "trace"))
 
 
 if __name__ == "__main__":

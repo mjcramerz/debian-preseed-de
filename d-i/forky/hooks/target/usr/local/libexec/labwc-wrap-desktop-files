@@ -18,7 +18,7 @@ import subprocess
 import sys
 import tempfile
 
-DEFAULTS = Path('/etc/default/labwc-desktop')
+DEFAULTS = Path('/etc/labwc/desktop.conf')
 APPLICATION_DIRS = (Path('/usr/share/applications'),)
 OUTPUT_DIR = Path('/usr/local/share/applications')
 STATE_DIR = Path('/var/lib/labwc-desktop-files')
@@ -35,7 +35,7 @@ WRAPPERS = {'electron': '/usr/local/bin/labwc-electron-app', 'wayland': '/usr/lo
 # These have existing dedicated sandbox/compatibility/logging entrypoints.
 MANAGED = {
     '/usr/local/bin/labwc-terminal',
-    '/usr/local/bin/labwc-managed-app', '/usr/local/bin/labwc-managed-wayland-compat-app',
+    '/usr/local/bin/labwc-app', '/usr/local/bin/labwc-wayland-compat-app',
     '/usr/local/bin/chatgpt', '/usr/local/bin/labwc-qbittorrent',
     '/usr/local/bin/discord', '/usr/local/bin/zoom', *WRAPPERS.values(),
 }

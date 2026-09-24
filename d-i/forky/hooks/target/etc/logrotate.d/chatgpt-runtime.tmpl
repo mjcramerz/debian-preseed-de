@@ -1,12 +1,12 @@
 # Managed by unattended-installer for addon/devops.
 # The embedded Codex process keeps these files open across a session.
-/var/log/managed/openai/chatgpt/runtime/codex-login.log
-/var/log/managed/openai/chatgpt/runtime/codex-tui.log
+__INSTALLER_LOG_CHATGPT_RUNTIME_LOGIN_FILE__
+__INSTALLER_LOG_CHATGPT_RUNTIME_TUI_FILE__
 {
 	daily
-	rotate 4
-	maxage 7
-	maxsize 16M
+	rotate __INSTALLER_LOG_ROTATE_COUNT__
+	maxage __INSTALLER_LOG_ROTATE_MAXAGE_DAYS__
+	maxsize __INSTALLER_LOG_PRIVATE_MODEL_MAXSIZE_MIB__M
 	missingok
 	notifempty
 	compress

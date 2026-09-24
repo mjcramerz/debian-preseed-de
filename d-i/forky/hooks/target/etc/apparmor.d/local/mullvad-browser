@@ -3,8 +3,8 @@
 # Enforced Mullvad Browser attachment. The package launcher builds a dedicated
 # ~/.mullvad-browser home before the real browser enters this profile.
 
-#include <abstractions/managed-desktop-application>
-#include <abstractions/managed-pipewire-audio>
+#include <abstractions/desktop-application>
+#include <abstractions/pipewire-audio>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 
@@ -70,8 +70,8 @@ owner @{HOME}/@{XDG_DOWNLOAD_DIR}/ rw,
 owner @{HOME}/@{XDG_DOWNLOAD_DIR}/** rwkl,
 
 profile mullvad-bwrap flags=(attach_disconnected, mediate_deleted) {
-  #include <abstractions/managed-bwrap-common>
-  #include <abstractions/managed-desktop-application>
+  #include <abstractions/bwrap-common>
+  #include <abstractions/desktop-application>
   include if exists <abstractions/user-tmp>
 
   signal (receive) set=(kill) peer=mullvad-browser,

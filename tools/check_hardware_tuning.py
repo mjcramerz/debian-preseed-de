@@ -18,6 +18,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from check_logging import load_logging, render_logging
+from check_themes import load_themes, render_text as render_theme
 
 ROOT = Path(__file__).resolve().parents[1]
 FORKY = ROOT / 'd-i/forky'
@@ -26,7 +28,7 @@ FORKY = ROOT / 'd-i/forky'
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', type=Path,
-                        default=ROOT / 'validation/hardware-tuning')
+                        default=ROOT / '.build/validation/hardware-tuning')
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('fixture publishing requires root; no target services are started')
@@ -54,8 +56,9 @@ def main() -> int:
             stage.mkdir()
             waybar = stage / 'etc/skel-desktop/.config/waybar/config'
             waybar.parent.mkdir(parents=True)
-            waybar.write_text('{"battery":{"on-click":"preserved"}}')
-            module.install(stage, 1000, 1000, environment, vendors)
+            waybar.write_text('[{"name":"internal","battery":{"on-click":"preserved"}},'
+                              '{"name":"external","battery":{"on-click":"preserved"}}]')
+            module.install(stage, 1000, 1000, environment, vendors, FORKY / "hooks/target")
             for scope in ('system', 'user'):
                 directory = stage / 'etc/systemd' / scope
                 for path in directory.glob('*.service'):
@@ -72,6 +75,7 @@ def main() -> int:
                     for name in ('labwc-native-vivaldi-stable-fixture.service',
                                  'labwc-native-chromium-fixture.service',
                                  'labwc-native-microsoft-edge-fixture.service',
+                                 'labwc-wayland-fixture.service',
                                  'labwc-electron-fixture.service',
                                  'labwc-devops-fixture.service'):
                         (directory / name).write_text(
@@ -103,14 +107,22 @@ def main() -> int:
             shutil.copytree('/etc/apparmor.d', apparmor)
             shutil.copytree(FORKY / 'hooks/target/etc/apparmor.d', apparmor,
                             dirs_exist_ok=True)
+            logging_values = load_logging(FORKY)
+            theme_values = load_themes()
+            for template in apparmor.rglob('*.tmpl'):
+                destination = template.with_name(template.name[:-5])
+                destination.write_text(render_theme(
+                    render_logging(template.read_text(), logging_values), theme_values))
+                shutil.copymode(template, destination)
+                template.unlink()
             for vendor in ('intel', 'nvidia'):
                 if vendor not in vendors:
                     (apparmor / 'abstractions' /
-                     ('managed-hardware-tuning-' + vendor)).unlink()
+                     ('hardware-tuning-' + vendor)).unlink()
             command = ['apparmor_parser', '-Q', '-K', '-I', str(apparmor)]
             command += [str(apparmor / name) for name in
-                        ('managed-hardware-tuning', 'managed-desktop-wrappers',
-                         'managed-desktop-utilities')]
+                        ('hardware-tuning', 'desktop-wrappers',
+                         'desktop-utilities')]
             run = subprocess.run(command, capture_output=True, text=True, timeout=35)
             log = 'apparmor-' + '-'.join(vendors) + '.log'
             (output / log).write_text(run.stdout + run.stderr)

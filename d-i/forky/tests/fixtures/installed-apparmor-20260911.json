@@ -4,7 +4,7 @@
   "events": 592,
   "records": [
     {
-      "profile": "managed-session-glycin-bwrap",
+      "profile": "x-session-glycin-bwrap",
       "operation": "file_inherit",
       "class": "file",
       "name": "/usr/share/backgrounds/desktop/bluesky-1920x1080.jpeg",
@@ -15,7 +15,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/#3558",
@@ -27,7 +27,7 @@
       "count": 16
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.LScxUC",
@@ -39,7 +39,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.tcCrDZ",
@@ -51,7 +51,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.osmGaM",
@@ -63,7 +63,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.OnlZfk",
@@ -75,7 +75,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.RnEMjq",
@@ -87,7 +87,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.jpUWKY",
@@ -99,7 +99,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.cJrYrt",
@@ -111,7 +111,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.erprVS",
@@ -123,7 +123,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.bLufrx",
@@ -135,7 +135,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.jeRuoS",
@@ -147,7 +147,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.FMMJWn",
@@ -159,7 +159,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.IFILPc",
@@ -171,7 +171,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.wGgDwk",
@@ -183,7 +183,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.UkpPCO",
@@ -195,7 +195,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.MJrCKA",
@@ -207,7 +207,7 @@
       "count": 1
     },
     {
-      "profile": "managed-crystal-dock",
+      "profile": "x-crystal-dock",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/crystal-dock/labwc/appearance.conf.GdwJPI",
@@ -219,7 +219,7 @@
       "count": 1
     },
     {
-      "profile": "managed-session-glycin-bwrap",
+      "profile": "x-session-glycin-bwrap",
       "operation": "file_inherit",
       "class": "file",
       "name": "/usr/share/icons/Papirus/48x48/devices/drive-removable-media.svg",
@@ -230,7 +230,7 @@
       "count": 1
     },
     {
-      "profile": "managed-labwc-chatgpt",
+      "profile": "x-labwc-chatgpt",
       "operation": "mkdir",
       "class": "file",
       "name": "/run/user/1000/python/pycache/",
@@ -241,7 +241,7 @@
       "count": 1
     },
     {
-      "profile": "managed-labwc-chatgpt",
+      "profile": "x-labwc-chatgpt",
       "operation": "chmod",
       "class": "file",
       "name": "/run/user/1000/python/pycache/",
@@ -252,7 +252,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini",
@@ -263,7 +263,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5674/cmdline",
@@ -274,13 +274,13 @@
       "count": 4
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "userns_create",
       "class": "namespace",
       "count": 4
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5688/setgroups",
@@ -291,14 +291,14 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "capable",
       "class": "cap",
       "capname": "sys_admin",
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5688/gid_map",
@@ -309,7 +309,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5688/uid_map",
@@ -320,7 +320,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/",
@@ -331,7 +331,7 @@
       "count": 6
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5689/fd/",
@@ -342,11 +342,11 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "exec",
       "class": "file",
       "name": "/usr/lib/qt6/libexec/QtWebEngineProcess",
-      "target": "managed-desktop-media//null-/usr/lib/qt6/libexec/QtWebEngineProcess",
+      "target": "x-desktop-media//null-/usr/lib/qt6/libexec/QtWebEngineProcess",
       "fsuid": "1000",
       "ouid": "0",
       "requested_mask": "x",
@@ -354,11 +354,11 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "exec",
       "class": "file",
       "name": "/usr/lib/qt6/libexec/QtWebEngineProcess",
-      "target": "managed-desktop-media//null-/usr/lib/qt6/libexec/QtWebEngineProcess",
+      "target": "x-desktop-media//null-/usr/lib/qt6/libexec/QtWebEngineProcess",
       "fsuid": "1000",
       "ouid": "0",
       "requested_mask": "x",
@@ -367,7 +367,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/fd/",
@@ -378,7 +378,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/setgroups",
@@ -389,7 +389,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/uid_map",
@@ -400,7 +400,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/gid_map",
@@ -411,7 +411,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/cmdline",
@@ -422,7 +422,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5689/cmdline",
@@ -433,7 +433,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "mkdir",
       "class": "file",
       "name": "/usr/share/qt6/resources/locales/",
@@ -444,7 +444,7 @@
       "count": 4
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/sys/fs/inotify/max_user_watches",
@@ -455,7 +455,7 @@
       "count": 3
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/sys/kernel/yama/ptrace_scope",
@@ -466,14 +466,14 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "capable",
       "class": "cap",
       "capname": "sys_chroot",
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5690/stat",
@@ -484,14 +484,14 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "capable",
       "class": "cap",
       "capname": "sys_ptrace",
       "count": 3
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5674/stat",
@@ -502,7 +502,7 @@
       "count": 198
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "create",
       "class": "net",
       "requested_mask": "create",
@@ -513,7 +513,7 @@
       "count": 12
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/oom_score_adj",
@@ -524,7 +524,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "truncate",
       "class": "file",
       "name": "/proc/5717/oom_score_adj",
@@ -535,7 +535,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/fd/",
@@ -546,7 +546,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/qtshadercache-x86_64-little_endian-lp64/#3588",
@@ -557,7 +557,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/qtshadercache-x86_64-little_endian-lp64/#3588",
@@ -569,7 +569,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/qtshadercache-x86_64-little_endian-lp64/023b9e4228f85219707672bca89e9a1cf9030480",
@@ -581,7 +581,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3589",
@@ -592,7 +592,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3589",
@@ -604,7 +604,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/023b9e4228f85219707672bca89e9a1cf9030480",
@@ -616,7 +616,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3590",
@@ -627,7 +627,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3590",
@@ -639,7 +639,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/023b9e4228f85219707672bca89e9a1cf9030480",
@@ -651,7 +651,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3591",
@@ -662,7 +662,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3591",
@@ -674,7 +674,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/023b9e4228f85219707672bca89e9a1cf9030480",
@@ -686,7 +686,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/",
@@ -697,7 +697,7 @@
       "count": 10
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5717/status",
@@ -708,7 +708,7 @@
       "count": 10
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5727/status",
@@ -719,7 +719,7 @@
       "count": 9
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/statm",
@@ -730,7 +730,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5728/status",
@@ -741,7 +741,7 @@
       "count": 8
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5729/status",
@@ -752,7 +752,7 @@
       "count": 7
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5730/status",
@@ -763,7 +763,7 @@
       "count": 6
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5732/status",
@@ -774,7 +774,7 @@
       "count": 4
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5733/status",
@@ -785,7 +785,7 @@
       "count": 3
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/task/5734/status",
@@ -796,7 +796,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3592",
@@ -807,7 +807,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/#3592",
@@ -819,7 +819,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.cache/Recoll.org/recoll/qtshadercache-x86_64-little_endian-lp64/55138a2ecf9601d6b4e0bff7e00b9a4a59f867a3",
@@ -831,7 +831,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "mknod",
       "class": "file",
       "name": "/run/user/1000/recoll-2786786f2fbcea30b654cef3573bae96-index.pid",
@@ -842,7 +842,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/run/user/1000/recoll-2786786f2fbcea30b654cef3573bae96-index.pid",
@@ -853,7 +853,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "file_lock",
       "class": "file",
       "name": "/run/user/1000/recoll-2786786f2fbcea30b654cef3573bae96-index.pid",
@@ -864,7 +864,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "truncate",
       "class": "file",
       "name": "/run/user/1000/recoll-2786786f2fbcea30b654cef3573bae96-index.pid",
@@ -875,7 +875,7 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini",
@@ -886,7 +886,7 @@
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "mknod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.lock",
@@ -897,7 +897,7 @@
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.lock",
@@ -908,7 +908,7 @@
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "file_lock",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.lock",
@@ -919,7 +919,7 @@
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3596",
@@ -930,7 +930,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "chmod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3596",
@@ -941,7 +941,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3596",
@@ -953,7 +953,7 @@
       "count": 16
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.SfvrBE",
@@ -965,7 +965,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.hNIciP",
@@ -977,7 +977,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ZCKFpN",
@@ -989,7 +989,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.qFDOPD",
@@ -1001,7 +1001,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.oxQCvE",
@@ -1013,7 +1013,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.bhMYzD",
@@ -1025,7 +1025,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.shnqVa",
@@ -1037,7 +1037,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.xeCWqQ",
@@ -1049,7 +1049,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.DbTzLF",
@@ -1061,7 +1061,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XRFdSp",
@@ -1073,7 +1073,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.qWbtcy",
@@ -1085,7 +1085,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.lOWhzO",
@@ -1097,7 +1097,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.GvKYlp",
@@ -1109,7 +1109,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.hTsZGH",
@@ -1121,7 +1121,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XUqkWz",
@@ -1133,7 +1133,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.WbrwII",
@@ -1145,7 +1145,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "unlink",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.lock",
@@ -1156,7 +1156,7 @@
       "count": 5
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3598",
@@ -1167,7 +1167,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "chmod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3598",
@@ -1178,7 +1178,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3598",
@@ -1190,7 +1190,7 @@
       "count": 16
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.VsWRbd",
@@ -1202,7 +1202,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.WCddSI",
@@ -1214,7 +1214,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XdSEAC",
@@ -1226,7 +1226,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.vOioER",
@@ -1238,7 +1238,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.winMyT",
@@ -1250,7 +1250,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.SClZJk",
@@ -1262,7 +1262,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.tMjlvs",
@@ -1274,7 +1274,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.JYRFtl",
@@ -1286,7 +1286,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.GhiyKh",
@@ -1298,7 +1298,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XPUAEr",
@@ -1310,7 +1310,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ydOxTr",
@@ -1322,7 +1322,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.pRYrzb",
@@ -1334,7 +1334,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.EohcvH",
@@ -1346,7 +1346,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.dtZPRv",
@@ -1358,7 +1358,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ifwqtm",
@@ -1370,7 +1370,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.PuVXUx",
@@ -1382,7 +1382,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3600",
@@ -1393,7 +1393,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "chmod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3600",
@@ -1404,7 +1404,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3600",
@@ -1416,7 +1416,7 @@
       "count": 16
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.tuLeTZ",
@@ -1428,7 +1428,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.SantXZ",
@@ -1440,7 +1440,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.IoutzK",
@@ -1452,7 +1452,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XfSStl",
@@ -1464,7 +1464,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.mxFTdT",
@@ -1476,7 +1476,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.XHsZuZ",
@@ -1488,7 +1488,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.onIOVk",
@@ -1500,7 +1500,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.jQKkhO",
@@ -1512,7 +1512,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.WgRpiY",
@@ -1524,7 +1524,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.RiXXZc",
@@ -1536,7 +1536,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.GTMhsz",
@@ -1548,7 +1548,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.BgFinC",
@@ -1560,7 +1560,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.xLutAI",
@@ -1572,7 +1572,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.Yxnapa",
@@ -1584,7 +1584,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.DCfHBl",
@@ -1596,7 +1596,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.SQICiO",
@@ -1608,7 +1608,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3602",
@@ -1619,7 +1619,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "chmod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3602",
@@ -1630,7 +1630,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3602",
@@ -1642,7 +1642,7 @@
       "count": 16
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.BbaBgo",
@@ -1654,7 +1654,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.yrMHnM",
@@ -1666,7 +1666,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ejjkdz",
@@ -1678,7 +1678,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.gBoUdm",
@@ -1690,7 +1690,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.DtODJW",
@@ -1702,7 +1702,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.uNcUQX",
@@ -1714,7 +1714,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.wIXVYx",
@@ -1726,7 +1726,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ObdgHU",
@@ -1738,7 +1738,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.xLVUoR",
@@ -1750,7 +1750,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.zWhPYi",
@@ -1762,7 +1762,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.TeLHUg",
@@ -1774,7 +1774,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.AaFjen",
@@ -1786,7 +1786,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.WKQYMh",
@@ -1798,7 +1798,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.hvZEyV",
@@ -1810,7 +1810,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.afLpWl",
@@ -1822,7 +1822,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.tyNBwB",
@@ -1834,7 +1834,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3604",
@@ -1845,7 +1845,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "chmod",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3604",
@@ -1856,7 +1856,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/#3604",
@@ -1868,7 +1868,7 @@
       "count": 16
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.cfaxUD",
@@ -1880,7 +1880,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.DiOlDX",
@@ -1892,7 +1892,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.wqEfwR",
@@ -1904,7 +1904,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.LGSfsI",
@@ -1916,7 +1916,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.pkTahM",
@@ -1928,7 +1928,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.cRLrFo",
@@ -1940,7 +1940,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.LoDKHh",
@@ -1952,7 +1952,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.zQVExB",
@@ -1964,7 +1964,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.zLhMWA",
@@ -1976,7 +1976,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.MbJTqy",
@@ -1988,7 +1988,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.uTdzlX",
@@ -2000,7 +2000,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.wLWmFR",
@@ -2012,7 +2012,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.qRGdAU",
@@ -2024,7 +2024,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.wfCnBu",
@@ -2036,7 +2036,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ebIpyx",
@@ -2048,7 +2048,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "link",
       "class": "file",
       "name": "/home/ACCOUNT/.config/Recoll.org/recoll.ini.ukjciv",
@@ -2060,7 +2060,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-media",
+      "profile": "x-desktop-media",
       "operation": "open",
       "class": "file",
       "name": "/proc/5717/stat",
@@ -2071,7 +2071,7 @@
       "count": 1
     },
     {
-      "profile": "managed-desktop-launcher",
+      "profile": "x-desktop-launcher",
       "operation": "open",
       "class": "file",
       "name": "/run/mount/utab",
@@ -2082,22 +2082,22 @@
       "count": 2
     },
     {
-      "profile": "managed-desktop-launcher",
+      "profile": "x-desktop-launcher",
       "operation": "signal",
       "class": "signal",
       "requested_mask": "send",
       "denied_mask": "send",
-      "peer": "managed-desktop-launcher//application-bwrap",
+      "peer": "x-desktop-launcher//application-bwrap",
       "signal": "kill",
       "count": 6
     },
     {
-      "profile": "managed-desktop-launcher//application-bwrap",
+      "profile": "x-desktop-launcher//application-bwrap",
       "operation": "signal",
       "class": "signal",
       "requested_mask": "receive",
       "denied_mask": "receive",
-      "peer": "managed-desktop-launcher",
+      "peer": "x-desktop-launcher",
       "signal": "kill",
       "count": 6
     }

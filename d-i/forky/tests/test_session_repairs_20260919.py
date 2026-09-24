@@ -3,6 +3,10 @@
 Real production renderers, wrapper status/cleanup and native AppArmor syntax are
 covered elsewhere as well. No test asserts that a target GPU is repaired.
 """
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import configparser
 import json
 import os
@@ -30,14 +34,14 @@ class PickerIncidentTests(unittest.TestCase):
     def test_native_dmenu_status_is_normalized_for_all_wrapper_paths(self):
         fake = self.bin / 'fuzzel'
         fake.write_text('#!/bin/sh\ncat >/dev/null\nexit "$NATIVE_STATUS"\n')
-        for args in (('menu', '--dmenu'), ('menu', '--dmenu0'), ('main-menu', '--dmenu')):
+        for args in (('menu', '--dmenu'), ('menu', '--dmenu0'), ('computer-management', '--dmenu')):
             for icons in ('0', '1'):
                 for native, expected in ((0, 0), (2, 1), (1, 2), (127, 127), (143, 143), (10, 10)):
                     with self.subTest(args=args, icons=icons, native=native):
                         result, _ = self.invoke(*args, extra_environment={
                             'LABWC_FUZZEL_MANAGED_ICONS': icons, 'NATIVE_STATUS': str(native)})
                         self.assertEqual(result.returncode, expected, result.stderr.decode())
-                        self.assertFalse((self.runtime / 'labwc-fuzzel.pid').exists())
+                        self.assertFalse(payload_source_exists(self.runtime / 'labwc-fuzzel.pid'))
                         self.assertFalse(list(self.runtime.glob('labwc-fuzzel-menu.*')))
 
     def test_launcher_status_is_not_reinterpreted_as_dmenu(self):
@@ -45,21 +49,18 @@ class PickerIncidentTests(unittest.TestCase):
         result, _ = self.invoke('launcher')
         self.assertEqual(result.returncode, 1)
 
-    def test_main_menu_uses_search_sized_files_on_both_output_classes(self):
-        for name in ('main-menu.ini', 'main-menu-internal.ini'):
-            (self.config / name).write_text('[main]\n')
-        for output, name in (('eDP-1', 'main-menu-internal.ini'), ('DP-1', 'main-menu.ini')):
+    def test_main_menu_uses_one_menu_file_on_both_output_classes(self):
+        for output in ('eDP-1', 'DP-1'):
             with self.subTest(output=output):
-                result, args = self.invoke('main-menu', '--dmenu', output=output)
+                result, args = self.invoke('menu', '--dmenu', output=output)
                 self.assertEqual(result.returncode, 0, result.stderr.decode())
-                self.assertIn('--config=' + str(self.config / name), args)
+                self.assertIn('--config=' + str(self.config / 'menu.ini'), args)
                 self.assertNotIn('--minimal-lines', args)
 
     def test_main_menu_does_not_inherit_compact_management_clamp(self):
-        (self.config / 'main-menu-internal.ini').write_text('[main]\n')
-        result, args = self.invoke('main-menu', '--dmenu', output='eDP-1', extra_environment={
-            'LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH': '34',
-            'LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES': '40',
+        result, args = self.invoke('menu', '--dmenu', output='eDP-1', extra_environment={
+            'FUZZEL_MENU_INTERNAL_WIDTH': '34',
+            'FUZZEL_MENU_INTERNAL_LINES': '40',
             'LABWC_FUZZEL_MENU_WIDTH_OVERRIDE': '40'})
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertIn('--width=34', args)
@@ -71,7 +72,7 @@ del _SizingFixture  # unittest discovery must not collect the imported fixture.
 
 class ProfileRenderingTests(unittest.TestCase):
     def test_every_profile_renders_equal_main_and_search_geometry(self):
-        transport = (FORKY / 'tests/fixtures/workspaces/render.sh').read_text()
+        transport = render_theme_defaults(payload_read_text(FORKY / 'tests/fixtures/workspaces/render.sh'))
         # The same transport calls the real scalar renderer, not a template mock.
         transport = transport.split('desktop_render_labwc_rc_xml\n', 1)[0]
         transport += '. "$5"\ndesktop_render_fuzzel_configs\n'
@@ -79,37 +80,39 @@ class ProfileRenderingTests(unittest.TestCase):
         self.assertEqual(len(paths), 10)
         for profile in paths:
             with self.subTest(profile=profile.name), tempfile.TemporaryDirectory() as tmp:
-                result = subprocess.run(['/bin/sh', '-eu', '-c', transport, 'fixture',
-                    str(ROOT), tmp, '4', 'thumbnail', str(profile)],
+                result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', transport, 'fixture',
+                    str(ROOT), tmp, '4', 'thumbnail', str(profile)]),
                     capture_output=True, text=True, timeout=20)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 config = Path(tmp) / 'etc/skel-desktop/.config/fuzzel'
-                for suffix in ('', '-internal'):
-                    search = configparser.ConfigParser(interpolation=None)
-                    menu = configparser.ConfigParser(interpolation=None)
-                    search.read(config / ('fuzzel' + suffix + '.ini'))
-                    menu.read(config / ('main-menu' + suffix + '.ini'))
-                    for key in ('include', 'width', 'lines'):
-                        self.assertEqual(menu['main'][key], search['main'][key])
-                self.assertFalse(any('__INSTALLER_' in p.read_text() for p in config.iterdir()))
+                self.assertEqual({p.name for p in config.iterdir()},
+                                 {'base.ini', 'fuzzel.ini', 'menu.ini', 'computer-management.ini'})
+                search = configparser.ConfigParser(interpolation=None)
+                menu = configparser.ConfigParser(interpolation=None)
+                search.read(config/'fuzzel.ini'); menu.read(config/'menu.ini')
+                self.assertEqual(menu['main']['include'], search['main']['include'])
+                for document in (search, menu):
+                    self.assertNotIn('width', document['main'])
+                    self.assertNotIn('lines', document['main'])
+                self.assertFalse(any('__INSTALLER_' in render_theme_defaults(payload_read_text(p)) for p in config.iterdir()))
 
     def test_waybar_icons_are_centered_and_microphone_has_separate_glyph_font(self):
-        source = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        source = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         for name in ('wayscriber', 'apps', 'window-switcher'):
             blocks = re.findall(r'"custom/' + name + r'": \{(.*?)\n  \}', source, re.S)
             self.assertEqual(len(blocks), 2)
             for block in blocks:
                 self.assertIn('"align": 0.5', block)
-        self.assertEqual(source.count("font_family='Font Awesome 6 Free' weight='bold'"), 4)
-        self.assertEqual(source.count('</span>&#8194;{volume}%'), 4)
-        css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+        self.assertEqual(source.count("font_family='Font Awesome 6 Free' weight='700'"), 4)
+        self.assertEqual(source.count('</span>' + theme_values()['WAYBAR_BUTTON_AUDIO_MICROPHONE_NORMAL_SEPARATOR_ICON_GLYPH'] + '{volume}%'), 4)
+        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl'))
         for name in ('wayscriber', 'apps', 'window-switcher', 'lock', 'power', 'backlight'):
             self.assertIn('#custom-' + name + ':hover', css)
         self.assertIn('#pulseaudio:hover', css)
         self.assertNotIn('text-align:', css)  # not GTK3 CSS
 
     def test_win_menu_and_panel_list_do_not_cycle_the_next_window(self):
-        tree = ET.fromstring((TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text())
+        tree = ET.fromstring(render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl')))
         bindings = {b.get('key'): b for b in tree.findall('keyboard/keybind')}
         self.assertEqual(bindings['Super_L'].find('action').get('command'), 'labwc-main-menu')
         self.assertEqual(bindings['Super_L'].get('onRelease'), 'yes')
@@ -147,30 +150,33 @@ class VendorDesktopIncidentTests(unittest.TestCase):
 
 class PolicyIncidentTests(unittest.TestCase):
     def block(self, filename, profile):
-        text = (TARGET / 'etc/apparmor.d' / filename).read_text()
+        source = (FORKY / 'scripts/firstboot/assets/etc/apparmor.d/firstboot.tmpl'
+                  if profile in ('crowdsec-firstboot', 'firstboot')
+                  else TARGET / 'etc/apparmor.d' / filename)
+        text = render_theme_defaults(payload_read_text(source))
         return re.search(r'^profile ' + re.escape(profile) + r' .*?^}', text, re.M | re.S).group(0)
 
     def test_all_recorded_missing_accesses_have_narrow_profile_rules(self):
-        compositor = self.block('managed-labwc-session', 'managed-labwc-compositor')
+        compositor = self.block('labwc-session', 'labwc-compositor')
         self.assertIn('owner @{HOME}/.local/share/icons/{,**} r,', compositor)
         self.assertIn('owner /tmp/wtype-?????? rw,', compositor)
-        for name in ('managed-labwc-autostart', 'managed-labwc-calendar'):
-            self.assertIn('owner @{HOME}/ r,', self.block('managed-desktop-wrappers', name))
+        for name in ('labwc-autostart', 'labwc-calendar'):
+            self.assertIn('owner @{HOME}/ r,', self.block('desktop-wrappers', name))
         self.assertIn('/usr/share/texmf/fonts/{,**} r,',
-                      self.block('managed-desktop-wrappers', 'managed-labwc-greeter-power'))
-        self.assertIn('  / r,', self.block('managed-system-wrappers', 'managed-crowdsec-firstboot'))
-        self.assertIn('ptrace (read) peer=managed-labwc-wrap-desktop-files,',
-                      self.block('managed-system-wrappers', 'managed-firstboot'))
-        self.assertIn('ptrace (readby) peer=managed-firstboot,',
-                      self.block('managed-desktop-wrappers', 'managed-labwc-wrap-desktop-files'))
+                      self.block('desktop-wrappers', 'labwc-greeter-power'))
+        self.assertIn('  / r,', self.block('system-wrappers', 'crowdsec-firstboot'))
+        self.assertIn('ptrace (read) peer=labwc-wrap-desktop-files,',
+                      self.block('system-wrappers', 'firstboot'))
+        self.assertIn('ptrace (readby) peer=firstboot,',
+                      self.block('desktop-wrappers', 'labwc-wrap-desktop-files'))
 
     def test_unlock_remains_explicit_without_hiding_real_decryption_errors(self):
-        unit = (TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service').read_text()
+        unit = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service'))
         self.assertIn('TimeoutStartSec=120', unit)
         self.assertNotIn('SuccessExitStatus=', unit)
-        loader = (TARGET / 'usr/local/libexec/labwc-ssh-key-load').read_text()
+        loader = render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-ssh-key-load'))
         self.assertIn('ssh-add', loader)
-        stage = (FORKY / 'scripts/desktop/components.sh').read_text()
+        stage = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         enabled = stage.split('  for unit in \\\n    labwc-output-watch.service', 1)[1].split('\n  done', 1)[0]
         self.assertNotIn('labwc-ssh-key-load.service', enabled)
         self.assertIn('ssh-agent.socket', enabled)

@@ -3,7 +3,7 @@
 # The package profile does not carry the complete current Forky runtime
 # library set or the namespace-inspection permissions used by rootless Podman.
 # Managed Codex uses its own named slirp4netns transition in
-# managed-desktop-wrappers. Permit only the observed package-profile loader,
+# desktop-wrappers. Permit only the observed package-profile loader,
 # socketpair, process-inspection, and namespace-file access here.
 
 /etc/ld.so.cache r,

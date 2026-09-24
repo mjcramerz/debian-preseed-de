@@ -4,6 +4,11 @@ All power calls and desktop applications are mocked. FD tests run only in an
 isolated Python child; root-file tests use a temporary directory, not /etc.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import python_library
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import contextlib
 import importlib.machinery
 import importlib.util
@@ -24,7 +29,7 @@ TARGET = Path(__file__).resolve().parents[1] / 'hooks/target'
 
 
 def load(leaf):
-    loader = importlib.machinery.SourceFileLoader(leaf, str(TARGET/'usr/local/libexec'/leaf))
+    loader = importlib.machinery.SourceFileLoader(leaf, str(installed_script(TARGET/'usr/local/libexec'/leaf)))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
@@ -33,7 +38,7 @@ def load(leaf):
 
 class FootResults(unittest.TestCase):
     def setUp(self):
-        sys.path.insert(0, str(TARGET/'usr/local/lib/python3.14/dist-packages'))
+        sys.path.insert(0, str(python_library(TARGET/'usr/local/lib/python3.14/dist-packages')))
         self.addCleanup(sys.path.pop, 0)
         from labwc_managed_app import generic
         self.m = generic
@@ -94,12 +99,12 @@ class FootResults(unittest.TestCase):
 
     def test_removed_helpers_have_no_installer_or_runtime_dependencies(self):
         for name in ('labwc-foot-supervisor', 'labwc-stage-waybar-icons'):
-            self.assertFalse((TARGET/'usr/local/libexec'/name).exists())
+            self.assertFalse(payload_source_exists(TARGET/'usr/local/libexec'/name))
             for relative in ('scripts/desktop/components.sh', 'scripts/desktop/labwc.sh',
                              'scripts/desktop/verify.sh'):
-                self.assertNotIn(name, (TARGET.parents[1]/relative).read_text())
+                self.assertNotIn(name, render_theme_defaults(payload_read_text(TARGET.parents[1]/relative)))
         self.assertNotIn('desktop_prepare_native_drawer_icons',
-                         (TARGET.parents[1]/'scripts/desktop/verify.sh').read_text())
+                         render_theme_defaults(payload_read_text(TARGET.parents[1]/'scripts/desktop/verify.sh')))
 
 
 class SaveVeto(unittest.TestCase):
@@ -164,8 +169,8 @@ class SaveVeto(unittest.TestCase):
                  mock.patch.object(self.m,'run') as run, self.assertRaises(self.m.Cancelled):
                 self.m.prepare(state,runtime)
             run.assert_not_called()
-            self.assertFalse((runtime/'labwc-session-closing').exists())
-            self.assertFalse((state/'resume.json').exists())
+            self.assertFalse(payload_source_exists(runtime/'labwc-session-closing'))
+            self.assertFalse(payload_source_exists(state/'resume.json'))
 
 
 class WorkerVeto(unittest.TestCase):
@@ -243,24 +248,24 @@ except OSError: pass
 else: raise AssertionError('inherited descriptor was not closed')
 os.write(1,b'closed; stdout retained')
 """ % str(TARGET/'usr/local/libexec/labwc-waybar-exec')
-        result=subprocess.run([sys.executable,'-I','-B','-c',program],capture_output=True,text=True,timeout=5)
+        result=subprocess.run(payload_installed_argv([sys.executable,'-I','-B','-c',program]),capture_output=True,text=True,timeout=5)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(result.stdout,'closed; stdout retained')
 
 
 class AtomicKMS(unittest.TestCase):
     def test_no_legacy_backend_policy_or_host_allowlist_remains(self):
-        paths = (TARGET/'etc/default/labwc-desktop.tmpl',
+        paths = (TARGET/'etc/labwc/desktop.conf.tmpl',
                  TARGET/'usr/local/bin/labwc-session.tmpl',
                  TARGET.parents[1]/'scripts/desktop/components.sh', TARGET.parents[1]/'scripts/desktop/detect.sh')
         for path in paths:
-            text = path.read_text()
+            text = render_theme_defaults(payload_read_text(path))
             self.assertNotIn('LABWC_WLR_DRM_', text, str(path))
             self.assertNotIn('select_drm_no_atomic', text, str(path))
-        self.assertNotIn('LPL-264', (TARGET/'usr/local/bin/labwc-session.tmpl').read_text())
+        self.assertNotIn('LPL-264', render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl')))
 
     def test_old_override_is_unset_and_never_imported(self):
-        text = (TARGET/'usr/local/bin/labwc-session.tmpl').read_text()
+        text = render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl'))
         cleanup = re.search(r'cleanup_environment_names="([^"]*)"', text).group(1).split()
         imported = re.search(r"compositor_environment_names='([^']*)'", text).group(1).split()
         self.assertIn('WLR_DRM_NO_ATOMIC', cleanup)
@@ -281,15 +286,15 @@ class ScannerOnlyPolicy(unittest.TestCase):
         self.path.chmod(0o600)
     def test_exact_missing_daemon_only_and_idempotent_preserving_secrets_mode(self):
         self.assertTrue(self.m.reconcile_clamd_notification(self.root))
-        text=self.path.read_text();self.assertNotIn('\nNotifyClamd ',text)
+        text=render_theme_defaults(payload_read_text(self.path));self.assertNotIn('\nNotifyClamd ',text)
         self.assertIn('HTTPProxyPassword secret',text)
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode),0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.path).st_mode),0o600)
         self.assertFalse(self.m.reconcile_clamd_notification(self.root))
-        self.assertEqual(self.path.read_text(),text)
+        self.assertEqual(render_theme_defaults(payload_read_text(self.path)),text)
     def test_present_daemon_is_untouched(self):
         (self.root/'clamd.conf').write_text('LocalSocket /run/clamav/clamd.ctl\n')
-        before=self.path.read_bytes();self.assertFalse(self.m.reconcile_clamd_notification(self.root))
-        self.assertEqual(self.path.read_bytes(),before)
+        before=render_theme_bytes(payload_read_bytes(self.path));self.assertFalse(self.m.reconcile_clamd_notification(self.root))
+        self.assertEqual(render_theme_bytes(payload_read_bytes(self.path)),before)
     def test_custom_daemon_path_is_untouched(self):
         self.path.write_text('NotifyClamd /etc/company/clamd.conf\n')
         self.assertFalse(self.m.reconcile_clamd_notification(self.root))
@@ -306,25 +311,25 @@ class ScannerOnlyPolicy(unittest.TestCase):
 
 class Wiring(unittest.TestCase):
     def test_wlsunset_controller_runs_in_host_user_namespace(self):
-        unit=(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service').read_text()
+        unit=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-wlsunset-start.service'))
         self.assertIn('PrivateUsers=no',unit);self.assertIn('PrivatePIDs=no',unit)
         self.assertIn('Requisite=labwc-session.target',unit)
         self.assertIn('/usr/local/bin/labwc-wlsunset start',unit)
-        autostart=(TARGET/'usr/local/bin/labwc-autostart').read_text()
+        autostart=render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-autostart'))
         self.assertIn('session_systemctl start labwc-wlsunset-start.service',autostart)
     def test_cancel_status_is_checked_not_blanket_success(self):
-        unit=(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-session-state@.service').read_text()
+        unit=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-session-state@.service'))
         self.assertIn('SuccessExitStatus=77',unit)
-        retained=(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf').read_text()
+        retained=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-session-state@prepare.service.d/retain-result.conf'))
         self.assertIn('RemainAfterExit=yes',retained)
-        worker=(TARGET/'usr/local/libexec/labwc-admin-action-worker').read_text()
+        worker=render_theme_defaults(payload_read_text(TARGET/'usr/local/libexec/labwc-admin-action-worker'))
         self.assertIn('props.get("ExecMainStatus") == "77"',worker)
         self.assertIn('except Cancelled as exc:',worker)
     def test_status_transition_has_no_rfkill_permission_widening(self):
-        text=(TARGET/'etc/apparmor.d/managed-waybar-menus').read_text()
-        profile=text.split('profile managed-labwc-notifications ',1)[1].split('\nprofile ',1)[0]
+        text=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/waybar-menus'))
+        profile=text.split('profile labwc-notifications ',1)[1].split('\nprofile ',1)[0]
         self.assertNotIn('/dev/rfkill',profile)
-        waybar=(TARGET/'etc/apparmor.d/managed-labwc-session').read_text()
+        waybar=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/labwc-session'))
         self.assertIn('local/libexec/labwc-waybar-exec',waybar)
         self.assertNotIn('/usr/local/share/labwc/waybar-icons/',waybar)
 
@@ -341,7 +346,7 @@ class NotificationSessionPolicy(unittest.TestCase):
              mock.patch.object(m.pwd, 'getpwuid', return_value=account), \
              mock.patch.dict(m.os.environ, {'WAYLAND_DISPLAY': 'wayland-0'}, clear=True):
             env = m.environment()
-        session = (TARGET/'etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl').read_text()
+        session = render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/labwc/environment.d/10-wayland.env.tmpl'))
         for key, value in (('NO_AT_BRIDGE', '1'), ('GTK_A11Y', 'none')):
             self.assertIn(key + '=' + value, session.splitlines())
             self.assertEqual(env[key], value)
@@ -352,7 +357,7 @@ class NotificationSessionPolicy(unittest.TestCase):
         import configparser
         import shlex
         entry = configparser.ConfigParser(interpolation=None)
-        entry.read(TARGET/'usr/local/share/applications/labwc-notifications.desktop')
+        entry.read_string(render_theme_defaults(payload_read_text(TARGET/'usr/local/share/applications/labwc-notifications.desktop')))
         item = entry['Desktop Entry']
         self.assertEqual(item['NoDisplay'], 'true')
         self.assertEqual(item['Icon'], 'preferences-system-notifications-symbolic')
@@ -366,7 +371,7 @@ class NotificationSessionPolicy(unittest.TestCase):
             self.assertIn(word, argv)
         self.assertEqual(argv[-3:], ['--', '/usr/local/libexec/labwc-notifications', 'center'])
         self.assertNotIn('sh', argv)
-        components = (TARGET.parents[1]/'scripts/desktop/components.sh').read_text()
+        components = render_theme_defaults(payload_read_text(TARGET.parents[1]/'scripts/desktop/components.sh'))
         self.assertIn('usr/local/share/applications/labwc-notifications.desktop /usr/local/share/applications/labwc-notifications.desktop 0644', components)
 
 if __name__ == '__main__': unittest.main()

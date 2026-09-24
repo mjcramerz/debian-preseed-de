@@ -1,0 +1,49 @@
+# Native power requests/results; one authoritative file, before generic routing.
+# Root/trusted journal fields are retained; an application tag is never authority.
+template(name="PowerEventJSON" type="list" option.caseSensitive="on") {
+  constant(value="{")
+  property(name="timereported" outname="timestamp" format="jsonf" dateFormat="rfc3339")
+  constant(value=",")
+  property(name="hostname" outname="host" format="jsonf")
+  constant(value=",")
+  property(name="programname" outname="program" format="jsonf")
+  constant(value=",")
+  property(name="procid" outname="pid" format="jsonf")
+  constant(value=",")
+  property(name="syslogseverity-text" outname="severity" format="jsonf")
+  constant(value=",")
+  property(name="inputname" outname="input" format="jsonf")
+  constant(value=",")
+  property(name="$!_UID" outname="uid" format="jsonf")
+  constant(value=",")
+  property(name="$!_SYSTEMD_UNIT" outname="system_unit" format="jsonf")
+  constant(value=",")
+  property(name="$!_SYSTEMD_USER_UNIT" outname="user_unit" format="jsonf")
+  constant(value=",")
+  property(name="$!_TRANSPORT" outname="transport" format="jsonf")
+  constant(value=",")
+  property(name="$!_BOOT_ID" outname="boot_id" format="jsonf")
+  constant(value=",")
+  property(name="msg" outname="message" format="jsonf")
+  constant(value="}\n")
+}
+
+if ($programname == "labwc-power-menu" or $programname == "labwc-greeter-power" or
+    $programname == "greetd-power-action" or $programname == "greetd-power-action-root" or
+    $programname == "labwc-admin-action" or
+    $programname == "labwc-power-settings" or
+    ($inputname == "imjournal" and
+     (re_match($!_SYSTEMD_UNIT, "^labwc-admin-action@[^/]+[.]service$") or
+      $!_SYSTEMD_UNIT == "labwc-package-sleep-guard.service" or
+      re_match($!_SYSTEMD_UNIT, "^systemd-(poweroff|reboot|halt|kexec|soft-reboot|suspend|hibernate|hybrid-sleep|suspend-then-hibernate)[.]service$") or
+      ($!_PID == "1" and re_match($!UNIT, "^(shutdown|poweroff|reboot|halt|kexec|soft-reboot|sleep|suspend|hibernate|hybrid-sleep|suspend-then-hibernate)[.]target$")) or
+      ($!_UID == "0" and ($!MESSAGE_ID == "98268866d1d54a499c4e98921d93bc40" or
+                         $!MESSAGE_ID == "6bbd95ee977941e497c48be27c254128" or
+                         $!MESSAGE_ID == "8811e6df2a8e40f58a94cea26f8ebf14"))))) then {
+  action(type="omfile" file="__INSTALLER_LOG_POWER_ACTIONS_FILE__"
+         template="PowerEventJSON" createDirs="off" sync="on" flushOnTXEnd="on"
+         fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="__INSTALLER_LOG_GROUP__"
+         fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+         action.resumeRetryCount="-1" action.resumeInterval="__INSTALLER_LOG_RSYSLOG_RESUME_SECONDS__")
+  stop
+}

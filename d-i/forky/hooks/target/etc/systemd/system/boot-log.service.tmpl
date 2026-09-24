@@ -1,0 +1,40 @@
+[Unit]
+Description=Snapshot this boot's journal with bounded persistent retention
+Requires=systemd-journald.service
+After=multi-user.target systemd-journald.service systemd-journal-flush.service systemd-tmpfiles-setup.service
+RequiresMountsFor=__INSTALLER_LOG_BOOT_DIR__
+
+[Service]
+Type=oneshot
+User=root
+Group=__INSTALLER_LOG_GROUP__
+ExecStart=/usr/local/libexec/journal-snapshot boot
+TimeoutStartSec=90s
+TimeoutStopSec=10s
+KillMode=control-group
+UMask=0027
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=boot-log
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=__INSTALLER_LOG_BOOT_DIR__
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+LimitFSIZE=__INSTALLER_LOG_BOOT_MAXSIZE_MIB__M

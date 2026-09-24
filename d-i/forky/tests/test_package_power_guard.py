@@ -6,6 +6,9 @@ All power, session, and readiness endpoints are intercepted at explicit test
 boundaries; the actual production lock implementation is executed unchanged.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import ast
 import contextlib
@@ -33,7 +36,7 @@ ROOT = TARGET.parents[3]
 
 
 def module():
-    loader = importlib.machinery.SourceFileLoader('package_power_test', str(WORKER))
+    loader = importlib.machinery.SourceFileLoader('package_power_test', str(installed_script(WORKER)))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     result = importlib.util.module_from_spec(spec)
     loader.exec_module(result)
@@ -88,7 +91,7 @@ class LockFixture(unittest.TestCase):
     def holder(self, path, *, action_lock=False):
         program = HOLDER.replace('fcntl.lockf(fd,fcntl.LOCK_EX,0,0,os.SEEK_SET)',
                                  'fcntl.flock(fd,fcntl.LOCK_EX)') if action_lock else HOLDER
-        child = subprocess.Popen([sys.executable, '-c', program, str(path)],
+        child = subprocess.Popen(payload_installed_argv([sys.executable, '-c', program, str(path)]),
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE, text=True, close_fds=True)
         def cleanup():
@@ -109,7 +112,7 @@ class LockFixture(unittest.TestCase):
         self.assertEqual(child.wait(timeout=5), 0)
 
     def assert_writer(self, path, *, blocked):
-        result = subprocess.run([sys.executable, '-c', PROBE, str(path)],
+        result = subprocess.run(payload_installed_argv([sys.executable, '-c', PROBE, str(path)]),
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 73 if blocked else 0, result.stderr)
 
@@ -124,7 +127,7 @@ class KernelLockTests(LockFixture):
         wait.assert_not_called()
         for path in self.paths:
             self.assert_writer(path, blocked=False)
-            self.assertEqual(path.read_bytes(), b'')
+            self.assertEqual(payload_read_bytes(path), b'')
 
     def test_frontend_writer_finishes_before_readiness(self):
         child = self.holder(self.paths[0])
@@ -179,7 +182,7 @@ class KernelLockTests(LockFixture):
         with self.assertRaises(FileNotFoundError):
             with self.power.PackageLocks():
                 self.fail('missing lock accepted')
-        self.assertFalse(self.paths[0].exists())
+        self.assertFalse(payload_source_exists(self.paths[0]))
 
     def test_symlink_fifo_directory_hardlink_and_writable_lock_fail_closed(self):
         first = self.paths[0]
@@ -257,7 +260,7 @@ with m['PackageLocks']():
  print('LOCKED',flush=True)
  m['hold_reservation']()
 '''
-        proc = subprocess.Popen([sys.executable, '-c', code, str(WORKER), *map(str,self.paths)],
+        proc = subprocess.Popen(payload_installed_argv([sys.executable, '-c', code, str(WORKER), *map(str,self.paths)]),
                                 stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         try:
             with selectors.DefaultSelector() as selector:
@@ -426,7 +429,7 @@ class WorkerFlowTests(LockFixture):
 class GreeterUITests(unittest.TestCase):
     """Exercise actual UI methods without importing GTK or starting a display."""
     def setUp(self):
-        source = (TARGET/'usr/local/bin/labwc-greeter-power').read_text()
+        source = payload_read_text(TARGET/'usr/local/bin/labwc-greeter-power')
         tree = ast.parse(source)
         definition = next(node for node in tree.body
                           if isinstance(node, ast.ClassDef) and node.name == 'GreeterPower')
@@ -496,8 +499,8 @@ class GreeterUITests(unittest.TestCase):
 
 class WiringTests(unittest.TestCase):
     def test_required_sleep_guard_is_before_sleep_and_retained_until_resume(self):
-        unit=(TARGET/'etc/systemd/system/labwc-package-sleep-guard.service').read_text()
-        dropin=(TARGET/'etc/systemd/system/sleep.target.d/50-package-lock-guard.conf').read_text()
+        unit=payload_read_text(TARGET/'etc/systemd/system/labwc-package-sleep-guard.service')
+        dropin=payload_read_text(TARGET/'etc/systemd/system/sleep.target.d/50-package-lock-guard.conf')
         for text in ('Type=notify','Before=sleep.target','StopWhenUnneeded=yes',
                      'TimeoutStartSec=infinity','RuntimeMaxSec=infinity','--sleep-guard',
                      'ProtectSystem=strict','CapabilityBoundingSet=','NoNewPrivileges=yes',
@@ -508,38 +511,38 @@ class WiringTests(unittest.TestCase):
         self.assertNotIn('ConditionPathExists',unit)
 
     def test_power_unit_has_no_upgrade_wait_deadline(self):
-        text=(TARGET/'etc/systemd/system/labwc-admin-action@.service').read_text()
+        text=payload_read_text(TARGET/'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('RuntimeMaxSec=infinity',text)
         self.assertIn('TimeoutStartSec=60s',text)
         self.assertIn('KillMode=control-group',text)
         self.assertIn('ProtectSystem=strict',text)
 
     def test_readonly_record_lock_permission_not_database_write(self):
-        text=(TARGET/'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        profile=text.split('profile managed-labwc-admin-action-worker ',1)[1].split('\n}',1)[0]
+        text=payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers')
+        profile=text.split('profile labwc-admin-action-worker ',1)[1].split('\n}',1)[0]
         self.assertIn('/var/lib/dpkg/{lock,lock-frontend} rk,',profile)
         self.assertNotIn('/var/lib/dpkg/**',profile)
         self.assertNotIn('capability dac_override',profile)
 
     def test_all_new_assets_are_staged_and_verified(self):
         seed=TARGET.parents[1]
-        stage=(seed/'scripts/desktop/components.sh').read_text()
-        verify=(seed/'scripts/desktop/verify.sh').read_text()
-        firstboot=(seed/'scripts/firstboot/04-validation.sh').read_text()
+        stage=payload_read_text(seed/'scripts/desktop/components.sh')
+        verify=payload_read_text(seed/'scripts/desktop/verify.sh')
+        firstboot=payload_read_text(seed/'scripts/firstboot/04-validation.sh')
         for path in ('usr/local/libexec/greetd-power-action-root',
                      'etc/systemd/system/labwc-package-sleep-guard.service',
                      'etc/systemd/system/sleep.target.d/50-package-lock-guard.conf'):
-            self.assertTrue((TARGET/path).is_file())
+            self.assertTrue(payload_source_is_file(TARGET/path))
             self.assertIn(path,stage); self.assertIn('/'+path,verify); self.assertIn('/'+path,firstboot)
 
     def test_greeter_only_gets_exact_fixed_helper_not_raw_power_or_inhibitor_bypass(self):
-        text=(TARGET/'etc/polkit-1/rules.d/10-greetd-power.rules.tmpl').read_text()
+        text=payload_read_text(TARGET/'etc/polkit-1/rules.d/10-greetd-power.rules.tmpl')
         self.assertIn('/usr/local/libexec/greetd-power-action-root',text)
         self.assertIn('action.lookup("program") === POWER_HELPER',text)
         self.assertIn('subject.active !== true || subject.local !== true',text)
         self.assertNotIn('command_line',text)
-        public=(TARGET/'usr/local/sbin/greetd-power-action').read_text()
-        root=(TARGET/'usr/local/libexec/greetd-power-action-root').read_text()
+        public=payload_read_text(TARGET/'usr/local/sbin/greetd-power-action')
+        root=payload_read_text(TARGET/'usr/local/libexec/greetd-power-action-root')
         self.assertIn('pkexec --disable-internal-agent',public)
         self.assertNotIn('busctl',public)
         self.assertIn('[ "$#" -eq 1 ]',root)
@@ -549,8 +552,8 @@ class WiringTests(unittest.TestCase):
     def test_shutdown_alias_normalizes_before_service_instance(self):
         for leaf in ('usr/local/bin/labwc-admin-action','usr/local/libexec/labwc-admin-action-root',
                      'usr/local/sbin/greetd-power-action'):
-            self.assertIn('shutdown) action=poweroff', (TARGET/leaf).read_text())
-        self.assertIn('suspend|reboot|poweroff|shutdown)',(TARGET/'usr/local/bin/labwc-power-settings').read_text())
+            self.assertIn('shutdown) action=poweroff', payload_read_text(TARGET/leaf))
+        self.assertIn('suspend|reboot|poweroff|shutdown)',payload_read_text(TARGET/'usr/local/bin/labwc-power-settings'))
 
     def test_root_entry_rejects_unsafe_or_greeter_logout_instances(self):
         power=module()

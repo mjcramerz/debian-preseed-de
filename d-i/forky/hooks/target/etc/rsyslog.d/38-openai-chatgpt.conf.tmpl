@@ -1,0 +1,34 @@
+# ChatGPT/Codex desktop output enters rsyslog through a dedicated Unix socket.
+# The private ruleset prevents records from reaching generic syslog, messages,
+# or console-oriented emergency rules.
+
+ruleset(name="managed_openai_chatgpt_input" queue.type="LinkedList") {
+  if ($programname == "openai-chatgpt") then {
+    action(
+      name="managed_openai_chatgpt_log"
+      type="omfile"
+      file="__INSTALLER_LOG_CHATGPT_FILE__"
+      fileOwner="__INSTALLER_LOG_OWNER__"
+      fileGroup="__INSTALLER_LOG_GROUP__"
+      fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+      dirOwner="__INSTALLER_LOG_OWNER__"
+      dirGroup="__INSTALLER_LOG_GROUP__"
+      dirCreateMode="0751"
+      createDirs="on"
+      template="RSYSLOG_TraditionalFileFormat"
+    )
+  }
+
+  stop
+}
+
+input(
+  type="imuxsock"
+  Socket="__INSTALLER_LOG_CHATGPT_SOCKET__"
+  CreatePath="off"
+  Ruleset="managed_openai_chatgpt_input"
+  FlowControl="off"
+  RateLimit.Interval="__INSTALLER_LOG_SCANNER_RATE_INTERVAL__"
+  RateLimit.Burst="__INSTALLER_LOG_SCANNER_RATE_BURST__"
+  RateLimit.Severity="7"
+)

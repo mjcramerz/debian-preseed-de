@@ -4,6 +4,9 @@ Only generated fixture credentials are used. Real OpenSSH checks explicitly
 skip when the package is absent; no installed boot configuration is modified.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import base64
 import contextlib
 import fcntl
@@ -29,7 +32,7 @@ SEED=Path(__file__).resolve().parents[1]
 TARGET=SEED/'hooks/target'
 
 def load(name,path):
-    loader=importlib.machinery.SourceFileLoader(name,str(path))
+    loader=importlib.machinery.SourceFileLoader(name,str(installed_script(path)))
     spec=importlib.util.spec_from_loader(name,loader)
     module=importlib.util.module_from_spec(spec)
     sys.modules[name]=module
@@ -37,12 +40,12 @@ def load(name,path):
     return module
 
 gitops=load('managed_gitops_tests',TARGET/'usr/local/bin/gitops')
-ssh=load('managed_ssh_install_tests',TARGET/'usr/local/libexec/managed-ssh-install.py')
+ssh=load('managed_ssh_install_tests',TARGET/'usr/local/libexec/ssh-install.py')
 debug=load('managed_debugsys_tests',TARGET/'usr/local/libexec/debugsys.py')
 
 class Fixture(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='managed-git-fixture-',dir='/root' if os.geteuid()==0 else None)
+        self.temp=tempfile.TemporaryDirectory(prefix='git-fixture-',dir='/root' if os.geteuid()==0 else None)
         self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name)
 
@@ -68,7 +71,7 @@ class PatternTests(Fixture):
                 gitops.load_patterns(self.config(value),'forks')
     def test_duplicate_and_unknown_assignment_rejected(self):
         for extra in ('UNKNOWN=x','GITOPS_FORKS_MERGE_PROTECTED="x"'):
-            p=self.config();p.write_text(p.read_text()+extra+'\n')
+            p=self.config();p.write_text(payload_read_text(p)+extra+'\n')
             with self.assertRaises(gitops.GitOpsError):gitops.load_patterns(p,'forks')
     def test_symlink_hardlink_and_unsafe_mode_rejected(self):
         p=self.config();alias=self.root/'alias';alias.symlink_to(p)
@@ -109,23 +112,23 @@ class RealGitTests(PatternTests):
             gitops.sync(self.repo,workflow,'upstream',apply,False,self.policy)
     def test_apply_preserves_protected_content_and_absence(self):
         self.sync()
-        self.assertEqual((self.repo/'lock/secret').read_text(),'local')
-        self.assertFalse((self.repo/'new.keep').exists())
-        self.assertEqual((self.repo/'ordinary').read_text(),'upstream')
+        self.assertEqual(payload_read_text(self.repo/'lock/secret'),'local')
+        self.assertFalse(payload_source_exists(self.repo/'new.keep'))
+        self.assertEqual(payload_read_text(self.repo/'ordinary'),'upstream')
         self.assertEqual(self.g('status','--porcelain'),'')
         parents=self.g('show','-s','--format=%P','HEAD').split()
         self.assertEqual(parents,[self.old,self.upstream])
         self.assertIn(self.old,self.g('for-each-ref','--format=%(objectname)','refs/gitops/backups'))
     def test_preview_leaves_tree_index_and_head_unchanged(self):
-        before=(self.repo/'.git/index').read_bytes();self.sync(False)
+        before=payload_read_bytes(self.repo/'.git/index');self.sync(False)
         self.assertEqual(self.g('rev-parse','HEAD').strip(),self.old)
-        self.assertEqual((self.repo/'.git/index').read_bytes(),before)
+        self.assertEqual(payload_read_bytes(self.repo/'.git/index'),before)
     def test_repeat_does_not_create_duplicate_commit(self):
         self.sync();head=self.g('rev-parse','HEAD');self.sync();self.assertEqual(head,self.g('rev-parse','HEAD'))
     def test_salsa_uses_separate_policy(self):
         self.sync(workflow='salsa')
-        self.assertEqual((self.repo/'lock').read_text(),'replace-directory')
-        self.assertTrue((self.repo/'new.keep').exists())
+        self.assertEqual(payload_read_text(self.repo/'lock'),'replace-directory')
+        self.assertTrue(payload_source_exists(self.repo/'new.keep'))
     def test_dirty_index_worktree_untracked_refused(self):
         for state in ('worktree','index','untracked'):
             with self.subTest(state=state):
@@ -140,7 +143,7 @@ class RealGitTests(PatternTests):
         self.g('switch','-q','upstream');self.write('ignored','remote');self.g('add','-f','ignored');self.g('commit','-qm','ignored collision')
         self.g('switch','-q','mcr/main');self.write('ignored','private ignored')
         with self.assertRaises(gitops.GitOpsError):self.sync()
-        self.assertEqual((self.repo/'ignored').read_text(),'private ignored')
+        self.assertEqual(payload_read_text(self.repo/'ignored'),'private ignored')
     def test_skip_worktree_refused(self):
         self.g('update-index','--skip-worktree','ordinary')
         with self.assertRaises(gitops.GitOpsError):self.sync()
@@ -167,14 +170,14 @@ class RealGitTests(PatternTests):
     def test_quilt_patch_series_is_checked_without_worktree_change(self):
         self.write('debian/patches/change.patch','diff --git a/ordinary b/ordinary\n--- a/ordinary\n+++ b/ordinary\n@@ -1 +1 @@\n-base\n\\ No newline at end of file\n+patched\n\\ No newline at end of file\n')
         self.write('debian/patches/series','change.patch -p1 # fixture\n')
-        before=(self.repo/'.git/index').read_bytes()
+        before=payload_read_bytes(self.repo/'.git/index')
         with contextlib.redirect_stdout(io.StringIO()):gitops.patch_check(self.repo)
-        self.assertEqual((self.repo/'ordinary').read_text(),'base')
-        self.assertEqual((self.repo/'.git/index').read_bytes(),before)
+        self.assertEqual(payload_read_text(self.repo/'ordinary'),'base')
+        self.assertEqual(payload_read_bytes(self.repo/'.git/index'),before)
     def test_ambient_git_index_ignored(self):
         fake=self.root/'alien-index'
         with mock.patch.dict(os.environ,{'GIT_INDEX_FILE':str(fake),'GIT_WORK_TREE':'/does-not-exist'}):self.sync()
-        self.assertFalse(fake.exists())
+        self.assertFalse(payload_source_exists(fake))
 
 class SSHTests(Fixture):
     def test_header_requires_encryption_and_bcrypt(self):
@@ -204,76 +207,76 @@ class SSHTests(Fixture):
             return original(path,*args)
         with mock.patch.object(ssh,'publish',side_effect=fail_public):
             with self.assertRaises(OSError):ssh.publish_pair(self.root,b'private',b'public',0,0)
-        self.assertFalse((self.root/'.local/share/managed-ssh/private/id_git_ed25519').exists())
+        self.assertFalse(payload_source_exists(self.root/'.local/share/ssh/private/id_git_ed25519'))
     @unittest.skipUnless(shutil.which('gpg') and os.geteuid()==0,'GnuPG and root required for runuser fixture')
     def test_real_gpg_seal_round_trip_contains_no_plaintext_file(self):
         home=self.root/'home';home.mkdir(mode=0o700);gp=home/'.gnupg';gp.mkdir(mode=0o700)
         env={**ssh.BASE_ENV,'GNUPGHOME':str(gp),'HOME':str(home)}
-        proc=subprocess.run(['gpg','--batch','--pinentry-mode','loopback','--passphrase','','--quick-generate-key','Fixture <fixture@example.invalid>','rsa2048','encr','0'],env=env,capture_output=True,timeout=45)
+        proc=subprocess.run(payload_installed_argv(['gpg','--batch','--pinentry-mode','loopback','--passphrase','','--quick-generate-key','Fixture <fixture@example.invalid>','rsa2048','encr','0']),env=env,capture_output=True,timeout=45)
         self.assertEqual(proc.returncode,0,proc.stderr)
-        self.addCleanup(lambda:subprocess.run(['gpgconf','--kill','gpg-agent'],env=env,capture_output=True))
+        self.addCleanup(lambda:subprocess.run(payload_installed_argv(['gpgconf','--kill','gpg-agent']),env=env,capture_output=True))
         secret=b'Fixture secret % with spaces!'
-        listing=subprocess.run(['gpg','--batch','--with-colons','--list-keys'],env=env,capture_output=True,check=True).stdout.decode()
+        listing=subprocess.run(payload_installed_argv(['gpg','--batch','--with-colons','--list-keys']),env=env,capture_output=True,check=True).stdout.decode()
         fingerprint=next(row.split(':')[9] for row in listing.splitlines() if row.startswith('fpr:'))
         ssh.seal(pwd.getpwuid(0),home,secret,fingerprint)
-        blob=home/'.local/share/managed-ssh/git-key-passphrase.gpg'
-        self.assertEqual(stat.S_IMODE(blob.stat().st_mode),0o600)
-        result=subprocess.run(['gpg','--batch','--decrypt',str(blob)],env=env,capture_output=True,timeout=20)
+        blob=home/'.local/share/ssh/git-key-passphrase.gpg'
+        self.assertEqual(stat.S_IMODE(payload_source_stat(blob).st_mode),0o600)
+        result=subprocess.run(payload_installed_argv(['gpg','--batch','--decrypt',str(blob)]),env=env,capture_output=True,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout,secret)
         for p in home.rglob('*'):
-            if p.is_file():self.assertNotIn(secret,p.read_bytes(),str(p))
+            if payload_source_is_file(p):self.assertNotIn(secret,payload_read_bytes(p),str(p))
     @unittest.skipUnless(all(shutil.which(n) for n in ('ssh-agent','ssh-add','ssh-keygen')),'OpenSSH client binaries are not installed in this validation container')
     def test_real_agent_correct_wrong_and_mismatched_passphrase(self):
         stage=self.root/'stage';stage.mkdir(mode=0o700)
         key=stage/'private';secret=b'Generated-fixture-only'
-        subprocess.run(['ssh-keygen','-q','-t','ed25519','-N',secret.decode(),'-f',str(key)],check=True)
-        (stage/'public').write_bytes((stage/'private.pub').read_bytes())
-        askpass=self.root/'askpass';askpass.write_text((TARGET/'usr/local/libexec/managed-ssh-install-askpass').read_text());askpass.chmod(0o700)
+        subprocess.run(payload_installed_argv(['ssh-keygen','-q','-t','ed25519','-N',secret.decode(),'-f',str(key)]),check=True)
+        (stage/'public').write_bytes(payload_read_bytes(stage/'private.pub'))
+        askpass=self.root/'askpass';askpass.write_text(payload_read_text(TARGET/'usr/local/libexec/ssh-install-askpass'));askpass.chmod(0o700)
         with mock.patch.object(ssh,'ASKPASS',str(askpass)):
             with ssh.temporary_agent(stage,secret) as env:self.assertNotIn('MANAGED_SSH_PASSPHRASE_FD',env)
-            self.assertFalse((stage/'agent.sock').exists())
+            self.assertFalse(payload_source_exists(stage/'agent.sock'))
             with self.assertRaises(ssh.InstallError):
                 with ssh.temporary_agent(stage,b'wrong'):pass
-            subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(stage/'other')],check=True)
-            (stage/'public').write_bytes((stage/'other.pub').read_bytes())
+            subprocess.run(payload_installed_argv(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(stage/'other')]),check=True)
+            (stage/'public').write_bytes(payload_read_bytes(stage/'other.pub'))
             with self.assertRaises(ssh.InstallError):
                 with ssh.temporary_agent(stage,secret):pass
     def test_no_agent_start_in_zprofile(self):
-        self.assertNotIn('ssh-agent -s',(TARGET/'etc/skel-desktop/.zprofile').read_text())
+        self.assertNotIn('ssh-agent -s',payload_read_text(TARGET/'etc/skel-desktop/.zprofile'))
     def test_installer_input_boundary_and_pipe(self):
-        text=(SEED/'scripts/common/ssh.sh').read_text().split('managed_git_ssh_target_action()',1)[1]
+        text=payload_read_text(SEED/'scripts/common/ssh.sh').split('managed_git_ssh_target_action()',1)[1]
         self.assertIn('preseed_env_check_file /git_ed25519',text)
         self.assertIn('preseed_env_read_value git_ssh_passphrase',text)
         self.assertIn('printf \'%s\' "$secret" | chroot',text)
         self.assertNotIn('fetch_ssh_asset',text)
-        self.assertNotIn('ACCOUNT_GIT_SSH_PASSPHRASE',(SEED/'scripts/runtime/account.sh').read_text())
+        self.assertNotIn('ACCOUNT_GIT_SSH_PASSPHRASE',payload_read_text(SEED/'scripts/runtime/account.sh'))
     def test_session_unit_contract(self):
         for kind in ('socket','service'):
-            text=(TARGET/f'etc/systemd/user/ssh-agent.{kind}.d/10-labwc-session.conf').read_text()
+            text=payload_read_text(TARGET/f'etc/systemd/user/ssh-agent.{kind}.d/10-labwc-session.conf')
             self.assertIn('PartOf=labwc-session.target',text)
-        text=(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service').read_text()
+        text=payload_read_text(TARGET/'etc/skel-desktop/.config/systemd/user/labwc-ssh-key-load.service')
         self.assertNotIn('RemainAfterExit',text)
         self.assertIn('KillMode=control-group',text)
     def test_public_identity_and_strict_hosts_only(self):
-        text=(SEED/'ssh/config').read_text()
+        text=payload_read_text(SEED/'ssh/config')
         self.assertLess(text.index('Host gitlab.com github.com'),text.index('Host *'))
         self.assertIn('StrictHostKeyChecking yes',text)
         self.assertIn('id_git_ed25519.pub',text)
         self.assertNotIn('/private/',text)
     def test_host_fingerprints(self):
         expected={'github.com':' +DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'.strip(),'gitlab.com':'eUXGGm1YGsMAS7vkcx6JOJdOGHPem5gQp4taiCfCLB8'}
-        for line in (TARGET/'etc/ssh/managed_git_known_hosts').read_text().splitlines():
+        for line in payload_read_text(TARGET/'etc/ssh/git_known_hosts').splitlines():
             if not line or line.startswith('#'):continue
             host,kind,key=line.split()[:3]
             digest=base64.b64encode(hashlib.sha256(base64.b64decode(key)).digest()).decode().rstrip('=')
             self.assertEqual(digest,expected[host])
     def test_codex_agent_isolation_and_all_profiles(self):
-        text=(TARGET/'data/codex/lib/codex').read_text()
+        text=payload_read_text(TARGET/'data/codex/lib/codex')
         self.assertIn('SSH_AUTH_SOCK',text);self.assertIn('SSH_AGENT_PID',text)
         for path in (SEED/'hosts/profiles').glob('*.env'):
-            self.assertNotIn('DEVOPS_CODEX_REPOSITORY_COMMIT',path.read_text())
-            self.assertIn('git@gitlab.com:computes/misc/codex-home.git',path.read_text())
-            self.assertIn('DEVOPS_CODEX_REPOSITORY_BRANCH="mcr/main"',path.read_text())
+            self.assertNotIn('DEVOPS_CODEX_REPOSITORY_COMMIT',payload_read_text(path))
+            self.assertIn('git@gitlab.com:computes/misc/codex-home.git',payload_read_text(path))
+            self.assertIn('DEVOPS_CODEX_REPOSITORY_BRANCH="mcr/main"',payload_read_text(path))
 
 @unittest.skipUnless(os.geteuid()==0,'root-only output/hook fixture contract')
 class DebugTests(Fixture):
@@ -299,12 +302,12 @@ class DebugTests(Fixture):
         report=debug.Report(['hardware'])
         report.add('hardware','fixture','evidence',{'status':'ok'})
         with contextlib.redirect_stdout(io.StringIO()):report.finish()
-        self.assertEqual(stat.S_IMODE(report.path.stat().st_mode),0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(report.path).st_mode),0o700)
         for path in report.path.rglob('*'):
-            if path.is_file():self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o600)
-        manifest=json.loads((report.path/'manifest.json').read_text())
-        self.assertEqual(manifest[0]['sha256'],hashlib.sha256((report.path/manifest[0]['evidence']).read_bytes()).hexdigest())
-        self.assertTrue((report.path/'OVERVIEW.md').is_file())
+            if payload_source_is_file(path):self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode),0o600)
+        manifest=json.loads(payload_read_text(report.path/'manifest.json'))
+        self.assertEqual(manifest[0]['sha256'],hashlib.sha256(payload_read_bytes(report.path/manifest[0]['evidence'])).hexdigest())
+        self.assertTrue(payload_source_is_file(report.path/'OVERVIEW.md'))
     def test_symlink_output_refused(self):
         other=self.root/'other';other.mkdir();self.logs.symlink_to(other)
         with self.assertRaises(debug.DebugError):debug.Report(['boot'])
@@ -322,27 +325,27 @@ class DebugTests(Fixture):
     def test_enable_remove_only_owned_hooks_and_rebuild_all(self):
         other=self.init/'hooks/unrelated';other.parent.mkdir(parents=True);other.write_text('# unrelated\n')
         calls=self.run_hook_action(True)
-        for path in debug.hook_files():self.assertIn(debug.MARKER,path.read_text())
-        self.assertTrue((self.state/'armed').is_file())
+        for path in debug.hook_files():self.assertIn(debug.MARKER,payload_read_text(path))
+        self.assertTrue(payload_source_is_file(self.state/'armed'))
         self.assertIn((['update-initramfs','-u','-k','all'],'rebuild'),calls)
         calls=self.run_hook_action(False)
-        for path in debug.hook_files():self.assertFalse(path.exists())
-        self.assertTrue(other.exists());self.assertFalse((self.state/'armed').exists())
+        for path in debug.hook_files():self.assertFalse(payload_source_exists(path))
+        self.assertTrue(payload_source_exists(other));self.assertFalse(payload_source_exists(self.state/'armed'))
         self.assertIn((['update-initramfs','-u','-k','all'],'rebuild'),calls)
     def test_failed_rebuild_restores_and_rebuilds_previous_images(self):
         calls=self.run_hook_action(True,fail=True)
-        for path in debug.hook_files():self.assertFalse(path.exists())
-        self.assertFalse((self.state/'armed').exists())
+        for path in debug.hook_files():self.assertFalse(payload_source_exists(path))
+        self.assertFalse(payload_source_exists(self.state/'armed'))
         self.assertIn((['update-initramfs','-u','-k','all'],'rollback-rebuild'),calls)
     def test_failed_removal_restores_enabled_hooks(self):
         self.run_hook_action(True)
         self.run_hook_action(False,fail=True)
-        for path in debug.hook_files():self.assertTrue(path.exists())
-        self.assertTrue((self.state/'armed').exists())
+        for path in debug.hook_files():self.assertTrue(payload_source_exists(path))
+        self.assertTrue(payload_source_exists(self.state/'armed'))
     def test_unmanaged_hook_never_replaced(self):
         path=self.init/'hooks/debugsys';path.parent.mkdir(parents=True);path.write_text('# administrator hook')
         with self.assertRaises(debug.DebugError):debug.change_hooks(True)
-        self.assertEqual(path.read_text(),'# administrator hook')
+        self.assertEqual(payload_read_text(path),'# administrator hook')
     def test_initramfs_names_and_rebuild_validation(self):
         image=self.boot/'initrd.img-fixture';image.write_bytes(b'fixture')
         expected='usr/local/libexec/debugsys-initramfs\n'+'\n'.join('scripts/'+phase+'/debugsys' for phase in debug.PHASES)
@@ -360,15 +363,15 @@ class DebugTests(Fixture):
             return 'fixture\n' if argv[0]=='linux-version' else ''
         with mock.patch.object(debug,'successful',side_effect=fake):debug.verify_images(False,self.root)
         self.assertEqual([a for a in calls if a[0]=='lsinitramfs'],[['lsinitramfs',str(self.boot/'initrd.img-fixture')]])
-        retained=json.loads((self.root/'retained-other-images.json').read_text())
+        retained=json.loads(payload_read_text(self.root/'retained-other-images.json'))
         self.assertEqual(len(retained),3)
-        self.assertTrue((self.boot/'initrd.img-fixture.bak').exists())
+        self.assertTrue(payload_source_exists(self.boot/'initrd.img-fixture.bak'))
     def test_initramfs_empty_or_unsafe_inventory_is_refused(self):
         for listing in ('','../../etc/passwd\n'):
             with mock.patch.object(debug,'successful',return_value=listing),self.assertRaises(debug.DebugError):
                 debug.verify_images(False,self.root)
     def test_wrapper_enters_sudo_login(self):
-        self.assertIn('sudo -i -- /usr/local/bin/debugsys',(TARGET/'usr/local/bin/debugsys').read_text())
+        self.assertIn('sudo -i -- /usr/local/bin/debugsys',payload_read_text(TARGET/'usr/local/bin/debugsys'))
     def test_all_menu_collectors_have_probe_and_file_plan(self):
         self.assertEqual(set(debug.CATEGORIES),set(debug.PROBES))
         self.assertEqual(set(debug.CATEGORIES),set(debug.FILES))

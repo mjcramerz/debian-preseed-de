@@ -1,0 +1,450 @@
+#!/usr/bin/python3 -I
+"""Normalize active APT inputs into vendor-named deb822 files, without networking."""
+from __future__ import annotations
+
+from collections import deque
+import hashlib
+import itertools
+import os
+from pathlib import Path
+import re
+import shlex
+import stat
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+
+
+class Error(Exception):
+    pass
+
+
+def regular_fd(fd: int, path: Path) -> bytes:
+    with os.fdopen(fd, "rb") as stream:
+        st = os.fstat(stream.fileno())
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022 or st.st_size > 4 * 1024 * 1024:
+            raise Error(f"unsafe APT input: {path}")
+        data = stream.read(4 * 1024 * 1024 + 1)
+        if len(data) > 4 * 1024 * 1024:
+            raise Error(f"oversized APT input: {path}")
+        return data
+
+
+def regular(path: Path) -> bytes:
+    return regular_fd(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), path)
+
+
+def keyring_bytes(token: str, root: Path) -> bytes | None:
+    """Read package-managed keyring links, without relaxing source-file policy.
+
+    Resolve links relative to the supplied target root, not the host filesystem.
+    Every traversed directory and link must be root-owned; directories and the
+    final regular file must not be writable by other users. Directory FDs and
+    O_NOFOLLOW prevent a pathname replacement from bypassing these checks.
+    """
+    pending = deque(Path(token).parts[1:])
+    descriptors = [os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]
+    links = 0
+    try:
+        while pending:
+            part = pending.popleft()
+            if part in {"", "."}:
+                continue
+            if part == "..":
+                if len(descriptors) == 1:
+                    raise Error(f"keyring link escapes target root: {token}")
+                os.close(descriptors.pop())
+                continue
+            parent = descriptors[-1]
+            st = os.fstat(parent)
+            if st.st_uid != 0 or st.st_mode & 0o022:
+                raise Error(f"unsafe keyring directory: {token}")
+            try:
+                st = os.stat(part, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                # Preserve the normalizer's existing handling of unstaged keys,
+                # but never silently accept a broken package-managed link.
+                if links:
+                    raise Error(f"dangling keyring symlink: {token}") from None
+                return None
+            if stat.S_ISLNK(st.st_mode):
+                links += 1
+                if st.st_uid != 0 or links > 40:
+                    raise Error(f"unsafe or cyclic keyring symlink: {token}")
+                target = os.readlink(part, dir_fd=parent)
+                if target.startswith("/"):
+                    while len(descriptors) > 1:
+                        os.close(descriptors.pop())
+                pending.extendleft(reversed(target.split("/")))
+            elif pending:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                descriptors.append(child)
+            else:
+                return regular_fd(os.open(part, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                                          dir_fd=parent), root / token.lstrip("/"))
+        raise Error(f"keyring does not name a regular file: {token}")
+    finally:
+        for fd in reversed(descriptors):
+            os.close(fd)
+
+
+def directory(path: Path) -> None:
+    for parent in reversed((path, *path.parents)):
+        if not parent.exists() and not parent.is_symlink():
+            parent.mkdir(mode=0o755)
+        st = parent.lstat()
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            raise Error(f"unsafe APT directory: {parent}")
+
+
+def atomic(path: Path, data: bytes) -> None:
+    fd, temporary = tempfile.mkstemp(prefix="." + path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            os.fchmod(stream.fileno(), 0o644)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+DEB822_FIELDS = frozenset({
+    "allow-downgrade-to-insecure", "allow-insecure", "allow-weak",
+    "architectures", "architectures-add", "architectures-remove", "by-hash",
+    "check-date", "check-valid-until", "components", "date-max-future",
+    "description", "enabled", "identifier", "inrelease-path", "languages",
+    "languages-add", "languages-remove", "pdiffs", "signed-by", "snapshot",
+    "suites", "targets", "targets-add", "targets-remove", "trusted", "types",
+    "uris", "valid-until-max", "valid-until-min",
+})
+DEB822_MULTIVALUE_FIELDS = frozenset({
+    "architectures", "architectures-add", "architectures-remove", "components",
+    "languages", "languages-add", "languages-remove", "suites",
+    "targets", "targets-add", "targets-remove", "types", "uris",
+})
+DEB822_FAIL_CLOSED_FALSE_FIELDS = frozenset({
+    "allow-downgrade-to-insecure", "allow-insecure", "allow-weak", "enabled",
+    "trusted",
+})
+DEB822_FAIL_CLOSED_TRUE_FIELDS = frozenset({"check-date", "check-valid-until"})
+DEB822_TRUE = frozenset({"1", "on", "true", "yes"})
+DEB822_FALSE = frozenset({"0", "false", "no", "off"})
+
+
+def merge_deb822_field(key: str, current: str, duplicate: str) -> str:
+    """Collapse a repeated deb822 field into one deterministic field value."""
+    if current.strip() == duplicate.strip():
+        return current
+    if key == "signed-by":
+        # Never broaden trust by unioning conflicting duplicate key policies.
+        # The final explicit declaration wins and the original bytes are archived.
+        return duplicate
+    if key in DEB822_MULTIVALUE_FIELDS:
+        return " ".join(dict.fromkeys((current + " " + duplicate).split()))
+
+    values = {current.strip().lower(), duplicate.strip().lower()}
+    if key in DEB822_FAIL_CLOSED_FALSE_FIELDS:
+        if values <= DEB822_TRUE:
+            return "yes"
+        return "no"
+    if key in DEB822_FAIL_CLOSED_TRUE_FIELDS:
+        if values <= DEB822_FALSE:
+            return "no"
+        return "yes"
+    if key == "by-hash":
+        if "force" in values:
+            return "force"
+        if values & DEB822_TRUE:
+            return "yes"
+        if values <= DEB822_FALSE:
+            return "no"
+
+    # Unknown and scalar options follow the last declaration. This mirrors the
+    # operator's final stated value while producing one syntactically valid field.
+    return duplicate
+
+
+def deb822(text: str, report=None) -> list[dict[str, str]]:
+    """Parse deb822 source stanzas and repair recoverable field syntax.
+
+    Original bytes are archived by normalize(). This parser therefore favors a
+    valid, deterministic source file over aborting the unattended installation.
+    Irrecoverable non-field lines are discarded and reported to the caller.
+    """
+    result, fields = [], {}
+    key = ""
+    required = {"types", "uris", "suites"}
+    field_pattern = r"([A-Za-z][A-Za-z0-9-]*):[ \t]*(.*)"
+    for line_number, line in enumerate(text.splitlines() + [""], 1):
+        if not line.strip():
+            if fields:
+                result.append(fields)
+                fields = {}
+            key = ""
+            continue
+        elif line.lstrip().startswith("#"):
+            continue
+        elif line.startswith((" ", "\t")) and key:
+            indented = re.fullmatch(field_pattern, line.lstrip())
+            if not indented or indented[1].lower() not in DEB822_FIELDS or key == "description":
+                fields[key] += "\n" + line
+                continue
+            match = indented
+            if report is not None:
+                report(f"line {line_number}: removed indentation from field {match[1]}")
+        else:
+            candidate = line.lstrip() if not key else line
+            match = re.fullmatch(field_pattern, candidate)
+            repaired_separator = False
+            if not match:
+                match = re.fullmatch(r"[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*=[ \t]*(.*)", line)
+                repaired_separator = match is not None
+            if not match:
+                match = re.fullmatch(r"[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]+(.+)", line)
+                repaired_separator = match is not None
+            if not match:
+                if report is not None:
+                    report(f"line {line_number}: discarded irrecoverable non-field content")
+                continue
+            if candidate != line or repaired_separator:
+                if report is not None:
+                    report(f"line {line_number}: repaired field separator for {match[1]}")
+
+        field = match[1].lower()
+        value = match[2]
+        if field == "types" and field in fields and required <= set(fields):
+            result.append(fields)
+            fields = {}
+            if report is not None:
+                report(f"line {line_number}: inserted missing stanza separator before repeated Types")
+        if field in fields:
+            fields[field] = merge_deb822_field(field, fields[field], value)
+            if report is not None:
+                report(f"line {line_number}: collapsed duplicate field {match[1]}")
+        else:
+            fields[field] = value
+        key = field
+    return result
+
+
+def oneline(text: str) -> list[dict[str, str]]:
+    result = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.fullmatch(r"(deb(?:-src)?)\s+(?:\[([^]]+)\]\s+)?(\S+)\s+(\S+)(.*)", line)
+        if not match:
+            raise Error("unsupported one-line source; run apt modernize-sources first")
+        fields = {"types": match[1], "uris": match[3], "suites": match[4]}
+        components = match[5].split("#", 1)[0].strip()
+        if components:
+            fields["components"] = components
+        for option in shlex.split(match[2] or ""):
+            key, separator, value = option.partition("=")
+            if not separator:
+                raise Error("malformed one-line source option")
+            key = {"arch": "architectures", "arch+": "architectures-add", "arch-": "architectures-remove",
+                   "lang": "languages", "lang+": "languages-add", "lang-": "languages-remove",
+                   "target": "targets", "target+": "targets-add", "target-": "targets-remove"}.get(key, key)
+            if key in fields:
+                raise Error("duplicate one-line source option")
+            fields[key] = value.replace(",", " ")
+        result.append(fields)
+    return result
+
+
+def vendor(uri: str) -> str:
+    parsed = urllib.parse.urlsplit(uri)
+    if parsed.scheme == "file" and parsed.path.rstrip("/") == "/var/lib/software/repo":
+        return "apt-repo-local"
+    host = (parsed.hostname or "").lower()
+    for label, domains in {
+        "debian": ("debian.org",), "microsoft": ("microsoft.com",),
+        "vivaldi": ("vivaldi.com", "vivaldi.net"), "mise": ("mise.jdx.dev",),
+        "xanmod": ("xanmod.org",), "mullvad": ("mullvad.net",),
+        "crowdsec": ("packagecloud.io",), "cramerz": ("cramerz.ch", "cramerz.com"),
+    }.items():
+        if any(host == domain or host.endswith("." + domain) for domain in domains):
+            if label == "crowdsec" and "/crowdsec/" not in parsed.path:
+                break
+            return label
+    host = re.sub(r"^(?:repository|packages|repo|repos|deb)\.", "", host)
+    label = re.sub(r"[^a-z0-9-]+", "-", host).strip("-")
+    if not label:
+        label = "local-" + hashlib.sha256(uri.encode()).hexdigest()[:12]
+    return label
+
+
+def uri_key(uri: str) -> str:
+    parsed = urllib.parse.urlsplit(uri)
+    if parsed.scheme not in {"http", "https", "file", "mirror+https", "mirror+http"}:
+        raise Error(f"unsupported APT URI scheme: {parsed.scheme}")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise Error("APT URI must not contain credentials or a fragment")
+    scheme = {"http": "https", "mirror+http": "mirror+https"}.get(parsed.scheme, parsed.scheme)
+    return urllib.parse.urlunsplit((scheme, parsed.netloc.lower(), parsed.path.rstrip("/"), parsed.query, ""))
+
+
+def signed_identity(value: str, root: Path, cache: dict) -> tuple:
+    if "-----BEGIN PGP" in value:
+        return (value,)
+    identities = []
+    for token in value.split():
+        if token.startswith("/"):
+            if token not in cache:
+                data = keyring_bytes(token, root)
+                if data is None:
+                    cache[token] = ("missing", token)
+                else:
+                    # Same bytes and same keys (armored/binary or differently named)
+                    # denote the same trust. Never merge genuinely different keys.
+                    with tempfile.TemporaryDirectory(prefix="apt-keys-") as work:
+                        proc = subprocess.run(["/usr/bin/gpg", "--batch", "--no-options", "--homedir", work,
+                                               "--with-colons", "--show-keys"],
+                                              input=data, capture_output=True, timeout=15, check=False,
+                                              env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+                    fingerprints = tuple(sorted(line.split(":")[9] for line in proc.stdout.decode().splitlines()
+                                                if line.startswith("fpr:")))
+                    cache[token] = ("keys", fingerprints) if proc.returncode == 0 and fingerprints else ("bytes", hashlib.sha256(data).hexdigest())
+            identities.append(cache[token])
+        else:
+            identities.append(("selector", token.upper()))
+    return tuple(sorted(identities))
+
+
+def normalize(root: Path = Path("/")) -> list[str]:
+    apt = root / "etc/apt"
+    parts = apt / "sources.list.d"
+    directory(parts)
+    inputs = [path for path in sorted(parts.iterdir()) if path.suffix in {".list", ".sources"}]
+    for path in (apt / "sources.list", apt / "debian.sources", apt / "debian-backports.sources"):
+        if path.exists() or path.is_symlink():
+            inputs.append(path)
+    originals = {path: regular(path) for path in inputs}
+    entries, key_cache, trust = {}, {}, {}
+    # Expand the deb822 cross-product, then deduplicate complete targets and
+    # options. Different suites/architectures/trust policies are not discarded.
+    for path, data in originals.items():
+        if path.suffix == ".sources":
+            stanzas = deb822(
+                data.decode(),
+                lambda message, source=path: print(
+                    f"apt-repo-local-normalize-sources: repaired {source}: {message}",
+                    file=sys.stderr,
+                ),
+            )
+        else:
+            stanzas = oneline(data.decode())
+        for stanza_number, stanza in enumerate(stanzas, 1):
+            missing = [key for key in ("types", "uris", "suites") if not stanza.get(key)]
+            if missing:
+                print(
+                    f"apt-repo-local-normalize-sources: skipped malformed stanza {stanza_number} "
+                    f"in {path}; missing {','.join(missing)}",
+                    file=sys.stderr,
+                )
+                continue
+            for kind, uri, suite in itertools.product(stanza["types"].split(), stanza["uris"].split(), stanza["suites"].split()):
+                if kind not in {"deb", "deb-src"}:
+                    raise Error("invalid source type")
+                if uri.startswith("cdrom:"):
+                    continue
+                uri = uri_key(uri)
+                if "developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64" in uri:
+                    continue
+                fields = dict(stanza, types=kind, uris=uri, suites=suite)
+                for key in ("components", "architectures", "architectures-add", "architectures-remove", "languages", "targets"):
+                    if key in fields:
+                        fields[key] = " ".join(sorted(set(fields[key].split())))
+                label = vendor(uri)
+                if label == "debian" and not fields.get("signed-by"):
+                    fields["signed-by"] = "/usr/share/keyrings/debian-archive-keyring.gpg"
+                elif label == "debian" and fields.get("signed-by") == "/usr/share/keyrings/debian-archive-keyring.pgp":
+                    canonical = "/usr/share/keyrings/debian-archive-keyring.gpg"
+                    # New APT/keyring packages may emit the .pgp spelling. Use
+                    # the requested stable alias only when it has equal trust;
+                    # custom keys and fingerprint selectors remain untouched.
+                    if signed_identity(fields["signed-by"], root, key_cache) == signed_identity(canonical, root, key_cache):
+                        fields["signed-by"] = canonical
+                if suite.endswith("/") and fields.get("components"):
+                    raise Error("flat APT repository must not specify Components")
+                # APT requires one trust policy for a URI/suite even when the
+                # stanzas select different architectures, types or components.
+                trust_key = (uri, suite, fields.get("enabled", "yes").lower())
+                signature = signed_identity(fields.get("signed-by", ""), root, key_cache)
+                if trust_key in trust and trust[trust_key][0] != signature:
+                    raise Error(f"conflicting Signed-By policies for {uri} {suite}; no files changed")
+                trust.setdefault(trust_key, (signature, []))[1].append(fields)
+                # Merge architecture selections only when every other option,
+                # including Components, agrees. Absence means all architectures.
+                # Never merge both component and architecture cross-products.
+                merge_arches = not any(key in fields for key in ("architectures-add", "architectures-remove"))
+                omitted = {"signed-by", "architectures"} if merge_arches else {"signed-by"}
+                identity = tuple(sorted((key, value) for key, value in fields.items() if key not in omitted))
+                if identity in entries:
+                    old = entries[identity][1]
+                    if merge_arches:
+                        if "architectures" not in old or "architectures" not in fields:
+                            old.pop("architectures", None)
+                        else:
+                            old["architectures"] = " ".join(sorted(set(old["architectures"].split()) | set(fields["architectures"].split())))
+                else:
+                    entries[identity] = (label, fields)
+    for _, alternatives in trust.values():
+        keys = [fields["signed-by"] for fields in alternatives if "signed-by" in fields]
+        if keys:
+            for fields in alternatives:
+                canonical = "/usr/share/keyrings/debian-archive-keyring.gpg"
+                fields["signed-by"] = canonical if vendor(fields["uris"]) == "debian" and canonical in keys else min(keys)
+    grouped = {}
+    order = ("types", "uris", "suites", "components", "architectures", "signed-by")
+    spelling = {"uris": "URIs", "signed-by": "Signed-By", "by-hash": "By-Hash"}
+    for identity, (label, fields) in sorted(entries.items()):
+        keys = [key for key in order if key in fields] + sorted(set(fields) - set(order))
+        text = "\n".join(spelling.get(key, key.title()) + ": " + fields[key] for key in keys) + "\n"
+        grouped.setdefault(label + ".sources", []).append(text)
+    outputs = {parts / name: ("# Managed vendor grouping; original inputs are retained in /var/lib/apt/source-normalization.\n\n" + "\n".join(stanzas)).encode()
+               for name, stanzas in grouped.items()}
+    outputs[apt / "sources.list"] = b"# Active sources are in /etc/apt/sources.list.d/*.sources.\n"
+    inactive = [path for path in sorted(parts.iterdir())
+                if re.search(r"\.(?:list|sources)\.(?:bak|save|distUpgrade)$", path.name)]
+    inactive_data = {path: regular(path) for path in inactive}
+    if (not inactive and all(path in originals and originals[path] == data for path, data in outputs.items())
+            and not set(originals) - set(outputs)):
+        return sorted(grouped)
+    backup = root / "var/lib/apt/source-normalization"
+    directory(backup)
+    # Preserve exact input bytes, including comments and disabled one-line entries.
+    for path, data in originals.items():
+        name = str(path.relative_to(apt)).replace("/", "--") + "." + hashlib.sha256(data).hexdigest()
+        destination = backup / name
+        if not destination.exists():
+            atomic(destination, data)
+    for path, data in outputs.items():
+        atomic(path, data)
+    for path in set(originals) - set(outputs):
+        path.unlink()
+    # APT's modernization backups are inactive, but belong outside sourceparts.
+    for path, data in inactive_data.items():
+        atomic(backup / (path.name + "." + hashlib.sha256(data).hexdigest()), data)
+        path.unlink()
+    fd = os.open(parts, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    return sorted(grouped)
+
+
+if __name__ == "__main__":
+    try:
+        if os.geteuid() != 0:
+            raise Error("run source normalization as root")
+        print("Normalized APT sources: " + ", ".join(normalize()))
+    except (Error, OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise SystemExit(f"apt-repo-local-normalize-sources: {exc}")

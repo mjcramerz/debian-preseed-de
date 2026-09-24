@@ -26,7 +26,7 @@ profiles/<selected>.env
 installer/identity.env
 installer/runtime.env
 installer/layout.env
-installer/layout-btrfs.env OR installer/layout-f2fs.env
+installer/btrfs.env OR installer/f2fs.env
 installer/boot.env
 ```
 

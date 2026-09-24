@@ -5,9 +5,9 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile /usr/bin/totem /usr/bin/totem flags=(attach_disconnected) {
-  #include <abstractions/managed-desktop-application>
-  #include <abstractions/managed-user-documents>
-  #include <abstractions/managed-pipewire-audio>
+  #include <abstractions/desktop-application>
+  #include <abstractions/user-documents>
+  #include <abstractions/pipewire-audio>
   include if exists <abstractions/user-tmp>
 
   capability sys_nice,
@@ -44,7 +44,7 @@ profile /usr/bin/totem /usr/bin/totem flags=(attach_disconnected) {
   owner /run/media/*/** r,
 
   profile sanitized_helper flags=(attach_disconnected) {
-    #include <abstractions/managed-desktop-application>
+    #include <abstractions/desktop-application>
     include if exists <abstractions/user-tmp>
 
     /usr/bin/totem mr,

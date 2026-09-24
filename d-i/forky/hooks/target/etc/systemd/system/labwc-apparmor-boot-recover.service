@@ -1,7 +1,7 @@
 [Unit]
 Description=Recover an interrupted managed AppArmor boot configuration change
 After=apparmor.service
-Before=apparmor-managed-modes.service
+Before=apparmor-modes.service
 RequiresMountsFor=/etc/default/grub.d /boot/grub
 ConditionPathExists=/var/lib/labwc-apparmor-policy/boot-transaction.json
 
@@ -11,7 +11,7 @@ User=root
 Group=root
 UMask=0077
 ExecStart=/usr/local/libexec/labwc-apparmor-boot-state recover
-AppArmorProfile=managed-labwc-apparmor-boot-state
+AppArmorProfile=labwc-apparmor-boot-state
 StateDirectory=labwc-apparmor-policy
 StateDirectoryMode=0700
 StandardInput=null

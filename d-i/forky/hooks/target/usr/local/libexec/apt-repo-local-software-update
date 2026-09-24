@@ -1,0 +1,8 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use lib '/usr/local/lib/perl5/site_perl/apt-repo-local';
+use APTRepoLocal::Servicing::CLI;
+
+exit APTRepoLocal::Servicing::CLI->new()->run_updater(@ARGV);

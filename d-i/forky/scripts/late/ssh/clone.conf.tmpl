@@ -1,0 +1,17 @@
+Host gitlab.com
+  User git
+  Hostname gitlab.com
+  IdentityAgent SSH_AUTH_SOCK
+  IdentityFile __INSTALLER_STAGE__/public
+  IdentitiesOnly yes
+  BatchMode yes
+  StrictHostKeyChecking yes
+  UserKnownHostsFile __INSTALLER_HOSTS__
+  GlobalKnownHostsFile /dev/null
+  HostKeyAlgorithms ssh-ed25519
+  ForwardAgent no
+  PasswordAuthentication no
+  KbdInteractiveAuthentication no
+  ConnectTimeout 15
+  ServerAliveInterval 15
+  ServerAliveCountMax 3

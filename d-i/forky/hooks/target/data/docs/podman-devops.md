@@ -220,7 +220,7 @@ the desktop or devops service account to `incus-admin`. Incus is a privileged
 host daemon, **not** the rootless Podman engine. The desktop uses its existing
 `incus` group and `unix.socket.user`; bootstrap alone uses the admin socket.
 
-The rewritten `incus-host-managed` parses a strict scalar configuration schema
+The rewritten `incus-host` parses a strict scalar configuration schema
 rather than sourcing shell or constructing YAML. It checks package/socket
 contracts, prepares only top-level storage, serializes bootstrap with flock,
 then reconciles the storage pool, managed bridge and unprivileged default
@@ -234,7 +234,7 @@ deadlines. Remote HTTPS API exposure is not silently adopted.
 `--validate-config` is read-only and does not call the daemon.
 `--prepare-install` prepares storage but never starts Incus in a chroot.
 The restricted broker remains ordered after successful bootstrap. A failure
-is visible through `incus-host-managed.service`, with spaced retries.
+is visible through `incus-host.service`, with spaced retries.
 
 ## Diagnostics, maintenance and migration
 
@@ -248,8 +248,8 @@ journalctl -b -u podman-devops.service -u podman-devops-restart.service
 systemctl status podman-devops.socket podman-devops.service podman-devops-restart.service
 /usr/local/libexec/podman-devops-host check
 systemctl restart podman-devops-bootstrap.service
-journalctl -b -u incus-host-managed.service
-/usr/local/libexec/incus-host-managed --validate-config
+journalctl -b -u incus-host.service
+/usr/local/libexec/incus-host --validate-config
 ```
 
 Those maintenance commands are root operations where necessary, **not** part

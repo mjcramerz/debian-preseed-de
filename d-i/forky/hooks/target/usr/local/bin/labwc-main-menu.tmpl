@@ -1,0 +1,337 @@
+#!/usr/bin/python3 -I
+"""On-demand categorized Fuzzel menu; GIO owns XDG lookup and Exec expansion.
+
+The UI process never loads desktop Exec strings. Each submenu/launch uses a
+fresh worker so GLib's process-local application cache cannot outlive a menu.
+No application directories are written and no application data reaches a shell.
+"""
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import json
+import locale
+import os
+from pathlib import Path
+import pwd
+import subprocess
+import sys
+import unicodedata
+
+sys.dont_write_bytecode = True
+SELF = '/usr/local/bin/labwc-main-menu'
+FUZZEL = '/usr/local/bin/labwc-fuzzel'
+BACK = '\u2190 Back'
+
+# Priority order, display label, main tokens, specific additional tokens.
+# Specific tokens refine broad main tokens; Settings always takes precedence.
+# Freedesktop Menu Specification, main/additional-category-registry (see docs).
+CATEGORY_RULES = (
+    ('Settings', {'Settings'}, {'DesktopSettings', 'HardwareSettings', 'Printing'}),
+    ('Development', {'Development'}, {'IDE', 'Building', 'Debugger', 'RevisionControl',
+                                     'Database', 'Profiling', 'WebDevelopment'}),
+    ('Internet', {'Network'}, {'WebBrowser', 'InstantMessaging', 'Chat', 'IRCClient',
+                              'FileTransfer', 'RemoteAccess', 'P2P'}),
+    ('Office & Productivity', {'Office'}, {'Calendar', 'ContactManagement', 'Email',
+                                          'ProjectManagement', 'Finance', 'Spreadsheet',
+                                          'WordProcessor', 'Presentation'}),
+    ('Graphics', {'Graphics'}, {'2DGraphics', '3DGraphics', 'Photography', 'Scanning',
+                               'VectorGraphics', 'RasterGraphics'}),
+    ('Multimedia', {'AudioVideo'}, {'Audio', 'Video', 'Player', 'Recorder',
+                                   'AudioVideoEditing', 'Music'}),
+    ('Games', {'Game'}, set()),
+    ('Education', {'Education', 'Science'}, {'Math', 'Languages', 'ArtificialIntelligence'}),
+    ('System', {'System'}, {'TerminalEmulator', 'Monitor', 'Security', 'PackageManager', 'Emulator'}),
+    ('Utilities', {'Utility'}, {'TextEditor', 'Calculator', 'Archiving', 'FileTools',
+                               'Compression', 'FileManager'}),
+)
+DISPLAY_CATEGORIES = ('Development', 'Internet', 'Office & Productivity', 'Graphics',
+                      'Multimedia', 'Games', 'Education', 'Utilities', 'System',
+                      'Settings', 'Other')
+
+# Only fixed, reviewed argv vectors may be executed as desktop actions.
+# Generic GUI actions use the existing wrapper's configured default GPU policy.
+WAYLAND = ('/usr/local/bin/labwc-wayland-app', 'auto', '--')
+ACTIONS = {
+    'Search Applications': ('/usr/local/bin/labwc-run',),
+    'Terminal': ('/usr/local/bin/labwc-terminal',),
+    'Computer Management': ('/usr/local/bin/labwc-computer-management',),
+    'Files': WAYLAND + ('/usr/bin/thunar',),
+    'Lock': ('/usr/local/bin/labwc-lock',),
+    'Logout': ('/usr/local/bin/labwc-logout',),
+    'Power': ('/usr/local/bin/labwc-power-menu',),
+}
+SETTINGS_ACTIONS = {
+    'Display': WAYLAND + ('/usr/bin/wdisplays',),
+    'Audio': WAYLAND + ('/usr/bin/pavucontrol',),
+    'Appearance': WAYLAND + ('/usr/bin/nwg-look',),
+    'Wallpaper': WAYLAND + ('/usr/local/bin/waypaper',),
+    'Labwc Tweaks': WAYLAND + ('/usr/bin/labwc-tweaks',),
+    'Qt6 Settings': WAYLAND + ('/usr/bin/qt6ct',),
+    'Refresh Outputs': ('/usr/local/libexec/labwc-output-watch', '--refresh'),
+    'Restart Dock': ('/usr/bin/systemctl', '--user', '--no-block', 'restart', 'crystal-dock.service'),
+}
+
+
+def category_for(categories: str | None) -> str:
+    tokens = set((categories or '').split(';'))
+    label, main, specific = CATEGORY_RULES[0]
+    if tokens & (main | specific):
+        return label
+    for token_set_index in (2, 1):
+        for rule in CATEGORY_RULES[1:]:
+            if tokens & rule[token_set_index]:
+                return rule[0]
+    return 'Other'
+
+
+def prepare_environment() -> None:
+    # Never let an injected GI/module path substitute launcher implementation.
+    # -I separately disables Python's environment/site-current-directory imports.
+    for key in ('GIO_LAUNCH_DESKTOP', 'GIO_EXTRA_MODULES', 'GIO_MODULE_DIR', 'GI_TYPELIB_PATH'):
+        os.environ.pop(key, None)
+    # Relative XDG paths are invalid; GLib must not search the current directory.
+    home = os.environ.get('XDG_DATA_HOME', '')
+    if not home or not os.path.isabs(home):
+        account_home = Path.home()
+        if not account_home.is_absolute():
+            account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+        os.environ['XDG_DATA_HOME'] = str(account_home / '.local/share')
+    roots = os.environ.get('XDG_DATA_DIRS', '')
+    if not roots:
+        roots = '/usr/local/share:/usr/share'
+    absolute = [part for part in roots.split(':') if os.path.isabs(part)]
+    # An explicitly invalid list must not turn into an empty GLib value, which
+    # would re-enable its defaults. This fixed non-directory searches nothing.
+    os.environ['XDG_DATA_DIRS'] = ':'.join(dict.fromkeys(absolute)) or '/dev/null'
+    os.environ.setdefault('XDG_CURRENT_DESKTOP', 'labwc:wlroots')
+
+
+def gio_api():
+    prepare_environment()
+    try:
+        locale.setlocale(locale.LC_ALL, '')
+    except locale.Error:
+        locale.setlocale(locale.LC_ALL, 'C.UTF-8')
+    import gi
+    gi.require_version('Gio', '2.0')
+    gi.require_version('GioUnix', '2.0')
+    from gi.repository import Gio, GioUnix
+    return Gio, GioUnix.DesktopAppInfo
+
+
+def visible(app) -> bool:
+    # get_all/new have already applied desktop ID precedence, including Hidden
+    # tombstones and unavailable TryExec. Never retry a lower-precedence file.
+    return bool(app and app.get_string('Type') == 'Application'
+                and not app.get_is_hidden() and app.should_show())
+
+
+# Curated desktop identities override conflicting vendor categories (for
+# example RetroArch's Emulator secondary category is not a System app here).
+CATEGORY_OVERRIDES = {
+    'qoredb.desktop': 'Development',
+    'QoreDB.desktop': 'Development',
+    'com.qoredb.qoredb.desktop': 'Development',
+    'qalculate-qt.desktop': 'Office & Productivity',
+    'qalculate-gtk.desktop': 'Office & Productivity',
+    'retroarch.desktop': 'Games',
+    'org.libretro.RetroArch.desktop': 'Games',
+}
+# The fixed Desktop Settings action already represents this executable.
+# Filter desktop IDs, never arbitrary localized display names.
+TWEAKS_DESKTOP_IDS = frozenset({'labwc-tweaks.desktop', 'labwc-tweaks-gtk.desktop'})
+
+
+def enumerate_apps() -> list[dict[str, str]]:
+    Gio, DesktopAppInfo = gio_api()
+    apps = {}
+    for app in Gio.AppInfo.get_all():
+        if not isinstance(app, DesktopAppInfo) or not visible(app):
+            continue
+        desktop_id = app.get_id()
+        if desktop_id and desktop_id not in TWEAKS_DESKTOP_IDS:
+            apps[desktop_id] = {'id': desktop_id,
+                                'name': app.get_display_name() or desktop_id,
+                                'category': CATEGORY_OVERRIDES.get(desktop_id, category_for(app.get_categories())),
+                                'icon': safe_icon(app.get_string('Icon')),
+                                'filename': app.get_filename() or ''}
+    return sorted(apps.values(), key=lambda app: (app['name'].casefold(), app['id']))
+
+
+def launch_desktop(desktop_id: str) -> None:
+    Gio, DesktopAppInfo = gio_api()
+    app = DesktopAppInfo.new(desktop_id)
+    if visible(app):
+        # GIO handles quoting, field codes, working directory, terminal and DBus
+        # semantics. The effective entry's project-managed Exec stays intact.
+        try:
+            app.launch([], Gio.AppLaunchContext())
+        except Exception as exc:
+            raise RuntimeError(f'cannot launch {desktop_id!r}: {exc}') from exc
+
+
+def display_text(text: str) -> str:
+    # Fuzzel dmenu is line-oriented; controls must not create extra menu entries.
+    # Escape backslashes too, making these substitutions unambiguous. Preserve
+    # spaces, punctuation, Unicode/emoji and ordinary XML/shell metacharacters.
+    result = []
+    for char in text:
+        if char == '\\':
+            result.append('\\\\')
+        elif unicodedata.category(char) in {'Cc', 'Cs'} or char in '\u2028\u2029\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069':
+            result.append(f'\\u{ord(char):04x}')
+        else:
+            result.append(char)
+    return ''.join(result)
+
+
+def app_choices(apps: list[dict[str, str]], category: str) -> dict[str, str]:
+    selected = sorted((app for app in apps if app['category'] == category),
+                      key=lambda app: (app['name'].casefold(), app['id']))
+    counts = Counter(display_text(app['name']) for app in selected)
+    choices = {}
+    for app in selected:
+        label = display_text(app['name'])
+        if counts[label] > 1 or label == BACK:
+            label += ' [' + display_text(app['id']) + ']'
+        base, number = label, 2
+        while label in choices or label == BACK:
+            label = f'{base} ({number})'
+            number += 1
+        choices[label] = app['id']
+    return choices
+
+
+# Native theme names for navigation/actions; app rows use their effective
+# desktop entry's Icon field, not a guessed glyph or an Exec-derived name.
+MENU_ICONS = {
+    'Search Applications': '__THEME_FUZZEL_MENU_ACTION_SEARCH_APPLICATIONS_ICON_NAME__',
+    'Development': '__THEME_FUZZEL_MENU_CATEGORY_DEVELOPMENT_ICON_NAME__',
+    'Internet': '__THEME_FUZZEL_MENU_CATEGORY_INTERNET_ICON_NAME__',
+    'Office & Productivity': '__THEME_FUZZEL_MENU_CATEGORY_OFFICE_PRODUCTIVITY_ICON_NAME__',
+    'Graphics': '__THEME_FUZZEL_MENU_CATEGORY_GRAPHICS_ICON_NAME__',
+    'Multimedia': '__THEME_FUZZEL_MENU_CATEGORY_MULTIMEDIA_ICON_NAME__',
+    'Games': '__THEME_FUZZEL_MENU_CATEGORY_GAMES_ICON_NAME__',
+    'Education': '__THEME_FUZZEL_MENU_CATEGORY_EDUCATION_ICON_NAME__',
+    'Utilities': '__THEME_FUZZEL_MENU_CATEGORY_UTILITIES_ICON_NAME__',
+    'System': '__THEME_FUZZEL_MENU_CATEGORY_SYSTEM_ICON_NAME__',
+    'Settings': '__THEME_FUZZEL_MENU_CATEGORY_SETTINGS_ICON_NAME__',
+    'Other': '__THEME_FUZZEL_MENU_CATEGORY_OTHER_ICON_NAME__',
+    'Terminal': '__THEME_FUZZEL_MENU_ACTION_TERMINAL_ICON_NAME__',
+    'Computer Management': '__THEME_FUZZEL_MENU_ACTION_COMPUTER_MANAGEMENT_ICON_NAME__',
+    'Files': '__THEME_FUZZEL_MENU_ACTION_FILES_ICON_NAME__',
+    'Desktop Settings': '__THEME_FUZZEL_MENU_ACTION_DESKTOP_SETTINGS_ICON_NAME__',
+    'Lock': '__THEME_FUZZEL_MENU_ACTION_LOCK_ICON_NAME__',
+    'Logout': '__THEME_FUZZEL_MENU_ACTION_LOGOUT_ICON_NAME__',
+    'Power': '__THEME_FUZZEL_MENU_ACTION_POWER_ICON_NAME__',
+    'Display': '__THEME_FUZZEL_MENU_ACTION_DISPLAY_ICON_NAME__',
+    'Audio': '__THEME_FUZZEL_MENU_ACTION_AUDIO_ICON_NAME__',
+    'Appearance': '__THEME_FUZZEL_MENU_ACTION_APPEARANCE_ICON_NAME__',
+    'Wallpaper': '__THEME_FUZZEL_MENU_ACTION_WALLPAPER_ICON_NAME__',
+    'Labwc Tweaks': '__THEME_FUZZEL_MENU_ACTION_LABWC_TWEAKS_ICON_NAME__',
+    'Qt6 Settings': '__THEME_FUZZEL_MENU_ACTION_QT6_SETTINGS_ICON_NAME__',
+    'Refresh Outputs': '__THEME_FUZZEL_MENU_ACTION_REFRESH_OUTPUTS_ICON_NAME__',
+    'Restart Dock': '__THEME_FUZZEL_MENU_ACTION_RESTART_DOCK_ICON_NAME__',
+    BACK: '__THEME_FUZZEL_MENU_ACTION_BACK_ICON_NAME__',
+}
+DEFAULT_ICON = '__THEME_FUZZEL_MENU_DEFAULT_ICON_NAME__'
+
+
+def safe_icon(value: str | None) -> str:
+    # Native dmenu metadata is NUL + "icon" + US + value. Never let a desktop
+    # entry inject another row/metadata field. Icon names and absolute paths
+    # (including spaces and Unicode) remain data for Fuzzel's own resolver.
+    if not value or len(value) > 4096 or any(
+            unicodedata.category(c) in {'Cc', 'Cs'} or c in '\u2028\u2029'
+            for c in value):
+        return DEFAULT_ICON
+    if '/' in value and not os.path.isabs(value):
+        return DEFAULT_ICON
+    return value
+
+
+def choose(choices: dict, prompt: str, icons: dict[str, str] | None = None) -> str | None:
+    if any(not isinstance(label, str) or any(unicodedata.category(c) in {'Cc', 'Cs'}
+           or c in '\u2028\u2029' for c in label) for label in choices):
+        raise ValueError('menu labels must not contain protocol controls')
+    env = dict(os.environ, LABWC_FUZZEL_MANAGED_ICONS='0', LABWC_MENU_BACKEND='fuzzel')
+    # The shell wrapper passes this already-encoded protocol through untouched.
+    # Fuzzel returns the label without metadata. The dispatch mapping is still
+    # closed: user-provided names/icons never become commands or shell code.
+    supplied = icons if icons is not None else (
+        MENU_ICONS if prompt in ('Main Menu', 'Desktop Settings') else {})
+    rows = ''.join(label + '\0icon\x1f' + safe_icon(supplied.get(label, MENU_ICONS.get(BACK)
+                   if label == BACK else DEFAULT_ICON)) + '\n' for label in choices)
+    result = subprocess.run([FUZZEL, 'menu', '--dmenu', '--prompt', prompt + ': '],
+                            input=rows, text=True, encoding='utf-8', stdout=subprocess.PIPE, env=env, check=False)
+    if result.returncode == 1:
+        return None  # normal Escape/cancellation, not an error
+    if result.returncode != 0:
+        raise RuntimeError(f'Fuzzel failed (status {result.returncode})')
+    selected = result.stdout.removesuffix('\n')
+    return selected if selected in choices else None
+
+
+def run_action(argv: tuple[str, ...]) -> None:
+    subprocess.run(argv, check=True)
+
+
+def run_menu() -> None:
+    top = dict.fromkeys(('Search Applications', *DISPLAY_CATEGORIES, 'Terminal',
+                         'Files', 'Computer Management', 'Desktop Settings', 'Lock', 'Logout', 'Power'))
+    while True:
+        selected = choose(top, 'Main Menu')
+        if selected is None:
+            return
+        if selected in ACTIONS:
+            run_action(ACTIONS[selected])
+            return
+        if selected == 'Desktop Settings':
+            choices = dict(SETTINGS_ACTIONS)
+            icons = MENU_ICONS
+        else:
+            # Fresh process, same user and XDG/session/output environment.
+            result = subprocess.run([SELF, '--list'], check=True, text=True,
+                                    stdout=subprocess.PIPE)
+            apps = json.loads(result.stdout)
+            choices = app_choices(apps, selected)
+            by_id = {app['id']: safe_icon(app.get('icon')) for app in apps}
+            icons = {label: by_id[desktop_id] for label, desktop_id in choices.items()}
+        choices[BACK] = None
+        item = choose(choices, selected, icons)
+        if item == BACK:
+            continue
+        if item is None:
+            return
+        if selected == 'Desktop Settings':
+            run_action(choices[item])
+        else:
+            subprocess.run([SELF, '--launch=' + choices[item]], check=True)
+        return
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--list', action='store_true', help='list visible apps as JSON (diagnostic)')
+    group.add_argument('--launch', metavar='DESKTOP_ID', help='launch an effective visible desktop ID')
+    options = parser.parse_args(argv)
+    if os.geteuid() == 0:
+        raise RuntimeError('the application menu must run as the desktop user, not root')
+    prepare_environment()
+    if options.list:
+        print(json.dumps(enumerate_apps(), ensure_ascii=False))
+    elif options.launch is not None:
+        launch_desktop(options.launch)
+    else:
+        run_menu()
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, RuntimeError, ImportError, subprocess.SubprocessError) as exc:
+        print(f'labwc main menu: {exc}', file=sys.stderr)
+        raise SystemExit(1)

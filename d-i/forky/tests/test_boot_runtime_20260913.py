@@ -8,6 +8,9 @@ integration or type system; it never enters the installer payload. AppArmor
 commands and loaded-kernel state are always fixtures, never the real kernel.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes
 
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import io
@@ -31,8 +34,8 @@ TARGET = FORKY / 'hooks/target'
 LIB = TARGET / 'usr/local/lib/perl5/site_perl'
 PERL = shutil.which('perl')
 PERL_DEPS = bool(PERL and subprocess.run(
-    [PERL, '-MMoo', '-MMooX::StrictConstructor', '-MMooX::TypeTiny',
-     '-MMooX::Options', '-MTypes::Standard', '-e', '1'],
+    payload_installed_argv([PERL, '-MMoo', '-MMooX::StrictConstructor', '-MMooX::TypeTiny',
+     '-MMooX::Options', '-MTypes::Standard', '-e', '1']),
     capture_output=True, timeout=5).returncode == 0)
 ADAPTER = os.environ.get('MANAGED_TEST_PERL_ADAPTER') == '1' and not PERL_DEPS
 
@@ -117,7 +120,7 @@ class PerlFixture(unittest.TestCase):
     def setUp(self):
         if not PERL or not (PERL_DEPS or ADAPTER):
             self.skipTest('Moo dependencies missing; MANAGED_TEST_PERL_ADAPTER=1 enables fixture-only control-flow tests')
-        self.temp = tempfile.TemporaryDirectory(prefix='managed-boot-test-')
+        self.temp = tempfile.TemporaryDirectory(prefix='x-boot-test-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.env = os.environ.copy()
@@ -172,13 +175,13 @@ class AppArmorReconciliationTests(PerlFixture):
         return p
 
     def run_policy(self, *extra):
-        return subprocess.run([PERL, str(TARGET / 'usr/local/libexec/apparmor-managed-modes-run'),
+        return subprocess.run(payload_installed_argv([PERL, str(TARGET / 'usr/local/libexec/apparmor-modes-run'),
             '--config', str(self.config), '--profile-dir', str(self.profiles),
-            '--tool-dir', str(self.tools), '--loaded-profiles', str(self.kernel), *extra],
+            '--tool-dir', str(self.tools), '--loaded-profiles', str(self.kernel), *extra]),
             env=self.env, capture_output=True, text=True, timeout=10)
 
     def tool_calls(self):
-        return [json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
+        return [json.loads(line) for line in render_theme_defaults(payload_read_text(self.calls)).splitlines()] if payload_source_exists(self.calls) else []
 
     def mutations(self):
         return [call for call in self.tool_calls() if '-N' not in call and '--help' not in call]
@@ -189,18 +192,18 @@ class AppArmorReconciliationTests(PerlFixture):
     def test_matching_sources_and_kernel_do_not_reload_or_rewrite(self):
         a = self.profile()
         b = self.profile('beta', want='enforce', source='enforce', loaded='enforce')
-        before = [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)]
+        before = [(render_theme_bytes(payload_read_bytes(p)), payload_source_stat(p).st_ino, payload_source_stat(p).st_mtime_ns) for p in (a, b)]
         result = self.run_policy()
         self.assert_success(result)
         self.assertEqual(self.mutations(), [])
         self.assertEqual(sum('-N' in call for call in self.tool_calls()), 2)
         self.assertIn('reconciled=0', result.stdout)
-        self.assertEqual(before, [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)])
+        self.assertEqual(before, [(render_theme_bytes(payload_read_bytes(p)), payload_source_stat(p).st_ino, payload_source_stat(p).st_mtime_ns) for p in (a, b)])
 
     def test_kernel_only_drift_reloads_only_mismatching_profile_without_editing(self):
         a = self.profile(loaded='enforce')
         b = self.profile('beta')
-        before = [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)]
+        before = [(render_theme_bytes(payload_read_bytes(p)), payload_source_stat(p).st_ino, payload_source_stat(p).st_mtime_ns) for p in (a, b)]
         result = self.run_policy()
         self.assert_success(result)
         calls = self.mutations()
@@ -208,19 +211,19 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assertEqual(calls[0][0], 'apparmor_parser')
         self.assertIn('-r', calls[0])
         self.assertEqual(calls[0][-1], str(a))
-        self.assertEqual(before, [(p.read_bytes(), p.stat().st_ino, p.stat().st_mtime_ns) for p in (a, b)])
-        self.assertIn('alpha (complain)', self.kernel.read_text())
+        self.assertEqual(before, [(render_theme_bytes(payload_read_bytes(p)), payload_source_stat(p).st_ino, payload_source_stat(p).st_mtime_ns) for p in (a, b)])
+        self.assertIn('alpha (complain)', render_theme_defaults(payload_read_text(self.kernel)))
         self.assertIn('reconciled=1', result.stdout)
 
     def test_source_drift_changes_only_mismatching_profile_and_is_idempotent(self):
         self.profile(source='enforce', loaded='enforce')
         unchanged = self.profile('beta')
-        before = unchanged.stat().st_ino
+        before = payload_source_stat(unchanged).st_ino
         result = self.run_policy()
         self.assert_success(result)
         self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit'])
-        self.assertEqual(unchanged.stat().st_ino, before)
-        self.assertIn('flags=(complain)', (self.profiles / 'alpha').read_text())
+        self.assertEqual(payload_source_stat(unchanged).st_ino, before)
+        self.assertIn('flags=(complain)', render_theme_defaults(payload_read_text(self.profiles / 'alpha')))
         self.calls.unlink()
         self.assert_success(self.run_policy())
         self.assertEqual(self.mutations(), [])
@@ -238,7 +241,7 @@ class AppArmorReconciliationTests(PerlFixture):
         self.assert_success(result)
         self.assertEqual(len(self.mutations()), 1)
         self.assertIn('-R', self.mutations()[0])
-        self.assertEqual(self.kernel.read_text(), '')
+        self.assertEqual(render_theme_defaults(payload_read_text(self.kernel)), '')
 
     def test_check_loaded_is_readonly_and_checks_both_source_and_kernel(self):
         self.profile(loaded='enforce')
@@ -267,8 +270,8 @@ class AppArmorReconciliationTests(PerlFixture):
         self.profile(presence='optional', source='disable', loaded=None)
         result = self.run_policy()
         self.assert_success(result)
-        self.assertFalse((self.profiles / 'disable/alpha').exists())
-        self.assertIn('alpha (complain)', self.kernel.read_text())
+        self.assertFalse(payload_source_exists(self.profiles / 'disable/alpha'))
+        self.assertIn('alpha (complain)', render_theme_defaults(payload_read_text(self.kernel)))
         self.assertEqual([c[0] for c in self.mutations()], ['aa-complain', 'aa-audit'])
         self.calls.unlink()
         self.assert_success(self.run_policy())
@@ -276,13 +279,13 @@ class AppArmorReconciliationTests(PerlFixture):
 
     def test_readonly_check_rejects_disabled_optional_named_profile(self):
         source = self.profile(presence='optional', source='disable', loaded=None)
-        before = (source.read_bytes(), source.stat().st_ino, source.stat().st_mtime_ns)
+        before = (render_theme_bytes(payload_read_bytes(source)), payload_source_stat(source).st_ino, payload_source_stat(source).st_mtime_ns)
         result = self.run_policy('--check-loaded')
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('source mode mismatch', result.stderr)
         self.assertTrue((self.profiles / 'disable/alpha').is_symlink())
         self.assertEqual(self.mutations(), [])
-        self.assertEqual(before, (source.read_bytes(), source.stat().st_ino, source.stat().st_mtime_ns))
+        self.assertEqual(before, (render_theme_bytes(payload_read_bytes(source)), payload_source_stat(source).st_ino, payload_source_stat(source).st_mtime_ns))
 
     @unittest.skipUnless(shutil.which('apparmor_parser'), 'native parser not installed')
     def test_native_parser_finds_labels_when_reenabling_disabled_optional_profile(self):
@@ -297,7 +300,7 @@ class AppArmorReconciliationTests(PerlFixture):
             "    # The real parser honors disable/ even for names-only inspection."))
         result = self.run_policy()
         self.assert_success(result)
-        self.assertIn('alpha (complain)', self.kernel.read_text())
+        self.assertIn('alpha (complain)', render_theme_defaults(payload_read_text(self.kernel)))
         self.assertNotIn('source defines no labels', result.stdout)
 
     def test_required_labelless_source_is_rejected(self):
@@ -337,12 +340,12 @@ class AppArmorReconciliationTests(PerlFixture):
 
     def test_logging_has_one_sanitized_copy_and_no_syslog_dependency(self):
         code = r'''use AppArmor::ManagedModes::CLI qw(info warn); info("hello\nworld"); warn("watch\x01this");'''
-        result = subprocess.run([PERL, '-I' + str(LIB / 'apparmor-managed-modes'), '-e', code],
+        result = subprocess.run(payload_installed_argv([PERL, '-I' + str(LIB / 'apparmor-modes'), '-e', code]),
             env=self.env, capture_output=True, text=True, timeout=5)
         self.assert_success(result)
-        self.assertEqual(result.stdout, 'apparmor-managed-modes: hello world\n')
-        self.assertEqual(result.stderr, 'apparmor-managed-modes: warning: watch?this\n')
-        self.assertNotIn('Sys::Syslog', (LIB / 'apparmor-managed-modes/AppArmor/ManagedModes/Logger.pm').read_text())
+        self.assertEqual(result.stdout, 'apparmor-modes: hello world\n')
+        self.assertEqual(result.stderr, 'apparmor-modes: warning: watch?this\n')
+        self.assertNotIn('Sys::Syslog', render_theme_defaults(payload_read_text(LIB / 'apparmor-modes/AppArmor/ManagedModes/Logger.pm')))
 
 
 class NetworkReadinessTests(PerlFixture):
@@ -352,7 +355,7 @@ class NetworkReadinessTests(PerlFixture):
         self.sysfs.mkdir()
         (self.root / 'etc/default').mkdir(parents=True)
         (self.root / 'etc/network/interfaces.d').mkdir(parents=True)
-        self.config = self.root / 'etc/default/managed-network'
+        self.config = self.root / 'etc/network/host.conf'
         self.config.write_text("""MANAGED_NETWORK_MODE=static
 MANAGED_NETWORK_LINK_TYPES=ethernet
 MANAGED_NETWORK_ETHERNET_IFACE=enp1s0
@@ -363,7 +366,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
 """)
         self.config.chmod(0o600)
         (self.root / 'etc/network/interfaces').write_text('source /etc/network/interfaces.d/*\n')
-        self.staged = self.root / 'etc/network/interfaces.d/50-managed-network'
+        self.staged = self.root / 'etc/network/interfaces.d/50-network'
         self.staged.write_text('iface enp1s0 inet static\n')
         self.staged.chmod(0o600)
         self.env.update(MANAGED_TARGET_ROOT=str(self.root), MANAGED_SYS_CLASS_NET=str(self.sysfs), SYSTEMD_LOG_LEVEL='info')
@@ -377,7 +380,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
             (p / 'wireless').mkdir(exist_ok=True)
 
     def validate(self, *args):
-        return subprocess.run([PERL, str(TARGET / 'usr/local/libexec/managed-network-run'), 'validate', *args],
+        return subprocess.run(payload_installed_argv([PERL, str(TARGET / 'usr/local/libexec/network-run'), 'validate', *args]),
             env=self.env, capture_output=True, text=True, timeout=5)
 
     def test_present_adapter_does_not_wait_for_other_devices(self):
@@ -417,7 +420,7 @@ MANAGED_NETWORK_IPV6_ENABLED=false
                                  ({'wireless': True}, 'marked wireless')]:
             with self.subTest(changes=changes):
                 p = self.sysfs / 'enp1s0'
-                if p.exists():
+                if payload_source_exists(p):
                     shutil.rmtree(p)
                 self.adapter(**changes)
                 result = self.validate('--wait-seconds', '1')
@@ -445,71 +448,71 @@ MANAGED_NETWORK_IPV6_ENABLED=false
 
 class IntegrationTests(unittest.TestCase):
     def test_nvidia_event_activation_and_boot_service_replace_path(self):
-        self.assertFalse((TARGET / 'etc/systemd/system/managed-nvidia-char-links.path').exists())
-        service = (TARGET / 'etc/systemd/system/managed-nvidia-char-links.service').read_text()
+        self.assertFalse(payload_source_exists(TARGET / 'etc/systemd/system/nvidia-char-links.path'))
+        service = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/nvidia-char-links.service'))
         self.assertIn('StartLimitIntervalSec=30s', service)
         self.assertIn('StartLimitBurst=5', service)
         self.assertIn('WantedBy=multi-user.target', service)
         self.assertNotIn('StartLimitIntervalSec=0', service)
-        rules = (TARGET / 'etc/udev/rules.d/71-managed-nvidia-char-links.rules').read_text()
-        self.assertEqual(rules.count('ENV{SYSTEMD_WANTS}+="managed-nvidia-char-links.service"'), 2)
+        rules = render_theme_defaults(payload_read_text(TARGET / 'etc/udev/rules.d/71-nvidia-char-links.rules'))
+        self.assertEqual(rules.count('ENV{SYSTEMD_WANTS}+="nvidia-char-links.service"'), 2)
         for line in rules.splitlines():
             if line.startswith('ACTION='):
                 self.assertIn('KERNEL=="nvidia', line)
                 self.assertIn('TAG+="systemd"', line)
                 self.assertIn('SYMLINK+="char/%M:%m"', line)
-        firstboot = (FORKY / 'scripts/firstboot/04-validation.sh').read_text()
+        firstboot = render_theme_defaults(payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh'))
         self.assertNotIn('desktop-nvidia-char-link-path', firstboot)
         self.assertNotIn('desktop-nvidia-char-link-watcher', firstboot)
         self.assertIn('desktop-nvidia-char-link-boot-enabled', firstboot)
 
     def test_bootprofile_has_one_enablement_owner_and_remains_active(self):
-        service = (TARGET / 'etc/systemd/system/bootprofile-apply.service.tmpl').read_text()
+        service = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/bootprofile-apply.service.tmpl'))
         self.assertIn('Type=oneshot\nRemainAfterExit=yes', service)
-        grub = (FORKY / 'scripts/late/grub.sh').read_text()
+        grub = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/grub.sh'))
         owner = grub.split('install_target_bootprofile_assets() {', 1)[1].split('\n}', 1)[0]
         self.assertEqual(owner.count('stage_target_systemd_unit_enabled'), 1)
         self.assertNotIn('ln -s', owner)
-        self.assertNotIn('bootprofile-apply.service', (FORKY / 'scripts/late/zram-swap.sh').read_text())
-        self.assertIn('dbus-broker', (FORKY / 'scripts/late/dispatch.sh').read_text())
+        self.assertNotIn('bootprofile-apply.service', render_theme_defaults(payload_read_text(FORKY / 'scripts/late/zram-swap.sh')))
+        self.assertIn('dbus-broker', render_theme_defaults(payload_read_text(FORKY / 'scripts/late/dispatch.sh')))
 
     def test_pipewire_all_four_units_exclude_rendered_greeter(self):
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        components = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         for unit in ('pipewire.socket', 'pipewire.service', 'pipewire-pulse.socket', 'pipewire-pulse.service'):
-            text = (TARGET / f'etc/systemd/user/{unit}.d/20-no-greeter.conf.tmpl').read_text()
+            text = render_theme_defaults(payload_read_text(TARGET / f'etc/systemd/user/{unit}.d/20-no-greeter.conf.tmpl'))
             rendered = text.replace('__INSTALLER_LABWC_GREETER_USER__', '_greetd')
             self.assertIn('[Unit]\n', rendered)
             self.assertIn('ConditionUser=!_greetd', rendered)
             self.assertNotIn('ConditionUser=\n', rendered)
             self.assertIn(unit, components)
         self.assertIn('desktop_stage_pipewire_user_conditions', components)
-        self.assertIn('desktop-pipewire-greeter-conditions', (FORKY / 'scripts/firstboot/04-validation.sh').read_text())
+        self.assertIn('desktop-pipewire-greeter-conditions', render_theme_defaults(payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh')))
 
     def test_network_unit_waits_for_configured_interfaces_only(self):
-        unit = (TARGET / 'etc/systemd/system/managed-network.service').read_text()
+        unit = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/network.service'))
         self.assertNotIn('systemd-udev-settle', unit)
         self.assertIn('validate --wait-seconds 15', unit)
         self.assertIn('TimeoutStartSec=20s', unit)
 
     def test_firstboot_uses_one_combined_apparmor_check(self):
-        firstboot = (FORKY / 'scripts/firstboot/04-validation.sh').read_text()
-        self.assertEqual(firstboot.count('apparmor-managed-modes-run --check-loaded'), 1)
-        self.assertNotRegex(firstboot, r'apparmor-managed-modes-run --check(?:\s|$)')
-        unit = (TARGET / 'etc/systemd/system/apparmor-managed-modes.service').read_text()
-        self.assertIn('SyslogIdentifier=apparmor-managed-modes', unit)
+        firstboot = render_theme_defaults(payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh'))
+        self.assertEqual(firstboot.count('apparmor-modes-run --check-loaded'), 1)
+        self.assertNotRegex(firstboot, r'apparmor-modes-run --check(?:\s|$)')
+        unit = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/apparmor-modes.service'))
+        self.assertIn('SyslogIdentifier=apparmor-modes', unit)
         self.assertIn('Before=systemd-user-sessions.service display-manager.service multi-user.target', unit)
 
     def test_grub_recordfail_all_managed_writers_use_500(self):
-        grub = (FORKY / 'scripts/late/grub.sh').read_text()
+        grub = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/grub.sh'))
         self.assertNotIn('GRUB_RECORDFAIL_TIMEOUT=-1', grub)
         self.assertEqual(grub.count('GRUB_RECORDFAIL_TIMEOUT=500'), 3)
-        template = (TARGET / 'etc/default/grub.d/05-bootprofiles.cfg.tmpl').read_text()
+        template = render_theme_defaults(payload_read_text(TARGET / 'etc/default/grub.d/05-bootprofiles.cfg.tmpl'))
         self.assertIn('GRUB_RECORDFAIL_TIMEOUT=500', template)
         self.assertNotIn('GRUB_RECORDFAIL_TIMEOUT=-1', template)
 
     def test_wayscriber_is_parseable_comprehensive_and_copied_to_account(self):
         rel = 'etc/skel-desktop/.config/wayscriber/config.toml'
-        config = tomllib.loads((TARGET / rel).read_text())
+        config = tomllib.loads(render_theme_defaults(payload_read_text(TARGET / rel)))
         self.assertEqual(config['config_revision'], 3)
         for section in ('drawing', 'arrow', 'spotlight', 'presets', 'performance', 'history', 'tablet',
                         'tray', 'updates', 'ui', 'presenter_mode', 'boards', 'render_profiles', 'session', 'capture', 'export', 'keybindings'):
@@ -522,11 +525,11 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(config['presenter_mode']['toolbar_mode'], 'hidden')
         self.assertFalse(config['presenter_mode']['enable_input_hud'])
         self.assertEqual(len(config['drawing']['quick_colors']), 11)
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        components = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         self.assertIn(f'desktop_stage_role_asset {rel} /{rel} 0644', components)
         self.assertIn('.config/wayscriber \\', components)
         for path in ('scripts/desktop/verify.sh', 'scripts/firstboot/04-validation.sh'):
-            self.assertIn('.config/wayscriber/config.toml', (FORKY / path).read_text())
+            self.assertIn('.config/wayscriber/config.toml', render_theme_defaults(payload_read_text(FORKY / path)))
 
 
 class LauncherObservabilityTests(unittest.TestCase):
@@ -534,7 +537,7 @@ class LauncherObservabilityTests(unittest.TestCase):
         path = TARGET / 'usr/local/bin/labwc-sync-application-launchers'
         module = types.ModuleType('launcher_boot_runtime_test')
         module.__file__ = str(path)
-        exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+        exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
         selected = [c for c in module.APP_CONFIG if c['action_app'] in ('postman', 'sleek')]
         out, err = io.StringIO(), io.StringIO()
         with ExitStack() as stack:

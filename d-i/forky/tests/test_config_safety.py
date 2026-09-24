@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline policy and failure-injection tests; no running target or services."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import io
 import os
 from pathlib import Path
@@ -25,13 +27,13 @@ HARDWARE = FORKY / 'hooks/target'
 def load(path: Path) -> types.ModuleType:
     module = types.ModuleType('test_subject')
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
 class ConfigSafetyTests(unittest.TestCase):
     def test_distributed_account_defaults_have_no_reusable_credentials(self):
-        text = (FORKY / 'hosts/installer/account.env').read_text()
+        text = payload_read_text(FORKY / 'hosts/installer/account.env')
         self.assertIn('ROOT_LOGIN=true', text)
         self.assertNotIn('ROOT_PASSWORD_CRYPTED=', text)
         self.assertIn('ACCOUNT_PASSWORD_CRYPTED="${ACCOUNT_PASSWORD_CRYPTED:-}"', text)
@@ -41,11 +43,11 @@ class ConfigSafetyTests(unittest.TestCase):
     def test_cpu_profile_retains_deployed_vfio_reservation(self):
         base = HARDWARE / 'etc'
         for name in ('default/grub.d/75-intel-vfio.cfg', 'modprobe.d/70-vfio-pci.conf'):
-            active = '\n'.join(x for x in (base / name).read_text().splitlines() if not x.startswith('#'))
+            active = '\n'.join(x for x in payload_read_text(base / name).splitlines() if not x.startswith('#'))
             self.assertIn('ids=8086:02e0', active)
 
     def test_default_intel_iommu_is_not_passthrough(self):
-        text = (HARDWARE / 'etc/default/grub.d/80-cpu-profile-flags.intel.cfg').read_text()
+        text = payload_read_text(HARDWARE / 'etc/default/grub.d/80-cpu-profile-flags.intel.cfg')
         default = next(x for x in text.splitlines() if x.startswith('GRUB_PROFILE_DEFAULT_FLAGS='))
         self.assertIn('iommu.passthrough=0', default)
         self.assertIn('iommu.strict=1', default)
@@ -53,32 +55,32 @@ class ConfigSafetyTests(unittest.TestCase):
 
     def test_pcie_and_usb_requested_power_policy(self):
         path = HARDWARE / 'etc/default/grub.d/73-pcie-power.cfg'
-        active = '\n'.join(x for x in path.read_text().splitlines() if not x.startswith('#'))
+        active = '\n'.join(x for x in payload_read_text(path).splitlines() if not x.startswith('#'))
         self.assertIn('pcie_aspm.policy=powersave', active)
         self.assertIn('pcie_ports=native', active)
         self.assertIn('usbcore.autosuspend=2', active)
         self.assertNotIn('pcie_port_pm=off', active)
 
     def test_nvidia_vram_preservation_has_installer_and_storage_integration(self):
-        text = (HARDWARE / 'etc/modprobe.d/82-nvidia.conf').read_text()
+        text = payload_read_text(HARDWARE / 'etc/modprobe.d/82-nvidia.conf')
         active = '\n'.join(x for x in text.splitlines() if not x.startswith('#'))
         self.assertIn('modeset=1', active)
         self.assertIn('NVreg_PreserveVideoMemoryAllocations=1', active)
         self.assertIn('NVreg_TemporaryFilePath=/var/lib/nvidia-vram', active)
         for family in ('btrfs-family.sh', 'f2fs-family.sh'):
             self.assertIn('configure_target_nvidia_power_management "$target_enable_nvidia"',
-                          (FORKY / 'scripts/late' / family).read_text())
+                          payload_read_text(FORKY / 'scripts/late' / family))
 
     def test_cleaner_uses_host_mount_table_inside_systemd_sandbox(self):
-        text = (SHARED / 'etc/systemd/system/tmpfs-pre-clean.service.tmpl').read_text()
+        text = payload_read_text(SHARED / 'etc/systemd/system/tmpfs-pre-clean.service.tmpl')
         self.assertIn('TMPFS_PRE_CLEAN_MOUNTINFO=/proc/1/mountinfo', text)
         self.assertIn('ProtectSystem=strict', text)
         self.assertIn('TimeoutStartSec=2min', text)
 
     def test_podman_api_preserves_container_lifecycle_and_rootless_helpers(self):
         base = SHARED / 'data/config/podman/templates/devops'
-        api = (base / 'podman-devops.service.tmpl').read_text()
-        socket_unit = (base / 'podman-devops.socket').read_text()
+        api = payload_read_text(base / 'podman-devops.service.tmpl')
+        socket_unit = payload_read_text(base / 'podman-devops.socket')
         self.assertIn('User=devops', api)
         self.assertIn('Group=devops', api)
         self.assertIn('KillMode=process', api)
@@ -92,15 +94,15 @@ class ConfigSafetyTests(unittest.TestCase):
         self.assertIn('TimeoutStopSec=30', api)
 
     def test_syncthing_preparation_never_runs_with_root_credentials(self):
-        unit = (SHARED / 'etc/systemd/system/managed-syncthing.service.tmpl').read_text()
-        script = (SHARED / 'usr/local/libexec/managed-syncthing-configure').read_text()
-        installer = (FORKY / 'scripts/late/tailscale.sh').read_text()
+        unit = payload_read_text(SHARED / 'etc/systemd/system/syncthing.service.tmpl')
+        script = payload_read_text(SHARED / 'usr/local/libexec/syncthing-configure')
+        installer = payload_read_text(FORKY / 'scripts/late/tailscale.sh')
         self.assertNotIn('PermissionsStartOnly=', unit)
         self.assertNotIn('ExecStartPre=+', unit)
         self.assertNotIn('ExecStartPre=!', unit)
         self.assertNotIn('chown -R', script)
         self.assertIn('run this helper as SYNCTHING_USER, not root', script)
-        self.assertIn('/usr/sbin/runuser -u "$1" -- /usr/local/libexec/managed-syncthing-configure', installer)
+        self.assertIn('/usr/sbin/runuser -u "$1" -- /usr/local/libexec/syncthing-configure', installer)
 
 
 class NftablesCatalogTests(unittest.TestCase):
@@ -118,7 +120,7 @@ installer_repo_join_var() {
   [ "$1" = DIR_HOOKS_TARGET ] || return 91
   printf '%s/%s\n' "$FIXTURE_SOURCE" "$2"
 }
-fetch_hook() { cp -- "$1" "$2"; }
+fetch_hook() { fixture_input=$1; [ -f "$fixture_input" ] || fixture_input=$fixture_input.tmpl; cp -- "$fixture_input" "$2"; }
 target_normalize_systemd_config_parent_modes() { :; }
 stage_target_nftables_all_service_assets
 '''
@@ -133,13 +135,13 @@ stage_target_nftables_all_service_assets
             'INSTALLER_CMDLINE': cmdline,
         }
         result = subprocess.run(
-            [
+            payload_installed_argv([
                 '/bin/sh', '-eu', '-c', program, 'sh',
                 str(FORKY / 'scripts/common/lib.sh'),
                 str(FORKY / 'scripts/runtime/common.sh'),
                 str(FORKY / 'scripts/late/target-assets.sh'),
                 str(FORKY / 'scripts/late/security.sh'),
-            ],
+            ]),
             env=env,
             capture_output=True,
             text=True,
@@ -150,12 +152,12 @@ stage_target_nftables_all_service_assets
         return target / 'etc/nftables/services'
 
     def assert_catalog_resolved(self, catalog: Path) -> None:
-        expected = {path.name for path in (SHARED / 'etc/nftables/services').glob('*.yml')}
+        expected = {path.name.removesuffix('.tmpl') for path in (SHARED / 'etc/nftables/services').glob('*.yml*')}
         actual = {path.name for path in catalog.glob('*.yml')}
         self.assertEqual(actual, expected)
         for path in catalog.glob('*.yml'):
             with self.subTest(overlay=path.name):
-                text = path.read_text(encoding='utf-8')
+                text = payload_read_text(path, encoding='utf-8')
                 self.assertNotRegex(text, r'__INSTALLER_[A-Z0-9_]+__')
                 document = yaml.safe_load(text)
                 self.assertEqual(document['apiVersion'], 'cybops.nftables/v1')
@@ -165,20 +167,20 @@ stage_target_nftables_all_service_assets
         with tempfile.TemporaryDirectory(prefix='nftables-catalog-inactive-') as tmp:
             catalog = self.render_catalog(Path(tmp), ssh_enabled=False)
             self.assert_catalog_resolved(catalog)
-            ssh = yaml.safe_load((catalog / 'ssh-server.yml').read_text(encoding='utf-8'))
+            ssh = yaml.safe_load(payload_read_text(catalog / 'ssh-server.yml', encoding='utf-8'))
             self.assertEqual(ssh['services']['ssh_server']['ports'], [22])
 
     def test_selected_ssh_port_is_preserved_in_rendered_catalog(self):
         with tempfile.TemporaryDirectory(prefix='nftables-catalog-ssh-') as tmp:
             catalog = self.render_catalog(Path(tmp), ssh_enabled=True, cmdline='ssh_port=2222')
             self.assert_catalog_resolved(catalog)
-            ssh = yaml.safe_load((catalog / 'ssh-server.yml').read_text(encoding='utf-8'))
+            ssh = yaml.safe_load(payload_read_text(catalog / 'ssh-server.yml', encoding='utf-8'))
             self.assertEqual(ssh['services']['ssh_server']['ports'], [2222])
 
 
 class SyncthingConfigTests(unittest.TestCase):
     def setUp(self):
-        script = (SHARED / 'usr/local/libexec/managed-syncthing-configure').read_text()
+        script = payload_read_text(SHARED / 'usr/local/libexec/syncthing-configure')
         self.code = script.split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
         self.temp = tempfile.TemporaryDirectory(prefix='syncthing-config-test-')
         self.addCleanup(self.temp.cleanup)
@@ -198,19 +200,19 @@ class SyncthingConfigTests(unittest.TestCase):
         root = ET.parse(self.config).getroot()
         self.assertEqual(root.findtext('options/listenAddress'), 'tcp://0.0.0.0:35000')
         self.assertEqual(root.find('gui').get('enabled'), 'false')
-        self.assertEqual(stat.S_IMODE(self.config.stat().st_mode), 0o600)
-        before = self.config.stat().st_mtime_ns
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.config).st_mode), 0o600)
+        before = payload_source_stat(self.config).st_mtime_ns
         with self.assertRaises(SystemExit) as result:
             self.invoke('--validate-config')
         self.assertEqual(result.exception.code, 0)
-        self.assertEqual(before, self.config.stat().st_mtime_ns)
+        self.assertEqual(before, payload_source_stat(self.config).st_mtime_ns)
 
     def test_failed_rename_preserves_old_xml_and_removes_scratch(self):
-        before = self.config.read_bytes()
+        before = payload_read_bytes(self.config)
         with mock.patch.object(os, 'replace', side_effect=OSError('injected failure')):
             with self.assertRaises(OSError):
                 self.invoke()
-        self.assertEqual(before, self.config.read_bytes())
+        self.assertEqual(before, payload_read_bytes(self.config))
         self.assertEqual(list(self.base.iterdir()), [self.config])
 
     def test_symlink_configuration_rejected(self):
@@ -221,10 +223,10 @@ class SyncthingConfigTests(unittest.TestCase):
             self.invoke()
 
     def test_validation_mismatch_is_not_mutated(self):
-        before = self.config.read_bytes()
+        before = payload_read_bytes(self.config)
         with self.assertRaises(RuntimeError):
             self.invoke('--validate-config')
-        self.assertEqual(before, self.config.read_bytes())
+        self.assertEqual(before, payload_read_bytes(self.config))
 
 
 class CodexCleanupTests(unittest.TestCase):
@@ -281,7 +283,7 @@ class BrokerFinalTests(unittest.TestCase):
             path.write_bytes(b'unchanged')
             path.chmod(0o600)
             helper.atomic_write(path, b'unchanged')
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o644)
 
 
 if __name__ == '__main__':

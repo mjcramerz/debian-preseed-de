@@ -1,0 +1,60 @@
+[general]
+# Keep annotation on the active output while still allowing Satty to request a
+# floating surface when the compositor supports it.
+fullscreen = true
+resize = { mode = "smart" }
+floating-hack = true
+
+# Preserve work until the user explicitly saves, copies, or closes the editor.
+auto-copy = false
+early-exit = []
+corner-roundness = 8
+initial-tool = "arrow"
+copy-command = "wl-copy"
+annotation-size-factor = 1
+output-filename = "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
+save-after-copy = true
+
+# Keep the complete editing surface visible and predictable.
+default-hide-toolbars = false
+focus-toggles-toolbars = false
+default-fill-shapes = false
+primary-highlighter = "block"
+disable-notifications = false
+
+# Mouse and keyboard completion actions remain explicit and ordered.
+actions-on-right-click = ["save-to-clipboard", "save-to-file"]
+actions-on-enter = ["save-to-clipboard", "save-to-file"]
+actions-on-escape = ["exit"]
+no-window-decoration = true
+
+# Input smoothing, navigation, scaling, and application identity.
+brush-smooth-history-size = 8
+pan-step-size = 50.0
+zoom-factor = 1.1
+text-move-length = 25.0
+input-scale = 1.0
+title = "Satty"
+app-id = "org.satty.satty"
+
+[keybinds]
+pointer = "p"
+crop = "c"
+brush = "b"
+line = "i"
+arrow = "a"
+rectangle = "r"
+ellipse = "e"
+text = "t"
+marker = "m"
+blur = "u"
+highlight = "h"
+
+[font]
+family = "__THEME_SATTY_TEXT_FONT_FAMILY__"
+style = "__THEME_SATTY_FONT_STYLE__"
+fallback = ["__THEME_SATTY_EMOJI_FONT_FAMILY__", "__THEME_SATTY_MONOSPACE_FONT_FAMILY__", "__THEME_SATTY_SYMBOL_FONT_FAMILY__"]
+
+[color-palette]
+palette = ["__THEME_SATTY_ANNOTATION_PALETTE_RED_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_ORANGE_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_YELLOW_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_GREEN_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_CYAN_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_BLUE_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_PURPLE_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_PINK_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_WHITE_COLOR__", "__THEME_SATTY_ANNOTATION_PALETTE_CHARCOAL_COLOR__"]
+custom = ["__THEME_SATTY_CUSTOM_PALETTE_WHITE_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_LIGHT_GRAY_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_SLATE_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_CHARCOAL_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_GOLD_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_SAGE_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_BLUE_COLOR__", "__THEME_SATTY_CUSTOM_PALETTE_PURPLE_COLOR__"]

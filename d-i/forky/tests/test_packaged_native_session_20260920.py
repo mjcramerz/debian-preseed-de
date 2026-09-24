@@ -4,6 +4,8 @@ The installer-flow fixture replaces target mutations with explicit stubs. It
 executes the real shell orchestrator; it does not boot d-i or start Wayland.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 from pathlib import Path
 import re
@@ -63,7 +65,7 @@ STEPS = (
 
 class PackagedNativeSessionTests(unittest.TestCase):
     def test_binary_packages_remain_selected_once(self):
-        role = (FORKY / 'classes/class-select/role/desktop.cfg').read_text()
+        role = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg')
         packages = re.search(r'^d-i pkgsel/include string (.*)$', role, re.M)[1].split()
         self.assertEqual(packages.count('labwc'), 1)
         self.assertEqual(packages.count('kwallet6'), 1)
@@ -72,19 +74,19 @@ class PackagedNativeSessionTests(unittest.TestCase):
 
     def test_no_source_builder_patcher_or_staging_path_in_active_payload(self):
         retired = ('build_native.py', 'patch_sources.py', 'native-repairs',
-                   '.installer-native-session-repairs', 'managed-native-repairs',
+                   '.installer-native-session-repairs', 'x-native-repairs',
                    'desktop_install_native_session_repairs')
         for directory in (FORKY / 'scripts', TARGET):
             for path in directory.rglob('*'):
-                if not path.is_file():
+                if not payload_source_is_file(path):
                     continue
-                data = path.read_bytes()
+                data = payload_read_bytes(path)
                 for token in retired:
                     self.assertNotIn(token, str(path.relative_to(FORKY)))
                     self.assertNotIn(token.encode(), data, str(path.relative_to(FORKY)))
 
     def test_published_archive_and_manifest_do_not_restore_deleted_helpers(self):
-        manifest = (FORKY / 'payload.manifest').read_text()
+        manifest = payload_read_text(FORKY / 'payload.manifest')
         self.assertNotIn('native-repairs', manifest)
         with tarfile.open(FORKY / 'payload.tar.gz', 'r:gz') as archive:
             self.assertFalse(any('native-repairs' in name for name in archive.getnames()))
@@ -94,8 +96,8 @@ class PackagedNativeSessionTests(unittest.TestCase):
 
     def test_stock_binary_paths_and_existing_isolation_remain(self):
         units = TARGET / 'etc/skel-desktop/.config/systemd/user'
-        compositor = (units / 'labwc-compositor.service').read_text()
-        wallet = (units / 'labwc-kwallet-portal.service').read_text()
+        compositor = payload_read_text(units / 'labwc-compositor.service')
+        wallet = payload_read_text(units / 'labwc-kwallet-portal.service')
         self.assertIn('ExecStart=/usr/bin/labwc ', compositor)
         self.assertIn('InaccessiblePaths=-/opt/xwayland', compositor)
         self.assertIn('UnsetEnvironment=DISPLAY XAUTHORITY WLR_XWAYLAND', compositor)
@@ -104,8 +106,8 @@ class PackagedNativeSessionTests(unittest.TestCase):
         for unit in (compositor, wallet):
             self.assertIn('KillMode=control-group', unit)
             self.assertIn('PartOf=labwc-session.target', unit)
-        policy = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
-        self.assertIn('profile managed-ksecretd /usr/bin/ksecretd', policy)
+        policy = payload_read_text(TARGET / 'etc/apparmor.d/labwc-session')
+        self.assertIn('profile ksecretd /usr/bin/ksecretd', policy)
 
     def flow(self, shell, failure=''):
         definitions = ''.join(
@@ -136,7 +138,7 @@ run_in_target() {
             **{name + '_TARGET_ARCHITECTURE': 'amd64' for name in
                ('XWAYLAND', 'SATTY', 'ANDROID_PLATFORM_TOOLS', 'SAMLOADER', 'DIGITAL_ASSETS')},
         }
-        return subprocess.run([*shell, '-c', script, 'test', str(FORKY / 'scripts/desktop/labwc.sh')],
+        return subprocess.run(payload_installed_argv([*shell, '-c', script, 'test', str(FORKY / 'scripts/desktop/labwc.sh')]),
                               env=environment, text=True, capture_output=True, timeout=10)
 
     def test_desktop_flow_reaches_completion_without_source_build(self):
@@ -169,17 +171,17 @@ run_in_target() {
                 config = destination / 'etc/skel-desktop/.config/labwc/rc.xml'
                 config.parent.mkdir(parents=True)
                 config.write_text('existing configuration\n')
-                result = subprocess.run(['/bin/sh', str(fixture), str(ROOT), tmp, '4', style],
+                result = subprocess.run(payload_installed_argv(['/bin/sh', str(fixture), str(ROOT), tmp, '4', style]),
                                         text=True, capture_output=True, timeout=10)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('must be thumbnail', result.stderr)
-                self.assertEqual(config.read_text(), 'existing configuration\n')
+                self.assertEqual(payload_read_text(config), 'existing configuration\n')
 
     def test_no_classic_theme_or_fields_in_managed_switcher(self):
         directory = TARGET / 'etc/skel-desktop/.config/labwc'
-        self.assertNotIn('<fields>', (directory / 'rc.xml.tmpl').read_text())
-        self.assertNotIn('style-classic', (directory / 'themerc-override').read_text())
-        launcher = (TARGET / 'usr/local/bin/labwc-window-switcher').read_text()
+        self.assertNotIn('<fields>', payload_read_text(directory / 'rc.xml.tmpl'))
+        self.assertNotIn('style-classic', payload_read_text(directory / 'themerc-override'))
+        launcher = payload_read_text(TARGET / 'usr/local/bin/labwc-window-switcher')
         self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13', launcher)
         for token in ('fuzzel', 'ShowMenu', '-M alt', 'sleep '):
             self.assertNotIn(token, launcher)

@@ -1,0 +1,11 @@
+    @@DEV_PART_ROOT_MB@@ @@ROOT_PRIORITY@@ 1000000000 ext4
+        method{ crypto } format{ }
+        crypto_type{ luks }
+        cipher{ aes }
+        keysize{ 512 }
+        ivalgorithm{ xts-plain64 }
+        keytype{ passphrase }
+        keyhash{ sha256 }
+        use_filesystem{ } filesystem{ f2fs }
+        mountpoint{ / }
+    .

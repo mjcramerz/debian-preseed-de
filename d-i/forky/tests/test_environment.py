@@ -7,6 +7,7 @@ cannot construct a path that satisfies the real contract. Keep production
 checks fail-closed and report the unavailable fixture as an explicit skip.
 """
 from __future__ import annotations
+from payload_fixture import read_text as payload_read_text
 
 import os
 from pathlib import Path
@@ -90,7 +91,7 @@ def _socket_capability(*, family: int, contract: str) -> tuple[bool, str]:
 
 def _process_tree_capability() -> tuple[bool, str]:
     try:
-        status = Path("/proc/self/status").read_text().splitlines()
+        status = payload_read_text(Path("/proc/self/status")).splitlines()
         proc_pid = int(next(line.split()[1] for line in status if line.startswith("Pid:")))
     except (OSError, ValueError, StopIteration) as exc:
         return False, f"cannot exercise process-tree supervision: cannot inspect /proc/self: {exc}"

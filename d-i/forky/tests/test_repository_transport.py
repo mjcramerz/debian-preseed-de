@@ -5,6 +5,8 @@ HTTP and HTTPS fixtures bind only to loopback. Nothing partitions disks, starts
 systemd units, installs packages, or contacts GitHub/TinyURL/the Internet.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import collections
 import contextlib
 import gzip
@@ -29,7 +31,7 @@ from urllib.parse import urlsplit, unquote
 FORKY = Path(__file__).resolve().parents[1]
 SOURCE = FORKY / 'scripts/common/source.sh'
 ROOT = FORKY.parents[1]
-ROLE = 'server' if 'REPOSITORY_ROLE="server"' in (FORKY / 'repo.env').read_text() else 'desktop'
+ROLE = 'server' if 'REPOSITORY_ROLE="server"' in payload_read_text(FORKY / 'repo.env') else 'desktop'
 RAW_PREFIX = '/owner/repository/refs/heads/mcr/main/d-i/forky'
 
 def digest(data: bytes) -> str:
@@ -68,10 +70,10 @@ class Endpoint:
                     return
                 relative = path[len(RAW_PREFIX) + 1:]
                 file = endpoint.root / relative
-                if '..' in Path(relative).parts or not file.is_file():
+                if '..' in Path(relative).parts or not payload_source_is_file(file):
                     self.send_error(404)
                     return
-                data = file.read_bytes()
+                data = payload_read_bytes(file)
                 self.send_response(200)
                 self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
@@ -110,7 +112,7 @@ class TransportFixture(unittest.TestCase):
                       f'Name: test_templates\nDriver: File\nMode: 600\nFilename: {self.root}/templates.dat\n')
         self.env.update(DEBCONF_SYSTEMRC=str(db), DEBIAN_FRONTEND='noninteractive')
     def shell(self, script: str, *, env=None, timeout=25):
-        return subprocess.run(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(SOURCE))}\n{script}'],
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(SOURCE))}\n{script}']),
             text=True, capture_output=True, env={**self.env, **(env or {})}, timeout=timeout)
     def endpoint(self, root=FORKY, tls=None):
         require_loopback_inet()
@@ -207,9 +209,9 @@ installer_seed_path_exists {p(web.base)} repo.env
         dest.write_text('keep-me')
         result = self.shell(f'source_http_get {shlex.quote(web.base + "/missing")} {shlex.quote(str(dest))}')
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(dest.read_text(), 'keep-me')
+        self.assertEqual(payload_read_text(dest), 'keep-me')
         self.assertFalse(list(self.root.glob('output.part.*')))
-        self.assertTrue(Path(str(dest) + '.fetch-error').is_file())
+        self.assertTrue(payload_source_is_file(Path(str(dest) + '.fetch-error')))
         self.assertEqual(web.counts[RAW_PREFIX + '/missing'], 1)
     def test_local_symlink_escape_is_rejected(self):
         local = self.root / 'seed'
@@ -217,7 +219,7 @@ installer_seed_path_exists {p(web.base)} repo.env
         (local / 'escape').symlink_to('/etc/passwd')
         result = self.shell(f'source_transfer {shlex.quote(str(local))} escape {shlex.quote(str(self.root / "out"))}')
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root / 'out').exists())
+        self.assertFalse(payload_source_exists(self.root / 'out'))
     def test_https_downgrade_and_non_http_redirect_are_rejected(self):
         header = self.root / 'headers'
         for location in ('http://host/path', 'file:///etc/passwd'):
@@ -228,8 +230,8 @@ installer_seed_path_exists {p(web.base)} repo.env
         if not shutil.which('openssl'):
             self.skipTest('openssl needed to generate a local self-signed certificate')
         cert, key = self.root / 'cert.pem', self.root / 'key.pem'
-        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-                        '-subj', '/CN=localhost', '-keyout', str(key), '-out', str(cert)],
+        subprocess.run(payload_installed_argv(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                        '-subj', '/CN=localhost', '-keyout', str(key), '-out', str(cert)]),
                        check=True, capture_output=True, timeout=15)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(cert, key)
@@ -237,7 +239,7 @@ installer_seed_path_exists {p(web.base)} repo.env
         command = f'source_http_get {shlex.quote(web.base + "/repo.env")} {shlex.quote(str(self.root / "tls"))}'
         strict = self.shell(command)
         self.assertNotEqual(strict.returncode, 0)
-        self.assertFalse((self.root / 'tls').exists())
+        self.assertFalse(payload_source_exists(self.root / 'tls'))
         for flag in ('allow_unauthenticated_ssl', 'allow_unauthenticated_ssl=true',
                      'debian-installer/allow_unauthenticated_ssl=true'):
             result = self.shell(command, env={'INSTALLER_CMDLINE': flag})
@@ -289,13 +291,13 @@ class SnapshotTests(TransportFixture):
         result = self.prepare(seed, archive, '0' * 64)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('manifest differs', result.stderr)
-        self.assertFalse((self.runtime / 'bootstrap/payload.ready').exists())
+        self.assertFalse(payload_source_exists(self.runtime / 'bootstrap/payload.ready'))
     def test_archive_pin_mismatch_fails_without_ready_marker(self):
         seed, archive, manifest = self.make_payload()
         result = self.prepare(seed, '0' * 64, manifest)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('archive differs', result.stderr)
-        self.assertFalse((self.runtime / 'bootstrap/payload.ready').exists())
+        self.assertFalse(payload_source_exists(self.runtime / 'bootstrap/payload.ready'))
     def test_local_edit_requires_rebuild(self):
         seed, archive, manifest = self.make_payload()
         (seed / 'common.cfg').write_text('# unpublished edit\n')
@@ -333,7 +335,7 @@ class SnapshotTests(TransportFixture):
         result = self.prepare(seed, archive, manifest)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('traversal', result.stderr)
-        self.assertFalse((self.runtime / 'bootstrap/escape').exists())
+        self.assertFalse(payload_source_exists(self.runtime / 'bootstrap/escape'))
     def test_invalid_installer_shell_fails_before_ready_marker(self):
         seed, archive, manifest = self.make_payload({
             'repo.env': b'REPOSITORY_ROLE="server"\n',
@@ -341,7 +343,7 @@ class SnapshotTests(TransportFixture):
         result = self.prepare(seed, archive, manifest)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('invalid shell syntax', result.stderr)
-        self.assertFalse((self.runtime / 'bootstrap/payload.ready').exists())
+        self.assertFalse(payload_source_exists(self.runtime / 'bootstrap/payload.ready'))
     def test_snapshot_cache_reuses_archive_and_manifest(self):
         seed, archive, manifest = self.make_payload()
         web = self.endpoint(seed)
@@ -353,10 +355,10 @@ class SnapshotTests(TransportFixture):
 
 class RealBootstrapTests(TransportFixture):
     def include(self, cmdline):
-        text = (FORKY / 'preseed.cfg').read_text().replace('\\\n', '')
+        text = payload_read_text(FORKY / 'preseed.cfg').replace('\\\n', '')
         line = next(line for line in text.splitlines() if line.startswith('d-i preseed/include_command string '))
         command = line.split(' string ', 1)[1]
-        return subprocess.run(['/bin/sh', '-c', command], capture_output=True, text=True,
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-c', command]), capture_output=True, text=True,
             env={**self.env, 'INSTALLER_CMDLINE': cmdline}, timeout=45)
     def test_complete_local_bootstrap_and_flat_profile(self):
         result = self.include(f'file={FORKY}/preseed.cfg classes=prod;{ROLE};standard;dhcp;ssh')
@@ -364,10 +366,10 @@ class RealBootstrapTests(TransportFixture):
         self.assertEqual(len(result.stdout.splitlines()), 5)
         for line in result.stdout.splitlines():
             self.assertTrue(line.startswith('file:///'))
-            self.assertTrue(Path(line.removeprefix('file://')).is_file())
-        self.assertTrue((self.runtime / 'bootstrap/preflight.ok').is_file())
-        self.assertIn(f'role/{ROLE}', (self.runtime / 'state/context.env').read_text())
-        self.assertTrue((self.runtime / 'state/selected-host.env').is_file())
+            self.assertTrue(payload_source_is_file(Path(line.removeprefix('file://'))))
+        self.assertTrue(payload_source_is_file(self.runtime / 'bootstrap/preflight.ok'))
+        self.assertIn(f'role/{ROLE}', payload_read_text(self.runtime / 'state/context.env'))
+        self.assertTrue(payload_source_is_file(self.runtime / 'state/selected-host.env'))
     def test_complete_short_url_bootstrap_fetches_snapshot_once(self):
         web = self.endpoint()
         result = self.include(f'url={web.url}/short classes=prod;{ROLE};standard;dhcp;ssh')
@@ -380,18 +382,18 @@ class RealBootstrapTests(TransportFixture):
     @skip_unless_process_tree_visibility
     def test_opposite_role_fails_before_preflight_marker(self):
         other = 'desktop' if ROLE == 'server' else 'server'
-        text = (FORKY / 'preseed.cfg').read_text().replace('\\\n', '')
+        text = payload_read_text(FORKY / 'preseed.cfg').replace('\\\n', '')
         line = next(line for line in text.splitlines() if line.startswith('d-i preseed/include_command string '))
         command = line.split(' string ', 1)[1]
-        process = subprocess.Popen(['/bin/sh', '-c', command], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        process = subprocess.Popen(payload_installed_argv(['/bin/sh', '-c', command]), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, start_new_session=True,
             env={**self.env, 'INSTALLER_CMDLINE': f'file={FORKY}/preseed.cfg classes=prod;{other};standard;dhcp'})
         try:
             failure = self.runtime / 'state/first-failure'
             self.assertTrue(wait_file(failure), 'bootstrap did not retain its fatal record')
             self.assertIsNone(process.poll(), 'fatal bootstrap returned to the installer')
-            self.assertFalse((self.runtime / 'bootstrap/preflight.ok').exists())
-            self.assertIn('state=FATAL', failure.read_text())
+            self.assertFalse(payload_source_exists(self.runtime / 'bootstrap/preflight.ok'))
+            self.assertIn('state=FATAL', payload_read_text(failure))
         finally:
             stop_test_tree(process)
 

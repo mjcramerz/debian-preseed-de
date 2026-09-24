@@ -1,7 +1,7 @@
 [Unit]
 Description=Reconcile system Labwc desktop overrides
 After=local-fs.target
-ConditionPathExists=/etc/default/labwc-desktop
+ConditionPathExists=/etc/labwc/desktop.conf
 # Real input events can arrive rapidly during unpack. There is no output watch.
 StartLimitIntervalSec=0
 

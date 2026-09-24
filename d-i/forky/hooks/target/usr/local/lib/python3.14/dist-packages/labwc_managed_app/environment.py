@@ -60,9 +60,9 @@ from .runtime import (
 )
 
 MANAGED_DEFAULT_EXEC_MODES = {
-    "/usr/local/bin/labwc-managed-app launch": "launch",
-    "/usr/local/bin/labwc-managed-app intel": "intel",
-    "/usr/local/bin/labwc-managed-app nvidia": "nvidia",
+    "/usr/local/bin/labwc-app launch": "launch",
+    "/usr/local/bin/labwc-app intel": "intel",
+    "/usr/local/bin/labwc-app nvidia": "nvidia",
 }
 DISCORD_SETTINGS_MAX_BYTES = 1024 * 1024
 DISCORD_MANAGED_SETTINGS = {
@@ -724,11 +724,11 @@ def replace_discord_user_modules(
     ensure_user_owned_directory(version_directory, 0o700)
     modules_path = os.path.join(version_directory, "modules")
     temporary_path = tempfile.mkdtemp(
-        prefix=".managed-modules.",
+        prefix=".modules.",
         dir=version_directory,
     )
     os.chmod(temporary_path, 0o700)
-    backup_path = os.path.join(version_directory, ".managed-modules.previous")
+    backup_path = os.path.join(version_directory, ".modules.previous")
     try:
         for name in sorted(modules):
             source = os.path.join(DISCORD_MODULES_ROOT, name)

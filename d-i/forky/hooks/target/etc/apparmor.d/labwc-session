@@ -1,0 +1,335 @@
+# Managed by unattended-installer. Profiles attach at exec, including user
+# services; systemd AppArmorProfile= is not supported by the user manager.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_deleted) {
+  owner /tmp/.org.chromium.Chromium.* rw,
+  /opt/postman/app/resources/app/assets/icon.png r,
+  owner @{HOME}/.local/share/icons/{,**} r,
+  # The virtual keyboard transfers its unlinked, user-owned keymap fd.
+  owner /tmp/wtype-?????? rw,
+  # Upstream passes its unlinked O_RDWR gamma-ramp FD through SCM_RIGHTS.
+  # AppArmor file_receive checks BOTH open modes, even though wlroots reads it.
+  owner /tmp/wlsunset-shared-?????? rw,
+  # Do not include desktop-graphics: its client policy denies primary
+  # DRM nodes. Only this compositor domain owns the seat/input/card interfaces.
+  #include <abstractions/base>
+  include if exists <abstractions/fonts>
+  include if exists <abstractions/dbus-session>
+  include if exists <abstractions/nameservice-strict>
+  unix,
+  network netlink raw,
+  network netlink dgram,
+  capability sys_nice,
+  /usr/bin/labwc mr,
+  ptrace (readby) peer=session-controls,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /usr/local/share/** r,
+  /etc/{labwc,xdg,fonts}/** r,
+  /etc/{passwd,group,nsswitch.conf,localtime,machine-id,drirc,libva.conf} r,
+  /etc/{vulkan,glvnd}/** r,
+  /sys/ r,
+  /sys/** r,
+  /proc/ r,
+  /proc/{cpuinfo,meminfo,stat,uptime,sys/kernel/osrelease,sys/dev/i915/perf_stream_paranoid} r,
+  owner /proc/[0-9]*/{cmdline,comm,status,stat,fd/,fd/*} rw,
+  owner /proc/[0-9]*/uid_map r,
+  /proc/driver/nvidia/** r,
+  /dev/{dri,input}/ r,
+  /dev/{dri,input}/** rw,
+  /dev/nvidia* rw,
+  /dev/nvidia-caps/** rw,
+  /dev/char/ r,
+  include if exists <local/desktop-graphics>
+  deny /dev/char/*:* l,
+  /dev/{tty,tty[0-9]*,udmabuf} rw,
+  /dev/rfkill r,
+  /dev/shm/ r,
+  owner /dev/shm/** rwkl,
+  /run/seatd.sock rw,
+  /run/udev/data/** r,
+  owner /tmp/.X[0-9]*-lock rwk,
+  owner /run/user/[0-9]*/ rw,
+  owner /run/user/[0-9]*/{wayland-*,bus,labwc*} rwkl,
+  owner /run/user/[0-9]*/labwc-greeter.*/** rwkl,
+  owner @{HOME}/ r,
+  owner @{HOME}/.config/labwc/ r,
+  owner @{HOME}/.config/labwc/** r,
+  owner @{HOME}/.config/labwc/{autostart,shutdown} rix,
+  owner @{HOME}/.config/{gtk-3.0,gtk-4.0}/** r,
+  owner @{HOME}/.local/share/applications/ r,
+  owner @{HOME}/.local/share/applications/*.desktop r,
+  owner @{HOME}/.cache/ rw,
+  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/ rw,
+  owner @{HOME}/.cache/{fontconfig,mesa_shader_cache*,nvidia}/** rwkl,
+  owner @{HOME}/.nv/ rw,
+  owner @{HOME}/.nv/** rwkl,
+  # Fontconfig may probe the package-owned cache before falling back to the
+  # writable per-session cache; ordinary users must never alter this tree.
+  deny /var/cache/fontconfig/ w,
+  deny /var/cache/fontconfig/** w,
+  /{,usr/}bin/{sh,dash,bash} rix,
+  /usr/bin/{false,systemctl,dbus-update-activation-environment} rix,
+  /usr/local/{bin,sbin,libexec}/** rPx,
+  /usr/bin/* rPx,
+  # Lifecycle signals are delivered by the user manager/session controller.
+  signal (send, receive),
+  include if exists <local/usr.bin.labwc>
+}
+
+# The status trampoline deliberately retains this profile while closing
+# inherited FDs; only its final exec enters the destination helper profile.
+profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_disconnected) {
+  #include <abstractions/session-client>
+  # The Python status trampoline probes this root-owned import directory.
+  # Directory metadata only: no new recursive read or write permission.
+  /usr/local/lib/python3.14/dist-packages/ r,
+  # Click callbacks dispatch through this user manager, not panel-owned children.
+  owner /run/user/[0-9]*/systemd/private rw,
+  /usr/bin/bwrap rPx -> session-glycin-bwrap,
+  /usr/local/share/satty/ r,
+  /usr/local/share/satty/** r,
+  owner @{HOME}/.config/waybar/ r,
+  owner @{HOME}/.config/waybar/** r,
+  owner @{HOME}/.cache/waybar/ rw,
+  owner @{HOME}/.cache/waybar/** rwkl,
+  # Waybar's network module reads counters through its own procfs view.
+  /proc/[0-9]*/net/dev r,
+  owner /proc/[0-9]*/task/[0-9]*/comm rw,
+  /dev/rfkill r,
+  owner @{HOME}/.local/share/gvfs-metadata/ r,
+  owner @{HOME}/.local/share/gvfs-metadata/{root,root-*.log} r,
+  owner @{HOME}/.local/share/tutanota-desktop/ r,
+  owner @{HOME}/Desktop/ r,
+  # Network/weather modules can use the network, without reading credentials.
+  network inet stream,
+  network inet6 stream,
+  signal (send) set=(kill) peer=session-glycin-bwrap,
+  signal (receive) set=(usr2) peer=labwc-session-check,
+  ptrace (readby) peer=labwc-session-check,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
+  # glibc RTMIN+7/+8/+9 (41/42/43); AppArmor's RTMIN base is 32.
+  signal (receive) set=(rtmin+9, rtmin+10, rtmin+11) peer=unconfined,
+  signal (send) set=(chld) peer=unconfined,
+  include if exists <local/usr.bin.waybar>
+}
+
+profile crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, mediate_deleted) {
+  /opt/postman/app/resources/app/assets/icon.png r,
+  #include <abstractions/session-client>
+  owner @{HOME}/.config/{crystal-dock,crystal-dockrc}* rwkl,
+  owner "@{HOME}/.config/Crystal Dock*" rwkl,
+  owner @{HOME}/.config/crystal-dock/** rwkl,
+  # QSaveFile links a named temporary file to this disconnected inode form.
+  owner "@{HOME}/.config/crystal-dock/labwc/#[0-9]*" rwkl,
+  owner link "@{HOME}/.config/crystal-dock/labwc/appearance.conf.*" -> "@{HOME}/.config/crystal-dock/labwc/#[0-9]*",
+  owner "@{HOME}/.config/Crystal Dock/**" rwkl,
+  owner @{HOME}/.local/share/{crystal-dock,applications}/ r,
+  owner @{HOME}/.local/share/crystal-dock/** rwkl,
+  owner @{HOME}/.local/share/applications/** r,
+  owner @{HOME}/.cache/crystal-dock/ rw,
+  owner @{HOME}/.cache/crystal-dock/** rwkl,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=labwc-panel-run,
+  signal (send) set=(chld) peer=labwc-panel-run,
+  include if exists <local/usr.bin.crystal-dock>
+}
+
+profile ksecretd /usr/bin/ksecretd flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/desktop-runtime>
+  include if exists <abstractions/user-tmp>
+  unix,
+  /usr/bin/ksecretd mr,
+  /usr/bin/gpg{,2,conf} rix,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /etc/{gcrypt,gnupg}/** r,
+  @{PROC}/sys/kernel/core_pattern r,
+  owner @{PROC}/[0-9]*/mountinfo r,
+  /run/mount/utab r,
+  owner @{HOME}/.config/{kwallet*,ksecret*,kdeglobals}* rwkl,
+  owner @{HOME}/.config/qt6ct/qt6ct.conf r,
+  owner "@{HOME}/.config/#[0-9]*" rwkl,
+  owner link "@{HOME}/.config/kwalletrc.*" -> "@{HOME}/.config/#[0-9]*",
+  owner @{HOME}/.local/share/{kwalletd,ksecretd}/ rw,
+  owner @{HOME}/.local/share/{kwalletd,ksecretd}/** rwklm,
+  owner "@{HOME}/.local/share/kwalletd/#[0-9]*" rwklm,
+  # QSaveFile also commits the Secret Service attributes JSON atomically.
+  owner link "@{HOME}/.local/share/kwalletd/*.{kwl,json}.*" -> "@{HOME}/.local/share/kwalletd/#[0-9]*",
+  owner @{HOME}/.gnupg/ rw,
+  owner @{HOME}/.gnupg/** rwklm,
+  owner /run/user/[0-9]*/{bus,gnupg/**,kwallet*} rwkl,
+  owner /dev/shm/** rwkl,
+  include if exists <local/usr.bin.ksecretd>
+}
+
+profile session-controls /usr/bin/{kanshi,swaybg,swayidle,swaylock,wlr-randr,wlrctl,wlopm,wdisplays,pavucontrol,labwc-tweaks,nwg-look,qt6ct,wayscriber,mako,makoctl,grim,slurp,wl-copy,wl-paste} flags=(attach_disconnected, mediate_deleted) {
+  /dev/tty rw,
+  /proc/version r,
+  /etc/magic r,
+  owner @{PROC}/[0-9]*/mountinfo r,
+  signal (receive) set=(hup) peer=desktop-launcher,
+  signal (receive) set=(term kill) peer=labwc-swaybg,
+  signal (send) set=(chld) peer=labwc-swaybg,
+  # Read-only inherited Bluetooth status descriptor; never rfkill writes.
+  /dev/rfkill r,
+  #include <abstractions/session-client>
+  /usr/bin/bwrap rPx -> session-glycin-bwrap,
+  #include <abstractions/user-documents>
+  include if exists <abstractions/authentication>
+  /etc/{pam.d,security}/** r,
+  # Control surfaces do not perform direct Internet requests. Browser or
+  # network-capable actions must transition to their dedicated profiles.
+  deny network inet,
+  deny network inet6,
+  # authentication abstraction supplies the dedicated unix_chkpwd transition.
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,wayscriber,mako,nwg-look}/ rw,
+  owner @{HOME}/.config/{kanshi,swaylock,labwc,qt6ct,gtk-3.0,gtk-4.0,wayscriber,mako,nwg-look}/** rwkl,
+  owner @{HOME}/.config/{pavucontrol.ini,qt6ct.conf,gtkrc-2.0}* rwkl,
+  owner @{HOME}/.local/share/{labwc,wayscriber}/ rw,
+  owner @{HOME}/.local/share/{labwc,wayscriber}/** rwkl,
+  owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/ rw,
+  owner @{HOME}/.cache/{nwg-look,qt6ct,wayscriber}/** rwkl,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
+  ptrace (read) peer=labwc-compositor,
+  owner /run/user/[0-9]*/labwc-capture/ r,
+  owner /run/user/[0-9]*/labwc-capture/satty-source.*.png rw,
+  owner /run/user/[0-9]*/wayscriber/ rw,
+  owner /run/user/[0-9]*/wayscriber/** rwkl,
+  /etc/labwc/desktop.conf r,
+  owner /run/user/[0-9]*/labwc-swaylock.lock a,
+  signal (send) set=(kill) peer=session-glycin-bwrap,
+  include if exists <local/session-controls>
+}
+
+profile session-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/bwrap-common>
+  include if exists <abstractions/fonts>
+
+  signal (receive) set=(kill, term) peer=waybar,
+  signal (receive) set=(kill, term) peer=session-controls,
+  /dev/rfkill r,
+  /usr/bin/true rix,
+  # Bubblewrap has already set no_new_privs; image loaders inherit this domain.
+  /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+  /usr/share/glycin-loaders/2+/conf.d/ r,
+  /usr/share/glycin-loaders/2+/conf.d/** r,
+  /usr/share/mime/mime.cache r,
+  # Image-loader children inherit descriptors for any selected system icon
+  # or wallpaper, not only the installer's initial three images.
+  /usr/{,local/}share/icons/ r,
+  /usr/{,local/}share/icons/** r,
+  /usr/share/backgrounds/ r,
+  /usr/share/backgrounds/** r,
+  owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+  owner @{HOME}/.config/swaylock/config r,
+  owner @{HOME}/.cache/fontconfig/ r,
+  owner @{HOME}/.cache/fontconfig/** r,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
+  owner /run/user/[0-9]*/labwc-swaylock.lock a,
+}
+
+profile labwc-session-check /usr/local/libexec/labwc-session-check flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  include if exists <abstractions/dbus-session-strict>
+  /usr/local/libexec/labwc-session-check r,
+  /usr/bin/{systemctl,busctl} rix,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/labwc-session-closing r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-*} rw,
+  owner @{HOME}/.config/labwc/rc.xml r,
+  owner /proc/[0-9]*/ r,
+  owner /proc/[0-9]*/exe r,
+  /usr/bin/waybar r,
+  ptrace (read) peer=waybar,
+  signal (send) set=(usr2) peer=waybar,
+  include if exists <local/usr.local.libexec.labwc-session-check>
+}
+
+# Fixed foreground dock supervisor: no arbitrary executable, home-data or
+# network access. Waybar is directly supervised by the user manager.
+profile labwc-panel-run /usr/local/libexec/labwc-panel-run flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  /usr/local/libexec/labwc-panel-run r,
+  # Re-raise the child termination signal without granting access to other peers.
+  signal (send, receive) peer=labwc-panel-run,
+  /usr/bin/crystal-dock rPx -> crystal-dock,
+  signal (receive) set=(int, term, hup, usr1, usr2, kill) peer=unconfined,
+  signal (receive) set=(chld) peer=crystal-dock,
+  signal (send) set=(int, term, hup, usr1, usr2, kill) peer=crystal-dock,
+}
+
+profile wpctl /usr/bin/wpctl flags=(attach_disconnected) {
+  #include <abstractions/base>
+  / r,
+  #include <abstractions/pipewire-audio>
+  unix,
+  /usr/bin/wpctl mr,
+  /usr/lib/** mr,
+  /usr/share/wireplumber/{,**} r,
+  /etc/wireplumber/{,**} r,
+  /etc/{passwd,group,nsswitch.conf,machine-id} r,
+  /sys/devices/virtual/dmi/id/{bios_vendor,board_vendor,product_name,sys_vendor} r,
+  /proc/self/comm rw,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  owner /run/user/[0-9]*/ r,
+  /dev/tty rw,
+  owner /dev/pts/[0-9]* rw,
+  signal (receive) peer=labwc-compositor,
+  signal (send) set=(chld) peer=labwc-compositor,
+}
+
+# Short-lived user-manager controller. systemd-run/systemctl inherit this
+# profile; an environment-scrubbing exec transition would break secure_getenv.
+profile labwc-wlsunset /usr/local/bin/labwc-wlsunset flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  #include <abstractions/dbus-session-strict>
+  /usr/local/bin/labwc-wlsunset rix,
+  / r,
+  /etc/ r,
+  /usr/bin/{systemctl,systemd-run} rix,
+  /etc/default/ r,
+  /etc/labwc/wlsunset.conf r,
+  /etc/machine-id r,
+  /run/ r,
+  /run/user/ r,
+  /run/systemd/system/ r,
+  owner /run/user/[0-9]*/ r,
+  owner /run/user/[0-9]*/{bus,systemd/private,wayland-[0-9]*} rw,
+  owner /run/user/[0-9]*/labwc-wlsunset.lock rwk,
+  unix (create, connect, send, receive, shutdown, getattr, getopt, setopt) type=stream,
+  dbus (send) bus=session peer=(name=org.freedesktop.systemd1),
+  dbus (receive) bus=session peer=(label=unconfined),
+  signal (send, receive) peer=labwc-wlsunset,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=labwc-autostart,
+  signal (send) set=(chld) peer=labwc-autostart,
+  deny network inet,
+  deny network inet6,
+  include if exists <local/usr.local.bin.labwc-wlsunset>
+}
+
+# Native gamma client: no GPU device, system/session D-Bus, home data or network.
+# Executable attachment is used because user systemd cannot set AppArmorProfile=.
+profile wlsunset /usr/bin/wlsunset flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  /usr/bin/wlsunset mr,
+  /etc/localtime r,
+  /usr/share/zoneinfo/{,**} r,
+  owner /run/user/[0-9]*/wayland-[0-9]* rw,
+  owner /tmp/wlsunset-shared-?????? rw,
+  unix (create, shutdown, getattr, getopt, setopt) type=stream,
+  unix (connect, send, receive) type=stream peer=(label=labwc-compositor),
+  signal (receive) set=(term int kill) peer=unconfined,
+  signal (receive) set=(alrm) peer=wlsunset,
+  signal (send) set=(chld) peer=unconfined,
+  deny network inet,
+  deny network inet6,
+  deny /dev/dri/** rw,
+  deny /dev/nvidia* rw,
+  include if exists <local/usr.bin.wlsunset>
+}

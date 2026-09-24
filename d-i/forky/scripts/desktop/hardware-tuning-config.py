@@ -20,30 +20,11 @@ PREFIXES = {"intel": "HARDWARE_INTEL_CPU_TUNING_", "nvidia": "HARDWARE_NVIDIA_GP
 PROFILES = ("performance", "high", "balanced", "silent")
 # Actual systemd dash-prefix directories, NEVER literal '*' directory names.
 APPLICATIONS = {
-    "labwc-native-vivaldi-.service": "high",
-    "labwc-native-chromium-.service": "high",
-    "labwc-native-microsoft-.service": "high",
+    "labwc-native-.service": "high",
+    "labwc-wayland-.service": "balanced",
     "labwc-electron-.service": "high",
     "labwc-devops-.service": "performance",
     "llama-server.service": "performance",
-    "labwc-wayland-mpv-.service": "balanced",
-    "labwc-wayland-recoll-.service": "balanced",
-    "labwc-wayland-obs-.service": "performance",
-    "labwc-wayland-kdenlive-.service": "performance",
-    "labwc-wayland-blender-.service": "performance",
-    "labwc-wayland-firefox-.service": "high",
-    "labwc-native-mullvad-browser-.service": "high",
-    "labwc-native-code-.service": "high",
-    "labwc-native-chatgpt-.service": "high",
-    "labwc-native-obsidian-.service": "high",
-    "labwc-native-qoredb-.service": "high",
-    "labwc-native-postman-.service": "high",
-    "labwc-native-sleek-.service": "high",
-    "labwc-native-spotify-.service": "high",
-    "labwc-native-filen-.service": "high",
-    "labwc-native-discord-.service": "high",
-    "labwc-native-ledger-live-.service": "high",
-    "labwc-native-tutanota-.service": "high",
 }
 CLICK = "/usr/bin/systemd-run --user --quiet --collect --service-type=exec --expand-environment=no --slice=app.slice --property=Requisite=labwc-session.target --property=After=labwc-session.target --property=PartOf=labwc-session.target --property=ExitType=cgroup --property=KillMode=control-group --property=TimeoutStopSec=20s -- /usr/local/bin/labwc-hardware-tuning menu"
 
@@ -146,7 +127,8 @@ def enable(root: Path, target: str, unit: str) -> None:
     link.symlink_to(destination)
 
 
-def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str]) -> list[str]:
+def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str],
+            templates: Path) -> list[str]:
     from broker import validate_config
     if not vendors or any(v not in PREFIXES for v in vendors) or len(set(vendors)) != len(vendors):
         raise ValueError("the installer must supply a nonempty, uniquely gated vendor list")
@@ -170,202 +152,80 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
     def put(relative, text, mode=0o644):
         publish(root, relative, text, mode)
         files.append(relative)
-    put("etc/hardware-tuning/broker.json", json.dumps(config, indent=2) + "\n", 0o600)
-    for vendor, value in policies.items():
-        put(f"etc/hardware-tuning/{vendor}.json", json.dumps(value, indent=2) + "\n", 0o600)
-    put("etc/systemd/system/hardware-tuning.socket", f"""[Unit]
-Description=Authenticated local hardware tuning control socket
+    def put_template(relative, values=None, mode=0o644):
+        candidate = templates / relative
+        template = candidate.with_name(candidate.name + ".tmpl")
+        if template.exists():
+            candidate = template
+        fd = os.open(candidate, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                    info.st_uid != 0 or info.st_mode & 0o022 or info.st_size > 256 * 1024):
+                raise ValueError("unsafe hardware template: " + str(candidate))
+            data = stream.read(256 * 1024 + 1)
+            if len(data) > 256 * 1024:
+                raise ValueError("oversized hardware template: " + str(candidate))
+        text = data.decode("utf-8")
+        values = values or {}
+        def substitute(match):
+            if match[1] not in values:
+                raise ValueError("missing hardware template value: " + match[1])
+            return values[match[1]]
+        text = re.sub(r"__INSTALLER_([A-Z0-9_]+)__", substitute, text)
+        if "__INSTALLER_" in text:
+            raise ValueError("unresolved hardware template: " + relative)
+        put(relative, text, mode)
 
-[Socket]
-ListenStream=/run/hardware-tuning/control.sock
-SocketUser=root
-SocketGroup={gid}
-SocketMode=0660
-DirectoryMode=0755
-RemoveOnStop=yes
-Backlog=32
-
-[Install]
-WantedBy=sockets.target
-""")
+    for name, value in (("broker", config), *policies.items()):
+        put_template(f"etc/hardware-tuning/{name}.json", {
+            "HARDWARE_JSON_" + key.upper(): json.dumps(item, ensure_ascii=True)
+            for key, item in value.items()}, 0o600)
+    put_template("etc/systemd/system/hardware-tuning.socket", {"HARDWARE_GID": str(gid)})
     nv = "nvidia" in vendors
-    put("etc/systemd/system/hardware-tuning.service", """[Unit]
-Description=Hardware tuning lifecycle broker (no direct hardware access)
-Requires=hardware-tuning.socket apparmor.service
-After=hardware-tuning.socket apparmor.service systemd-logind.service systemd-modules-load.service
-Wants=systemd-logind.service
-StartLimitIntervalSec=120s
-StartLimitBurst=3
-
-[Service]
-Type=exec
-ExecStart=/usr/local/libexec/hardware-tuningd
-ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all
-ExecStopPost=/usr/local/libexec/hardware-tuning-policy recover
-Restart=on-failure
-RestartSec=5s
-TimeoutStopSec=150s
-KillMode=control-group
-Slice=system.slice
-RuntimeDirectory=hardware-tuning
-RuntimeDirectoryMode=0755
-RuntimeDirectoryPreserve=yes
-UMask=0077
-# Executable attachment selects broker for ExecStart and worker for ExecStopPost.
-# A unit-wide AppArmorProfile would incorrectly confine recovery as the broker.
-# The broker entrypoint refuses to run unless its enforced profile is attached.
-# Intentional: the root-only worker must transition into its DIFFERENT,
-# hardware-capable AppArmor domain. It sets NNP itself immediately after exec.
-# The broker can execute only the fixed hardware and policy helpers, never a shell.
-# The policy helper cannot write hardware; the hardware worker cannot manage units.
-NoNewPrivileges=no
-PrivateUsers=no
-PrivatePIDs=no
-PrivateTmp=yes
-ProtectHome=yes
-ProtectSystem=strict
-ProtectClock=yes
-ProtectHostname=yes
-ProtectKernelLogs=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-ProtectKernelTunables=no
-ReadOnlyPaths=/proc/sys /sys/kernel /sys/module
-ReadWritePaths=/run/hardware-tuning /sys/devices
-RestrictAddressFamilies=AF_UNIX
-RestrictNamespaces=yes
-RestrictRealtime=yes
-RestrictSUIDSGID=yes
-LockPersonality=yes
-MemoryDenyWriteExecute=yes
-SystemCallArchitectures=native
-TasksMax=32
-LimitNOFILE=256
-""" + ("CapabilityBoundingSet=CAP_SYS_ADMIN\nAmbientCapabilities=\nPrivateDevices=no\nDevicePolicy=closed\nDeviceAllow=char-nvidia* rw\n" if nv else
-       "CapabilityBoundingSet=\nAmbientCapabilities=\nPrivateDevices=yes\n"))
-    client_hardening = """Slice=system.slice
-UMask=0077
-AppArmorProfile=managed-hardware-tuning-client
-NoNewPrivileges=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectHome=yes
-ProtectSystem=strict
-ProtectKernelTunables=yes
-ProtectControlGroups=yes
-ProtectKernelModules=yes
-CapabilityBoundingSet=
-RestrictAddressFamilies=AF_UNIX
-RestrictNamespaces=yes
-LockPersonality=yes
-MemoryDenyWriteExecute=yes
-"""
-    put("etc/systemd/system/hardware-tuning-autostart.service", """[Unit]
-Description=Boot opt-in and active marker for automatic hardware tuning
-BindsTo=hardware-tuning.service
-After=hardware-tuning.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-# No broker callback: synchronous StartUnit from the broker must not deadlock.
-# The broker initializes from persistent enablement only on a fresh boot;
-# runtime Stop survives socket reactivation and broker restarts on this boot.
-ExecStart=/usr/local/bin/labwc-hardware-tuning autostart-marker
-TimeoutStartSec=30s
-""" + client_hardening + "\n[Install]\nWantedBy=multi-user.target\n")
-    put("etc/systemd/system/hardware-tuning-sleep.service", """[Unit]
-Description=Restore hardware controls before sleep and re-evaluate after resume
-Requires=hardware-tuning.socket
-After=hardware-tuning.socket apparmor.service
-Before=sleep.target
-PartOf=sleep.target
-StopWhenUnneeded=yes
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/usr/local/bin/labwc-hardware-tuning pause
-ExecStop=/usr/local/bin/labwc-hardware-tuning resume
-TimeoutStartSec=360s
-TimeoutStopSec=360s
-""" + client_hardening + "\n[Install]\nRequiredBy=sleep.target\n")
+    put_template("etc/systemd/system/hardware-tuning.service", {
+        "HARDWARE_CAPABILITIES": "CAP_SYS_ADMIN" if nv else "",
+        "HARDWARE_PRIVATE_DEVICES": "no" if nv else "yes",
+        "HARDWARE_DEVICE_POLICY": "closed" if nv else "auto",
+        "HARDWARE_DEVICE_ALLOW": "char-nvidia* rw" if nv else ""})
+    for unit in ("hardware-tuning-autostart.service", "hardware-tuning-sleep.service"):
+        put_template("etc/systemd/system/" + unit)
     for vendor in vendors:
         for profile in PROFILES:
-            target = f"{vendor}-{profile}.target"
-            service = f"hardware-tuning-{vendor}-{profile}.service"
-            put("etc/systemd/user/" + target, f"""[Unit]
-Description=Lifetime leases for {vendor} {profile} tuning
-PartOf=labwc-session.target
-StopWhenUnneeded=yes
-Requires={service}
-""")
-            put("etc/systemd/user/" + service, f"""[Unit]
-Description=Unprivileged {vendor} {profile} hardware tuning lease
-PartOf={target} labwc-session.target
-BindsTo=labwc-session.target
-After=labwc-session.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=exec
-ExecStart=/usr/local/bin/labwc-hardware-tuning lease {vendor} {profile}
-Restart=on-failure
-RestartSec=5s
-TimeoutStopSec=3s
-KillMode=control-group
-Slice=background.slice
-UMask=0077
-NoNewPrivileges=yes
-RestrictSUIDSGID=yes
-LockPersonality=yes
-MemoryDenyWriteExecute=yes
-RestrictAddressFamilies=AF_UNIX
-""")
+            put_template(f"etc/systemd/user/{vendor}-{profile}.target")
+            put_template(f"etc/systemd/user/hardware-tuning-{vendor}-{profile}.service")
     for application, profile in APPLICATIONS.items():
-        targets = " ".join(f"{v}-{profile}.target" for v in vendors)
-        put(f"etc/systemd/user/{application}.d/85-hardware-tuning.conf", f"""# Managed hardware-tuning lease. Never put PartOf=tuning.target on the app.
-[Unit]
-Wants={targets}
-Upholds={targets}
-""")
+        put_template(f"etc/systemd/user/{application}.d/85-hardware-tuning.conf", {
+            "HARDWARE_TARGETS": " ".join(f"{v}-{profile}.target" for v in vendors)})
     # Modify only battery right-clicks. All left-click values remain identical.
-    waybar = root / "etc/skel-desktop/.config/waybar/config"
+    relative = "etc/skel-desktop/.config/waybar/config"
+    waybar = root / relative
     if waybar.is_symlink():
         raise ValueError("rendered Waybar configuration is a symlink")
     data = json.loads(waybar.read_text(encoding="utf-8"))
-    touched = 0
-    def visit(value):
-        nonlocal touched
-        if isinstance(value, dict):
-            for key, child in value.items():
-                if key == "battery" and isinstance(child, dict):
-                    child["on-click-right"] = CLICK
-                    touched += 1
-                else:
-                    visit(child)
-        elif isinstance(value, list):
-            for child in value:
-                visit(child)
-    visit(data)
-    if not touched:
-        raise ValueError("rendered Waybar configuration has no battery module; refusing unwired install")
-    put("etc/skel-desktop/.config/waybar/config", json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    if (not isinstance(data, list) or len(data) != 2
+            or any(not isinstance(bar, dict) for bar in data)
+            or [bar.get("name") for bar in data] != ["internal", "external"]):
+        raise ValueError("Waybar configuration must contain the internal/external bars")
+    for bar in data:
+        if not isinstance(bar.get("battery"), dict):
+            raise ValueError("Waybar bar has no battery module")
+        bar["battery"]["on-click-right"] = CLICK
+    put(relative, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     ensure_directory(root / "etc/systemd/system/multi-user.target.wants", root)
     enable(root, "sockets.target.wants", "hardware-tuning.socket")
     enable(root, "sleep.target.requires", "hardware-tuning-sleep.service")
     if autostart:
         enable(root, "multi-user.target.wants", "hardware-tuning-autostart.service")
-    put("etc/hardware-tuning/installed-files.json", json.dumps(sorted(files), indent=2) + "\n", 0o600)
     return files
 
 
 def main(argv: list[str]) -> int:
-    if os.geteuid() != 0 or len(argv) < 3:
-        raise ValueError("usage (root): hardware-tuning-config.py ENV_FILE ACCOUNT VENDOR [VENDOR]")
+    if os.geteuid() != 0 or len(argv) < 4:
+        raise ValueError("usage (root): hardware-tuning-config.py ENV_FILE ACCOUNT TEMPLATE_ROOT VENDOR [VENDOR]")
     environment = parse_environment(Path(argv[0]).read_text(encoding="ascii"))
     account = pwd.getpwnam(argv[1])
-    install(Path("/"), account.pw_uid, account.pw_gid, environment, argv[2:])
+    install(Path("/"), account.pw_uid, account.pw_gid, environment, argv[3:], Path(argv[2]))
     return 0
 
 

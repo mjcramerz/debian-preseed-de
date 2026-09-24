@@ -300,7 +300,7 @@ application/x-code-workspace=code.desktop;
 
 # Preferred terminal
 x-scheme-handler/terminal=foot.desktop;
-application/x-terminal-emulator=foot.desktop;
+application/terminal-emulator=foot.desktop;
 
 [Added Associations]
 # File management
@@ -604,4 +604,4 @@ application/x-code-workspace=code.desktop;
 
 # Preferred terminal
 x-scheme-handler/terminal=foot.desktop;
-application/x-terminal-emulator=foot.desktop;
+application/terminal-emulator=foot.desktop;

@@ -5,6 +5,9 @@ All network fixtures use loopback; no real vendor or bookmarked site is visited.
 CUDA lifecycle/real-APT checks are in test_cuda_legacy_apt.py.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import argparse
 import importlib.machinery
 import importlib.util
@@ -31,7 +34,7 @@ EXPORT = TARGET / 'usr/local/share/browser-imports'
 
 
 def module(name, file):
-    loader = importlib.machinery.SourceFileLoader(name, str(file))
+    loader = importlib.machinery.SourceFileLoader(name, str(installed_script(file)))
     spec = importlib.util.spec_from_loader(name, loader)
     result = importlib.util.module_from_spec(spec)
     loader.exec_module(result)
@@ -39,7 +42,7 @@ def module(name, file):
 
 
 def shell(text, env=None):
-    return subprocess.run(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(LIB))}\n' + text],
+    return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', f'. {shlex.quote(str(LIB))}\n' + text]),
                           env={**os.environ, **(env or {})}, text=True,
                           capture_output=True, timeout=25)
 
@@ -50,9 +53,9 @@ class ExternalVendorTransportTests(TransportFixture):
         if not all(shutil.which(p) for p in ('openssl', 'wget')):
             self.skipTest('openssl and wget are required for verified TLS fixtures')
         cert, key = self.root/'cert.pem', self.root/'key.pem'
-        subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1',
+        subprocess.run(payload_installed_argv(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1',
                         '-subj','/CN=localhost','-addext','subjectAltName=IP:127.0.0.1',
-                        '-keyout',str(key),'-out',str(cert)], check=True,
+                        '-keyout',str(key),'-out',str(cert)]), check=True,
                         capture_output=True, timeout=15)
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         tls.load_cert_chain(cert, key)
@@ -71,8 +74,8 @@ class ExternalVendorTransportTests(TransportFixture):
         result = self.shell(f'. {shlex.quote(str(LIB))}\ninstaller_fetch_url '
                             f'{self.web.base} repo.env {dst} 0644', env=self.trusted_env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(dst.read_bytes(), (SEED/'repo.env').read_bytes())
-        self.assertEqual(stat.S_IMODE(dst.stat().st_mode), 0o644)
+        self.assertEqual(payload_read_bytes(dst), payload_read_bytes(SEED/'repo.env'))
+        self.assertEqual(stat.S_IMODE(payload_source_stat(dst).st_mode), 0o644)
         self.assertEqual(sum(self.web.counts.values()), 1)
 
     def test_payload_member_missing_still_fails_closed(self):
@@ -86,7 +89,7 @@ class ExternalVendorTransportTests(TransportFixture):
         result = self.shell(f'source_fetch_external {self.web.base} repo.env {self.root}/out',
                             env={'INSTALLER_CMDLINE':'allow_unauthenticated_ssl=true'})
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root/'out').exists())
+        self.assertFalse(payload_source_exists(self.root/'out'))
 
     def test_external_disallows_http_traversal_and_executable_mode(self):
         for base, rel, mode in [(self.web.base.replace('https:','http:'),'repo.env','0600'),
@@ -102,7 +105,7 @@ class ExternalVendorTransportTests(TransportFixture):
         dst = self.root/'out'; dst.write_text('do not replace')
         result = self.shell(f'source_fetch_external {self.web.base} missing {dst}', env=self.trusted_env)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(dst.read_text(), 'do not replace')
+        self.assertEqual(payload_read_text(dst), 'do not replace')
         self.assertFalse(list(self.root.glob('out.external.*')))
 
 
@@ -119,7 +122,7 @@ class BrowserConfigurationTests(unittest.TestCase):
     def test_generated_files_are_reproducible_and_current(self):
         self.assertEqual(self.products, self.builder.generate())
         for path, data in self.products.items():
-            self.assertEqual(path.read_bytes(), data, str(path))
+            self.assertEqual(payload_read_bytes(path), data, str(path))
 
     def test_all_bookmarks_accounted_for_with_nested_exclusions(self):
         counts = self.coverage['counts']
@@ -211,7 +214,7 @@ class ImportPublisherTests(unittest.TestCase):
     def test_private_owned_idempotent_publication(self):
         name = self.pub.publish(self.fd, 'test.json', b'new data', os.getuid(), os.getgid())
         self.assertEqual(name, 'test.json')
-        info = (self.root/name).stat()
+        info = payload_source_stat(self.root/name)
         self.assertEqual(stat.S_IMODE(info.st_mode), 0o600)
         self.assertEqual(info.st_uid, os.getuid())
         self.assertEqual(self.pub.publish(self.fd, name, b'new data', os.getuid(), os.getgid()), name)
@@ -222,8 +225,8 @@ class ImportPublisherTests(unittest.TestCase):
         self.assertEqual(self.pub.publish(self.fd,'test.json',b'new',os.getuid(),os.getgid()), 'test.json.install-update')
         with self.assertRaises(ValueError):
             self.pub.publish(self.fd,'test.json',b'newer',os.getuid(),os.getgid())
-        self.assertEqual((self.root/'test.json').read_text(), 'user edits')
-        self.assertEqual((self.root/'test.json.install-update').read_bytes(), b'new')
+        self.assertEqual(payload_read_text(self.root/'test.json'), 'user edits')
+        self.assertEqual(payload_read_bytes(self.root/'test.json.install-update'), b'new')
 
     def test_symlinks_and_fifos_rejected(self):
         for name in ('symlink','fifo'):
@@ -245,9 +248,9 @@ class ImportPublisherTests(unittest.TestCase):
             (source/name).write_text('{}\n'); (source/name).chmod(0o600)
         names = self.pub.install(source,home,65534,65534)
         self.assertEqual(set(names), set(self.pub.FILES))
-        self.assertEqual(stat.S_IMODE((home/'Downloads').stat().st_mode),0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(home/'Downloads').st_mode),0o700)
         for name in names:
-            self.assertEqual((home/'Downloads'/name).stat().st_uid,65534)
+            self.assertEqual(payload_source_stat(home/'Downloads'/name).st_uid,65534)
         shutil.rmtree(home/'Downloads')
         (home/'Downloads').symlink_to(source)
         with self.assertRaises(OSError):
@@ -269,19 +272,19 @@ class DebugLauncherTests(unittest.TestCase):
     def test_profile_is_separate_private_and_rejects_symlink(self):
         profile = self.debug.private_profile(self.root,'vivaldi',os.getuid())
         self.assertEqual(profile, self.root/'.local/state/browser-devtools/vivaldi')
-        self.assertEqual(stat.S_IMODE(profile.stat().st_mode),0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(profile).st_mode),0o700)
         profile.rmdir(); profile.symlink_to(self.root)
         with self.assertRaises(ValueError): self.debug.private_profile(self.root,'vivaldi',os.getuid())
 
     @unittest.skipUnless(os.geteuid()==0, 'root-refusal fixture requires root')
     def test_root_execution_rejected(self):
-        result = subprocess.run(['python3',str(TARGET/'usr/local/bin/browser-devtools'),'chromium','--dry-run'],
+        result = subprocess.run(payload_installed_argv(['python3',str(TARGET/'usr/local/bin/browser-devtools'),'chromium','--dry-run']),
                                 capture_output=True,text=True,timeout=10)
         self.assertNotEqual(result.returncode,0)
         self.assertIn('without sudo',result.stderr)
 
     def test_command_has_no_sandbox_disable_or_wildcard_listener(self):
-        text = (TARGET/'usr/local/bin/browser-devtools').read_text()
+        text = payload_read_text(TARGET/'usr/local/bin/browser-devtools')
         self.assertIn('--remote-debugging-address=127.0.0.1', text)
         self.assertIn('--user-data-dir=',text)
         self.assertNotIn('--no-sandbox',text)
@@ -291,22 +294,22 @@ class DebugLauncherTests(unittest.TestCase):
 # Additional production-path regressions discovered during integration review.
 class AdditionalProductionRegressions(unittest.TestCase):
     def test_dkms_wrapper_fails_instead_of_recursing_and_preserves_arguments(self):
-        text = (SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh').read_text()
+        text = payload_read_text(SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh')
         self.assertIn('--rename --add /usr/sbin/dkms', text)
         wrapper = text.split("<<'EOF'\n",1)[1].split('\nEOF',1)[0]
         tail = wrapper[wrapper.index('real_dkms='):]
         with tempfile.TemporaryDirectory(prefix='dkms-wrapper-') as tmp:
             real = Path(tmp)/'dkms.distrib'
             script = 'patch_legacy_nvidia_source_tree() { :; }\n' + tail.replace('/usr/sbin/dkms.distrib',str(real))
-            result = subprocess.run(['/bin/sh','-eu','-c',script,'sh','test argument'],capture_output=True,text=True,timeout=5)
+            result = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',script,'sh','test argument']),capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,127)
             real.write_text('#!/bin/sh\nprintf "%s\\n" "$1"\n'); real.chmod(0o755)
-            result = subprocess.run(['/bin/sh','-eu','-c',script,'sh','test argument'],capture_output=True,text=True,timeout=5)
+            result = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',script,'sh','test argument']),capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(result.stdout,'test argument\n')
 
     def test_nvidia_580_header_patch_adds_string_and_gpio_compat_once(self):
-        text = (SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh').read_text()
+        text = payload_read_text(SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh')
         wrapper = text.split("<<'EOF'\n",1)[1].split('\nEOF',1)[0]
         patcher = wrapper[:wrapper.index('\npatch_legacy_nvidia_source_tree()')]
         script = patcher + '\npatch_nv_linux_header "$1"\n'
@@ -315,14 +318,14 @@ class AdditionalProductionRegressions(unittest.TestCase):
             header.write_text('#ifndef _NV_LINUX_H_\n#include "conftest.h"\n'
                               '#include <linux/of_gpio.h>\n#endif\n')
             header.chmod(0o640)
-            first_run = subprocess.run(['/bin/sh','-eu','-c',script,'sh',str(header)],
+            first_run = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',script,'sh',str(header)]),
                                        capture_output=True,text=True,timeout=5)
             self.assertEqual(first_run.returncode,0,first_run.stderr)
-            first = header.read_bytes()
-            second_run = subprocess.run(['/bin/sh','-eu','-c',script,'sh',str(header)],
+            first = payload_read_bytes(header)
+            second_run = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',script,'sh',str(header)]),
                                         capture_output=True,text=True,timeout=5)
             self.assertEqual(second_run.returncode,0,second_run.stderr)
-            self.assertEqual(header.read_bytes(),first)
+            self.assertEqual(payload_read_bytes(header),first)
             rewritten = first.decode()
             self.assertIn('#include "conftest.h"\n#include <linux/string.h>\n'
                           '/* NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT */', rewritten)
@@ -330,11 +333,11 @@ class AdditionalProductionRegressions(unittest.TestCase):
             self.assertEqual(rewritten.count('NV_INSTALLER_NVIDIA_LEGACY_STRING_COMPAT'),1)
             self.assertEqual(rewritten.count('NV_INSTALLER_NVIDIA_LEGACY_OF_GPIO_COMPAT'),1)
             self.assertEqual(rewritten.count('#include <linux/gpio/consumer.h>'),1)
-            self.assertEqual(stat.S_IMODE(header.stat().st_mode),0o640)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(header).st_mode),0o640)
             self.assertEqual(list(header.parent.glob('nv-linux.h.tmp.*')),[])
 
     def test_nvidia_580_header_patch_fails_closed_without_known_anchor(self):
-        text = (SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh').read_text()
+        text = payload_read_text(SEED/'hooks/installer/pre-pkgsel.d/92nvidia-legacy-dkms.sh')
         wrapper = text.split("<<'EOF'\n",1)[1].split('\nEOF',1)[0]
         tree_patcher = wrapper[:wrapper.index('\nreal_dkms=')]
         self.assertIn('/usr/src/nvidia-580.*',tree_patcher)
@@ -355,12 +358,12 @@ class AdditionalProductionRegressions(unittest.TestCase):
             }
             for installed,fixture in replacements.items():
                 tree_patcher = tree_patcher.replace(installed,fixture)
-            result = subprocess.run(['/bin/sh','-eu','-c',tree_patcher+'\npatch_legacy_nvidia_source_tree\n'],
+            result = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',tree_patcher+'\npatch_legacy_nvidia_source_tree\n']),
                                     capture_output=True,text=True,timeout=5)
             self.assertNotEqual(result.returncode,0)
             self.assertIn('cannot transform recognized NVIDIA 580 header',result.stderr)
             self.assertIn('failed to patch NVIDIA 580 source header before DKMS compilation',result.stderr)
-            self.assertEqual(header.read_text(),original)
+            self.assertEqual(payload_read_text(header),original)
             self.assertEqual(list(header.parent.glob('nv-linux.h.tmp.*')),[])
 
     @skip_unless_trusted_credential_ancestry
@@ -372,21 +375,21 @@ class AdditionalProductionRegressions(unittest.TestCase):
             for script,prefix in [(LIB,'installer'),(SEED/'scripts/runtime/common.sh','runtime')]:
                 for mode,expected in [(0o644,True),(0o660,False),(0o600,True),(0o400,True)]:
                     marker.unlink(missing_ok=True); file.chmod(mode)
-                    result = subprocess.run(['/bin/sh','-eu','-c',f'. {script}; {prefix}_preseed_env_value root_password'],
+                    result = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',f'. {script}; {prefix}_preseed_env_value root_password']),
                                             env={**os.environ,'INSTALLER_PRESEED_ENV_FILE':str(file)},
                                             text=True,capture_output=True,timeout=5)
                     self.assertEqual(result.returncode==0,expected,result.stderr)
-                    self.assertEqual(marker.exists(),expected)
+                    self.assertEqual(payload_source_exists(marker),expected)
                     if mode == 0o644:
-                        self.assertEqual(file.stat().st_mode & 0o777, 0o600)
+                        self.assertEqual(payload_source_stat(file).st_mode & 0o777, 0o600)
 
     def test_apparmor_allows_only_each_browsers_dedicated_debug_state(self):
         for file,browser in [('chromium','chromium'),('microsoft-edge-stable','edge'),('vivaldi-bin','vivaldi')]:
-            text = (TARGET/'etc/apparmor.d/local'/file).read_text()
+            text = payload_read_text(TARGET/'etc/apparmor.d/local'/file)
             self.assertIn(f'owner @{{HOME}}/.local/state/browser-devtools/{browser}/** rwkl,',text)
             self.assertNotIn('@{HOME}/.local/state/**',text)
             self.assertNotIn(f'browser-devtools/{browser}/** m',text)
-        text = (TARGET/'etc/apparmor.d/local/vivaldi-bin').read_text()
+        text = payload_read_text(TARGET/'etc/apparmor.d/local/vivaldi-bin')
         self.assertEqual(text.count('browser-devtools/vivaldi/** rwkl,'),2)
 
     @unittest.skipUnless(os.geteuid()==0 and shutil.which('apt-get') and shutil.which('gpg') and shutil.which('sqv'),
@@ -401,8 +404,8 @@ class AdditionalProductionRegressions(unittest.TestCase):
             root = Path(tmp); root.chmod(0o755)
             keyhome = root/'gnupg'; keyhome.mkdir(mode=0o700)
             gpg = ['gpg','--homedir',str(keyhome),'--batch','--yes','--pinentry-mode','loopback','--passphrase','']
-            subprocess.run(gpg+['--faked-system-time','1740000000','--cert-digest-algo','SHA256',
-                           '--quick-generate-key','APT fixture <test@example.invalid>','rsa3072','sign','0'],
+            subprocess.run(payload_installed_argv(gpg+['--faked-system-time','1740000000','--cert-digest-algo','SHA256',
+                           '--quick-generate-key','APT fixture <test@example.invalid>','rsa3072','sign','0']),
                            check=True,capture_output=True,timeout=30)
             try:
                 repo = root/'repo'; repo.mkdir(); (repo/'Packages').write_bytes(b'')
@@ -410,10 +413,10 @@ class AdditionalProductionRegressions(unittest.TestCase):
                            email.utils.format_datetime(datetime.datetime.now(datetime.timezone.utc),usegmt=True)+
                            '\nArchitectures: amd64\nSHA256:\n '+hashlib.sha256(b'').hexdigest()+' 0 Packages\n')
                 (repo/'Release').write_text(release)
-                subprocess.run(gpg+['--digest-algo','SHA256','--clearsign','-o',str(repo/'InRelease'),str(repo/'Release')],
+                subprocess.run(payload_installed_argv(gpg+['--digest-algo','SHA256','--clearsign','-o',str(repo/'InRelease'),str(repo/'Release')]),
                                check=True,capture_output=True,timeout=15)
-                key = root/'key.asc'; key.write_bytes(subprocess.check_output(gpg+['--armor','--export']))
-                listing = subprocess.check_output(gpg+['--with-colons','--list-keys'],stderr=subprocess.DEVNULL,text=True)
+                key = root/'key.asc'; key.write_bytes(subprocess.check_output(payload_installed_argv(gpg+['--armor','--export'])))
+                listing = subprocess.check_output(payload_installed_argv(gpg+['--with-colons','--list-keys']),stderr=subprocess.DEVNULL,text=True)
                 fingerprint = next(line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:'))
                 source = root/'sources.list'
                 source.write_text(f'deb [arch=amd64 signed-by={key},{fingerprint}] file:{repo} /\n')
@@ -429,7 +432,7 @@ class AdditionalProductionRegressions(unittest.TestCase):
                     env = {**os.environ, 'LC_ALL': 'C', 'APT_CONFIG': str(config)}
                     env.pop('APT_SEQUOIA_CRYPTO_POLICY', None)
                     env.pop('SEQUOIA_CRYPTO_POLICY', None)
-                    return subprocess.run(command, env=env, capture_output=True, text=True, timeout=15)
+                    return subprocess.run(payload_installed_argv(command), env=env, capture_output=True, text=True, timeout=15)
                 result = update()
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
                 # A valid signature made by a key not selected in Signed-By
@@ -437,7 +440,7 @@ class AdditionalProductionRegressions(unittest.TestCase):
                 source.write_text(f'deb [arch=amd64 signed-by={key},{"0"*40}] file:{repo} /\n')
                 self.assertNotEqual(update().returncode,0)
             finally:
-                subprocess.run(['gpgconf','--homedir',str(keyhome),'--kill','gpg-agent'],capture_output=True,timeout=10)
+                subprocess.run(payload_installed_argv(['gpgconf','--homedir',str(keyhome),'--kill','gpg-agent']),capture_output=True,timeout=10)
 
 
 if __name__ == '__main__':

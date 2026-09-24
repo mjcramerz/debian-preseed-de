@@ -2,9 +2,9 @@
 set -eu
 umask 077
 # shellcheck disable=SC1091
-. /usr/local/libexec/managed-ssh-checks
-managed_ssh_context || { printf '%s\n' 'managed-ssh: unsafe or incomplete managed identity' >&2; exit 1; }
-managed_ssh_socket || { printf '%s\n' 'managed-ssh: unsafe or unavailable desktop agent socket' >&2; exit 1; }
+. /usr/local/libexec/ssh-checks
+managed_ssh_context || { printf '%s\n' 'ssh: unsafe or incomplete managed identity' >&2; exit 1; }
+managed_ssh_socket || { printf '%s\n' 'ssh: unsafe or unavailable desktop agent socket' >&2; exit 1; }
 # Test signing ability rather than trusting a matching fingerprint listing.
 /usr/bin/ssh-add -T "$public" >/dev/null 2>&1 && exit 0
 SSH_ASKPASS=/usr/local/libexec/labwc-ssh-gpg-askpass

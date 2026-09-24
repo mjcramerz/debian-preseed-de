@@ -5,6 +5,10 @@ Only disposable directories and short-lived fixture processes are used. These
 are not hardware, installed-kernel AppArmor, or graphical acceptance tests.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import python_library
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 
 import io
 import os
@@ -23,7 +27,7 @@ from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
-PACKAGE = TARGET / 'usr/local/lib/python3.14/dist-packages'
+PACKAGE = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 sys.path.insert(0, str(PACKAGE))
 from labwc_managed_app import cli, dbus_proxy, generic, profiles
 
@@ -32,14 +36,14 @@ def load_script(name):
     path = TARGET / 'usr/local/bin' / name
     module = types.ModuleType('log_fixture_' + name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
 class AccountStagingTests(unittest.TestCase):
     @unittest.skipUnless(os.geteuid() == 0, 'fixture chown requires root')
     def test_real_account_copy_loop_installs_git_metadata_and_preserves_private_modes(self):
-        text = (FORKY / 'scripts/desktop/components.sh').read_text()
+        text = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         body = text.split('desktop_install_user_config() {', 1)[1].split('\ndesktop_unit_has_install_entry()', 1)[0]
         loop = re.search(r'^  for rel in \\\n.*?^done\n', body, re.M | re.S).group(0)
         rels = re.findall(r'^    ([.A-Za-z][^\s]+)\s*\\?$', loop, re.M)
@@ -62,28 +66,28 @@ class AccountStagingTests(unittest.TestCase):
                       normalization)
             env = dict(os.environ, TEST_SKEL=str(skel), account_home=str(home),
                        uid='12345', gid='12345', copied_dirs='0')
-            result = subprocess.run(['/bin/sh', '-c', script], env=env, capture_output=True,
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]), env=env, capture_output=True,
                                     text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for rel, content in samples.items():
                 installed = home / rel
-                self.assertEqual(installed.read_text(), content)
-                st = installed.stat()
+                self.assertEqual(render_theme_defaults(payload_read_text(installed)), content)
+                st = payload_source_stat(installed)
                 self.assertEqual((st.st_uid, st.st_gid, st.st_mode & 0o777, st.st_nlink),
                                  (12345, 12345, 0o600, 1))
-                self.assertEqual(installed.parent.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(payload_source_stat(installed.parent).st_mode & 0o777, 0o700)
 
 
     def test_firstboot_metadata_check_passes_complete_files_and_rejects_unsafe_replacements(self):
-        text = (FORKY / 'scripts/firstboot/04-validation.sh').read_text()
-        script = text.split("check_command managed-git-account-metadata /bin/sh -eu -c '", 1)[1]
+        text = render_theme_defaults(payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh'))
+        script = text.split("check_command git-account-metadata /bin/sh -eu -c '", 1)[1]
         script = script.split("\n    ' sh ", 1)[0]
         import pwd
         account = pwd.getpwuid(os.geteuid()).pw_name
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
-            files = ('.local/share/managed-ssh/private/id_git_ed25519',
-                     '.local/share/managed-ssh/git-key-passphrase.gpg',
+            files = ('.local/share/ssh/private/id_git_ed25519',
+                     '.local/share/ssh/git-key-passphrase.gpg',
                      '.ssh/id_git_ed25519.pub', '.config/gitops/gitops.env',
                      '.config/git/config', '.config/systemd/user/labwc-ssh-key-load.service',
                      '.config/systemd/user/ssh-agent.socket')
@@ -101,7 +105,7 @@ class AccountStagingTests(unittest.TestCase):
                     directory.chmod(0o700)
 
             def validate():
-                return subprocess.run(['/bin/sh', '-eu', '-c', script, 'fixture', str(home), account],
+                return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script, 'fixture', str(home), account]),
                                       capture_output=True, text=True, timeout=10).returncode
 
             self.assertEqual(validate(), 0)
@@ -150,9 +154,9 @@ class TutaPolicyTests(unittest.TestCase):
 
     def test_native_tuta_still_unshares_pid_namespace_and_never_gets_x11(self):
         self.assertNotIn('tutanota', profiles.WAYLAND_COMPAT_APPS)
-        source = (PACKAGE / 'labwc_managed_app/bubblewrap.py').read_text()
+        source = render_theme_defaults(payload_read_text(PACKAGE / 'labwc_managed_app/bubblewrap.py'))
         self.assertIn('--unshare-all', source)
-        self.assertNotIn('TUTA_DBUS_OWN_NAMES', (PACKAGE / 'labwc_managed_app/wayland_compat.py').read_text())
+        self.assertNotIn('TUTA_DBUS_OWN_NAMES', render_theme_defaults(payload_read_text(PACKAGE / 'labwc_managed_app/wayland_compat.py')))
 
 
 class TransientPropertyTests(unittest.TestCase):
@@ -197,7 +201,7 @@ class TransientPropertyTests(unittest.TestCase):
 
 class DesktopAssetTests(unittest.TestCase):
     def test_focuswriter_serialized_font_is_a_qsettings_string_not_a_string_list(self):
-        text = (TARGET / 'etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/managed-word.theme').read_text()
+        text = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.local/share/GottCode/FocusWriter/Themes/word.theme'))
         self.assertIn('\nFont="Noto Sans,12,-1,5,50,0,0,0,0,0"\n', text)
         self.assertNotIn('\nFont=Noto', text)
 
@@ -211,7 +215,7 @@ class DesktopAssetTests(unittest.TestCase):
             self.assertIsNone(sync.find_desktop_file(config['desktop_names']))
             legacy.write_text('[Desktop Entry]\nType=Application\nExec=retroarch\n')
             self.assertEqual(sync.find_desktop_file(config['desktop_names'])[0], legacy.name)
-            current.write_bytes(legacy.read_bytes())
+            current.write_bytes(render_theme_bytes(payload_read_bytes(legacy)))
             self.assertEqual(sync.find_desktop_file(config['desktop_names'])[0], current.name)
 
     def test_scope_dropin_covers_all_app_prefixes_and_is_staged(self):
@@ -221,18 +225,18 @@ class DesktopAssetTests(unittest.TestCase):
         # The original lifecycle policy remains; launchers already select app.slice.
         # Resource-class policy is an additional, separately owned drop-in.
         self.assertEqual(set(found), {path, units / 'app-.scope.d/60-resource-class.conf'})
-        text = path.read_text()
+        text = render_theme_defaults(payload_read_text(path))
         for setting in ('Requisite=labwc-session.target', 'After=labwc-session.target',
                         'PartOf=labwc-session.target', 'KillMode=control-group',
                         'TimeoutStopSec=20s', 'SendSIGKILL=yes'):
             self.assertIn(setting, text)
-        source = (FORKY / 'scripts/desktop/components.sh').read_text()
+        source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         self.assertIn('"etc/skel-desktop/.config/systemd/user/app-.scope.d/50-session-labwc.conf"', source)
         self.assertNotIn('for scope_prefix in ', source)
-        self.assertFalse((units / 'scope.d/50-session-labwc.conf').exists())
+        self.assertFalse(payload_source_exists(units / 'scope.d/50-session-labwc.conf'))
 
     def test_scope_stage_copies_actual_asset(self):
-        source = (FORKY / 'scripts/desktop/components.sh').read_text()
+        source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         stage = re.search(r'^  desktop_stage_role_asset \\\n    "etc/skel-desktop/\.config/systemd/user/app-\.scope\.d/50-session-labwc\.conf" \\\n.*?\n    0644\n', source, re.M | re.S).group(0)
         with tempfile.TemporaryDirectory() as temporary:
             script = """set -eu
@@ -241,7 +245,7 @@ desktop_stage_role_asset() {
   install -m "$3" "$SOURCE/$1" "$DEST$2"
 }
 """ + stage
-            result = subprocess.run(['/bin/sh', '-c', script],
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]),
                                     env=dict(os.environ, SOURCE=str(TARGET), DEST=temporary),
                                     text=True, capture_output=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -249,19 +253,19 @@ desktop_stage_role_asset() {
             self.assertEqual(len(found), 1)
             for path in found:
                 original = TARGET / path.relative_to(temporary)
-                self.assertEqual(path.read_bytes(), original.read_bytes())
-                self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+                self.assertEqual(render_theme_bytes(payload_read_bytes(path)), render_theme_bytes(payload_read_bytes(original)))
+                self.assertEqual(payload_source_stat(path).st_mode & 0o777, 0o644)
 
 
 class AppArmorRegressionTests(unittest.TestCase):
     def profile(self, file, name):
-        source = (TARGET / 'etc/apparmor.d' / file).read_text()
+        source = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d' / file))
         start = source.index('profile ' + name + ' ')
         following = source.find('\nprofile ', start + 1)
         return source[start:following if following >= 0 else None]
 
     def test_archive_helper_inherits_instead_of_creating_null_profiles(self):
-        profile = self.profile('managed-desktop-utilities', 'managed-desktop-launcher')
+        profile = self.profile('desktop-utilities', 'desktop-launcher')
         self.assertIn('/usr/lib/thunar-archive-plugin/xarchiver.tap rix,', profile)
         self.assertIn('/usr/bin/bwrap rCx -> application-bwrap,', profile)
         self.assertIn('owner /var/mail/* r,', profile)
@@ -269,25 +273,25 @@ class AppArmorRegressionTests(unittest.TestCase):
         self.assertNotIn('flags=(complain', profile)
 
     def test_focuswriter_proc_and_qt_reads_are_local(self):
-        profile = self.profile('managed-document-applications', 'managed-focuswriter')
+        profile = self.profile('document-applications', 'focuswriter')
         self.assertIn('owner @{PROC}/[0-9]*/{cmdline,stat} r,', profile)
         self.assertIn('/usr/share/qt6ct/colors/{,*.conf} r,', profile)
         self.assertNotIn('/proc/** rw', profile)
 
     def test_gpg_hardlink_permission_is_restricted_to_lock_names(self):
-        profile = self.profile('managed-desktop-wrappers', 'managed-labwc-ssh-key-load')
+        profile = self.profile('desktop-wrappers', 'labwc-ssh-key-load')
         self.assertIn('owner @{HOME}/.gnupg/{.#lk*,pubring.kbx.lock} l,', profile)
         self.assertNotIn('owner @{HOME}/.gnupg/** rwkl', profile)
 
     def test_inherited_terminals_and_spotify_shutdown_have_explicit_permissions(self):
-        for name in ('managed-labwc-discord-command', 'managed-labwc-zoom-command',
-                     'managed-labwc-managed-wayland-compat-app'):
-            self.assertIn('owner /dev/pts/[0-9]* rw,', self.profile('managed-desktop-wrappers', name))
-        native = self.profile('managed-desktop-wrappers', 'managed-labwc-managed-app')
+        for name in ('labwc-discord-command', 'labwc-zoom-command',
+                     'labwc-wayland-compat-app'):
+            self.assertIn('owner /dev/pts/[0-9]* rw,', self.profile('desktop-wrappers', name))
+        native = self.profile('desktop-wrappers', 'labwc-app')
         self.assertIn('signal (send) set=(hup int term kill) peer=spotify,', native)
         self.assertIn('deny /opt/xwayland/** rxm,', native)
         spotify = self.profile('usr.bin.spotify', 'spotify')
-        self.assertIn('signal (receive) set=(hup int term kill) peer=managed-labwc-managed-app,', spotify)
+        self.assertIn('signal (receive) set=(hup int term kill) peer=labwc-app,', spotify)
 
 
 class SpotifyHandoffTests(unittest.TestCase):
@@ -352,8 +356,8 @@ os._exit(1)
                 self.assertEqual(self.run_fixture(code)[0], 0)
                 self.assertLess(time.monotonic() - start, 2.0)
             finally:
-                if pidfile.exists():
-                    try: os.kill(int(pidfile.read_text()), signal.SIGKILL)
+                if payload_source_exists(pidfile):
+                    try: os.kill(int(render_theme_defaults(payload_read_text(pidfile))), signal.SIGKILL)
                     except ProcessLookupError: pass
 
     def test_stop_signal_is_forwarded_to_the_child(self):
@@ -362,7 +366,7 @@ from labwc_managed_app.cli import _run_spotify
 raise SystemExit(_run_spotify([sys.executable, '-B', '-c', sys.argv[1]], dict(os.environ)))
 '''
         child_code = 'import time; print("READY", flush=True); time.sleep(20)'
-        process = subprocess.Popen([sys.executable, '-B', '-c', runner, child_code],
+        process = subprocess.Popen(payload_installed_argv([sys.executable, '-B', '-c', runner, child_code]),
                                    env=dict(os.environ, PYTHONPATH=str(PACKAGE)),
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:

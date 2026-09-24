@@ -1,0 +1,14 @@
+    @@DEV_PART_ROOT_MB@@ @@ROOT_PRIORITY@@ 1000000000 btrfs
+        method{ crypto } format{ }
+        crypto_type{ luks }
+        cipher{ aes }
+        keysize{ 512 }
+        ivalgorithm{ xts-plain64 }
+        keytype{ passphrase }
+        keyhash{ sha256 }
+        use_filesystem{ } filesystem{ btrfs }
+        mountpoint{ / }
+    .
+    @@DEV_PART_HOME_MB@@ @@DEV_PART_HOME_MB@@ @@DEV_PART_HOME_MB@@ free
+        method{ keep }
+    .

@@ -6,7 +6,7 @@ uid=$(/usr/bin/id -u)
 case "$uid" in ''|0|*[!0-9]*) printf '%s\n' 'git-ssh: run as the desktop user, not root' >&2; exit 1 ;; esac
 
 # shellcheck disable=SC1091
-. /usr/local/libexec/managed-ssh-checks
+. /usr/local/libexec/ssh-checks
 verify_identity() {
   managed_ssh_context && managed_ssh_socket &&
     /usr/bin/ssh-add -T "$public" >/dev/null 2>&1

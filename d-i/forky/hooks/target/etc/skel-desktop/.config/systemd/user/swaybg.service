@@ -1,7 +1,6 @@
 [Unit]
 StartLimitBurst=5
 StartLimitIntervalSec=60s
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target labwc-output-watch.service
 Description=Manage the Labwc session wallpaper
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop

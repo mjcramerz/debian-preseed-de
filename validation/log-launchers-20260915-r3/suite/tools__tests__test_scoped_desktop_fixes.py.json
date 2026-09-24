@@ -1,9 +1,0 @@
-{
-  "path": "tools/tests/test_scoped_desktop_fixes.py",
-  "status": 0,
-  "seconds": 27.589,
-  "timeout": false,
-  "tests": 11,
-  "skips": 0,
-  "failures": []
-}

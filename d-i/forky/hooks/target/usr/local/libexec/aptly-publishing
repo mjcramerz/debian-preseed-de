@@ -102,7 +102,7 @@ def require_private_regular_file(
 ) -> bytes:
     flags = os.O_RDONLY
     if not hasattr(os, "O_NOFOLLOW"):
-        fail("the kernel does not support no-follow managed-file reads")
+        fail("the kernel does not support no-follow file reads")
     flags |= os.O_NOFOLLOW
     try:
         descriptor = os.open(path, flags)
@@ -650,7 +650,7 @@ def public_distribution_exists(
         request = urllib.request.Request(
             url,
             method="HEAD",
-            headers={"User-Agent": "managed-aptly-publisher/1"},
+            headers={"User-Agent": "aptly-publisher/1"},
         )
         try:
             with urllib.request.urlopen(request, timeout=20) as response:

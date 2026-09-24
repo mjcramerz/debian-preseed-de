@@ -5,8 +5,8 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
-  #include <abstractions/managed-electron-runtime>
-  #include <abstractions/managed-pipewire-audio>
+  #include <abstractions/electron-runtime>
+  #include <abstractions/pipewire-audio>
   include if exists <abstractions/user-tmp>
 
   network inet stream,
@@ -71,8 +71,8 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
   owner @{HOME}/@{XDG_VIDEOS_DIR}/** r,
 
   profile tuta-bwrap flags=(attach_disconnected, mediate_deleted) {
-    #include <abstractions/managed-bwrap-common>
-    #include <abstractions/managed-desktop-application>
+    #include <abstractions/bwrap-common>
+    #include <abstractions/desktop-application>
     include if exists <abstractions/user-tmp>
 
     network inet stream,
@@ -127,7 +127,7 @@ profile tuta-mail /opt/tuta-mail/AppRun flags=(attach_disconnected) {
 }
 
 profile tuta-glycin-loader flags=(attach_disconnected, mediate_deleted) {
-  #include <abstractions/managed-desktop-application>
+  #include <abstractions/desktop-application>
   include if exists <abstractions/user-tmp>
 
   /usr/libexec/glycin-loaders/2+/glycin-image-rs mrix,

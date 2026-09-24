@@ -1,7 +1,6 @@
 [Unit]
 StartLimitIntervalSec=10min
 StartLimitBurst=3
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target whisper-record.service
 Description=Transcribe the completed Whisper voice recording
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop

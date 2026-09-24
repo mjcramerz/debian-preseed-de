@@ -1,4 +1,0 @@
-('/bin/sh',) exit 0 stderr 
-('/usr/bin/busybox', 'sh') exit 0 stderr 
-('/bin/bash',) exit 0 stderr 
-PASS: complete generated common library + production allocator, stat absent on PATH

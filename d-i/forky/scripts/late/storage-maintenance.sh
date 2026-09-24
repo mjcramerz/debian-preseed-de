@@ -105,7 +105,7 @@ etc/login.defs|/etc/login.defs|0644
 etc/pam.d/polkit-1|/etc/pam.d/polkit-1|0644
 etc/pam.d/systemd-user|/etc/pam.d/systemd-user|0644
 etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf|/etc/systemd/system/apt-daily-upgrade.service.d/50-unattended-upgrades-notify.conf|0644
-etc/systemd/system/fwupd.service.d/20-managed-upower-ordering.conf|/etc/systemd/system/fwupd.service.d/20-managed-upower-ordering.conf|0644
+etc/systemd/system/fwupd.service.d/20-upower-ordering.conf|/etc/systemd/system/fwupd.service.d/20-upower-ordering.conf|0644
 etc/systemd/system/unattended-upgrades.service.d/override.conf|/etc/systemd/system/unattended-upgrades.service.d/override.conf|0644
 usr/local/libexec/unattended-upgrades-notify|/usr/local/libexec/unattended-upgrades-notify|0755
 EOF
@@ -268,7 +268,7 @@ stage_target_systemd_resource_policy_assets() (
   stage_target_systemd_manager_accounting || exit 1
   for resource_asset in \
     etc/systemd/system/user@.service.d/60-resource-delegation.conf \
-    etc/systemd/coredump.conf.d/60-managed-limits.conf \
+    etc/systemd/coredump.conf.d/60-limits.conf \
     etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf \
     etc/systemd/system/system-maintenance.slice \
     etc/systemd/system/system-maintenance.slice.d/60-resources.conf \
@@ -288,8 +288,23 @@ stage_target_systemd_resource_policy_assets() (
 validate_target_journal_storage_policy() (
   set -eu
   journal_path=$(target_asset_host_path "$FILE_JOURNALD_STORAGE_CONF") || exit 1
+  case "${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}" in
+    true) journal_storage=volatile ;;
+    false) journal_storage=persistent ;;
+    *) installer_fatal "SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false"; exit 1 ;;
+  esac
+  # A duplicate setting could override the expected value despite a successful
+  # grep. Require exactly one assignment for every managed directive.
+  awk '
+    /^[[:space:]]*[#;]/ { next }
+    /^[[:space:]]*\[/ { next }
+    /^[[:space:]]*[A-Za-z][A-Za-z0-9]*[[:space:]]*=/ {
+      key = $0; sub(/[[:space:]]*=.*/, "", key); gsub(/^[[:space:]]+/, "", key)
+      if (++seen[key] != 1) exit 1
+    }
+  ' "$journal_path" || { installer_fatal "duplicate managed journald directive"; exit 1; }
   for required_line in \
-    'Storage=persistent' \
+    "Storage=$journal_storage" \
     "SystemMaxUse=$SYSTEMD_JOURNAL_SYSTEM_MAX_USE" \
     "SystemKeepFree=$SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE" \
     "SystemMaxFileSize=$SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE" \
@@ -299,7 +314,7 @@ validate_target_journal_storage_policy() (
     "RuntimeMaxFileSize=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE" \
     "RuntimeMaxFiles=$SYSTEMD_JOURNAL_RUNTIME_MAX_FILES" \
     'MaxRetentionSec=1month' \
-    'ForwardToSyslog=yes' \
+    'ForwardToSyslog=no' \
     'ForwardToKMsg=no' \
     'ReadKMsg=no'
   do
@@ -325,7 +340,7 @@ stage_target_common_storage_maintenance_assets() {
   stage_target_conditional_apt_refresh_assets
   stage_target_apt_login_policy_assets
   render_target_template "$TMP_ENV_DIR/apt-daily.override.conf.tmpl" "/target${FILE_APT_DAILY_SERVICE_OVERRIDE}" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/apt/listchanges.conf.installer-base)" "${FILE_APT_LISTCHANGES_CONF}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE assets/etc/apt/listchanges.conf.installer-base)" "${FILE_APT_LISTCHANGES_CONF}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/systemd-creds.socket.d/10-encrypted-only.conf)" "/etc/systemd/system/systemd-creds.socket.d/10-encrypted-only.conf" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/fstrim.service.d/override.conf)" "${FILE_FSTRIM_SERVICE_OVERRIDE}" 0644
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/fstrim.timer.d/override.conf)" "${FILE_FSTRIM_TIMER_OVERRIDE}" 0644

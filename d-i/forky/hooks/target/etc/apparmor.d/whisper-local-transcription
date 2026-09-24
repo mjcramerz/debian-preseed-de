@@ -1,13 +1,13 @@
 # Managed by unattended-installer.
 #
 # Narrow network boundary for the local Whisper server and its client. These
-# profiles are intentionally separate from managed-desktop-wrappers so that
+# profiles are intentionally separate from desktop-wrappers so that
 # interpreter wrappers retain their no-network default.
 
 #include <tunables/global>
 
 profile whisper-http-client flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/wrapper-base>
 
   /usr/bin/curl rix,
   network inet stream,
@@ -19,8 +19,8 @@ profile whisper-http-client flags=(attach_disconnected) {
 }
 
 profile whisper-cli /{usr/local/bin/whisper-cli,data/whisper/bin/whisper-cli} flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
-  #include <abstractions/managed-desktop-graphics>
+  #include <abstractions/wrapper-base>
+  #include <abstractions/desktop-graphics>
 
   /usr/local/bin/whisper-cli rix,
   /data/whisper/bin/whisper-cli rix,
@@ -32,8 +32,8 @@ profile whisper-cli /{usr/local/bin/whisper-cli,data/whisper/bin/whisper-cli} fl
 }
 
 profile whisper-server /{usr/local/bin/whisper-server,data/whisper/bin/whisper-server} flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
-  #include <abstractions/managed-desktop-graphics>
+  #include <abstractions/wrapper-base>
+  #include <abstractions/desktop-graphics>
 
   /usr/local/bin/whisper-server rix,
   /data/whisper/bin/whisper-server rix,

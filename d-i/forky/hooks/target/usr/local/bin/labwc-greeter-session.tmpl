@@ -2,9 +2,9 @@
 set -eu
 umask 077
 
-if [ -r /etc/default/labwc-desktop ]; then
+if [ -r /etc/labwc/desktop.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/labwc-desktop
+  . /etc/labwc/desktop.conf
 fi
 
 labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'

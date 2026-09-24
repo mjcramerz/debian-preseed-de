@@ -1,0 +1,8 @@
+# Managed by unattended-installer.
+# Foreground maintenance clients and their authorized workers inherit the
+# user's terminal even after Polkit changes uid to root. An owner-qualified
+# rule cannot cover that root -> user-owned PTY handoff. No /dev/** wildcard.
+/dev/tty rw,
+/dev/pts/[0-9]* rw,
+
+include if exists <local/wrapper-terminal>

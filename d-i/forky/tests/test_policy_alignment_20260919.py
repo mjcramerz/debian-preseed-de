@@ -1,4 +1,7 @@
 """Focused desktop, numeric asset and effective CPU-family GRUB invariants."""
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_is_file as payload_source_is_file
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 from pathlib import Path
 import re
 import shutil
@@ -12,12 +15,12 @@ TARGET = FORKY / 'hooks/target'
 
 class PolicyAlignmentTests(unittest.TestCase):
     def test_switcher_rgb_matches_waybar_without_losing_alpha(self):
-        css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
-        rgb = re.search(r'@define-color\s+emeraldgreen\s+(#[A-Fa-f0-9]{6});', css)[1]
+        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        rgb = theme_values()['WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR']
         self.assertEqual(rgb.upper(), '#50C878')
-        block = re.search(r'^#custom-window-switcher \{([^}]+)\}', css, re.M)[1]
-        self.assertIn('@emeraldgreen', block)
-        theme = (TARGET / 'etc/skel-desktop/.config/labwc/themerc-override').read_text()
+        block = ''.join(re.findall(r'^#custom-window-switcher \{([^}]+)\}', css, re.M))
+        self.assertIn(rgb, block)
+        theme = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/themerc-override'))
         values = dict(line.split(': ', 1) for line in theme.splitlines() if ': ' in line and not line.startswith('#'))
         self.assertEqual(values['osd.window-switcher.style-thumbnail.item.active.border.color'].upper(), rgb.upper())
         background = values['osd.window-switcher.style-thumbnail.item.active.bg.color']
@@ -30,20 +33,20 @@ class PolicyAlignmentTests(unittest.TestCase):
         self.assertEqual({p.stem for p in directory.glob('*.conf')}, expected)
         for path in directory.glob('*.conf'):
             self.assertRegex(path.name, r'^[0-9]{2}-[a-z0-9][a-z0-9.-]*\.conf$')
-        for line in (FORKY / 'classes/configs/target-assets.tsv').read_text().splitlines():
+        for line in render_theme_defaults(payload_read_text(FORKY / 'classes/configs/target-assets.tsv')).splitlines():
             if not line or line.startswith('#'): continue
             group, kind, destination, source = line.split('\t')
-            self.assertTrue((TARGET / source).is_file(), source)
+            self.assertTrue(payload_source_is_file(TARGET / source), source)
             if '/modprobe.d/' in destination:
                 self.assertEqual(Path(destination).name, Path(source).name)
                 self.assertIn(Path(source).stem, expected)
-        runtime = (FORKY / 'hosts/installer/runtime.env').read_text()
+        runtime = render_theme_defaults(payload_read_text(FORKY / 'hosts/installer/runtime.env'))
         paths = re.findall(r'^FILE_MODPROBE_[A-Z0-9_]+="\$\{DIR_MODPROBE_D\}/([^"\n]+)"', runtime, re.M)
         self.assertGreaterEqual(len(paths), 14)
-        for name in paths: self.assertTrue((directory / name).is_file(), name)
+        for name in paths: self.assertTrue(payload_source_is_file(directory / name), name)
 
     def test_grub_pcie_usb_effective_tokens_once(self):
-        result = subprocess.run(['/bin/sh', '-eu', '-c', 'GRUB_CMDLINE_LINUX=sentinel; . "$1"; printf "%s\\n" "$GRUB_CMDLINE_LINUX"', 'test', str(TARGET / 'etc/default/grub.d/73-pcie-power.cfg')], capture_output=True, text=True, check=True)
+        result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', 'GRUB_CMDLINE_LINUX=sentinel; . "$1"; printf "%s\\n" "$GRUB_CMDLINE_LINUX"', 'test', str(TARGET / 'etc/default/grub.d/73-pcie-power.cfg')]), capture_output=True, text=True, check=True)
         tokens = result.stdout.split()
         for token in ('sentinel', 'pcie_aspm.policy=powersave', 'pcie_ports=native', 'usbcore.autosuspend=2'):
             self.assertEqual(tokens.count(token), 1)
@@ -52,12 +55,12 @@ class PolicyAlignmentTests(unittest.TestCase):
 
     def test_thunderbolt_and_usb_have_one_effective_directive(self):
         for name, expected in (('71-thunderbolt.conf', 'options thunderbolt xdomain=0 clx=1'), ('74-usbcore.conf', 'options usbcore autosuspend=2')):
-            lines = [line.strip() for line in (TARGET / 'etc/modprobe.d' / name).read_text().splitlines() if line.strip() and not line.lstrip().startswith('#')]
+            lines = [line.strip() for line in render_theme_defaults(payload_read_text(TARGET / 'etc/modprobe.d' / name)).splitlines() if line.strip() and not line.lstrip().startswith('#')]
             self.assertEqual(lines, [expected])
 
     def test_profile_font_pins_and_architecture_neutral_boot_flags(self):
         for path in (FORKY / 'hosts/profiles').glob('*.env'):
-            text = path.read_text()
+            text = render_theme_defaults(payload_read_text(path))
             for prefix, name, sha in (('APTOS', 'MicrosoftAptosFonts', '54f4cae474cfa96dfb30f9f39fa947959bb2fbda40aea46420299f22ff7c12aa'), ('MICROSOFT', 'MicrosoftLocalFonts', 'c37f2ebeca338f0c35c19957fa0671ecdeb7ea2a8a58397e963f22c87ce32c6a')):
                 self.assertIn(f'LABWC_FONT_{prefix}_URL="https://github.com/mjcramerz/fonts/releases/download/microsoft-fonts-v0.0.1/{name}.tar.xz"', text)
                 self.assertIn(f'LABWC_FONT_{prefix}_SHA256="{sha}"', text)
@@ -70,14 +73,14 @@ class PolicyAlignmentTests(unittest.TestCase):
             try:
                 fragment = fixture.root / 'etc/default/grub.d/80-cpu-profile-flags.cfg'
                 if family == 'vm': fragment.unlink()
-                else: shutil.copyfile(TARGET / f'etc/default/grub.d/80-cpu-profile-flags.{family}.cfg', fragment)
+                else: payload_copyfile(TARGET / f'etc/default/grub.d/80-cpu-profile-flags.{family}.cfg', fragment)
                 profile_name = 'btrfs-de' if family == 'vm' else 'btrfs-de-flex'
-                data = (FORKY / f'hosts/profiles/{profile_name}.env').read_text()
+                data = render_theme_defaults(payload_read_text(FORKY / f'hosts/profiles/{profile_name}.env'))
                 for index, label in ((17, 'DEFAULT'), (18, 'PERFORMANCE'), (19, 'HARDENED')):
                     fixture.args[index] = re.search(r'^GRUB_PROFILE_' + label + r'_FLAGS="([^"]*)"', data, re.M)[1]
                 result = fixture.invoke(install=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                output = (fixture.root / 'boot/grub/custom.cfg').read_text()
+                output = render_theme_defaults(payload_read_text(fixture.root / 'boot/grub/custom.cfg'))
                 lines = [line.split() for line in output.splitlines() if line.strip().startswith('linux ')]
                 self.assertEqual(len(lines), 4)
                 for line in lines:

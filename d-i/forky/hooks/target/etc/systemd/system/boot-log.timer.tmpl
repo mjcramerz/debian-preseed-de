@@ -1,0 +1,10 @@
+[Unit]
+Description=Capture the current boot journal once after startup
+
+[Timer]
+OnBootSec=__INSTALLER_LOG_BOOT_DELAY_SECONDS__s
+AccuracySec=1s
+Unit=boot-log.service
+
+[Install]
+WantedBy=timers.target

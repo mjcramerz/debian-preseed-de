@@ -1,5 +1,4 @@
 [Unit]
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 Description=Keep the selected Whisper model loaded for the Labwc session
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop

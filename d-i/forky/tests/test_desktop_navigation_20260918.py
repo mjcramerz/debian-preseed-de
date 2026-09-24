@@ -1,4 +1,8 @@
 """Menu data boundaries and real installer integration, without a GUI session."""
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import io
 import json
 import os
@@ -21,7 +25,7 @@ def load(name):
     path = BIN / name
     module = types.ModuleType('fixture_' + name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -114,8 +118,8 @@ class FzfDataTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('fzf'), 'fzf binary unavailable; fixed-argv/data behavior is unit tested')
     def test_installed_fzf_can_parse_internal_text_action_bindings(self):
-        result = subprocess.run(['/usr/bin/fzf', '--filter=Allowed',
-                                 '--bind=enter:accept-or-print-query,ctrl-y:print-query'],
+        result = subprocess.run(payload_installed_argv(['/usr/bin/fzf', '--filter=Allowed',
+                                 '--bind=enter:accept-or-print-query,ctrl-y:print-query']),
                                 input='Allowed\n', text=True, capture_output=True,
                                 env=self.menu.safe_environment(), check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -202,7 +206,7 @@ class NavigationTests(unittest.TestCase):
             self.assertNotIn('FZF_DEFAULT_COMMAND', os.environ)
 
     def test_maintenance_and_recovery_offer_every_action_once(self):
-        source = (BIN/'labwc-maintenance-menu').read_text()
+        source = render_theme_defaults(payload_read_text(BIN/'labwc-maintenance-menu'))
         for function, end, count in (('choose_system_action', 'choose_recovery_action',42),
                                      ('choose_recovery_action', 'run_security_action',21)):
             block = source.split(function+'() {',1)[1].split(end+'()',1)[0]
@@ -219,8 +223,8 @@ class NavigationTests(unittest.TestCase):
     def test_custom_data_prompts_explicitly_opt_in_not_all_action_menus(self):
         for script in ('labwc-adb-menu', 'labwc-firewall-menu', 'labwc-network-control-menu',
                        'labwc-network-scan-menu', 'labwc-maintenance-menu'):
-            self.assertIn('LABWC_MENU_INPUT_MODE=text', (BIN/script).read_text())
-        maintenance = (BIN/'labwc-maintenance-menu').read_text()
+            self.assertIn('LABWC_MENU_INPUT_MODE=text', render_theme_defaults(payload_read_text(BIN/script)))
+        maintenance = render_theme_defaults(payload_read_text(BIN/'labwc-maintenance-menu'))
         self.assertIn('LABWC_MENU_INPUT_MODE=text choose_lines \\\n              "Expected SHA-256', maintenance)
         self.assertIn('LABWC_MENU_INPUT_MODE=text choose_lines \\\n      "Absolute executable path"', maintenance)
 
@@ -250,14 +254,14 @@ class DesktopIntegrationTests(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs['input'], 'System\0icon\x1fapplication-x-executable\n')
 
     def test_normal_fuzzel_execution_and_search_are_not_replaced(self):
-        wrapper=(BIN/'labwc-fuzzel').read_text()
+        wrapper=render_theme_defaults(payload_read_text(BIN/'labwc-fuzzel'))
         self.assertIn('${LABWC_MENU_BACKEND:-fuzzel}', wrapper)
         self.assertIn('menu|--dmenu|--dmenu0)', wrapper)
         self.assertNotIn('launcher|menu|--dmenu', wrapper)
-        self.assertIn('labwc-fuzzel launcher', (BIN/'labwc-run').read_text())
+        self.assertIn('labwc-fuzzel launcher', render_theme_defaults(payload_read_text(BIN/'labwc-run')))
 
     def test_f13_native_press_binding_and_both_alt_tab_bindings(self):
-        root=ET.fromstring((TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text())
+        root=ET.fromstring(render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl')))
         binds={item.attrib['key']:item for item in root.findall('./keyboard/keybind')}
         self.assertNotIn('onRelease', binds['F13'].attrib)
         self.assertEqual(binds['F13'].find('action').attrib,
@@ -268,19 +272,20 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(binds['A-S-Tab'].find('action').get('name'), 'PreviousWindow')
 
     def test_button_order_is_between_workspaces_and_wayscriber(self):
-        source=(FORKY/'scripts/desktop/components.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
         self.assertIn('"ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher"', source)
-        config=(TARGET/'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        config=render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         self.assertEqual(config.count('"custom/window-switcher": {'), 2)
         self.assertEqual(config.count('"modules-left": [__INSTALLER_LABWC_WAYBAR_MODULES_LEFT__]'), 2)
 
     def test_button_icon_green_and_transient_lifecycle_preserved(self):
-        css=(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
-        block=css.split('#custom-window-switcher {',1)[1].split('}',1)[0]
-        self.assertIn('color: @emeraldgreen;',block)
+        css=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        blocks=re.findall(r'(?:^|\n)#custom-window-switcher\s*\{([^}]*)\}', css)
+        block='\n'.join(blocks)
+        self.assertIn('color: ' + theme_values()['WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR'] + ';',block)
         self.assertIn('Font Awesome 6 Free',block)
-        self.assertIn('window#waybar.internal #custom-wayscriber,',css)
-        config=(TARGET/'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        self.assertIn('#custom-wayscriber {', payload_read_text(FORKY/'hooks/target/etc/skel-desktop/.config/waybar/style.css.tmpl'))
+        config=render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         clicks=re.findall(r'"on-click-release": "([^"\n]* -- /usr/local/bin/labwc-window-switcher)"',config)
         self.assertEqual(len(clicks),2)
         for click in clicks:
@@ -293,7 +298,7 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertEqual(config.count('"format": "\uf24d"'),2)
 
     def test_wtype_wrapper_has_fixed_argv_without_alt_or_fake_mouse_grabs(self):
-        wrapper=(BIN/'labwc-window-switcher').read_text()
+        wrapper=render_theme_defaults(payload_read_text(BIN/'labwc-window-switcher'))
         self.assertIn('exec /usr/bin/timeout --signal=TERM --kill-after=1s 2s /usr/bin/wtype -P F13 -p F13',wrapper)
         self.assertIn('[ "$#" -eq 0 ]',wrapper)
         self.assertNotIn('-M alt',wrapper)
@@ -301,29 +306,33 @@ class DesktopIntegrationTests(unittest.TestCase):
         self.assertNotIn('on-click-right', wrapper)
 
     def test_new_executables_and_font_policy_are_staged_and_verified(self):
-        stage=(FORKY/'scripts/desktop/components.sh').read_text()
-        verify=(FORKY/'scripts/desktop/verify.sh').read_text()
-        firstboot=(FORKY/'scripts/firstboot/04-validation.sh').read_text()
+        stage=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
+        verify=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
+        firstboot=render_theme_defaults(payload_read_text(FORKY/'scripts/firstboot/04-validation.sh'))
         for name in ('labwc-fzf-menu','labwc-window-switcher'):
             self.assertIn(f'usr/local/bin/{name} /usr/local/bin/{name} 0755',stage)
             self.assertIn(name,verify); self.assertIn(name,firstboot)
-            self.assertTrue((BIN/name).stat().st_mode & 0o111)
+            self.assertTrue(payload_source_stat(BIN/name).st_mode & 0o111)
         self.assertIn('terminal-fonts/current/release-manifest.json',verify)
         self.assertIn('require_absent /usr/local/libexec/installer-desktop-fonts',verify)
 
     def test_apparmor_keeps_strict_profiles_and_font_access_readonly(self):
-        profiles=(TARGET/'etc/apparmor.d/managed-desktop-wrappers').read_text()
+        profiles=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers'))
         for name in ('labwc-fzf-menu','labwc-window-switcher'):
-            self.assertIn(f'profile managed-{name} /usr/local/bin/{name}',profiles)
-        self.assertIn('/usr/local/bin/labwc-fzf-menu rPx -> managed-labwc-fzf-menu,',profiles)
-        font_rule=(TARGET/'etc/apparmor.d/abstractions/fonts.d/labwc-terminal-fonts').read_text()
+            self.assertIn(f'profile {name} /usr/local/bin/{name}',profiles)
+        self.assertIn('/usr/local/bin/labwc-fzf-menu rPx -> labwc-fzf-menu,',profiles)
+        font_rule=render_theme_defaults(payload_read_text(TARGET/'etc/apparmor.d/abstractions/fonts.d/labwc-terminal-fonts'))
         self.assertIn('owner @{HOME}/.local/share/icons/terminal-fonts/** r,',font_rule)
         self.assertNotIn('rw',font_rule)
-        self.assertIn('abstractions/fonts.d/labwc-terminal-fonts', (FORKY/'scripts/late/security.sh').read_text())
+        self.assertIn('abstractions/fonts.d/labwc-terminal-fonts', render_theme_defaults(payload_read_text(FORKY/'scripts/late/security.sh')))
 
     def test_terminal_and_fuzzel_have_symbols_font_fallbacks(self):
-        for relative in ('foot/foot.ini','kitty/kitty.conf','fuzzel/base.ini.tmpl'):
-            self.assertIn('Symbols Nerd Font Mono', (TARGET/'etc/skel-desktop/.config'/relative).read_text())
+        for relative in ('foot/foot.ini','kitty/kitty.conf'):
+            self.assertIn('Symbols Nerd Font Mono', render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config'/relative)))
+        self.assertIn('Symbols Nerd Font Mono', render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-fuzzel')))
+        base = payload_read_text(TARGET/'etc/skel-desktop/.config/fuzzel/base.ini.tmpl')
+        self.assertIn('dpi-aware=yes', base)
+        self.assertNotRegex(base, r'(?m)^font=')
 
 
 if __name__ == '__main__':

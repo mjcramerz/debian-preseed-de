@@ -1,9 +1,0 @@
-{
-  "path": "d-i/forky/tests/test_installation_fixes_20260912.py",
-  "status": 0,
-  "seconds": 4.389,
-  "timeout": false,
-  "tests": 34,
-  "skips": 0,
-  "failures": []
-}

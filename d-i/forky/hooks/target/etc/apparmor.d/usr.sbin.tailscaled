@@ -80,10 +80,10 @@ profile usr.bin.tailscale /usr/bin/tailscale flags=(attach_disconnected, mediate
   /etc/ssl/** r,
   /run/tailscale/ r,
   /run/tailscale/tailscaled.sock rw,
-  /usr/local/lib/tailscale/auth.key r,
-  /usr/local/lib/tailscale/bootstrap.log a,
+  /var/lib/firstboot/tailscale/auth.key r,
+  /var/lib/firstboot/tailscale/bootstrap.log a,
   owner @{PROC}/@{pid}/{cgroup,mountinfo} r,
-  @{sys}/fs/cgroup/system.slice/tailscale-managed-bootstrap.service/cpu.max r,
+  @{sys}/fs/cgroup/system.slice/tailscale-bootstrap.service/cpu.max r,
 
   include if exists <local/usr.bin.tailscale>
 }

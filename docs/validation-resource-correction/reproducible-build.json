@@ -1,9 +1,0 @@
-{
-  "second_build_content_identical": true,
-  "artifacts_sha256": {
-    "payload.tar.gz": "38a567f588f28f4273bccb12f49cf2cf0cd13b641c9704519de0d2d26d4a1b91",
-    "payload.manifest": "aa6837edc949a37bfe1010d4008712575e71965834d57a8cee169d49f5b5e17b",
-    "preseed.cfg": "902493c820c6b108edc7ce79f19a266b7096985caacadce31e397bd94fa2dec8"
-  },
-  "original_file_modes_restored": true
-}

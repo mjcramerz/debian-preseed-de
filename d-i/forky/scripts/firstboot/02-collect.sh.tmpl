@@ -1,0 +1,98 @@
+#!/bin/sh
+set -u
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+umask 077
+
+FIRSTBOOT_LOG_DIR=${FIRSTBOOT_LOG_DIR:-/var/lib/installer-state/logs/firstboot}
+FIRSTBOOT_DATA_DIR=${FIRSTBOOT_DATA_DIR:-${FIRSTBOOT_LOG_DIR}/data}
+FIRSTBOOT_LOG_FILE=${FIRSTBOOT_LOG_FILE:-${FIRSTBOOT_LOG_DIR}/20-firstboot.log}
+FIRSTBOOT_JOURNAL_LINES=${FIRSTBOOT_JOURNAL_LINES:-300}
+
+mkdir -p "$FIRSTBOOT_LOG_DIR" "$FIRSTBOOT_DATA_DIR" 2>/dev/null || exit 1
+: >>"$FIRSTBOOT_LOG_FILE" 2>/dev/null || exit 1
+
+timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || printf '%s\n' unknown-time
+}
+
+log_line() {
+  stage=$1
+  level=$2
+  component=$3
+  shift 3
+  printf '%s stage=%s level=%s component=%s %s\n' \
+    "$(timestamp)" "$stage" "$level" "$component" "$*" >>"$FIRSTBOOT_LOG_FILE"
+}
+
+if [ -r /var/lib/firstboot/lib/logging.sh ]; then
+  # shellcheck disable=SC1091
+  . /var/lib/firstboot/lib/logging.sh
+fi
+
+case "$FIRSTBOOT_JOURNAL_LINES" in
+  ''|*[!0-9]*) FIRSTBOOT_JOURNAL_LINES=300 ;;
+esac
+if [ "$FIRSTBOOT_JOURNAL_LINES" -gt 1000 ]; then
+  FIRSTBOOT_JOURNAL_LINES=1000
+fi
+
+capture() {
+  output_name=$1
+  shift
+  output_file="${FIRSTBOOT_DATA_DIR}/${output_name}"
+  {
+    printf '# command:'
+    for arg in "$@"; do
+      printf ' %s' "$arg"
+    done
+    printf '\n'
+    timeout --signal=TERM --kill-after=2s 20s "$@"
+  } >"$output_file" 2>&1 || printf 'status=%s\n' "$?" >>"$output_file"
+  chmod 0600 "$output_file" 2>/dev/null || true
+}
+
+# Import only after switch-root and all real /var/log mounts are active.
+# The helper rejects indirect paths, non-root writers, hardlinks and oversize data.
+if ! /usr/bin/python3 /var/lib/firstboot/lib/import-initramfs.py; then
+  log_line log-collection error initramfs "import_failed=true"
+  exit 1
+fi
+target_initramfs_log_dir=__INSTALLER_LOG_INITRAMFS_DIR__
+if [ -d "$target_initramfs_log_dir" ]; then
+  capture initramfs-log-files.txt find "$target_initramfs_log_dir" -maxdepth 1 -type f -name '*.log' -print
+  log_line log-collection info initramfs "available=${target_initramfs_log_dir}"
+else
+  log_line log-collection warn initramfs "missing=${target_initramfs_log_dir}"
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  capture systemctl-failed.txt systemctl --failed --no-pager --plain
+  capture systemctl-jobs.txt systemctl list-jobs --no-pager --plain
+fi
+if command -v journalctl >/dev/null 2>&1; then
+  capture journal-warnings.txt journalctl -p warning..alert -b --no-pager --no-hostname -o short-iso -n "$FIRSTBOOT_JOURNAL_LINES"
+fi
+if command -v dmesg >/dev/null 2>&1; then
+  capture dmesg-warnings.txt dmesg --level=err,warn
+fi
+if command -v findmnt >/dev/null 2>&1; then
+  capture findmnt-verify.txt findmnt --verify --verbose
+  capture mounts.txt findmnt -R / -o TARGET,SOURCE,FSTYPE,OPTIONS
+fi
+if command -v lsblk >/dev/null 2>&1; then
+  capture block-devices.txt lsblk -o NAME,TYPE,SIZE,FSTYPE,LABEL,UUID,MOUNTPOINTS
+fi
+if [ -r /etc/fstab ]; then
+  cp /etc/fstab "${FIRSTBOOT_DATA_DIR}/fstab.txt" 2>/dev/null || true
+  chmod 0600 "${FIRSTBOOT_DATA_DIR}/fstab.txt" 2>/dev/null || true
+fi
+if command -v systemd-analyze >/dev/null 2>&1; then
+  capture systemd-analyze-time.txt systemd-analyze time
+  systemd-analyze blame 2>&1 | sed -n '1,80p' >"${FIRSTBOOT_DATA_DIR}/systemd-analyze-blame.txt" || true
+  chmod 0600 "${FIRSTBOOT_DATA_DIR}/systemd-analyze-blame.txt" 2>/dev/null || true
+fi
+
+log_line log-collection info firstboot "collection_complete=true"
+exit 0

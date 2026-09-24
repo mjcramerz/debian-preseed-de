@@ -4,6 +4,8 @@ Shell fixtures change only absolute executable paths to isolated test adapters.
 Worker tests execute production flow with every host transport intercepted.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_text as payload_read_text
 import ast
 import contextlib
 import io
@@ -25,7 +27,7 @@ WORKER = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
 
 def module():
     result = types.ModuleType('greeter_power_followup')
-    exec(compile(WORKER.read_text(), str(WORKER), 'exec'), result.__dict__)
+    exec(compile(payload_read_text(WORKER), str(WORKER), 'exec'), result.__dict__)
     return result
 
 
@@ -179,6 +181,10 @@ class GreeterFlowTests(unittest.TestCase):
         if argv[-2:] == ['stop', 'greetd.service']:
             self.assertIn('--no-block', argv)
             return ''
+        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']:
+            self.assertTrue(self.stopped)
+            self.assertEqual(kwargs, {'timeout': 95})
+            return ''
         if '--force' in argv:
             self.assertTrue(self.stopped)
             self.assertEqual(argv.count('--force'), 1)
@@ -202,10 +208,21 @@ class GreeterFlowTests(unittest.TestCase):
                 final = ['/usr/bin/systemctl', '--force', '--no-ask-password', action]
                 self.assertEqual(self.calls[-1], final)
                 self.assertEqual(sum('--force' in call for call in self.calls), 1)
+                capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
+                self.assertEqual(self.calls.count(capture), 0)
+                last_stop = max(i for i, call in enumerate(self.calls) if 'stop' in call)
+                self.assertLess(last_stop, self.calls.index(final))
                 self.assertTrue(worker.committed and worker.handoff_attempted)
                 self.assertGreaterEqual(sum('show-session' in call for call in self.calls), 3)
                 self.assertFalse(any('--user' in call or 'kill' in call for call in self.calls))
                 self.assertFalse(any('dbus.service' in call or 'dbus-broker.service' in call for call in self.calls))
+
+    def test_unavailable_snapshot_service_is_never_contacted(self):
+        self.fail_on = lambda argv: 'power-log-capture.service' in argv
+        self.execute()
+        self.assertEqual(sum('power-log-capture.service' in c for c in self.calls), 0)
+        self.assertEqual(sum('--force' in c for c in self.calls), 1)
+        self.assertEqual(self.calls[-1], ['/usr/bin/systemctl', '--force', '--no-ask-password', 'reboot'])
 
     def test_block_inhibitor_never_reaches_guest_or_runtime_stop(self):
         self.inhibitors = [['shutdown', 'editor', 'unsaved', 'block', 1000, 900]]
@@ -267,7 +284,7 @@ else: raise AssertionError(name)
         for relative in sources:
             mapping['/' + relative] = str(self.directory / Path(relative).name)
         for relative in sources:
-            source = (TARGET / relative).read_text()
+            source = payload_read_text(TARGET / relative)
             for old, new in sorted(mapping.items(), key=lambda pair: -len(pair[0])):
                 source = source.replace(old, new)
             path = Path(mapping['/' + relative])
@@ -276,7 +293,7 @@ else: raise AssertionError(name)
         self.env = dict(os.environ, PKEXEC_UID='109', TEST_CALLS=str(self.record))
 
     def invoke(self, args):
-        return subprocess.run([str(self.entry), *args], env=self.env,
+        return subprocess.run(payload_installed_argv([str(self.entry), *args]), env=self.env,
                               capture_output=True, text=True, timeout=5)
 
     def test_reboot_poweroff_and_shutdown_alias_reach_waited_greeter_instance(self):
@@ -284,7 +301,7 @@ else: raise AssertionError(name)
             with self.subTest(action=action):
                 result = self.invoke([action])
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(json.loads(self.record.read_text().splitlines()[-1]),
+                self.assertEqual(json.loads(payload_read_text(self.record).splitlines()[-1]),
                                  ['--wait', 'start', f'labwc-admin-action@109-greeter-{normalized}.service'])
 
     def test_unsupported_or_injected_actions_never_contact_systemctl(self):
@@ -292,31 +309,31 @@ else: raise AssertionError(name)
                      ['reboot;id'], ['../../reboot'], ['poweroff\nreboot']):
             with self.subTest(args=args):
                 self.assertNotEqual(self.invoke(args).returncode, 0)
-        self.assertFalse(self.record.exists())
+        self.assertFalse(payload_source_exists(self.record))
 
     def test_invalid_pkexec_identity_never_reaches_systemctl(self):
         for uid in ('', '0', '0109', '109;id', '-1'):
             with self.subTest(uid=uid):
                 self.env['PKEXEC_UID'] = uid
                 self.assertNotEqual(self.invoke(['reboot']).returncode, 0)
-        self.assertFalse(self.record.exists())
+        self.assertFalse(payload_source_exists(self.record))
 
 
 class WiringTests(unittest.TestCase):
     def test_worker_can_reach_user_bus_without_opening_home_directories(self):
-        unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
+        unit = payload_read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('ProtectHome=read-only\n', unit)
         self.assertIn('InaccessiblePaths=/home /root\n', unit)
         for retained in ('NoNewPrivileges=yes', 'PrivatePIDs=no', 'PrivateUsers=no',
                          'ProtectSystem=strict', 'RestrictAddressFamilies=AF_UNIX',
-                         'KillMode=control-group', 'AppArmorProfile=managed-labwc-admin-action-worker'):
+                         'KillMode=control-group', 'AppArmorProfile=labwc-admin-action-worker'):
             self.assertIn(retained, unit)
         self.assertNotIn('BindPaths=/home', unit)
 
     def test_greeter_failures_reach_the_service_journal(self):
-        client = (TARGET / 'usr/local/libexec/labwc-greeter-client').read_text()
+        client = payload_read_text(TARGET / 'usr/local/libexec/labwc-greeter-client')
         self.assertIn('/usr/local/bin/labwc-greeter-power >/dev/null &', client)
-        tree = ast.parse((TARGET / 'usr/local/bin/labwc-greeter-power').read_text())
+        tree = ast.parse(payload_read_text(TARGET / 'usr/local/bin/labwc-greeter-power'))
         calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                  and isinstance(n.func, ast.Attribute) and n.func.attr == 'Popen']
         self.assertEqual(len(calls), 1)
@@ -324,7 +341,7 @@ class WiringTests(unittest.TestCase):
         self.assertTrue(stderr is None or isinstance(stderr, ast.Constant) and stderr.value is None)
 
     def test_firstboot_checks_the_actual_greeter_handoff_contract(self):
-        source = (ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh').read_text()
+        source = payload_read_text(ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh')
         for expected in ('desktop-greeter-power-handoff', 'ProtectHome=read-only',
                          'InaccessiblePaths=/home /root', 'greeter_identity',
                          '--force", "--no-ask-password", self.action'):
@@ -332,7 +349,7 @@ class WiringTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('node'), 'node is required to exercise polkit JavaScript')
     def test_polkit_grants_only_fixed_helper_to_active_local_greeter(self):
-        rule = (TARGET / 'etc/polkit-1/rules.d/10-greetd-power.rules.tmpl').read_text()
+        rule = payload_read_text(TARGET / 'etc/polkit-1/rules.d/10-greetd-power.rules.tmpl')
         rule = rule.replace('__INSTALLER_LABWC_GREETER_USER__', 'greeter')
         script = '''let callback;
 const polkit={Result:{YES:'yes',NO:'no',NOT_HANDLED:'other'},addRule:r=>callback=r};
@@ -352,7 +369,7 @@ check('org.freedesktop.policykit.exec',helper+'-evil',subject,'other');
 for(const id of ['power-off','reboot','power-off-ignore-inhibit','reboot-multiple-sessions'])
  check('org.freedesktop.login1.'+id,null,subject,'no');
 '''
-        result = subprocess.run([shutil.which('node'), '-'], input=script,
+        result = subprocess.run(payload_installed_argv([shutil.which('node'), '-']), input=script,
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
 

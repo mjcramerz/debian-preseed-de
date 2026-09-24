@@ -4,7 +4,7 @@ use strict;
 use warnings;
 
 use Fcntl qw(O_CREAT O_EXCL O_WRONLY);
-use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::Process qw(capture_command);
 use Moo;
 use MooX::StrictConstructor;

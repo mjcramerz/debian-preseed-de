@@ -12,9 +12,9 @@ case "$effective_ctype" in
     ;;
 esac
 
-if [ -r /etc/default/labwc-desktop ]; then
+if [ -r /etc/labwc/desktop.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/labwc-desktop
+  . /etc/labwc/desktop.conf
 fi
 
 # Accept xterm-style `-e` for callers, but normalize it before we reach Kitty.
@@ -34,7 +34,7 @@ esac
 # A footclient would move every shell into the persistent server's cgroup.
 # Standalone terminals and their PTYs instead live in one transient service.
 seen_terminals=' '
-for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" foot kitty x-terminal-emulator; do
+for terminal_cmd in "${LABWC_TERMINAL_PRIMARY:-foot}" "${LABWC_TERMINAL_FALLBACK:-kitty}" foot kitty terminal-emulator; do
   [ -n "$terminal_cmd" ] || continue
   case "$terminal_cmd" in
     foot|footclient|*/foot|*/footclient)

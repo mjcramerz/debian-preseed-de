@@ -1,0 +1,54 @@
+# Keep sudo, PAM, SSH, login, and other auth/authpriv messages in the managed
+# protected authentication log. A separate root-owned signal contains no log
+# content and only wakes the Labwc/Mako notification bridge for explicit
+# authentication failures. Routine session-open/session-close and successful
+# sudo records remain available in auth.log without creating desktop noise.
+
+template(
+  name="ManagedAuthDesktopSignal"
+  type="string"
+  string="auth\n"
+)
+
+if (
+  $syslogfacility-text == "auth" or
+  $syslogfacility-text == "authpriv"
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_auth_log"
+    type="omfile"
+    file="__INSTALLER_LOG_AUTH_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+  if (
+    $msg contains "authentication failure" or
+    $msg contains "Authentication failure" or
+    $msg contains "Failed password" or
+    $msg contains "Failed publickey" or
+    $msg contains "Invalid user" or
+    $msg contains "FAILED LOGIN" or
+    $msg contains "FAILED SU" or
+    $msg contains "incorrect password" or
+    $msg contains "user NOT in sudoers" or
+    $msg contains "maximum authentication attempts exceeded" or
+    $msg contains "account is locked"
+  ) then {
+    action(
+      name="managed_auth_desktop_signal"
+      type="omfile"
+      file="/var/lib/labwc-notifications/security/auth.signal"
+      fileOwner="__INSTALLER_LOG_OWNER__"
+      fileGroup="logreader"
+      fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+      dirOwner="__INSTALLER_LOG_OWNER__"
+      dirGroup="logreader"
+      dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+      createDirs="on"
+      template="ManagedAuthDesktopSignal"
+    )
+  }
+}

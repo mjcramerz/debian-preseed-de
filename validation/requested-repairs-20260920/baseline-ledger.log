@@ -1,5 +1,0 @@
-Confirmed directly against the untouched uploaded ZIP.
-File: d-i/forky/hosts/profiles/btrfs-de-flex-duo.env
-Actual SHA-256: 01dd669277362f4f8e03c17cd51f697dbfd501ce54a06807e0f845e48a07f3d2
-Existing ledger SHA-256: 1aeeb84dcab6b422326119611e6caae9d84ed525caf7b259470c6808cc917739
-Mismatch existed in the input; neither host profile nor ledger was edited.

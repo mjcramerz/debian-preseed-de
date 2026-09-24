@@ -1,3 +1,0 @@
-usage: validate.py [-h] [--output-dir OUTPUT_DIR]
-                   [--test-timeout TEST_TIMEOUT]
-validate.py: error: --test-timeout must be a positive integer

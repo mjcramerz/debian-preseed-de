@@ -139,7 +139,7 @@ sub _run_nmap_action {
         );
     }
     if ($action eq 'nmap-inventory') {
-        my $script = $self->_require_nmap_script('managed-service-inventory.nse');
+        my $script = $self->_require_nmap_script('service-inventory.nse');
         $self->_run_bounded_nmap($rate, '20m',
             '-sS', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
             '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
@@ -147,7 +147,7 @@ sub _run_nmap_action {
         );
     }
     if ($action eq 'nmap-approved-services') {
-        my $script = $self->_require_nmap_script('managed-approved-services.nse');
+        my $script = $self->_require_nmap_script('approved-services.nse');
         $self->_run_bounded_nmap($rate, '25m',
             '-sS', '-sU', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',
             '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
@@ -157,7 +157,7 @@ sub _run_nmap_action {
         );
     }
     if ($action eq 'nmap-tls-settings') {
-        my $policy = $self->_require_nmap_script('managed-tls-service-policy.nse');
+        my $policy = $self->_require_nmap_script('tls-service-policy.nse');
         $self->_run_bounded_nmap($rate, '15m',
             '-sS', '-sV', '--version-light', '-T3', '-p', '443,465,636,853,993,995,8443',
             '--open', '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '3m',
@@ -165,7 +165,7 @@ sub _run_nmap_action {
         );
     }
     if ($action eq 'nmap-http-headers') {
-        my $policy = $self->_require_nmap_script('managed-http-security-headers.nse');
+        my $policy = $self->_require_nmap_script('http-security-headers.nse');
         $self->_run_bounded_nmap($rate, '15m',
             '-sS', '-sV', '--version-light', '-T3', '-p', '80,443,8000,8080,8443',
             '--open', '--max-retries', '2', '--host-timeout', '10m', '--script-timeout', '2m',
@@ -174,14 +174,14 @@ sub _run_nmap_action {
     }
     if ($action eq 'nmap-compliance') {
         my @scripts = map { $self->_require_nmap_script($_) } qw(
-          managed-admin-surface-policy.nse
-          managed-approved-services.nse
-          managed-database-exposure-policy.nse
-          managed-http-security-headers.nse
-          managed-name-resolution-policy.nse
-          managed-plaintext-service-policy.nse
-          managed-service-inventory.nse
-          managed-tls-service-policy.nse
+          admin-surface-policy.nse
+          approved-services.nse
+          database-exposure-policy.nse
+          http-security-headers.nse
+          name-resolution-policy.nse
+          plaintext-service-policy.nse
+          service-inventory.nse
+          tls-service-policy.nse
         );
         $self->_run_bounded_nmap($rate, '30m',
             '-sS', '-sU', '-sV', '--version-light', '-T3', '--top-ports', '200', '--open',

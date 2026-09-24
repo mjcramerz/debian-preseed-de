@@ -1,0 +1,39 @@
+# Managed journal policy. Rendered from the selected installation profile.
+# Storage changes only the journal backend, never partitioning, mounts, or old
+# /var/log/journal data. The same owned file is replaced atomically on reruns.
+# imjournal reads retained userspace records with a cursor, including volatile
+# journals. Disable the parallel syslog socket feed to prevent duplicates.
+# imklog remains the single kernel source; auditd owns audit-netlink as before.
+# Private scanner/model sockets continue to bypass the journal deliberately.
+
+[Journal]
+Storage=__SYSTEMD_JOURNAL_STORAGE__
+Compress=yes
+Seal=yes
+SplitMode=uid
+SyncIntervalSec=5m
+
+RateLimitIntervalSec=30s
+RateLimitBurst=10000
+
+SystemMaxUse=__SYSTEMD_JOURNAL_SYSTEM_MAX_USE__
+SystemKeepFree=__SYSTEMD_JOURNAL_SYSTEM_KEEP_FREE__
+SystemMaxFileSize=__SYSTEMD_JOURNAL_SYSTEM_MAX_FILE_SIZE__
+SystemMaxFiles=__SYSTEMD_JOURNAL_SYSTEM_MAX_FILES__
+RuntimeMaxUse=__SYSTEMD_JOURNAL_RUNTIME_MAX_USE__
+RuntimeKeepFree=__SYSTEMD_JOURNAL_RUNTIME_KEEP_FREE__
+RuntimeMaxFileSize=__SYSTEMD_JOURNAL_RUNTIME_MAX_FILE_SIZE__
+RuntimeMaxFiles=__SYSTEMD_JOURNAL_RUNTIME_MAX_FILES__
+MaxRetentionSec=1month
+MaxFileSec=1week
+
+ForwardToSyslog=no
+ForwardToKMsg=no
+ForwardToConsole=no
+ForwardToWall=yes
+MaxLevelStore=debug
+MaxLevelSyslog=debug
+MaxLevelKMsg=notice
+MaxLevelConsole=info
+MaxLevelWall=emerg
+ReadKMsg=no

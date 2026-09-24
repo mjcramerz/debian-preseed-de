@@ -5,6 +5,8 @@ use a temporary database, and the /preseed.env test uses a temporary chroot.
 No test modifies the host's account database, /preseed.env, or debconf database.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import os
 from pathlib import Path
@@ -61,7 +63,7 @@ class RootFixture(unittest.TestCase):
 
     def run_shell(self, script, shell=None, env=None):
         return subprocess.run(
-            (shell or SHELLS[0][1]) + ["-c", script],
+            payload_installed_argv((shell or SHELLS[0][1]) + ["-c", script]),
             env=self.env if env is None else env,
             cwd=self.path, text=True, capture_output=True, timeout=15,
         )
@@ -74,19 +76,19 @@ class RootFixture(unittest.TestCase):
         )
 
     def assert_answers(self, password):
-        text = self.answers.read_text()
+        text = payload_read_text(self.answers)
         self.assertIn("d-i passwd/root-login boolean true\n", text)
         self.assertIn("d-i passwd/root-password-crypted password\n", text)
         self.assertIn(f"d-i passwd/root-password password {password}\n", text)
         self.assertIn(f"d-i passwd/root-password-again password {password}\n", text)
         self.assertNotIn("d-i passwd/root-login boolean false\n", text)
         self.assertNotIn("d-i passwd/root-password-crypted password !", text)
-        self.assertEqual(stat.S_IMODE(self.answers.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.answers).st_mode), 0o600)
 
     def assert_render_fails(self, prefix=""):
         result = self.render(prefix=prefix)
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.answers.exists())
+        self.assertFalse(payload_source_exists(self.answers))
         self.assertNotIn(TEST_ROOT, result.stdout + result.stderr)
         self.assertNotIn(TEST_USER, result.stdout + result.stderr)
         return result
@@ -199,7 +201,7 @@ class RootAccountTests(RootFixture):
         result = self.render()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assert_answers(password)
-        self.assertFalse((self.path / "SHOULD_NOT_EXIST").exists())
+        self.assertFalse(payload_source_exists(self.path / "SHOULD_NOT_EXIST"))
 
     @skip_unless_trusted_credential_ancestry
     def test_exact_key_matching_does_not_accept_a_prefix(self):
@@ -216,19 +218,19 @@ class RootAccountTests(RootFixture):
             f"runtime_write_effective_account_env {shlex.quote(str(self.effective))}\n"
         ))
         self.assertEqual(result.returncode, 0, result.stderr)
-        text = self.effective.read_text()
+        text = payload_read_text(self.effective)
         self.assertIn("ROOT_LOGIN='true'", text)
         self.assertNotIn(TEST_ROOT, text)
         self.assertNotIn("ROOT_PASSWORD", text)
-        self.assertEqual(stat.S_IMODE(self.effective.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.effective).st_mode), 0o600)
 
     @skip_unless_trusted_credential_ancestry
     def test_repeated_render_is_idempotent(self):
         self.seed_env()
         self.assertEqual(self.render().returncode, 0)
-        before = self.answers.read_bytes()
+        before = payload_read_bytes(self.answers)
         self.assertEqual(self.render().returncode, 0)
-        self.assertEqual(self.answers.read_bytes(), before)
+        self.assertEqual(payload_read_bytes(self.answers), before)
 
     def test_cmdline_file_runtime_path(self):
         cmdline_file = self.path / "cmdline"
@@ -268,17 +270,17 @@ class RootAccountTests(RootFixture):
         for relative in (
             "ssh/sshd_config",
         ):
-            text = (FORKY / relative).read_text()
+            text = payload_read_text(FORKY / relative)
             values = re.findall(r"(?mi)^\s*PermitRootLogin\s+(\S+)", text)
             self.assertEqual(values, ["no"], relative)
             self.assertIn("DenyUsers devops", text)
 
     def test_every_storage_family_uses_shared_account_preseed(self):
-        early = (FORKY / "hooks/installer/d-i/early.sh").read_text()
+        early = payload_read_text(FORKY / "hooks/installer/d-i/early.sh")
         self.assertIn('runtime_write_account_answers "$RUNTIME_ACCOUNT_FILE"', early)
         self.assertIn('runtime_apply_answers_file "$RUNTIME_ACCOUNT_FILE"', early)
         self.assertIn('scripts/runtime/account.sh', early)
-        dispatcher = (FORKY / "scripts/early/dispatch.sh").read_text()
+        dispatcher = payload_read_text(FORKY / "scripts/early/dispatch.sh")
         self.assertIn("family_d_i_early_main", dispatcher)
         self.assertIn("btrfs|vm)", dispatcher)
         self.assertIn("f2fs)", dispatcher)
@@ -304,7 +306,7 @@ class DebconfRootTests(RootFixture):
 
     def debconf(self, command):
         result = subprocess.run(
-            [shutil.which("debconf-communicate")], input=command + "\n",
+            payload_installed_argv([shutil.which("debconf-communicate")]), input=command + "\n",
             env=self.env, cwd=self.path, text=True, capture_output=True, timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -412,15 +414,15 @@ class InstallerRootFilesystemTests(RootFixture):
         root.mkdir()
         binary = Path(shutil.which("busybox"))
         destinations = [(binary, Path("bin/busybox"))]
-        linked = subprocess.run(["ldd", str(binary)], text=True, capture_output=True, timeout=5)
+        linked = subprocess.run(payload_installed_argv(["ldd", str(binary)]), text=True, capture_output=True, timeout=5)
         for dependency in re.findall(r"(/[^\s()]+)", linked.stdout):
             dep = Path(dependency)
-            if dep.is_file():
+            if payload_source_is_file(dep):
                 destinations.append((dep, Path(dependency.lstrip("/"))))
         for source, relative in destinations:
             dest = root / relative
             dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, dest)
+            payload_copyfile(source, dest)
             dest.chmod(0o755)
         for applet in ("sh", "cat", "id", "ls", "chmod", "mktemp", "sed", "rm"):
             (root / "bin" / applet).symlink_to("busybox")
@@ -436,8 +438,8 @@ class InstallerRootFilesystemTests(RootFixture):
         (root / "target/preseed.env").write_text("PRESEED_ROOT_PASSWORD='Wrong-Target-Fixture'\n")
         (root / "preseed.env").chmod(0o600)
         (root / "target/preseed.env").chmod(0o600)
-        shutil.copyfile(RUNTIME, root / "runtime-common.sh")
-        shutil.copyfile(INSTALLER, root / "installer-common.sh")
+        payload_copyfile(RUNTIME, root / "runtime-common.sh")
+        payload_copyfile(INSTALLER, root / "installer-common.sh")
         for prefix in ("runtime", "installer"):
             for commandline, expected in (
                 ("quiet", "Installer-Root-Fixture"),
@@ -446,8 +448,8 @@ class InstallerRootFilesystemTests(RootFixture):
                 with self.subTest(resolver=prefix, cmdline=commandline):
                     (root / "proc/cmdline").write_text(commandline + "\n")
                     result = subprocess.run(
-                        [shutil.which("chroot"), str(root), "/bin/busybox", "sh", "-c",
-                         f"set -eu; . /{prefix}-common.sh; {prefix}_cmdline_value root_password"],
+                        payload_installed_argv([shutil.which("chroot"), str(root), "/bin/busybox", "sh", "-c",
+                         f"set -eu; . /{prefix}-common.sh; {prefix}_cmdline_value root_password"]),
                         env={"PATH": "/bin", "LC_ALL": "C"},
                         text=True, capture_output=True, timeout=5,
                     )

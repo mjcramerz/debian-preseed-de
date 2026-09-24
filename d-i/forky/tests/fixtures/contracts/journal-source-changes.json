@@ -1,0 +1,8 @@
+{
+  "renamed": {
+    "d-i/forky/hooks/target/usr/local/libexec/boot-log.tmpl": "d-i/forky/hooks/target/usr/local/libexec/journal-snapshot.tmpl"
+  },
+  "retired": {
+    "d-i/forky/hooks/target/etc/systemd/system/boot-log.mount.tmpl": "Removed: snapshots now live directly in /var/lib/journal; there is no bind mount."
+  }
+}

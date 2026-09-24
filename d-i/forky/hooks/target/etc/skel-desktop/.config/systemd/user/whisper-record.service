@@ -1,5 +1,4 @@
 [Unit]
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 Description=Capture a Whisper voice recording through PipeWire
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop

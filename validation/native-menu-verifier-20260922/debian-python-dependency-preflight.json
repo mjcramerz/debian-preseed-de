@@ -1,8 +1,0 @@
-{
-  "interpreter": "/usr/bin/python3",
-  "yaml_version": "6.0.3",
-  "yaml_path": "/mnt/data/waybar-repair/validation-python-deps/yaml/__init__.py",
-  "discovered_test_cases": 2304,
-  "loader_errors": [],
-  "repository_dependency_changes": false
-}

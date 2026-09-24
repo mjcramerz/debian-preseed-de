@@ -1,4 +1,4 @@
-"""Shared deterministic primitives for labwc-managed-app."""
+"""Shared deterministic primitives for labwc-app."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .events import emit
 from .integrity import system_owner
 
 MANAGED_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-MANAGED_DEFAULTS_PATH = pathlib.Path("/etc/default/labwc-desktop")
+MANAGED_DEFAULTS_PATH = pathlib.Path("/etc/labwc/desktop.conf")
 MAX_MANAGED_DEFAULTS_BYTES = 65536
 MANAGED_DEFAULTS_KEYS = {
     "LABWC_ELECTRON_APP_DEFAULT_EXEC",

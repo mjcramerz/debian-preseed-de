@@ -497,12 +497,12 @@ normalize_systemd_unit_tree_permissions() {
 
 normalize_managed_helper_file_permissions() {
   for rel_path in \
-    /usr/local/libexec/managed-network-run \
-    /usr/local/libexec/tailscale-managed-up \
-    /usr/local/libexec/managed-syncthing-configure \
-    /usr/local/libexec/crowdsec-firstboot \
-    /usr/local/libexec/secondboot-cleanup \
-    /usr/local/libexec/incus-host-managed
+    /usr/local/libexec/network-run \
+    /var/lib/firstboot/bin/tailscale-up \
+    /usr/local/libexec/syncthing-configure \
+    /var/lib/firstboot/bin/crowdsec-firstboot \
+    /var/lib/firstboot/bin/secondboot-cleanup \
+    /usr/local/libexec/incus-host
   do
     target_file=$(target_path_for "$rel_path" "$rel_path")
     [ -f "$target_file" ] || continue

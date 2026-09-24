@@ -1,9 +1,0 @@
-{
-  "path": "d-i/forky/tests/test_desktop_integration_20260914.py",
-  "status": 0,
-  "seconds": 2.427,
-  "timeout": false,
-  "tests": 28,
-  "skips": 0,
-  "failures": []
-}

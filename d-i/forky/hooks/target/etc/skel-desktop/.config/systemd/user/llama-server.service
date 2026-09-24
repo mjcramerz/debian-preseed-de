@@ -1,5 +1,4 @@
 [Unit]
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 Description=Managed on-demand Llama server for the Labwc session
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop

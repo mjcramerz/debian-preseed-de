@@ -1,5 +1,7 @@
 """Launcher regressions. No real bootloader, service, GUI or policy is modified."""
 from __future__ import annotations
+from payload_fixture import source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import base64
 import contextlib
 import io
@@ -23,7 +25,7 @@ def load(relative):
     path = TARGET / relative
     module = types.ModuleType('test_' + path.name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 BOOT = load('usr/local/libexec/labwc-apparmor-boot-state')
@@ -80,19 +82,19 @@ class BootTransactionTests(unittest.TestCase):
 
     def run_tool(self, argv, **kwargs):
         if argv == ['/usr/sbin/grub-mkconfig']:
-            return GRUB_OFF if b'apparmor=0' in self.fragment.read_bytes() else GRUB_ON
+            return GRUB_OFF if b'apparmor=0' in payload_read_bytes(self.fragment) else GRUB_ON
         self.assertEqual(argv[0], '/usr/bin/grub-script-check')
         self.assertTrue(Path(argv[1]).is_relative_to(self.root))
         return b''
 
     def old_pair(self):
-        self.assertEqual(self.fragment.read_bytes(), FRAGMENT)
-        self.assertEqual(self.grub.read_bytes(), GRUB_ON)
+        self.assertEqual(payload_read_bytes(self.fragment), FRAGMENT)
+        self.assertEqual(payload_read_bytes(self.grub), GRUB_ON)
 
     def test_disable_enable_and_idempotence(self):
         self.state.stage(False)
-        self.assertEqual(self.grub.read_bytes(), GRUB_OFF)
-        self.assertFalse(self.state.journal.exists())
+        self.assertEqual(payload_read_bytes(self.grub), GRUB_OFF)
+        self.assertFalse(payload_source_exists(self.state.journal))
         count = self.command.call_count
         self.state.stage(False); self.assertEqual(self.command.call_count, count)
         self.state.stage(True); self.old_pair()
@@ -109,7 +111,7 @@ class BootTransactionTests(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.command.side_effect = tool
                 with self.assertRaises(BOOT.PolicyError): self.state.stage(False)
-                self.old_pair(); self.assertFalse(self.state.journal.exists())
+                self.old_pair(); self.assertFalse(payload_source_exists(self.state.journal))
 
     def test_invalid_generated_kernel_flags_never_publish(self):
         self.command.side_effect = lambda *a, **kw: GRUB_ON
@@ -143,8 +145,8 @@ class BootTransactionTests(unittest.TestCase):
         self.command.side_effect = changing
         with self.assertRaisesRegex(BOOT.PolicyError, 'recovery also failed'):
             self.state.stage(False)
-        self.assertEqual(self.grub.read_bytes(), b'changed externally\n')
-        self.assertTrue(self.state.journal.exists())
+        self.assertEqual(payload_read_bytes(self.grub), b'changed externally\n')
+        self.assertTrue(payload_source_exists(self.state.journal))
 
     def test_interrupted_transaction_is_recovered_on_next_invocation(self):
         transaction = dict(version=1, committed=False, fragment_mode=0o644, grub_mode=0o644,
@@ -154,7 +156,7 @@ class BootTransactionTests(unittest.TestCase):
         self.state.record(transaction)
         self.fragment.write_bytes(FRAGMENT.replace(b'apparmor=1', b'apparmor=0'))
         self.grub.write_bytes(GRUB_OFF)
-        self.state.recover(); self.old_pair(); self.assertFalse(self.state.journal.exists())
+        self.state.recover(); self.old_pair(); self.assertFalse(payload_source_exists(self.state.journal))
 
     def test_hardlinks_symlinks_and_writable_files_are_rejected(self):
         link = self.root / 'link'; os.link(self.fragment, link)
@@ -172,13 +174,13 @@ class BootTransactionTests(unittest.TestCase):
     def test_corrupt_journal_is_preserved_for_manual_review(self):
         self.state.journal.write_text('{bad')
         with self.assertRaises(BOOT.PolicyError): self.state.recover()
-        self.assertTrue(self.state.journal.exists()); self.old_pair()
+        self.assertTrue(payload_source_exists(self.state.journal)); self.old_pair()
 
     def test_file_modes_are_preserved(self):
         self.fragment.chmod(0o640); self.grub.chmod(0o600)
         self.state.stage(False)
-        self.assertEqual(self.fragment.stat().st_mode & 0o777, 0o640)
-        self.assertEqual(self.grub.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(payload_source_stat(self.fragment).st_mode & 0o777, 0o640)
+        self.assertEqual(payload_source_stat(self.grub).st_mode & 0o777, 0o600)
 
 class PodmanQueryTests(unittest.TestCase):
     def test_success_and_nonzero_status(self):
@@ -215,13 +217,13 @@ class RemoteLogTests(unittest.TestCase):
         original = self.root / 'important'; original.write_text('unchanged key fixture')
         os.link(original, self.log)
         with self.assertRaises(SystemExit): REMOTE.run_freerdp_command([sys.executable, '-c', 'pass'], self.log)
-        self.assertEqual(original.read_text(), 'unchanged key fixture')
+        self.assertEqual(payload_read_text(original), 'unchanged key fixture')
 
     def test_symlink_rejection_does_not_truncate_original(self):
         original = self.root / 'important'; original.write_text('unchanged')
         self.log.symlink_to(original)
         with self.assertRaises(OSError): REMOTE.run_freerdp_command([sys.executable, '-c', 'pass'], self.log)
-        self.assertEqual(original.read_text(), 'unchanged')
+        self.assertEqual(payload_read_text(original), 'unchanged')
 
     def test_fifo_rejection_does_not_block(self):
         os.mkfifo(self.log)
@@ -230,41 +232,41 @@ class RemoteLogTests(unittest.TestCase):
     def test_log_growth_is_bounded_and_status_preserved(self):
         code = 'import os; os.write(1,b"x"*2200000); print("FINAL"); raise SystemExit(7)'
         self.assertEqual(REMOTE.run_freerdp_command([sys.executable, '-c', code], self.log), 7)
-        self.assertLessEqual(self.log.stat().st_size, REMOTE.MAX_CONNECTION_LOG_BYTES)
-        self.assertTrue(self.log.read_bytes().endswith(b'FINAL\n'))
-        self.assertEqual(self.log.stat().st_mode & 0o777, 0o600)
+        self.assertLessEqual(payload_source_stat(self.log).st_size, REMOTE.MAX_CONNECTION_LOG_BYTES)
+        self.assertTrue(payload_read_bytes(self.log).endswith(b'FINAL\n'))
+        self.assertEqual(payload_source_stat(self.log).st_mode & 0o777, 0o600)
 
 class IntegrationContractTests(unittest.TestCase):
     def test_new_workers_and_units_are_staged(self):
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
-        security = (FORKY / 'scripts/late/security.sh').read_text()
+        components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
+        security = payload_read_text(FORKY / 'scripts/late/security.sh')
         for name in ('labwc-apparmor-policy-worker', 'labwc-apparmor-boot-state'):
             self.assertIn(f'usr/local/libexec/{name} /usr/local/libexec/{name} 0755', components)
         for name in ('labwc-apparmor-policy@.service', 'labwc-apparmor-boot-recover.service'):
             self.assertIn(f'"/etc/systemd/system/{name}" 0644', security)
 
     def test_no_live_disable_menu_or_per_app_unload(self):
-        menu = (TARGET / 'usr/local/bin/labwc-maintenance-menu').read_text()
+        menu = payload_read_text(TARGET / 'usr/local/bin/labwc-maintenance-menu')
         self.assertNotIn("'Disable All'", menu)
         self.assertIn("'Disable AppArmor After Reboot'", menu)
         self.assertIn("'Enable AppArmor After Reboot'", menu)
         self.assertNotIn('Disable) mode=disable', menu)
         for forbidden in ('aa-disable', 'aa-teardown', 'systemctl stop', 'reboot('):
-            self.assertNotIn(forbidden, (TARGET / 'usr/local/libexec/labwc-apparmor-boot-state').read_text())
+            self.assertNotIn(forbidden, payload_read_text(TARGET / 'usr/local/libexec/labwc-apparmor-boot-state'))
 
     def test_critical_profile_sources_cannot_be_disabled_by_legacy_config(self):
-        config = (TARGET / 'usr/local/lib/perl5/site_perl/apparmor-managed-modes/AppArmor/ManagedModes/Config.pm').read_text()
-        for name in ('managed-desktop-wrappers', 'managed-system-wrappers', 'managed-labwc-session', 'managed-document-applications', 'managed-desktop-utilities', 'usr.sbin.aa-status'):
+        config = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/apparmor-modes/AppArmor/ManagedModes/Config.pm')
+        for name in ('desktop-wrappers', 'system-wrappers', 'labwc-session', 'document-applications', 'desktop-utilities', 'usr.sbin.aa-status'):
             self.assertIn(name, config)
         self.assertIn("$mode eq 'disable' && $launch_sources{$profile_name}", config)
 
     def test_boot_disabled_kernel_skips_mode_reconciliation_at_boot(self):
-        unit = (TARGET / 'etc/systemd/system/apparmor-managed-modes.service').read_text()
+        unit = payload_read_text(TARGET / 'etc/systemd/system/apparmor-modes.service')
         self.assertIn('ConditionSecurity=apparmor', unit)
         self.assertIn('Wants=labwc-apparmor-boot-recover.service', unit)
 
     def test_system_workers_do_not_share_desktop_lifetime(self):
-        unit = (TARGET / 'etc/systemd/system/labwc-apparmor-policy@.service').read_text()
+        unit = payload_read_text(TARGET / 'etc/systemd/system/labwc-apparmor-policy@.service')
         for value in ('Type=oneshot', 'KillMode=control-group', 'ProtectHome=yes', 'ProtectSystem=strict', 'PrivatePIDs=no', 'PrivateUsers=no'):
             self.assertIn(value, unit)
         self.assertIn('StateDirectory=labwc-apparmor-policy apparmor/backup', unit)
@@ -273,26 +275,26 @@ class IntegrationContractTests(unittest.TestCase):
 
     def test_all_digital_catalog_actions_have_dispatch_branches(self):
         base = TARGET / 'usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets'
-        catalog = set(re.findall(r"action\s*=>\s*'([^']+)'", (base / 'Catalog.pm').read_text()))
-        branches = set(re.findall(r"\$action eq '([^']+)'", (base / 'Actions.pm').read_text()))
+        catalog = set(re.findall(r"action\s*=>\s*'([^']+)'", payload_read_text(base / 'Catalog.pm')))
+        branches = set(re.findall(r"\$action eq '([^']+)'", payload_read_text(base / 'Actions.pm')))
         self.assertGreater(len(catalog), 40)
         self.assertEqual(catalog, branches)
 
     def test_phone_menu_action_tokens_have_runtime_branches(self):
-        menu = (TARGET / 'usr/local/bin/labwc-adb-menu').read_text().replace('\\\n', ' ')
+        menu = payload_read_text(TARGET / 'usr/local/bin/labwc-adb-menu').replace('\\\n', ' ')
         tokens = set(re.findall(r'run_adb_action\s+([a-z][a-z0-9-]+)', menu))
-        runtime = (TARGET / 'usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm').read_text()
+        runtime = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/labwc-adb/AndroidADB/Runtime.pm')
         self.assertGreater(len(tokens), 40)
         for token in tokens:
             self.assertIn("'" + token + "'", runtime, token)
 
     def test_codex_prompt_cannot_become_an_option(self):
-        runtime = (TARGET / 'usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm').read_text()
+        runtime = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/ai-copilots/AICopilots/Runtime.pm')
         self.assertIn("_exec_codex('--', $prompt)", runtime)
         self.assertIn('capture_command(argv => \\@command, timeout => 30, limit => $maximum)', runtime)
 
     def test_storage_inventory_failure_is_not_treated_as_unmounted(self):
-        source = (TARGET / 'usr/local/bin/labwc-external-drives').read_text()
+        source = payload_read_text(TARGET / 'usr/local/bin/labwc-external-drives')
         self.assertIn('disk_snapshot=$(collect_snapshot "$disk_device") || return 1', source)
         self.assertIn('remaining_records=$(mounted_records_for_disk "$disk_device") || return 1', source)
 

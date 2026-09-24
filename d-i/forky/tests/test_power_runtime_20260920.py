@@ -1,5 +1,6 @@
 """Power finalization regressions: all host commands are mocked, never executed."""
 from __future__ import annotations
+from payload_fixture import read_text as payload_read_text
 import contextlib
 import io
 import json
@@ -17,7 +18,7 @@ WORKER = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
 
 def module():
     result = types.ModuleType('runtime_power_test')
-    exec(compile(WORKER.read_text(), str(WORKER), 'exec'), result.__dict__)
+    exec(compile(payload_read_text(WORKER), str(WORKER), 'exec'), result.__dict__)
     return result
 
 
@@ -219,6 +220,7 @@ class RuntimeFlowTests(unittest.TestCase):
             self.stopped=True
             if self.kill_error: raise self.power.Error('kill raced stop')
             return ''
+        if argv == ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']: return ''
         if '--force' in argv: return ''
         raise AssertionError('unexpected host command: '+repr(argv))
 
@@ -232,6 +234,7 @@ class RuntimeFlowTests(unittest.TestCase):
                 stop=next(i for i,c in enumerate(self.calls) if 'stop' in c)
                 managers=next(i for i,c in enumerate(self.calls) if 'stop' in c and '--no-block' not in c)
                 final=next(i for i,c in enumerate(self.calls) if '--force' in c)
+                self.assertFalse(any('power-log-capture.service' in c for c in self.calls))
                 self.assertLess(stop,managers);self.assertLess(managers,final)
                 self.assertIn('--no-block',self.calls[stop]);self.assertIn('greetd.service',self.calls[stop])
                 self.assertNotIn('--no-block',self.calls[managers])
@@ -248,12 +251,33 @@ class RuntimeFlowTests(unittest.TestCase):
         self.worker.final_power_action()
         self.assertGreaterEqual(sum(c.args[0].endswith('user@1000.service') for c in self.population.call_args_list),2)
 
-    def test_no_root_service_wait_after_user_managers_stop(self):
+    def test_nothing_is_started_after_user_managers_stop(self):
         self.worker.final_power_action()
         last_stop=max(i for i,c in enumerate(self.calls) if 'stop' in c)
         self.assertIn('user@1000.service',self.calls[last_stop])
+        capture = ['/usr/bin/systemctl', '--no-ask-password', 'start', 'power-log-capture.service']
+        self.assertEqual(self.calls[last_stop+1:].count(capture), 0)
         self.assertTrue(all('show' in c or '--force' in c for c in self.calls[last_stop+1:]))
         self.assertTrue(self.worker.handoff_attempted)
+
+    def test_reservation_is_rechecked_after_native_output_before_force(self):
+        import builtins
+        original_print = builtins.print
+        def lose_reservation(*args, **kwargs):
+            result = original_print(*args, **kwargs)
+            if args and str(args[0]).startswith('power handoff:'):
+                self.worker.package_locks.verify.side_effect = self.power.Error('reservation lost')
+            return result
+        with mock.patch('builtins.print', side_effect=lose_reservation):
+            with self.assertRaisesRegex(self.power.Error, 'reservation lost'):
+                self.worker.final_power_action()
+        self.assertFalse(any('--force' in c for c in self.calls))
+        self.assertFalse(any('power-log-capture.service' in c for c in self.calls))
+        self.assertTrue(self.worker.handoff_attempted)
+        count = len(self.calls)
+        with self.assertRaisesRegex(self.power.Error, 'only once'):
+            self.worker.final_power_action()
+        self.assertEqual(len(self.calls), count)
 
     def test_surviving_sd_pam_cgroup_blocks_force_even_when_mainpid_is_zero(self):
         self.keep_populated=True;self.kill_error=True
@@ -371,17 +395,17 @@ class HardeningTests(unittest.TestCase):
         power=module()
         self.assertEqual(power.ENV['SYSTEMCTL_FORCE_BUS'],'0')
         self.assertFalse(any(key.startswith('DBUS_') for key in power.ENV))
-        unit=(TARGET/'etc/systemd/system/labwc-admin-action@.service').read_text()
+        unit=payload_read_text(TARGET/'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('\nCapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n',unit)
         self.assertIn('\nAmbientCapabilities=\n',unit)
         self.assertIn('NoNewPrivileges=yes',unit)
         self.assertIn('ProtectControlGroups=yes',unit)
-        source=WORKER.read_text()
+        source=payload_read_text(WORKER)
         self.assertNotIn('/usr/bin/pkill',source);self.assertNotIn('/usr/bin/pgrep',source)
-        profile=(TARGET/'etc/apparmor.d/managed-desktop-wrappers').read_text().split('profile managed-labwc-admin-action-worker ',1)[1].split('\n}',1)[0]
+        profile=payload_read_text(TARGET/'etc/apparmor.d/desktop-wrappers').split('profile labwc-admin-action-worker ',1)[1].split('\n}',1)[0]
         self.assertIn('capability kill,',profile)
         self.assertNotIn('capability sys_admin',profile)
-        self.assertIn('set=(kill chld) peer=managed-labwc-admin-action-worker',profile)
+        self.assertIn('set=(kill chld) peer=labwc-admin-action-worker',profile)
         self.assertIn('/sys/fs/cgroup/cgroup.controllers r,',profile)
         self.assertIn('cgroup.events r,',profile)
         self.assertNotIn('cgroup.kill',profile)

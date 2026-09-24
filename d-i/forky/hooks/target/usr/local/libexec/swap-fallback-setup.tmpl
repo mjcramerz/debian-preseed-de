@@ -2,13 +2,13 @@
 set -eu
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-CONF=${SWAP_FALLBACK_CONFIG_PATH:-/etc/default/swap-fallback.conf}
+CONF=${SWAP_FALLBACK_CONFIG_PATH:-/etc/swap-fallback.conf}
 LOG_TAG="swap-fallback"
 LOG_HELPER="/usr/libexec/install-tools/system-log.sh"
 
-if [ -r /etc/default/system-runtime ]; then
+if [ -r /etc/system-runtime.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/system-runtime
+  . /etc/system-runtime.conf
 fi
 
 SYSTEMD_LOG_LEVEL=${SYSTEMD_LOG_LEVEL:-error}

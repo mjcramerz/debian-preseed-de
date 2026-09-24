@@ -3,6 +3,8 @@
 No Wayland session, hardware write, live systemd operation or broker is started.
 """
 from __future__ import annotations
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import ast
 import json
 import os
@@ -29,7 +31,7 @@ BOOT_CONFIRM = 'Confirm: stop, disable and mask PPD; start tuning now and at boo
 
 def client_functions():
     # Avoid colliding with other tests' independently imported common modules.
-    selected = [node for node in ast.parse(CLIENT.read_text()).body
+    selected = [node for node in ast.parse(render_theme_defaults(payload_read_text(CLIENT))).body
                 if isinstance(node, ast.FunctionDef) and node.name in {'choose', 'confirm_owner', 'menu'}]
     namespace = {'os': os, 'subprocess': subprocess, 'TuningError': ValueError,
                  'PROFILES': PROFILES, 'json': json}
@@ -85,8 +87,8 @@ class MenuBoundaryTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
         self.assertNotIn('--icon-theme', ' '.join(run.call_args.args[0]))
         for name in ('base.ini.tmpl', 'menu.ini.tmpl', 'fuzzel.ini.tmpl'):
-            self.assertIn('icons-enabled=yes', (TARGET / 'etc/skel-desktop/.config/fuzzel' / name).read_text())
-        self.assertIn('__INSTALLER_LABWC_ICON_THEME__', (TARGET / 'etc/skel-desktop/.config/fuzzel/base.ini.tmpl').read_text())
+            self.assertIn('icons-enabled=yes', render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/fuzzel' / name)))
+        self.assertIn('icon-theme=' + theme_values()['FUZZEL_MENU_ICON_THEME'], render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/fuzzel/base.ini.tmpl')))
 
     def test_standalone_hardware_chooser_owns_metadata_contract_without_changing_explicit_backend(self):
         client = client_functions()
@@ -131,14 +133,14 @@ class MenuBoundaryTests(unittest.TestCase):
                     action.assert_not_called()
 
     def test_optional_confined_transition_and_signal_endpoints_are_staged(self):
-        bridge = AA / 'abstractions/managed-hardware-tuning-management-parent'
-        self.assertIn('/usr/local/bin/labwc-hardware-tuning rPx,', bridge.read_text())
-        self.assertNotIn('rPUx', bridge.read_text())
-        self.assertIn('signal (receive) set=(chld) peer=managed-hardware-tuning-client,', bridge.read_text())
-        self.assertIn('signal (send) set=(chld) peer=managed-labwc-computer-management,', (AA / 'managed-hardware-tuning').read_text())
-        wrappers = (AA / 'managed-desktop-wrappers').read_text()
-        self.assertIn('include if exists <abstractions/managed-hardware-tuning-management-parent>', wrappers)
-        installer = (FORKY / 'scripts/desktop/hardware-tuning.sh').read_text()
+        bridge = AA / 'abstractions/hardware-tuning-management-parent'
+        self.assertIn('/usr/local/bin/labwc-hardware-tuning rPx,', render_theme_defaults(payload_read_text(bridge)))
+        self.assertNotIn('rPUx', render_theme_defaults(payload_read_text(bridge)))
+        self.assertIn('signal (receive) set=(chld) peer=hardware-tuning-client,', render_theme_defaults(payload_read_text(bridge)))
+        self.assertIn('signal (send) set=(chld) peer=labwc-computer-management,', render_theme_defaults(payload_read_text(AA / 'hardware-tuning')))
+        wrappers = render_theme_defaults(payload_read_text(AA / 'desktop-wrappers'))
+        self.assertIn('include if exists <abstractions/hardware-tuning-management-parent>', wrappers)
+        installer = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/hardware-tuning.sh'))
         self.assertIn('for hardware_bridge in desktop-parent fuzzel-parent management-parent;', installer)
         self.assertLess(installer.index('if [ -z "$hardware_vendors" ]'), installer.index('for hardware_bridge'))
 

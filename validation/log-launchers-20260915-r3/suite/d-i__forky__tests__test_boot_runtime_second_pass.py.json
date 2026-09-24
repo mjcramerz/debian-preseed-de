@@ -1,9 +1,0 @@
-{
-  "path": "d-i/forky/tests/test_boot_runtime_second_pass.py",
-  "status": 0,
-  "seconds": 8.387,
-  "timeout": false,
-  "tests": 6,
-  "skips": 0,
-  "failures": []
-}

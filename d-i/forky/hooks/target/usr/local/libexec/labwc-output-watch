@@ -223,7 +223,7 @@ sub _event_requires_refresh {
 
 package main;
 
-use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::Process ();
 
 use Fcntl qw(:DEFAULT :flock F_SETFD FD_CLOEXEC);
@@ -1426,17 +1426,8 @@ sub refresh_waybar {
     my $systemctl = find_command('systemctl');
     return if !defined $systemctl;
 
-    if (run_quiet_command(
-        $systemctl,
-        '--user', '--quiet', 'is-active', 'waybar.service',
-    )) {
-        run_quiet_command(
-            $systemctl,
-            '--user', '--no-block', 'restart', 'waybar.service',
-        );
-        return;
-    }
-
+    # Waybar owns output hotplug. Starting an active unit is idempotent;
+    # never tear down every bar when a connector changes.
     run_quiet_command(
         $systemctl,
         '--user', '--no-block', 'start', 'waybar.service',
@@ -1699,7 +1690,7 @@ sub main {
     my $invocation = parse_invocation(@args);
     return usage() if !defined $invocation;
 
-    %defaults = load_defaults('/etc/default/labwc-desktop');
+    %defaults = load_defaults('/etc/labwc/desktop.conf');
     apply_env_overrides(
         \%defaults,
         qw(

@@ -4,6 +4,8 @@ Synthetic ELF fixtures exercise real nobody credential changes and a real
 noexec filesystem when /dev/shm provides one. No mounts or policies are changed.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes
 
 import errno
 import os
@@ -61,9 +63,9 @@ int main(int argc, char **argv) {
 }
 ''' % (account.pw_uid, account.pw_uid, account.pw_gid, account.pw_gid))
         binary = self.work / 'fixture'
-        subprocess.run([compiler, '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)],
+        subprocess.run(payload_installed_argv([compiler, '-Wall', '-Wextra', '-Werror', str(source), '-o', str(binary)]),
                        check=True, capture_output=True, timeout=30)
-        return binary.read_bytes()
+        return payload_read_bytes(binary)
 
     def executable_archive(self, parent):
         files = base.payload()
@@ -75,26 +77,26 @@ int main(int argc, char **argv) {
         return self.installer.unpack(base.arguments(), archive, parent / 'fixture-stage')
 
     def assert_clean(self):
-        if self.installer.BIN_DIR.exists():
+        if payload_source_exists(self.installer.BIN_DIR):
             self.assertEqual(list(self.installer.BIN_DIR.iterdir()), [])
-        self.assertFalse(self.installer.DOC_DIR.exists())
+        self.assertFalse(payload_source_exists(self.installer.DOC_DIR))
 
     def test_only_verified_binaries_copied_to_private_destination_staging(self):
         def check(probe, binaries, version, home):
             self.assertEqual(probe.parent, self.installer.BIN_DIR)
             self.assertTrue(probe.name.startswith('.resctl-bench-smoke-'))
-            self.assertEqual(stat.S_IMODE(probe.stat().st_mode), 0o711)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(probe).st_mode), 0o711)
             self.assertEqual(set(p.name for p in probe.iterdir()), {'bin'})
             self.assertEqual(sorted(p.name for p in (probe/'bin').iterdir()), self.binaries)
             self.assertEqual(version, '2.2.6')
             self.assertEqual(home, probe/'home')
-            self.assertEqual(stat.S_IMODE(self.archive_work.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(self.archive_work).st_mode), 0o700)
             for name in binaries:
                 p = probe/'bin'/name
-                self.assertEqual(p.read_bytes(), (self.root/'bin'/name).read_bytes())
-                self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o555)
-                self.assertEqual(p.stat().st_uid, 0)
-                self.assertNotEqual(p.stat().st_ino, (self.root/'bin'/name).stat().st_ino)
+                self.assertEqual(payload_read_bytes(p), payload_read_bytes(self.root/'bin'/name))
+                self.assertEqual(stat.S_IMODE(payload_source_stat(p).st_mode), 0o555)
+                self.assertEqual(payload_source_stat(p).st_uid, 0)
+                self.assertNotEqual(payload_source_stat(p).st_ino, payload_source_stat(self.root/'bin'/name).st_ino)
         with mock.patch.object(self.installer, 'smoke', side_effect=check) as smoke:
             self.installer.smoke_verified(self.root, self.binaries, '2.2.6')
         smoke.assert_called_once()
@@ -168,13 +170,13 @@ int main(int argc, char **argv) {
     def test_real_probes_work_without_exposing_private_archive_workspace(self):
         root, binaries = self.executable_archive(self.archive_work)
         self.installer.smoke_verified(root, binaries, '2.2.6')
-        self.assertEqual(stat.S_IMODE(self.archive_work.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.archive_work).st_mode), 0o700)
         self.assert_clean()
         # Publish the ORIGINAL verified release after probes, not child-accessible copies.
         self.installer.publish(base.arguments(), root, binaries)
         for name in binaries:
-            self.assertEqual((self.installer.BIN_DIR/name).read_bytes(), (root/'bin'/name).read_bytes())
-            self.assertEqual(stat.S_IMODE((self.installer.BIN_DIR/name).stat().st_mode), 0o755)
+            self.assertEqual(payload_read_bytes(self.installer.BIN_DIR/name), payload_read_bytes(root/'bin'/name))
+            self.assertEqual(stat.S_IMODE(payload_source_stat(self.installer.BIN_DIR/name).st_mode), 0o755)
         self.assertFalse(list(self.installer.BIN_DIR.glob('.resctl-bench-smoke-*')))
 
     def test_real_noexec_reproduces_eacces_then_staged_probe_succeeds(self):
@@ -188,13 +190,13 @@ int main(int argc, char **argv) {
             work.chmod(0o755)
             account = pwd.getpwnam('nobody')
             with self.assertRaises(PermissionError) as denied:
-                subprocess.run([str(root/'bin/rd-agent'), '--version'], user=account.pw_uid,
+                subprocess.run(payload_installed_argv([str(root/'bin/rd-agent'), '--version']), user=account.pw_uid,
                                group=account.pw_gid, extra_groups=(), check=True, timeout=10,
                                capture_output=True)
             self.assertEqual(denied.exception.errno, errno.EACCES)
             work.chmod(0o700)
             self.installer.smoke_verified(root, binaries, '2.2.6')
-            self.assertEqual(stat.S_IMODE(work.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(work).st_mode), 0o700)
             self.assertTrue(os.statvfs(noexec).f_flag & os.ST_NOEXEC)
             self.assert_clean()
 
@@ -209,7 +211,7 @@ int main(int argc, char **argv) {
             seen.append('download')
         def probe(root, binaries, version):
             work = root.parent.parent
-            self.assertEqual(stat.S_IMODE(work.stat().st_mode), 0o700)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(work).st_mode), 0o700)
             self.assertEqual(version, '2.2.6')
             seen.append('smoke')
         def publish(args, root, binaries):

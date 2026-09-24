@@ -12,6 +12,8 @@ if ! command -v runtime_fatal >/dev/null 2>&1; then
   fi
 fi
 
+RUNTIME_RECIPE_TEMPLATES="btrfs-01.recipe.tmpl btrfs-02.recipe.tmpl btrfs-03.recipe.tmpl btrfs-04.recipe.tmpl btrfs-05.recipe.tmpl btrfs-06.recipe.tmpl"
+
 runtime_secure_boot_state_mode() {
   secure_boot_mode=${SECURE_BOOT_MODE:-}
   secure_boot_state_mode=${SECURE_BOOT_STATE_MODE:-}
@@ -718,102 +720,45 @@ runtime_write_runtime_env() {
 runtime_emit_debian_partition_recipe() {
   # Runtime sizing has already allocated the backing/swap budgets. Only root
   # may grow to absorb the remaining alignment/free-space remainder.
-  cat <<EOF
-    ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ${DEV_PART_BOOT_MB} ext4
-        \$primary{ } \$bootable{ }
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /boot }
-    .
-EOF
+  runtime_render_recipe btrfs-01.recipe.tmpl \
+    DEV_PART_BOOT_MB "${DEV_PART_BOOT_MB}"
   if runtime_root_home_crypto_enabled; then
-    cat <<EOF
-    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 btrfs
-        method{ crypto } format{ }
-        crypto_type{ luks }
-        cipher{ aes }
-        keysize{ 512 }
-        ivalgorithm{ xts-plain64 }
-        keytype{ passphrase }
-        keyhash{ sha256 }
-        use_filesystem{ } filesystem{ btrfs }
-        mountpoint{ / }
-    .
-    ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} free
-        method{ keep }
-    .
-EOF
+    runtime_render_recipe btrfs-02.recipe.tmpl \
+      ROOT_PRIORITY "$((DEV_PART_ROOT_MB + 1))" \
+      DEV_PART_ROOT_MB "${DEV_PART_ROOT_MB}" \
+      DEV_PART_HOME_MB "${DEV_PART_HOME_MB}"
   else
-    cat <<EOF
-    ${DEV_PART_ROOT_MB} $((DEV_PART_ROOT_MB + 1)) 1000000000 btrfs
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ btrfs }
-        mountpoint{ / }
-    .
-    ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} ${DEV_PART_HOME_MB} btrfs
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ btrfs }
-        mountpoint{ /home }
-    .
-EOF
+    runtime_render_recipe btrfs-03.recipe.tmpl \
+      ROOT_PRIORITY "$((DEV_PART_ROOT_MB + 1))" \
+      DEV_PART_ROOT_MB "${DEV_PART_ROOT_MB}" \
+      DEV_PART_HOME_MB "${DEV_PART_HOME_MB}"
   fi
-  cat <<EOF
-    ${DEV_PART_OPT_MB} ${DEV_PART_OPT_MB} ${DEV_PART_OPT_MB} btrfs
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ btrfs }
-        mountpoint{ /opt }
-    .
-    ${DEV_PART_DATA_MB} ${DEV_PART_DATA_MB} ${DEV_PART_DATA_MB} xfs
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ xfs }
-        mountpoint{ /data }
-    .
-    ${DEV_PART_POOL_MB} ${DEV_PART_POOL_MB} ${DEV_PART_POOL_MB} xfs
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ xfs }
-        mountpoint{ /pool }
-    .
-    ${DEV_PART_VAR_TMP_MB} ${DEV_PART_VAR_TMP_MB} ${DEV_PART_VAR_TMP_MB} ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /var/tmp }
-    .
-    ${DEV_PART_VAR_LIB_SHSIGNED_MB} ${DEV_PART_VAR_LIB_SHSIGNED_MB} ${DEV_PART_VAR_LIB_SHSIGNED_MB} free
-        method{ keep }
-    .
-    ${DEV_PART_VAR_LOG_JOURNAL_MB} ${DEV_PART_VAR_LOG_JOURNAL_MB} ${DEV_PART_VAR_LOG_JOURNAL_MB} ext4
-        method{ format } format{ }
-        use_filesystem{ } filesystem{ ext4 }
-        mountpoint{ /var/log/journal }
-    .
-    ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} ${DEV_PART_RAW_SWAP_MB} free
-        method{ keep }
-    .
-    ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} ${DEV_PART_RAW_ZRAM_MB} free
-        method{ keep }
-    .
-EOF
+  runtime_render_recipe btrfs-04.recipe.tmpl \
+    DEV_PART_OPT_MB "${DEV_PART_OPT_MB}" \
+    DEV_PART_DATA_MB "${DEV_PART_DATA_MB}" \
+    DEV_PART_POOL_MB "${DEV_PART_POOL_MB}" \
+    DEV_PART_VAR_TMP_MB "${DEV_PART_VAR_TMP_MB}" \
+    DEV_PART_VAR_LIB_SHSIGNED_MB "${DEV_PART_VAR_LIB_SHSIGNED_MB}" \
+    DEV_PART_VAR_LOG_JOURNAL_MB "${DEV_PART_VAR_LOG_JOURNAL_MB}" \
+    DEV_PART_RAW_SWAP_MB "${DEV_PART_RAW_SWAP_MB}" \
+    DEV_PART_RAW_ZRAM_MB "${DEV_PART_RAW_ZRAM_MB}"
 }
 
 runtime_emit_default_recipe() {
-  cat <<EOF
-${PARTMAN_RECIPE_NAME} ::
-    ${DEV_PART_EFI_MB} ${DEV_PART_EFI_MB} ${DEV_PART_EFI_MB} free
-        \$iflabel{ gpt } \$primary{ } \$reusemethod{ } \$bootable{ }
-        method{ efi } format{ }
-    .
-EOF
+  runtime_render_recipe btrfs-05.recipe.tmpl \
+    PARTMAN_RECIPE_NAME "${PARTMAN_RECIPE_NAME}" \
+    DEV_PART_EFI_MB "${DEV_PART_EFI_MB}"
   runtime_emit_debian_partition_recipe
 }
 
 runtime_emit_dualboot_recipe() {
-  cat <<EOF
-${PARTMAN_RECIPE_NAME} ::
-EOF
+  runtime_render_recipe btrfs-06.recipe.tmpl \
+    PARTMAN_RECIPE_NAME "${PARTMAN_RECIPE_NAME}"
   runtime_emit_debian_partition_recipe
 }
 
 runtime_write_expert_recipe() {
+  runtime_prepare_recipe_templates
   dest=$1
   runtime_compute_layout_sizing
   runtime_prepare_parent_dir "$dest" 0700

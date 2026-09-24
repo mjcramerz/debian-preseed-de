@@ -285,8 +285,8 @@ desktop_satty_install_private_glibc() {
     "$LABWC_SATTY_GLIBC_ARCHITECTURE" \
     "$satty_glibc_deb_sha256" \
     "$satty_glibc_gconv_deb_sha256" \
-    >"${satty_glibc_runtime_host}/.managed-release"
-  chmod 0644 "${satty_glibc_runtime_host}/.managed-release"
+    >"${satty_glibc_runtime_host}/.release"
+  chmod 0644 "${satty_glibc_runtime_host}/.release"
   SATTY_GLIBC_PACKAGE_SHA256=$satty_glibc_deb_sha256
   SATTY_GLIBC_GCONV_PACKAGE_SHA256=$satty_glibc_gconv_deb_sha256
 }

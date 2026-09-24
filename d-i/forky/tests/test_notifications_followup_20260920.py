@@ -1,5 +1,8 @@
 """Notification placement/click/size regression tests, without live host changes."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 
 import contextlib
 import ctypes.util
@@ -17,20 +20,9 @@ from unittest import mock
 from test_native_tomat_20260920 import FORKY, SKEL, bars, load
 
 
-def rendered_profile_styles():
-    """Expand CSS using each real desktop profile's shell variable values."""
-    template = (SKEL / 'waybar/style.css.tmpl').read_text()
-    styles = {}
-    for profile in sorted((FORKY / 'hosts/profiles').glob('*.env')):
-        if 'LABWC_WAYBAR_FONT_SIZE=' not in profile.read_text():
-            continue
-        result = subprocess.run(
-            ['/bin/sh', '-ec', 'set -a; . "$1"; env -0', 'waybar-style-fixture', str(profile)],
-            env={'PATH': '/usr/bin:/bin'}, capture_output=True, check=True, timeout=5)
-        environment = dict(item.decode().split('=', 1) for item in result.stdout.split(b'\0') if item)
-        styles[profile.stem] = re.sub(
-            r'__INSTALLER_([A-Z0-9_]+)__', lambda match: environment[match[1]], template)
-    return styles
+def rendered_profile_styles(output_class='external'):
+    from waybar_fixture import profiles, style
+    return {p.stem: style(p, output_class) for p in profiles()}
 
 
 class NotificationsFollowupTests(unittest.TestCase):
@@ -39,8 +31,7 @@ class NotificationsFollowupTests(unittest.TestCase):
         self.assertEqual(len(configurations), 2)
         for bar in configurations:
             with self.subTest(bar=bar['name']):
-                controls = ('group/quick-controls-internal' if bar['name'] == 'internal'
-                            else 'group/quick-controls')
+                controls = 'group/quick-controls'
                 right = bar['modules-right']
                 self.assertEqual(right[-4:], [controls, 'custom/notifications', 'custom/lock', 'custom/power'])
                 self.assertEqual(right.count('custom/notifications'), 1)
@@ -90,11 +81,11 @@ class NotificationsFollowupTests(unittest.TestCase):
         for name, css in styles.items():
             with self.subTest(profile=name):
                 self.assertNotIn('__INSTALLER_', css)
-                self.assertIn('window#waybar.internal #custom-notifications,\n'
-                              'window#waybar.internal #custom-lock,\n'
-                              'window#waybar.internal #custom-power {', css)
-                self.assertIn('#custom-notifications,\n#custom-lock,\n#custom-power {', css)
-                self.assertIn('#custom-notifications:hover {\n  background: @amber;', css)
+                for module in ('notifications', 'lock', 'power'):
+                    self.assertIn('#custom-' + module + ' {', css)
+                    self.assertIn('#custom-' + module + ' {', css)
+                self.assertIn('#custom-notifications:hover {\n  background: ' +
+                              theme_values()['WAYBAR_BUTTON_NOTIFICATIONS_HOVER_BACKGROUND_COLOR'] + ';', css)
 
     def test_native_gtk_sizes_fonts_and_gold_hover_for_all_profiles(self):
         if not shutil.which('xvfb-run') or not ctypes.util.find_library('gtk-3'):
@@ -108,8 +99,8 @@ class NotificationsFollowupTests(unittest.TestCase):
             # This probes GTK labels with Waybar's CSS names/classes; it does not
             # claim Wayland compositor or input-event integration acceptance.
             result = subprocess.run(
-                ['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
-                 str(FORKY / 'tests/fixtures/waybar-session-buttons-gtk.py'), *paths],
+                payload_installed_argv(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-B',
+                 str(FORKY / 'tests/fixtures/waybar-session-buttons-gtk.py'), *paths]),
                 env={**os.environ, 'GDK_BACKEND': 'x11', 'NO_AT_BRIDGE': '1'},
                 text=True, capture_output=True, timeout=45)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

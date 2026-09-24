@@ -1,0 +1,46 @@
+# Managed by installer automation.
+# @@MOK_HEADER_COMMENT@@
+set active_profile='@@BOOTPROFILE_DEFAULT@@'
+set active_profile_label='Balanced'
+set active_profile_flags='@@GRUB_PROFILE_DEFAULT_FLAGS@@'
+set active_kernel_ver='@@DEFAULT_VER@@'
+if [ -s $prefix/grubenv ]; then
+    load_env @@LAST_PROFILE_VAR@@
+    load_env @@LAST_KERNEL_VAR@@
+fi
+if [ "$@@LAST_PROFILE_VAR@@" = '@@BOOTPROFILE_HARDENED@@' ]; then
+    set active_profile='@@BOOTPROFILE_HARDENED@@'
+    set active_profile_label='Hardened'
+    set active_profile_flags='@@GRUB_PROFILE_HARDENED_FLAGS@@'
+elif [ "$@@LAST_PROFILE_VAR@@" = '@@BOOTPROFILE_PERFORMANCE@@' ]; then
+    set active_profile='@@BOOTPROFILE_PERFORMANCE@@'
+    set active_profile_label='Performance'
+    set active_profile_flags='@@GRUB_PROFILE_PERFORMANCE_FLAGS@@'
+elif [ "$@@LAST_PROFILE_VAR@@" = '@@BOOTPROFILE_DEFAULT@@' ]; then
+    set active_profile='@@BOOTPROFILE_DEFAULT@@'
+    set active_profile_label='Balanced'
+    set active_profile_flags='@@GRUB_PROFILE_DEFAULT_FLAGS@@'
+fi
+if [ -n "$@@LAST_KERNEL_VAR@@" ]; then
+    if [ -e "/vmlinuz-$@@LAST_KERNEL_VAR@@" ]; then
+        if [ -e "/initrd.img-$@@LAST_KERNEL_VAR@@" ]; then
+            set active_kernel_ver="$@@LAST_KERNEL_VAR@@"
+        fi
+    fi
+fi
+menuentry "Last Boot ($active_profile_label) [$active_kernel_ver]" --id '@@GRUB_DEFAULT_ENTRY@@' --class debian --class gnu-linux --class gnu --class os {
+    set @@LAST_PROFILE_VAR@@="$active_profile"
+    set @@LAST_KERNEL_VAR@@="$active_kernel_ver"
+    if [ -s $prefix/grubenv ]; then
+        save_env @@LAST_PROFILE_VAR@@
+        save_env @@LAST_KERNEL_VAR@@
+    fi
+    insmod gzio
+    insmod zstd
+    insmod part_gpt
+    insmod ext2
+    @@BOOT_SEARCH@@
+@@DISPLAY_POLICY@@
+    linux   /vmlinuz-$active_kernel_ver @@ROOT_ARG@@ ro @@BASE_CMDLINE@@ systemd.setenv=BOOTPROFILE=$active_profile $active_profile_flags
+    initrd  /initrd.img-$active_kernel_ver
+}

@@ -26,7 +26,7 @@ option config => (
     coerce  => Path->coercion,
     format  => 's',
     default => sub {
-        return path($ENV{ZRAM_WRITEBACK_CONFIG} // '/etc/zram-writeback.conf');
+        return path($ENV{ZRAM_WRITEBACK_CONFIG} // '/etc/zram-writeback/policy.conf');
     },
     doc => 'path to the zram writeback policy config',
 );

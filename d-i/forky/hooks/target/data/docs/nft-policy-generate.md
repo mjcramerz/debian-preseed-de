@@ -21,7 +21,7 @@ from one profile YAML plus zero or more service overlay YAML files.
 - default profile link: `/etc/nftables/profiles/default.yml`
 - profile catalog: `/etc/nftables/profiles/*.yml`
 - service overlays: `/etc/nftables/services/*.yml`
-- default generator env: `/etc/default/nft-policy-generate`
+- default generator env: `/etc/nftables/policy.conf`
 
 ## Common commands
 

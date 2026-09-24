@@ -7,6 +7,8 @@ local SSH *transport fixture*. They are not OpenSSH authentication tests. Only
 already-installed executables/libraries are copied; nothing is compiled.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 
 import importlib.util
 import json
@@ -24,7 +26,7 @@ import time
 import unittest
 
 SEED = Path(__file__).resolve().parents[1]
-HELPER = SEED / 'hooks/target/usr/local/libexec/managed-ssh-install.py'
+HELPER = SEED / 'scripts/late/ssh/ssh-install.py'
 DEVOPS = SEED / 'scripts/late/devops.sh'
 COMMON = SEED / 'scripts/common/lib.sh'
 URL = 'git@gitlab.com:computes/misc/codex-home.git'
@@ -34,6 +36,7 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location('clone_helper_fixture', sys.argv[1])
 helper = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(helper)
+clone_template = Path(sys.argv[1]).with_name('clone.conf.tmpl').read_bytes()
 root, destination, action = sys.argv[2:]
 # This sandbox cannot mknod or mount. Keep a real /dev/null descriptor open
 # before chroot so checked() has a genuine stderr sink. The empty in-chroot
@@ -48,8 +51,11 @@ helper.subprocess.Popen = with_null_descriptor
 os.chroot(root)
 os.chdir('/')
 os.umask(0o077)
-stage = Path('/tmp/managed-git-ssh.Fixture123')
+stage = Path('/tmp/git-ssh.Fixture123')
 stage.mkdir(mode=0o700)
+helper.__file__ = str(stage / 'ssh-install.py')
+(stage / 'clone.conf.tmpl').write_bytes(clone_template)
+(stage / 'clone.conf.tmpl').chmod(0o600)
 try:
     env = dict(helper.BASE_ENV, SSH_AUTH_SOCK=str(stage/'agent.sock'))
     helper.clone(Path(destination), stage, env)
@@ -76,7 +82,7 @@ try:
     if action == 'clone-fail-after-copy':
         raise helper.InstallError('fixture failure after clone')
 except (OSError, ValueError, subprocess.SubprocessError) as exc:
-    print(f'managed-ssh-install: {type(exc).__name__}: {exc}', file=sys.stderr)
+    print(f'ssh-install: {type(exc).__name__}: {exc}', file=sys.stderr)
     sys.exit(1)
 finally:
     shutil.rmtree(stage)
@@ -104,14 +110,14 @@ exec /usr/bin/git-upload-pack /fixtures/remote.git
 def metadata_source() -> str:
     # Read the same generated common library loaded by the real late helper.
     # Do not reimplement metadata checks in the fixture.
-    text = COMMON.read_text()
+    text = payload_read_text(COMMON)
     start = text.index('installer_metadata_value() (')
     end = text.index('\ninstaller_lifecycle_paths()', start)
     return text[start:end]
 
 
 def allocator_source() -> str:
-    text = DEVOPS.read_text()
+    text = payload_read_text(DEVOPS)
     start = text.index('devops_install_pinned_codex() (')
     end = text.index('\n)\n\ndevops_install_codex_from_clone()', start) + 3
     return text[start:end]
@@ -183,18 +189,18 @@ devops_install_codex_from_clone() {
         path.chmod(0o755)
 
     def run_allocator(self, action='stub', shell=('/bin/sh',), body=None, **env):
-        return subprocess.run([*shell, '-c', self.script + (body or 'devops_install_pinned_codex\n')],
+        return subprocess.run(payload_installed_argv([*shell, '-c', self.script + (body or 'devops_install_pinned_codex\n')]),
                               env=dict(self.env, TEST_ACTION=action, **env),
                               text=True, capture_output=True, timeout=15)
 
     def assert_clean(self):
         self.assertEqual(list(self.codex.glob('.home-clone.*')), [])
-        self.assertEqual((self.codex.stat().st_uid, self.codex.stat().st_gid,
-                          stat.S_IMODE(self.codex.stat().st_mode)), (0, self.gid, 0o3770))
+        self.assertEqual((payload_source_stat(self.codex).st_uid, payload_source_stat(self.codex).st_gid,
+                          stat.S_IMODE(payload_source_stat(self.codex).st_mode)), (0, self.gid, 0o3770))
 
     def assert_not_called(self):
-        self.assertFalse(self.record.exists(), 'private SSH action must not run')
-        self.assertFalse((self.target/'published').exists())
+        self.assertFalse(payload_source_exists(self.record), 'private SSH action must not run')
+        self.assertFalse(payload_source_exists(self.target/'published'))
         self.assert_clean()
 
     def make_parent(self, mode=0o700, name='.home-clone.Test123'):
@@ -207,15 +213,15 @@ devops_install_codex_from_clone() {
         if not shutil.which('ldd') or not shutil.which('git'):
             self.skipTest('installed Git and ldd are required for real clone fixture')
         # Preflight capability in a subprocess, without changing the test runner.
-        probe = subprocess.run([sys.executable, '-c',
-                                'import os,sys;os.chroot(sys.argv[1])', str(self.target)],
+        probe = subprocess.run(payload_installed_argv([sys.executable, '-c',
+                                'import os,sys;os.chroot(sys.argv[1])', str(self.target)]),
                                capture_output=True, timeout=5)
         if probe.returncode:
             self.skipTest('disposable chroot is not permitted')
         copied = set()
         for source in ('/usr/bin/git', '/bin/sh'):
             paths = [source]
-            output = subprocess.check_output(['ldd', source], text=True)
+            output = subprocess.check_output(payload_installed_argv(['ldd', source]), text=True)
             paths += re.findall(r'(?:=>\s+)?(/[^\s()]+)', output)
             for name in paths:
                 if name in copied:
@@ -223,7 +229,7 @@ devops_install_codex_from_clone() {
                 copied.add(name)
                 destination = self.target/name.lstrip('/')
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(name, destination)
+                payload_copyfile(name, destination)
                 destination.chmod(0o755)
         for name in ('git-upload-pack', 'git-index-pack', 'git-pack-objects', 'git-rev-list'):
             (self.target/'usr/bin'/name).symlink_to('git')
@@ -245,7 +251,7 @@ devops_install_codex_from_clone() {
         transport.write_text(TRANSPORT)
         transport.chmod(0o755)
         source = self.root/'source'
-        subprocess.run(['git', 'init', '-q', '-b', 'mcr/main', str(source)],
+        subprocess.run(payload_installed_argv(['git', 'init', '-q', '-b', 'mcr/main', str(source)]),
                        env=self.git_env, check=True, capture_output=True)
         for directory in ('agents', 'etc', 'home', 'skills'):
             path = source/directory
@@ -256,34 +262,34 @@ devops_install_codex_from_clone() {
         (source/'etc/tool').write_text('#!/bin/sh\nexit 0\n')
         (source/'etc/tool').chmod(0o755)
         def git(*args):
-            subprocess.run(['git', '-C', str(source), *args], env=self.git_env,
+            subprocess.run(payload_installed_argv(['git', '-C', str(source), *args]), env=self.git_env,
                            check=True, capture_output=True, timeout=5)
         git('add', '.')
         git('commit', '-qm', 'fixture base')
         (source/'home/README').write_text('second local commit\n')
         git('commit', '-qam', 'fixture update')
-        subprocess.run(['git', 'clone', '-q', '--bare', str(source),
-                        str(self.target/'fixtures/remote.git')], env=self.git_env,
+        subprocess.run(payload_installed_argv(['git', 'clone', '-q', '--bare', str(source),
+                        str(self.target/'fixtures/remote.git')]), env=self.git_env,
                        check=True, capture_output=True, timeout=5)
 
     def run_guard(self, destination):
-        return subprocess.run([sys.executable, '-B', str(self.bridge), str(HELPER),
-                               str(self.target), destination, 'real'],
+        return subprocess.run(payload_installed_argv([sys.executable, '-B', str(self.bridge), str(HELPER),
+                               str(self.target), destination, 'real']),
                               env=self.env, text=True, capture_output=True, timeout=10)
 
     def test_original_setgid_inheritance_and_gnu_chmod_trap(self):
-        parent = Path(subprocess.check_output(['mktemp', '-d', str(self.codex/'.home-clone.XXXXXXXX')],
+        parent = Path(subprocess.check_output(payload_installed_argv(['mktemp', '-d', str(self.codex/'.home-clone.XXXXXXXX')]),
                                              text=True).strip())
-        self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o2700)
-        subprocess.run(['/usr/bin/chmod', '0700', str(parent)], check=True)
-        self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o2700)
-        subprocess.run(['/usr/bin/chmod', 'a-s', str(parent)], check=True)
-        self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(parent).st_mode), 0o2700)
+        subprocess.run(payload_installed_argv(['/usr/bin/chmod', '0700', str(parent)]), check=True)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(parent).st_mode), 0o2700)
+        subprocess.run(payload_installed_argv(['/usr/bin/chmod', 'a-s', str(parent)]), check=True)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(parent).st_mode), 0o700)
 
     def test_gnu_allocator_normalizes_stage_and_preserves_shared_root(self):
         result = self.run_allocator()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self.record.read_text().splitlines()), 2)
+        self.assertEqual(len(payload_read_text(self.record).splitlines()), 2)
         self.assert_clean()
 
     @unittest.skipUnless(shutil.which('busybox'), 'BusyBox installer tool fixture')
@@ -301,10 +307,10 @@ devops_install_codex_from_clone() {
             self.skipTest('BusyBox required for restricted installer PATH')
         for name in ('mktemp', 'chmod', 'ls', 'awk', 'rm', 'mkdir', 'mv', 'sleep'):
             path = self.bin/name
-            if not path.exists():
+            if not payload_source_exists(path):
                 path.symlink_to(busybox)
         self.env['PATH'] = str(self.bin)
-        probe = subprocess.run([busybox, 'sh', '-c', 'command -v stat'],
+        probe = subprocess.run(payload_installed_argv([busybox, 'sh', '-c', 'command -v stat']),
                                env=self.env, capture_output=True, text=True, timeout=5)
         self.assertNotEqual(probe.returncode, 0, 'fixture accidentally exposes stat')
         return busybox
@@ -315,7 +321,7 @@ devops_install_codex_from_clone() {
             with self.subTest(shell=shell):
                 result = self.run_allocator(shell=shell)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(len(self.record.read_text().splitlines()), 2)
+                self.assertEqual(len(payload_read_text(self.record).splitlines()), 2)
                 self.assertNotIn('not root-owned', result.stderr)
                 self.assertNotIn('not found', result.stderr)
                 self.assert_clean()
@@ -334,11 +340,11 @@ devops_install_codex_from_clone() {
         busybox = self.restrict_installer_path()
         result = self.run_allocator('real', shell=(busybox, 'sh'))
         self.assertEqual(result.returncode, 0, result.stderr)
-        receipt = json.loads((self.target/'clone-receipt.json').read_text())
+        receipt = json.loads(payload_read_text(self.target/'clone-receipt.json'))
         self.assertEqual(receipt['branch'], 'mcr/main')
         self.assertEqual(receipt['upstream'], 'origin/mcr/main')
         self.assertEqual(receipt['mode'], '0o700')
-        self.assertTrue((self.target/'published/.git/HEAD').is_file())
+        self.assertTrue(payload_source_is_file(self.target/'published/.git/HEAD'))
         self.assert_clean()
 
     def test_owner_metadata_read_failure_is_not_wrong_ownership(self):
@@ -388,7 +394,7 @@ devops_install_codex_from_clone() {
         result = self.run_allocator(TEST_OUTSIDE=str(outside))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('not a direct directory', result.stderr)
-        self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o750)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(outside).st_mode), 0o750)
         self.assert_not_called()
 
     def test_clone_failure_cleans_with_no_stat_on_installer_path(self):
@@ -396,7 +402,7 @@ devops_install_codex_from_clone() {
         result = self.run_allocator('clone-fail', shell=(busybox, 'sh'))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('failed to clone codex-home', result.stderr)
-        self.assertNotIn('publish:', self.record.read_text())
+        self.assertNotIn('publish:', payload_read_text(self.record))
         self.assert_clean()
 
     def test_bash_caller(self):
@@ -443,8 +449,8 @@ devops_install_codex_from_clone() {
     def test_clone_failure_removes_partial_checkout_and_prevents_publication(self):
         result = self.run_allocator('clone-fail')
         self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn('publish:', self.record.read_text())
-        self.assertFalse((self.target/'published').exists())
+        self.assertNotIn('publish:', payload_read_text(self.record))
+        self.assertFalse(payload_source_exists(self.target/'published'))
         self.assert_clean()
 
     def test_signals_remove_stage_without_publishing(self):
@@ -453,19 +459,19 @@ devops_install_codex_from_clone() {
                 ready = Path(str(self.record) + '.ready')
                 ready.unlink(missing_ok=True)
                 self.record.unlink(missing_ok=True)
-                process = subprocess.Popen(['/bin/sh', '-c', self.script + 'devops_install_pinned_codex\n'],
+                process = subprocess.Popen(payload_installed_argv(['/bin/sh', '-c', self.script + 'devops_install_pinned_codex\n']),
                                            env=dict(self.env, TEST_ACTION='wait'),
                                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                            text=True, start_new_session=True)
                 try:
                     deadline = time.monotonic() + 5
-                    while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+                    while not payload_source_exists(ready) and process.poll() is None and time.monotonic() < deadline:
                         time.sleep(.01)
-                    self.assertTrue(ready.exists(), 'stage did not become ready')
+                    self.assertTrue(payload_source_exists(ready), 'stage did not become ready')
                     os.killpg(process.pid, sig)
                     process.communicate(timeout=5)
                     self.assertNotEqual(process.returncode, 0)
-                    self.assertNotIn('publish:', self.record.read_text())
+                    self.assertNotIn('publish:', payload_read_text(self.record))
                     self.assert_clean()
                 finally:
                     try:
@@ -478,7 +484,7 @@ devops_install_codex_from_clone() {
         self.prepare_git_chroot()
         result = self.run_allocator('real')
         self.assertEqual(result.returncode, 0, result.stderr)
-        receipt = json.loads((self.target/'clone-receipt.json').read_text())
+        receipt = json.loads(payload_read_text(self.target/'clone-receipt.json'))
         self.assertEqual((receipt['uid'], receipt['gid'], receipt['mode']), (0, self.gid, '0o700'))
         self.assertEqual(receipt['parent_umask'], '0o77')
         self.assertEqual(receipt['ssh_stage_mode'], '0o700')
@@ -491,10 +497,10 @@ devops_install_codex_from_clone() {
         for forbidden in ('agent.sock', 'ssh_config', 'core.hooksPath', 'Fixture123', 'PRIVATE KEY'):
             self.assertNotIn(forbidden, receipt['config'])
         for required in ('StrictHostKeyChecking yes', 'ForwardAgent no', 'BatchMode yes',
-                         'IdentitiesOnly yes', 'IdentityFile /tmp/managed-git-ssh.Fixture123/public',
-                         'UserKnownHostsFile /etc/ssh/managed_git_known_hosts'):
+                         'IdentitiesOnly yes', 'IdentityFile /tmp/git-ssh.Fixture123/public',
+                         'UserKnownHostsFile /etc/ssh/git_known_hosts'):
             self.assertIn(required, receipt['ssh_config'])
-        self.assertTrue((self.target/'published/.git/HEAD').is_file())
+        self.assertTrue(payload_source_is_file(self.target/'published/.git/HEAD'))
         self.assertEqual(list((self.target/'tmp').iterdir()), [])
         self.assert_clean()
 
@@ -505,7 +511,7 @@ devops_install_codex_from_clone() {
         self.assertEqual(result.returncode, 0, result.stderr)
         # Execute the actual publication permission/copy block, but only inside
         # this disposable fixture. Never publish into the host /etc/codex.
-        text = DEVOPS.read_text()
+        text = payload_read_text(DEVOPS)
         start = text.index('codex_chmod_without_special_bits() {')
         end = text.index('\n}\n\ncodex_chmod_group_shared()', start) + 3
         normalizer = text[start:end]
@@ -516,20 +522,20 @@ devops_install_codex_from_clone() {
         config.mkdir(mode=0o700)
         script = ('set -eu\ncodex_fatal() { printf "%s\\n" "$*" >&2; exit 1; }\n'
                   + normalizer + '\n' + text[start:end] + '\n')
-        subprocess.run(['/bin/sh', '-c', script], check=True, capture_output=True,
+        subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]), check=True, capture_output=True,
                        env=dict(self.env, repository_staging=str(self.target/'published'),
                                 config_staging=str(config)), timeout=5)
         for name, mode in (('README', 0o644), ('nested', 0o755),
                            ('nested/settings', 0o644), ('tool', 0o755)):
             path = config/name
-            self.assertEqual((path.stat().st_uid, path.stat().st_gid,
-                              stat.S_IMODE(path.stat().st_mode)), (0, 0, mode), name)
+            self.assertEqual((payload_source_stat(path).st_uid, payload_source_stat(path).st_gid,
+                              stat.S_IMODE(payload_source_stat(path).st_mode)), (0, 0, mode), name)
         # Test effective access, not just root's reading of mode bits.
         self.root.chmod(0o755)
         nobody = pwd.getpwnam('nobody')
         for name in ('README', 'nested/settings', 'tool'):
             for flag, expected in (('-r', 0), ('-w', 1)):
-                access = subprocess.run(['/usr/bin/test', flag, str(config/name)],
+                access = subprocess.run(payload_installed_argv(['/usr/bin/test', flag, str(config/name)]),
                                         user=nobody.pw_uid, group=nobody.pw_gid,
                                         extra_groups=[], timeout=5)
                 self.assertEqual(access.returncode, expected, (name, flag))
@@ -541,16 +547,16 @@ devops_install_codex_from_clone() {
         result = self.run_guard('/data/codex/.home-clone.Test123/repository')
         self.assertEqual(result.returncode, 0, result.stderr)
         path = parent/'repository/etc/README'
-        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
-        self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o644)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(parent).st_mode), 0o700)
         for directory in (self.root, self.target, self.target/'data'):
             directory.chmod(0o755)
         nobody = pwd.getpwnam('nobody')
-        result = subprocess.run(['/usr/bin/test', '-r', str(path)],
+        result = subprocess.run(payload_installed_argv(['/usr/bin/test', '-r', str(path)]),
                                 user=nobody.pw_uid, group=nobody.pw_gid,
                                 extra_groups=[], timeout=5)
         self.assertEqual(result.returncode, 1)
-        self.assertEqual(stat.S_IMODE(self.codex.stat().st_mode), 0o3770)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.codex).st_mode), 0o3770)
 
     def load_helper(self):
         spec = importlib.util.spec_from_file_location('managed_clone_umask_fixture', HELPER)
@@ -568,7 +574,7 @@ devops_install_codex_from_clone() {
                 helper.checked([sys.executable, '-B', '-c',
                                 'import pathlib,sys;pathlib.Path(sys.argv[1]).write_text("fixture")',
                                 str(path)], **options)
-                self.assertEqual(stat.S_IMODE(path.stat().st_mode), mode)
+                self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), mode)
                 observed = os.umask(0o077)
                 self.assertEqual(observed, 0o077)
         finally:
@@ -592,9 +598,9 @@ devops_install_codex_from_clone() {
         result = self.run_allocator('real')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('git failed (status', result.stderr)
-        self.assertTrue((self.target/'transport-called').exists())
-        self.assertNotIn('publish:', self.record.read_text())
-        self.assertFalse((self.target/'published').exists())
+        self.assertTrue(payload_source_exists(self.target/'transport-called'))
+        self.assertNotIn('publish:', payload_read_text(self.record))
+        self.assertFalse(payload_source_exists(self.target/'published'))
         self.assertEqual(list((self.target/'tmp').iterdir()), [])
         self.assert_clean()
 
@@ -603,16 +609,16 @@ devops_install_codex_from_clone() {
         result = self.run_allocator('clone-fail-after-copy')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('fixture failure after clone', result.stderr)
-        self.assertTrue((self.target/'clone-receipt.json').exists())
-        self.assertNotIn('publish:', self.record.read_text())
-        self.assertFalse((self.target/'published').exists())
+        self.assertTrue(payload_source_exists(self.target/'clone-receipt.json'))
+        self.assertNotIn('publish:', payload_read_text(self.record))
+        self.assertFalse(payload_source_exists(self.target/'published'))
         self.assert_clean()
 
     def test_publisher_failure_preserves_failure_status_and_cleans(self):
         self.prepare_git_chroot()
         result = self.run_allocator('publisher-fail')
         self.assertEqual(result.returncode, 37, result.stderr)
-        self.assertFalse((self.target/'published').exists())
+        self.assertFalse(payload_source_exists(self.target/'published'))
         self.assert_clean()
 
     def test_validator_keeps_rejecting_unsafe_modes_including_inherited_setgid(self):
@@ -625,8 +631,8 @@ devops_install_codex_from_clone() {
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('unsafe Codex clone staging parent', result.stderr)
                 self.assertIn(f'mode={mode:04o}', result.stderr)
-                self.assertEqual(stat.S_IMODE(parent.stat().st_mode), mode)
-                self.assertFalse((self.target/'transport-called').exists())
+                self.assertEqual(stat.S_IMODE(payload_source_stat(parent).st_mode), mode)
+                self.assertFalse(payload_source_exists(self.target/'transport-called'))
 
     def test_validator_rejects_nonroot_parent(self):
         self.prepare_git_chroot()
@@ -635,7 +641,7 @@ devops_install_codex_from_clone() {
         result = self.run_guard('/data/codex/.home-clone.Test123/repository')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('uid=65534', result.stderr)
-        self.assertFalse((self.target/'transport-called').exists())
+        self.assertFalse(payload_source_exists(self.target/'transport-called'))
 
     def test_validator_rejects_symlink_parent_without_chmod_target(self):
         self.prepare_git_chroot()
@@ -645,9 +651,9 @@ devops_install_codex_from_clone() {
         result = self.run_guard('/data/codex/.home-clone.Test123/repository')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('directory=False', result.stderr)
-        self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(outside).st_mode), 0o700)
         self.assertEqual(list(outside.iterdir()), [])
-        self.assertFalse((self.target/'transport-called').exists())
+        self.assertFalse(payload_source_exists(self.target/'transport-called'))
 
     def test_validator_rejects_existing_checkout_or_dangling_symlink(self):
         self.prepare_git_chroot()
@@ -662,7 +668,7 @@ devops_install_codex_from_clone() {
                 result = self.run_guard('/data/codex/.home-clone.Test123/repository')
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('destination already exists', result.stderr)
-                self.assertFalse((self.target/'transport-called').exists())
+                self.assertFalse(payload_source_exists(self.target/'transport-called'))
                 if kind == 'directory':
                     destination.rmdir()
                 else:
@@ -676,7 +682,7 @@ devops_install_codex_from_clone() {
                 result = self.run_guard(path)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('unapproved Codex clone destination', result.stderr)
-                self.assertFalse((self.target/'transport-called').exists())
+                self.assertFalse(payload_source_exists(self.target/'transport-called'))
 
 
 if __name__ == '__main__':

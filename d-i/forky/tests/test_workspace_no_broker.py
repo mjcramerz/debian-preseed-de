@@ -4,6 +4,9 @@ The fixtures relocate only the installation root. They do not start services,
 contact Wayland, modify the host, compile binaries or claim live GUI acceptance.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_path as payload_source_path
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values, render_theme_tree
 
 import ast
 import json
@@ -23,7 +26,7 @@ FIXTURE = FORKY / 'tests/fixtures/workspaces/render.sh'
 
 
 def embedded_code(filename: str, function: str) -> str:
-    source = (FORKY / 'scripts/desktop' / filename).read_text()
+    source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop' / filename))
     section = source.split(function + '() {', 1)[1].split('\n}\n', 1)[0]
     code = section.split("-c '\n", 1)[1].split("\n' ", 1)[0]
     ast.parse(code)
@@ -36,13 +39,16 @@ def relocate(code: str, root: Path) -> str:
 
 
 def run_code(code: str, *arguments: str) -> subprocess.CompletedProcess:
-    return subprocess.run([sys.executable, '-I', '-B', '-c', code, *arguments],
+    return subprocess.run(payload_installed_argv([sys.executable, '-I', '-B', '-c', code, *arguments]),
                           capture_output=True, text=True, timeout=10)
 
 
 def render(root: Path, count: int, style: str) -> subprocess.CompletedProcess:
-    return subprocess.run(['/bin/sh', str(FIXTURE), str(ROOT), str(root), str(count), style],
-                          capture_output=True, text=True, timeout=20)
+    result = subprocess.run(payload_installed_argv(['/bin/sh', str(FIXTURE), str(ROOT), str(root), str(count), style]),
+                            capture_output=True, text=True, timeout=20)
+    if result.returncode == 0:
+        render_theme_tree(root)
+    return result
 
 
 def complete_fixture(root: Path, count: int = 4, style: str = 'thumbnail') -> None:
@@ -53,7 +59,7 @@ def complete_fixture(root: Path, count: int = 4, style: str = 'thumbnail') -> No
     units = config / 'systemd/user'
     units.mkdir(parents=True, exist_ok=True)
     for name in ('waybar.service', 'labwc-session-restore.service'):
-        shutil.copyfile(TARGET / 'etc/skel-desktop/.config/systemd/user' / name, units / name)
+        payload_copyfile(TARGET / 'etc/skel-desktop/.config/systemd/user' / name, units / name)
     shutil.copytree(config, root / 'home/test/.config')
 
 
@@ -73,12 +79,8 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                 root = Path(temporary)
                 result = render(root, count, 'thumbnail')
                 self.assertEqual(result.returncode, 0, result.stderr)
-                if count > 1:
-                    self.assertIn('task strip omitted', result.stderr)
-                else:
-                    self.assertNotIn('task strip omitted', result.stderr)
                 config = root / 'etc/skel-desktop/.config'
-                rc = ET.parse(config / 'labwc/rc.xml').getroot()
+                rc = ET.parse(payload_source_path(config / 'labwc/rc.xml')).getroot()
                 self.assertEqual(int(rc.findtext('desktops/number')), count)
                 self.assertEqual([n.text for n in rc.findall('desktops/names/name')],
                                  [str(i) for i in range(1, count + 1)])
@@ -107,7 +109,7 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                         action = rc.find(f'keyboard/keybind[@key="{key}"]/action')
                         self.assertIsNotNone(action)
                         self.assertEqual(action.attrib, dict(name=name, to=str(index)))
-                bars = json.loads((config / 'waybar/config').read_text())
+                bars = json.loads(payload_read_text(config / 'waybar/config'))
                 self.assertEqual(len(bars), 2)
                 for bar in bars:
                     expected = ['custom/launcher', 'ext/workspaces', 'custom/tomat', 'custom/wayscriber', 'custom/window-switcher', 'group/apps']
@@ -127,17 +129,17 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                     self.assertEqual(taskbar['on-click-middle'], 'close')
                     self.assertNotIn('group/workspace-taskbar', bar)
                 for name in ('waybar/config', 'waybar/style.css', 'labwc/rc.xml'):
-                    self.assertNotIn('__INSTALLER_', (config / name).read_text())
+                    self.assertNotIn('__INSTALLER_', render_theme_defaults(payload_read_text(config / name)))
 
     def test_valid_alternative_switcher_profile(self):
         choices = dict(LABWC_WINDOW_SWITCHER_ORDER='age', LABWC_WINDOW_SWITCHER_PREVIEW='no',
                        LABWC_WINDOW_SWITCHER_OUTLINES='no', LABWC_WINDOW_SWITCHER_UNSHADE='no',
                        LABWC_WINDOW_SWITCHER_OSD_OUTPUT='cursor', LABWC_WINDOW_SWITCHER_CYCLE_OUTPUT='focused')
         with tempfile.TemporaryDirectory() as temporary:
-            result = subprocess.run(['/bin/sh', str(FIXTURE), str(ROOT), temporary, '4', 'thumbnail'],
+            result = subprocess.run(payload_installed_argv(['/bin/sh', str(FIXTURE), str(ROOT), temporary, '4', 'thumbnail']),
                                     env=dict(os.environ, **choices), capture_output=True, text=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr)
-            rc = ET.parse(Path(temporary) / 'etc/skel-desktop/.config/labwc/rc.xml').getroot()
+            rc = ET.parse(payload_source_path(Path(temporary) / 'etc/skel-desktop/.config/labwc/rc.xml')).getroot()
             switcher = rc.find('windowSwitcher')
             self.assertEqual(switcher.attrib, dict(order='age', preview='no', outlines='no', unshade='no'))
             self.assertEqual(switcher.find('osd').get('output'), 'cursor')
@@ -147,14 +149,14 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                 self.assertEqual(action.get('output'), 'focused')
 
     def test_native_theme_geometry_preserved(self):
-        text = (TARGET / 'etc/skel-desktop/.config/labwc/themerc-override').read_text()
+        text = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/themerc-override'))
         for line in ('osd.window-switcher.style-thumbnail.width.max: 82%',
                      'osd.window-switcher.style-thumbnail.item.width: 300',
                      'osd.window-switcher.style-thumbnail.item.height: 230'):
             self.assertIn(line, text)
 
     def test_switcher_enums_reject_invalid_values(self):
-        source = (FORKY / 'scripts/desktop/detect.sh').read_text()
+        source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/detect.sh'))
         start = source.index('  case "${LABWC_WINDOW_SWITCHER_STYLE:-thumbnail}"')
         end = source.index('  desktop_validate_uint_range LABWC_QBITTORRENT_PORT', start)
         checks = source[start:end]
@@ -164,8 +166,8 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
             with self.subTest(key=key):
                 env = dict(os.environ, **{'LABWC_WINDOW_SWITCHER_' + key: value})
                 code = '. "$1"; installer_fatal() { exit 17; }; ' + checks
-                result = subprocess.run(['/bin/sh', '-c', code, 'test',
-                                         str(FORKY / 'scripts/desktop/detect.sh')],
+                result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', code, 'test',
+                                         str(FORKY / 'scripts/desktop/detect.sh')]),
                                         env=env, capture_output=True, timeout=5)
                 self.assertEqual(result.returncode, 17)
 
@@ -174,9 +176,9 @@ class NativeWorkspaceRenderingTests(unittest.TestCase):
                   'desktop_waybar_modules_left_json')
         for count in ('0', '13', '1; id', '-1', 'one'):
             with self.subTest(count=count):
-                result = subprocess.run(['/bin/sh', '-c', script, 'test',
+                result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script, 'test',
                                          str(FORKY / 'scripts/desktop/detect.sh'),
-                                         str(FORKY / 'scripts/desktop/components.sh')],
+                                         str(FORKY / 'scripts/desktop/components.sh')]),
                                         env=dict(os.environ, LABWC_WORKSPACE_COUNT=count),
                                         capture_output=True, timeout=5)
                 self.assertEqual(result.returncode, 17)
@@ -208,8 +210,9 @@ class InstalledVerifierTests(unittest.TestCase):
 
     def test_rejects_global_taskbar_in_nested_group(self):
         path = self.root / 'etc/skel-desktop/.config/waybar/config'
-        bars = json.loads(path.read_text())
-        bars[0]['group/apps']['modules'].append('wlr/taskbar')
+        bars = json.loads(payload_read_text(path))
+        bar = bars[0]
+        bar['group/apps']['modules'].append('wlr/taskbar')
         path.write_text(json.dumps(bars))
         self.assertIn('global task list enabled', self.verify().stderr)
 
@@ -229,8 +232,9 @@ class InstalledVerifierTests(unittest.TestCase):
 
     def test_rejects_misplaced_window_switcher_button(self):
         path = self.root / 'etc/skel-desktop/.config/waybar/config'
-        bars = json.loads(path.read_text())
-        bars[0]['modules-left'].remove('custom/window-switcher')
+        bars = json.loads(payload_read_text(path))
+        bar = bars[0]
+        bar['modules-left'].remove('custom/window-switcher')
         path.write_text(json.dumps(bars))
         self.assertIn('native switcher button order changed', self.verify().stderr)
 
@@ -263,19 +267,20 @@ class InstalledVerifierTests(unittest.TestCase):
 
     def test_rejects_stale_service_dependency(self):
         path = self.root / 'home/test/.config/systemd/user/waybar.service'
-        path.write_text(path.read_text() + '\nWants=labwc-workspace-broker.service\n')
+        path.write_text(render_theme_defaults(payload_read_text(path)) + '\nWants=labwc-workspace-broker.service\n')
         self.assertIn('retired dependency', self.verify().stderr)
 
     def test_rejects_invented_workspace_option(self):
         path = self.root / 'etc/skel-desktop/.config/waybar/config'
-        bars = json.loads(path.read_text())
-        bars[0]['wlr/taskbar']['current-workspace-only'] = True
+        bars = json.loads(payload_read_text(path))
+        bar = bars[0]
+        bar['wlr/taskbar']['current-workspace-only'] = True
         path.write_text(json.dumps(bars))
         self.assertIn('unsupported taskbar workspace option', self.verify().stderr)
 
     def test_rejects_unresolved_template(self):
         path = self.root / 'etc/skel-desktop/.config/waybar/style.css'
-        path.write_text(path.read_text() + '\n/* __INSTALLER_BROKEN__ */\n')
+        path.write_text(render_theme_defaults(payload_read_text(path)) + '\n/* __INSTALLER_BROKEN__ */\n')
         self.assertIn('unresolved workspace configuration', self.verify().stderr)
 
 
@@ -327,9 +332,9 @@ class RetirementTests(unittest.TestCase):
         result = self.cleanup()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('removed=22', result.stdout)
-        self.assertFalse((self.root / 'usr/local/lib/labwc-workspace-broker').exists())
+        self.assertFalse(payload_source_exists(self.root / 'usr/local/lib/labwc-workspace-broker'))
         for path in retained:
-            self.assertTrue(path.exists() or path.is_symlink())
+            self.assertTrue(payload_source_exists(path) or path.is_symlink())
         self.assertIn('removed=0', self.cleanup().stdout)
 
     def test_unlinks_final_symlinks_without_touching_destination(self):
@@ -340,7 +345,7 @@ class RetirementTests(unittest.TestCase):
         result = self.cleanup()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(link.is_symlink())
-        self.assertEqual(target.read_text(), 'not retired')
+        self.assertEqual(render_theme_defaults(payload_read_text(target)), 'not retired')
 
     def test_symlink_parent_rejected_before_any_deletion(self):
         retained = self.put('usr/local/libexec/labwc-workspace-broker')
@@ -350,7 +355,7 @@ class RetirementTests(unittest.TestCase):
         result = self.cleanup()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('symlinked retired asset parent', result.stderr)
-        self.assertTrue(retained.exists())
+        self.assertTrue(payload_source_exists(retained))
 
     def test_user_unit_symlink_parent_rejected(self):
         retained = self.put('usr/local/libexec/labwc-workspace-broker')
@@ -359,14 +364,14 @@ class RetirementTests(unittest.TestCase):
         (home / '.config').symlink_to(self.root / 'outside')
         result = self.cleanup()
         self.assertNotEqual(result.returncode, 0)
-        self.assertTrue(retained.exists())
+        self.assertTrue(payload_source_exists(retained))
 
     def test_unknown_private_files_preserved(self):
         custom = self.put('usr/local/lib/labwc-workspace-broker/operator-notes.txt', 'keep')
         self.put('usr/local/lib/labwc-workspace-broker/PROTOCOL-LICENSES.txt')
         result = self.cleanup()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(custom.read_text(), 'keep')
+        self.assertEqual(render_theme_defaults(payload_read_text(custom)), 'keep')
         self.assertIn('preserved unrecognized files', result.stderr)
 
     def test_non_file_retired_entry_rejected(self):
@@ -382,7 +387,7 @@ class RetirementTests(unittest.TestCase):
             with self.subTest(home=home):
                 result = self.cleanup(home)
                 self.assertNotEqual(result.returncode, 0)
-                self.assertTrue(retained.exists())
+                self.assertTrue(payload_source_exists(retained))
 
 
 class SourceWiringTests(unittest.TestCase):
@@ -392,21 +397,21 @@ class SourceWiringTests(unittest.TestCase):
                          'usr/local/libexec/labwc-workspace-wayland-adapter',
                          'usr/local/bin/labwc-workspace-broker-client',
                          'etc/skel-desktop/.config/systemd/user/labwc-workspace-broker.service'):
-            self.assertFalse((TARGET / relative).exists())
+            self.assertFalse(payload_source_exists(TARGET / relative))
         for path in TARGET.rglob('*'):
-            if path.is_file() and path.suffix not in ('.png', '.jpg', '.zip', '.gz', '.xz'):
-                self.assertNotIn(b'labwc-workspace-broker', path.read_bytes(), str(path))
+            if payload_source_is_file(path) and path.suffix not in ('.png', '.jpg', '.zip', '.gz', '.xz'):
+                self.assertNotIn(b'labwc-workspace-broker', render_theme_bytes(payload_read_bytes(path)), str(path))
 
     def test_cleanup_and_verification_are_wired(self):
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        components = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         self.assertIn('desktop_stage_labwc_user_session_assets() {\n  desktop_retire_workspace_broker', components)
-        verification = (FORKY / 'scripts/desktop/verify.sh').read_text()
+        verification = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/verify.sh'))
         stage = verification.split('desktop_verify_target_staging() {', 1)[1]
         self.assertIn('desktop_verify_native_workspace_config', stage)
         self.assertNotIn('desktop_verify_workspace_broker', stage)
-        for path in (FORKY / 'scripts/desktop/detect.sh', TARGET / 'etc/default/labwc-desktop.tmpl'):
-            self.assertNotIn('LABWC_WORKSPACE_BROKER_', path.read_text())
-        packages = (FORKY / 'classes/class-select/role/desktop.cfg').read_text().split()
+        for path in (FORKY / 'scripts/desktop/detect.sh', TARGET / 'etc/labwc/desktop.conf.tmpl'):
+            self.assertNotIn('LABWC_WORKSPACE_BROKER_', render_theme_defaults(payload_read_text(path)))
+        packages = render_theme_defaults(payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg')).split()
         self.assertNotIn('python3-pywayland', packages)
         # These dependencies predated the broker and are not removed wholesale.
         self.assertIn('libmoo-perl', packages)

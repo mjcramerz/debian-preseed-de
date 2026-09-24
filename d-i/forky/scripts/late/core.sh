@@ -60,8 +60,35 @@ fetch_env() {
   fetch_env_file "$1" "$2"
 }
 
+late_command_load_themes() {
+  if ! command -v installer_load_themes >/dev/null 2>&1; then
+    fetch_hook_file "$(installer_repo_join_var DIR_SCRIPTS_LATE themes.sh)" "$TMP_ENV_DIR/themes.sh" || return $?
+    # shellcheck disable=SC1090,SC1091
+    . "$TMP_ENV_DIR/themes.sh" || return $?
+  fi
+  installer_load_themes
+}
+
 fetch_hook() {
-  fetch_hook_file "$1" "$2"
+  fetch_hook_file "$1" "$2" || return $?
+  case "$1" in
+    *.png|*.jpg|*.jpeg|*.webp|*.gif|*.ico|*.ttf|*.otf|*.woff|*.woff2|*.gz|*.xz|*.bz2|*.zip|*.deb)
+      return 0 ;;
+  esac
+  case "$1" in
+    "${DIR_HOOKS_TARGET:-hooks/target}/"*|"${DIR_SCRIPTS_DESKTOP:-scripts/desktop}/"*|"${DIR_SCRIPTS_FIRSTBOOT:-scripts/firstboot}/"*)
+      if LC_ALL=C grep -q '__THEME_' "$2"; then
+        late_command_load_themes || return $?
+        installer_theme_render_file "$2" "$1" || return $?
+      else
+        theme_probe_status=$?
+        [ "$theme_probe_status" = 1 ] || {
+          installer_fatal "could not inspect fetched theme asset: $1"
+          return 1
+        }
+      fi
+      ;;
+  esac
 }
 
 fatal() {
@@ -141,6 +168,7 @@ late_command_load_profile_env() {
   # shellcheck disable=SC1090,SC1091
   . "$late_command_host_env" || return $?
   validate_installed_log_levels || return $?
+  late_command_load_themes || return $?
   LATE_COMMAND_PROFILE_ENV_LOADED=1
 }
 
@@ -261,7 +289,7 @@ install_target_runtime_defaults() {
   stage_target_iocost || return $?
 
   validate_installed_log_levels || return $?
-  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/default/system-runtime.tmpl)" /etc/default/system-runtime 0644 || return $?
+  render_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/system-runtime.conf.tmpl)" /etc/system-runtime.conf 0644 || return $?
   stage_target_asset \
     "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/logind.conf.d/override.conf)" \
     "${FILE_LOGIND_OVERRIDE_CONF}" \
@@ -288,7 +316,7 @@ install_target_wpa_supplicant_runtime_policy() {
     "${FILE_WPA_SUPPLICANT_DBUS_SERVICE_OVERRIDE}" \
     0644 || return $?
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/80-managed-link-privacy.conf)" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/NetworkManager/conf.d/80-link-privacy.conf)" \
     "${FILE_NETWORKMANAGER_LINK_PRIVACY_CONF}" \
     0644 || return $?
 
@@ -443,15 +471,19 @@ install_target_firstboot_logger() {
   : "${DIR_FIRSTBOOT_LOG:?DIR_FIRSTBOOT_LOG must be set}"
   : "${DIR_FIRSTBOOT_STATE:?DIR_FIRSTBOOT_STATE must be set}"
   : "${DIR_INSTALL_LOG:?DIR_INSTALL_LOG must be set}"
-  : "${DIR_INITRAMFS_LOG:?DIR_INITRAMFS_LOG must be set}"
+  : "${LOG_INITRAMFS_DIR:?LOG_INITRAMFS_DIR must be set}"
 
   # Finish-install normalizes every active source after vendor setup.
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/local-apt-normalize-sources)" \
-    /usr/local/libexec/local-apt-normalize-sources 0755
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/apt-repo-local-normalize-sources)" \
+    /usr/local/libexec/apt-repo-local-normalize-sources 0755
 
   # Shared by system and desktop command wrappers on every storage family.
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm)" \
-    /usr/local/lib/perl5/site_perl/managed-runtime/Managed/Process.pm 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/lib/perl5/site_perl/runtime/Managed/Process.pm)" \
+    /usr/local/lib/perl5/site_perl/runtime/Managed/Process.pm 0644
+  # Staged across the first reboot only; secondboot removes this entire surface.
+  install -d -m 0700 /target/var/lib/firstboot /target/var/lib/firstboot/bin
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/apparmor.d/firstboot)" \
+    /etc/apparmor.d/firstboot 0644
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT firstboot.sh)" "${FILE_FIRSTBOOT_HELPER}" 0755
   install -d -m 0755 "/target${DIR_FIRSTBOOT_LIB}"
   stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT logging.sh)" "${DIR_FIRSTBOOT_LIB}/logging.sh" 0644
@@ -465,21 +497,23 @@ install_target_firstboot_logger() {
     stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT "${firstboot_stage}")" "${DIR_FIRSTBOOT_LIB}/${firstboot_stage}" 0755
   done
   unset firstboot_stage
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT import-initramfs.py)" \
+    "${DIR_FIRSTBOOT_LIB}/import-initramfs.py" 0644
 
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/installer-health-common)" "${FILE_INITRAMFS_HEALTH_COMMON}" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/init-top/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_TOP}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/init-premount/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_PREMOUNT}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/local-top/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_TOP}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/local-block/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_BLOCK}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/local-premount/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_PREMOUNT}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/local-bottom/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_BOTTOM}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/initramfs-tools/scripts/init-bottom/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_BOTTOM}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/firstboot.service)" "${FILE_FIRSTBOOT_SERVICE}" 0644
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/secondboot-cleanup)" "${FILE_SECONDBOOT_HELPER}" 0755
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/secondboot.service)" "${FILE_SECONDBOOT_SERVICE}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/installer-health-common)" "${FILE_INITRAMFS_HEALTH_COMMON}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/init-top/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_TOP}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/init-premount/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_PREMOUNT}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/local-top/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_TOP}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/local-block/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_BLOCK}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/local-premount/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_PREMOUNT}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/local-bottom/90-installer-health)" "${FILE_INITRAMFS_HEALTH_LOCAL_BOTTOM}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/initramfs-tools/scripts/init-bottom/90-installer-health)" "${FILE_INITRAMFS_HEALTH_INIT_BOTTOM}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/firstboot.service)" "${FILE_FIRSTBOOT_SERVICE}" 0644
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/var/lib/firstboot/bin/secondboot-cleanup)" "${FILE_SECONDBOOT_HELPER}" 0755
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_FIRSTBOOT assets/etc/systemd/system/secondboot.service)" "${FILE_SECONDBOOT_SERVICE}" 0644
 
   install -d -m 0700 \
-    "/target${DIR_INITRAMFS_LOG}" \
+    "/target${LOG_INITRAMFS_DIR}" \
     "/target${DIR_FIRSTBOOT_LOG}" \
     "/target${DIR_FIRSTBOOT_STATE}"
   if installer_logging_enabled; then
@@ -505,7 +539,7 @@ configure_target_nvidia_power_management() (
   if [ "$enabled" != true ]; then
     # Remove only our managed target assets, never installer /etc or vendor units.
     for phase in suspend suspend-then-hibernate hibernate resume; do
-      remove_target_asset "/etc/systemd/system/nvidia-${phase}.service.d/20-managed-vram.conf"
+      remove_target_asset "/etc/systemd/system/nvidia-${phase}.service.d/20-vram.conf"
     done
     for mode in suspend suspend-then-hibernate hibernate hybrid-sleep; do
       remove_target_asset "/etc/systemd/system/systemd-${mode}.service.d/20-nvidia-preserve.conf"
@@ -517,8 +551,8 @@ configure_target_nvidia_power_management() (
   stage_target_asset "${gpu_root}/usr/local/libexec/nvidia-vram-check" /usr/local/libexec/nvidia-vram-check 0755
   stage_target_asset "${gpu_root}/etc/tmpfiles.d/70-nvidia-vram.conf" /etc/tmpfiles.d/70-nvidia-vram.conf 0644
   for phase in suspend suspend-then-hibernate hibernate resume; do
-    stage_target_asset "${gpu_root}/etc/systemd/system/nvidia-${phase}.service.d/20-managed-vram.conf" \
-      "/etc/systemd/system/nvidia-${phase}.service.d/20-managed-vram.conf" 0644
+    stage_target_asset "${gpu_root}/etc/systemd/system/nvidia-${phase}.service.d/20-vram.conf" \
+      "/etc/systemd/system/nvidia-${phase}.service.d/20-vram.conf" 0644
   done
   for mode in suspend suspend-then-hibernate hibernate hybrid-sleep; do
     stage_target_asset "${gpu_root}/etc/systemd/system/systemd-${mode}.service.d/20-nvidia-preserve.conf"       "/etc/systemd/system/systemd-${mode}.service.d/20-nvidia-preserve.conf" 0644

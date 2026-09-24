@@ -1,0 +1,17 @@
+# Managed by unattended-installer for addon/devops.
+# Codex keeps both files open, so preserve the inode with copytruncate.
+__INSTALLER_LOG_CODEX_LOGIN_FILE__
+__INSTALLER_LOG_CODEX_TUI_FILE__
+{
+	daily
+	rotate __INSTALLER_LOG_ROTATE_COUNT__
+	maxage __INSTALLER_LOG_ROTATE_MAXAGE_DAYS__
+	maxsize __INSTALLER_LOG_PRIVATE_MODEL_MAXSIZE_MIB__M
+	missingok
+	notifempty
+	compress
+	delaycompress
+	copytruncate
+	create 0660 __INSTALLER_ACCOUNT_USERNAME__ devops
+	su __INSTALLER_ACCOUNT_USERNAME__ devops
+}

@@ -130,7 +130,8 @@ class PackageLocks:
 
 
 def status(message: str) -> None:
-    """Best-effort journal-visible service status, never an authorization gate."""
+    """Record the power stage and notify PID 1; neither is an authorization gate."""
+    print(message.replace("\n", " "), file=sys.stderr, flush=True)
     address = os.environ.get("NOTIFY_SOCKET", "")
     if not address or address[0] not in "/@":
         return
@@ -269,6 +270,9 @@ def run(argv: list[str], *, timeout: float = 25, accepted: tuple[int, ...] = (0,
             communicated = True
         except subprocess.TimeoutExpired:
             raise Error(f"{Path(argv[0]).name} timed out after {timeout}s") from None
+        if error:
+            # stderr is diagnostic, unlike stdout carrying parsed D-Bus/API data.
+            print(error.rstrip()[:16_384], file=sys.stderr, flush=True)
         if proc.returncode not in accepted:
             raise Error(f"{Path(argv[0]).name} exited {proc.returncode}: {error.strip()[:1000]}")
         return output
@@ -591,7 +595,7 @@ class Worker:
                  f"user-{self.uid}.slice"], timeout=5))
             if self.wait_for_exit(grace):
                 return
-        raise Error("user slice did not stop; inspect the power-worker journal")
+        raise Error("user slice did not stop; inspect the power action log")
 
     def desktop_members(self) -> set[str]:
         text = self.userctl("show", DESKTOP_TARGET, "--property=ConsistsOf", "--value", timeout=10)
@@ -673,7 +677,7 @@ class Worker:
         if self.action not in {"reboot", "poweroff"} or not (self.quiesced or self.greeter):
             raise Error("runtime teardown requires a prepared machine power action")
         if self.runtime_teardown_started:
-            raise Error("runtime teardown may run only once; inspect the worker journal")
+            raise Error("runtime teardown may run only once; inspect the power action log")
         self.require_package_reservation()
         self.protect_other_sessions()
         check_shutdown_inhibitors()
@@ -729,6 +733,9 @@ class Worker:
         self.handoff_attempted = True
         print(f"power handoff: systemctl --force {self.action}; runtime stop verified",
               file=sys.stderr, flush=True)
+        # stdout/stderr are opened by PID 1 directly in the per-request power
+        # log. Do not replay/export the journal or delay handoff for a snapshot.
+        self.require_package_reservation()
         # Exactly ONE --force contacts PID 1; two would bypass its final
         # process/filesystem teardown. No target is started as an intermediate
         # barrier. All remaining requests go directly to PID 1; the user
@@ -845,7 +852,7 @@ def main(argv: list[str]) -> int:
                     except (Error, OSError, subprocess.SubprocessError):
                         pass
             # Never resurrect a user manager or claim a save-dialog cancellation
-            # after destructive teardown. PID 1's journal retains the real error.
+            # after destructive teardown. The native power action log retains the real error.
             raise
     return 0
 

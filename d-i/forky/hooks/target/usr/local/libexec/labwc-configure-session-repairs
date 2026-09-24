@@ -69,7 +69,7 @@ def retire_colour_assets(account):
         '/usr/local/share/applications/gammastep-indicator.desktop',
         '/usr/local/share/applications/gammastep.desktop',
         '/etc/gammastep/config.ini',
-        '/etc/geoclue/conf.d/90-managed-gammastep.conf',
+        '/etc/geoclue/conf.d/90-gammastep.conf',
     ):
         remove(Path(name))
     home = Path(account.pw_dir)
@@ -207,7 +207,7 @@ def main():
         text = stream.read(65537)
     if len(text) > 65536:
         raise RuntimeError('oversized sudo-i PAM configuration')
-    line = 'session optional pam_env.so conffile=/etc/security/managed-sudo-i.conf readenv=0 user_readenv=0'
+    line = 'session optional pam_env.so conffile=/etc/security/sudo-i.conf readenv=0 user_readenv=0'
     if line not in text.splitlines():
         pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
         if len(re.findall(pattern, text)) != 1:

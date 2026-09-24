@@ -1,0 +1,671 @@
+#!/bin/sh
+set -eu
+
+MENU_FAILURE_STATUS=2
+
+# Management child pickers reuse their existing data protocol in a controlling
+# terminal. Application search and ordinary graphical menus never opt in.
+if [ "${LABWC_MENU_BACKEND:-fuzzel}" = fzf ]; then
+  case "${1:-}" in
+    computer-management)
+      shift
+      exec /usr/local/bin/labwc-fzf-menu menu "$@"
+      ;;
+    menu|--dmenu|--dmenu0)
+      exec /usr/local/bin/labwc-fzf-menu "$@"
+      ;;
+  esac
+fi
+
+fatal() {
+  fatal_message=$*
+  fatal_log_scope=${managed_log_scope:-${LABWC_FUZZEL_LOG_SCOPE:-desktop}}
+  if [ -x /usr/local/bin/labwc-fuzzel-log ]; then
+    /usr/local/bin/labwc-fuzzel-log \
+      action \
+      launcher-failed \
+      "source=${fatal_log_scope}" \
+      "detail=${fatal_message}" \
+      "status=${MENU_FAILURE_STATUS}" || true
+  fi
+  printf 'fatal: %s\n' "$*" >&2
+  exit "$MENU_FAILURE_STATUS"
+}
+
+if [ -r /etc/labwc/desktop.conf ]; then
+  # shellcheck disable=SC1091
+  . /etc/labwc/desktop.conf
+fi
+
+[ -x /usr/bin/fuzzel ] || {
+  fatal 'fuzzel is not installed'
+}
+[ -x /usr/bin/flock ] || {
+  fatal '/usr/bin/flock is required to serialize Fuzzel launchers'
+}
+
+config_root=${XDG_CONFIG_HOME:-${HOME}/.config}
+fuzzel_config_dir="${config_root}/fuzzel"
+mode=launcher
+config_mode=launcher
+managed_icons=${LABWC_FUZZEL_MANAGED_ICONS:-0}
+managed_root_menu=${LABWC_FUZZEL_ROOT_MENU:-0}
+managed_log_scope=${LABWC_FUZZEL_LOG_SCOPE:-desktop}
+managed_palette=${LABWC_FUZZEL_PALETTE:-desktop}
+internal_output_prefixes=${LABWC_OUTPUT_INTERNAL_PREFIXES:?missing installed output classification policy}
+
+require_uint_range() {
+  setting_name=$1 setting_value=$2 minimum=$3 maximum=$4
+  case "$setting_value" in
+    ''|*[!0-9]*|0[0-9]*) fatal "$setting_name must be a canonical decimal integer" ;;
+  esac
+  [ "${#setting_value}" -le 3 ] || fatal "$setting_name exceeds its numeric budget"
+  if [ "$setting_value" -lt "$minimum" ] || [ "$setting_value" -gt "$maximum" ]; then
+    fatal "$setting_name must be an integer from $minimum to $maximum"
+  fi
+}
+
+validate_output_name() {
+  [ "${#1}" -le 128 ] || fatal 'Fuzzel output name exceeds 128 characters'
+  case "$1" in
+    ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-]*|[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789]*)
+      fatal 'Fuzzel output name contains unsupported characters' ;;
+  esac
+}
+
+fuzzel_output_is_internal() {
+  for internal_prefix in $internal_output_prefixes; do
+    case "$1" in
+      "${internal_prefix}"-*|"${internal_prefix}"[0-9]*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# The same installed policy is used by output detection and native Waybar.
+# Validate before word splitting; malformed policy must not expand local globs.
+case "$internal_output_prefixes" in
+  ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._\ -]*)
+    fatal 'invalid installed internal output classification policy' ;;
+esac
+prefix_count=0
+for internal_prefix in $internal_output_prefixes; do
+  prefix_count=$((prefix_count + 1))
+  validate_output_name "$internal_prefix"
+  [ "${#internal_prefix}" -le 32 ] || fatal 'internal output prefix exceeds 32 characters'
+done
+[ "$prefix_count" -gt 0 ] || fatal "internal output prefix policy must not be blank"
+case "$managed_icons:$managed_root_menu" in
+  0:0|0:1|1:0|1:1) ;;
+  *) fatal 'Fuzzel managed-icons and root-menu flags must be 0 or 1' ;;
+esac
+case "$managed_log_scope" in
+  desktop|computer-management|android-debug-bridge) ;;
+  *) fatal 'LABWC_FUZZEL_LOG_SCOPE is invalid' ;;
+esac
+case "$managed_palette" in
+  desktop|computer-management) ;;
+  *) fatal "invalid Fuzzel palette context" ;;
+esac
+case "${1:-}" in
+  launcher|menu|computer-management) config_mode=$1; shift ;;
+esac
+[ "$config_mode" = launcher ] || mode=menu
+
+# Rotate positional parameters, preserving argument boundaries without eval,
+# a shell command string, temporary argv files, or interpreting option values
+# as options. Output belongs to this wrapper; all other native options below
+# retain their order. Geometry/configuration are exclusively profile-owned.
+have_output=false
+fuzzel_output=
+managed_prompt=
+nul_delimited=false
+remaining=$#
+while [ "$remaining" -gt 0 ]; do
+  arg=$1; shift; remaining=$((remaining - 1))
+  case "$arg" in
+    --output|-o|--output=*|-o?*)
+      [ "$have_output" = false ] || fatal 'Fuzzel output may be specified only once'
+      have_output=true
+      case "$arg" in
+        --output|-o)
+          [ "$remaining" -gt 0 ] || fatal 'Fuzzel output option requires a value'
+          fuzzel_output=$1; shift; remaining=$((remaining - 1)) ;;
+        --output=*) fuzzel_output=${arg#--output=} ;;
+        -o?*) fuzzel_output=${arg#-o} ;;
+      esac
+      validate_output_name "$fuzzel_output"
+      continue ;;
+    --config|--config=*|-c|-c?*|--font|--font=*|-f|-f?*|--dpi-aware|--dpi-aware=*|-D|-D?*|\
+    --width|--width=*|-w|-w?*|--lines|--lines=*|-l|-l?*|\
+    --horizontal-pad|--horizontal-pad=*|-x|-x?*|--vertical-pad|--vertical-pad=*|-y|-y?*|\
+    --inner-pad|--inner-pad=*|-P|-P?*|--line-height|--line-height=*|\
+    --border-width|--border-width=*|-B|-B?*|--border-radius|--border-radius=*|-r|-r?*)
+      fatal 'Fuzzel configuration and geometry are selected by the installed profile' ;;
+    --dmenu|-d) mode=menu ;;
+    --dmenu0) mode=menu; nul_delimited=true ;;
+    --prompt|--prompt-only|-p|--cache|--placeholder|--search|--icon-theme|--fields|-F|\
+    --terminal|-T|--anchor|-a|--x-margin|--y-margin|--select|--select-index|--tabs|\
+    --background|-b|--text-color|-t|--prompt-color|--placeholder-color|--input-color|\
+    --match-color|-m|--selection-color|-s|--selection-text-color|-S|--selection-match-color|-M|\
+    --counter-color|--border-color|-C|--match-mode|--fuzzy-min-length|\
+    --fuzzy-max-length-discrepancy|--fuzzy-max-distance|--letter-spacing|--layer|\
+    --keyboard-focus|--launch-prefix|--render-workers|--match-workers|--delayed-filter-ms|\
+    --delayed-filter-limit|--with-nth|--accept-nth|--log-level)
+      [ "$remaining" -gt 0 ] || fatal "Fuzzel option requires a value: $arg"
+      arg_value=$1; shift; remaining=$((remaining - 1))
+      case "$arg" in --prompt|--prompt-only|-p) managed_prompt=$arg_value ;; esac
+      set -- "$@" "$arg" "$arg_value"
+      continue ;;
+    --prompt=*|--prompt-only=*) managed_prompt=${arg#*=} ;;
+    -p?*) managed_prompt=${arg#-p} ;;
+    --cache=*|--placeholder=*|--search=*|--icon-theme=*|--fields=*|--terminal=*|--anchor=*|\
+    --x-margin=*|--y-margin=*|--select=*|--select-index=*|--tabs=*|--background=*|\
+    --text-color=*|--prompt-color=*|--placeholder-color=*|--input-color=*|--match-color=*|\
+    --selection-color=*|--selection-text-color=*|--selection-match-color=*|--counter-color=*|\
+    --border-color=*|--match-mode=*|--fuzzy-min-length=*|--fuzzy-max-length-discrepancy=*|\
+    --fuzzy-max-distance=*|--letter-spacing=*|--layer=*|--keyboard-focus=*|--launch-prefix=*|\
+    --render-workers=*|--match-workers=*|--delayed-filter-ms=*|--delayed-filter-limit=*|\
+    --with-nth=*|--accept-nth=*|--log-level=*|--password|--password=*|\
+    --filter-desktop|--filter-desktop=*|--log-colorize|--log-colorize=*|\
+    --check-config|--use-bold|-i|-I|--no-icons|--hide-before-typing|--show-actions|\
+    --no-sort|--counter|--no-exit-on-keyboard-focus-loss|--list-executables-in-path|\
+    --index|-R|--no-run-if-empty|--log-no-syslog|-v|--version|-h|--help) ;;
+    *) fatal "unsupported Fuzzel argument" ;;
+  esac
+  set -- "$@" "$arg"
+done
+
+if [ "$have_output" = false ] && [ -n "${WAYBAR_OUTPUT_NAME:-}" ]; then
+  fuzzel_output=$WAYBAR_OUTPUT_NAME
+  validate_output_name "$fuzzel_output"
+fi
+# Unknown means unknown: no invented connector, and no external-class fallback.
+output_class=DEFAULT
+if [ -n "$fuzzel_output" ]; then
+  output_class=EXTERNAL
+  if fuzzel_output_is_internal "$fuzzel_output"; then output_class=INTERNAL; fi
+  set -- "$@" "--output=${fuzzel_output}"
+fi
+
+if [ "$mode" = menu ]; then
+  [ "$config_mode" != launcher ] || config_mode=menu
+  # Child pickers inherit palette separately from their logging scope.
+  # Management reuses MENU geometry, never another family of dimensions.
+  if [ "$managed_palette" = computer-management ]; then config_mode=computer-management; fi
+  geometry_mode=MENU
+else
+  geometry_mode=LAUNCHER
+fi
+case "$config_mode" in
+  launcher) config_name=fuzzel.ini ;;
+  menu) config_name=menu.ini ;;
+  computer-management) config_name=computer-management.ini ;;
+esac
+[ -r "${fuzzel_config_dir}/${config_name}" ] || fatal "missing Fuzzel configuration: $config_name"
+
+# Only these fixed keys and the closed class/mode enums are used in variable
+# indirection. Values are never evaluated as shell input. Point-valued line
+# height, like :size fonts, remains DPI aware (unlike a fixed px height).
+for geometry_spec in FONT_SIZE:8:32 HORIZONTAL_PADDING:0:64 VERTICAL_PADDING:0:64 \
+    INNER_PADDING:0:64 LINE_HEIGHT:8:64 BORDER_WIDTH:0:32 BORDER_RADIUS:0:128 \
+    WIDTH:20:200 LINES:4:40; do
+  geometry_key=${geometry_spec%%:*}
+  geometry_bounds=${geometry_spec#*:}
+  case "$geometry_key" in
+    WIDTH|LINES) geometry_name="FUZZEL_${geometry_mode}_${output_class}_${geometry_key}" ;;
+    *) geometry_name="FUZZEL_${output_class}_${geometry_key}" ;;
+  esac
+  eval "geometry_value=\${${geometry_name}-}"
+  require_uint_range "$geometry_name" "$geometry_value" "${geometry_bounds%%:*}" "${geometry_bounds#*:}"
+  # Assignment expansion does not re-evaluate the expanded value as shell code.
+  eval "selected_${geometry_key}=\$geometry_value"
+done
+fuzzel_font="__THEME_FUZZEL_MENU_TEXT_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_EMOJI_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_ICON_FONT_FAMILY__:size=${selected_FONT_SIZE},__THEME_FUZZEL_MENU_NERD_FONT_FAMILY__:size=${selected_FONT_SIZE}"
+set -- "--config=${fuzzel_config_dir}/${config_name}" "--font=${fuzzel_font}" \
+  "--width=${selected_WIDTH}" "--lines=${selected_LINES}" \
+  "--horizontal-pad=${selected_HORIZONTAL_PADDING}" "--vertical-pad=${selected_VERTICAL_PADDING}" \
+  "--inner-pad=${selected_INNER_PADDING}" "--line-height=${selected_LINE_HEIGHT}" \
+  "--border-width=${selected_BORDER_WIDTH}" "--border-radius=${selected_BORDER_RADIUS}" "$@"
+
+runtime_root=${XDG_RUNTIME_DIR:-}
+case "$runtime_root" in
+  /*) ;;
+  *)
+    fatal 'XDG_RUNTIME_DIR must name an absolute Fuzzel runtime directory'
+    ;;
+esac
+[ -d "$runtime_root" ] && [ -w "$runtime_root" ] || {
+  fatal "Fuzzel runtime directory is unavailable: $runtime_root"
+}
+
+lock_path="${runtime_root%/}/labwc-fuzzel.lock"
+pid_path="${runtime_root%/}/labwc-fuzzel.pid"
+exec 8>"$lock_path"
+if ! /usr/bin/flock -w 5 8; then
+  fatal 'unable to acquire the Fuzzel launcher lock within five seconds'
+fi
+
+fuzzel_pid=
+managed_dir=
+raw_choices=
+display_choices=
+selection_file=
+first_selection=
+
+cleanup() {
+  if [ -n "$fuzzel_pid" ]; then
+    kill -TERM "$fuzzel_pid" >/dev/null 2>&1 || true
+    wait "$fuzzel_pid" 2>/dev/null || true
+    fuzzel_pid=
+  fi
+  rm -f -- "$pid_path"
+  if [ -n "$managed_dir" ]; then
+    rm -f -- "$raw_choices" "$display_choices" "$selection_file" "$first_selection"
+    rmdir -- "$managed_dir" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+run_fuzzel() {
+  exec 7<&0
+  /usr/bin/fuzzel "$@" <&7 >&1 2>&2 7<&- 8>&- &
+  fuzzel_pid=$!
+  exec 7<&-
+  printf '%s\n' "$fuzzel_pid" >"$pid_path"
+  if wait "$fuzzel_pid"; then
+    fuzzel_status=0
+  else
+    fuzzel_status=$?
+  fi
+  fuzzel_pid=
+  rm -f -- "$pid_path"
+  # Fuzzel uses 2 for dmenu cancellation and 1 for an error.
+  # Keep the picker API (0 selection, 1 cancel, 2 failure) stable;
+  # never conflate a configuration/Wayland error with a cancelled selection.
+  if [ "$mode" = menu ]; then
+    case "$fuzzel_status" in
+      2) fuzzel_status=1 ;;
+      1) fuzzel_status=$MENU_FAILURE_STATUS ;;
+    esac
+  fi
+  return "$fuzzel_status"
+}
+
+log_managed_menu_selection() {
+  selection_kind=$1
+  selection_value=$2
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  case "$selection_value" in
+    '⮞ '*) selection_value=${selection_value#'⮞ '} ;;
+    ' '*) selection_value=${selection_value#' '} ;;
+  esac
+  if ! /usr/local/bin/labwc-fuzzel-log \
+      menu \
+      selected \
+      "source=$managed_log_scope" \
+      "kind=$selection_kind" \
+      "selection=$selection_value" \
+      >/dev/null
+  then
+    :
+  fi
+}
+
+log_fuzzel_lifecycle() {
+  lifecycle_kind=$1
+  lifecycle_event=$2
+  lifecycle_status=$3
+
+  [ -x /usr/local/bin/labwc-fuzzel-log ] || return 0
+  /usr/local/bin/labwc-fuzzel-log \
+    "$lifecycle_kind" \
+    "$lifecycle_event" \
+    "source=$managed_log_scope" \
+    "mode=$mode" \
+    "status=$lifecycle_status" \
+    >/dev/null || true
+}
+
+if [ "$mode" != menu ] ||
+   [ "$managed_icons" != 1 ] ||
+   [ "$nul_delimited" = true ]; then
+  case "$mode" in
+    menu) lifecycle_kind=menu ;;
+    *) lifecycle_kind=action ;;
+  esac
+  log_fuzzel_lifecycle "$lifecycle_kind" opened 0
+  if run_fuzzel "$@"; then
+    fuzzel_status=0
+  else
+    fuzzel_status=$?
+  fi
+  log_fuzzel_lifecycle "$lifecycle_kind" completed "$fuzzel_status"
+  exit "$fuzzel_status"
+fi
+
+umask 077
+managed_dir=$(mktemp -d "${runtime_root%/}/labwc-fuzzel-menu.XXXXXX") || {
+  fatal 'unable to create managed Fuzzel runtime directory'
+}
+raw_choices="${managed_dir}/raw"
+display_choices="${managed_dir}/display"
+selection_file="${managed_dir}/selection"
+first_selection="${managed_dir}/selection.first"
+
+if ! LC_ALL=C awk '
+  {
+    input_bytes += length($0) + 1
+    if (index($0, sprintf("%c", 0)) || index($0, sprintf("%c", 31)) || index($0, "\r")) exit 1
+    if (NR > 1024 || length($0) > 4096 || input_bytes > 1048576) {
+      exit 1
+    }
+    print
+  }
+' >"$raw_choices"; then
+  fatal 'managed Fuzzel input exceeds bounds or contains protocol controls'
+fi
+
+awk -v root_menu="$managed_root_menu" -v menu_prompt="$managed_prompt" '
+function icon_for(label) {
+  if (label == "System & Recovery") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SYSTEM_RECOVERY_ICON_NAME__"
+  if (label == "Network & Remote") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_NETWORK_REMOTE_ICON_NAME__"
+  if (label == "Security & Accounts") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_SECURITY_ACCOUNTS_ICON_NAME__"
+  if (label == "Devices & Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_DEVICES_DESKTOP_ICON_NAME__"
+  if (label == "Containers & AI") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_CONTAINERS_AI_ICON_NAME__"
+  if (label == "Files & Documents") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_CATEGORY_FILES_DOCUMENTS_ICON_NAME__"
+  if (label == "Maintenance & Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MAINTENANCE_HEALTH_ICON_NAME__"
+  if (label == "Recovery & Repair") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RECOVERY_REPAIR_ICON_NAME__"
+  if (label == "Protection & Firewall") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PROTECTION_FIREWALL_ICON_NAME__"
+  if (label == "Users & Groups") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_USERS_GROUPS_ICON_NAME__"
+  if (label == "Connection Profiles") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONNECTION_PROFILES_ICON_NAME__"
+  if (label == "VPN Connections") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_VPN_CONNECTIONS_ICON_NAME__"
+  if (label == "WireGuard Connections") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_WIREGUARD_CONNECTIONS_ICON_NAME__"
+  if (label == "DNS Configuration") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DNS_CONFIGURATION_ICON_NAME__"
+  if (label == "Network Discovery") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DISCOVERY_ICON_NAME__"
+  if (label == "Remote Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REMOTE_DESKTOP_ICON_NAME__"
+  if (label == "Displays & Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISPLAYS_LAYOUT_ICON_NAME__"
+  if (label == "Refresh Display Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_REFRESH_DISPLAY_LAYOUT_ICON_NAME__"
+  if (label == "Power Profile") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_POWER_PROFILE_ICON_NAME__"
+  if (label == "Hardware Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_HARDWARE_TUNING_ICON_NAME__"
+  if (label == "Set Single Tuning Profile") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_SINGLE_TUNING_PROFILE_ICON_NAME__"
+  if (label == "Generate Hardware Tuning Report") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_HARDWARE_TUNING_REPORT_ICON_NAME__"
+  if (label == "Start Automatic Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_START_AUTOMATIC_TUNING_ICON_NAME__"
+  if (label == "Stop Automatic Tuning") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STOP_AUTOMATIC_TUNING_ICON_NAME__"
+  if (label == "Enable Autostart Tuning at Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
+  if (label == "Disable Autostart Tuning at Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_AUTOSTART_TUNING_AT_BOOT_ICON_NAME__"
+  if (label == "Reset Hardware Tuning" || label == "Reset Profiles [All]") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESET_HARDWARE_TUNING_ICON_NAME__"
+  if (label ~ /^Set Performance Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
+  if (label ~ /^Set High Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
+  if (label ~ /^Set Balanced Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
+  if (label ~ /^Set Silent Profile \[(Intel|Nvidia)\]$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BATTERY_ICON_NAME__"
+  if (label == "Cancel - leave power policy unchanged") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_POWER_POLICY_ICON_NAME__"
+  if (label == "Confirm: stop, disable and mask PPD; start tuning now and at boot" ||
+      label == "Confirm: stop PPD and block its restart until tuning is stopped") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONFIRM_POWER_POLICY_ICON_NAME__"
+  if (label == "Keyboard Layout") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KEYBOARD_LAYOUT_ICON_NAME__"
+  if (label == "Audio Control") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_CONTROL_ICON_NAME__"
+  if (label == "Restart Dock") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_RESTART_DOCK_ICON_NAME__"
+  if (label == "Android Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ANDROID_DEVICES_ICON_NAME__"
+  if (label == "Bluetooth Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BLUETOOTH_DEVICES_ICON_NAME__"
+  if (label == "Brightness") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BRIGHTNESS_ICON_NAME__"
+  if (label == "Containers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONTAINERS_ICON_NAME__"
+  if (label == "AI & Copilots") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AI_COPILOTS_ICON_NAME__"
+  if (label == "Documents & Media") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCUMENTS_MEDIA_ICON_NAME__"
+  if (label == "Drives & Backups") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DRIVES_BACKUPS_ICON_NAME__"
+  if (label == "Overview & Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OVERVIEW_HEALTH_ICON_NAME__"
+  if (label == "Services & Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SERVICES_LOGS_ICON_NAME__"
+  if (label == "Packages & Firmware") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_FIRMWARE_ICON_NAME__"
+  if (label == "Storage & Filesystems") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_STORAGE_FILESYSTEMS_ICON_NAME__"
+  if (label == "Audio & Desktop") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AUDIO_DESKTOP_ICON_NAME__"
+  if (label == "Network & DNS") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NETWORK_DNS_ICON_NAME__"
+  if (label == "Desktop & Services") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DESKTOP_SERVICES_ICON_NAME__"
+  if (label == "Packages & Boot") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PACKAGES_BOOT_ICON_NAME__"
+  if (label == "Snapshots & Storage") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SNAPSHOTS_STORAGE_ICON_NAME__"
+  if (label == "Memory & Cleanup") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_MEMORY_CLEANUP_ICON_NAME__"
+  if (label == "Back") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
+  if (label == "← Back") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_BACK_ICON_NAME__"
+  if (label == "Cancel") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CANCEL_ICON_NAME__"
+  if (label == "Exit") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EXIT_ICON_NAME__"
+
+  if (label == "New Coding Session" ||
+      label == "Resume Last Session" ||
+      label == "Implement Task…" ||
+      label == "Ask Llama…" ||
+      label == "New Chat" ||
+      label == "Resume Last Chat" ||
+      label == "Change Model…" ||
+      label == "Download New Model…" ||
+      label == "Push-to-Talk" ||
+      label == "Toggle Dictation" ||
+      label == "Transcribe File…" ||
+      label == "Transcribe Last Recording" ||
+      label == "Live Captions" ||
+      label == "Voice Note") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_NEW_CODING_SESSION_ICON_NAME__"
+  if (label == "Open Podbin Guide" || label == "Show FreeRDP Help") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_OPEN_PODBIN_GUIDE_ICON_NAME__"
+  if (label == "AppArmor Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_APPARMOR_STATUS_ICON_NAME__"
+  if (label == "Kernel Enablement" ||
+      label == "Validate Drafts" ||
+      label == "Activate Selected Draft") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_KERNEL_ENABLEMENT_ICON_NAME__"
+  if (label == "Features ABI") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FEATURES_ABI_ICON_NAME__"
+  if (label == "Complain Events (24h)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_EVENTS_24_H_ICON_NAME__"
+  if (label == "Denied Events (24h)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DENIED_EVENTS_24_H_ICON_NAME__"
+  if (label == "Easyprof Draft" ||
+      label == "Autodep Base Draft" ||
+      label == "Logprof Draft Update" ||
+      label == "Genprof Interactive Draft") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_EASYPROF_DRAFT_ICON_NAME__"
+  if (label == "List Drafts") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_DRAFTS_ICON_NAME__"
+  if (label == "Show App Modes" || label == "Set App Mode") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_APP_MODES_ICON_NAME__"
+  if (label == "Generate New Rules") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_GENERATE_NEW_RULES_ICON_NAME__"
+  if (label == "Enforce All") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_ENFORCE_ALL_ICON_NAME__"
+  if (label == "Complain All") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_COMPLAIN_ALL_ICON_NAME__"
+  if (label == "Disable All" || label == "Disabled Profiles") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DISABLE_ALL_ICON_NAME__"
+  if (label == "Set App Audit Logging") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SET_APP_AUDIT_LOGGING_ICON_NAME__"
+  if (label == "Preview Unknown Cleanup") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_PREVIEW_UNKNOWN_CLEANUP_ICON_NAME__"
+  if (label == "List Managed Users") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_MANAGED_USERS_ICON_NAME__"
+  if (label == "Show User Environment" || label == "Show Service Environment") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_USER_ENVIRONMENT_ICON_NAME__"
+  if (label == "List Service Networks") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_LIST_SERVICE_NETWORKS_ICON_NAME__"
+  if (label == "Show Service Statistics") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVICE_STATISTICS_ICON_NAME__"
+  if (label == "Show Recent Service Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_RECENT_SERVICE_LOGS_ICON_NAME__"
+  if (label == "Aggressive Journal Vacuum") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_AGGRESSIVE_JOURNAL_VACUUM_ICON_NAME__"
+  if (label ~ /^No (DOCX|PDF|Image|Markdown) files detected in Downloads, Documents, or Desktop$/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+  if (label == "Finish selection") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_FINISH_SELECTION_ICON_NAME__"
+  if (menu_prompt == "Digital Assets") {
+    if (label == "DOCX Actions" ||
+        label == "PDF Actions" ||
+        label == "Image Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_DOCX_ACTIONS_ICON_NAME__"
+  }
+  if (menu_prompt == "DOCX Actions") {
+    if (label == "Convert DOCX to PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_DOCX_TO_PDF_ICON_NAME__"
+    if (label == "Convert DOCX to Markdown") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
+    if (label == "Convert DOCX to Plain Text") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+    if (label == "Convert DOCX to HTML") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_DEVELOPMENT_ICON_NAME__"
+  }
+  if (menu_prompt == "PDF Actions") {
+    if (label == "Convert PDF to PNG" ||
+        label == "Convert PDF to JPEG" ||
+        label == "Extract Images from PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_PDF_TO_PNG_ICON_NAME__"
+    if (label == "Convert PDF to DOCX") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
+    if (label == "Convert PDF to Plain Text") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+    if (label == "Convert Markdown to PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_MARKDOWN_ICON_NAME__"
+    if (label == "Merge Multiple PDF'\''s") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_GRID_ICON_NAME__"
+    if (label == "Split PDF (Burst to Pages)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_CUT_ICON_NAME__"
+    if (label == "Extract Specific Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_HELP_CONTENTS_ICON_NAME__"
+    if (label == "Remove Specific Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+    if (label == "Rotate Pages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+    if (label == "Edit PDF Content") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+    if (label == "Edit PDF Bookmarks" ||
+        label == "Extract TOC / Bookmarks") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BOOKMARK_NEW_ICON_NAME__"
+    if (label == "Edit Hyperlinks and Typos") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INSERT_LINK_ICON_NAME__"
+    if (label == "Clean / Repair Corrupted PDF") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
+    if (label == "Inspect PDF Structure") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+    if (label == "Encrypt / Password Protect") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
+    if (label == "Decrypt / Remove Password") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_CHANGES_ALLOW_ICON_NAME__"
+    if (label == "Linearize (Optimize size for Web)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+    if (label == "Add Page Numbers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FORMAT_LIST_ORDERED_ICON_NAME__"
+    if (label == "Add Text Watermark") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COLOR_MANAGEMENT_ICON_NAME__"
+  }
+  if (menu_prompt == "Image Actions") {
+    if (label == "Convert Any Image to PNG" ||
+        label == "Convert Any Image to JPEG" ||
+        label == "Convert Image to WebP") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_CONVERT_ANY_IMAGE_TO_PNG_ICON_NAME__"
+    if (label == "Resize Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_ZOOM_IN_ICON_NAME__"
+    if (label == "Crop Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TRANSFORM_CROP_ICON_NAME__"
+    if (label == "Rotate Image") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+    if (label == "Flip (Horizontal)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_HORIZONTAL_ICON_NAME__"
+    if (label == "Flip (Vertical)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_FLIP_VERTICAL_ICON_NAME__"
+    if (label == "Convert to Grayscale") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DISPLAY_BRIGHTNESS_ICON_NAME__"
+    if (label == "Compress / Optimize PNG" ||
+        label == "Compress / Optimize JPEG") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+    if (label == "Create GIF from Images") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIDEO_X_GENERIC_ICON_NAME__"
+    if (label == "Read Image Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+    if (label == "Edit Image Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+  }
+  if (menu_prompt == "DOCX Actions" ||
+      menu_prompt == "PDF Actions" ||
+      menu_prompt == "Image Actions") {
+    if (label == "Read Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_READ_METADATA_ICON_NAME__"
+    if (label == "Edit Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_EDIT_ICON_NAME__"
+    if (label == "Remove All Metadata") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+    if (menu_prompt == "DOCX Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_X_OFFICE_DOCUMENT_ICON_NAME__"
+    if (menu_prompt == "PDF Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATION_PDF_ICON_NAME__"
+    if (menu_prompt == "Image Actions") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_IMAGE_X_GENERIC_ICON_NAME__"
+  }
+  if (label ~ /(Wi-Fi|WiFi|Wireless|WLAN|Radio)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRELESS_ICON_NAME__"
+  if (label ~ /(WireGuard)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SECURITY_HIGH_ICON_NAME__"
+  if (label ~ /(VPN)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_VPN_ICON_NAME__"
+  if (label ~ /(DNS)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WIRED_ICON_NAME__"
+  if (label ~ /(Resolver)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+  if (label ~ /(WAN)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_APPLICATIONS_INTERNET_ICON_NAME__"
+  if (label ~ /(LAN|Network)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_WORKGROUP_ICON_NAME__"
+  if (label ~ /(Packet)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+  if (label ~ /(Port|Connection)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_NETWORK_CONNECT_ICON_NAME__"
+  if (menu_prompt == "System") {
+    if (label == "Show System Overview") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SYSTEM_OVERVIEW_ICON_NAME__"
+    if (label == "Show Failed Services") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+    if (label == "Show Recent System Errors") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_ERROR_ICON_NAME__"
+    if (label == "Show Kernel Warnings") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+    if (label == "Show Memory and Swap") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_SYSTEM_MONITOR_ICON_NAME__"
+    if (label == "Check Package Health") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+    if (label == "List Pending Upgrades") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+    if (label == "Inspect Service and Logs") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_TEXT_X_GENERIC_ICON_NAME__"
+    if (label == "Show Upgradeable Packages" || label == "Show Upgradable Packages") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+    if (label == "Run Unattended Upgrades Now") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
+    if (label == "Show Failed System Units") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DIALOG_WARNING_ICON_NAME__"
+    if (label == "Show Failed User Units") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
+    if (label == "Show Timers") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
+    if (label == "Test Mako Notification" || label == "Test Mako Notifications") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_DESKTOP_NOTIFICATION_ICON_NAME__"
+  }
+  if (menu_prompt == "ADB Server") {
+    if (label == "Show Server Status") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_ACTION_SHOW_SERVER_STATUS_ICON_NAME__"
+    if (label == "Reconnect USB Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_REMOVABLE_MEDIA_USB_ICON_NAME__"
+    if (label == "Reconnect Offline Devices") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_VIEW_REFRESH_ICON_NAME__"
+    if (label == "Wait for Any Device (60s)") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_TIME_ICON_NAME__"
+    if (label == "List Devices with Details") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
+    if (label == "Show Host Features") return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
+  }
+  if (label ~ /(Delete|Wipe|Prune|Drop|Factory Reset|Remove|Unpair)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_DELETE_ICON_NAME__"
+  if (label ~ /(Restart|Refresh|Reset|Rebuild|Rotate|Flush|Reload)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_OBJECT_ROTATE_RIGHT_ICON_NAME__"
+  if (label ~ /(Stop|Disable|Disconnect|Unmount|Hide)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_STOP_ICON_NAME__"
+  if (label ~ /(Start|Enable|Connect|Mount|Pair|Trust|Increase|Continue)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MEDIA_PLAYBACK_START_ICON_NAME__"
+  if (label ~ /(Create|Save|Backup|Snapshot|Manifest)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DOCUMENT_SAVE_ICON_NAME__"
+  if (label ~ /(Download|Pull|Retrieve)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_DOWN_ICON_NAME__"
+  if (label ~ /(Upload|Push|Send)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_UP_ICON_NAME__"
+  if (label ~ /(File|Folder|Directory|Path)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_FOLDER_ICON_NAME__"
+  if (label ~ /(Open|Console|Shell|Terminal|Interactive)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_UTILITIES_TERMINAL_ICON_NAME__"
+  if (label ~ /(User|Group|Sudo|Account)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_USERS_ICON_NAME__"
+  if (label ~ /(Container|Podman|Image|Volume|Pod|Resource)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PACKAGE_X_GENERIC_ICON_NAME__"
+  if (label ~ /(Remote Desktop|Display|Screen|Monitor)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_COMPUTER_ICON_NAME__"
+  if (label ~ /(Security|Rootkit|ClamAV|Hash|Vulnerab|Firewall)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_LOCK_SCREEN_ICON_NAME__"
+  if (label ~ /(Phone|Android|ADB|Fastboot|Firmware)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PHONE_ICON_NAME__"
+  if (label ~ /(Recovery|Repair|Timeshift|GRUB|Initramfs)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_EDIT_UNDO_ICON_NAME__"
+  if (label ~ /(Drive|Disk|Storage|Btrfs|NVMe|Filesystem)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_DRIVE_HARDDISK_ICON_NAME__"
+  if (label ~ /(Bluetooth)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_BLUETOOTH_ICON_NAME__"
+  if (label ~ /(Brightness|Power|Battery|Performance|Balanced)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_POWER_MANAGEMENT_ICON_NAME__"
+  if (label ~ /(Audio|PipeWire|WirePlumber)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_MULTIMEDIA_VOLUME_CONTROL_ICON_NAME__"
+  if (label ~ /(Keyboard)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_INPUT_KEYBOARD_ICON_NAME__"
+  if (label ~ /(Audit|Inspect|Check|Show|List|Status|Info|Diagnose|Scan)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SEARCH_ICON_NAME__"
+  if (label ~ /(Settings|Configuration|System|Service|Unit|Timer)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_PREFERENCES_SYSTEM_ICON_NAME__"
+  if (label ~ /(Exit|Close)/) return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_SYSTEM_SHUTDOWN_ICON_NAME__"
+  return "__THEME_FUZZEL_COMPUTER_MANAGEMENT_MENU_FALLBACK_GO_NEXT_ICON_NAME__"
+}
+{
+  label = $0
+  icon_label = label
+  # Legacy section markers are presentation only, never an app icon.
+  sub(/^(⮞||★)[[:space:]]+/, "", icon_label)
+  shown = icon_label
+  if (root_menu != "1" &&
+      (label == "Exit" || label == "Close" || label == "Cancel" ||
+       label ~ /^[0-9]+[[:space:]]+Close$/)) shown = "← Back"
+  # Distinct raw rows may have identical text after removing legacy markers.
+  # Keep every presented choice unambiguous without changing its raw action.
+  unique = shown
+  serial = 1
+  while (unique in presented) unique = shown " [" NR ":" serial++ "]"
+  presented[unique] = 1
+  printf "%s%cicon%c%s\n", unique, 0, 31, icon_for(shown)
+}
+' "$raw_choices" >"$display_choices"
+
+if [ "$managed_root_menu" != 1 ] &&
+   ! awk '
+     $0 == "Back" ||
+     $0 == "← Back" ||
+     $0 == "Exit" ||
+     $0 == "Close" ||
+     $0 == "Cancel" ||
+     $0 ~ /^[0-9]+[[:space:]]+Close$/ {
+       found = 1
+     }
+     END { exit found ? 0 : 1 }
+   ' "$raw_choices"; then
+  printf '\n' >>"$raw_choices"
+  printf '← Back\000icon\037go-previous\n' >>"$display_choices"
+fi
+
+log_fuzzel_lifecycle menu opened 0
+if run_fuzzel "$@" <"$display_choices" >"$selection_file"; then
+  fuzzel_status=0
+else
+  fuzzel_status=$?
+fi
+log_fuzzel_lifecycle menu completed "$fuzzel_status"
+[ "$fuzzel_status" -eq 0 ] || exit "$fuzzel_status"
+
+# A picker result must contain at most one row. Never truncate extra rows
+# into an apparently valid privileged-action selection.
+if ! awk 'END { exit NR > 1 ? 1 : 0 }' "$selection_file"; then
+  fatal 'Fuzzel returned more than one selection'
+fi
+sed -n '1p' "$selection_file" >"$first_selection"
+selection=$(cat "$first_selection")
+[ -n "$selection" ] || exit 0
+
+matched_line=$(
+  awk '
+    NR == FNR {
+      selected = $0
+      next
+    }
+    {
+      # Fuzzel returns only the text, not the icon metadata after the NUL.
+      shown = $0
+      sub(/\000.*/, "", shown)
+      if (shown == selected) { print FNR; exit }
+    }
+  ' "$first_selection" "$display_choices"
+)
+
+if [ -n "$matched_line" ]; then
+  raw_selection=$(sed -n "${matched_line}p" "$raw_choices")
+  log_managed_menu_selection listed "$raw_selection"
+  printf '%s\n' "$raw_selection"
+else
+  # Do not write arbitrary free-form Fuzzel input to the system log.
+  log_managed_menu_selection custom-input redacted
+  printf '%s\n' "$selection"
+fi

@@ -24,7 +24,7 @@ import sys
 import time
 from typing import Iterator
 
-CONFIG = Path('/etc/default/labwc-wlsunset')
+CONFIG = Path('/etc/labwc/wlsunset.conf')
 UNIT = 'labwc-wlsunset.service'
 TARGET = 'labwc-session.target'
 COMPOSITOR = 'labwc-compositor.service'
@@ -40,7 +40,6 @@ SESSION_KEYS = frozenset(('LABWC_SESSION_OWNER', 'LABWC_PID', 'XDG_SESSION_TYPE'
 PROPERTIES = (
     'PartOf=' + TARGET,
     'Requisite=' + TARGET,
-    'BindsTo=' + COMPOSITOR,
     'After=' + TARGET + ' ' + COMPOSITOR,
     'Restart=always',  # Upstream also exits successfully on display disconnection.
     'RestartSec=10s', 'StartLimitIntervalSec=300s', 'StartLimitBurst=3',

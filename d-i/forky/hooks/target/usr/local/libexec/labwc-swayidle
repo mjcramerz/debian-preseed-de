@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-if [ -r /etc/default/labwc-desktop ]; then
+if [ -r /etc/labwc/desktop.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/labwc-desktop
+  . /etc/labwc/desktop.conf
 fi
 
 case "${LABWC_ENABLE_SWAYIDLE:-true}" in

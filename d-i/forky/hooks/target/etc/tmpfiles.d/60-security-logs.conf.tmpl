@@ -1,0 +1,20 @@
+# Pre-create desktop-specific managed security log destinations before rsyslog starts.
+L /var/log/auth.log - - - - __INSTALLER_LOG_AUTH_FILE__
+d /run/rsyslog/security-scanners 0750 root securitylogger -
+
+# Sanitized category-only signals wake the Labwc/Mako session through a
+# dedicated signal-reader group without granting access to the real logs.
+d /var/lib/labwc-notifications 0755 root root -
+d /var/lib/labwc-notifications/security 0750 root logreader -
+d /var/lib/labwc-notifications/system 2750 root logreader -
+f /var/lib/labwc-notifications/security/auth.signal 0640 root logreader -
+f /var/lib/labwc-notifications/security/usb.signal 0640 root logreader -
+f /var/lib/labwc-notifications/security/storage.signal 0640 root logreader -
+f /var/lib/labwc-notifications/security/apparmor.signal 0640 root logreader -
+f /var/lib/labwc-notifications/security/firewall.signal 0640 root logreader -
+
+# Non-active aa-easyprof drafts are reviewable but never loaded automatically.
+d /var/lib/apparmor/easyprof 0755 root root -
+d /var/lib/apparmor/drafts 0755 root root -
+d /var/lib/apparmor/backup 0700 root root -
+d /var/lib/apparmor/generated-rule-backups 0700 root root -

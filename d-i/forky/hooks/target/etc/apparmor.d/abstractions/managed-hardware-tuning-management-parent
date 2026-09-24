@@ -1,3 +1,0 @@
-# Installed only with a gated tuning backend. Strict attachment; no fallback.
-/usr/local/bin/labwc-hardware-tuning rPx,
-signal (receive) set=(chld) peer=managed-hardware-tuning-client,

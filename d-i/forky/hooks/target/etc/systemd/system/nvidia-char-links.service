@@ -1,0 +1,32 @@
+[Unit]
+Description=Maintain character-device links for existing NVIDIA nodes
+After=systemd-modules-load.service systemd-udev-trigger.service
+Before=greetd.service firstboot.service
+# Bound real NVIDIA device-event bursts; never watch unrelated /dev activity.
+StartLimitIntervalSec=30s
+StartLimitBurst=5
+
+[Service]
+# PID-only isolation: helpers do not consume host PIDs. Keep host UID and
+# capabilities for Bluetooth/device/sysfs operations; never add PrivateUsers.
+PrivatePIDs=yes
+PrivateUsers=no
+KillMode=control-group
+TimeoutStopSec=20s
+Type=oneshot
+ExecStart=/usr/local/libexec/nvidia-char-links
+TimeoutStartSec=10s
+UMask=0022
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

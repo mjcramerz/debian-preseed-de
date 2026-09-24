@@ -1,9 +1,0 @@
-{
-  "path": "d-i/forky/tests/test_managed_git_debugsys.py",
-  "status": 0,
-  "seconds": 11.888,
-  "timeout": false,
-  "tests": 56,
-  "skips": 1,
-  "failures": []
-}

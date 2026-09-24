@@ -3,6 +3,10 @@
 No installed target configuration, services, display, or authentication stack is
 modified. Fuzzel/notification binaries are fixtures; shell orchestration is real.
 """
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from fuzzel_fixture import geometry_environment, wrapper_script
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import json
 import os
 import pwd
@@ -24,7 +28,7 @@ LIBEXEC = TARGET / 'usr/local/libexec'
 def load(path):
     module = types.ModuleType('fixture_' + path.name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -34,7 +38,7 @@ class GeometryTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(menu.os, 'geteuid', return_value=1000), \
                 mock.patch.object(menu, 'run_menu', return_value=0):
             self.assertEqual(menu.main([]), 0)
-            self.assertEqual(os.environ['LABWC_FUZZEL_GEOMETRY'], 'computer-management')
+            self.assertEqual(os.environ['LABWC_FUZZEL_PALETTE'], 'computer-management')
             self.assertEqual(os.environ['LABWC_MENU_BACKEND'], 'fuzzel')
 
     def test_real_wrapper_enforces_main_geometry_for_every_management_context(self):
@@ -47,23 +51,23 @@ class GeometryTests(unittest.TestCase):
             fake.chmod(0o755)
             config = root / 'config/fuzzel'
             config.mkdir(parents=True)
-            for name in ('main-menu.ini', 'main-menu-internal.ini', 'menu.ini', 'menu-internal.ini'):
+            for name in ('base.ini', 'computer-management.ini', 'menu.ini', 'fuzzel.ini'):
                 (config / name).write_text('[main]\n')
             env = {**os.environ, 'PATH': str(root) + ':/usr/bin:/bin', 'XDG_RUNTIME_DIR': str(root),
                    'XDG_CONFIG_HOME': str(root / 'config'), 'FIXTURE_ARGS': str(root / 'argv'),
                    'LABWC_MENU_BACKEND': 'fuzzel', 'LABWC_FUZZEL_MANAGED_ICONS': '0',
-                   'LABWC_FUZZEL_GEOMETRY': 'computer-management',
-                   'LABWC_FUZZEL_MAIN_MENU_WIDTH': '64', 'LABWC_FUZZEL_MAIN_MENU_LINES': '19',
-                   'LABWC_FUZZEL_INTERNAL_MAIN_MENU_WIDTH': '31', 'LABWC_FUZZEL_INTERNAL_MAIN_MENU_LINES': '12',
+                   'LABWC_FUZZEL_PALETTE': 'computer-management', **geometry_environment(),
+                   'FUZZEL_MENU_EXTERNAL_WIDTH': '64', 'FUZZEL_MENU_EXTERNAL_LINES': '19',
+                   'FUZZEL_MENU_INTERNAL_WIDTH': '31', 'FUZZEL_MENU_INTERNAL_LINES': '12',
                    'LABWC_FUZZEL_MENU_WIDTH_OVERRIDE': '18', 'LABWC_FUZZEL_MENU_LINES_OVERRIDE': '3'}
             for scope in ('computer-management', 'android-debug-bridge'):
-                for output, width, lines, config_name in [('HDMI-A-1',64,19,'main-menu.ini'), ('eDP-1',31,12,'main-menu-internal.ini')]:
+                for output, width, lines, config_name in [('HDMI-A-1',64,19,'computer-management.ini'), ('eDP-1',31,12,'computer-management.ini')]:
                     with self.subTest(scope=scope, output=output):
                         env.update(LABWC_FUZZEL_LOG_SCOPE=scope, WAYBAR_OUTPUT_NAME=output)
-                        result = subprocess.run(['/bin/sh', str(BIN/'labwc-fuzzel'), 'menu', '--dmenu', '--width=16', '--lines=1'],
+                        result = subprocess.run(payload_installed_argv(['/bin/sh', str(wrapper_script(root, fake)), 'menu', '--dmenu']),
                                                 input='Back\n', text=True, capture_output=True, env=env, timeout=10)
                         self.assertEqual(result.returncode, 0, result.stderr)
-                        args = json.loads((root/'argv').read_text())
+                        args = json.loads(render_theme_defaults(payload_read_text(root/'argv')))
                         self.assertEqual([a for a in args if a.startswith('--width=')][-1], f'--width={width}')
                         self.assertEqual([a for a in args if a.startswith('--lines=')][-1], f'--lines={lines}')
                         self.assertIn('--config=' + str(config/config_name), args)
@@ -113,21 +117,21 @@ class InstallerPolicyTests(unittest.TestCase):
 
     def test_pam_policy_is_idempotent_without_location_policy(self):
         self.invoke()
-        first=self.pam.read_text()
+        first=render_theme_defaults(payload_read_text(self.pam))
         self.invoke()
-        self.assertEqual(first, self.pam.read_text())
-        self.assertEqual(first.count('conffile=/etc/security/managed-sudo-i.conf'),1)
+        self.assertEqual(first, render_theme_defaults(payload_read_text(self.pam)))
+        self.assertEqual(first.count('conffile=/etc/security/sudo-i.conf'),1)
         self.assertLess(first.index('pam_env.so'), first.index('@include common-session'))
         self.assertIn('@include common-auth\n@include common-account\n',first)
         self.invoke()
-        self.assertFalse((self.root/'etc/geoclue').exists())
-        self.assertEqual(first,self.pam.read_text())
+        self.assertFalse(payload_source_exists(self.root/'etc/geoclue'))
+        self.assertEqual(first,render_theme_defaults(payload_read_text(self.pam)))
 
     def test_unknown_pam_stack_fails_without_replacing_it(self):
         self.pam.write_text('@include custom-session\n')
         with self.assertRaisesRegex(RuntimeError,'unexpected sudo-i'):
             self.invoke()
-        self.assertEqual(self.pam.read_text(),'@include custom-session\n')
+        self.assertEqual(render_theme_defaults(payload_read_text(self.pam)),'@include custom-session\n')
 
     def test_redirected_pam_stack_is_rejected(self):
         victim=self.root/'victim'
@@ -135,7 +139,7 @@ class InstallerPolicyTests(unittest.TestCase):
         self.pam.unlink()
         self.pam.symlink_to(victim)
         with self.assertRaises(OSError): self.invoke()
-        self.assertEqual(victim.read_text(),'unchanged')
+        self.assertEqual(render_theme_defaults(payload_read_text(victim)),'unchanged')
 
 
     def fixture_file(self, relative, text="managed fixture"):
@@ -150,7 +154,7 @@ class InstallerPolicyTests(unittest.TestCase):
             'usr/local/share/applications/gammastep.desktop',
             'usr/local/share/applications/gammastep-indicator.desktop',
             'etc/gammastep/config.ini',
-            'etc/geoclue/conf.d/90-managed-gammastep.conf',
+            'etc/geoclue/conf.d/90-gammastep.conf',
             'etc/skel-desktop/.config/systemd/user/labwc-gammastep-indicator.service',
             'home/fixtureuser/.config/autostart/gammastep-indicator.desktop',
             'home/fixtureuser/.config/systemd/user/labwc-gammastep-indicator.service',
@@ -163,10 +167,10 @@ class InstallerPolicyTests(unittest.TestCase):
             'usr/bin/gammastep', 'etc/geoclue/conf.d/80-other-application.conf',
             'home/fixtureuser/.config/another-program/settings')]
         self.invoke(); self.invoke()
-        self.assertTrue(all(not path.exists() for path in obsolete))
+        self.assertTrue(all(not payload_source_exists(path) for path in obsolete))
         self.assertFalse(enablement.is_symlink())
-        self.assertEqual(victim.read_text(), 'preserved')
-        self.assertTrue(all(path.read_text() == 'unrelated' for path in preserved))
+        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
+        self.assertTrue(all(render_theme_defaults(payload_read_text(path)) == 'unrelated' for path in preserved))
 
     def test_colour_cleanup_rejects_redirected_parent(self):
         victim = self.fixture_file('victim/gammastep-indicator.desktop', 'preserved')
@@ -174,7 +178,7 @@ class InstallerPolicyTests(unittest.TestCase):
         redirected.parent.mkdir(parents=True)
         redirected.symlink_to(victim.parent, target_is_directory=True)
         with self.assertRaises(OSError): self.invoke()
-        self.assertEqual(victim.read_text(), 'preserved')
+        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
 
     def test_colour_cleanup_rejects_non_regular_leaf(self):
         path = self.root / 'usr/local/bin/labwc-gammastep-indicator'
@@ -188,8 +192,8 @@ class InstallerPolicyTests(unittest.TestCase):
         obsolete.parent.mkdir(parents=True)
         os.link(victim, obsolete)
         self.invoke()
-        self.assertFalse(obsolete.exists())
-        self.assertEqual(victim.read_text(), 'preserved')
+        self.assertFalse(payload_source_exists(obsolete))
+        self.assertEqual(render_theme_defaults(payload_read_text(victim)), 'preserved')
 
 
 class HealthTransactionTests(unittest.TestCase):
@@ -217,20 +221,20 @@ class HealthTransactionTests(unittest.TestCase):
                  'SYSTEM_EVENT_OWNER_UID':str(os.getuid()),'MEMINFO_FILE':str(mem),'MAIL':str(root/'absent'),
                  **{key:str(root/'absent') for key in ('TIMESHIFT_EVENT_DIR','UNATTENDED_EVENT_DIR','SECURITY_SIGNAL_DIR','POWER_SUPPLY_DIR','REBOOT_REQUIRED_FILE')}}
             def run():
-                return subprocess.run(['/bin/sh',str(BIN/'labwc-health-notify')],env=env,capture_output=True,text=True,timeout=15)
+                return subprocess.run(payload_installed_argv(['/bin/sh',str(BIN/'labwc-health-notify')]),env=env,capture_output=True,text=True,timeout=15)
             result=run()
             self.assertEqual(result.returncode,1,result.stderr)
             seen=root/'state/labwc-health-notify/system-seen'/ (event.name+'.seen')
-            self.assertFalse(seen.exists())
-            self.assertEqual(calls.read_text().splitlines(),['called'])
+            self.assertFalse(payload_source_exists(seen))
+            self.assertEqual(render_theme_defaults(payload_read_text(calls)).splitlines(),['called'])
             env['FIXTURE_STATUS']='0'
             result=run()
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertTrue(seen.is_file())
-            count=len(calls.read_text().splitlines())
+            self.assertTrue(payload_source_is_file(seen))
+            count=len(render_theme_defaults(payload_read_text(calls)).splitlines())
             result=run()
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertEqual(len(calls.read_text().splitlines()),count)
+            self.assertEqual(len(render_theme_defaults(payload_read_text(calls)).splitlines()),count)
 
 
 if __name__=='__main__': unittest.main()

@@ -6,7 +6,7 @@ IFS='
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 SECURE_BOOT_TARGET_ROOT=${SECURE_BOOT_TARGET_ROOT:-}
 SECURE_BOOT_HOST_MOUNT_PREFIX=${SECURE_BOOT_HOST_MOUNT_PREFIX:-}
-CONF=${SECURE_BOOT_CONFIG_PATH:-${SECURE_BOOT_TARGET_ROOT}/etc/default/secure-boot.conf}
+CONF=${SECURE_BOOT_CONFIG_PATH:-${SECURE_BOOT_TARGET_ROOT}/etc/secure-boot.conf}
 
 [ -r "$CONF" ] || {
   printf 'fatal: missing Secure Boot config %s\n' "$CONF" >&2

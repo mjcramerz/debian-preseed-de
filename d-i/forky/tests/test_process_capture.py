@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise the core-only Perl supervisor with real Linux child processes."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_text as payload_read_text
 
 import json
 import os
@@ -13,7 +15,7 @@ import unittest
 
 FORKY = Path(__file__).resolve().parents[1]
 os.environ["INSTALLER_SOURCE_LIBRARY"] = str(FORKY / "scripts/common/source.sh")
-LIB = FORKY / "hooks/target/usr/local/lib/perl5/site_perl/managed-runtime"
+LIB = FORKY / "hooks/target/usr/local/lib/perl5/site_perl/runtime"
 RUNNER = r'''
 use Managed::Process qw(capture_command);
 use JSON::PP qw(encode_json);
@@ -31,7 +33,7 @@ class ProcessCaptureTests(unittest.TestCase):
 
     def run_capture(self, *argv: str, input: str = "", seconds: float = 3,
                     limit: int = 1048576) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(self.command(*argv, seconds=seconds, limit=limit),
+        return subprocess.run(payload_installed_argv(self.command(*argv, seconds=seconds, limit=limit)),
                               input=input, text=True, capture_output=True, timeout=10)
 
     def test_exit_status_stdout_and_stderr(self) -> None:
@@ -66,10 +68,10 @@ class ProcessCaptureTests(unittest.TestCase):
             result = self.run_capture("/usr/bin/python3", "-c", code, seconds=0.3)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout)["status"], 124 << 8)
-            for pid in map(int, pidfile.read_text().splitlines()):
+            for pid in map(int, payload_read_text(pidfile).splitlines()):
                 path = Path(f"/proc/{pid}/stat")
-                if path.exists():
-                    self.assertEqual(path.read_text().split(") ", 1)[1][0], "Z")
+                if payload_source_exists(path):
+                    self.assertEqual(payload_read_text(path).split(") ", 1)[1][0], "Z")
 
     def test_descendant_retaining_pipe_is_bounded_after_parent_exit(self) -> None:
         code = "import os,time; child=os.fork(); os._exit(0) if child else time.sleep(30)"
@@ -88,7 +90,7 @@ class ProcessCaptureTests(unittest.TestCase):
         self.assertIn("absolute executable", result.stderr)
 
     def test_exec_failure_is_reported(self) -> None:
-        result = self.run_capture("/no-such-managed-process-test-command")
+        result = self.run_capture("/no-such-x-process-test-command")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], 127 << 8)
 
@@ -103,21 +105,21 @@ class ProcessCaptureTests(unittest.TestCase):
             pidfile = Path(name) / "pid"
             code = ("import os, signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
                     f"open({str(pidfile)!r},'w').write(str(os.getpid())); time.sleep(30)")
-            process = subprocess.Popen(self.command("/usr/bin/python3", "-c", code),
+            process = subprocess.Popen(payload_installed_argv(self.command("/usr/bin/python3", "-c", code)),
                                        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE, text=True)
             try:
                 deadline = time.monotonic() + 3
-                while not pidfile.exists() and time.monotonic() < deadline:
+                while not payload_source_exists(pidfile) and time.monotonic() < deadline:
                     time.sleep(0.01)
-                self.assertTrue(pidfile.exists())
+                self.assertTrue(payload_source_exists(pidfile))
                 process.send_signal(signal.SIGTERM)
                 time.sleep(0.05)
                 process.send_signal(signal.SIGTERM)
                 _out, err = process.communicate(timeout=4)
                 self.assertNotEqual(process.returncode, 0)
                 self.assertIn("interrupted by TERM", err)
-                self.assertFalse(Path(f"/proc/{int(pidfile.read_text())}").exists())
+                self.assertFalse(payload_source_exists(Path(f"/proc/{int(payload_read_text(pidfile))}")))
             finally:
                 if process.poll() is None:
                     process.kill()

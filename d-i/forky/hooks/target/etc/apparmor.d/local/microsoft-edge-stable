@@ -3,8 +3,8 @@
 # Enforced Microsoft Edge attachment with package-owned code read-only and
 # mutable browser state limited to the Edge profile and Downloads.
 
-#include <abstractions/managed-electron-application>
-#include <abstractions/managed-pipewire-audio>
+#include <abstractions/electron-application>
+#include <abstractions/pipewire-audio>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 
@@ -69,7 +69,7 @@ profile edge-glycin-bwrap flags=(mediate_deleted) {
   # Do not attach disconnected paths to an artificial root: no such need is
   # established by the supplied audit, and aliasing would widen the policy.
   #include <abstractions/base>
-  #include <abstractions/managed-bwrap-common>
+  #include <abstractions/bwrap-common>
   include if exists <abstractions/fonts>
   signal (receive) set=(kill term) peer=microsoft-edge-stable,
   /usr/bin/true rix,

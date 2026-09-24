@@ -1,9 +1,0 @@
-test_administrator_can_restore_vendor_poll_rate (test_policy_review_20260916.SystemdReviewTests.test_administrator_can_restore_vendor_poll_rate) ... ok
-test_explicit_scope_class_keeps_original_lifecycle (test_policy_review_20260916.SystemdReviewTests.test_explicit_scope_class_keeps_original_lifecycle) ... ok
-test_only_essential_components_get_session_overrides (test_policy_review_20260916.SystemdReviewTests.test_only_essential_components_get_session_overrides) ... ok
-test_profile_socket_policy_has_no_concurrency_knob (test_policy_review_20260916.SystemdReviewTests.test_profile_socket_policy_has_no_concurrency_knob) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.151s
-
-OK

@@ -9,7 +9,7 @@ from typing import NoReturn
 from .integrity import IntegrityError, PackageScope, validate_package
 
 
-_IDENTIFIER = "labwc-managed-app"
+_IDENTIFIER = "labwc-app"
 
 
 def _fatal(scope: PackageScope, message: str) -> NoReturn:

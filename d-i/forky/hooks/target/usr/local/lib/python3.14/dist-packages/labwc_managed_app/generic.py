@@ -36,7 +36,7 @@ WRAPPERS = {
 }
 # Never let the user manager reintroduce X11, a different GPU or loader hooks.
 UNSET_ENVIRONMENT = (
-    "DISPLAY", "XAUTHORITY", "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH",
+    "DISPLAY", "XAUTHORITY", "GTK_THEME", "LD_PRELOAD", "LD_AUDIT", "LD_LIBRARY_PATH",
     "LABWC_MENU_ACTION_WAIT",
     "PYTHONPATH", "PYTHONHOME", "BASH_ENV", "ENV", "ELECTRON_RUN_AS_NODE",
     "ELECTRON_NO_SANDBOX", "NODE_OPTIONS", "GBM_BACKEND", "DRI_PRIME",
@@ -141,7 +141,7 @@ def session_environment() -> dict[str, str]:
     bus = validate_session_bus_address(os.environ.get("DBUS_SESSION_BUS_ADDRESS", ""))
     environment = {"PATH": MANAGED_PATH, "LANG": "C.UTF-8"}
     for name, value in os.environ.items():
-        if name in {"LANG", "LANGUAGE", "TZ", "TERM", "COLORTERM", "XDG_ACTIVATION_TOKEN", "QT_QPA_PLATFORMTHEME", "GTK_THEME"} or name.startswith("LC_"):
+        if name in {"LANG", "LANGUAGE", "TZ", "TERM", "COLORTERM", "XDG_ACTIVATION_TOKEN", "QT_QPA_PLATFORMTHEME"} or name.startswith("LC_"):
             environment[name] = value
     environment.update({
         "HOME": home, "USER": user, "LOGNAME": user,
@@ -171,7 +171,7 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
     # view to verify that socket. Polkit, AppArmor, Electron's own sandbox and
     # all session lifetime properties remain in place.
     host_administration = (kind == "wayland" and arguments[0] in {
-        "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/x-terminal-emulator",
+        "/usr/bin/foot", "/usr/bin/kitty", "/usr/bin/terminal-emulator",
         "/usr/bin/timeshift-launcher", "/usr/local/bin/mullvad-vpn",
     }) or (kind == "electron" and arguments[0] == "/opt/Mullvad VPN/mullvad-vpn")
     is_foot = kind == "wayland" and arguments[0] == "/usr/bin/foot"
@@ -197,6 +197,9 @@ def transient_argv(kind: str, mode: str, arguments: list[str], environment: dict
         # default shell gets the observed close-window HUP status (1).
         # Explicit commands/options and Foot internal errors (230) stay errors.
         *(["--property=SuccessExitStatus=1"] if is_foot and len(arguments) == 1 else []),
+        # Preserve the main process status. Record the actual failure after the
+        # transient unit exits, including exec/namespace and Foot/parser errors.
+        *(["--property=ExecStopPost=/usr/local/libexec/labwc-terminal-result"] if is_foot else []),
         *(["--property=PrivatePIDs=no", "--property=PrivateUsers=no"] if host_administration else [
             "--property=PrivateTmp=yes", "--property=PrivateIPC=yes",
             "--property=ProtectSystem=full",

@@ -89,7 +89,8 @@ Real Debian APT fixtures exercise acceptance of SHA-1 certificates/signatures,
 unsigned and expired metadata, and signed-to-unsigned transitions. Strict-source
 controls reject those conditions; mixed-source tests demonstrate that another
 unsigned or SHA-1 repository still fails. Corrupted package downloads still fail.
-See `docs/CUDA-LEGACY-TRUST-R4.md` for scope and operational details.
+The source-local implementation is in `d-i/forky/scripts/common/lib.sh`;
+its executable regression coverage is `d-i/forky/tests/test_cuda_legacy_apt.py`.
 
 The intentional Debian suite priorities remain Forky 900, Trixie 400, Sid 100 and
 Experimental 1. Existing package-specific exceptions remain explicit in
@@ -141,8 +142,8 @@ source output and syntax diagnostics are suppressed to avoid secret disclosure.
 This remains trusted shell code, NOT a safe importer for malicious data. Do not
 deploy a file written by an untrusted party or run with xtrace. Missing root
 credentials fail before early disk planning; a blank root_password parameter is
-an explicit invalid override, not an instruction to fall back. See
-`docs/INITRD-CREDENTIAL-FIX-2026-09-06.md` for precedence and deployment.
+an explicit invalid override, not an instruction to fall back. The implementation and precedence checks are in
+`d-i/forky/scripts/common/credentials.sh` and the bootstrap tests.
 
 Normalized bookmarks, contextual site grants and coverage reports are private
 information even after tracking histories and the NoScript instance UUID are

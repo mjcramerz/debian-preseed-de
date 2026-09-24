@@ -1,0 +1,255 @@
+#!/usr/bin/python3 -I
+"""Check protected runtime sinks and narrowly migrate our old auth symlink.
+
+Directories/files are created by tmpfiles first. No recursive moves, chmods,
+log deletion, journal access, or adoption of administrator-owned symlinks.
+"""
+from __future__ import annotations
+
+import grp
+import os
+from pathlib import Path
+import secrets
+import stat
+import sys
+
+CATEGORIES = {
+    '__INSTALLER_LOG_BOOT_DIR__': 0o750,
+    '__INSTALLER_LOG_POWER_DIR__': 0o750,
+    '__INSTALLER_LOG_APPS_DIR__': 0o750,
+    '__INSTALLER_LOG_SECURITY_DIR__': 0o751,
+    '__INSTALLER_LOG_SYSTEM_DIR__': 0o750,
+    '__INSTALLER_LOG_DESKTOP_DIR__': 0o750,
+    '__INSTALLER_LOG_MODELS_DIR__': 0o751,
+}
+PROTECTED_FILES = (
+    '__INSTALLER_LOG_POWER_ACTIONS_FILE__',
+    '__INSTALLER_LOG_ADB_FILE__',
+    '__INSTALLER_LOG_APPARMOR_FILE__',
+    '__INSTALLER_LOG_APPARMOR_MODES_FILE__',
+    '__INSTALLER_LOG_APPARMOR_SERVICE_FILE__',
+    '__INSTALLER_LOG_APPLICATIONS_FILE__',
+    '__INSTALLER_LOG_AUDIO_FILE__',
+    '__INSTALLER_LOG_AUDIT_SERVICE_FILE__',
+    '__INSTALLER_LOG_AUTH_FILE__',
+    '__INSTALLER_LOG_AUTH_SERVICE_FILE__',
+    '__INSTALLER_LOG_BITWARDEN_FILE__',
+    '__INSTALLER_LOG_BLUETOOTH_FILE__',
+    '__INSTALLER_LOG_BRAVE_FILE__',
+    '__INSTALLER_LOG_BROWSERS_FILE__',
+    '__INSTALLER_LOG_CHATGPT_FILE__',
+    '__INSTALLER_LOG_CHATGPT_SERVICE_FILE__',
+    '__INSTALLER_LOG_CHKROOTKIT_FILE__',
+    '__INSTALLER_LOG_CHKROOTKIT_SERVICE_FILE__',
+    '__INSTALLER_LOG_CHROME_FILE__',
+    '__INSTALLER_LOG_CHROMIUM_FILE__',
+    '__INSTALLER_LOG_CLAMAV_SCAN_FILE__',
+    '__INSTALLER_LOG_CLAMAV_SERVICE_FILE__',
+    '__INSTALLER_LOG_CLAMSCAN_SERVICE_FILE__',
+    '__INSTALLER_LOG_CLIPBOARD_FILE__',
+    '__INSTALLER_LOG_CODEX_FILE__',
+    '__INSTALLER_LOG_CPU_FILE__',
+    '__INSTALLER_LOG_CROWDSEC_SERVICE_FILE__',
+    '__INSTALLER_LOG_CRYSTAL_DOCK_FILE__',
+    '__INSTALLER_LOG_DEBSECAN_FILE__',
+    '__INSTALLER_LOG_DEBSECAN_SERVICE_FILE__',
+    '__INSTALLER_LOG_DEBSUMS_FILE__',
+    '__INSTALLER_LOG_DEBSUMS_SERVICE_FILE__',
+    '__INSTALLER_LOG_DISCORD_FILE__',
+    '__INSTALLER_LOG_EDGE_FILE__',
+    '__INSTALLER_LOG_FAIL2BAN_SERVICE_FILE__',
+    '__INSTALLER_LOG_FEATHERPAD_FILE__',
+    '__INSTALLER_LOG_FILEN_FILE__',
+    '__INSTALLER_LOG_FLOORP_FILE__',
+    '__INSTALLER_LOG_FOCUSWRITER_FILE__',
+    '__INSTALLER_LOG_FUZZEL_ACTIONS_FILE__',
+    '__INSTALLER_LOG_FUZZEL_FILE__',
+    '__INSTALLER_LOG_FUZZEL_MENU_FILE__',
+    '__INSTALLER_LOG_FWUPD_FILE__',
+    '__INSTALLER_LOG_FWUPD_SCAN_FILE__',
+    '__INSTALLER_LOG_GNUMERIC_FILE__',
+    '__INSTALLER_LOG_GPU_FILE__',
+    '__INSTALLER_LOG_GREETD_FILE__',
+    '__INSTALLER_LOG_GTKGREET_FILE__',
+    '__INSTALLER_LOG_KANSHI_FILE__',
+    '__INSTALLER_LOG_KEEPASSXC_FILE__',
+    '__INSTALLER_LOG_KERNEL_FILE__',
+    '__INSTALLER_LOG_LABWC_FILE__',
+    '__INSTALLER_LOG_LABWC_WALLET_FILE__',
+    '__INSTALLER_LOG_LAUNCHER_FILE__',
+    '__INSTALLER_LOG_LEDGER_LIVE_FILE__',
+    '__INSTALLER_LOG_LIBREWOLF_FILE__',
+    '__INSTALLER_LOG_LIFEREA_FILE__',
+    '__INSTALLER_LOG_LLAMA_FILE__',
+    '__INSTALLER_LOG_LYNIS_SCAN_FILE__',
+    '__INSTALLER_LOG_LYNIS_SERVICE_FILE__',
+    '__INSTALLER_LOG_MAKO_FILE__',
+    '__INSTALLER_LOG_MPV_FILE__',
+    '__INSTALLER_LOG_MULLVAD_FILE__',
+    '__INSTALLER_LOG_MULLVAD_VPN_FILE__',
+    '__INSTALLER_LOG_NETWORK_FILE__',
+    '__INSTALLER_LOG_NFTABLES_FILE__',
+    '__INSTALLER_LOG_NFTABLES_SERVICE_FILE__',
+    '__INSTALLER_LOG_OBSIDIAN_FILE__',
+    '__INSTALLER_LOG_OLLAMA_FILE__',
+    '__INSTALLER_LOG_OUTPUTS_FILE__',
+    '__INSTALLER_LOG_POLKIT_FILE__',
+    '__INSTALLER_LOG_POSTMAN_FILE__',
+    '__INSTALLER_LOG_QBITTORRENT_FILE__',
+    '__INSTALLER_LOG_QOREDB_FILE__',
+    '__INSTALLER_LOG_RETROARCH_FILE__',
+    '__INSTALLER_LOG_RKHUNTER_SCAN_FILE__',
+    '__INSTALLER_LOG_RKHUNTER_SERVICE_FILE__',
+    '__INSTALLER_LOG_SATTY_FILE__',
+    '__INSTALLER_LOG_SLEEK_FILE__',
+    '__INSTALLER_LOG_SPECTRE_MELTDOWN_FILE__',
+    '__INSTALLER_LOG_SPECTRE_MELTDOWN_SERVICE_FILE__',
+    '__INSTALLER_LOG_SPOTIFY_FILE__',
+    '__INSTALLER_LOG_SQLITEBROWSER_FILE__',
+    '__INSTALLER_LOG_STORAGE_FILE__',
+    '__INSTALLER_LOG_STORAGE_SERVICE_FILE__',
+    '__INSTALLER_LOG_SWAYBG_FILE__',
+    '__INSTALLER_LOG_SWAYIDLE_FILE__',
+    '__INSTALLER_LOG_SWAYLOCK_FILE__',
+    '__INSTALLER_LOG_SYSTEMD_FILE__',
+    '__INSTALLER_LOG_SYSTEM_SERVICES_FILE__',
+    '__INSTALLER_LOG_TASKVIEW_FILE__',
+    '__INSTALLER_LOG_TELEGRAM_FILE__',
+    '__INSTALLER_LOG_THUNAR_FILE__',
+    '__INSTALLER_LOG_TIMESHIFT_FILE__',
+    '__INSTALLER_LOG_TIMESHIFT_SERVICE_FILE__',
+    '__INSTALLER_LOG_TOMAT_FILE__',
+    '__INSTALLER_LOG_TOR_BROWSER_FILE__',
+    '__INSTALLER_LOG_TUTA_FILE__',
+    '__INSTALLER_LOG_USB_FILE__',
+    '__INSTALLER_LOG_USB_SERVICE_FILE__',
+    '__INSTALLER_LOG_VIVALDI_FILE__',
+    '__INSTALLER_LOG_VLLM_FILE__',
+    '__INSTALLER_LOG_VSCODE_FILE__',
+    '__INSTALLER_LOG_VSCODIUM_FILE__',
+    '__INSTALLER_LOG_WAYBAR_FILE__',
+    '__INSTALLER_LOG_WAYPAPER_FILE__',
+    '__INSTALLER_LOG_WAYSCRIBER_FILE__',
+    '__INSTALLER_LOG_WHISPER_FILE__',
+    '__INSTALLER_LOG_WHISPER_SERVICE_FILE__',
+    '__INSTALLER_LOG_ZEN_FILE__',
+    '__INSTALLER_LOG_ZOOM_FILE__',
+    '__INSTALLER_LOG_ZRAM_FILE__',
+    '__INSTALLER_LOG_ZRAM_SERVICE_FILE__',
+)
+OLD_AUTH = '/var/log/managed/auth/auth.log'
+NEW_AUTH = '__INSTALLER_LOG_AUTH_FILE__'
+
+
+class LayoutError(ValueError):
+    pass
+
+
+def directory_fd(root: Path, relative: str) -> int:
+    """Open every component without following symlinks or writable parents."""
+    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        for part in Path(relative).parts:
+            if part in ('', '.', '..', '/'):
+                raise LayoutError('invalid managed directory component')
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                            os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise LayoutError(f'unsafe managed directory: /{relative}')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def check_layout(root: Path = Path('/'), preflight: bool = False) -> None:
+    group = grp.getgrnam('__INSTALLER_LOG_GROUP__').gr_gid
+    for absolute, mode in CATEGORIES.items():
+        try:
+            fd = directory_fd(root, absolute.lstrip('/'))
+        except FileNotFoundError:
+            if preflight:
+                continue
+            raise
+        try:
+            info = os.fstat(fd)
+            if not preflight and (stat.S_IMODE(info.st_mode) != mode or info.st_gid != group):
+                raise LayoutError(f'incorrect category permissions: {absolute}')
+        finally:
+            os.close(fd)
+    for absolute in PROTECTED_FILES:
+        path = Path(absolute)
+        try:
+            fd = directory_fd(root, str(path.parent).lstrip('/'))
+        except FileNotFoundError:
+            if preflight:
+                continue
+            raise
+        try:
+            try:
+                info = os.stat(path.name, dir_fd=fd, follow_symlinks=False)
+            except FileNotFoundError:
+                if preflight:
+                    continue
+                raise
+            if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+                    info.st_uid != 0 or info.st_gid != group or
+                    stat.S_IMODE(info.st_mode) != int('__INSTALLER_LOG_FILE_MODE__', 8)):
+                raise LayoutError(f'unsafe protected log: {absolute}')
+        finally:
+            os.close(fd)
+    try:
+        fd = directory_fd(root, '__INSTALLER_LOG_RSYSLOG_SPOOL_DIR__'.lstrip('/'))
+    except FileNotFoundError:
+        if preflight:
+            return
+        raise
+    try:
+        if stat.S_IMODE(os.fstat(fd).st_mode) != 0o700:
+            raise LayoutError('rsyslog cursor/queue directory must be private (0700)')
+    finally:
+        os.close(fd)
+
+
+def migrate_auth_link(root: Path = Path('/')) -> None:
+    fd = directory_fd(root, 'var/log')
+    temp = f'.auth-link-{secrets.token_hex(12)}'
+    created = False
+    try:
+        try:
+            info = os.stat('auth.log', dir_fd=fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return  # tmpfiles owns creation on new installations.
+        if not stat.S_ISLNK(info.st_mode):
+            return  # Preserve existing real logs and administrator configuration.
+        if info.st_uid != 0 or os.readlink('auth.log', dir_fd=fd) != OLD_AUTH:
+            return
+        os.symlink(NEW_AUTH, temp, dir_fd=fd)
+        created = True
+        os.replace(temp, 'auth.log', src_dir_fd=fd, dst_dir_fd=fd)
+        created = False
+    finally:
+        if created:
+            os.unlink(temp, dir_fd=fd)
+        os.close(fd)
+
+
+def main() -> int:
+    if sys.argv[1:] not in ([], ['--preflight']):
+        raise LayoutError('usage: log-layout [--preflight]')
+    preflight = len(sys.argv) == 2
+    check_layout(preflight=preflight)
+    if not preflight:
+        migrate_auth_link()
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, KeyError, LayoutError) as exc:
+        print(f'log-layout: {exc}', file=sys.stderr)
+        raise SystemExit(1)

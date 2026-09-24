@@ -1,5 +1,8 @@
 """Real local Git transport tests; provider APIs are mocked, never contacted."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import installed_script
+from payload_fixture import read_bytes as payload_read_bytes
 import contextlib
 import hashlib
 import importlib.machinery
@@ -16,7 +19,7 @@ from unittest import mock
 
 SEED=Path(__file__).resolve().parents[1]
 BIN=SEED/'hooks/target/usr/local/bin/gitops'
-loader=importlib.machinery.SourceFileLoader('gitops_mirror_tests',str(BIN))
+loader=importlib.machinery.SourceFileLoader('gitops_mirror_tests',str(installed_script(BIN)))
 spec=importlib.util.spec_from_loader(loader.name,loader)
 g=importlib.util.module_from_spec(spec)
 sys.modules[loader.name]=g
@@ -51,7 +54,7 @@ class MirrorFixture(unittest.TestCase):
     def raw(self,*args,cwd=None):
         env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
         env.update({'GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'})
-        p=subprocess.run(['/usr/bin/git',*args],cwd=cwd or self.root,env=env,text=True,capture_output=True)
+        p=subprocess.run(payload_installed_argv(['/usr/bin/git',*args]),cwd=cwd or self.root,env=env,text=True,capture_output=True)
         if p.returncode:raise AssertionError(p.stderr)
         return p.stdout
 
@@ -82,10 +85,10 @@ class MirrorFixture(unittest.TestCase):
     def test_preview_has_no_local_or_remote_mutations(self):
         self.seed_remote()
         before=g.remote_refs(self.root,self.ssh)
-        config=(self.root/'.git/config').read_bytes()
+        config=payload_read_bytes(self.root/'.git/config')
         g.configure_mirror(self.root,'glab','team',False)
         self.assertEqual(g.remote_refs(self.root,self.ssh),before)
-        self.assertEqual((self.root/'.git/config').read_bytes(),config)
+        self.assertEqual(payload_read_bytes(self.root/'.git/config'),config)
         self.assertFalse(any(c[1]!='GET' for c in self.api_calls))
         self.assertIn('Preview only',self.out.getvalue())
         self.assertIn('<delete>',self.out.getvalue())
@@ -192,10 +195,10 @@ class MirrorFixture(unittest.TestCase):
 
     def test_repeated_mirror_setup_is_idempotent(self):
         g.configure_mirror(self.root,'glab','team',True)
-        config=(self.root/'.git/config').read_bytes()
+        config=payload_read_bytes(self.root/'.git/config')
         refs=g.remote_refs(self.root,self.ssh)
         g.configure_mirror(self.root,'glab','team',True)
-        self.assertEqual(config,(self.root/'.git/config').read_bytes())
+        self.assertEqual(config,payload_read_bytes(self.root/'.git/config'))
         self.assertEqual(refs,g.remote_refs(self.root,self.ssh))
 
     def test_provider_identity_mismatch_cannot_prune(self):

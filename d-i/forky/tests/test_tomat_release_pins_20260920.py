@@ -7,6 +7,7 @@ chroot installation are doubled. A separate dependency-gated test loads the full
 Moo/MooX module. No test installs a package or starts/stops a service.
 """
 from __future__ import annotations
+from payload_fixture import read_text as payload_read_text, installed_argv as payload_installed_argv, source_stat as payload_source_stat
 
 import copy
 import hashlib
@@ -24,8 +25,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 FORKY = ROOT / 'd-i/forky'
 PROFILES = FORKY / 'hosts/profiles'
-PERL_LIB = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl/external-managed-software'
-MODULES = PERL_LIB / 'ExternalSoftware/Servicing'
+PERL_LIB = FORKY / 'hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local'
+MODULES = PERL_LIB / 'APTRepoLocal/Servicing'
 SOFTWARE = FORKY / 'scripts/late/software.sh'
 TAG = 'v2.13.0'
 URL = 'https://github.com/jolars/tomat/releases/download/v2.13.0/tomat_2.13.0-1_amd64.deb'
@@ -52,19 +53,19 @@ def perl_methods() -> str:
     """Core-only execution; this is not an emulation or test of Moo itself."""
     return (r'''
 use strict; use warnings; use JSON::PP; use Digest::SHA;
-{ package ExternalSoftware::Servicing::Atomic;
+{ package APTRepoLocal::Servicing::Atomic;
 use Fcntl qw(:DEFAULT O_NOFOLLOW); use Errno qw(EINTR);
 ''' + '\n'.join(method('Atomic.pm', m) for m in ('assert_absolute_path', 'read_limited')) + r'''
 }
-{ package ExternalSoftware::Servicing::Deb;
+{ package APTRepoLocal::Servicing::Deb;
 use Fcntl qw(O_NOFOLLOW O_NONBLOCK O_RDONLY S_IFMT S_IFREG);
 use Errno qw(EINTR);
-use ExternalSoftware::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
+use APTRepoLocal::Servicing::ArtifactLimits qw(MAX_DEB_BYTES);
 ''' + '\n'.join(method('Deb.pm', m) for m in (
     '_capture', '_capture_limited', 'control', '_archive_identity', '_archive_listing',
     '_listing_mode', '_listing_contains', 'validate')) + r'''
 }
-{ package ExternalSoftware::Servicing::Tomat;
+{ package APTRepoLocal::Servicing::Tomat;
 use Digest::SHA; use JSON::PP qw(decode_json);
 sub http { $_[0]->{http} } sub deb { $_[0]->{deb} }
 ''' + '\n'.join(method('Tomat.pm', m) for m in (
@@ -97,8 +98,8 @@ sub download {
 HARNESS_MAIN = r'''
 my $o = decode_json($ARGV[0]);
 my $http = bless({calls => [], options => $o, artifact => $ARGV[1], metadata => $ARGV[2]}, 'FixtureHTTP');
-my $adapter = bless({http => $http, deb => bless({}, 'ExternalSoftware::Servicing::Deb')},
-                    'ExternalSoftware::Servicing::Tomat');
+my $adapter = bless({http => $http, deb => bless({}, 'APTRepoLocal::Servicing::Deb')},
+                    'APTRepoLocal::Servicing::Tomat');
 my $result;
 my $ok = eval {
     if ($o->{operation} eq 'pin') {
@@ -162,7 +163,7 @@ class TomatProfilePinsTests(unittest.TestCase):
         self.assertLess(main.index('validate_tomat_profiles()'), main.index('products = build()'))
 
     def test_real_shell_profile_to_chroot_argv_for_every_profile(self):
-        text = SOFTWARE.read_text()
+        text = payload_read_text(SOFTWARE)
         start = text.index('chroot "$target_root" /usr/bin/perl', text.index('# Bootstrap only the profile-pinned Tomat'))
         block = text[start:text.index('# Neither a packaged system daemon', start)]
         shells = [['/bin/sh']]
@@ -181,7 +182,7 @@ capture=$2
 software_fatal() { printf '%s\n' "$*" >&2; exit 1; }
 chroot() { /usr/bin/python3 -c 'import json,sys;open(sys.argv[1],"w").write(json.dumps(sys.argv[2:]))' "$capture" "$@"; }
 ''' + block
-                        result = subprocess.run([*shell, '-c', code, 'r4-tomat', str(profile), str(captured)],
+                        result = subprocess.run(payload_installed_argv([*shell, '-c', code, 'r4-tomat', str(profile), str(captured)]),
                             env={**os.environ, 'SOFTWARE_TOMAT_TAG': 'v999.0.0', 'SOFTWARE_TOMAT_URL': 'invalid'},
                             text=True, capture_output=True, timeout=15)
                         self.assertEqual(result.returncode, 0, result.stderr)
@@ -197,7 +198,7 @@ chroot() { /usr/bin/python3 -c 'import json,sys;open(sys.argv[1],"w").write(json
         self.assertLess(text.index('. "$host_env"'), text.index('${SOFTWARE_TOMAT_TAG:?'))
 
     def test_failure_stops_before_service_masks_and_installation(self):
-        text = SOFTWARE.read_text()
+        text = payload_read_text(SOFTWARE)
         start = text.index('chroot "$target_root" /usr/bin/perl', text.index('# Bootstrap only the profile-pinned Tomat'))
         end = text.index('software_download \\\n  "Postman"', start)
         block = text[start:end]
@@ -209,7 +210,7 @@ software_fatal() { printf 'FATAL:%s\n' "$*"; exit 1; }
 chroot() { printf 'CHROOT\n'; return 9; }
 software_install_deb() { printf 'UNREACHABLE_INSTALL\n'; }
 ''' + block
-        result = subprocess.run(['/bin/sh', '-c', code, 'r4', str(PROFILES / 'btrfs-de.env')],
+        result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', code, 'r4', str(PROFILES / 'btrfs-de.env')]),
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout.count('CHROOT\n'), 1)
@@ -255,15 +256,19 @@ class TomatPerlPinMethodsTests(unittest.TestCase):
         if executable:
             binary = tree / 'usr/bin/tomat'; binary.parent.mkdir(parents=True)
             binary.write_text('#!/bin/sh\nexit 0\n'); binary.chmod(0o755)
+        # Debian archive metadata must not inherit a caller's private umask.
+        tree.chmod(0o755)
+        for entry in tree.rglob('*'):
+            entry.chmod(0o755 if entry.is_dir() or entry.name == 'tomat' else 0o644)
         path = cls.root / (name + '.deb')
-        subprocess.run(['dpkg-deb', '--root-owner-group', '-Znone', '--build', str(tree), str(path)],
+        subprocess.run(payload_installed_argv(['dpkg-deb', '--root-owner-group', '-Znone', '--build', str(tree), str(path)]),
                        check=True, capture_output=True, timeout=20)
         return path
 
     def release(self, name='tomat_2.13.0-1_amd64.deb'):
         return {'tag_name': TAG, 'draft': False, 'prerelease': False, 'assets': [
             {'name': name, 'browser_download_url': URL.rsplit('/', 1)[0] + '/' + name,
-             'size': self.package.stat().st_size, 'digest': 'sha256:' + self.digest}]}
+             'size': payload_source_stat(self.package).st_size, 'digest': 'sha256:' + self.digest}]}
 
     def run_case(self, operation='pinned', *, release=None, package=None, **options):
         with tempfile.TemporaryDirectory(dir=self.root) as tmp:
@@ -271,8 +276,8 @@ class TomatPerlPinMethodsTests(unittest.TestCase):
             metadata.write_text(json.dumps(self.release() if release is None else release))
             values = dict(operation=operation, tag=TAG, url=URL, sha256=self.digest)
             values.update(options)
-            result = subprocess.run(['perl', '-I', str(PERL_LIB), '-e', self.code, json.dumps(values),
-                str(package or self.package), str(metadata), str(work)], capture_output=True, text=True, timeout=20)
+            result = subprocess.run(payload_installed_argv(['perl', '-I', str(PERL_LIB), '-e', self.code, json.dumps(values),
+                str(package or self.package), str(metadata), str(work)]), capture_output=True, text=True, timeout=20)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             self.assertIn('R4_RESULT=', result.stdout)
             return json.loads(result.stdout.rsplit('R4_RESULT=', 1)[1])
@@ -345,8 +350,8 @@ class TomatPerlPinMethodsTests(unittest.TestCase):
         self.assertEqual(result['ok'], 1, result['error'])
         self.assertEqual(len(result['calls']), 2)
         self.assertEqual(result['calls'][1]['url'], URL)
-        self.assertEqual(result['calls'][1]['minimum'], self.package.stat().st_size)
-        self.assertEqual(result['calls'][1]['maximum'], self.package.stat().st_size)
+        self.assertEqual(result['calls'][1]['minimum'], payload_source_stat(self.package).st_size)
+        self.assertEqual(result['calls'][1]['maximum'], payload_source_stat(self.package).st_size)
         self.assertEqual(result['result']['metadata']['version'], '2.13.0-1')
 
     def test_release_keeps_legacy_compatibility_but_rejects_ambiguity(self):
@@ -380,14 +385,14 @@ class TomatPerlPinMethodsTests(unittest.TestCase):
                 self.assertEqual(self.run_case('release', release=release)['ok'], 0)
 
     def test_full_moo_module_pin_validation_when_dependencies_are_installed(self):
-        from test_managed_external_software import ManagedExternalSoftwareTests
+        from test_managed_external_software import ManagedAPTRepoLocalTests
         code = r'''
-use ExternalSoftware::Servicing::Tomat;
+use APTRepoLocal::Servicing::Tomat;
 use JSON::PP;
-my $adapter = ExternalSoftware::Servicing::Tomat->new(http => bless({}, 'Fixture'), deb => bless({}, 'Fixture'));
+my $adapter = APTRepoLocal::Servicing::Tomat->new(http => bless({}, 'Fixture'), deb => bless({}, 'Fixture'));
 print encode_json($adapter->_pinned_release(@ARGV));
 '''
-        result = ManagedExternalSoftwareTests.run_perl(self, code, TAG, URL, SHA256)
+        result = ManagedAPTRepoLocalTests.run_perl(self, code, TAG, URL, SHA256)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['package_version'], '2.13.0-1')
 
@@ -395,7 +400,7 @@ print encode_json($adapter->_pinned_release(@ARGV));
 class TomatVersionedUpdaterTests(unittest.TestCase):
     def setUp(self):
         from test_native_tomat_20260920 import load
-        self.mod = load('local-apt-repository')
+        self.mod = load('apt-repo-local')
         self.release = {'id': 1, 'tag_name': TAG, 'published_at': '2026-08-28T13:02:59Z',
             'draft': False, 'prerelease': False, 'assets': [
                 {'id': 2, 'name': URL.rsplit('/', 1)[1], 'browser_download_url': URL,

@@ -828,7 +828,7 @@ def _main(argv: list[str] | None = None) -> int:
                 else:
                     git('tag', '-d', '--', tag, cwd=root)
             else:
-                raise GitOpsError('unsupported command/arguments; see /usr/local/share/doc/managed-git/README.md')
+                raise GitOpsError('unsupported command/arguments; see /usr/local/share/doc/git/README.md')
         return 0
     except (GitOpsError, OSError, ValueError, subprocess.SubprocessError) as exc:
         print('gitops: '+terminal_text(str(exc)), file=sys.stderr)

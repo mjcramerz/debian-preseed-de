@@ -1,1 +1,0 @@
-This run was intentionally interrupted during the package-power tests before a final sleep/action serialization refinement. It is not the final release validation. Earlier VM bootstrap timeout is retained; isolated unchanged-source reruns are recorded separately.

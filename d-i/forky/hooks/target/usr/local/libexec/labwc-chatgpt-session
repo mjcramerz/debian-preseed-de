@@ -5,4 +5,4 @@ set -eu
 mode=$1
 shift
 case "$mode" in auto|launch|intel|nvidia) ;; *) exit 64 ;; esac
-exec /usr/local/bin/labwc-managed-app "$mode" chatgpt "$@"
+exec /usr/local/bin/labwc-app "$mode" chatgpt "$@"

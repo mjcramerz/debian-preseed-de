@@ -1,0 +1,9 @@
+    <keybind key="W-r">
+      <action name="Execute" command="/usr/local/libexec/whisper-record-toggle toggle" />
+    </keybind>
+    <keybind key="C-A-r">
+      <action name="Execute" command="/usr/local/libexec/whisper-record-toggle toggle" />
+    </keybind>
+    <keybind key="W-S-r">
+      <action name="Reconfigure" />
+    </keybind>

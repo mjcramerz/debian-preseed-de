@@ -5,6 +5,10 @@ GTK builder and AppArmor parser tests run only when their host tools exist.
 These are not a boot, hardware, vendor-binary or kernel-mediation qualification.
 """
 from __future__ import annotations
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_path as payload_source_path, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import contextlib
 import copy
 import ctypes.util
@@ -35,28 +39,14 @@ def load(name):
     path = LIBEXEC / name
     module = types.ModuleType('fixture_' + name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
 def bars():
-    text = (SKEL / 'waybar/config.tmpl').read_text()
-    # Use the real right-side composition; unrelated values are structural fixtures.
-    def value(match):
-        key = match[0]
-        if 'MODULES_LEFT' in key:
-            return '"custom/launcher", "ext/workspaces", "custom/tomat", "custom/wayscriber", "custom/window-switcher", "group/apps"'
-        if 'MODULES_RIGHT' in key:
-            function = ('desktop_waybar_modules_right_internal_json' if 'INTERNAL' in key
-                        else 'desktop_waybar_modules_right_json')
-            return subprocess.check_output(
-                ['/bin/sh', '-eu', '-c', '. "$1"; "$2"', 'waybar-order-fixture',
-                 str(FORKY / 'scripts/desktop/components.sh'), function],
-                text=True, timeout=5)
-        if 'OUTPUTS' in key: return '"eDP-1"'
-        if 'HEIGHT' in key or 'ICON_SIZE' in key: return '32'
-        return 'fixture'
-    return json.loads(re.sub(r'__INSTALLER_[A-Z0-9_]+__', value, text))
+    from waybar_fixture import rendered_assets
+    assets = rendered_assets(FORKY / 'hosts/profiles/btrfs-de.env')
+    return json.loads(assets['config'])
 
 
 class HardwareProfileTests(unittest.TestCase):
@@ -70,18 +60,18 @@ class HardwareProfileTests(unittest.TestCase):
         expected.update({p.name: '79-chromebook.conf' for p in (FORKY / 'hosts/profiles').glob('f2fs-*.env')})
         self.assertEqual(len(expected), 8)
         for name, selected in expected.items():
-            text = (FORKY / 'hosts/profiles' / name).read_text()
+            text = render_theme_defaults(payload_read_text(FORKY / 'hosts/profiles' / name))
             self.assertEqual(re.findall(r'^SYSTEM_HARDWARE_SPEC="([^"]+)"$', text, re.M), [selected])
-        self.assertNotIn('79-thinkpad', (FORKY / 'classes/configs/target-assets.tsv').read_text())
-        chromebook = (TARGET / 'etc/modprobe.d/79-chromebook.conf').read_text()
+        self.assertNotIn('79-thinkpad', render_theme_defaults(payload_read_text(FORKY / 'classes/configs/target-assets.tsv')))
+        chromebook = render_theme_defaults(payload_read_text(TARGET / 'etc/modprobe.d/79-chromebook.conf'))
         self.assertIn('options mmc_block mmcblk.perdev_minors=16', chromebook)
         self.assertNotIn('options mmc_block perdev_minors=', chromebook)
-        self.assertIn('options i915 enable_dpcd_backlight=1', (TARGET / 'etc/modprobe.d/79-thinkpad-acpi.conf').read_text())
+        self.assertIn('options i915 enable_dpcd_backlight=1', render_theme_defaults(payload_read_text(TARGET / 'etc/modprobe.d/79-thinkpad-acpi.conf')))
         for name in ('79-ideapad-acpi.conf', '79-chromebook.conf'):
-            active = '\n'.join(line for line in (TARGET / 'etc/modprobe.d' / name).read_text().splitlines() if not line.startswith('#'))
+            active = '\n'.join(line for line in render_theme_defaults(payload_read_text(TARGET / 'etc/modprobe.d' / name)).splitlines() if not line.startswith('#'))
             self.assertNotIn('fan_control', active)
             self.assertNotIn('options f2fs', active)
-        self.assertFalse((TARGET / 'etc/udev/hwdb.d/90-managed-thinkpad-extra-buttons.hwdb').exists())
+        self.assertFalse(payload_source_exists(TARGET / 'etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb'))
 
     def stage(self, target, selected):
         q = shlex.quote
@@ -97,10 +87,10 @@ INSTALLER_TARGET_DIR={q(str(target))}
 DIR_HOOKS_TARGET={q(str(TARGET))}
 SYSTEM_HARDWARE_SPEC={q(selected)}
 installer_repo_join_var() {{ printf '%s/%s\\n' "$DIR_HOOKS_TARGET" "$2"; }}
-fetch_hook() {{ cp "$1" "$2"; }}
+fetch_hook() {{ fixture_input=$1; [ -f "$fixture_input" ] || fixture_input=$fixture_input.tmpl; cp "$fixture_input" "$2"; }}
 stage_target_hardware_spec
 '''
-        return subprocess.run(['/bin/sh', '-eu', '-c', code], text=True, capture_output=True, timeout=10)
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', code]), text=True, capture_output=True, timeout=10)
 
     def test_real_publish_switch_cleanup_and_unowned_preservation(self):
         with tempfile.TemporaryDirectory() as work:
@@ -114,19 +104,19 @@ stage_target_hardware_spec
                 self.assertEqual(result.returncode, 0, result.stderr)
                 managed = sorted(p.name for p in destination.glob('79-*.conf') if p != admin)
                 self.assertEqual(managed, [name] if name else [])
-                self.assertEqual(admin.read_text(), '# unowned\n')
+                self.assertEqual(render_theme_defaults(payload_read_text(admin)), '# unowned\n')
                 if name:
-                    self.assertEqual((destination / name).read_bytes(), (TARGET / 'etc/modprobe.d' / name).read_bytes())
-                    self.assertEqual(stat.S_IMODE((destination / name).stat().st_mode), 0o644)
+                    self.assertEqual(render_theme_bytes(payload_read_bytes(destination / name)), render_theme_bytes(payload_read_bytes(TARGET / 'etc/modprobe.d' / name)))
+                    self.assertEqual(stat.S_IMODE(payload_source_stat(destination / name).st_mode), 0o644)
 
     def test_invalid_selection_fails_before_deleting_existing_policy(self):
         with tempfile.TemporaryDirectory() as work:
             target = Path(work)
             self.assertEqual(self.stage(target, '79-thinkpad-acpi.conf').returncode, 0)
-            before = {p.name: p.read_bytes() for p in (target / 'etc/modprobe.d').iterdir()}
+            before = {p.name: render_theme_bytes(payload_read_bytes(p)) for p in (target / 'etc/modprobe.d').iterdir()}
             for name in ('../../etc/passwd', '79-site.conf', '*', '79-thinkpad-acpi.conf;true'):
                 self.assertNotEqual(self.stage(target, name).returncode, 0)
-                self.assertEqual(before, {p.name: p.read_bytes() for p in (target / 'etc/modprobe.d').iterdir()})
+                self.assertEqual(before, {p.name: render_theme_bytes(payload_read_bytes(p)) for p in (target / 'etc/modprobe.d').iterdir()})
 
     def test_symlink_directory_is_not_followed(self):
         with tempfile.TemporaryDirectory() as work:
@@ -141,7 +131,7 @@ stage_target_hardware_spec
 class TomatControllerTests(unittest.TestCase):
     def setUp(self):
         self.mod = load('labwc-tomat')
-        self.text = (SKEL / 'tomat/config.toml').read_text()
+        self.text = render_theme_defaults(payload_read_text(SKEL / 'tomat/config.toml'))
 
     def test_defaults_and_hooks_are_valid(self):
         data = self.mod.validate_config(self.text)
@@ -191,24 +181,24 @@ class TomatControllerTests(unittest.TestCase):
     def test_settings_atomic_permissions_and_restart_only_owned_unit(self):
         with tempfile.TemporaryDirectory() as work:
             ctx = self.context(work)
-            before = ctx.config.stat().st_ino
+            before = payload_source_stat(ctx.config).st_ino
             with contextlib.redirect_stdout(io.StringIO()): ctx.setting('sounds')
-            self.assertEqual(stat.S_IMODE(ctx.config.stat().st_mode), 0o600)
-            self.assertNotEqual(ctx.config.stat().st_ino, before)
-            self.assertEqual(self.mod.validate_config(ctx.config.read_text())['sound']['mode'], 'none')
+            self.assertEqual(stat.S_IMODE(payload_source_stat(ctx.config).st_mode), 0o600)
+            self.assertNotEqual(payload_source_stat(ctx.config).st_ino, before)
+            self.assertEqual(self.mod.validate_config(render_theme_defaults(payload_read_text(ctx.config)))['sound']['mode'], 'none')
             ctx.run.assert_called_once_with([self.mod.SYSTEMCTL, '--user', 'restart', self.mod.UNIT])
             self.assertEqual(sorted(p.name for p in Path(work).iterdir()), ['config.toml'])
 
     def test_concurrent_config_edit_is_not_overwritten(self):
         with tempfile.TemporaryDirectory() as work:
             ctx = self.context(work)
-            original = ctx.config.read_text()
+            original = render_theme_defaults(payload_read_text(ctx.config))
             def edit(*_):
                 ctx.config.write_text(original + '\n# concurrent user edit\n')
                 return 'fixture'
             with mock.patch.object(self.mod.secrets, 'token_hex', side_effect=edit), self.assertRaises(self.mod.Error):
                 ctx.setting('sounds')
-            self.assertIn('# concurrent user edit', ctx.config.read_text())
+            self.assertIn('# concurrent user edit', render_theme_defaults(payload_read_text(ctx.config)))
             ctx.run.assert_not_called()
 
     def test_symlink_fifo_hardlink_and_world_writable_config_rejected(self):
@@ -296,7 +286,7 @@ class MenuAndHookTests(unittest.TestCase):
                                        ('clock','calendar','on-click-right')]:
                 entry = bar[module]
                 self.assertEqual(entry['menu'], event); self.assertNotIn(event, entry)
-                tree = ET.parse(SKEL / 'waybar' / (name + '-menu.xml'))
+                tree = ET.parse(payload_source_path(SKEL / 'waybar' / (name + '-menu.xml')))
                 ids = [node.get('id') for node in tree.iter('object') if node.get('class') == 'GtkMenuItem' and node.get('id')]
                 self.assertEqual(len(ids), len(set(ids)))
                 self.assertEqual(set(ids), set(entry['menu-actions']))
@@ -327,9 +317,15 @@ for path in sys.argv[1:]:
     O.g_object_unref(builder)
 print("GTK3 native menu builders: 5 passed")
 '''
-        result = subprocess.run(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-c', code,
-                                 *(str(SKEL / 'waybar' / (name + '-menu.xml')) for name in ('tomat','audio','notifications','power','calendar'))],
-                                text=True, capture_output=True, timeout=15)
+        from waybar_fixture import rendered_assets
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            menus = []
+            for name, text in rendered_assets(FORKY/'hosts/profiles/btrfs-de.env').items():
+                if name.endswith('-menu.xml'):
+                    path = root/name; path.write_text(text); menus.append(str(path))
+            result = subprocess.run(payload_installed_argv(['xvfb-run', '-a', '/usr/bin/python3', '-I', '-c', code, *menus]),
+                                    text=True, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_media_hook_is_bounded_and_never_resumes(self):
@@ -352,7 +348,7 @@ print("GTK3 native menu builders: 5 passed")
         self.assertEqual(len(data[0]['body']),8192)
         for bad in ({}, [1], [{}]*1025):
             with self.assertRaises(mod.Error): mod.notification_list(json.dumps(bad))
-        source = (LIBEXEC / 'labwc-notifications').read_text()
+        source = render_theme_defaults(payload_read_text(LIBEXEC / 'labwc-notifications'))
         self.assertNotIn('set_markup(', source)
         self.assertIn('"dismiss", "--all", "--no-history"', source)
         self.assertIn('max_workers=1', source)
@@ -360,17 +356,17 @@ print("GTK3 native menu builders: 5 passed")
     def test_apparmor_profiles_parse_offline_and_are_staged(self):
         parser=shutil.which('apparmor_parser')
         if not parser: self.skipTest('AppArmor parser unavailable')
-        for name in ('managed-tomat','managed-waybar-menus'):
-            result=subprocess.run([parser,'-Q','-T','-I',str(TARGET/'etc/apparmor.d'),str(TARGET/'etc/apparmor.d'/name)],
+        for name in ('tomat','waybar-menus'):
+            result=subprocess.run(payload_installed_argv([parser,'-Q','-T','-I',str(TARGET/'etc/apparmor.d'),str(TARGET/'etc/apparmor.d'/name)]),
                                   text=True,capture_output=True,timeout=20)
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertIn(name,(FORKY/'scripts/late/security.sh').read_text())
-            self.assertIn('__DESKTOP_APPARMOR_STATE__ required '+name+' -',(TARGET/'etc/apparmor/managed-modes.conf.tmpl').read_text())
+            self.assertIn(name,render_theme_defaults(payload_read_text(FORKY/'scripts/late/security.sh')))
+            self.assertIn('__DESKTOP_APPARMOR_STATE__ required '+name+' -',render_theme_defaults(payload_read_text(TARGET/'etc/apparmor/modes.conf.tmpl')))
 
 
 class TomatRepositoryTests(unittest.TestCase):
     def setUp(self):
-        self.mod=load('local-apt-repository')
+        self.mod=load('apt-repo-local')
         self.source=self.mod.source_for('https://github.com/jolars/tomat/releases/latest/download/tomat_amd64.deb')
         self.release={'id':1,'tag_name':'v2.13.0','published_at':'2026-01-01T00:00:00Z','draft':False,'prerelease':False,
                       'assets':[{'id':2,'name':'tomat_amd64.deb','browser_download_url':'https://github.com/jolars/tomat/releases/download/v2.13.0/tomat_amd64.deb',
@@ -414,7 +410,7 @@ class TomatRepositoryTests(unittest.TestCase):
             executable.write_text("#!/bin/sh\nexit 0\n")
             for mode in (0o755, 0o644, 0o4755, 0o777):
                 executable.chmod(mode); package = root / (str(mode) + ".deb")
-                subprocess.run(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(package)],
+                subprocess.run(payload_installed_argv(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(package)]),
                                check=True, capture_output=True, timeout=10)
                 if mode == 0o755:
                     self.assertEqual(self.mod.inspect_deb(package, {"amd64"})["Version"], "2.13.0-1")
@@ -423,53 +419,53 @@ class TomatRepositoryTests(unittest.TestCase):
                         self.mod.inspect_deb(package, {"amd64"})
             executable.unlink(); executable.symlink_to("/usr/bin/true")
             package = root / "symlink.deb"
-            subprocess.run(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(package)],
+            subprocess.run(payload_installed_argv(["dpkg-deb", "--root-owner-group", "--build", str(tree), str(package)]),
                            check=True, capture_output=True, timeout=10)
             with self.assertRaises(self.mod.Error): self.mod.inspect_deb(package, {"amd64"})
 
     def test_no_dedicated_tomat_upgrade_assets_or_installer_wiring(self):
         retired = (
-            'etc/systemd/system/local-apt-tomat-upgrade.service',
-            'etc/systemd/system/local-apt-refresh.service.d/70-tomat-upgrade.conf',
+            'etc/systemd/system/apt-repo-local-tomat-upgrade.service',
+            'etc/systemd/system/apt-repo-local-refresh.service.d/70-tomat-upgrade.conf',
             'etc/apt/tomat-unattended.conf',
             'usr/local/share/software/tomat/apt.conf',
         )
-        stage = (FORKY / 'scripts/late/software.sh').read_text()
-        verify = (FORKY / 'scripts/desktop/verify.sh').read_text()
+        stage = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/software.sh'))
+        verify = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/verify.sh'))
         for relative in retired:
             with self.subTest(relative=relative):
-                self.assertFalse((TARGET / relative).exists())
+                self.assertFalse(payload_source_exists(TARGET / relative))
                 self.assertFalse((TARGET / relative).is_symlink())
                 self.assertNotIn(relative, stage)
                 self.assertNotIn(relative, verify)
-        self.assertFalse((TARGET / 'etc/systemd/system/local-apt-tomat-upgrade.timer').exists())
+        self.assertFalse(payload_source_exists(TARGET / 'etc/systemd/system/apt-repo-local-tomat-upgrade.timer'))
 
     def test_shared_refresh_and_normal_apt_maintenance_remain(self):
-        service = (TARGET / 'etc/systemd/system/local-apt-refresh.service').read_text()
-        timer = (TARGET / 'etc/systemd/system/local-apt-refresh.timer').read_text()
-        periodic = (TARGET / 'etc/apt/apt.conf.d/20auto-upgrades').read_text()
-        self.assertIn('ExecStart=/usr/local/bin/local-apt-init --refresh', service)
+        service = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/apt-repo-local-refresh.service'))
+        timer = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/apt-repo-local-refresh.timer'))
+        periodic = render_theme_defaults(payload_read_text(TARGET / 'etc/apt/apt.conf.d/20auto-upgrades'))
+        self.assertIn('ExecStart=/usr/local/bin/apt-repo-init --refresh', service)
         self.assertNotIn('unattended-upgrade', service)
         self.assertNotIn('OnSuccess=', service)
         self.assertIn('OnCalendar=weekly', timer)
         self.assertIn('APT::Periodic::Unattended-Upgrade "1";', periodic)
-        self.assertIn('tomat', (FORKY / 'scripts/late/software.sh').read_text())
+        self.assertIn('tomat', render_theme_defaults(payload_read_text(FORKY / 'scripts/late/software.sh')))
 
     def test_perl_bootstrap_release_metadata_validation(self):
-        from test_managed_external_software import ManagedExternalSoftwareTests
+        from test_managed_external_software import ManagedAPTRepoLocalTests
         code=r'''
-use ExternalSoftware::Servicing::Tomat;
+use APTRepoLocal::Servicing::Tomat;
 use JSON::PP;
-my $adapter=ExternalSoftware::Servicing::Tomat->new(http=>bless({},'Fixture'),deb=>bless({},'Fixture'));
+my $adapter=APTRepoLocal::Servicing::Tomat->new(http=>bless({},'Fixture'),deb=>bless({},'Fixture'));
 my $value=$adapter->_release($ARGV[0]); print JSON::PP->new->canonical->encode($value);
 '''
         with tempfile.TemporaryDirectory() as work:
             path=Path(work)/'release.json';path.write_text(json.dumps(self.release))
-            result=ManagedExternalSoftwareTests.run_perl(self,code,path)
+            result=ManagedAPTRepoLocalTests.run_perl(self,code,path)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertEqual(json.loads(result.stdout)['sha256'],'a'*64)
             self.release['assets'][0]['digest']=None;path.write_text(json.dumps(self.release))
-            result=ManagedExternalSoftwareTests.run_perl(self,code,path)
+            result=ManagedAPTRepoLocalTests.run_perl(self,code,path)
             self.assertNotEqual(result.returncode,0)
 
 

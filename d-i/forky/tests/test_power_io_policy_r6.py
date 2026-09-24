@@ -4,6 +4,8 @@ Never run a power command. systemd checks use verify only; calls from the
 production worker are mocked. Fixture units are not host units.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
 import io
 import itertools
@@ -25,14 +27,14 @@ WIRE = 'etc/systemd/user/wireplumber.service.d/60-resource-class.conf'
 
 
 def directives(path):
-    return [line for line in path.read_text().splitlines()
+    return [line for line in payload_read_text(path).splitlines()
             if line.strip() and not line.lstrip().startswith('#')]
 
 
 def worker_module():
     path = base.TARGET / 'usr/local/libexec/labwc-admin-action-worker'
     result = types.ModuleType('r6_power_worker'); result.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), result.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
     return result
 
 
@@ -48,7 +50,7 @@ class IndependentIOTests(unittest.TestCase):
                 for unit in base.SERVICE_CLASSES:
                     relative = f'{base.USER_BASE}/{unit}.service'
                     p = target / relative; p.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(base.TARGET / relative, p)
+                    payload_copyfile(base.TARGET / relative, p)
                 units = target / 'usr/lib/systemd/user'; units.mkdir(parents=True)
                 (units / 'wireplumber.service').write_text('[Service]\nExecStart=/usr/bin/true\n')
                 for accounting, weights in itertools.product(('true', 'false'), repeat=2):
@@ -63,15 +65,15 @@ desktop_install_user_resource_policy
                                 'DefaultTasksAccounting=yes', 'DefaultIOAccounting=' + ('yes' if accounting == 'true' else 'no')])
                         found = []
                         for p in target.rglob('*.conf'):
-                            text = p.read_text()
+                            text = payload_read_text(p)
                             self.assertFalse(base.TOKEN.search(text), str(p))
                             self.assertNotRegex(text, r'(?m)^IOWeight=\s*$')
                             found.extend(re.findall(r'(?m)^IOWeight=([0-9]+)$', text))
-                            self.assertEqual(p.stat().st_mode & 0o777, 0o644)
+                            self.assertEqual(payload_source_stat(p).st_mode & 0o777, 0o644)
                         self.assertEqual(sorted(found), sorted(['200', '100', '30', '300', '30', '50'])
                                          if weights == 'true' else [])
                         self.assertEqual(directives(target / WIRE), ['[Service]', 'Slice=session.slice'])
-                        self.assertIn('CPUWeight=300', (target / f'{base.USER_BASE}/labwc-compositor.service.d/60-resources.conf').read_text())
+                        self.assertIn('CPUWeight=300', payload_read_text(target / f'{base.USER_BASE}/labwc-compositor.service.d/60-resources.conf'))
                         self.assertFalse(list(target.rglob('.installer-asset.*')))
                         self.assertFalse(list(target.rglob('*.wants')))
 
@@ -79,7 +81,7 @@ desktop_install_user_resource_policy
         for profile in base.PROFILES:
             for key in ('SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE', 'SYSTEMD_IOWEIGHT_ENABLE'):
                 with self.subTest(profile=profile.name, key=key):
-                    self.assertEqual(re.findall(r'^' + key + r'="(true|false)"$', profile.read_text(), re.M), ['false'])
+                    self.assertEqual(re.findall(r'^' + key + r'="(true|false)"$', payload_read_text(profile), re.M), ['false'])
 
     def test_desktop_stage_alone_replaces_stale_manager_defaults(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,7 +91,7 @@ desktop_install_user_resource_policy
                 p.parent.mkdir(parents=True); p.write_text('[Manager]\nDefaultIOAccounting=yes\n')
             self.runner.shell(self.runner.staging(tmp) + 'desktop_install_user_resource_policy')
             for scope in ('system', 'user'):
-                self.assertIn('DefaultIOAccounting=no', (target / f'etc/systemd/{scope}.conf.d/60-resource-accounting.conf').read_text())
+                self.assertIn('DefaultIOAccounting=no', payload_read_text(target / f'etc/systemd/{scope}.conf.d/60-resource-accounting.conf'))
 
     def test_new_flag_invalid_or_missing_is_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,7 +130,7 @@ render_target_resource_asset synthetic /etc/systemd/system/test.service.d/60-res
 class FixedPowerUnitTests(unittest.TestCase):
     def test_retired_barrier_units_are_not_distributed(self):
         for rel in POWER_FILES:
-            self.assertFalse((base.TARGET / rel).exists(), rel)
+            self.assertFalse(payload_source_exists(base.TARGET / rel), rel)
 
     def test_production_publisher_removes_only_retired_units_idempotently(self):
         runner = base.ResourcePolicyTests()
@@ -141,8 +143,8 @@ class FixedPowerUnitTests(unittest.TestCase):
             sentinel.write_text('retained')
             for _ in range(2):
                 runner.shell(runner.staging(tmp) + 'desktop_remove_legacy_power_transactions')
-                self.assertEqual([p for p in target.rglob('*') if p.is_file()], [sentinel])
-            self.assertEqual(sentinel.read_text(), 'retained')
+                self.assertEqual([p for p in target.rglob('*') if payload_source_is_file(p)], [sentinel])
+            self.assertEqual(payload_read_text(sentinel), 'retained')
             self.assertFalse(list(target.rglob('*.wants')))
 
     def test_existing_application_and_wireplumber_classes_are_explicit(self):
@@ -152,7 +154,7 @@ class FixedPowerUnitTests(unittest.TestCase):
             ('crystal-dock.service.d/60-resource-class.conf', 'Service', 'app')):
             self.assertEqual(directives(base.TARGET / base.USER_BASE / leaf), [f'[{section}]', f'Slice={cls}.slice'])
         self.assertEqual(directives(base.TARGET / WIRE), ['[Service]', 'Slice=session.slice'])
-        verifier = (base.SEED / 'scripts/desktop/verify.sh').read_text()
+        verifier = payload_read_text(base.SEED / 'scripts/desktop/verify.sh')
         for rel in (WIRE,):
             self.assertIn('/' + rel, verifier)
 
@@ -173,7 +175,8 @@ class HandoffTests(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()) as output:
                 worker.final_power_action()
             cleanup.assert_called_once_with()
-            run.assert_called_once_with(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)
+            self.assertEqual(run.call_args_list, [
+                mock.call(['/usr/bin/systemctl', '--force', '--no-ask-password', action], timeout=20)])
             self.assertTrue(worker.committed)
             self.assertTrue(worker.handoff_attempted)
             self.assertIn('systemctl --force ' + action, output.getvalue())
@@ -196,6 +199,7 @@ class HandoffTests(unittest.TestCase):
                 self.worker.final_power_action()
         self.assertTrue(self.worker.committed)
         self.assertEqual(run.call_count, 1)
+        self.assertEqual(sum('--force' in c.args[0] for c in run.call_args_list), 1)
 
     def test_unaccepted_actions_cannot_form_a_unit_name(self):
         for action in ('logout', 'suspend', 'reboot;id', '../poweroff', 'reboot --force'):

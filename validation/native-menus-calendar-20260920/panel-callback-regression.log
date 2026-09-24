@@ -1,6 +1,0 @@
-test_all_panel_click_commands_use_session_bound_user_services (test_installed_session_failures_20260913.PanelAndWiringTests.test_all_panel_click_commands_use_session_bound_user_services) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.010s
-
-OK

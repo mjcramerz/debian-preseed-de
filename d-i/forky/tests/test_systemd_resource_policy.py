@@ -1,5 +1,9 @@
 """Scoped resource-policy integration; no running managers or cgroups are changed."""
 from __future__ import annotations
+from payload_fixture import installed_script, source_path, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import copy2 as payload_copy2, read_bytes as payload_read_bytes, read_text as payload_read_text
+
+from refactor_fixture import current_path, uploaded_bytes
 
 import hashlib
 import json
@@ -34,7 +38,7 @@ TEMPLATES = [TARGET / f'{USER_BASE}/{name}.slice.d/60-resources.conf' for name i
     TARGET / 'etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf',
     TARGET / 'etc/systemd/system.conf.d/60-resource-accounting.conf',
     TARGET / 'etc/systemd/user.conf.d/60-resource-accounting.conf',
-    TARGET / 'etc/systemd/coredump.conf.d/60-managed-limits.conf',
+    TARGET / 'etc/systemd/coredump.conf.d/60-limits.conf',
     TARGET / 'etc/systemd/journald.conf.d/10-storage.conf',
 ]
 SERVICE_CLASSES = {
@@ -48,7 +52,7 @@ SERVICE_CLASSES = {
 
 class ResourcePolicyTests(unittest.TestCase):
     def shell(self, command, *, profile=None, override='', shell='dash', check=True):
-        sources = '\n'.join('. ' + shlex.quote(str(SEED / path)) for path in (
+        sources = '\n'.join('. ' + shlex.quote(str(installed_script(SEED / path))) for path in (
             'scripts/common/lib.sh', 'scripts/common/target.sh',
             'scripts/late/target-assets.sh', 'scripts/late/templates.sh',
             'scripts/late/storage-maintenance.sh', 'scripts/desktop/components.sh'))
@@ -56,7 +60,7 @@ class ResourcePolicyTests(unittest.TestCase):
                   '\ninstaller_fatal() { printf "%s\\n" "$*" >&2; return 1; }\n' +
                   override + '\n' + command)
         argv = ['busybox', 'sh'] if shell == 'busybox' else [shell]
-        result = subprocess.run([*argv, '-c', script], text=True, capture_output=True, timeout=40)
+        result = subprocess.run(payload_installed_argv([*argv, '-c', script]), text=True, capture_output=True, timeout=40)
         if check:
             self.assertEqual(result.returncode, 0, result.stderr)
         return result
@@ -68,7 +72,11 @@ TMP_ENV_DIR={shlex.quote(str(tmp))}
 DIR_HOOKS_TARGET=hooks/target
 FILE_JOURNALD_STORAGE_CONF=/etc/systemd/journald.conf.d/10-storage.conf
 installer_repo_join_var() {{ printf 'hooks/target/%s\\n' "$2"; }}
-fetch_hook() {{ cp -- {shlex.quote(str(SEED))}/"$1" "$2"; }}
+fetch_hook() {{
+  fixture_source={shlex.quote(str(SEED))}/"$1"
+  [ -f "$fixture_source" ] || fixture_source=$fixture_source.tmpl
+  cp -- "$fixture_source" "$2"
+}}
 desktop_log() {{ :; }}
 desktop_user_unit_source_path() {{
   [ -f "$INSTALLER_TARGET_DIR/usr/lib/systemd/user/$1" ] || return 1
@@ -80,13 +88,13 @@ desktop_user_unit_source_path() {{
         self.assertEqual(len(PROFILES), 10)
         for profile in PROFILES:
             with self.subTest(profile=profile.name):
-                keys = re.findall(r'^(SYSTEMD_IOWEIGHT_(?!ENABLE=)[A-Z0-9_]+)=', profile.read_text(), re.M)
+                keys = re.findall(r'^(SYSTEMD_IOWEIGHT_(?!ENABLE=)[A-Z0-9_]+)=', payload_read_text(profile), re.M)
                 self.assertEqual(set(keys), WEIGHT_KEYS)
                 self.assertEqual(len(keys), len(WEIGHT_KEYS))
-                self.assertRegex(profile.read_text(), r'(?m)^PODMAN_SERVICE_SLICE_IO_WEIGHT=100$')
+                self.assertRegex(payload_read_text(profile), r'(?m)^PODMAN_SERVICE_SLICE_IO_WEIGHT=100$')
                 mapping = dict(line.split('=', 1) for line in
                                self.shell('systemd_resource_placeholder_map', profile=profile).stdout.splitlines())
-                requested = {token[2:-2] for path in TEMPLATES for token in TOKEN.findall(path.read_text())}
+                requested = {token[2:-2] for path in TEMPLATES for token in TOKEN.findall(payload_read_text(path))}
                 self.assertEqual(requested, set(mapping))
 
     def test_all_profiles_both_modes_use_production_literal_renderer(self):
@@ -94,11 +102,11 @@ desktop_user_unit_source_path() {{
             for enabled in ('true', 'false'):
                 with self.subTest(profile=profile.name, io=enabled), tempfile.TemporaryDirectory() as tmp:
                     file = Path(tmp) / 'resources'
-                    file.write_text('\n'.join(path.read_text() for path in TEMPLATES))
+                    file.write_text('\n'.join(payload_read_text(path) for path in TEMPLATES))
                     self.shell(f'TMP_ENV_DIR={shlex.quote(tmp)}\n'
                                'apply_systemd_resource_placeholders "$TMP_ENV_DIR/resources"',
                                profile=profile, override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
-                    text = file.read_text()
+                    text = payload_read_text(file)
                     self.assertFalse(TOKEN.search(text))
                     weights = re.findall(r'^IOWeight=(\d+)$', text, re.M)
                     self.assertEqual(weights, ['200', '100', '30', '300', '30', '50'] if enabled == 'true' else [])
@@ -110,11 +118,12 @@ desktop_user_unit_source_path() {{
         cases = {
             'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE': ['', 'yes', 'TRUE', 'true\nfalse'],
             'SYSTEMD_IOWEIGHT_ENABLE': ['', 'yes', 'TRUE', 'true\nfalse'],
+            'SYSTEMD_CPUWEIGHT_ENABLE': ['', 'yes', 'TRUE', 'true\nfalse'],
             'SYSTEMD_IOWEIGHT_HOME_USER_APP_SLICE_D':
                 ['IOWeight=0', 'IOWeight=10001', 'IOWeight=01', 'CPUWeight=100',
                  'IOWeight=1\nMemoryMax=1', 'IOWeight=100\r', '$(id)'],
             'SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D': ['0', '10001', '0300', '300\nSlice=app.slice'],
-            'SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D': ['', '200s', '$(id)'],
+            'SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D': ['200', '200s', 'CPUWeight=0', 'CPUWeight=10001', 'CPUWeight=0200', 'CPUWeight=200\nSlice=app.slice', '$(id)'],
             'SYSTEMD_COREDUMP_POLL_LIMIT_INTERVAL_SEC': ['0', '1', '61', '2s'],
             'SYSTEMD_COREDUMP_POLL_LIMIT_BURST': ['0', '1000001', '-1', '064', '64\nAccept=no'],
             'SYSTEMD_COREDUMP_STORAGE': ['journal', 'external\nCompress=no'],
@@ -156,31 +165,31 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
     def test_only_six_approved_templates_introduce_io_weights(self):
         found = []
         for path in TARGET.rglob('*'):
-            if not path.is_file() or path.suffix not in ('.conf', '.tmpl', '.service', '.scope', '.slice'):
+            if not payload_source_is_file(path) or path.suffix not in ('.conf', '.tmpl', '.service', '.scope', '.slice'):
                 continue
-            if '__SYSTEMD_IOWEIGHT_' in path.read_text():
+            if '__SYSTEMD_IOWEIGHT_' in payload_read_text(path):
                 found.append(path)
-        self.assertEqual(set(found), set(TEMPLATES[:6]))
+        self.assertEqual(set(found), {source_path(path) for path in TEMPLATES[:6]})
         for service, cls in SERVICE_CLASSES.items():
-            text = (TARGET / f'{USER_BASE}/{service}.service.d/60-resource-class.conf').read_text()
+            text = payload_read_text(TARGET / f'{USER_BASE}/{service}.service.d/60-resource-class.conf')
             active = [line for line in text.splitlines() if line and not line.startswith('#')]
             self.assertEqual(active, ['[Service]', f'Slice={cls}.slice'])
         self.assertFalse(list(TARGET.glob('etc/systemd/system/managed*.slice')))
         self.assertEqual(len(list(TARGET.rglob('70-no-core.conf'))), 4)
-        for path in TARGET.glob('etc/systemd/user/*/60-resources.conf'):
-            self.assertNotIn('IOWeight=', path.read_text())
-            self.assertNotIn('__SYSTEMD_IOWEIGHT_', path.read_text())
-        self.assertFalse((TARGET / f'{USER_BASE}/app-.scope.d/60-resources.conf').exists())
+        for path in TARGET.glob('etc/systemd/user/*/60-resources.conf.tmpl'):
+            self.assertNotIn('IOWeight=', payload_read_text(path))
+            self.assertNotIn('__SYSTEMD_IOWEIGHT_', payload_read_text(path))
+        self.assertFalse(payload_source_exists(TARGET / f'{USER_BASE}/app-.scope.d/60-resources.conf'))
 
     def test_original_workload_policy_is_byte_identical(self):
         # Hashes from the user's original archive, not from the rejected revision.
-        manifest = json.loads((SEED / 'tests/fixtures/resource-policy-original.json').read_text())
+        manifest = json.loads(payload_read_text(SEED / 'tests/fixtures/resource-policy-original.json'))
         for relative, expected in manifest['sha256'].items():
             with self.subTest(path=relative):
-                original = (ROOT / relative).read_bytes()
+                original = uploaded_bytes(relative, payload_read_bytes(ROOT / current_path(relative)))
                 # R6 isolates zram maintenance without changing its CPU/IO/RAM
                 # weights. Reverse exact reviewed additions, never rebaseline.
-                zram_reversions = json.loads((SEED / 'tests/fixtures/zram-isolation-workload-reversions.json').read_text())
+                zram_reversions = json.loads(payload_read_text(SEED / 'tests/fixtures/zram-isolation-workload-reversions.json'))
                 for change in zram_reversions.get(relative, []):
                     current = change['current'].encode()
                     self.assertEqual(original.count(current), 1)
@@ -273,8 +282,29 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             # The separate resctl-bench suite verifies every exact pin/value.
             # Remove just its added block, not any original profile policy.
             menu_policy = 'LABWC_MENU_COMMAND="labwc-main-menu"'
-            self.assertEqual(profile.read_text().count(menu_policy), 1)
-            profile_text = profile.read_text()
+            self.assertEqual(payload_read_text(profile).count(menu_policy), 1)
+            profile_text = uploaded_bytes(str(profile.relative_to(ROOT)), payload_read_bytes(profile)).decode()
+            # Reverse only the reviewed journal-backend addition for historical
+            # workload/theme hashes; numeric limits and original fixtures stay fixed.
+            journal_addition = (
+                '# Journal storage only: never changes partitions, mounts, or existing journal files.\n'
+                '# false preserves persistent storage; true selects Storage=volatile.\n'
+                'SYSTEMD_JOURNAL_VOLATILE_ENABLE="false"\n\n'
+                '# Preserve the original journal size/retention defaults; profile overrides are allowed.')
+            self.assertEqual(profile_text.count(journal_addition), 1)
+            profile_text = profile_text.replace(journal_addition,
+                '# Preserve the original journal storage defaults; profile overrides are allowed.', 1)
+            # Reverse only this measured IOCost delta before the existing
+            # historical theme/workload checks; their fixtures stay unchanged.
+            iocost_reversions = json.loads(payload_read_text(SEED / 'tests/fixtures/iocost/profile-calibration-reversions.json'))
+            iocost_change = iocost_reversions[profile.name]
+            self.assertEqual(profile_text.count(iocost_change['current']), 1)
+            profile_text = profile_text.replace(iocost_change['current'], iocost_change['historical'], 1)
+            # Only the exact reviewed theme/geometry migration is reversed.
+            theme_reversions = json.loads(payload_read_text(SEED / 'tests/fixtures/theme-profile-reversions.json'))
+            for change in theme_reversions[profile.name]:
+                self.assertEqual(profile_text.count(change['current']), 1)
+                profile_text = profile_text.replace(change['current'], change['historical'], 1)
             # The I/O-PSI throttle is an intentional new profile policy block.
             profile_text, io_blocks = re.subn(
                 r'# I/O PSI throttles pressure writeback; these are policy defaults, not calibration.\n'
@@ -298,7 +328,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             # R5 changes only the requested storage sizing and its comments.
             # Reverse exact reviewed hunks, preserving the original workload
             # fingerprint. The dynamic-storage suite executes the new policy.
-            reversions = json.loads((SEED / 'tests/fixtures/dynamic-storage-profile-reversions.json').read_text())
+            reversions = json.loads(payload_read_text(SEED / 'tests/fixtures/dynamic-storage-profile-reversions.json'))
             for change in reversions.get(profile.name, []):
                 self.assertEqual(profile_text.count(change['current']), 1)
                 profile_text = profile_text.replace(change['current'], change['historical'], 1)
@@ -332,7 +362,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             prefix = original.split('\n# Systemd accounting and user resource classes.', 1)[0]
             self.assertEqual(hashlib.sha256((prefix.rstrip()+'\n').encode()).hexdigest(),
                              manifest['profile_prefix_sha256'][profile.name])
-        templates = (SEED / 'scripts/late/templates.sh').read_text().split(
+        templates = payload_read_text(SEED / 'scripts/late/templates.sh').split(
             '# This allowlist is intentionally limited', 1)[0]
         self.assertNotIn('apply_systemd_resource_placeholders', templates)
 
@@ -342,7 +372,7 @@ SYSTEMD_COREDUMP_EXTERNAL_SIZE_MAX=0
             for name in SERVICE_CLASSES:
                 dest = target / f'{USER_BASE}/{name}.service'
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(TARGET / f'{USER_BASE}/{name}.service', dest)
+                payload_copy2(TARGET / f'{USER_BASE}/{name}.service', dest)
             for enabled in ('true', 'false', 'true'):
                 self.shell(self.staging(tmp)+'''
 stage_target_systemd_resource_policy_assets
@@ -350,32 +380,32 @@ desktop_install_user_resource_policy
 ''', override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                 for cls in CLASSES:
                     path = target / f'{USER_BASE}/{cls}.slice.d/60-resources.conf'
-                    self.assertEqual('IOWeight=' in path.read_text(), enabled == 'true')
-                    self.assertEqual(path.stat().st_mode & 0o777, 0o644)
-                    self.assertEqual(path.parent.stat().st_mode & 0o777, 0o755)
+                    self.assertEqual('IOWeight=' in payload_read_text(path), enabled == 'true')
+                    self.assertEqual(payload_source_stat(path).st_mode & 0o777, 0o644)
+                    self.assertEqual(payload_source_stat(path.parent).st_mode & 0o777, 0o755)
                 for name, cls in SERVICE_CLASSES.items():
-                    text = (target / f'{USER_BASE}/{name}.service.d/60-resource-class.conf').read_text()
+                    text = payload_read_text(target / f'{USER_BASE}/{name}.service.d/60-resource-class.conf')
                     self.assertIn(f'Slice={cls}.slice', text)
                 compositor = target / f'{USER_BASE}/labwc-compositor.service.d/60-resources.conf'
-                self.assertIn('CPUWeight=300', compositor.read_text())
-                self.assertEqual('IOWeight=300' in compositor.read_text(), enabled == 'true')
+                self.assertIn('CPUWeight=300', payload_read_text(compositor))
+                self.assertEqual('IOWeight=300' in payload_read_text(compositor), enabled == 'true')
                 for name in ('maintenance', 'background'):
-                    text = (target / f'etc/systemd/system/system-{name}.slice.d/60-resources.conf').read_text()
+                    text = payload_read_text(target / f'etc/systemd/system/system-{name}.slice.d/60-resources.conf')
                     self.assertEqual('IOWeight=' in text, enabled == 'true')
-                socket = (target / 'etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf').read_text()
+                socket = payload_read_text(target / 'etc/systemd/system/systemd-coredump.socket.d/60-poll-limit.conf')
                 self.assertNotRegex(socket, r'(?m)^MaxConnections(?:PerSource)?=')
                 self.assertIn('PollLimitIntervalSec=2s', socket)
                 self.assertIn('PollLimitBurst=64', socket)
                 for manager in ('system', 'user'):
-                    text = (target / f'etc/systemd/{manager}.conf.d/60-resource-accounting.conf').read_text()
+                    text = payload_read_text(target / f'etc/systemd/{manager}.conf.d/60-resource-accounting.conf')
                     self.assertIn('DefaultMemoryAccounting=yes', text)
                     self.assertIn('DefaultTasksAccounting=yes', text)
                     self.assertNotRegex(text, r'(?m)^DefaultCPUAccounting=')
                     self.assertIn('DefaultIOAccounting='+('yes' if enabled == 'true' else 'no'), text)
-                text = (target / 'etc/systemd/system/user@.service.d/60-resource-delegation.conf').read_text()
+                text = payload_read_text(target / 'etc/systemd/system/user@.service.d/60-resource-delegation.conf')
                 self.assertIn('Delegate=\nDelegate=cpuset cpu pids memory io\n', text)
                 original = TARGET / 'etc/systemd/system/user-1000.slice.d/50-resource-accounting.conf'
-                self.assertEqual((target / original.relative_to(TARGET)).read_bytes(), original.read_bytes())
+                self.assertEqual(payload_read_bytes(target / original.relative_to(TARGET)), payload_read_bytes(original))
                 self.assertFalse(list(target.rglob('.installer-asset.*')))
 
     def test_optional_units_do_not_get_orphan_class_dropins(self):
@@ -386,7 +416,7 @@ desktop_install_user_resource_policy
             self.assertEqual({p.parent.name for p in target.rglob('60-resource-class.conf')},
                              {'labwc-power-lock-.service.d', 'app-.scope.d'})
             self.assertEqual(len(list(target.rglob('60-resources.conf'))), 3)
-            self.assertFalse((target / 'etc/systemd/user').exists())
+            self.assertFalse(payload_source_exists(target / 'etc/systemd/user'))
 
     def test_bad_profile_preserves_existing_policy_and_cleans_scratch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -398,7 +428,7 @@ SYSTEMD_IOWEIGHT_HOME_USER_APP_SLICE_D='IOWeight=10001'
 render_target_resource_asset hooks/target/{relative} /{relative} 0644
 ''', check=False)
             self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(dest.read_text(), 'original\n')
+            self.assertEqual(payload_read_text(dest), 'original\n')
             self.assertFalse(list(target.rglob('.installer-asset.*')))
 
     def test_unknown_placeholder_fails_atomic_publication(self):
@@ -412,7 +442,7 @@ render_target_resource_asset unused /{relative} 0644
 ''', check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn('unresolved systemd resource placeholder', result.stderr)
-            self.assertEqual(dest.read_text(), 'original\n')
+            self.assertEqual(payload_read_text(dest), 'original\n')
 
     def test_no_target_symlink_escape(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -433,24 +463,29 @@ render_target_resource_asset unused /{relative} 0644
 render_target_resource_asset hooks/target/etc/systemd/journald.conf.d/10-storage.conf "$FILE_JOURNALD_STORAGE_CONF" 0644
 validate_target_journal_storage_policy
 ''', override=values)
-                actual = (target / 'etc/systemd/journald.conf.d/10-storage.conf').read_text()
+                actual = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
                 self.assertIn('SystemMaxUse=512M' if values else 'SystemMaxUse=1G', actual)
                 self.assertFalse(TOKEN.search(actual))
                 if not values:
                     fixture = SEED / 'tests/fixtures/journal-storage-original.conf'
-                    self.assertEqual(actual, fixture.read_text())
+                    def settings(text):
+                        return dict(line.split('=', 1) for line in text.splitlines()
+                                    if '=' in line and not line.lstrip().startswith('#'))
+                    expected = settings(payload_read_text(fixture))
+                    expected['ForwardToSyslog'] = 'no'  # imjournal, not live socket forwarding
+                    self.assertEqual(settings(actual), expected)
 
     def test_deployment_order_and_scope_lifecycle_are_preserved(self):
-        labwc = (SEED / 'scripts/desktop/labwc.sh').read_text()
+        labwc = payload_read_text(SEED / 'scripts/desktop/labwc.sh')
         self.assertLess(labwc.index('desktop_install_user_resource_policy'),
                         labwc.index('desktop_install_user_config'))
-        components = (SEED / 'scripts/desktop/components.sh').read_text()
+        components = payload_read_text(SEED / 'scripts/desktop/components.sh')
         home_install = components.split('desktop_install_user_config() {', 1)[1]
         self.assertIn('.config/systemd', home_install)
         self.assertIn('cp -a "$src/." "$dst/"', home_install)
         self.assertIn('chown -R "$uid:$gid" "$dst"', home_install)
         self.assertIn('stage_target_systemd_resource_policy_assets || return 1',
-                      (SEED / 'scripts/late/storage-maintenance.sh').read_text())
+                      payload_read_text(SEED / 'scripts/late/storage-maintenance.sh'))
 
     def test_rendered_unit_dropins_parse_with_available_systemd(self):
         if not shutil.which('systemd-analyze'):
@@ -465,7 +500,7 @@ validate_target_journal_storage_policy
                     to_verify.append(unit)
                     dropin = units / f'{name}.slice.d/60-resources.conf'
                     dropin.parent.mkdir()
-                    shutil.copy2(TARGET / f'{USER_BASE}/{name}.slice.d/60-resources.conf', dropin)
+                    payload_copy2(TARGET / f'{USER_BASE}/{name}.slice.d/60-resources.conf', dropin)
                     self.shell(f'TMP_ENV_DIR={shlex.quote(tmp)}\napply_systemd_resource_placeholders '+
                                shlex.quote(str(dropin)), override=f'SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE={enabled}\nSYSTEMD_IOWEIGHT_ENABLE={enabled}')
                 for name in SERVICE_CLASSES:
@@ -475,17 +510,17 @@ validate_target_journal_storage_policy
                     to_verify.append(unit)
                     dropin = units / f'{name}.service.d/60-resource-class.conf'
                     dropin.parent.mkdir()
-                    shutil.copy2(TARGET / f'{USER_BASE}/{name}.service.d/60-resource-class.conf', dropin)
+                    payload_copy2(TARGET / f'{USER_BASE}/{name}.service.d/60-resource-class.conf', dropin)
                 user_unit = units / 'user@1000.service'
                 user_unit.write_text('[Unit]\nDescription=Delegation fixture\nDefaultDependencies=no\n'
                                      '[Service]\nExecStart=/usr/bin/true\n')
                 to_verify.append(user_unit)
                 dropin = units / 'user@.service.d/60-resource-delegation.conf'
                 dropin.parent.mkdir()
-                shutil.copy2(TARGET / 'etc/systemd/system/user@.service.d/60-resource-delegation.conf', dropin)
+                payload_copy2(TARGET / 'etc/systemd/system/user@.service.d/60-resource-delegation.conf', dropin)
                 env = dict(os.environ, SYSTEMD_UNIT_PATH=str(units)+':', SYSTEMD_LOG_LEVEL='warning')
-                result = subprocess.run(['systemd-analyze', '--generators=no', 'verify',
-                                         *(str(path) for path in to_verify)],
+                result = subprocess.run(payload_installed_argv(['systemd-analyze', '--generators=no', 'verify',
+                                         *(str(path) for path in to_verify)]),
                                         env=env, text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotRegex(result.stderr, r'Unknown (key|section)|Failed to parse|Invalid argument')
@@ -501,15 +536,15 @@ validate_target_journal_storage_policy
                 source = Path(source)
                 dest = target / (destination or str(source)).lstrip('/')
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source.resolve(), dest)
-                libs = subprocess.run(['ldd', str(source.resolve())], capture_output=True,
+                payload_copy2(source.resolve(), dest)
+                libs = subprocess.run(payload_installed_argv(['ldd', str(source.resolve())]), capture_output=True,
                                       text=True, timeout=10).stdout
                 for lib in re.findall(r'(/[^\s()]+)', libs):
                     lib_path = Path(lib)
-                    if lib_path.is_file():
+                    if payload_source_is_file(lib_path):
                         library_dest = target / lib.lstrip('/')
                         library_dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(lib_path.resolve(), library_dest)
+                        payload_copy2(lib_path.resolve(), library_dest)
             for binary in ('dash', 'install', 'id', 'cp', 'chown', 'chmod', 'find',
                            'rm', 'getent', 'cut', 'dirname'):
                 location = shutil.which(binary)
@@ -524,6 +559,8 @@ validate_target_journal_storage_policy
             (target / 'etc/nsswitch.conf').write_text('passwd: files\ngroup: files\n')
             (target / 'dev').mkdir(); (target / 'dev/null').touch()
             shutil.copytree(TARGET / 'etc/skel-desktop', target / 'etc/skel-desktop')
+            from theme_fixture import render_theme_tree
+            render_theme_tree(target / 'etc/skel-desktop')
             # Earlier desktop staging creates this empty cache (not archived).
             (target / 'etc/skel-desktop/.cache/recoll').mkdir(parents=True, exist_ok=True)
             setup = self.staging(tmp) + f'''
@@ -545,25 +582,25 @@ desktop_install_user_config
             home = target / 'home/resource-test/.config/systemd/user'
             for name in CLASSES:
                 path = home / f'{name}.slice.d/60-resources.conf'
-                self.assertTrue(path.is_file())
-                self.assertFalse(TOKEN.search(path.read_text()))
-                self.assertNotIn('IOWeight=', path.read_text())
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-                self.assertEqual(path.parent.stat().st_mode & 0o777, 0o700)
-                self.assertEqual((path.stat().st_uid, path.stat().st_gid), (1001, 1001))
+                self.assertTrue(payload_source_is_file(path))
+                self.assertFalse(TOKEN.search(payload_read_text(path)))
+                self.assertNotIn('IOWeight=', payload_read_text(path))
+                self.assertEqual(payload_source_stat(path).st_mode & 0o777, 0o600)
+                self.assertEqual(payload_source_stat(path.parent).st_mode & 0o777, 0o700)
+                self.assertEqual((payload_source_stat(path).st_uid, payload_source_stat(path).st_gid), (1001, 1001))
             for name, cls in SERVICE_CLASSES.items():
                 path = home / f'{name}.service.d/60-resource-class.conf'
-                self.assertIn(f'Slice={cls}.slice', path.read_text())
-                self.assertEqual(path.stat().st_uid, 1001)
-            self.assertIn('CPUWeight=300', (home / 'labwc-compositor.service.d/60-resources.conf').read_text())
-            self.assertNotIn('IOWeight=', (home / 'labwc-compositor.service.d/60-resources.conf').read_text())
+                self.assertIn(f'Slice={cls}.slice', payload_read_text(path))
+                self.assertEqual(payload_source_stat(path).st_uid, 1001)
+            self.assertIn('CPUWeight=300', payload_read_text(home / 'labwc-compositor.service.d/60-resources.conf'))
+            self.assertNotIn('IOWeight=', payload_read_text(home / 'labwc-compositor.service.d/60-resources.conf'))
             for unit in ('labwc-bitwarden-', 'labwc-power-lock-', 'labwc-kwallet-portal'):
                 path = home / f'{unit}.service.d/70-no-core.conf'
-                self.assertIn('LimitCORE=0', path.read_text())
-                self.assertEqual((path.stat().st_uid, path.stat().st_gid), (1001, 1001))
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertIn('IOAccounting=yes', (target /
-                'etc/systemd/system/user-1000.slice.d/50-resource-accounting.conf').read_text())
+                self.assertIn('LimitCORE=0', payload_read_text(path))
+                self.assertEqual((payload_source_stat(path).st_uid, payload_source_stat(path).st_gid), (1001, 1001))
+                self.assertEqual(payload_source_stat(path).st_mode & 0o777, 0o600)
+            self.assertIn('IOAccounting=yes', payload_read_text(target /
+                'etc/systemd/system/user-1000.slice.d/50-resource-accounting.conf'))
 
 
 if __name__ == '__main__':

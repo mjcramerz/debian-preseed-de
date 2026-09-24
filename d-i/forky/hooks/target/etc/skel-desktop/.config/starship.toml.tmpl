@@ -1,0 +1,54 @@
+# Single-line prompt for the managed Labwc desktop shell profile.
+
+add_newline = false
+command_timeout = 1200
+
+format = "$username$hostname$directory$git_branch$git_status$cmd_duration$character"
+
+[username]
+show_always = true
+format = '[\[$user\]]($style) '
+style_user = "__THEME_STARSHIP_USERNAME_USER_STYLE__"
+style_root = "__THEME_STARSHIP_USERNAME_ROOT_STYLE__"
+
+[hostname]
+ssh_only = false
+format = '[\[$hostname\]]($style) '
+style = "__THEME_STARSHIP_HOSTNAME_STYLE__"
+
+[directory]
+format = '[\[$path\]]($style) '
+style = "__THEME_STARSHIP_DIRECTORY_STYLE__"
+truncation_length = 4
+truncate_to_repo = false
+read_only = " ro"
+
+[git_branch]
+format = '[\[$symbol$branch\]]($style) '
+symbol = "git:"
+style = "__THEME_STARSHIP_GIT_BRANCH_STYLE__"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style)) "
+style = "__THEME_STARSHIP_GIT_STATUS_STYLE__"
+conflicted = "!"
+ahead = ">"
+behind = "<"
+diverged = "<>"
+up_to_date = ""
+untracked = "?"
+stashed = "$"
+modified = "*"
+staged = "+"
+renamed = "r"
+deleted = "x"
+
+[cmd_duration]
+min_time = 1000
+format = '[\[$duration\]]($style) '
+style = "__THEME_STARSHIP_COMMAND_DURATION_STYLE__"
+
+[character]
+success_symbol = "[__THEME_STARSHIP_CHARACTER_SUCCESS_SYMBOL__](__THEME_STARSHIP_CHARACTER_SUCCESS_STYLE__)"
+error_symbol = "[__THEME_STARSHIP_CHARACTER_ERROR_SYMBOL__](__THEME_STARSHIP_CHARACTER_ERROR_STYLE__)"
+vimcmd_symbol = "[__THEME_STARSHIP_CHARACTER_VIM_COMMAND_SYMBOL__](__THEME_STARSHIP_CHARACTER_VIM_COMMAND_STYLE__)"

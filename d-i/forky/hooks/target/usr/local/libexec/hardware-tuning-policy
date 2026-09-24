@@ -15,7 +15,7 @@ if __name__ == "__main__":
         if os.geteuid() != 0:
             raise TuningError("policy handover requires root; use the authenticated control socket")
         label = Path("/proc/self/attr/current").read_text(encoding="ascii").strip()
-        if label != "managed-hardware-tuning-policy (enforce)":
+        if label != "hardware-tuning-policy (enforce)":
             raise TuningError("the enforced hardware policy AppArmor profile is required")
         libc = ctypes.CDLL(None, use_errno=True)
         if libc.prctl(38, 1, 0, 0, 0) != 0:

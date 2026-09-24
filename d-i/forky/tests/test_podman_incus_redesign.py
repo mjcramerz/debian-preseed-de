@@ -4,6 +4,8 @@ Root-only filesystem fixtures are created in a private temporary directory.
 Incus HTTP behavior uses a real AF_UNIX loopback server or an in-memory API.
 """
 from __future__ import annotations
+from payload_fixture import source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import copy
 import http.server
 import json
@@ -33,14 +35,14 @@ def load(relative):
     path = TARGET / relative
     module = types.ModuleType('redesign_' + path.name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
 HOST = load('usr/local/libexec/podman-devops-host')
 CLIENT = load('usr/local/libexec/podman-devops-client')
 MENU = load('usr/local/bin/labwc-podman-menu')
-INCUS = load('usr/local/libexec/incus-host-managed')
+INCUS = load('usr/local/libexec/incus-host')
 CONFIG = {'INCUS_MANAGED_POOL_NAME': 'local',
           'INCUS_MANAGED_POOL_PATH': '/pool/incus',
           'INCUS_MANAGED_BRIDGE_NAME': 'incusbr0',
@@ -104,9 +106,9 @@ class AtomicHostFileTests(unittest.TestCase):
 
     def test_atomic_write_is_private_and_idempotent(self):
         self.assertTrue(HOST.atomic_write(self.path, b'first', 0o640))
-        before = self.path.stat()
+        before = payload_source_stat(self.path)
         self.assertFalse(HOST.atomic_write(self.path, b'first', 0o640))
-        self.assertEqual(self.path.stat().st_ino, before.st_ino)
+        self.assertEqual(payload_source_stat(self.path).st_ino, before.st_ino)
         self.assertEqual(stat.S_IMODE(before.st_mode), 0o640)
         self.assertEqual(before.st_uid, 0)
 
@@ -115,7 +117,7 @@ class AtomicHostFileTests(unittest.TestCase):
         with mock.patch.object(HOST.os, 'replace', side_effect=OSError('injected')):
             with self.assertRaises(OSError):
                 HOST.atomic_write(self.path, b'new')
-        self.assertEqual(self.path.read_bytes(), b'first')
+        self.assertEqual(payload_read_bytes(self.path), b'first')
         self.assertEqual(list(self.base.iterdir()), [self.path])
 
     def test_symlink_leaf_is_rejected(self):
@@ -123,7 +125,7 @@ class AtomicHostFileTests(unittest.TestCase):
         self.path.symlink_to(real)
         with self.assertRaises(HOST.Failure):
             HOST.atomic_write(self.path, b'bad')
-        self.assertEqual(real.read_text(), 'original')
+        self.assertEqual(payload_read_text(real), 'original')
 
     def test_symlink_parent_is_rejected(self):
         real = self.base / 'real'; real.mkdir()
@@ -158,8 +160,8 @@ class AtomicHostFileTests(unittest.TestCase):
         self.path.mkdir(); child = self.path / 'data'; child.write_text('keep')
         child.chmod(0o600); os.chown(child, 65534, 65534)
         HOST.directory(self.path, 0o700)
-        self.assertEqual(child.stat().st_uid, 65534)
-        self.assertEqual(child.read_text(), 'keep')
+        self.assertEqual(payload_source_stat(child).st_uid, 65534)
+        self.assertEqual(payload_read_text(child), 'keep')
 
     def test_unit_links_are_idempotent_and_conflicts_refused(self):
         HOST.atomic_link(self.path, '/dev/null')
@@ -332,7 +334,7 @@ class HostPolicyTests(unittest.TestCase):
             # exited. This remains valid when the test runner and /proc expose
             # different PID namespaces, unlike indexing /proc by shell $!.
             time.sleep(0.7)
-            self.assertFalse(survivor.exists(), 'timed-out descendant survived cleanup')
+            self.assertFalse(payload_source_exists(survivor), 'timed-out descendant survived cleanup')
 
     def test_resource_parser_validation(self):
         for good in ('1%', '70%', '100%'):
@@ -478,7 +480,7 @@ class FuzzelTests(unittest.TestCase):
                     MENU.runtime_lock()
             finally:
                 os.close(fd)
-            self.assertTrue((Path(runtime) / 'labwc-podman-menu.lock').exists())
+            self.assertTrue(payload_source_exists(Path(runtime) / 'labwc-podman-menu.lock'))
 
     def test_runtime_symlink_is_rejected(self):
         with tempfile.TemporaryDirectory() as runtime:
@@ -492,7 +494,7 @@ class IncusConfigurationTests(unittest.TestCase):
         self.assertEqual(INCUS.parse_config(config_text()), CONFIG)
 
     def test_staged_template_renders_to_valid_configuration(self):
-        text = (TARGET / 'etc/default/incus-host-managed.tmpl').read_text()
+        text = payload_read_text(TARGET / 'etc/incus/host.conf.tmpl')
         text = text.replace('__INSTALLER_DIR_POOL_INCUS__', '/pool/incus').replace('__INSTALLER_INCUS_BRIDGE_NAME__', 'incusbr0')
         self.assertEqual(INCUS.parse_config(text), CONFIG)
 
@@ -691,21 +693,21 @@ class IntegrationContractTests(unittest.TestCase):
                          '.config/systemd/user/podman.service'):
             path = skeleton / relative
             if relative.endswith('podman.service'):
-                self.assertFalse(path.exists())
+                self.assertFalse(payload_source_exists(path))
             else:
-                self.assertTrue(path.exists(), path)
+                self.assertTrue(payload_source_exists(path), path)
 
         generic_skeleton = TARGET / 'etc/skel'
-        self.assertFalse((generic_skeleton / 'primary').exists())
-        self.assertFalse((generic_skeleton / 'devops').exists())
-        hook = (FORKY / 'scripts/late/podman.sh').read_text()
+        self.assertFalse(payload_source_exists(generic_skeleton / 'primary'))
+        self.assertFalse(payload_source_exists(generic_skeleton / 'devops'))
+        hook = payload_read_text(FORKY / 'scripts/late/podman.sh')
         self.assertIn('etc/skel-desktop/.profile.d/71-devops-de.sh', hook)
         self.assertNotIn('etc/skel/devops/', hook)
 
     def test_engine_templates_are_valid_toml_with_correct_paths(self):
-        containers = tomllib.loads((TEMPLATES / 'containers.conf.tmpl').read_text())
+        containers = tomllib.loads(payload_read_text(TEMPLATES / 'containers.conf.tmpl'))
         storage = tomllib.loads(
-            (TEMPLATES / 'storage.conf.tmpl').read_text().replace('@DRIVER@', 'overlay')
+            payload_read_text(TEMPLATES / 'storage.conf.tmpl').replace('@DRIVER@', 'overlay')
         )
         self.assertEqual(containers['engine']['cgroup_manager'], 'cgroupfs')
         self.assertEqual(containers['engine']['tmp_dir'],
@@ -715,19 +717,19 @@ class IntegrationContractTests(unittest.TestCase):
                          '/pool/podman/networks')
         self.assertEqual(storage['storage']['graphroot'], '/pool/podman/storage')
         self.assertEqual(storage['storage']['runroot'], '/run/podman-devops/containers')
-        client = tomllib.loads((TEMPLATES / 'client.conf').read_text())
+        client = tomllib.loads(payload_read_text(TEMPLATES / 'client.conf'))
         self.assertTrue(client['engine']['remote'])
         self.assertEqual(
             client['engine']['service_destinations']['devops']['uri'],
             'unix:///run/podman-devops/podman.sock',
         )
         self.assertNotIn('storage', client)
-        tomllib.loads((TEMPLATES / 'registries.conf').read_text())
+        tomllib.loads(payload_read_text(TEMPLATES / 'registries.conf'))
 
     def test_pid1_manages_the_rootless_service_without_a_user_manager(self):
-        api = (TEMPLATES / 'podman-devops.service.tmpl').read_text()
-        socket_unit = (TEMPLATES / 'podman-devops.socket').read_text()
-        reboot = (TEMPLATES / 'podman-devops-restart.service.tmpl').read_text()
+        api = payload_read_text(TEMPLATES / 'podman-devops.service.tmpl')
+        socket_unit = payload_read_text(TEMPLATES / 'podman-devops.socket')
+        reboot = payload_read_text(TEMPLATES / 'podman-devops-restart.service.tmpl')
         for line in ('User=devops', 'Group=devops', 'Delegate=yes',
                      'RuntimeDirectory=podman-devops', 'ProtectHome=yes',
                      'Environment=HOME=/nonexistent',
@@ -754,16 +756,16 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertIn('/usr/bin/podman --remote --url=unix:///run/podman-devops/podman.sock stop', reboot)
         self.assertIn('stop --all --ignore --time 20', reboot)
         self.assertNotIn('stop --service', reboot)
-        self.assertFalse((TEMPLATES / 'user-manager.conf.tmpl').exists())
-        self.assertFalse((TEMPLATES / 'user-slice.conf.tmpl').exists())
-        self.assertFalse((TEMPLATES / 'podman.service.tmpl').exists())
-        self.assertFalse((TEMPLATES / 'podman.socket').exists())
-        bootstrap = (TARGET / 'etc/systemd/system/podman-devops-bootstrap.service').read_text()
+        self.assertFalse(payload_source_exists(TEMPLATES / 'user-manager.conf.tmpl'))
+        self.assertFalse(payload_source_exists(TEMPLATES / 'user-slice.conf.tmpl'))
+        self.assertFalse(payload_source_exists(TEMPLATES / 'podman.service.tmpl'))
+        self.assertFalse(payload_source_exists(TEMPLATES / 'podman.socket'))
+        bootstrap = payload_read_text(TARGET / 'etc/systemd/system/podman-devops-bootstrap.service')
         self.assertNotIn('systemd-logind.service', bootstrap)
         self.assertNotIn('systemd-user-sessions.service', bootstrap)
         self.assertNotIn('/run/user/', bootstrap)
         self.assertIn('Wants=podman-devops.socket', bootstrap)
-        tmpfiles = (TARGET / 'etc/tmpfiles.d/55-podman-devops.conf').read_text()
+        tmpfiles = payload_read_text(TARGET / 'etc/tmpfiles.d/55-podman-devops.conf')
         self.assertIn('d /run/podman-devops 0710 devops devops -', tmpfiles)
 
     def test_service_account_has_no_home_linger_user_units_or_desktop_inheritance(self):
@@ -771,7 +773,7 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertEqual(HOST.LEGACY_HOME, Path('/data/accounts/devops'))
         self.assertFalse(hasattr(HOST, 'SERVICE_ACCOUNT_FORBIDDEN_HOME_PATHS'))
         self.assertFalse(hasattr(HOST, 'SERVICE_ACCOUNT_MASKED_USER_UNITS'))
-        source = (TARGET / 'usr/local/libexec/podman-devops-host').read_text()
+        source = payload_read_text(TARGET / 'usr/local/libexec/podman-devops-host')
         self.assertIn('def reject_user_manager_state(uid: int)', source)
         self.assertIn("Path('/var/lib/systemd/linger') / USER", source)
         self.assertNotIn("'/usr/bin/loginctl'", source)
@@ -783,7 +785,7 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertIn("USER_RUNTIME_ROOT / str(uid) / 'systemd'", source)
         self.assertIn('def reject_service_account_home()', source)
         self.assertIn("raise Failure('/pool must be root:devops mode 3775')", source)
-        firstboot = (FORKY / 'scripts/firstboot/04-validation.sh').read_text()
+        firstboot = payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh')
         self.assertIn('devops_processes=$(ps -U "$uid" -o comm=)', firstboot)
         for process in ('pipewire', 'wireplumber', 'mako', 'gpg-agent', 'ssh-agent',
                         'dbus-broker', 'hyprpolkitagen', 'xdg-desktop-por'):
@@ -800,10 +802,10 @@ class IntegrationContractTests(unittest.TestCase):
         smoke_path = FORKY.parents[1] / 'tools/podman-incus-smoke.py'
         smoke = types.ModuleType('podman_incus_smoke')
         smoke.__file__ = str(smoke_path)
-        exec(compile(smoke_path.read_bytes(), str(smoke_path), 'exec'), smoke.__dict__)
+        exec(compile(payload_read_bytes(smoke_path), str(smoke_path), 'exec'), smoke.__dict__)
         self.assertFalse(hasattr(smoke, 'SERVICE_ACCOUNT_FORBIDDEN_HOME_PATHS'))
         self.assertFalse(hasattr(smoke, 'SERVICE_ACCOUNT_MASKED_USER_UNITS'))
-        smoke_source = smoke_path.read_text()
+        smoke_source = payload_read_text(smoke_path)
         self.assertIn('0 < user.pw_uid < 1000', smoke_source)
         self.assertIn("user.pw_dir == '/nonexistent'", smoke_source)
         self.assertIn("Path('/data/accounts/devops')", smoke_source)
@@ -815,42 +817,42 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertNotIn('for unit in SERVICE_ACCOUNT_MASKED_USER_UNITS:', smoke_source)
 
     def test_no_container_sudo_bridge_or_container_ssh_credentials(self):
-        sudo = (TARGET / 'etc/sudoers.d/account.tmpl').read_text()
+        sudo = payload_read_text(TARGET / 'etc/sudoers.d/account.tmpl')
         self.assertNotIn('PODBIN', sudo)
         self.assertNotIn('PODMAN_SERVICE', sudo)
-        self.assertFalse((TARGET / 'usr/local/sbin/podbin.tmpl').exists())
-        self.assertFalse((TARGET / 'data/config/podman/templates/rootless').exists())
-        self.assertIn('DenyUsers devops', (FORKY / 'ssh/sshd_config').read_text())
+        self.assertFalse(payload_source_exists(TARGET / 'usr/local/sbin/podbin.tmpl'))
+        self.assertFalse(payload_source_exists(TARGET / 'data/config/podman/templates/rootless'))
+        self.assertIn('DenyUsers devops', payload_read_text(FORKY / 'ssh/sshd_config'))
 
     def test_selected_addon_installs_real_clients_and_profile(self):
-        packages = (FORKY / 'classes/class-addon/podman.cfg').read_text()
+        packages = payload_read_text(FORKY / 'classes/class-addon/podman.cfg')
         active = next(line for line in packages.splitlines() if line.startswith('d-i pkgsel/include string'))
         for package in ('podman', 'docker-cli', 'docker-compose', 'python3', 'uidmap', 'passt'):
             self.assertIn(package, active.split())
         self.assertNotIn('docker.io', active.split())
         self.assertNotIn('podman-docker', active.split())
         self.assertNotIn('dbus-user-session', active.split())
-        hook = (FORKY / 'scripts/late/podman.sh').read_text()
+        hook = payload_read_text(FORKY / 'scripts/late/podman.sh')
         self.assertIn('install_target_account_shell_assets', hook)
-        self.assertTrue((TARGET / 'data/docs/podman-devops.md').is_file())
+        self.assertTrue(payload_source_is_file(TARGET / 'data/docs/podman-devops.md'))
 
     def test_all_host_profiles_use_devops(self):
         profiles = list((FORKY / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
         for path in profiles:
-            text = path.read_text()
+            text = payload_read_text(path)
             self.assertIn('PODMAN_USER="devops"', text)
             self.assertIn('PODMAN_USER_HOME="/nonexistent"', text)
             self.assertNotIn('PODMAN_USER="podsvc"', text)
             self.assertNotIn('/data/accounts/devops', text)
 
     def test_shared_pool_is_sticky_and_private_store_not_shared(self):
-        tmpfiles = (TARGET / 'etc/tmpfiles.d/10-runtime-storage-roots.conf').read_text().replace('__INSTALLER_DIR_POOL__', '/pool').replace('__INSTALLER_DIR_POOL_PODMAN__', '/pool/podman')
+        tmpfiles = payload_read_text(TARGET / 'etc/tmpfiles.d/10-runtime-storage-roots.conf').replace('__INSTALLER_DIR_POOL__', '/pool').replace('__INSTALLER_DIR_POOL_PODMAN__', '/pool/podman')
         self.assertRegex(tmpfiles, r'd\s+/pool\s+3775\s+root\s+devops')
         self.assertRegex(tmpfiles, r'd\s+/pool/podman\s+0711\s+root\s+root')
 
     def test_profile_has_native_selectors_without_identity_impersonation(self):
-        text = (TARGET / 'etc/skel-desktop/.profile.d/71-devops-de.sh').read_text().split('podman_devops_apply_environment() {', 1)[1]
+        text = payload_read_text(TARGET / 'etc/skel-desktop/.profile.d/71-devops-de.sh').split('podman_devops_apply_environment() {', 1)[1]
         self.assertIn('CONTAINER_HOST=unix:///run/podman-devops/podman.sock', text)
         self.assertIn('DOCKER_HOST=$CONTAINER_HOST', text)
         self.assertIn('unset CONTAINER_CONNECTION', text)
@@ -859,7 +861,7 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertNotIn('\n  CONTAINERS_STORAGE_CONF=', text)
 
     def test_bootstrap_has_no_service_user_bus_or_logind_dependency(self):
-        text = (TARGET / 'etc/systemd/system/podman-devops-bootstrap.service').read_text()
+        text = payload_read_text(TARGET / 'etc/systemd/system/podman-devops-bootstrap.service')
         active = {line.split('=', 1)[0]: line.split('=', 1)[1]
                   for line in text.splitlines() if '=' in line and not line.lstrip().startswith('#')}
         self.assertEqual(active['ProtectHome'], 'yes')
@@ -871,11 +873,11 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertNotIn('DBUS_SESSION_BUS_ADDRESS', text)
 
     def test_incus_confined_group_is_not_elevated(self):
-        qemu = (FORKY / 'scripts/late/qemu.sh').read_text()
+        qemu = payload_read_text(FORKY / 'scripts/late/qemu.sh')
         self.assertIn('incus-admin', qemu)
         self.assertNotIn('--append --groups incus-admin', qemu)
-        dropin = (TARGET / 'etc/systemd/system/incus-user.service.d/20-managed-bootstrap.conf').read_text()
-        self.assertIn('Requires=incus-host-managed.service', dropin)
+        dropin = payload_read_text(TARGET / 'etc/systemd/system/incus-user.service.d/20-bootstrap.conf')
+        self.assertIn('Requires=incus-host.service', dropin)
 
 
 if __name__ == '__main__':

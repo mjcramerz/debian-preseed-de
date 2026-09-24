@@ -4,6 +4,9 @@ No target services, installer stages, credentials or kernel profiles are run.
 Atomic publication tests mock fsync (durability needs a real target filesystem).
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import python_library
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 from contextlib import ExitStack
 import json
@@ -20,7 +23,7 @@ from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
-sys.path.insert(0, str(TARGET / 'usr/local/lib/python3.14/dist-packages'))
+sys.path.insert(0, str(python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')))
 from labwc_managed_app import environment, generic, integrity, runtime, session
 
 
@@ -28,7 +31,7 @@ def load_source(path: Path, name: str):
     module = types.ModuleType(name)
     module.__file__ = str(path)
     sys.modules[name] = module
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -68,9 +71,9 @@ class DesktopHookTests(unittest.TestCase):
         self.assertEqual(self.hook.rewrite_desktop(text, self.prefix), text)
 
     def test_managed_entries_untouched(self):
-        for command in ('/usr/local/bin/labwc-managed-app intel filen %U',
-                        '"/usr/local/bin/labwc-managed-app" nvidia filen %U',
-                        '"/usr/local/bin/labwc-managed-app nvidia" filen %U',
+        for command in ('/usr/local/bin/labwc-app intel filen %U',
+                        '"/usr/local/bin/labwc-app" nvidia filen %U',
+                        '"/usr/local/bin/labwc-app nvidia" filen %U',
                         '/usr/local/bin/chatgpt auto %U'):
             text = '[Desktop Entry]\nType=Application\nExec=' + command + '\n'
             self.assertEqual(self.hook.rewrite_desktop(text, self.prefix), text)
@@ -126,16 +129,16 @@ class DesktopHookTests(unittest.TestCase):
             with mock.patch.object(self.hook.os, 'fsync'):
                 self.hook.write_atomic(link, 'wrapped', before)
             self.assertFalse(link.is_symlink())
-            self.assertEqual(link.read_text(), 'wrapped')
-            self.assertEqual(source.read_text(), 'original')
+            self.assertEqual(payload_read_text(link), 'wrapped')
+            self.assertEqual(payload_read_text(source), 'original')
 
     def test_atomic_replace_rejects_inode_change(self):
         with tempfile.TemporaryDirectory() as temp:
-            path = Path(temp) / 'demo.desktop'; path.write_text('before'); before = path.stat()
+            path = Path(temp) / 'demo.desktop'; path.write_text('before'); before = payload_source_stat(path)
             path.rename(Path(temp) / 'old'); path.write_text('concurrent update')
             with mock.patch.object(self.hook.os, 'fsync'), self.assertRaises(ValueError):
                 self.hook.write_atomic(path, 'wrapped', before)
-            self.assertEqual(path.read_text(), 'concurrent update')
+            self.assertEqual(payload_read_text(path), 'concurrent update')
             self.assertFalse(list(Path(temp).glob('.*.labwc-*')))
 
     def test_foreign_dpkg_root_does_not_touch_host(self):
@@ -258,12 +261,12 @@ class ChatGPTEnvironmentTests(unittest.TestCase):
             environment.chatgpt_devops_source_environment()
 
     def test_backend_identity_and_canonical_wrapper(self):
-        text = (TARGET / 'etc/skel-desktop/.config/systemd/user/codex-app-server.service').read_text()
+        text = payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/codex-app-server.service')
         for expected in ('Environment=HOME=%h USER=%u LOGNAME=%u XDG_RUNTIME_DIR=%t',
                          'Environment=CODEX_HOME=/data/codex/usr/home',
                          'ExecStart=/data/codex/lib/codex app-server --listen unix:///data/codex/sockets/app-server-backend.sock'):
             self.assertIn(expected, text)
-        wrapper = (TARGET / 'data/codex/lib/codex').read_text()
+        wrapper = payload_read_text(TARGET / 'data/codex/lib/codex')
         self.assertIn('devops_de_apply_environment', wrapper)
 
     def test_chatgpt_handoff_preserves_exports_not_untrusted_identity(self):
@@ -302,43 +305,43 @@ class InstallerRegressionTests(unittest.TestCase):
     def test_every_host_profile_defines_both_launchers(self):
         profiles = list((FORKY / 'hosts/profiles').glob('*.env')); self.assertTrue(profiles)
         for path in profiles:
-            text = path.read_text()
+            text = payload_read_text(path)
             if 'LABWC_MANAGED_APP_DEFAULT_EXEC=' not in text: continue
             for kind in ('ELECTRON', 'WAYLAND'):
                 self.assertIn(f'LABWC_{kind}_APP_DEFAULT_EXEC="/usr/local/bin/labwc-{kind.lower()}-app nvidia"', text)
 
     def test_generic_hardware_fallback_matches_selected_hardware(self):
-        source = (FORKY / 'scripts/desktop/detect.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/desktop/detect.sh')
         function = source[source.index('desktop_resolve_generic_app_default_exec() ('):source.index('\ndesktop_resolve_generic_app_defaults()')]
         for intel, nvidia, expected in (('true', 'true', 'nvidia'), ('true', 'false', 'intel'), ('false', 'false', 'launch')):
             script = f'LABWC_INTEL_ACCELERATION_AVAILABLE={intel}\nLABWC_NVIDIA_ACCELERATION_AVAILABLE={nvidia}\n' + function + '\ndesktop_resolve_generic_app_default_exec labwc-electron-app "/usr/local/bin/labwc-electron-app nvidia"\n'
-            result = subprocess.run(['/bin/sh', '-eu', '-c', script], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script]), capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout.strip(), '/usr/local/bin/labwc-electron-app ' + expected)
 
     def test_tuta_is_home_scoped_and_installed_with_ownership(self):
-        self.assertFalse((TARGET / 'usr/share/applications/tuta-mail.desktop').exists())
-        self.assertTrue((TARGET / 'etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop').is_file())
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        self.assertFalse(payload_source_exists(TARGET / 'usr/share/applications/tuta-mail.desktop'))
+        self.assertTrue(payload_source_is_file(TARGET / 'etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop'))
+        components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         self.assertIn('"$account_home/.local/share/applications/tutanota-desktop.desktop"', components)
         self.assertIn('chown "$uid:$gid" "$account_home/.local/share/applications/tutanota-desktop.desktop"', components)
 
     def test_firstboot_renderer_nested_shell_is_not_truncated(self):
-        function = shell_function((FORKY / 'scripts/firstboot/04-validation.sh').read_text(), 'desktop_renderer_policy_matches')
+        function = shell_function(payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh'), 'desktop_renderer_policy_matches')
         with tempfile.TemporaryDirectory() as temp:
             recorder, capture = Path(temp) / 'record.py', Path(temp) / 'argv.json'
             recorder.write_text('import json,os,sys\nwith open(os.environ["CAPTURE"],"w") as f: json.dump(sys.argv[1:],f)\n')
             def record(body):
                 body = body.replace('/bin/sh -eu -c', shlex.quote(sys.executable) + ' ' + shlex.quote(str(recorder)), 1)
-                run = subprocess.run(['/bin/sh', '-c', body + '\ndesktop_renderer_policy_matches'], env={**os.environ, 'CAPTURE': str(capture)}, capture_output=True, timeout=5)
+                run = subprocess.run(payload_installed_argv(['/bin/sh', '-c', body + '\ndesktop_renderer_policy_matches']), env={**os.environ, 'CAPTURE': str(capture)}, capture_output=True, timeout=5)
                 self.assertEqual(run.returncode, 0, run.stderr)
-                return json.loads(capture.read_text())
+                return json.loads(payload_read_text(capture))
             fixed = record(function)
             self.assertEqual(len(fixed), 2)  # complete script, then argv[0]=sh
-            check = subprocess.run(['/bin/sh', '-n', '-c', fixed[0]], capture_output=True, timeout=5)
+            check = subprocess.run(payload_installed_argv(['/bin/sh', '-n', '-c', fixed[0]]), capture_output=True, timeout=5)
             self.assertEqual(check.returncode, 0, check.stderr)
             broken = record(function.replace("'\"'\"'", "'"))
-            check = subprocess.run(['/bin/sh', '-n', '-c', broken[0]], capture_output=True, timeout=5)
+            check = subprocess.run(payload_installed_argv(['/bin/sh', '-n', '-c', broken[0]]), capture_output=True, timeout=5)
             self.assertNotEqual(check.returncode, 0)
 
     def test_tool_version_probes_have_disposable_homes(self):
@@ -351,14 +354,14 @@ class InstallerRegressionTests(unittest.TestCase):
                 self.assertTrue(env[name].startswith(env['HOME'] + '/'))
         with mock.patch.object(tools, '_verify_installation', side_effect=verify): tools.verify_installation(object())
         self.assertNotEqual(captured['HOME'], '/')
-        self.assertFalse(Path(captured['HOME']).exists())
-        devops = (FORKY / 'scripts/late/devops.sh').read_text()
+        self.assertFalse(payload_source_exists(Path(captured['HOME'])))
+        devops = payload_read_text(FORKY / 'scripts/late/devops.sh')
         self.assertIn('version_output=$(codex_verify_version "$candidate_binary_path"', devops)
         self.assertIn('version_output=$(codex_verify_version "$binary_path"', devops)
         self.assertIn('CODEX_HOME="$verify_home/.codex"', devops)
 
     def test_apparmor_covers_root_cause_not_null_profiles_or_root_codex(self):
-        policy = (TARGET / 'etc/apparmor.d/managed-desktop-utilities').read_text()
+        policy = payload_read_text(TARGET / 'etc/apparmor.d/desktop-utilities')
         self.assertIn('/usr/bin/bwrap rCx -> editor-glycin-bwrap,', policy)
         self.assertIn('owner @{PROC}/[0-9]*/cgroup r,', policy)
         for peer in ('bitwarden', 'filen', 'vivaldi-bin', 'vivaldi-stable'):

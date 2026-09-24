@@ -10,6 +10,9 @@ import http.server
 import json
 import os
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'd-i/forky/tests'))
+from payload_fixture import read_text as payload_read_text, installed_script as payload_installed_script, python_library as payload_python_library
 import shutil
 import ssl
 import subprocess
@@ -18,7 +21,7 @@ import threading
 import unittest
 from unittest import mock
 
-from test_local_apt_repository import repo, fixture, SOURCE
+from test_local_apt_repository import repo, fixture, SOURCE, install_source_template
 
 TARGET = SOURCE.parents[3]
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,10 +29,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class Workspace(unittest.TestCase):
     def setUp(self):
-        base = Path('/var/lib/local-apt-tests')
+        base = Path('/var/lib/apt-repo-local-tests')
         base.mkdir(mode=0o755, exist_ok=True)
         self.work = Path(tempfile.mkdtemp(dir=base))
         self.repository = repo.Repository(self.work / 'software', self.work / 'etc')
+        install_source_template(self.repository)
         self.deb = self.work / 'input.deb'
         fixture(self.deb)
 
@@ -324,18 +328,18 @@ class DiscoveryTests(Workspace):
             repo.http_headers(b'HTTP/2 200\r\nETag: "a"\r\nETag: "b"\r\n\r\n', 200)
 
     def test_new_wrapper_argument_contract_and_installer_units(self):
-        wrapper = TARGET / 'usr/local/bin/local-apt-init'
+        wrapper = TARGET / 'usr/local/bin/apt-repo-init'
         for argv, status in [([], 64), (['file.deb'], 64), (['--add'], 64), (['--refresh', 'extra'], 64), (['--help'], 0)]:
             result = subprocess.run(['/bin/sh', str(wrapper), *argv], capture_output=True)
             self.assertEqual(result.returncode, status)
         self.assertFalse((TARGET / 'usr/local/bin/local-add-deb').exists())
-        self.assertFalse((TARGET / 'etc/apt/apt.conf.d/90-local-apt-repository').exists())
-        timer = (TARGET / 'etc/systemd/system/local-apt-refresh.timer').read_text()
+        self.assertFalse((TARGET / 'etc/apt/apt.conf.d/90-apt-repo-local').exists())
+        timer = payload_read_text(TARGET / 'etc/systemd/system/apt-repo-local-refresh.timer')
         self.assertIn('OnCalendar=weekly', timer)
         self.assertIn('Persistent=true', timer)
-        script = (ROOT / 'd-i/forky/scripts/late/software.sh').read_text()
-        self.assertIn('enable local-apt-inbox.path local-apt-refresh.timer', script)
-        self.assertNotIn('etc/apt/apt.conf.d/90-local-apt-repository', script)
+        script = payload_read_text(ROOT / 'd-i/forky/scripts/late/software.sh')
+        self.assertIn('enable apt-repo-local-inbox.path apt-repo-local-refresh.timer', script)
+        self.assertNotIn('etc/apt/apt.conf.d/90-apt-repo-local', script)
 
 
 class TLSHandler(http.server.BaseHTTPRequestHandler):
@@ -505,7 +509,7 @@ class RealTransportTests(Workspace):
             policy = subprocess.run(['/usr/bin/apt-cache', *config, 'policy', 'fixture-app'], check=True, env=env, capture_output=True, text=True).stdout
             self.assertIn('Candidate: 2.0', policy)
             self.assertEqual(len(self.server.test_state['requests']), before)
-            self.assertEqual((apt / 'status').read_text(), '')
+            self.assertEqual(payload_read_text(apt / 'status'), '')
 
 
 if __name__ == '__main__':

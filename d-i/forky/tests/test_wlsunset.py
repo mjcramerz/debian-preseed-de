@@ -5,6 +5,10 @@ Uses real AF_UNIX peer credentials and flock; user-manager commands are fixtures
 No target service is started, no GPU accessed and no AppArmor policy is loaded.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import importlib.machinery
 import array
 import fcntl
@@ -25,7 +29,7 @@ from unittest import mock
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
 SCRIPT = TARGET / 'usr/local/bin/labwc-wlsunset'
-loader = importlib.machinery.SourceFileLoader('wlsunset_test_module', str(SCRIPT))
+loader = importlib.machinery.SourceFileLoader('wlsunset_test_module', str(installed_script(SCRIPT)))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 W = importlib.util.module_from_spec(spec)
 loader.exec_module(W)
@@ -111,19 +115,19 @@ class ConfigFileTests(unittest.TestCase):
 
     def test_read_literal_config(self):
         self.assertEqual(W.read_config(self.path), DEFAULTS)
-        text = self.path.read_text().replace("WLSUNSET_SUNRISE=''", 'WLSUNSET_SUNRISE=')
+        text = render_theme_defaults(payload_read_text(self.path)).replace("WLSUNSET_SUNRISE=''", 'WLSUNSET_SUNRISE=')
         self.path.write_text(text)
         self.assertEqual(W.read_config(self.path), DEFAULTS)
 
     def test_duplicate_key_rejected(self):
-        self.path.write_text(self.path.read_text() + 'WLSUNSET_ENABLED=false\n')
+        self.path.write_text(render_theme_defaults(payload_read_text(self.path)) + 'WLSUNSET_ENABLED=false\n')
         with self.assertRaises(W.PolicyError): W.read_config(self.path)
 
     def test_config_never_executes_shell(self):
         victim = self.root / 'never-created'
         self.path.write_text(config_text({**DEFAULTS, 'WLSUNSET_LATITUDE': '$(touch ' + str(victim) + ')'}))
         with self.assertRaises(W.PolicyError): W.read_config(self.path)
-        self.assertFalse(victim.exists())
+        self.assertFalse(payload_source_exists(victim))
 
     def test_leaf_symlink_rejected(self):
         link = self.root / 'link'; link.symlink_to(self.path)
@@ -283,14 +287,15 @@ class LifecycleTests(unittest.TestCase):
         args = W.start_argv(DEFAULTS, self.session)
         for arg in ('--user', '--collect', '--service-type=exec', '--expand-environment=no',
                     '--unit=labwc-wlsunset.service', '--property=PartOf=labwc-session.target',
-                    '--property=BindsTo=labwc-compositor.service', '--property=KillMode=control-group',
+                    '--property=After=labwc-session.target labwc-compositor.service', '--property=KillMode=control-group',
                     '--property=RestrictAddressFamilies=AF_UNIX', '--property=NoNewPrivileges=yes',
                     '--property=MemoryDenyWriteExecute=yes', '--property=Restart=always',
                     '--property=StartLimitBurst=3', '--setenv=WAYLAND_DISPLAY=wayland-1'):
             self.assertIn(arg, args)
         self.assertEqual(args[args.index('--') + 1:], W.daemon_argv(DEFAULTS))
         for prefix in ('--scope', '--wait', '--no-block', '--property=AppArmorProfile=',
-                       '--property=RuntimeMaxSec=', '--setenv=DISPLAY=', '--property=PrivateNetwork='):
+                       '--property=RuntimeMaxSec=', '--setenv=DISPLAY=', '--property=PrivateNetwork=',
+                       '--property=BindsTo='):
             self.assertFalse(any(arg.startswith(prefix) for arg in args), prefix)
 
 
@@ -313,11 +318,11 @@ class LockTests(unittest.TestCase):
         patch.start(); self.addCleanup(patch.stop)
 
     def test_private_runtime_environment_and_lock_inode_persists(self):
-        inode = self.lock.stat().st_ino
+        inode = payload_source_stat(self.lock).st_ino
         with W.locked_runtime(1234) as env:
             self.assertEqual(env['DBUS_SESSION_BUS_ADDRESS'], 'unix:path=' + str(self.runtime / 'bus'))
             self.assertNotIn('DISPLAY', env)
-        self.assertEqual(self.lock.stat().st_ino, inode)
+        self.assertEqual(payload_source_stat(self.lock).st_ino, inode)
 
     def test_concurrent_operation_cannot_acquire_lock(self):
         with W.locked_runtime(1234):
@@ -348,29 +353,29 @@ class LockTests(unittest.TestCase):
 class InstallerTests(unittest.TestCase):
     def shell_validate(self, settings):
         env = {**os.environ, **settings}
-        return subprocess.run(['/bin/sh', '-c', 'set -eu; desktop_fatal(){ echo "$*" >&2; exit 1; }; '
+        return subprocess.run(payload_installed_argv(['/bin/sh', '-c', 'set -eu; desktop_fatal(){ echo "$*" >&2; exit 1; }; '
                                '. "$1"; desktop_validate_wlsunset_policy', 'fixture',
-                               str(FORKY / 'scripts/desktop/detect.sh')], env=env, capture_output=True, text=True, timeout=10)
+                               str(FORKY / 'scripts/desktop/detect.sh')]), env=env, capture_output=True, text=True, timeout=10)
 
     def test_all_ten_profiles_render_every_setting(self):
         profiles = sorted((FORKY / 'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
         for profile in profiles:
             with self.subTest(profile=profile.name):
-                result = subprocess.run(['/bin/sh', '-c',
+                result = subprocess.run(payload_installed_argv(['/bin/sh', '-c',
                     'set -eu; . "$1"; . "$2"; . "$3"; desktop_stage_role_asset(){ :; }; run_in_target(){ :; }; '
                     'desktop_render_role_target_template(){ printf "%s\\0" "$@"; }; desktop_stage_wlsunset',
                     'fixture', str(profile), str(FORKY / 'scripts/common/target.sh'),
-                    str(FORKY / 'scripts/desktop/components.sh')],
+                    str(FORKY / 'scripts/desktop/components.sh')]),
                     capture_output=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 args = result.stdout.decode().split('\0')[:-1]
-                self.assertEqual(args[:3], ['etc/default/labwc-wlsunset.tmpl', '/etc/default/labwc-wlsunset', '0644'])
+                self.assertEqual(args[:3], ['etc/labwc/wlsunset.conf.tmpl', '/etc/labwc/wlsunset.conf', '0644'])
                 rendered = {k: shlex.split(v)[0] for k, v in zip(args[3::2], args[4::2])}
                 self.assertEqual(rendered, DEFAULTS)
                 self.assertEqual(self.shell_validate(rendered).returncode, 0)
                 for key in DEFAULTS:
-                    self.assertEqual(len(re.findall('^' + key + '=', profile.read_text(), re.M)), 1)
+                    self.assertEqual(len(re.findall('^' + key + '=', render_theme_defaults(payload_read_text(profile)), re.M)), 1)
 
     def test_shell_and_python_validators_agree(self):
         for key, value in [('WLSUNSET_LATITUDE', '-33.8688'), ('WLSUNSET_LONGITUDE', '-180'),
@@ -388,27 +393,27 @@ class InstallerTests(unittest.TestCase):
                 self.assertEqual(result.returncode == 0, valid, result.stderr)
 
     def test_old_runtime_implementation_and_dependencies_are_absent(self):
-        role = (FORKY / 'classes/class-select/role/desktop.cfg').read_text().split()
+        role = render_theme_defaults(payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg')).split()
         self.assertIn('wlsunset', role)
         self.assertNotIn('gammastep', role); self.assertNotIn('geoclue-2.0', role)
         self.assertNotIn('gir1.2-ayatanaappindicator3-0.1', role)
         self.assertFalse(list(TARGET.rglob('*gammastep*')))
         for profile in (FORKY / 'hosts/profiles').glob('*.env'):
-            self.assertNotIn('GAMMASTEP_', profile.read_text())
-        self.assertNotIn('GeoClue2', (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text())
+            self.assertNotIn('GAMMASTEP_', render_theme_defaults(payload_read_text(profile)))
+        self.assertNotIn('GeoClue2', render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/labwc-session')))
 
     def test_autostart_order_and_app_armor_transitions(self):
-        script = (TARGET / 'usr/local/bin/labwc-autostart').read_text()
+        script = render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-autostart'))
         call = script.index('session_systemctl start labwc-wlsunset-start.service')
         for step in ('sync_user_activation_environment\n', 'start_session_target\n', 'wait_for_wayland_output\n'):
             self.assertLess(script.rindex(step), call)
-        policy = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
-        self.assertIn('profile managed-wlsunset /usr/bin/wlsunset flags=(attach_disconnected, mediate_deleted)', policy)
+        policy = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/labwc-session'))
+        self.assertIn('profile wlsunset /usr/bin/wlsunset flags=(attach_disconnected, mediate_deleted)', policy)
         self.assertEqual(policy.count('owner /tmp/wlsunset-shared-?????? rw,'), 2)
-        self.assertIn('peer=(label=managed-labwc-compositor)', policy)
+        self.assertIn('peer=(label=labwc-compositor)', policy)
         self.assertIn('deny /dev/dri/** rw,', policy)
-        wrappers = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        self.assertIn('/usr/local/bin/labwc-wlsunset rPx -> managed-labwc-wlsunset,', wrappers)
+        wrappers = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers'))
+        self.assertIn('/usr/local/bin/labwc-wlsunset rPx -> labwc-wlsunset,', wrappers)
 
     def test_gamma_descriptor_transfer_preserves_read_write_open_mode(self):
         # Real Linux SCM_RIGHTS semantics, not an AppArmor enforcement fixture.
@@ -436,14 +441,20 @@ class InstallerTests(unittest.TestCase):
                 if received is not None: os.close(received)
 
     def test_switcher_shares_menu_hover_gradient_without_overrides(self):
-        css = (TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+        css = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waybar/style.css.tmpl'))
         matches = re.findall(r'([^{}]+)\{([^{}]*)\}', css)
         blocks = [(selectors, body) for selectors, body in matches if '#custom-window-switcher:hover' in selectors]
-        self.assertEqual(len(blocks), 1)
-        selectors, body = blocks[0]
+        shared = [(selectors, body) for selectors, body in blocks
+                  if selectors.strip() == '#custom-window-switcher:hover']
+        self.assertEqual(len(shared), 1)
+        # Output-scoped hover rules may add geometry, never replace the palette.
+        for selectors, body in blocks:
+            if 'window#waybar.' in selectors:
+                self.assertNotRegex(body, r'(?:background(?:-color)?|border-color|(?<!-)color)\s*:')
+        selectors, body = shared[0]
         self.assertEqual(selectors.strip(), '#custom-window-switcher:hover')
         self.assertIn('background: rgba(15, 56, 39, 0.86);', body)
-        self.assertIn('border-color: @emeraldgreen;', body)
+        self.assertIn('border-color: ' + theme_values()['WAYBAR_BUTTON_TASKVIEW_HOVER_OUTLINE_COLOR'] + ';', body)
         self.assertNotIn('color: #08111f;', body)
         self.assertNotIn('#workspaces button:hover', selectors)
 

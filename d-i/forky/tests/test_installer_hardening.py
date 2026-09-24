@@ -3,6 +3,9 @@
 Terminal installer tests kill only their own process trees. They never partition,
 mount, chroot the host, signal a real main-menu, or activate target services.
 """
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import ctypes
 import importlib.util
@@ -30,13 +33,13 @@ Q = shlex.quote
 
 
 def shell(text, env=None, shell_path='/bin/sh'):
-    return subprocess.run([shell_path, '-eu', '-c', text], env={**os.environ, **(env or {})},
+    return subprocess.run(payload_installed_argv([shell_path, '-eu', '-c', text]), env={**os.environ, **(env or {})},
                           capture_output=True, text=True, timeout=15)
 
 
 def module(path, name):
     from importlib.machinery import SourceFileLoader
-    loader = SourceFileLoader(name, str(path))
+    loader = SourceFileLoader(name, str(installed_script(path)))
     spec = importlib.util.spec_from_loader(name, loader)
     result = importlib.util.module_from_spec(spec)
     sys.modules[name] = result
@@ -54,13 +57,13 @@ class LifecycleTests(unittest.TestCase):
         self.env = {**os.environ, 'INSTALLER_RUNTIME_DIR': str(self.runtime),
                     'INSTALLER_TARGET_DIR': str(self.root / 'not-mounted')}
         (self.runtime / 'bootstrap').mkdir(parents=True)
-        shutil.copyfile(LC, self.runtime / 'bootstrap/source.sh')
+        payload_copyfile(LC, self.runtime / 'bootstrap/source.sh')
 
     def run_lc(self, code):
         return shell(f'. {Q(str(LC))}\n{code}', self.env)
 
     def held(self, code, executable='/bin/sh'):
-        p = subprocess.Popen([executable, '-eu', '-c', f'. {Q(str(LC))}\n{code}'],
+        p = subprocess.Popen(payload_installed_argv([executable, '-eu', '-c', f'. {Q(str(LC))}\n{code}']),
                              env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(stop_test_tree, p)
         return p
@@ -100,9 +103,9 @@ class LifecycleTests(unittest.TestCase):
         blocked_stat.write_text('#!/bin/sh\nprintf \"%s\\n\" STAT_MUST_NOT_RUN >&2\nexit 127\n')
         blocked_stat.chmod(0o755)
 
-        package = self.root/'managed-app'; package.mkdir(); package.chmod(0o755)
+        package = self.root/'app'; package.mkdir(); package.chmod(0o755)
         module_path = package/'module.py'; module_path.write_text('VALUE = 1\n'); module_path.chmod(0o644)
-        manifest = self.root/'managed-app.manifest'; manifest.write_text('module.py\n')
+        manifest = self.root/'app.manifest'; manifest.write_text('module.py\n')
         command = (
             '. \"$1\"; . \"$2\"; '
             'desktop_validate_labwc_managed_app_directory \"$3\" \"$5\" \"$6\" 755; '
@@ -112,12 +115,12 @@ class LifecycleTests(unittest.TestCase):
                      str(ROOT/'scripts/desktop/components.sh'),str(package),
                      str(manifest),str(os.getuid()),str(os.getgid())]
         env = {**os.environ, 'LC_ALL':'C', 'PATH':str(bindir)}
-        result = subprocess.run(arguments,env=env,capture_output=True,text=True,timeout=10)
+        result = subprocess.run(payload_installed_argv(arguments),env=env,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertNotIn('STAT_MUST_NOT_RUN',result.stderr)
 
         (package/'.unexpected').write_text('unexpected\n')
-        rejected = subprocess.run(arguments,env=env,capture_output=True,text=True,timeout=10)
+        rejected = subprocess.run(payload_installed_argv(arguments),env=env,capture_output=True,text=True,timeout=10)
         self.assertNotEqual(rejected.returncode,0)
         self.assertIn('inventory count does not match',rejected.stderr)
         self.assertNotIn('STAT_MUST_NOT_RUN',rejected.stderr)
@@ -135,26 +138,26 @@ class LifecycleTests(unittest.TestCase):
                              'installer_record_failure 37 render root-cause; '
                              'installer_record_failure 99 cleanup secondary')
         self.assertEqual(result.returncode, 0, result.stderr)
-        record = (self.state / 'first-failure').read_text()
+        record = payload_read_text(self.state / 'first-failure')
         self.assertIn('status=37', record)
         self.assertIn('detail=root-cause', record)
         self.assertNotIn('secondary', record)
-        self.assertFalse((self.state / 'installation.success').exists())
-        self.assertEqual((self.state / 'first-failure').stat().st_mode & 0o777, 0o600)
+        self.assertFalse(payload_source_exists(self.state / 'installation.success'))
+        self.assertEqual(payload_source_stat(self.state / 'first-failure').st_mode & 0o777, 0o600)
 
     def test_success_is_explicit_and_repeat_phase_is_noop(self):
         result = self.run_lc('installer_lifecycle_begin late; installer_lifecycle_complete')
         self.assertEqual(result.returncode, 0, result.stderr)
         result = self.run_lc('if installer_lifecycle_begin late; then exit 91; else test "$?" = 10; fi')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue((self.state / 'late.done').is_file())
-        self.assertFalse((self.state / 'installation.success').exists())
+        self.assertTrue(payload_source_is_file(self.state / 'late.done'))
+        self.assertFalse(payload_source_exists(self.state / 'installation.success'))
 
     @skip_unless_process_tree_visibility
     def test_zero_exit_without_completion_is_fatal(self):
         p = self.held('installer_lifecycle_begin late; exit 0')
         self.assertTrue(wait_file(self.state / 'first-failure'))
-        self.assertIn('status=125', (self.state / 'first-failure').read_text())
+        self.assertIn('status=125', payload_read_text(self.state / 'first-failure'))
         self.assertIsNone(p.poll())
 
     @skip_unless_process_tree_visibility
@@ -164,8 +167,8 @@ class LifecycleTests(unittest.TestCase):
             p = self.held('installer_lifecycle_begin late; touch "$LC_STATE/UNSAFE"')
             time.sleep(.12)
             self.assertIsNone(p.poll())
-        self.assertFalse((self.state / 'UNSAFE').exists())
-        self.assertIn('status=37', (self.state / 'first-failure').read_text())
+        self.assertFalse(payload_source_exists(self.state / 'UNSAFE'))
+        self.assertIn('status=37', payload_read_text(self.state / 'first-failure'))
 
     @skip_unless_process_tree_visibility
     def test_interrupted_phase_is_not_resumed(self):
@@ -173,8 +176,8 @@ class LifecycleTests(unittest.TestCase):
         (self.state / 'partman.running').mkdir()
         p = self.held('installer_lifecycle_begin partman; touch "$LC_STATE/UNSAFE"')
         self.assertTrue(wait_file(self.state / 'first-failure'))
-        self.assertFalse((self.state / 'UNSAFE').exists())
-        self.assertIn('interrupted or concurrent', (self.state / 'first-failure').read_text())
+        self.assertFalse(payload_source_exists(self.state / 'UNSAFE'))
+        self.assertIn('interrupted or concurrent', payload_read_text(self.state / 'first-failure'))
         self.assertIsNone(p.poll())
 
     @skip_unless_process_tree_visibility
@@ -182,12 +185,12 @@ class LifecycleTests(unittest.TestCase):
         child = self.root / 'child'
         child.write_text('#!/bin/sh\ntrap \'s=$?; false || :; exit "$s"\' 0\nexit 41\n')
         child.chmod(0o755)
-        p = subprocess.Popen(['/bin/sh', str(GUARD), 'hook-finish-07preseed', str(child)],
+        p = subprocess.Popen(payload_installed_argv(['/bin/sh', str(GUARD), 'hook-finish-07preseed', str(child)]),
                              env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(stop_test_tree, p)
         self.assertTrue(wait_file(self.state / 'first-failure'))
-        self.assertIn('status=41', (self.state / 'first-failure').read_text())
-        self.assertFalse((self.state / 'hook-finish-07preseed.done').exists())
+        self.assertIn('status=41', payload_read_text(self.state / 'first-failure'))
+        self.assertFalse(payload_source_exists(self.state / 'hook-finish-07preseed.done'))
         self.assertIsNone(p.poll())
 
     @skip_unless_process_tree_visibility
@@ -203,33 +206,33 @@ for attempt in range(5):
  subprocess.run(['/bin/sh',sys.argv[1],'hook-finish-07preseed',sys.argv[2]])
  open(os.environ['INSTALLER_RUNTIME_DIR']+'/continued','w').write('unsafe')
 '''
-        p = subprocess.Popen([sys.executable, '-c', program, str(GUARD), str(child)],
+        p = subprocess.Popen(payload_installed_argv([sys.executable, '-c', program, str(GUARD), str(child)]),
                              env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(stop_test_tree, p)
         self.assertTrue(wait_file(self.state / 'first-failure'))
         deadline = time.monotonic() + 3
         status = ''
         while time.monotonic() < deadline:
-            status = Path(f'/proc/{p.pid}/status').read_text()
+            status = payload_read_text(Path(f'/proc/{p.pid}/status'))
             if 'State:\tT' in status:
                 break
             time.sleep(.025)
         self.assertIn('State:\tT', status)
-        self.assertEqual((self.runtime / 'attempts').read_text().splitlines(), ['attempt'])
-        self.assertFalse((self.runtime / 'continued').exists())
-        self.assertIn('status=47', (self.state / 'first-failure').read_text())
+        self.assertEqual(payload_read_text(self.runtime / 'attempts').splitlines(), ['attempt'])
+        self.assertFalse(payload_source_exists(self.runtime / 'continued'))
+        self.assertIn('status=47', payload_read_text(self.state / 'first-failure'))
 
     @skip_unless_process_tree_visibility
     def test_reboot_gate_rejects_missing_prior_completion(self):
         child = self.root / '99reboot'
         child.write_text('#!/bin/sh\ntouch "$INSTALLER_RUNTIME_DIR/reboot"\nexit 11\n')
         child.chmod(0o755)
-        p = subprocess.Popen(['/bin/sh', str(GUARD), 'hook-finish-99reboot', str(child)],
+        p = subprocess.Popen(payload_installed_argv(['/bin/sh', str(GUARD), 'hook-finish-99reboot', str(child)]),
                              env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(stop_test_tree, p)
         self.assertTrue(wait_file(self.state / 'first-failure'))
-        self.assertFalse((self.runtime / 'reboot').exists())
-        self.assertFalse((self.state / 'installation.success').exists())
+        self.assertFalse(payload_source_exists(self.runtime / 'reboot'))
+        self.assertFalse(payload_source_exists(self.state / 'installation.success'))
 
     @skip_unless_process_tree_visibility
     def test_signal_supervision_is_bounded_and_records_original_signal(self):
@@ -238,14 +241,14 @@ for attempt in range(5):
         child.chmod(0o755)
         p = self.held(f'installer_lifecycle_begin late; installer_run_supervised {Q(str(child))}; installer_lifecycle_complete')
         self.assertTrue(wait_file(self.runtime / 'child-pid'))
-        pid = int((self.runtime / 'child-pid').read_text())
+        pid = int(payload_read_text(self.runtime / 'child-pid'))
         p.send_signal(signal.SIGTERM)
         self.assertTrue(wait_file(self.state / 'first-failure'))
-        self.assertIn('status=143', (self.state / 'first-failure').read_text())
+        self.assertIn('status=143', payload_read_text(self.state / 'first-failure'))
         deadline = time.monotonic() + 7
-        while Path(f'/proc/{pid}').exists() and time.monotonic() < deadline:
+        while payload_source_exists(Path(f'/proc/{pid}')) and time.monotonic() < deadline:
             time.sleep(.05)
-        self.assertFalse(Path(f'/proc/{pid}').exists())
+        self.assertFalse(payload_source_exists(Path(f'/proc/{pid}')))
         self.assertIsNone(p.poll())
 
     def test_symlink_state_directory_is_rejected_without_writing(self):
@@ -334,7 +337,7 @@ echo UNSAFE
 
     def test_final_kernel_repair_precedes_grub_generation(self):
         for name in ('btrfs-family.sh', 'f2fs-family.sh'):
-            text = (ROOT / 'scripts/late' / name).read_text()
+            text = payload_read_text(ROOT / 'scripts/late' / name)
             self.assertLess(text.index('\n  repair_target_installed_kernels\n'), text.index('\n  run_target_grub_config_update\n'))
 
 
@@ -352,16 +355,16 @@ class AptBoundaryTests(unittest.TestCase):
         src.write_text('Types: deb\nURIs: cdrom:fixture\nSuites: trixie\n\nTypes: deb\nURIs: https://safe.invalid/debian\nSuites: trixie\n')
         result = shell(f'. {Q(str(LC))}\n. {Q(str(APT))}; installer_apt_strip_cdrom {Q(str(self.root))}')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn('cdrom:', src.read_text())
-        self.assertIn('https://safe.invalid', src.read_text())
-        self.assertIn('https://mirror.invalid', (self.root / 'etc/apt/sources.list').read_text())
+        self.assertNotIn('cdrom:', payload_read_text(src))
+        self.assertIn('https://safe.invalid', payload_read_text(src))
+        self.assertIn('https://mirror.invalid', payload_read_text(self.root / 'etc/apt/sources.list'))
 
     def test_indirect_source_cannot_overwrite_external_file(self):
         external = self.root / 'external'; external.write_text('retain')
         (self.root / 'etc/apt/sources.list').symlink_to(external)
         result = shell(f'. {Q(str(LC))}\n. {Q(str(APT))}; installer_apt_strip_cdrom {Q(str(self.root))}')
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(external.read_text(), 'retain')
+        self.assertEqual(payload_read_text(external), 'retain')
 
     def test_bootstrap_adapter_is_idempotent_and_substitutes_apt_boundary(self):
         helper = self.root / 'helper'; helper.write_text('echo "normalized:$1"\nexit 100\n')
@@ -370,18 +373,18 @@ class AptBoundaryTests(unittest.TestCase):
         script.chmod(0o755)
         command = [str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]
         for _ in range(2):
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+            result = subprocess.run(payload_installed_argv(command), capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
-        result = subprocess.run([str(script)], capture_output=True, text=True, timeout=10)
+        result = subprocess.run(payload_installed_argv([str(script)]), capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 100)
         self.assertEqual(result.stdout.splitlines(), ['normalized:trixie'])
 
     def test_unknown_bootstrap_version_is_rejected_before_mutation(self):
         script = self.root / 'bootstrap'; script.write_text('#!/bin/sh\nwaypoint 4 apt_update\n'); script.chmod(0o755)
         helper = self.root / 'helper'; helper.touch()
-        result = subprocess.run([str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)], capture_output=True)
+        result = subprocess.run(payload_installed_argv([str(ROOT / 'scripts/preseed/base-apt-adapter.sh'), str(script), str(helper)]), capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(script.read_text(), '#!/bin/sh\nwaypoint 4 apt_update\n')
+        self.assertEqual(payload_read_text(script), '#!/bin/sh\nwaypoint 4 apt_update\n')
 
 
 class CodexStateTests(unittest.TestCase):
@@ -441,7 +444,7 @@ class CodexStateTests(unittest.TestCase):
     def test_partial_unpublished_tree_fails_without_touching_existing(self):
         (self.actual / 'home/packages').unlink()
         with self.assertRaises(self.mod.StateError): self.compare()
-        self.assertTrue((self.actual / 'home/config.toml').is_file())
+        self.assertTrue(payload_source_is_file(self.actual / 'home/config.toml'))
         # An operator can restore the *verified* missing publication, not weaken
         # comparison or take over unrelated state. Correct state then converges.
         (self.actual / 'home/packages').symlink_to('/data/codex/packages')
@@ -449,7 +452,7 @@ class CodexStateTests(unittest.TestCase):
 
     def test_malicious_git_config_is_not_executed(self):
         p = self.actual / '.git/config'
-        p.write_text(p.read_text()+'[include]\n path = /etc/shadow\n')
+        p.write_text(payload_read_text(p)+'[include]\n path = /etc/shadow\n')
         with self.assertRaises(self.mod.StateError): self.compare()
 
     def test_detached_head_remains_fatal(self):
@@ -479,8 +482,8 @@ class CodexStateTests(unittest.TestCase):
         with self.assertRaises(self.mod.StateError): self.compare()
 
     def test_installer_does_not_create_prelogin_auth_state(self):
-        tmpfiles = (ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl').read_text()
-        devops = (ROOT / 'scripts/late/devops.sh').read_text()
+        tmpfiles = payload_read_text(ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl')
+        devops = payload_read_text(ROOT / 'scripts/late/devops.sh')
         self.assertNotIn('__INSTALLER_DEVOPS_CODEX_HOME__/auth.json', tmpfiles)
         self.assertNotIn('__INSTALLER_DEVOPS_CODEX_ROOT__/credentials/auth.json', tmpfiles)
         self.assertNotRegex(devops, r'candidate_home_path[^\n]*auth\.json')
@@ -492,7 +495,7 @@ class CodexStateTests(unittest.TestCase):
         self.assertNotIn('does not bind its auth credential over CODEX_HOME/auth.json', devops)
 
     def test_missing_packages_tmpfiles_rule_regression(self):
-        text = (ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl').read_text()
+        text = payload_read_text(ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl')
         self.assertIn('L __INSTALLER_DEVOPS_CODEX_HOME__/packages ', text)
 
 
@@ -502,7 +505,7 @@ class StorageSafetyTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for p in ('sys', 'dev', 'btrfs'): (self.root / p).mkdir()
         for p in ('mounts', 'swaps', 'cmdline'): (self.root / p).touch()
-        self.script = (ROOT / 'scripts/partman/detect-disk.sh').read_text().rsplit('\ndetect_disk_main "$@"', 1)[0]
+        self.script = payload_read_text(ROOT / 'scripts/partman/detect-disk.sh').rsplit('\ndetect_disk_main "$@"', 1)[0]
         # Function seams only: production main never accepts substituted /sys.
         self.prefix = self.script + '\ndisk_is_block() { test -f "$1"; }\n'
         for key, value in [('disk_sys_root','sys'),('disk_dev_root','dev'),('disk_btrfs_root','btrfs'),('disk_mounts','mounts'),('disk_swaps','swaps'),('disk_cmdline','cmdline')]:
@@ -521,7 +524,7 @@ class StorageSafetyTests(unittest.TestCase):
         dev = self.disk(); result = self.run_disk(f'disk_identity {Q(str(dev))}')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.stdout.split()[0]), 64)
-        self.assertEqual((self.root/'sys/nvme0n1/size').read_text().strip(), '100000000')
+        self.assertEqual(payload_read_text(self.root/'sys/nvme0n1/size').strip(), '100000000')
 
     def test_removable_installer_is_rejected_even_when_explicit(self):
         dev = self.disk('sda', '1'); result = self.run_disk(f'disk_canonical {Q(str(dev))}')
@@ -582,15 +585,15 @@ installer_fetch_file() {
  esac
 }
 """)
-        result = subprocess.run(['/bin/sh', str(ROOT/'scripts/late/dispatch.sh')],
+        result = subprocess.run(payload_installed_argv(['/bin/sh', str(ROOT/'scripts/late/dispatch.sh')]),
                                 env={**os.environ, 'INSTALLER_RUNTIME_DIR': str(runtime)},
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 43, result.stderr)
         self.assertIn('final=43', result.stdout)
-        self.assertFalse((runtime/'bootstrap/role-late.sh').exists())
+        self.assertFalse(payload_source_exists(runtime/'bootstrap/role-late.sh'))
 
     def test_virtual_and_versioned_pkgsel_status_detection(self):
-        text = (ROOT/'scripts/late/storage-maintenance.sh').read_text()
+        text = payload_read_text(ROOT/'scripts/late/storage-maintenance.sh')
         start = text.index("/bin/sh -c '\nset -eu\n") + len("/bin/sh -c '")
         end = text.index("' sh \"${INSTALLER_PKGSEL_INCLUDE}\"", start)
         child = text[start:end].replace("'\\''", "'")
@@ -598,14 +601,14 @@ installer_fetch_file() {
         dpkg = bindir/'dpkg-query'
         dpkg.write_text('#!/bin/sh\nprintf "install ok installed\\tmesa-utils\\tmesa-utils-extra\\t9.0\\ninstall ok installed\\tpython3\\t\\t3.13\\n"\n')
         dpkg.chmod(0o755)
-        result = subprocess.run(['/bin/sh','-eu','-c',child,'sh','mesa-utils-extra python3=3.13 python3=3.14 absent/trixie'],
+        result = subprocess.run(payload_installed_argv(['/bin/sh','-eu','-c',child,'sh','mesa-utils-extra python3=3.13 python3=3.14 absent/trixie']),
                                 env={**os.environ,'PATH':str(bindir)+':'+os.environ['PATH']}, capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(result.stdout.splitlines(), ['python3=3.14','absent/trixie'])
 
     @unittest.skipUnless(os.geteuid() == 0, 'production ownership contract requires root in this private fixture')
     def test_real_codex_publication_rolls_back_only_current_invocation(self):
-        text = (ROOT/'scripts/late/devops.sh').read_text()
+        text = payload_read_text(ROOT/'scripts/late/devops.sh')
         start = text.index('devops_install_pinned_codex()')
         a = text.index('publication_committed=0',start)
         b = text.index('staging_dir=$(mktemp',a)
@@ -639,17 +642,17 @@ codex_file_matches() {{ cmp -s "$1" "$2"; }}
 """+publication+'\npublication_committed=1\n'
                 result=shell(code)
                 self.assertEqual(result.returncode,0 if fail==0 else 71,result.stderr)
-                self.assertEqual(unrelated.read_text(),'external state')
-                self.assertEqual((codex/'.managed-codex-release').exists(),fail==0)
+                self.assertEqual(payload_read_text(unrelated),'external state')
+                self.assertEqual(payload_source_exists(codex/'.codex-release'),fail==0)
                 if fail:
-                    self.assertFalse(paths['user_root'].exists())
-                    self.assertFalse(paths['schema_path'].exists())
+                    self.assertFalse(payload_source_exists(paths['user_root']))
+                    self.assertFalse(payload_source_exists(paths['schema_path']))
                     self.assertTrue((codex/'share/bin').is_dir())
 
 
 class ConfigurationOrderingTests(unittest.TestCase):
     def test_crowdsec_target_package_checks_preserve_dpkg_status_format(self):
-        source = (ROOT / 'scripts/late/crowdsec.sh').read_text()
+        source = payload_read_text(ROOT / 'scripts/late/crowdsec.sh')
         cases = (
             ('verify CrowdSec engine before bouncer enrollment',
              'crowdsec', '/etc/crowdsec/config.yaml'),
@@ -698,41 +701,41 @@ printf '%s\n' 1
                        'EXPECTED_PACKAGE': package, 'EXPECTED_CONFIG': str(config)}
                 for shell_command in shells:
                     with self.subTest(label=label, shell=shell_command):
-                        result = subprocess.run([*shell_command, '-eu', '-c', program],
+                        result = subprocess.run(payload_installed_argv([*shell_command, '-eu', '-c', program]),
                                                 env=env, capture_output=True,
                                                 text=True, timeout=10)
                         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_crowdsec_engine_config_precedes_bouncer_install(self):
-        cfg = (ROOT/'classes/class-addon/crowdsec.cfg').read_text()
+        cfg = payload_read_text(ROOT/'classes/class-addon/crowdsec.cfg')
         self.assertNotIn('crowdsec-firewall-bouncer-nftables', '\n'.join(l for l in cfg.splitlines() if l.startswith('d-i pkgsel/include')))
-        text = (ROOT/'scripts/late/crowdsec.sh').read_text()
+        text = payload_read_text(ROOT/'scripts/late/crowdsec.sh')
         self.assertLess(text.index('cscli config show'), text.index('install crowdsec-firewall-bouncer-nftables'))
-        helper = (ROOT/'hooks/target/usr/local/libexec/crowdsec-firstboot').read_text()
+        helper = payload_read_text(ROOT/'hooks/target/usr/local/libexec/crowdsec-firstboot')
         self.assertNotIn('bouncers add', helper)
         self.assertIn('crowdsec-bouncer-verify', helper)
-        unit = (ROOT/'hooks/target/etc/systemd/system/crowdsec-firstboot.service').read_text()
+        unit = payload_read_text(ROOT/'hooks/target/etc/systemd/system/crowdsec-firstboot.service')
         self.assertIn('StartLimitIntervalSec=infinity', unit)
         self.assertIn('StartLimitBurst=3', unit)
 
     def test_mullvad_offline_validation_and_runtime_activation_are_distinct(self):
-        text = (ROOT/'scripts/late/mullvad.sh').read_text()
+        text = payload_read_text(ROOT/'scripts/late/mullvad.sh')
         self.assertIn('--skip-kernel-load --skip-cache', text)
         self.assertIn('cmp ', text)
-        unit = (ROOT/'hooks/target/etc/systemd/system/mullvad-apparmor.service').read_text()
+        unit = payload_read_text(ROOT/'hooks/target/etc/systemd/system/mullvad-apparmor.service')
         self.assertIn('apparmor_parser --replace --skip-read-cache --write-cache', unit)
-        dep = (ROOT/'hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf').read_text()
+        dep = payload_read_text(ROOT/'hooks/target/etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf')
         self.assertIn('Requires=mullvad-apparmor.service', dep)
 
     def test_network_fetch_has_wall_clock_bound_and_never_disables_tls(self):
-        text = (ROOT/'scripts/common/source.sh').read_text()
+        text = payload_read_text(ROOT/'scripts/common/source.sh')
         self.assertIn('installer_run_bounded "$wall_timeout"', text)
         self.assertIn('for attempt in 1 2 3', text)
         self.assertNotIn('set -- "$@" --no-check-certificate', text)
         self.assertIn('bypass is forbidden', text)
 
     def test_normalization_and_validation_precede_unmount(self):
-        text = (ROOT/'hooks/installer/d-i/early.sh').read_text()
+        text = payload_read_text(ROOT/'hooks/installer/d-i/early.sh')
         finish_hook = '99-normalize-finish)" "/usr/lib/finish-install.d/94zz-10-normalize-finish"'
         apt_hook = '95-normalize-apt)" "/usr/lib/finish-install.d/94zz-20-normalize-apt"'
         self.assertIn(finish_hook, text)
@@ -741,8 +744,8 @@ printf '%s\n' 1
         self.assertIn('94zz-99-validate-target', text)
         self.assertTrue('94zz-99-validate-target' < '95umount')
 
-        apt_normalizer = (ROOT/'hooks/installer/finish-install.d/95-normalize-apt').read_text()
-        normalizer_call = 'run_in_target /usr/local/libexec/local-apt-normalize-sources'
+        apt_normalizer = payload_read_text(ROOT/'hooks/installer/finish-install.d/95-normalize-apt')
+        normalizer_call = 'run_in_target /usr/local/libexec/apt-repo-local-normalize-sources'
         modernize_call = 'run_in_target env DEBIAN_FRONTEND=noninteractive APT_LISTCHANGES_FRONTEND=none apt -y modernize-sources'
         self.assertEqual(apt_normalizer.count(normalizer_call), 2)
         self.assertLess(apt_normalizer.index(normalizer_call), apt_normalizer.index(modernize_call))
@@ -751,7 +754,7 @@ printf '%s\n' 1
 
 class FinalBootValidationTests(unittest.TestCase):
     def test_amd64_skipped_installer_kernel_does_not_generate_orphan_initrd(self):
-        source=(ROOT/'classes/class-auto/arch/amd64.cfg').read_text()
+        source=payload_read_text(ROOT/'classes/class-auto/arch/amd64.cfg')
         self.assertIn('d-i base-installer/kernel/skip-install boolean true\n',source)
         self.assertIn('d-i base-installer/kernel/image select none\n',source)
         self.assertIn('d-i base-installer/kernel/linux/initrd boolean false\n',source)
@@ -781,14 +784,14 @@ queue_target_grub_mok_enrollment_boot
         self.assertIn('grep -F -q -- "$mok_entry_marker" "$grub_cfg"', result.stdout)
 
     def test_signature_listing_requires_a_signature_not_just_zero_exit(self):
-        source=(ROOT/'hooks/installer/finish-install.d/94zz-99-validate-target').read_text()
+        source=payload_read_text(ROOT/'hooks/installer/finish-install.d/94zz-99-validate-target')
         body=source[source.index('require_signature() {'):].split('\n}',1)[0]+'\n}\n'
         for listing,status in [('No signature table present',1),('signature 1',0)]:
             result=shell(body+'sbverify() { printf "%s\\n" '+Q(listing)+'; }\nrequire_signature fixture')
             self.assertEqual(result.returncode,status,result.stderr)
 
     def test_missing_debian_kernel_initrd_is_rebuilt_even_without_module_changes(self):
-        source=(ROOT/'hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl').read_text()
+        source=payload_read_text(ROOT/'hooks/target/usr/libexec/install-tools/secure-boot-tool.tmpl')
         body=source[source.index('repair_kernel() {'):].split('\n}',1)[0]+'\n}\n'
         with tempfile.TemporaryDirectory(prefix='boot-repair-') as tmp:
             root=Path(tmp); (root/'boot').mkdir(); (root/'lib/modules/fixture').mkdir(parents=True)
@@ -804,10 +807,10 @@ cleanup_kernel_artifacts() {{ :; }}
 repair_kernel fixture
 """)
             self.assertEqual(result.returncode,0,result.stderr)
-            self.assertEqual((root/'boot/initrd.img-fixture').read_text(),'initrd')
+            self.assertEqual(payload_read_text(root/'boot/initrd.img-fixture'),'initrd')
 
     def test_actual_arm64_cpu_detection_does_not_require_x86_vendor(self):
-        source=(ROOT/'scripts/preseed/class-auto.sh').read_text().rsplit('case "${1:-report}" in',1)[0]
+        source=payload_read_text(ROOT/'scripts/preseed/class-auto.sh').rsplit('case "${1:-report}" in',1)[0]
         result=shell(source+'arch_raw() { printf aarch64; }\ncpu_vendor() { printf 0x41; }\ncpu_class')
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(result.stdout,'generic-arm64')

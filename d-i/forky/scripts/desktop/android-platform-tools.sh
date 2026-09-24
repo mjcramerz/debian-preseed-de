@@ -282,13 +282,13 @@ desktop_install_android_platform_tools() {
     fi
   done
 
-  cat >"${platform_tools_staged_host}/.managed-release" <<EOF
+  cat >"${platform_tools_staged_host}/.release" <<EOF
 version=${platform_tools_revision}
 url=${ANDROID_PLATFORM_TOOLS_URL}
 archive_sha256=${platform_tools_archive_sha256}
 architecture=${ANDROID_PLATFORM_TOOLS_TARGET_ARCHITECTURE}
 EOF
-  chmod 0644 "${platform_tools_staged_host}/.managed-release"
+  chmod 0644 "${platform_tools_staged_host}/.release"
 
   [ ! -L "$platform_tools_install_host" ] ||
     desktop_android_platform_tools_fail "managed installation path must not be a symlink"

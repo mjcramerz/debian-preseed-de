@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-SOURCE = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target/usr/local/libexec/local-apt-repository'
+SOURCE = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target/usr/local/libexec/apt-repo-local'
 loader = importlib.machinery.SourceFileLoader('local_apt_repository', str(SOURCE))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 repo = importlib.util.module_from_spec(spec)
@@ -48,12 +48,20 @@ def fixture(path, version='1.0', package='fixture-app', arch='all', depends='lib
     return streams[1]
 
 
+def install_source_template(repository):
+    """Stage the checked-in runtime template exactly as software.sh does."""
+    source = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target/usr/local/share/software/apt-repo-local.sources.in.tmpl'
+    repository.source_template.parent.mkdir(parents=True, mode=0o755, exist_ok=True)
+    repository.source_template.write_bytes(source.read_bytes())
+    repository.source_template.chmod(0o644)
+
+
 class RepositoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Production paths reject writable ancestors. Use a root-owned private
         # test workspace under /var/tmp's parent, not the world-writable /tmp.
-        cls.base = Path('/var/lib/local-apt-tests')
+        cls.base = Path('/var/lib/apt-repo-local-tests')
         cls.base.mkdir(mode=0o755, exist_ok=True)
 
     def setUp(self):
@@ -61,6 +69,7 @@ class RepositoryTests(unittest.TestCase):
         self.root = self.directory / 'software'
         self.etc = self.directory / 'etc'
         self.repository = repo.Repository(self.root, self.etc)
+        install_source_template(self.repository)
         self.package = self.directory / 'input.deb'
         self.payload = fixture(self.package)
 
@@ -79,9 +88,9 @@ class RepositoryTests(unittest.TestCase):
             self.assertIn('pool/', (self.repository.repo / 'Packages').read_text())
             self.assertEqual(gzip.decompress((self.repository.repo / 'Packages.gz').read_bytes()), (self.repository.repo / 'Packages').read_bytes())
             self.assertIn('Acquire-By-Hash: yes', (self.repository.repo / 'Release').read_text())
-            self.assertEqual(self.repository.keyring, self.etc / 'apt/keyrings/local-apt-repository.gpg')
+            self.assertEqual(self.repository.keyring, self.etc / 'apt/keyrings/apt-repo-local.gpg')
             self.assertTrue(self.repository.keyring.is_file())
-            self.assertEqual(self.repository.source, self.etc / 'apt/sources.list.d/local-apt-repository.sources')
+            self.assertEqual(self.repository.source, self.etc / 'apt/sources.list.d/apt-repo-local.sources')
             self.assertTrue(self.repository.source.is_file())
             self.assertIn('By-Hash: force', self.repository.source.read_text())
             subprocess.run(['/usr/bin/gpgv', '--keyring', str(self.repository.keyring), str(self.repository.repo / 'InRelease')], check=True, capture_output=True)

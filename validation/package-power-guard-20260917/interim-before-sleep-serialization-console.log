@@ -1,9 +1,0 @@
-[browser-check] running; log: /mnt/data/work/debian-preseed-de/validation/package-power-guard-20260917/full/browser-check.log
-[browser-check] PASS (0)
-[build-check] running; log: /mnt/data/work/debian-preseed-de/validation/package-power-guard-20260917/full/build-check.log
-[build-check] PASS (0)
-[preseed-check] running; log: /mnt/data/work/debian-preseed-de/validation/package-power-guard-20260917/full/preseed-check.log
-[preseed-check] PASS (0)
-[shell-check] running; log: /mnt/data/work/debian-preseed-de/validation/package-power-guard-20260917/full/shell-check.log
-[shell-check] PASS (0)
-[tests] running; log: /mnt/data/work/debian-preseed-de/validation/package-power-guard-20260917/full/tests.log

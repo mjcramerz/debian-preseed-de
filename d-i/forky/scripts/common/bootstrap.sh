@@ -487,7 +487,21 @@ bootstrap_require_seed_url_base() {
 
 bootstrap_fetch_seed_file() (
   bootstrap_load_source_library "$1" || exit 1
-  source_fetch "$1" "$2" "$3" "${4:-0600}"
+  if command -v installer_fetch_seed_path >/dev/null 2>&1; then
+    installer_fetch_seed_path "$1" "$2" "$3" "${4:-0600}"
+    exit "$?"
+  fi
+  source_fetch "$1" "$2" "$3" "${4:-0600}" || exit 1
+  if command -v installer_render_logging_asset >/dev/null 2>&1; then
+    installer_render_logging_asset "$1" "$2" "$3" || exit 1
+  else
+    case "$2" in
+      hooks/target/*|scripts/late/*|scripts/desktop/*|scripts/firstboot/*)
+        if LC_ALL=C grep -q '__INSTALLER_LOG_' "$3"; then
+          bootstrap_fatal 'logging template requested before common library initialization'
+        fi ;;
+    esac
+  fi
 )
 
 bootstrap_source_common_lib() {

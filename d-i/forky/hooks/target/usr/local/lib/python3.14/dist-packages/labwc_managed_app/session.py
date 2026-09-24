@@ -26,9 +26,9 @@ from .runtime import (
     validate_session_bus_address,
 )
 
-MANAGED_APP_PATH = "/usr/local/bin/labwc-managed-app"
+MANAGED_APP_PATH = "/usr/local/bin/labwc-app"
 CHATGPT_SESSION_PATH = "/usr/local/libexec/labwc-chatgpt-session"
-WAYLAND_COMPAT_MANAGED_APP_PATH = "/usr/local/bin/labwc-managed-wayland-compat-app"
+WAYLAND_COMPAT_MANAGED_APP_PATH = "/usr/local/bin/labwc-wayland-compat-app"
 SYSTEMD_RUN_PATH = "/usr/bin/systemd-run"
 BITWARDEN_SESSION_UNIT_MARKER = "LABWC_MANAGED_APP_SESSION_UNIT"
 NATIVE_SESSION_UNIT_MARKER = "LABWC_NATIVE_APP_SESSION_UNIT"

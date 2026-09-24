@@ -5,6 +5,8 @@ Driver calls/sysfs are fixtures; root-owned policy checks use a private /root
 fixture when run as root. Unit generation and d-i gate matrices execute for real.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 import asyncio
 import copy
 import ctypes
@@ -37,7 +39,7 @@ spec.loader.exec_module(installer)
 
 
 def environment(name="btrfs-de-p15s"):
-    text = (FORKY / f"hosts/profiles/{name}.env").read_text()
+    text = payload_read_text(FORKY / f"hosts/profiles/{name}.env")
     return installer.parse_environment("\n".join(line for line in text.splitlines() if line.startswith("HARDWARE_")))
 
 
@@ -161,7 +163,7 @@ class PolicyTests(unittest.TestCase):
             data = root / "value.json"
             common.atomic_json(data, {"value": 1})
             self.assertEqual(common.trusted_json(data), {"value": 1})
-            self.assertEqual(data.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(payload_source_stat(data).st_mode & 0o777, 0o600)
             link = root / "link.json"
             link.symlink_to(data)
             with self.assertRaises((OSError, common.TuningError)):
@@ -184,6 +186,7 @@ class InstallerTests(unittest.TestCase):
         for intelflag, intelcpu, nvflag, nvclass, nvgpu in itertools.product((False, True), repeat=5):
             with self.subTest(flags=(intelflag, intelcpu, nvflag, nvclass, nvgpu)), private_temp() as temporary:
                 root = Path(temporary)
+                (root / "target/run").mkdir(parents=True)
                 profile = root / "profile.env"
                 profile.write_text("HARDWARE_TUNING_POLL_SECONDS=\"5\"\n")
                 script = f'''
@@ -196,7 +199,8 @@ installer_fatal() {{ echo "$*" >&2; return 1; }}
 desktop_stage_role_asset() {{ printf '%s\\n' "$1" >> "$FIXTURE/trace"; }}
 ensure_target_asset_parent() {{ mkdir -p "$FIXTURE/target$(dirname "$1")"; }}
 target_asset_host_path() {{ printf '%s/target%s\\n' "$FIXTURE" "$1"; }}
-fetch_hook() {{ printf '# test fixture\\n' > "$2"; }}
+fetch_hook() {{ cp "$FIXTURE_SOURCE/$1" "$2"; }}
+installer_repo_join_var() {{ printf '%s/%s\\n' hooks/target "$2"; }}
 run_in_target() {{ printf '%s\\n' "$*" >> "$FIXTURE/commands"; }}
 HARDWARE_INTEL_CPU_TUNING_ENABLE={str(intelflag).lower()}
 HARDWARE_NVIDIA_GPU_TUNING_ENABLE={str(nvflag).lower()}
@@ -204,18 +208,18 @@ LATE_COMMAND_HOST_ENV="$FIXTURE/profile.env"
 ACCOUNT_USERNAME=desktop
 desktop_install_hardware_tuning
 '''
-                result = subprocess.run(["/bin/sh", "-eu", "-c", script], env=dict(os.environ, FIXTURE=str(root)), capture_output=True, text=True, timeout=10)
+                result = subprocess.run(payload_installed_argv(["/bin/sh", "-eu", "-c", script]), env=dict(os.environ, FIXTURE=str(root), FIXTURE_SOURCE=str(FORKY)), capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                assets = (root / "trace").read_text().splitlines() if (root / "trace").exists() else []
+                assets = payload_read_text(root / "trace").splitlines() if payload_source_exists(root / "trace") else []
                 wanted_intel, wanted_nv = intelflag and intelcpu, nvflag and nvclass and nvgpu
                 self.assertEqual("usr/local/lib/hardware_tuning/intel.py" in assets, wanted_intel)
                 self.assertEqual("usr/local/lib/hardware_tuning/system_state.py" in assets, wanted_intel or wanted_nv)
                 self.assertEqual("usr/local/lib/hardware_tuning/policy_owner.py" in assets, wanted_intel or wanted_nv)
                 self.assertEqual("usr/local/lib/hardware_tuning/nvidia.py" in assets, wanted_nv)
-                self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-intel" in assets, wanted_intel)
-                self.assertEqual("etc/apparmor.d/abstractions/managed-hardware-tuning-nvidia" in assets, wanted_nv)
+                self.assertEqual("etc/apparmor.d/abstractions/hardware-tuning-intel" in assets, wanted_intel)
+                self.assertEqual("etc/apparmor.d/abstractions/hardware-tuning-nvidia" in assets, wanted_nv)
                 self.assertEqual(bool(assets), wanted_intel or wanted_nv)
-                self.assertFalse((root / "target/var/lib/unattended-installer/hardware-tuning-stage").exists())
+                self.assertEqual(list((root / "target/run").glob("hardware-tuning.*")), [])
 
     @unittest.skipUnless(os.geteuid() == 0, "installer fixture requires root ownership")
     def test_generation_vendor_matrix_and_preserved_left_click(self):
@@ -224,63 +228,64 @@ desktop_install_hardware_tuning
                 root = Path(temporary)
                 path = root / "etc/skel-desktop/.config/waybar/config"
                 path.parent.mkdir(parents=True)
-                original = [{"battery": {"on-click": "original-energy-profile-command", "interval": 5}},
-                            {"battery": {"on-click": "another original", "states": {"critical": 15}}}]
+                original = [{"name": "internal", "battery": {"on-click": "original-energy-profile-command", "interval": 5}},
+                            {"name": "external", "battery": {"on-click": "another original", "states": {"critical": 15}}}]
                 path.write_text(json.dumps(original))
-                installer.install(root, 1000, 1000, environment(), vendors)
-                installed = json.loads(path.read_text())
+                installer.install(root, 1000, 1000, environment(), vendors, FORKY / "hooks/target")
+                installed = json.loads(payload_read_text(path))
                 for before, after in zip(original, installed):
                     self.assertEqual(after["battery"].pop("on-click-right"), installer.CLICK)
                     self.assertEqual(after, before)
                 self.assertTrue((root / "etc/systemd/system/sockets.target.wants/hardware-tuning.socket").is_symlink())
                 self.assertTrue((root / "etc/systemd/system/sleep.target.requires/hardware-tuning-sleep.service").is_symlink())
-                self.assertFalse((root / "etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service").exists())
+                self.assertFalse(payload_source_exists(root / "etc/systemd/system/multi-user.target.wants/hardware-tuning-autostart.service"))
                 for vendor in common.VENDORS:
-                    self.assertEqual((root / f"etc/hardware-tuning/{vendor}.json").is_file(), vendor in vendors)
+                    self.assertEqual(payload_source_is_file(root / f"etc/hardware-tuning/{vendor}.json"), vendor in vendors)
                     for profile in common.PROFILES:
                         target = root / f"etc/systemd/user/{vendor}-{profile}.target"
                         service = root / f"etc/systemd/user/hardware-tuning-{vendor}-{profile}.service"
-                        self.assertEqual(target.is_file(), vendor in vendors)
-                        self.assertEqual(service.is_file(), vendor in vendors)
+                        self.assertEqual(payload_source_is_file(target), vendor in vendors)
+                        self.assertEqual(payload_source_is_file(service), vendor in vendors)
                         if vendor in vendors:
-                            self.assertIn("StopWhenUnneeded=yes", target.read_text())
-                            self.assertIn(f"PartOf={vendor}-{profile}.target labwc-session.target", service.read_text())
+                            self.assertIn("StopWhenUnneeded=yes", payload_read_text(target))
+                            self.assertIn(f"PartOf={vendor}-{profile}.target labwc-session.target", payload_read_text(service))
                 for app, profile in installer.APPLICATIONS.items():
                     self.assertNotIn("*", app)
-                    text = (root / f"etc/systemd/user/{app}.d/85-hardware-tuning.conf").read_text()
+                    text = payload_read_text(root / f"etc/systemd/user/{app}.d/85-hardware-tuning.conf")
                     actual = [line for line in text.splitlines() if line and not line.startswith("#")]
                     self.assertFalse(any(line.startswith(("PartOf=", "BindsTo=", "Requires=")) for line in actual))
                     self.assertIn("Wants=" + " ".join(f"{v}-{profile}.target" for v in vendors), actual)
                     self.assertIn("Upholds=" + " ".join(f"{v}-{profile}.target" for v in vendors), actual)
-                system_unit = (root / "etc/systemd/system/hardware-tuning.service").read_text()
+                system_unit = payload_read_text(root / "etc/systemd/system/hardware-tuning.service")
                 self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all", system_unit)
                 self.assertEqual("CapabilityBoundingSet=CAP_SYS_ADMIN" in system_unit, "nvidia" in vendors)
 
-    def test_mandatory_browser_electron_and_real_additional_mappings(self):
-        for name in ("vivaldi", "chromium", "microsoft"):
-            self.assertEqual(installer.APPLICATIONS[f"labwc-native-{name}-.service"], "high")
-        self.assertEqual(installer.APPLICATIONS["labwc-electron-.service"], "high")
-        self.assertEqual(installer.APPLICATIONS["labwc-devops-.service"], "performance")
-        self.assertEqual(installer.APPLICATIONS["llama-server.service"], "performance")
-        self.assertEqual(installer.APPLICATIONS["labwc-wayland-mpv-.service"], "balanced")
+    def test_tuning_uses_only_supported_dash_prefix_families(self):
+        self.assertEqual(installer.APPLICATIONS, {
+            "labwc-native-.service": "high",
+            "labwc-wayland-.service": "balanced",
+            "labwc-electron-.service": "high",
+            "labwc-devops-.service": "performance",
+            "llama-server.service": "performance",
+        })
 
     @unittest.skipUnless(os.geteuid() == 0, "installer fixture requires root ownership")
     def test_disabled_vendor_and_unsafe_target_rejected(self):
         with private_temp() as temporary:
             root = Path(temporary)
             with self.assertRaises(ValueError):
-                installer.install(root, 1000, 1000, environment("btrfs-de"), ["intel"])
+                installer.install(root, 1000, 1000, environment("btrfs-de"), ["intel"], FORKY / "hooks/target")
             self.assertEqual(list(root.iterdir()), [])
             (root / "etc").symlink_to("/tmp")
             with self.assertRaises(ValueError):
                 installer.publish(root, "etc/should-not-exist", "test")
 
     def test_devops_shell_itself_is_not_replaced(self):
-        text = (FORKY / "hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh").read_text()
+        text = payload_read_text(FORKY / "hooks/target/etc/skel-desktop/.profile.d/71-devops-de.sh")
         self.assertIn('  "$devops_de_shell" -i\n  devops_de_shell_status=$?', text)
         self.assertIn("/usr/local/bin/labwc-hardware-tuning devops-start ||", text)
         self.assertNotIn("$(/usr/local/bin/labwc-hardware-tuning devops-start", text)
-        orchestrator = (FORKY / "scripts/desktop/labwc.sh").read_text()
+        orchestrator = payload_read_text(FORKY / "scripts/desktop/labwc.sh")
         self.assertLess(orchestrator.index("  desktop_render_labwc_default_config\n"), orchestrator.index("  desktop_install_hardware_tuning\n"))
         self.assertLess(orchestrator.index("  desktop_install_hardware_tuning\n"), orchestrator.index("  desktop_install_user_config\n"))
 
@@ -294,7 +299,7 @@ class EngineTests(unittest.TestCase):
         # Nonroot users can still run pure transaction tests; trusted_json's
         # real root/symlink tests above are separate and not silently weakened.
         if os.geteuid() != 0:
-            self.reader = patch.object(engine, "trusted_json", lambda p: common.decode(p.read_text()))
+            self.reader = patch.object(engine, "trusted_json", lambda p: common.decode(payload_read_text(p)))
             self.reader.start()
             self.addCleanup(self.reader.stop)
 
@@ -310,13 +315,13 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(self.backend.writes[:2], [("hi", 9), ("lo", 6)])
         self.assertEqual(work.reset()["restored"], 2)
         self.assertEqual(self.backend.writes[2:], [("lo", 2), ("hi", 4)])
-        self.assertEqual(json.loads(self.path.read_text())["entries"], [])
+        self.assertEqual(json.loads(payload_read_text(self.path))["entries"], [])
 
     def test_snapshot_is_durable_before_the_first_write(self):
         self.backend.add("x", "X", 1)
         settings = {"X": ("3",) * 4}
         def check(_key, _new):
-            snapshot = json.loads(self.path.read_text())
+            snapshot = json.loads(payload_read_text(self.path))
             self.assertEqual(snapshot["entries"][0]["before"], 1)
             self.assertTrue(snapshot["entries"][0]["pending"])
         self.backend.before_write = check
@@ -341,7 +346,7 @@ class EngineTests(unittest.TestCase):
         work = self.make(settings)
         with self.assertRaisesRegex(common.TuningError, "recovery failed"):
             work.apply("high", settings)
-        disk = json.loads(self.path.read_text())
+        disk = json.loads(payload_read_text(self.path))
         self.assertEqual([e["id"] for e in disk["entries"]], ["a"])
         self.assertEqual(disk["entries"][0]["before"], 1)
         self.backend.failure = None
@@ -396,7 +401,7 @@ class EngineTests(unittest.TestCase):
         settings = {"X": ("9", "8", "keep", "1")}
         result = self.make(settings).report(settings)
         self.assertTrue(result["read_only"])
-        self.assertFalse(self.path.exists())
+        self.assertFalse(payload_source_exists(self.path))
         self.assertEqual(self.backend.writes, [])
         control = result["controls"][0]
         self.assertEqual((control["current"], control["minimum"], control["maximum"]), (1, 0, 20))
@@ -875,7 +880,7 @@ class BrokerTests(unittest.IsolatedAsyncioTestCase):
 
 class DevopsAndMenuTests(unittest.TestCase):
     def test_pidfd_ends_when_parent_process_exits(self):
-        child = subprocess.Popen(["/bin/sleep", "0.12"])
+        child = subprocess.Popen(payload_installed_argv(["/bin/sleep", "0.12"]))
         try:
             started = client.parent_start(child.pid)
             begin = time.monotonic()
@@ -885,7 +890,7 @@ class DevopsAndMenuTests(unittest.TestCase):
             child.wait()
 
     def test_wrong_starttime_cannot_attach_to_reused_pid(self):
-        child = subprocess.Popen(["/bin/sleep", "10"])
+        child = subprocess.Popen(payload_installed_argv(["/bin/sleep", "10"]))
         try:
             started = client.parent_start(child.pid)
             begin = time.monotonic()
@@ -938,13 +943,13 @@ class DevopsAndMenuTests(unittest.TestCase):
 
 class ReviewHardeningTests(unittest.TestCase):
     def test_root_apparmor_does_not_inherit_shell_or_environment_exec(self):
-        policy = (FORKY / "hooks/target/etc/apparmor.d/managed-hardware-tuning").read_text()
-        self.assertNotIn("#include <abstractions/managed-wrapper-python>", policy)
-        self.assertNotIn("#include <abstractions/managed-wrapper-base>", policy)
+        policy = payload_read_text(FORKY / "hooks/target/etc/apparmor.d/hardware-tuning")
+        self.assertNotIn("#include <abstractions/wrapper-python>", policy)
+        self.assertNotIn("#include <abstractions/wrapper-base>", policy)
         self.assertNotIn("/usr/bin/env rix", policy)
-        source = (FORKY / "scripts/desktop/hardware-tuning-config.py").read_text()
-        self.assertNotIn("AppArmorProfile=managed-hardware-tuning-broker", source)
-        self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all", source)
+        source = payload_read_text(FORKY / "scripts/desktop/hardware-tuning-config.py")
+        self.assertNotIn("AppArmorProfile=hardware-tuning-broker", source)
+        self.assertIn("ExecStopPost=/usr/local/libexec/hardware-tuning-worker recover-all", payload_read_text(FORKY / "hooks/target/etc/systemd/system/hardware-tuning.service.tmpl"))
 
     def test_application_clock_getter_failure_does_not_publish_unrestorable_knob(self):
         api = FakeNVML()

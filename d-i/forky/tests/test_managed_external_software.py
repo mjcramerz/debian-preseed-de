@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 '''Managed external Debian repository and package-policy regressions.'''
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file
+from payload_fixture import read_text as payload_read_text
 
 import hashlib
 import io
@@ -15,21 +17,21 @@ import unittest
 
 FORKY = Path(__file__).resolve().parents[1]
 PERL_LIB = FORKY / (
-    'hooks/target/usr/local/lib/perl5/site_perl/external-managed-software'
+    'hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local'
 )
-SERVICING = PERL_LIB / 'ExternalSoftware/Servicing'
-DISCORD_ARCHIVE_HELPER = FORKY / 'hooks/target/usr/local/libexec/managed-discord-distro'
+SERVICING = PERL_LIB / 'APTRepoLocal/Servicing'
+DISCORD_ARCHIVE_HELPER = FORKY / 'hooks/target/usr/local/libexec/discord-distro'
 SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 
 
-class ManagedExternalSoftwareTests(unittest.TestCase):
+class ManagedAPTRepoLocalTests(unittest.TestCase):
     def run_perl(self, source: str, *arguments: object) -> subprocess.CompletedProcess[str]:
         # A missing validation dependency is not a production assertion failure.
         # Probe file presence only: installed-but-broken modules must still fail.
         probe = subprocess.run(
-            ['/usr/bin/perl', '-e',
+            payload_installed_argv(['/usr/bin/perl', '-e',
              'for my $m (qw(Moo.pm MooX/StrictConstructor.pm MooX/Types/MooseLike/Base.pm)) '
-             '{ unless (grep { -f "$_/$m" } @INC) { print "$m\\n"; exit 77; } }'],
+             '{ unless (grep { -f "$_/$m" } @INC) { print "$m\\n"; exit 77; } }']),
             text=True, capture_output=True, timeout=10,
         )
         if probe.returncode == 77:
@@ -37,8 +39,8 @@ class ManagedExternalSoftwareTests(unittest.TestCase):
                           + '; install libmoo-perl libmoox-strictconstructor-perl libmoox-types-mooselike-perl')
         self.assertEqual(probe.returncode, 0, probe.stderr)
         return subprocess.run(
-            ['/usr/bin/perl', '-I', str(PERL_LIB), '-e', source,
-             *(str(argument) for argument in arguments)],
+            payload_installed_argv(['/usr/bin/perl', '-I', str(PERL_LIB), '-e', source,
+             *(str(argument) for argument in arguments)]),
             env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
             text=True,
             capture_output=True,
@@ -50,8 +52,8 @@ class ManagedExternalSoftwareTests(unittest.TestCase):
         *arguments: object,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ['/usr/bin/python3', '-I', str(DISCORD_ARCHIVE_HELPER),
-             *(str(argument) for argument in arguments)],
+            payload_installed_argv(['/usr/bin/python3', '-I', str(DISCORD_ARCHIVE_HELPER),
+             *(str(argument) for argument in arguments)]),
             env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
             text=True,
             capture_output=True,
@@ -168,15 +170,15 @@ class ManagedExternalSoftwareTests(unittest.TestCase):
                     self.assertIn('fatal: Discord module tar ', result.stderr)
 
     def test_repository_package_digest_uses_the_512_mib_streaming_bound(self):
-        repository = (SERVICING / 'Repository.pm').read_text()
-        self.assertIn('ExternalSoftware::Servicing::Atomic->sha256_file(', repository)
+        repository = payload_read_text(SERVICING / 'Repository.pm')
+        self.assertIn('APTRepoLocal::Servicing::Atomic->sha256_file(', repository)
         self.assertNotIn('read_limited($path, 536_870_912)', repository)
 
-        with tempfile.TemporaryDirectory(prefix='managed-package-digest-') as temporary:
+        with tempfile.TemporaryDirectory(prefix='x-package-digest-') as temporary:
             path = Path(temporary) / 'archive.deb'
             size = 64 * 1024 * 1024 + 1
             with path.open('wb') as stream:
-                stream.write(b'managed-package-digest\0')
+                stream.write(b'x-package-digest\0')
                 stream.seek(size - 1)
                 stream.write(b'\0')
             with path.open('rb') as stream:
@@ -184,8 +186,8 @@ class ManagedExternalSoftwareTests(unittest.TestCase):
             source = r'''
 use strict;
 use warnings;
-use ExternalSoftware::Servicing::Atomic;
-my ($size, $sha256) = ExternalSoftware::Servicing::Atomic->sha256_file(
+use APTRepoLocal::Servicing::Atomic;
+my ($size, $sha256) = APTRepoLocal::Servicing::Atomic->sha256_file(
     $ARGV[0],
     $ARGV[1],
 );
@@ -278,8 +280,8 @@ print "$size|$sha256\n";
             )
             package = work / 'source.deb'
             built = subprocess.run(
-                ['/usr/bin/dpkg-deb', '--build', '--root-owner-group',
-                 str(package_root), str(package)],
+                payload_installed_argv(['/usr/bin/dpkg-deb', '--build', '--root-owner-group',
+                 str(package_root), str(package)]),
                 env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
                 text=True,
                 capture_output=True,
@@ -290,12 +292,12 @@ print "$size|$sha256\n";
             source = r'''
 use strict;
 use warnings;
-use ExternalSoftware::Servicing::ChatGPT;
-use ExternalSoftware::Servicing::Deb;
-my $deb = ExternalSoftware::Servicing::Deb->new(
+use APTRepoLocal::Servicing::ChatGPT;
+use APTRepoLocal::Servicing::Deb;
+my $deb = APTRepoLocal::Servicing::Deb->new(
     repository => bless({}, 'TestRepository'),
 );
-my $chatgpt = ExternalSoftware::Servicing::ChatGPT->new(
+my $chatgpt = APTRepoLocal::Servicing::ChatGPT->new(
     state => bless({}, 'TestState'),
 );
 my $spec = $chatgpt->spec();
@@ -311,9 +313,9 @@ print "$output\n";
             repacked = self.run_perl(source, package, work)
             self.assertEqual(repacked.returncode, 0, repacked.stderr)
             output = Path(repacked.stdout.strip())
-            self.assertTrue(output.is_file())
+            self.assertTrue(payload_source_is_file(output))
             depends = subprocess.check_output(
-                ['/usr/bin/dpkg-deb', '-f', str(output), 'Depends'],
+                payload_installed_argv(['/usr/bin/dpkg-deb', '-f', str(output), 'Depends']),
                 env={**os.environ, 'LC_ALL': 'C.UTF-8', 'PATH': SYSTEM_PATH},
                 text=True,
                 timeout=30,
@@ -333,7 +335,7 @@ print "$output\n";
         source = r'''
 use strict;
 use warnings;
-use ExternalSoftware::Servicing::CLI;
+use APTRepoLocal::Servicing::CLI;
 {
     package TestDeb;
     sub installed_version { return undef; }
@@ -346,8 +348,8 @@ use ExternalSoftware::Servicing::CLI;
     package TestEvent;
 }
 no warnings 'redefine';
-local *ExternalSoftware::Servicing::CLI::_log = sub { return 1; };
-my $cli = ExternalSoftware::Servicing::CLI->new();
+local *APTRepoLocal::Servicing::CLI::_log = sub { return 1; };
+my $cli = APTRepoLocal::Servicing::CLI->new();
 my ($result, $reason) = $cli->_stage_deb(
     bless({}, 'TestDeb'),
     bless({}, 'TestEvent'),
@@ -369,7 +371,7 @@ print join('|', $result, $reason, $cli->apply_failure_detail()), "\n";
         source = r'''
 use strict;
 use warnings;
-use ExternalSoftware::Servicing::CLI;
+use APTRepoLocal::Servicing::CLI;
 {
     package TestDeb;
     sub new { return bless {install_calls => 0, reinstall => 0}, shift; }
@@ -408,10 +410,10 @@ use ExternalSoftware::Servicing::CLI;
     sub policy_valid { return 1; }
 }
 no warnings 'redefine';
-local *ExternalSoftware::Servicing::CLI::_log = sub { return 1; };
-local *ExternalSoftware::Servicing::Process::application_running = sub { return 0; };
+local *APTRepoLocal::Servicing::CLI::_log = sub { return 1; };
+local *APTRepoLocal::Servicing::Process::application_running = sub { return 0; };
 my $deb = TestDeb->new();
-my ($result, $reason) = ExternalSoftware::Servicing::CLI->new()->_apply_deb(
+my ($result, $reason) = APTRepoLocal::Servicing::CLI->new()->_apply_deb(
     $deb,
     bless({}, 'TestEvent'),
     bless({}, 'TestRepository'),

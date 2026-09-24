@@ -1,0 +1,11 @@
+    @@DEV_PART_VAR_LOG_JOURNAL_MB@@ @@DEV_PART_VAR_LOG_JOURNAL_MB@@ @@DEV_PART_VAR_LOG_JOURNAL_MB@@ ext4
+        method{ format } format{ }
+        use_filesystem{ } filesystem{ ext4 }
+        mountpoint{ /var/log/journal }
+    .
+    @@DEV_PART_RAW_SWAP_MB@@ @@DEV_PART_RAW_SWAP_MB@@ @@DEV_PART_RAW_SWAP_MB@@ free
+        method{ keep }
+    .
+    @@DEV_PART_RAW_ZRAM_MB@@ @@DEV_PART_RAW_ZRAM_MB@@ @@DEV_PART_RAW_ZRAM_MB@@ free
+        method{ keep }
+    .

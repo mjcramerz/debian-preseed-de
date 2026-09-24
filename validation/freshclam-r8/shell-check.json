@@ -1,7 +1,0 @@
-{
-  "success": true,
-  "shell_files": 282,
-  "parser_checks": 575,
-  "failures": [],
-  "scope": "syntax and external metadata dependency checks; runtime execution is a separate test stage"
-}

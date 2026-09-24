@@ -7,6 +7,8 @@ test. The command test extracts its exact production execute method because
 Moo is an optional test-host dependency, not a replacement implementation.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import copy
 import json
@@ -73,7 +75,7 @@ class IOFixture(unittest.TestCase):
             source += MEMORY_FIXTURE
         source += "\nlocal $/; %Zram::Config::VALUES = %{decode_json(<STDIN>)};\n"
         source += body
-        result = subprocess.run(['perl', '-I'+str(PERL_LIB), '-e', source],
+        result = subprocess.run(payload_installed_argv(['perl', '-I'+str(PERL_LIB), '-e', source]),
                                 input=json.dumps(self.config), text=True,
                                 capture_output=True, timeout=10)
         if check and result.returncode:
@@ -282,7 +284,7 @@ print encode_json({plan=>$plan, events=>\@events, operations=>$operations});
         self.assertEqual(value['events'], ['recompress','writeback:page_indexes=0-699',
                          'writeback:page_indexes=1000-1323','compact'])
         self.assertEqual(value['plan']['writeback_pass_pages'], 1024)
-        self.assertEqual((self.sysfs/'writeback_batch_size').read_text().strip(), '8')
+        self.assertEqual(payload_read_text(self.sysfs/'writeback_batch_size').strip(), '8')
         self.assertIn('io_psi=high', result.stderr)
         self.assertIn('selected_pages=1024', result.stderr)
         self.assertIn('recompression_first=1', result.stderr)
@@ -325,12 +327,12 @@ print encode_json({plan=>$plan, events=>\@events, operations=>$operations});
         result = self.run_perl('use Zram::Tuning qw(apply_writeback_batch_size); '
             "print encode_json(apply_writeback_batch_size('pressure')); ")
         self.assertEqual(json.loads(result.stdout)['effective_batch_size'], 8)
-        self.assertEqual((self.sysfs/'writeback_batch_size').read_text(), '64\n')
+        self.assertEqual(payload_read_text(self.sysfs/'writeback_batch_size'), '64\n')
         self.assertIn('dry-run:', result.stderr)
 
     def command(self, spec, *, high=True):
         self.io.write_text(sample('30.00','4.00') if high else sample())
-        source = (PERL_LIB/'Zram/Command/Writeback.pm').read_text()
+        source = payload_read_text(PERL_LIB/'Zram/Command/Writeback.pm')
         execute = re.search(r'^sub execute \{.*?^\}', source, re.M|re.S).group()
         body = r'''
 use Zram::Config qw(cfg); use Zram::Error qw(fatal);
@@ -354,7 +356,7 @@ sub writeback_spec { print 'WRITE:'.$_[0]; return 1 }
                 result = self.run_perl("use Zram::Metrics qw(capture_zram_state); "
                     "print encode_json(capture_zram_state('io-review', state=>'pressure', scan_block_state=>0));",
                     memory=True)
-                metrics = (self.runtime/'zram0.metrics').read_text()
+                metrics = payload_read_text(self.runtime/'zram0.metrics')
                 self.assertIn(f'io_psi_state={state}\n', metrics)
                 self.assertIn(f'io_psi_some_avg10_millionths={some}\n', metrics)
                 self.assertIn('io_psi_reason=', metrics)
@@ -410,8 +412,8 @@ class IOStagingTests(unittest.TestCase):
                     zram_perl_modules
                     stage_target_zram_perl_modules
                 '''
-                result = subprocess.run(shell + ['-eu', '-c', code, 'staging-fixture',
-                    str(source), str(TARGET), str(destination)], capture_output=True,
+                result = subprocess.run(payload_installed_argv(shell + ['-eu', '-c', code, 'staging-fixture',
+                    str(source), str(TARGET), str(destination)]), capture_output=True,
                     text=True, timeout=15)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 listed = result.stdout.splitlines()
@@ -421,8 +423,8 @@ class IOStagingTests(unittest.TestCase):
                           for p in destination.rglob('*.pm')}
                 self.assertEqual(set(actual), set(expected))
                 for relative, installed in actual.items():
-                    self.assertEqual(installed.read_bytes(), expected[relative].read_bytes())
-                    self.assertEqual(installed.stat().st_mode & 0o7777, 0o644)
+                    self.assertEqual(payload_read_bytes(installed), payload_read_bytes(expected[relative]))
+                    self.assertEqual(payload_source_stat(installed).st_mode & 0o7777, 0o644)
 
 if __name__ == '__main__':
     unittest.main()

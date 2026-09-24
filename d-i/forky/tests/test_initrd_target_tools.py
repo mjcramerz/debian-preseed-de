@@ -1,4 +1,6 @@
 """Regression coverage for host/target applet boundaries; never change accounts."""
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists
+from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import os
 import re
@@ -37,7 +39,7 @@ class TargetToolTests(unittest.TestCase):
         script+='chroot() { printf "%s\\n" "$@" >"$CALL"; '
         script+=('return 127;' if fail else 'printf "%s\\n" "$FSTYPE";')+' }\n'
         script+='podman_resolve_native_storage_driver '+shlex.quote(requested)+' '+shlex.quote(str(storage or self.storage))+'\n'
-        return subprocess.run((shell or ['/bin/sh'])+['-c',script],env=env,text=True,capture_output=True,timeout=5)
+        return subprocess.run(payload_installed_argv((shell or ['/bin/sh'])+['-c',script]),env=env,text=True,capture_output=True,timeout=5)
 
     def test_podman_uses_target_metadata_without_host_applet(self):
         for shell in SHELLS:
@@ -46,7 +48,7 @@ class TargetToolTests(unittest.TestCase):
                     p=self.run_driver(fs=fs,shell=shell)
                     self.assertEqual(p.returncode,0,p.stderr)
                     self.assertEqual(p.stdout,expected+'\n')
-                    self.assertEqual([self.call.read_text().splitlines()[0], *self.call.read_text().splitlines()[-7:]],
+                    self.assertEqual([payload_read_text(self.call).splitlines()[0], *payload_read_text(self.call).splitlines()[-7:]],
                                      [str(self.target),'/usr/bin/find','-P','/var/lib/rootless-podman','-maxdepth','0','-printf','%F'])
                     self.assertNotIn('HOST_STAT',p.stderr)
 
@@ -65,12 +67,12 @@ installer_fatal() { printf '%s\n' "$*" >&2; exit 1; }
 chroot() { printf '%s\n' 'wrong direct chroot boundary' >&2; return 127; }
 podman_resolve_native_storage_driver auto /target/pool/podman
 '''
-        result = subprocess.run(['/bin/sh', '-c', script], text=True, capture_output=True,
+        result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', script]), text=True, capture_output=True,
                                 env={'PATH': str(self.path) + ':' + os.environ['PATH'], 'CALL': str(self.call),
                                      'INSTALLER_TARGET_DIR': '/target'}, timeout=5)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, 'overlay\n')
-        call = self.call.read_text().splitlines()
+        call = payload_read_text(self.call).splitlines()
         self.assertEqual(call[0], '--pass-stdout')
         self.assertEqual(call[-7:], ['/usr/bin/find', '-P', '/pool/podman',
                                     '-maxdepth', '0', '-printf', '%F'])
@@ -90,13 +92,13 @@ podman_resolve_native_storage_driver auto /target/pool/podman
         p=self.run_driver(storage=self.path)
         self.assertNotEqual(p.returncode,0)
         self.assertIn('outside the installation target',p.stderr)
-        self.assertFalse(self.call.exists())
+        self.assertFalse(payload_source_exists(self.call))
 
     def test_codex_checks_invoke_target_metadata_with_target_relative_paths(self):
         # Execute the four metadata expressions themselves, not the installer.
         expressions=[]
         for name in ('scripts/desktop/labwc.sh','scripts/late/devops.sh'):
-            text=(SEED/name).read_text()
+            text=payload_read_text(SEED/name)
             found=re.findall(r'\$\((chroot [^\n]+?/usr/bin/find -P [^\n]+? -maxdepth 0 -printf \'%U:%G:%m\')\)',text)
             self.assertEqual(len(found),2,name)
             expressions.extend(found)
@@ -109,15 +111,15 @@ podman_resolve_native_storage_driver auto /target/pool/podman
              'DEVOPS_CODEX_INSTALLER_SESSION_HELPER':session}
         for expr in expressions:
             script='set -eu\nstat() { return 127; }\nchroot() { printf "%s\\n" "$@" >"$CALL"; printf "0:0:755\\n"; }\n'+expr+'\n'
-            p=subprocess.run(['/bin/sh','-c',script],env=env,text=True,capture_output=True,timeout=5)
+            p=subprocess.run(payload_installed_argv(['/bin/sh','-c',script]),env=env,text=True,capture_output=True,timeout=5)
             self.assertEqual(p.returncode,0,p.stderr)
-            args=self.call.read_text().splitlines()
+            args=payload_read_text(self.call).splitlines()
             self.assertEqual(args[:3],[str(self.target),'/usr/bin/find','-P'])
             self.assertIn(args[3],(helper,session))
             self.assertEqual(args[4:],['-maxdepth','0','-printf','%U:%G:%m'])
 
     def test_codex_app_server_metadata_uses_target_metadata_without_host_applet(self):
-        text=(SEED/'scripts/late/devops.sh').read_text()
+        text=payload_read_text(SEED/'scripts/late/devops.sh')
         stage=text.split('devops_stage_codex_app_server() {',1)[1].split(
             '\n}\n\ndevops_install_pinned_codex() (',1)[0]
         self.assertEqual(stage.count('devops_assert_target_metadata'),5)
@@ -141,14 +143,14 @@ podman_resolve_native_storage_driver auto /target/pool/podman
  chroot() {{ printf '%s\\n' "$@" >"$CALL"; printf '%s\\n' "$TEST_METADATA"; }}
  devops_assert_target_metadata 0:0:755 {shlex.quote(str(host_path))} 'Codex app-server base directory'
  '''
-                p=subprocess.run(shell+['-c',script],env=env,text=True,
+                p=subprocess.run(payload_installed_argv(shell+['-c',script]),env=env,text=True,
                                  capture_output=True,timeout=5)
                 self.assertEqual(p.returncode,0,p.stderr)
                 self.assertNotIn('HOST_STAT',p.stderr)
-                self.assertEqual(self.call.read_text().splitlines(),[
+                self.assertEqual(payload_read_text(self.call).splitlines(),[
                     str(self.target),'/usr/bin/find','-P','/etc/default','-maxdepth','0','-printf','%U:%G:%m'])
 
-                mismatch=subprocess.run(shell+['-c',script],
+                mismatch=subprocess.run(payload_installed_argv(shell+['-c',script]),
                     env={**env,'TEST_METADATA':'0:0:775'},text=True,
                     capture_output=True,timeout=5)
                 self.assertNotEqual(mismatch.returncode,0)
@@ -167,7 +169,7 @@ class DiagnosticTests(unittest.TestCase):
         self.cmdline.write_text('quiet\n')
 
     def run_check(self):
-        return subprocess.run(['/bin/sh',str(ROOT/'tools/check-installer-credentials.sh'),str(self.envfile),str(self.cmdline)],
+        return subprocess.run(payload_installed_argv(['/bin/sh',str(ROOT/'tools/check-installer-credentials.sh'),str(self.envfile),str(self.cmdline)]),
                               env={'PATH':os.environ['PATH'],'LC_ALL':'C'},text=True,capture_output=True,timeout=5)
 
     @skip_unless_trusted_credential_ancestry

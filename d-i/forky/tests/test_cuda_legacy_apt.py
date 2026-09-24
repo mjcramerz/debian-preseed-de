@@ -6,6 +6,8 @@ are downloaded, never installed. Set CUDA_TEST_APT_ROOT to an extracted Debian
 APT/libapt-pkg tree to repeat the same tests with a different APT version.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import copy2 as payload_copy2, read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import email.utils
 import functools
@@ -36,7 +38,7 @@ REQUIRED = ('arch=amd64', 'trusted=yes', 'allow-insecure=yes', 'allow-weak=yes',
 
 
 def shell(text: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(['/bin/sh', '-eu', '-c', '. ' + shlex.quote(str(LIB)) + '\n' + text],
+    return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', '. ' + shlex.quote(str(LIB)) + '\n' + text]),
                           env={**os.environ, **(env or {})}, capture_output=True,
                           text=True, timeout=20)
 
@@ -84,11 +86,11 @@ class CudaLifecycleTests(unittest.TestCase):
                            f'installer_load_source_library() {{ return 72; }}\n'
                            f'installer_cuda_stage_target_source {REPO} /', self.env)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(self.source.read_text(), rendered_source())
-            self.assertEqual(stat.S_IMODE(self.source.stat().st_mode), 0o644)
-            self.assertEqual(key.read_text(), 'pre-R4 key: must not be used or downloaded')
+            self.assertEqual(payload_read_text(self.source), rendered_source())
+            self.assertEqual(stat.S_IMODE(payload_source_stat(self.source).st_mode), 0o644)
+            self.assertEqual(payload_read_text(key), 'pre-R4 key: must not be used or downloaded')
             self.assertFalse(list(self.source.parent.glob('.cuda-legacy.*')))
-        self.assertFalse((self.root/'usr/share/apt/default-sequoia.config').exists())
+        self.assertFalse(payload_source_exists(self.root/'usr/share/apt/default-sequoia.config'))
 
     @skip_unless_installer_apt_ancestry
     def test_old_signed_source_is_replaced_without_key_or_network_prerequisites(self):
@@ -98,15 +100,15 @@ class CudaLifecycleTests(unittest.TestCase):
                        f'source_fetch_external() {{ return 72; }}\n'
                        f'installer_cuda_stage_target_source {REPO} /', self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.source.read_text(), rendered_source())
-        self.assertFalse((self.root/KEY_PATH.lstrip('/')).exists())
+        self.assertEqual(payload_read_text(self.source), rendered_source())
+        self.assertFalse(payload_source_exists(self.root/KEY_PATH.lstrip('/')))
 
     def test_invalid_input_does_not_change_existing_source(self):
         self.source.parent.mkdir(parents=True)
         self.source.write_text('previous source\n')
         result = shell('installer_cuda_stage_target_source https://evil.invalid/ /', self.env)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.source.read_text(), 'previous source\n')
+        self.assertEqual(payload_read_text(self.source), 'previous source\n')
 
     @skip_unless_installer_apt_ancestry
     def test_failed_atomic_publish_preserves_old_file_and_cleans_temporary(self):
@@ -114,7 +116,7 @@ class CudaLifecycleTests(unittest.TestCase):
         self.source.write_text('old\n')
         result = shell(f'installer_fetch_cuda_key() {{ :; }}\nmv() {{ return 73; }}\ninstaller_cuda_stage_target_source {REPO} /', self.env)
         self.assertEqual(result.returncode, 73, result.stderr)
-        self.assertEqual(self.source.read_text(), 'old\n')
+        self.assertEqual(payload_read_text(self.source), 'old\n')
         self.assertFalse(list(self.source.parent.glob('.cuda-legacy.*')))
 
     def test_symlink_source_is_refused(self):
@@ -123,7 +125,7 @@ class CudaLifecycleTests(unittest.TestCase):
         self.source.symlink_to(victim)
         result = shell(f'installer_cuda_stage_target_source {REPO} /', self.env)
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(victim.read_text(), 'untouched')
+        self.assertEqual(payload_read_text(victim), 'untouched')
 
     def test_refresh_runs_once_without_crypto_baseline_or_global_relaxation(self):
         for status in (0, 100):
@@ -136,7 +138,7 @@ class CudaLifecycleTests(unittest.TestCase):
 installer_cuda_refresh_target_apt
 ''', self.env)
                 self.assertEqual(result.returncode, status, result.stderr)
-                text = calls.read_text()
+                text = payload_read_text(calls)
                 self.assertEqual(len(text.splitlines()), 1)
                 self.assertIn('Dir::Etc::sourceparts=-', text)
                 self.assertIn('Dir::Etc::sourcelist=/' + SOURCE_PATH, text)
@@ -148,7 +150,7 @@ installer_cuda_refresh_target_apt
 
     def test_selected_cuda_stack_is_not_gated_on_pci_detection(self):
         path = SEED/'scripts/preseed/answers.sh'
-        definition = path.read_text().split('selected_fragment_applies_to_detected_hardware() {', 1)[1].split('\nselected_arch_class()', 1)[0]
+        definition = payload_read_text(path).split('selected_fragment_applies_to_detected_hardware() {', 1)[1].split('\nselected_arch_class()', 1)[0]
         result = shell('selected_fragment_applies_to_detected_hardware() {' + definition +
                        '\ninstaller_nvidia_gpu_detected() { return 1; }\n'
                        'selected_fragment_applies_to_detected_hardware classes/class-addon/cuda-legacy.cfg\n')
@@ -199,7 +201,7 @@ bootstrap_source_common_support_libs() { :; }
                'CUDA_TEST_LIB': str(LIB), 'CUDA_TEST_SEED': str(SEED),
                'CUDA_TEST_SELECTED': '0' if selected else '1',
                'CUDA_TEST_APT_STATUS': str(apt_status), 'CUDA_TEST_CALLS': str(calls)}
-        result = subprocess.run(['/bin/sh', str(SEED/'hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh')],
+        result = subprocess.run(payload_installed_argv(['/bin/sh', str(SEED/'hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh')]),
                                 env=env, text=True, capture_output=True, timeout=15)
         return result, calls
 
@@ -208,8 +210,8 @@ bootstrap_source_common_support_libs() { :; }
         for _ in range(2):
             result, calls = self.run_pre_pkgsel_hook()
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-            self.assertEqual(self.source.read_text(), rendered_source())
-        invocations = calls.read_text().splitlines()
+            self.assertEqual(payload_read_text(self.source), rendered_source())
+        invocations = payload_read_text(calls).splitlines()
         self.assertEqual(len(invocations), 4)
         self.assertIn('repair legacy CUDA target apt directories', invocations[0])
         self.assertIn('refresh explicitly trusted legacy CUDA metadata', invocations[1])
@@ -218,24 +220,24 @@ bootstrap_source_common_support_libs() { :; }
     def test_entire_unselected_pre_pkgsel_hook_leaves_apt_untouched(self):
         result, calls = self.run_pre_pkgsel_hook(selected=False)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-        self.assertFalse(self.source.exists())
-        self.assertFalse(calls.exists())
+        self.assertFalse(payload_source_exists(self.source))
+        self.assertFalse(payload_source_exists(calls))
 
     @skip_unless_installer_apt_ancestry
     def test_entire_pre_pkgsel_hook_propagates_real_apt_failure(self):
         result, calls = self.run_pre_pkgsel_hook(apt_status=100)
         self.assertEqual(result.returncode, 100, result.stdout+result.stderr)
-        self.assertEqual(self.source.read_text(), rendered_source())
-        self.assertEqual(calls.read_text().count('refresh explicitly trusted legacy CUDA metadata'), 1)
+        self.assertEqual(payload_read_text(self.source), rendered_source())
+        self.assertEqual(payload_read_text(calls).count('refresh explicitly trusted legacy CUDA metadata'), 1)
 
     def test_pre_pkgsel_and_late_use_one_scoped_trusted_publisher(self):
         for relative in ('hooks/installer/pre-pkgsel.d/91cuda-legacy-apt.sh',
                          'scripts/late/cuda-legacy.sh'):
-            text = (SEED/relative).read_text()
+            text = payload_read_text(SEED/relative)
             self.assertIn('installer_cuda_stage_target_source', text)
             for forbidden in ('installer_fetch_cuda_key', 'installer_nvidia_gpu_detected', 'signed-by='):
                 self.assertNotIn(forbidden, text)
-        common = LIB.read_text()
+        common = payload_read_text(LIB)
         self.assertNotIn('installer_fetch_cuda_key()', common)
         self.assertNotIn('installer_cuda_compat_policy()', common)
         self.assertNotIn('default-sequoia.config', common)
@@ -254,8 +256,8 @@ run_in_target() {{
 refresh_non_cuda_target_metadata apt-get update
 ''', self.env)
             self.assertEqual(result.returncode, status, result.stderr)
-            self.assertEqual(self.source.read_text(), rendered_source())
-            self.assertFalse(Path(str(self.source)+'.installer-disabled').exists())
+            self.assertEqual(payload_read_text(self.source), rendered_source())
+            self.assertFalse(payload_source_exists(Path(str(self.source)+'.installer-disabled')))
 
     def test_cleanup_honors_target_root_and_preserves_unrelated_sources(self):
         self.source.parent.mkdir(parents=True)
@@ -266,14 +268,14 @@ cuda_legacy_cleanup_target_apt_state
 cuda_legacy_cleanup_target_apt_state
 ''', self.env)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(self.source.exists())
-        self.assertEqual(other.read_text(), 'debian policy\n')
+        self.assertFalse(payload_source_exists(self.source))
+        self.assertEqual(payload_read_text(other), 'debian policy\n')
 
     def test_no_global_authentication_or_tls_bypass_was_added(self):
         for path in (SEED/'hooks/target/etc/apt/apt.conf.d').glob('*'):
-            if not path.is_file():
+            if not payload_source_is_file(path):
                 continue
-            text = path.read_text()
+            text = payload_read_text(path)
             for forbidden in ('AllowInsecureRepositories "true"', 'AllowWeakRepositories "true"',
                               'AllowUnauthenticated "true"', 'Verify-Peer "false"'):
                 self.assertNotIn(forbidden, text, str(path))
@@ -281,7 +283,7 @@ cuda_legacy_cleanup_target_apt_state
     def test_conditional_caller_cannot_mask_invalid_source(self):
         result = shell('if installer_cuda_stage_target_source https://evil.invalid/ /; then exit 91; else exit "$?"; fi', self.env)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertFalse(self.source.exists())
+        self.assertFalse(payload_source_exists(self.source))
 
     @skip_unless_installer_apt_ancestry
     def test_conditional_caller_cannot_mask_source_publication_failure(self):
@@ -290,7 +292,7 @@ cuda_legacy_cleanup_target_apt_state
         result = shell(f'mv() {{ return 73; }}\n'
                        f'if installer_cuda_stage_target_source {REPO} /; then exit 91; else exit "$?"; fi', self.env)
         self.assertEqual(result.returncode, 73, result.stderr)
-        self.assertEqual(self.source.read_text(), 'old source\n')
+        self.assertEqual(payload_read_text(self.source), 'old source\n')
         self.assertFalse(list(self.source.parent.glob('.cuda-legacy.*')))
 
     @skip_unless_installer_apt_ancestry
@@ -298,7 +300,7 @@ cuda_legacy_cleanup_target_apt_state
         result = shell(f'mv() {{ return 73; }}\nrm() {{ return 74; }}\n'
                        f'installer_cuda_stage_target_source {REPO} /', self.env)
         self.assertEqual(result.returncode, 73, result.stderr)
-        self.assertFalse(self.source.exists())
+        self.assertFalse(payload_source_exists(self.source))
 
     @skip_unless_installer_apt_ancestry
     def test_late_preparation_stages_exception_and_retains_apt_error(self):
@@ -315,7 +317,7 @@ run_in_target() {{
 if cuda_legacy_prepare_target_apt_state; then exit 0; else exit "$?"; fi
 ''', self.env)
                 self.assertEqual(result.returncode, status, result.stdout+result.stderr)
-                self.assertEqual(self.source.read_text(), rendered_source())
+                self.assertEqual(payload_read_text(self.source), rendered_source())
 
     def test_late_cleanup_failure_is_not_masked_by_logging(self):
         result = shell(f'''. {shlex.quote(str(SEED/'scripts/late/cuda-legacy.sh'))}
@@ -353,21 +355,21 @@ class RealAptTests(unittest.TestCase):
                             ['gpgconf', '--homedir', str(cls.gnupg), '--kill', 'gpg-agent'],
                             capture_output=True, timeout=10)
         for digest in ('SHA1', 'SHA256'):
-            generated = subprocess.run(cls.gpg + ['--faked-system-time', '1740000000',
+            generated = subprocess.run(payload_installed_argv(cls.gpg + ['--faked-system-time', '1740000000',
                                        '--cert-digest-algo', digest, '--quick-generate-key',
                                        f'{digest} Fixture <{digest.lower()}@example.invalid>',
-                                       'rsa2048', 'sign', '0'], capture_output=True,
+                                       'rsa2048', 'sign', '0']), capture_output=True,
                                        text=True, timeout=30)
             if generated.returncode:
                 detail = next((line for line in reversed(generated.stderr.splitlines()) if line),
                               'GnuPG could not generate a disposable signing key')
                 raise unittest.SkipTest(f'GnuPG signing fixture unavailable: {detail}')
-            exported = subprocess.run(cls.gpg + ['--armor', '--export', digest+' Fixture'],
+            exported = subprocess.run(payload_installed_argv(cls.gpg + ['--armor', '--export', digest+' Fixture']),
                                       check=True, capture_output=True).stdout
             (cls.root/(digest+'.asc')).write_bytes(exported)
         cls.fingerprints = {}
         for digest in ('SHA1', 'SHA256'):
-            listing = subprocess.run(cls.gpg + ['--with-colons', '--list-keys', digest+' Fixture'],
+            listing = subprocess.run(payload_installed_argv(cls.gpg + ['--with-colons', '--list-keys', digest+' Fixture']),
                                      check=True, capture_output=True, text=True).stdout
             cls.fingerprints[digest] = next(line.split(':')[9] for line in listing.splitlines() if line.startswith('fpr:'))
         cls.webroot = cls.root/'www'; cls.webroot.mkdir()
@@ -386,9 +388,9 @@ class RealAptTests(unittest.TestCase):
         (pkg/'usr/share/cuda-legacy-fixture').mkdir(parents=True)
         (pkg/'usr/share/cuda-legacy-fixture/fixture.txt').write_text('fixture\n')
         cls.deb = cls.root/'fixture.deb'
-        subprocess.run(['dpkg-deb', '--build', '--root-owner-group', str(pkg), str(cls.deb)],
+        subprocess.run(payload_installed_argv(['dpkg-deb', '--build', '--root-owner-group', str(pkg), str(cls.deb)]),
                        check=True, capture_output=True, timeout=20)
-        data = cls.deb.read_bytes()
+        data = payload_read_bytes(cls.deb)
         cls.packages = ('Package: cuda-legacy-fixture\nVersion: 1.0\nArchitecture: all\n'
                         'Maintainer: Test <nobody@example.invalid>\n'
                         'Filename: fixture.deb\n' + f'Size: {len(data)}\n' +
@@ -400,7 +402,7 @@ class RealAptTests(unittest.TestCase):
         self.work.chmod(0o755)
         self.repo = self.webroot/self.work.name; self.repo.mkdir()
         (self.repo/'Packages').write_text(self.packages)
-        shutil.copy2(self.deb, self.repo/'fixture.deb')
+        payload_copy2(self.deb, self.repo/'fixture.deb')
         self.repo_url = self.base+self.repo.name+'/'
         self.source = self.work/'sources.list'
         self.source.write_text(rendered_source().replace(REPO, self.repo_url)
@@ -452,7 +454,7 @@ class RealAptTests(unittest.TestCase):
 
     def release(self, *, cert='SHA256', digest='SHA256', signed=True, clear=False,
                 weak_hash=False, expired=False, future=False):
-        data = (self.repo/'Packages').read_bytes()
+        data = payload_read_bytes(self.repo/'Packages')
         self.release_revision = getattr(self, 'release_revision', 0) + 1
         self.cert = cert
         header = (f'X-Fixture-Revision: {self.release_revision}\n' + 'Origin: CUDA fixture\nLabel: NVIDIA CUDA\nSuite: fixture\n'
@@ -466,16 +468,16 @@ class RealAptTests(unittest.TestCase):
             (self.repo/name).unlink(missing_ok=True)
         if signed:
             command = ['--clearsign'] if clear else ['--armor', '--detach-sign']
-            subprocess.run(self.gpg+['--local-user', cert+' Fixture', '--digest-algo', digest,
+            subprocess.run(payload_installed_argv(self.gpg+['--local-user', cert+' Fixture', '--digest-algo', digest,
                            '--output', str(self.repo/('InRelease' if clear else 'Release.gpg')),
-                           *command, str(self.repo/'Release')], check=True, capture_output=True, timeout=15)
-            shutil.copy2(self.root/(cert+'.asc'), self.work/'trusted/fixture.asc')
+                           *command, str(self.repo/'Release')]), check=True, capture_output=True, timeout=15)
+            payload_copy2(self.root/(cert+'.asc'), self.work/'trusted/fixture.asc')
             self.source.write_text(rendered_source().replace(REPO, self.repo_url)
                                    .replace(KEY_PATH, str(self.work/'trusted/fixture.asc'))
                                    .replace(FINGERPRINT, self.fingerprints[cert]))
 
     def apt_run(self, *args: str):
-        return subprocess.run([self.apt, *self.options, *args], env=self.env,
+        return subprocess.run(payload_installed_argv([self.apt, *self.options, *args]), env=self.env,
                               capture_output=True, text=True, timeout=25, cwd=self.work)
 
     def assert_success(self, result):
@@ -487,7 +489,7 @@ class RealAptTests(unittest.TestCase):
         self.assert_success(result)
         files = list((self.work/'archives').glob('*.deb'))
         self.assertEqual(len(files), 1, result.stdout+result.stderr)
-        self.assertEqual(files[0].read_bytes(), self.deb.read_bytes())
+        self.assertEqual(payload_read_bytes(files[0]), payload_read_bytes(self.deb))
 
     def test_signed_sha256_update_and_repeat_download(self):
         self.release()
@@ -547,7 +549,7 @@ class RealAptTests(unittest.TestCase):
 
     def test_unrelated_key_does_not_block_this_source(self):
         self.release()
-        shutil.copy2(self.root/'SHA1.asc', self.work/'trusted/fixture.asc')
+        payload_copy2(self.root/'SHA1.asc', self.work/'trusted/fixture.asc')
         self.assert_success(self.apt_run('update'))
         self.assert_downloadable()
 
@@ -579,7 +581,7 @@ class RealAptTests(unittest.TestCase):
                 if key == 'missing':
                     (self.work/'trusted/fixture.asc').unlink()
                 else:
-                    shutil.copy2(self.root/'SHA1.asc', self.work/'trusted/fixture.asc')
+                    payload_copy2(self.root/'SHA1.asc', self.work/'trusted/fixture.asc')
                 result = self.apt_run('update')
                 self.assertNotEqual(result.returncode, 0, result.stdout+result.stderr)
 

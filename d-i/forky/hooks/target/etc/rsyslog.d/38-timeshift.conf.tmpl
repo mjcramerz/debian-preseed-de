@@ -1,0 +1,22 @@
+# Route managed Timeshift snapshot and GRUB menu refresh events emitted through
+# Sys::Syslog into a dedicated, private log.
+
+if (
+  $programname == "timeshift-snapshot" or
+  $programname == "grub-btrfs-refresh"
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_timeshift_log"
+    type="omfile"
+    file="__INSTALLER_LOG_TIMESHIFT_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}

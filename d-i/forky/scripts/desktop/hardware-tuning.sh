@@ -31,23 +31,22 @@ desktop_install_hardware_tuning() (
   desktop_stage_role_asset usr/local/libexec/hardware-tuningd /usr/local/libexec/hardware-tuningd 0755
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-worker /usr/local/libexec/hardware-tuning-worker 0755
   desktop_stage_role_asset usr/local/libexec/hardware-tuning-policy /usr/local/libexec/hardware-tuning-policy 0755
-  desktop_stage_role_asset etc/apparmor.d/managed-hardware-tuning /etc/apparmor.d/managed-hardware-tuning 0644
+  desktop_stage_role_asset etc/apparmor.d/hardware-tuning /etc/apparmor.d/hardware-tuning 0644
   for hardware_bridge in desktop-parent fuzzel-parent management-parent; do
-    desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_bridge}" 0644
+    desktop_stage_role_asset "etc/apparmor.d/abstractions/hardware-tuning-${hardware_bridge}" "/etc/apparmor.d/abstractions/hardware-tuning-${hardware_bridge}" 0644
   done
   for hardware_vendor in $hardware_vendors; do
-    desktop_stage_role_asset "etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" "/etc/apparmor.d/abstractions/managed-hardware-tuning-${hardware_vendor}" 0644
+    desktop_stage_role_asset "etc/apparmor.d/abstractions/hardware-tuning-${hardware_vendor}" "/etc/apparmor.d/abstractions/hardware-tuning-${hardware_vendor}" 0644
   done
 
   : "${LATE_COMMAND_HOST_ENV:?hardware tuning requires the loaded host profile}"
   : "${ACCOUNT_USERNAME:?hardware tuning requires the desktop account}"
-  hardware_stage=/var/lib/unattended-installer/hardware-tuning-stage
-  ensure_target_asset_parent "${hardware_stage}/config.py"
-  hardware_stage_host=$(target_asset_host_path "${hardware_stage}/config.py")
-  hardware_stage_host=${hardware_stage_host%/config.py}
-  [ -d "$hardware_stage_host" ] && [ ! -L "$hardware_stage_host" ] || exit 1
+  hardware_run=$(target_asset_host_path /run)
+  [ -d "$hardware_run" ] && [ ! -L "$hardware_run" ] || exit 1
+  hardware_stage_host=$(mktemp -d "$hardware_run/hardware-tuning.XXXXXX") || exit 1
   chmod 0700 "$hardware_stage_host"
-  trap 'rm -f -- "${hardware_stage_host}/config.py" "${hardware_stage_host}/policy.env"; rmdir -- "$hardware_stage_host"' 0
+  hardware_stage=/run/${hardware_stage_host##*/}
+  trap 'rm -rf -- "$hardware_stage_host"' 0
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
@@ -57,11 +56,18 @@ desktop_install_hardware_tuning() (
       "$LATE_COMMAND_HOST_ENV" >"${hardware_stage_host}/policy.env")
   fetch_hook scripts/desktop/hardware-tuning-config.py "${hardware_stage_host}/config.py"
   chmod 0700 "${hardware_stage_host}/config.py"
+  fetch_hook scripts/desktop/hardware-tuning-assets.list "${hardware_stage_host}/assets.list"
+  while IFS= read -r hardware_asset; do
+    case "$hardware_asset" in etc/systemd/*|etc/hardware-tuning/*) ;; *) exit 1 ;; esac
+    case "$hardware_asset" in *..*|*//*|*[!A-Za-z0-9_./-]*) exit 1 ;; esac
+    install -d -m 0700 "${hardware_stage_host}/templates/${hardware_asset%/*}"
+    fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET "$hardware_asset")" "${hardware_stage_host}/templates/${hardware_asset}"
+  done < "${hardware_stage_host}/assets.list"
   # Intentional split: hardware_vendors is assembled ONLY from literal names.
   # shellcheck disable=SC2086
   run_in_target "install gated hardware tuning profiles and lifecycle units" \
-    /usr/bin/python3 -I "${hardware_stage}/config.py" "${hardware_stage}/policy.env" "$ACCOUNT_USERNAME" $hardware_vendors
+    /usr/bin/python3 -I "${hardware_stage}/config.py" "${hardware_stage}/policy.env" "$ACCOUNT_USERNAME" "${hardware_stage}/templates" $hardware_vendors
   run_in_target "validate hardware tuning AppArmor policy without loading into the installer kernel" \
-    /usr/sbin/apparmor_parser --skip-kernel-load --skip-cache /etc/apparmor.d/managed-hardware-tuning
+    /usr/sbin/apparmor_parser --skip-kernel-load --skip-cache /etc/apparmor.d/hardware-tuning
   desktop_log "installed hardware tuning vendors=${hardware_vendors}; automatic/autostart default remains opt-in"
 )

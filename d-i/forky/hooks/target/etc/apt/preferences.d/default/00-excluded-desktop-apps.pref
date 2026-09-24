@@ -1,0 +1,4 @@
+# These applications are outside this desktop image, on every architecture.
+Package: firefox:any firefox-*:any blender:any blender-*:any kdenlive:any kdenlive-*:any
+Pin: version *
+Pin-Priority: -1

@@ -5,9 +5,12 @@ No package is installed, no signature update is requested, and host /etc is
 never changed. Unit fixtures use real chown/chmod with only NSS mocked. The
 whole-helper tests use actual NSS files inside a child-only chroot, no mocks.
 """
+from payload_fixture import copy2 as payload_copy2, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 from pathlib import Path
 import errno
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -30,13 +33,13 @@ CONFIG = b'DatabaseOwner clamav\n' + DEFAULT_NOTIFY + b'HTTPProxyPassword ' + SE
 def load_helper():
     module = types.ModuleType('fixture_session_repairs_r8')
     module.__file__ = str(HELPER)
-    exec(compile(HELPER.read_bytes(), str(HELPER), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(HELPER), str(HELPER), 'exec'), module.__dict__)
     return module
 
 
 def file_state(path):
-    meta = path.stat()
-    return (path.read_bytes(), meta.st_uid, meta.st_gid,
+    meta = payload_source_stat(path)
+    return (payload_read_bytes(path), meta.st_uid, meta.st_gid,
             stat.S_IMODE(meta.st_mode), meta.st_ino, meta.st_mtime_ns)
 
 
@@ -146,7 +149,7 @@ class FreshClamFileTests(unittest.TestCase):
                 with self.assertRaises(OSError):
                     self.reconcile()
                 self.assertTrue(self.path.is_symlink())
-                self.assertEqual(other.read_bytes(), CONFIG)
+                self.assertEqual(payload_read_bytes(other), CONFIG)
                 self.path.unlink()
         self.assert_no_temporary_files()
 
@@ -178,20 +181,20 @@ class FreshClamFileTests(unittest.TestCase):
                 finally:
                     os.chown(self.directory, 0, 0)
                     self.directory.chmod(0o700)
-        self.assertEqual(self.path.read_bytes(), CONFIG)
+        self.assertEqual(payload_read_bytes(self.path), CONFIG)
 
     def test_symlinked_directory_is_rejected(self):
         alias = self.directory / 'alias'
         alias.symlink_to(self.directory, target_is_directory=True)
         with self.assertRaises(OSError):
             self.helper.reconcile_clamd_notification(alias)
-        self.assertEqual(self.path.read_bytes(), CONFIG)
+        self.assertEqual(payload_read_bytes(self.path), CONFIG)
 
     def test_missing_optional_files_are_noops_not_created(self):
         self.assertFalse(self.helper.reconcile_clamd_notification(self.directory / 'absent'))
         self.path.unlink()
         self.assertFalse(self.reconcile())
-        self.assertFalse(self.path.exists())
+        self.assertFalse(payload_source_exists(self.path))
 
     def test_present_root_owned_daemon_keeps_default_notification(self):
         daemon = self.directory / 'clamd.conf'
@@ -212,7 +215,7 @@ class FreshClamFileTests(unittest.TestCase):
         daemon.symlink_to(self.path)
         with self.assertRaisesRegex(RuntimeError, 'unsafe clamd configuration'):
             self.reconcile()
-        self.assertEqual(self.path.read_bytes(), CONFIG)
+        self.assertEqual(payload_read_bytes(self.path), CONFIG)
 
     def test_custom_paths_comments_and_other_directives_are_not_rewritten(self):
         data = (b'NotifyClamd /etc/company/clamd.conf\n'
@@ -235,7 +238,7 @@ class FreshClamFileTests(unittest.TestCase):
         self.assertTrue(self.reconcile())
         expected = data.replace(b'\tNotifyClamd', b'# Managed scanner-only install; clamd.conf absent: \tNotifyClamd')
         expected = expected.replace(b'\nNotifyClamd', b'\n# Managed scanner-only install; clamd.conf absent: NotifyClamd')
-        self.assertEqual(self.path.read_bytes(), expected)
+        self.assertEqual(payload_read_bytes(self.path), expected)
         self.assertFalse(self.reconcile())
 
     def test_byte_limit_accepts_boundary_without_creating_a_new_file(self):
@@ -284,11 +287,11 @@ class FreshClamFileTests(unittest.TestCase):
                 self.reconcile()
         self.assertEqual(file_state(self.path), before)
         self.assertTrue(collision.is_symlink())
-        self.assertEqual(victim.read_bytes(), b'untouched')
+        self.assertEqual(payload_read_bytes(victim), b'untouched')
 
     def test_observed_edit_during_read_is_not_overwritten(self):
         original_fstat = os.fstat
-        source_inode = self.path.stat().st_ino
+        source_inode = payload_source_stat(self.path).st_ino
         reads = 0
         edited = CONFIG + b'# concurrent edit\n'
         def fstat(fd):
@@ -303,7 +306,7 @@ class FreshClamFileTests(unittest.TestCase):
         with mock.patch.object(self.helper.os, 'fstat', side_effect=fstat):
             with self.assertRaisesRegex(RuntimeError, 'changed while reading'):
                 self.reconcile()
-        self.assertEqual(self.path.read_bytes(), edited)
+        self.assertEqual(payload_read_bytes(self.path), edited)
         self.assert_no_temporary_files()
 
     def test_source_replaced_before_publication_is_not_overwritten(self):
@@ -317,7 +320,7 @@ class FreshClamFileTests(unittest.TestCase):
         with mock.patch.object(self.helper.os, 'fsync', side_effect=fsync):
             with self.assertRaisesRegex(RuntimeError, 'changed before replacement'):
                 self.reconcile()
-        self.assertEqual(self.path.read_bytes(), edited)
+        self.assertEqual(payload_read_bytes(self.path), edited)
         self.assert_no_temporary_files()
 
     def test_new_clamd_configuration_before_publication_prevents_edit(self):
@@ -397,8 +400,8 @@ class WholeInstallerHelperTests(unittest.TestCase):
         self.pam = self.root / 'etc/pam.d/sudo-i'
         self.original_pam = b'@include common-auth\n@include common-account\n@include common-session\n'
         self.pam.write_bytes(self.original_pam)
-        (self.root / 'etc/security/managed-sudo-i.conf').write_bytes(
-            (TARGET / 'etc/security/managed-sudo-i.conf').read_bytes())
+        (self.root / 'etc/security/sudo-i.conf').write_bytes(
+            payload_read_bytes(TARGET / 'etc/security/sudo-i.conf'))
         self.path = self.root / 'etc/clamav/freshclam.conf'
         self.config()
 
@@ -409,8 +412,8 @@ class WholeInstallerHelperTests(unittest.TestCase):
 
     def invoke(self, read_as_service=True):
         result = subprocess.run(
-            [sys.executable, '-I', '-B', '-c', CHROOT_DRIVER, str(self.root), str(HELPER),
-             'read' if read_as_service else 'no-read'],
+            payload_installed_argv([sys.executable, '-I', '-B', '-c', CHROOT_DRIVER, str(self.root), str(HELPER),
+             'read' if read_as_service else 'no-read']),
             text=True, capture_output=True, timeout=5)
         if result.returncode == 77 and result.stderr.strip() == 'CAP_SYS_CHROOT unavailable':
             self.skipTest('CAP_SYS_CHROOT unavailable in this environment')
@@ -426,7 +429,7 @@ class WholeInstallerHelperTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('unprivileged-clamav-read-confirmed', result.stdout)
                 self.assertEqual(file_state(self.path), before)
-                self.assertEqual(self.pam.read_bytes().count(b'pam_env.so'), 1)
+                self.assertEqual(payload_read_bytes(self.pam).count(b'pam_env.so'), 1)
 
     def test_stale_notification_repaired_full_helper_is_idempotent_and_readable(self):
         for mode in (0o400, 0o444):
@@ -442,7 +445,7 @@ class WholeInstallerHelperTests(unittest.TestCase):
                 self.assertEqual(again.returncode, 0, again.stderr)
                 self.assertNotIn('disabled stale default NotifyClamd', again.stderr)
                 self.assertEqual(file_state(self.path), before)
-                self.assertEqual(self.pam.read_bytes().count(b'pam_env.so'), 1)
+                self.assertEqual(payload_read_bytes(self.pam).count(b'pam_env.so'), 1)
 
     def test_installed_daemon_preserves_notification_and_completes(self):
         (self.root / 'etc/clamav/clamd.conf').write_bytes(b'User clamav\n')
@@ -465,7 +468,7 @@ class WholeInstallerHelperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('session-repairs: unsafe freshclam configuration: uid=1000', result.stderr)
         self.assertEqual(file_state(self.path), before)
-        self.assertEqual(self.pam.read_bytes(), self.original_pam)
+        self.assertEqual(payload_read_bytes(self.pam), self.original_pam)
 
     def test_world_writable_configuration_still_fails_installation(self):
         self.path.chmod(0o666)
@@ -474,15 +477,15 @@ class WholeInstallerHelperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('mode=0666', result.stderr)
         self.assertEqual(file_state(self.path), before)
-        self.assertEqual(self.pam.read_bytes(), self.original_pam)
+        self.assertEqual(payload_read_bytes(self.pam), self.original_pam)
 
     def test_absent_package_account_still_fails_nonroot_configuration(self):
-        self.passwd.write_text('\n'.join(line for line in self.passwd.read_text().splitlines()
+        self.passwd.write_text('\n'.join(line for line in payload_read_text(self.passwd).splitlines()
                                          if not line.startswith('clamav:')) + '\n')
         result = self.invoke(False)
         self.assertEqual(result.returncode, 1)
         self.assertIn(f'unsafe freshclam configuration: uid={CLAMAV_UID}', result.stderr)
-        self.assertEqual(self.pam.read_bytes(), self.original_pam)
+        self.assertEqual(payload_read_bytes(self.pam), self.original_pam)
 
     def test_fifo_fails_promptly_without_waiting_for_a_writer(self):
         self.path.unlink()
@@ -490,14 +493,14 @@ class WholeInstallerHelperTests(unittest.TestCase):
         result = self.invoke(False)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('unsafe freshclam configuration', result.stderr)
-        self.assertTrue(stat.S_ISFIFO(self.path.stat().st_mode))
-        self.assertEqual(self.pam.read_bytes(), self.original_pam)
+        self.assertTrue(stat.S_ISFIFO(payload_source_stat(self.path).st_mode))
+        self.assertEqual(payload_read_bytes(self.pam), self.original_pam)
 
 
     def staged_invoke(self, shell):
         def function(path, name):
             marker = name + '() {'
-            body = path.read_text().split(marker, 1)[1].split('\n}\n', 1)[0]
+            body = payload_read_text(path).split(marker, 1)[1].split('\n}\n', 1)[0]
             return marker + body + '\n}\n'
         # Execute the production staging and mandatory-command wrapper. Only
         # transport, logging and hardware boundaries are fixture implementations.
@@ -539,9 +542,15 @@ target_exec() {
 }
 ACCOUNT_USERNAME=desktop
 '''
-        environment = {**os.environ, 'TARGET_FIXTURE': str(self.root), 'TARGET_SOURCE': str(TARGET),
+        staged_source = self.root / 'fixture-source'
+        staged_source.mkdir(exist_ok=True)
+        for relative in re.findall(r'^  desktop_stage_role_asset (\S+) ', functions, re.M):
+            destination = staged_source / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            payload_copy2(TARGET / relative, destination)
+        environment = {**os.environ, 'TARGET_FIXTURE': str(self.root), 'TARGET_SOURCE': str(staged_source),
                        'FIXTURE_PYTHON': sys.executable, 'FIXTURE_DRIVER': str(runner)}
-        result = subprocess.run([*shell, '-c', script + functions + '\ndesktop_stage_session_repairs\n'],
+        result = subprocess.run(payload_installed_argv([*shell, '-c', script + functions + '\ndesktop_stage_session_repairs\n']),
                                 capture_output=True, text=True, env=environment, timeout=10)
         if result.returncode == 77 and 'CAP_SYS_CHROOT unavailable' in result.stderr:
             self.skipTest('CAP_SYS_CHROOT unavailable in this environment')
@@ -559,10 +568,10 @@ ACCOUNT_USERNAME=desktop
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn('unprivileged-clamav-read-confirmed', result.stdout)
                 staged = self.root / 'usr/local/libexec/labwc-configure-session-repairs'
-                self.assertEqual(staged.read_bytes(), HELPER.read_bytes())
-                self.assertEqual(stat.S_IMODE(staged.stat().st_mode), 0o755)
+                self.assertEqual(payload_read_bytes(staged), payload_read_bytes(HELPER))
+                self.assertEqual(stat.S_IMODE(payload_source_stat(staged).st_mode), 0o755)
                 self.assertEqual(file_state(self.path)[1:4], (CLAMAV_UID, ADM_GID, 0o400))
-                self.assertFalse((self.root / 'installer-output.log').exists())
+                self.assertFalse(payload_source_exists(self.root / 'installer-output.log'))
 
     def test_required_runner_still_aborts_for_unsafe_files_under_all_shells(self):
         import shutil
@@ -578,8 +587,8 @@ ACCOUNT_USERNAME=desktop
                 self.assertIn('session-repairs: unsafe freshclam configuration', result.stderr)
                 self.assertNotIn('target-session-repairs-completed', result.stdout)
                 self.assertEqual(file_state(self.path), before)
-                self.assertEqual(self.pam.read_bytes(), self.original_pam)
-                self.assertFalse((self.root / 'installer-output.log').exists())
+                self.assertEqual(payload_read_bytes(self.pam), self.original_pam)
+                self.assertFalse(payload_source_exists(self.root / 'installer-output.log'))
 
 
 if __name__ == '__main__':

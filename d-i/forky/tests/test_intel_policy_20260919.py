@@ -1,4 +1,5 @@
 """Boot and runtime policy are distinct; these tests exercise runtime capabilities."""
+from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import unittest
 from unittest import mock
@@ -38,8 +39,8 @@ class IntelPolicyTests(unittest.TestCase):
         self.assertEqual(len(paths), 10)
         key = 'HARDWARE_INTEL_CPU_TUNING_BALANCED_CPU_HWP_DYNAMIC_BOOST'
         for path in paths:
-            self.assertEqual(path.read_text().count(key + '="1"'), 1)
-            self.assertEqual(path.read_text().count(key + '='), 1)
+            self.assertEqual(payload_read_text(path).count(key + '="1"'), 1)
+            self.assertEqual(payload_read_text(path).count(key + '='), 1)
             policy = fixture.installer.policy(fixture.environment(path.stem), 'intel', fixture.intel.SETTINGS)
             self.assertEqual(policy['profiles']['balanced']['knobs']['CPU_EPP'], 'balanced')
 

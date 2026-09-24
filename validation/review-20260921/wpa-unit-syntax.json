@@ -1,7 +1,0 @@
-{
-  "check": "systemd-analyze verify, host systemd 257.9, not target 261.2",
-  "returncode": 0,
-  "stdout": "",
-  "stderr": "",
-  "limitations": "Drop-in parsed in an inert synthetic system unit with /usr/bin/true substituted solely because wpa_supplicant is not installed. No service executed, no hardware/authentication verified."
-}

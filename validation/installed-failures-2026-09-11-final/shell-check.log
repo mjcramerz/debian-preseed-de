@@ -1,3 +1,0 @@
-/home/mcramer/Workspace/debian-preseed-de/tools/check_shells.py:71: EncodingWarning: 'encoding' argument not specified.
-  result = subprocess.run(command, capture_output=True, text=True, timeout=15)
-266 shell files; 543 parser checks; PASS

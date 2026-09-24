@@ -7,7 +7,7 @@ use Moo;
 use MooX::StrictConstructor;
 use MooX::Types::MooseLike::Base qw(Str);
 
-use lib '/usr/local/lib/perl5/site_perl/managed-runtime';
+use lib '/usr/local/lib/perl5/site_perl/runtime';
 use Managed::Process qw(capture_command);
 use Time::HiRes qw(sleep);
 use Zram::Config qw(cfg);

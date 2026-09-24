@@ -5,6 +5,10 @@ Real inotify/child lifecycle and private D-Bus are exercised. The native swaybg
 process is a fixture, not a claim of rendered first-frame/physical-input tests.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import installed_script
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import argparse
 import ctypes.util
 import importlib.machinery
@@ -32,7 +36,7 @@ AA = TARGET / 'etc/apparmor.d'
 
 
 def load(name, path):
-    loader = importlib.machinery.SourceFileLoader(name, str(path))
+    loader = importlib.machinery.SourceFileLoader(name, str(installed_script(path)))
     spec = importlib.util.spec_from_loader(name, loader)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -58,8 +62,8 @@ class WallpaperStateTests(unittest.TestCase):
             self.state.save('/fixture/one.png')
             self.state.save('/fixture/two.png')
             self.assertEqual(self.state.current(), '/fixture/two.png')
-        self.assertEqual(stat.S_IMODE((self.state.path / 'wallpaper').stat().st_mode), 0o600)
-        self.assertEqual(stat.S_IMODE(self.state.path.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.state.path / 'wallpaper').st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.state.path).st_mode), 0o700)
         self.assertEqual(sorted(p.name for p in self.state.path.iterdir()), ['.wallpaper.lock', 'wallpaper'])
 
     def test_symlink_destination_never_changes_target(self):
@@ -68,7 +72,7 @@ class WallpaperStateTests(unittest.TestCase):
         (self.state.path / 'wallpaper').symlink_to(target)
         with mock.patch.object(WALL, 'image_path', return_value='/fixture/one.png'):
             with self.assertRaises(ValueError): self.state.save('/fixture/one.png')
-        self.assertEqual(target.read_text(), 'untouched')
+        self.assertEqual(render_theme_defaults(payload_read_text(target)), 'untouched')
 
     def test_hardlinked_state_rejected(self):
         victim = self.root / 'victim'
@@ -150,7 +154,7 @@ finally: state.close()
 ''')
         self.command = [sys.executable, '-B', str(bootstrap), str(LIBEXEC/'labwc-wallpaper-control'), str(images), str(stub)]
         self.env = {**os.environ, 'HOME': str(self.root), 'FIXTURE_EVENTS': str(self.events)}
-        self.process = subprocess.Popen(self.command, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        self.process = subprocess.Popen(payload_installed_argv(self.command), env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         self.addCleanup(self.finish)
         self.wait_for(lambda rows: any(row[0] == 'start' for row in rows))
         # Ensure the initial candidate has passed its liveness probe.
@@ -161,7 +165,7 @@ finally: state.close()
         self.output = self.process.communicate(timeout=5)
 
     def rows(self):
-        return [json.loads(line) for line in self.events.read_text().splitlines()] if self.events.exists() else []
+        return [json.loads(line) for line in render_theme_defaults(payload_read_text(self.events)).splitlines()] if payload_source_exists(self.events) else []
 
     def wait_for(self, predicate, timeout=5):
         end = time.monotonic() + timeout
@@ -199,7 +203,7 @@ finally: state.close()
         self.assertIn('retaining previous background',self.output[1])
 
     def test_second_supervisor_is_rejected(self):
-        second = subprocess.run(self.command, env=self.env, capture_output=True, text=True, timeout=3)
+        second = subprocess.run(payload_installed_argv(self.command), env=self.env, capture_output=True, text=True, timeout=3)
         self.assertNotEqual(second.returncode,0)
         self.assertEqual(len([r for r in self.rows() if r[0]=='start']),1)
 
@@ -229,9 +233,9 @@ class NotificationTests(unittest.TestCase):
     def test_real_private_dbus_success_retry_and_failure(self):
         for failures,calls,status in [(0,1,0),(1,2,0),(2,2,1)]:
             with self.subTest(failures=failures):
-                result=subprocess.run(['dbus-run-session','--',sys.executable,'-B',
+                result=subprocess.run(payload_installed_argv(['dbus-run-session','--',sys.executable,'-B',
                     str(Path(__file__).with_name('notification_bus_fixture.py')),
-                    str(LIBEXEC/'labwc-notification-send'),str(failures)],capture_output=True,text=True,timeout=25)
+                    str(LIBEXEC/'labwc-notification-send'),str(failures)]),capture_output=True,text=True,timeout=25)
                 self.assertEqual(result.returncode,0,result.stderr)
                 report=json.loads(result.stdout)
                 self.assertEqual(report['returncode'],status,report)
@@ -244,70 +248,72 @@ class IntegrationTests(unittest.TestCase):
         profiles=sorted((FORKY/'hosts/profiles').glob('*.env'))
         self.assertEqual(len(profiles), 10)
         for path in profiles:
-            source=path.read_text()
+            source=render_theme_defaults(payload_read_text(path))
             self.assertEqual(source.count('WLSUNSET_ENABLED="true"'),1,path)
-            for name,source_name in [('WIDTH','MAIN_MENU_WIDTH'),('LINES','MAIN_MENU_LINES'),
-                                     ('INTERNAL_WIDTH','INTERNAL_MAIN_MENU_WIDTH'),('INTERNAL_LINES','INTERNAL_MAIN_MENU_LINES')]:
-                self.assertIn(f'LABWC_FUZZEL_COMPUTER_MANAGEMENT_{name}="$LABWC_FUZZEL_{source_name}"',source)
-        defaults=(TARGET/'etc/default/labwc-wlsunset.tmpl').read_text()
+            for name in ('FUZZEL_MENU_EXTERNAL_WIDTH', 'FUZZEL_MENU_EXTERNAL_LINES',
+                         'FUZZEL_MENU_INTERNAL_WIDTH', 'FUZZEL_MENU_INTERNAL_LINES',
+                         'FUZZEL_EXTERNAL_FONT_SIZE', 'FUZZEL_INTERNAL_FONT_SIZE'):
+                self.assertRegex(source, r'(?m)^' + name + r'="[0-9]+"$')
+            self.assertNotIn('LABWC_FUZZEL_COMPUTER_MANAGEMENT_', source)
+        defaults=render_theme_defaults(payload_read_text(TARGET/'etc/labwc/wlsunset.conf.tmpl'))
         self.assertIn('__INSTALLER_WLSUNSET_ENABLED__',defaults)
 
     def test_assets_are_staged_and_hwdb_built_in_target(self):
-        source=(FORKY/'scripts/desktop/components.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
         for name in ('labwc-wallpaper-control','labwc-notification-send','labwc-wlsunset',
-                     'labwc-configure-session-repairs','90-managed-thinkpad-extra-buttons.hwdb','managed-sudo-i.conf'):
+                     'labwc-configure-session-repairs','90-thinkpad-extra-buttons.hwdb','sudo-i.conf'):
             self.assertIn(name,source)
         self.assertIn('/usr/bin/systemd-hwdb --strict update',source)
         self.assertIn('desktop_stage_session_repairs\n',source)
-        self.assertIn('wlsunset',(FORKY/'classes/class-select/role/desktop.cfg').read_text())
+        self.assertIn('wlsunset',render_theme_defaults(payload_read_text(FORKY/'classes/class-select/role/desktop.cfg')))
 
     @unittest.skipUnless(shutil.which('systemd-hwdb'), 'packaged systemd-hwdb required')
     def test_retired_hwdb_does_not_override_packaged_key_mappings(self):
         # logind's existing power-switch handler retains sole suspend ownership.
-        rc=(TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text()
+        rc=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/labwc/rc.xml.tmpl'))
         self.assertNotIn('key="XF86Sleep"',rc)
         self.assertNotIn('key="XF86PowerOff"',rc)
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);directory=root/'etc/udev/hwdb.d';directory.mkdir(parents=True)
             match='evdev:name:ThinkPad Extra Buttons:dmi:bvnLENOVO:bvrTEST:bd01:svnLENOVO:pnTEST:pvrTEST:'
             (directory/'60-test.hwdb').write_text('evdev:name:*:dmi:*\n KEYBOARD_KEY_01=screenlock\n KEYBOARD_KEY_ff=prog1\n\n')
-            self.assertFalse((TARGET/'etc/udev/hwdb.d/90-managed-thinkpad-extra-buttons.hwdb').exists())
+            self.assertFalse(payload_source_exists(TARGET/'etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb'))
             # The installer removes the retired asset, then rebuilds this database.
-            source=(FORKY/'scripts/desktop/components.sh').read_text()
-            self.assertIn('remove_target_asset /etc/udev/hwdb.d/90-managed-thinkpad-extra-buttons.hwdb',source)
-            update=subprocess.run(['systemd-hwdb','--strict','--root',str(root),'update'],capture_output=True,text=True)
+            source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
+            self.assertIn('remove_target_asset /etc/udev/hwdb.d/90-thinkpad-extra-buttons.hwdb',source)
+            update=subprocess.run(payload_installed_argv(['systemd-hwdb','--strict','--root',str(root),'update']),capture_output=True,text=True)
             self.assertEqual(update.returncode,0,update.stderr)
-            result=subprocess.run(['systemd-hwdb','--root',str(root),'query',match],capture_output=True,text=True)
+            result=subprocess.run(payload_installed_argv(['systemd-hwdb','--root',str(root),'query',match]),capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             self.assertIn('KEYBOARD_KEY_01=screenlock',result.stdout)
             self.assertIn('KEYBOARD_KEY_ff=prog1',result.stdout)
-            other=subprocess.run(['systemd-hwdb','--root',str(root),'query',match.replace('ThinkPad Extra Buttons','Other Keyboard')],capture_output=True,text=True)
+            other=subprocess.run(payload_installed_argv(['systemd-hwdb','--root',str(root),'query',match.replace('ThinkPad Extra Buttons','Other Keyboard')]),capture_output=True,text=True)
             self.assertIn('KEYBOARD_KEY_01=screenlock',other.stdout)
 
     def test_decoration_and_single_tweaks_policy(self):
-        self.assertIn('gtk-dialogs-use-header=false',(TARGET/'etc/skel-desktop/.config/gtk-3.0/settings.ini.tmpl').read_text())
-        self.assertIn('DialogsUseHeader',(TARGET/'etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml').read_text())
-        tweaks=(TARGET/'usr/local/share/applications/labwc-tweaks.desktop').read_text()
+        self.assertIn('gtk-dialogs-use-header=false',render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/gtk-3.0/settings.ini.tmpl')))
+        self.assertIn('DialogsUseHeader',render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml')))
+        tweaks=render_theme_defaults(payload_read_text(TARGET/'usr/local/share/applications/labwc-tweaks.desktop'))
         self.assertIn('Name=Labwc Tweaks',tweaks);self.assertIn('NoDisplay=true',tweaks)
-        self.assertIn('TWEAKS_DESKTOP_IDS',(BIN/'labwc-main-menu').read_text())
+        self.assertIn('TWEAKS_DESKTOP_IDS',render_theme_defaults(payload_read_text(BIN/'labwc-main-menu')))
 
     def test_confined_transitions_and_deleted_inode_flags(self):
-        utilities=(AA/'managed-desktop-utilities').read_text()
-        for text in ('/usr/bin/bwrap rCx -> media-glycin-bwrap','managed-webkit-runtime','/usr/bin/iconv rix,',
-                     'profile managed-freerdp-client','profile clipboard-fuse','/usr/bin/fusermount3 rCx -> clipboard-fuse'):
+        utilities=render_theme_defaults(payload_read_text(AA/'desktop-utilities'))
+        for text in ('/usr/bin/bwrap rCx -> media-glycin-bwrap','webkit-runtime','/usr/bin/iconv rix,',
+                     'profile freerdp-client','profile clipboard-fuse','/usr/bin/fusermount3 rCx -> clipboard-fuse'):
             self.assertIn(text,utilities)
-        self.assertRegex((AA/'usr.bin.telegram-desktop').read_text(),r'profile telegram-desktop .*flags=\([^)]*mediate_deleted')
-        self.assertIn('gio-launch-desktop rix,',(AA/'usr.bin.spotify').read_text())
-        self.assertIn('profile managed-wpctl ',(AA/'managed-labwc-session').read_text())
+        self.assertRegex(render_theme_defaults(payload_read_text(AA/'usr.bin.telegram-desktop')),r'profile telegram-desktop .*flags=\([^)]*mediate_deleted')
+        self.assertIn('gio-launch-desktop rix,',render_theme_defaults(payload_read_text(AA/'usr.bin.spotify')))
+        self.assertIn('profile wpctl ',render_theme_defaults(payload_read_text(AA/'labwc-session')))
 
     def test_graphics_selection_does_not_disable_gpu_or_atomic_kms(self):
-        electrons=(TARGET/'usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py').read_text()
+        electrons=render_theme_defaults(payload_read_text(TARGET/'usr/local/lib/python3.14/dist-packages/labwc_managed_app/electron.py'))
         self.assertIn('"--use-webgpu-adapter=opengles"',electrons)
         delta=electrons[electrons.index('    "chatgpt": {'):electrons.index('    "code": {')]
         self.assertNotIn('--disable-gpu"',delta)
         self.assertNotIn('--no-sandbox',delta)
-        self.assertNotIn('LABWC_WLR_DRM_', (TARGET/'etc/default/labwc-desktop.tmpl').read_text())
-        session = (TARGET/'usr/local/bin/labwc-session.tmpl').read_text()
+        self.assertNotIn('LABWC_WLR_DRM_', render_theme_defaults(payload_read_text(TARGET/'etc/labwc/desktop.conf.tmpl')))
+        session = render_theme_defaults(payload_read_text(TARGET/'usr/local/bin/labwc-session.tmpl'))
         self.assertNotIn('LABWC_WLR_DRM_', session)
         self.assertIn('unset WLR_DRM_NO_ATOMIC', session)
 

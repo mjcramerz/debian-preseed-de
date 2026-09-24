@@ -6,6 +6,8 @@ transactional publication, profile isolation, permission checks, and scratch
 cleanup are real.
 '''
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 import os
 from pathlib import Path
 import shutil
@@ -35,7 +37,7 @@ class CodexFreshInstallTests(unittest.TestCase):
         ):
             for directory in ('bin', 'usr/bin'):
                 command = root / directory / name
-                if not command.exists():
+                if not payload_source_exists(command):
                     command.symlink_to('/bin/find' if name == 'find' else '/bin/busybox')
 
         # The production target uses GNU chmod, which preserves an inherited
@@ -68,7 +70,7 @@ fi
 
         helper = root / 'installer'
         helper.write_text(
-            (FORKY / 'hooks/target/usr/local/bin/codex-standalone-install').read_text()
+            payload_read_text(FORKY / 'hooks/target/usr/local/bin/codex-standalone-install')
         )
         helper.chmod(0o755)
         profile = root / 'home/account/.profile.d/71-devops-de.sh'
@@ -155,11 +157,11 @@ cat > "$output" <<'PAYLOAD'
 
     def execute(self, root):
         return subprocess.run(
-            [
+            payload_installed_argv([
                 shutil.which('chroot'), '--userspec=65534:65534', str(root),
                 '/bin/sh', '/installer', 'https://chatgpt.com/codex/install.sh',
                 '1048576', '/data/codex/usr/home', '/data/codex/packages',
-            ],
+            ]),
             env={
                 'PATH': '/usr/bin:/bin',
                 'HOME': '/home/account',
@@ -175,18 +177,18 @@ cat > "$output" <<'PAYLOAD'
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             self.fixture(root)
-            self.assertFalse((root / 'run/user').exists())
+            self.assertFalse(payload_source_exists(root / 'run/user'))
             for _ in range(2):
                 result = self.execute(root)
                 self.assertEqual(result.returncode, 0, result.stderr)
             packages = root / 'data/codex/packages'
-            self.assertFalse((root / 'run/user').exists())
+            self.assertFalse(payload_source_exists(root / 'run/user'))
             self.assertEqual(
                 (root / 'data/codex/usr/home/packages').readlink(),
                 Path('/data/codex/packages'),
             )
-            self.assertEqual(stat.S_IMODE(packages.stat().st_mode), 0o700)
-            self.assertEqual(packages.stat().st_uid, 65534)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(packages).st_mode), 0o700)
+            self.assertEqual(payload_source_stat(packages).st_uid, 65534)
             self.assertEqual(
                 (packages / 'standalone/current').readlink(),
                 Path('releases/0.153.3-x86_64-unknown-linux-musl'),
@@ -199,16 +201,14 @@ cat > "$output" <<'PAYLOAD'
                 Path('bin/codex'),
             )
             self.assertTrue(
-                (
-                    packages
-                    / 'standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex'
-                ).is_file()
+                payload_source_is_file(packages
+                    / 'standalone/releases/0.153.3-x86_64-unknown-linux-musl/codex')
             )
-            self.assertFalse((root / 'home/account/.zshrc').exists())
-            self.assertFalse((root / 'home/account/.local/bin/codex').exists())
-            self.assertFalse((root / 'home/account/profile-was-sourced').exists())
+            self.assertFalse(payload_source_exists(root / 'home/account/.zshrc'))
+            self.assertFalse(payload_source_exists(root / 'home/account/.local/bin/codex'))
+            self.assertFalse(payload_source_exists(root / 'home/account/profile-was-sourced'))
             self.assertEqual(list((root / 'data/codex').glob('.standalone-install.*')), [])
-            self.assertEqual(len((root / 'home/account/curl.args').read_text().splitlines()), 1)
+            self.assertEqual(len(payload_read_text(root / 'home/account/curl.args').splitlines()), 1)
             self.assertEqual(list((root / 'run/codex-installer/65534.fixture').iterdir()), [])
 
     def test_failed_payload_does_not_publish_partial_package(self):

@@ -1,5 +1,6 @@
 """Follow-up safety regressions; no real GPU, service, or sysfs mutation."""
 from __future__ import annotations
+from payload_fixture import source_exists as payload_source_exists
 
 import unittest
 from unittest.mock import patch
@@ -46,7 +47,7 @@ class MultipleGpuTemperatureTests(unittest.TestCase):
             with self.assertRaisesRegex(base.common.TuningError, 'readable temperature sensor'):
                 transaction.apply('high', settings)
             self.assertEqual(backend.writes, [])
-            self.assertFalse(transaction.path.exists())
+            self.assertFalse(payload_source_exists(transaction.path))
 
     def test_sensor_loss_on_one_gpu_trips_owned_overclock_health_interlock(self):
         backend = base.FakeBackend()

@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-SOURCE = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target/usr/local/libexec/local-apt-normalize-sources'
+SOURCE = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target/usr/local/libexec/apt-repo-local-normalize-sources'
 loader = importlib.machinery.SourceFileLoader('apt_vendor_normalize', str(SOURCE))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 normalizer = importlib.util.module_from_spec(spec)
@@ -71,7 +71,7 @@ class Deb822RepairTests(unittest.TestCase):
 
 class VendorSourcesTests(unittest.TestCase):
     def setUp(self):
-        base = Path('/var/lib/local-apt-tests')
+        base = Path('/var/lib/apt-repo-local-tests')
         base.mkdir(mode=0o755, exist_ok=True)
         self.root = Path(tempfile.mkdtemp(dir=base))
         self.parts = self.root / 'etc/apt/sources.list.d'
@@ -91,7 +91,7 @@ class VendorSourcesTests(unittest.TestCase):
         self.write('microsoft-edge.sources', 'Types: deb\nURIs: https://packages.microsoft.com/repos/edge/\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n')
         self.write('code-stable.list', 'deb https://packages.microsoft.com/repos/code stable main\n')
         self.write('microsoft-debian-trixie-prod-trixie.list', 'deb https://packages.microsoft.com/debian/13/prod trixie main\n')
-        self.write('local-apt-repository.sources', 'Types: deb\nURIs: file:/var/lib/software/repo\nSuites: ./\nSigned-By: /etc/apt/keyrings/local-apt-repository.gpg\nBy-Hash: force\n')
+        self.write('apt-repo-local.sources', 'Types: deb\nURIs: file:/var/lib/software/repo\nSuites: ./\nSigned-By: /etc/apt/keyrings/apt-repo-local.gpg\nBy-Hash: force\n')
         self.write('misc.list', '\n'.join([
             'deb http://deb.debian.org/debian forky main non-free-firmware',
             'deb https://repo.vivaldi.com/stable/deb stable main',
@@ -100,9 +100,9 @@ class VendorSourcesTests(unittest.TestCase):
             'deb https://repository.mullvad.net/deb/stable stable main',
         ]) + '\n')
         names = normalizer.normalize(self.root)
-        self.assertEqual(names, ['debian.sources', 'local-apt-repository.sources', 'microsoft.sources', 'mise.sources', 'mullvad.sources', 'vivaldi.sources', 'xanmod.sources'])
-        self.assertTrue((self.parts / 'local-apt-repository.sources').is_file())
-        self.assertIn('Signed-By: /etc/apt/keyrings/local-apt-repository.gpg\n', (self.parts / 'local-apt-repository.sources').read_text())
+        self.assertEqual(names, ['apt-repo-local.sources', 'debian.sources', 'microsoft.sources', 'mise.sources', 'mullvad.sources', 'vivaldi.sources', 'xanmod.sources'])
+        self.assertTrue((self.parts / 'apt-repo-local.sources').is_file())
+        self.assertIn('Signed-By: /etc/apt/keyrings/apt-repo-local.gpg\n', (self.parts / 'apt-repo-local.sources').read_text())
         microsoft = (self.parts / 'microsoft.sources').read_text()
         self.assertEqual(microsoft.count('URIs: https://packages.microsoft.com/repos/edge\n'), 1)
         self.assertNotIn('Architectures:', microsoft)

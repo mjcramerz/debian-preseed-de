@@ -1,5 +1,7 @@
 """Log-driven runtime contracts; no service, radio, GPU or power action is run."""
 from __future__ import annotations
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import re
 from pathlib import Path
 import unittest
@@ -16,7 +18,7 @@ AA = TARGET / 'etc/apparmor.d'
 
 def profile(file, name):
     found = re.search(r'^profile ' + re.escape(name) + r' .*?^}',
-                      (AA/file).read_text(), re.M | re.S)
+                      render_theme_defaults(payload_read_text(AA/file)), re.M | re.S)
     assert found, name
     return found.group()
 
@@ -32,27 +34,28 @@ class ColourServiceBoundary(unittest.TestCase):
 
     def test_colour_service_retains_bounded_restart_and_compositor_lifetime(self):
         for value in ('Requisite=labwc-session.target', 'PartOf=labwc-session.target',
-                      'BindsTo=labwc-compositor.service', 'KillMode=control-group',
+                      'After=labwc-session.target labwc-compositor.service', 'KillMode=control-group',
                       'TimeoutStartSec=10s', 'TimeoutStopSec=5s', 'Restart=always',
                       'RestartSec=10s', 'StartLimitIntervalSec=300s', 'StartLimitBurst=3'):
             self.assertIn(value, W.PROPERTIES)
         self.assertNotIn('NoNewPrivileges=no', W.PROPERTIES)
+        self.assertNotIn('BindsTo=labwc-compositor.service', W.PROPERTIES)
 
 
 class LoggedPermissions(unittest.TestCase):
     def test_waybar_import_probe_is_directory_read_only(self):
-        source=profile('managed-labwc-session', 'managed-waybar')
+        source=profile('labwc-session', 'waybar')
         self.assertIn('/usr/local/lib/python3.14/dist-packages/ r,',source)
         self.assertNotIn('/usr/local/lib/python3.14/dist-packages/**',source)
 
     def test_monitoring_peers_are_read_only_not_attach(self):
-        source=profile('managed-desktop-utilities', 'managed-desktop-launcher')
-        for peer in ('managed-labwc-swaybg','managed-tomat','managed-labwc-notifications'):
+        source=profile('desktop-utilities', 'desktop-launcher')
+        for peer in ('labwc-swaybg','tomat','labwc-notifications'):
             lines=[line.strip() for line in source.splitlines() if 'peer='+peer+',' in line]
             self.assertEqual(lines,['ptrace (read) peer='+peer+','])
 
     def test_zram_setup_gets_only_io_pressure_sample(self):
-        source=profile('managed-system-wrappers','managed-zram-device-setup')
+        source=profile('system-wrappers','zram-device-setup')
         lines=[line.strip() for line in source.splitlines() if '/proc/pressure/' in line]
         self.assertEqual(lines,['/proc/pressure/io r,'])
 
@@ -60,8 +63,11 @@ class LoggedPermissions(unittest.TestCase):
 class NativeMenuGeometry(unittest.TestCase):
     def test_all_menus_submenus_and_rows_have_the_requested_geometry(self):
         menu_count=item_count=0
-        for file in sorted((TARGET/'etc/skel-desktop/.config/waybar').glob('*-menu.xml')):
-            for obj in ET.parse(file).iter('object'):
+        from waybar_fixture import rendered_assets
+        assets = rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')
+        for name, text in assets.items():
+            if not name.endswith('-menu.xml'): continue
+            for obj in ET.fromstring(text).iter('object'):
                 props={p.get('name'):p.text for p in obj.findall('property')}
                 if obj.get('class')=='GtkMenu':
                     menu_count+=1
@@ -86,26 +92,26 @@ class NativeMenuGeometry(unittest.TestCase):
         self.assertEqual((menu_count,item_count),(11,48))
 
     def test_installer_invokes_native_menu_validation_after_user_configuration(self):
-        source=(FORKY/'scripts/desktop/labwc.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh'))
         self.assertLess(source.index('  desktop_install_user_config'), source.index('  desktop_verify_native_menus'))
-        verify=(FORKY/'scripts/desktop/verify.sh').read_text()
+        verify=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         for key in ('reserve-toggle-size','width-request','use-fallback','hexpand'):
             self.assertIn('"'+key+'"',verify)
 
     def test_workspaces_have_distinct_idle_hover_and_active_rules(self):
-        source=(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl').read_text()
+        source=render_theme_defaults(payload_read_text(TARGET/'etc/skel-desktop/.config/waybar/style.css.tmpl'))
         hover=re.search(r'#workspaces button:hover:not\(\.active\):not\(\.urgent\) \{([^}]+)',source).group(1)
-        self.assertIn('background: @panel_hover;',hover)
+        self.assertIn('background: ' + theme_values()['WAYBAR_BUTTON_WORKSPACES_HOVER_BACKGROUND_COLOR'] + ';',hover)
         self.assertNotIn('linear-gradient',hover)
-        self.assertIn('rgba(236, 184, 96, 0.14)',hover)
-        active=re.search(r'#workspaces button.active,([^}]+)',source).group(1)
-        self.assertIn('#workspaces button.active:hover',active)
-        self.assertIn('linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92))',active)
+        self.assertIn('border-color: ' + theme_values()['WAYBAR_BUTTON_WORKSPACES_HOVER_OUTLINE_COLOR'] + ';',hover)
+        active=''.join(re.findall(r'#workspaces button.active(?:\:hover)? \{([^}]+)',source))
+        self.assertIn('#workspaces button.active:hover {',source)
+        self.assertIn('linear-gradient(135deg, ' + theme_values()['WAYBAR_BUTTON_WORKSPACES_ACTIVE_BACKGROUND_START_COLOR'] + ', ' + theme_values()['WAYBAR_BUTTON_WORKSPACES_ACTIVE_BACKGROUND_END_COLOR'] + ')',active)
 
 
 class NetworkServiceContract(unittest.TestCase):
     def test_wpa_supplicant_has_host_radio_access_without_unrelated_privileges(self):
-        source=(TARGET/'etc/systemd/system/wpa_supplicant.service.d/override.conf').read_text()
+        source=render_theme_defaults(payload_read_text(TARGET/'etc/systemd/system/wpa_supplicant.service.d/override.conf'))
         settings=dict(line.split('=',1) for line in source.splitlines() if '=' in line and not line.startswith('#'))
         self.assertEqual(set(settings['CapabilityBoundingSet'].split()),{'CAP_CHOWN','CAP_DAC_READ_SEARCH','CAP_NET_ADMIN','CAP_NET_RAW'})
         self.assertEqual(settings['ProtectHome'],'read-only')
@@ -118,11 +124,11 @@ class NetworkServiceContract(unittest.TestCase):
         self.assertNotIn(' -m ',settings['ExecStart'])
 
     def test_packaged_clock_client_is_installed_enabled_and_egress_already_allows_ntp(self):
-        packages=(FORKY/'classes/class-select/role/desktop.cfg').read_text().split()
+        packages=render_theme_defaults(payload_read_text(FORKY/'classes/class-select/role/desktop.cfg')).split()
         self.assertEqual(packages.count('systemd-timesyncd'),1)
-        source=(FORKY/'scripts/desktop/components.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/components.sh'))
         self.assertIn('desktop_enable_unit_if_available systemd-timesyncd.service system',source)
-        self.assertIn('allow_ntp: true',(TARGET/'etc/nftables/profiles/desktop.yml').read_text())
+        self.assertIn('allow_ntp: true',render_theme_defaults(payload_read_text(TARGET/'etc/nftables/profiles/desktop.yml')))
 
 
 class GenericExecBoundary(FootResults):

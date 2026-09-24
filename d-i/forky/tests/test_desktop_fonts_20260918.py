@@ -3,6 +3,8 @@
 Archives are local synthetic fixtures. One optional test exercises real
 fontconfig as a non-root uid using an already installed system test font.
 """
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import hashlib
 import io
 import json
@@ -25,7 +27,7 @@ SOURCE = FORKY / 'scripts/desktop/fonts-install.py'
 def load():
     module = types.ModuleType('font_installer_fixture')
     module.__file__ = str(SOURCE)
-    exec(compile(SOURCE.read_bytes(), str(SOURCE), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(SOURCE), str(SOURCE), 'exec'), module.__dict__)
     return module
 
 
@@ -61,7 +63,7 @@ class FontInstallTests(unittest.TestCase):
 
     def copy_archive(self, url, destination, sha):
         name = Path(url).name.removesuffix('.tar.xz')
-        shutil.copyfile(self.archives[name], destination)
+        payload_copyfile(self.archives[name], destination)
 
     def generation(self):
         return self.m.prepare_generation(self.cache, self.policy)
@@ -125,15 +127,15 @@ class FontInstallTests(unittest.TestCase):
     def test_modes_archive_owners_and_executable_bits_are_not_preserved(self):
         generation = self.generation()
         for path in generation.rglob('*'):
-            self.assertEqual(path.stat().st_uid, os.geteuid())
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o755 if path.is_dir() else 0o644)
+            self.assertEqual(payload_source_stat(path).st_uid, os.geteuid())
+            self.assertEqual(stat.S_IMODE(payload_source_stat(path).st_mode), 0o755 if path.is_dir() else 0o644)
 
     def test_identical_generation_does_not_download_again(self):
-        source = self.generation(); before = source.stat().st_mtime_ns
+        source = self.generation(); before = payload_source_stat(source).st_mtime_ns
         self.assertEqual(self.download.call_count, 5)
         self.assertEqual(source, self.generation())
         self.assertEqual(self.download.call_count, 5)
-        self.assertEqual(before, source.stat().st_mtime_ns)
+        self.assertEqual(before, payload_source_stat(source).st_mtime_ns)
 
     def test_bad_late_archive_never_publishes_partial_generation(self):
         self.archives['ProFont'] = self.archive('bad.tar.xz', [('../font.ttf', b'x', tarfile.REGTYPE)])
@@ -144,7 +146,7 @@ class FontInstallTests(unittest.TestCase):
     def test_modified_cache_generation_is_preserved_and_rejected(self):
         generation = self.generation(); font = generation / 'FiraCode/font.ttf'; font.write_bytes(b'admin')
         with self.assertRaises(ValueError): self.generation()
-        self.assertEqual(font.read_bytes(), b'admin')
+        self.assertEqual(payload_read_bytes(font), b'admin')
 
     def test_source_symlink_and_hardlink_rejected(self):
         for kind in ('symlink', 'hardlink'):
@@ -165,7 +167,7 @@ class FontInstallTests(unittest.TestCase):
                 self.assertEqual(current, home / self.m.PUBLICATION_ROOTS[group] / 'current')
                 self.assertTrue(current.is_symlink())
                 self.assertEqual({p.name for p in current.iterdir()}, set(self.m.GROUPS[group]) | {self.m.MANIFEST})
-            self.assertFalse((home / '.config').exists())
+            self.assertFalse(payload_source_exists(home / '.config'))
 
     def test_unchanged_publication_and_font_cache_are_noop(self):
         source = self.generation(); current, changed = self.m.publish(self.home, source, self.policy)
@@ -184,7 +186,7 @@ class FontInstallTests(unittest.TestCase):
         with mock.patch.object(self.m.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, 'fc-cache')):
             with self.assertRaises(subprocess.CalledProcessError):
                 self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), changed)
-        self.assertTrue(all(not (p.parent / '.cache-ready').exists() for p in current))
+        self.assertTrue(all(not payload_source_exists(p.parent / '.cache-ready') for p in current))
         with mock.patch.object(self.m.subprocess, 'run') as run:
             self.m.font_cache(self.home, current, self.home / '.cache', self.m.policy_id(self.policy), False)
             run.assert_called_once()
@@ -195,7 +197,7 @@ class FontInstallTests(unittest.TestCase):
         source = self.generation(); current, _ = self.m.publish(self.home, source, self.policy)
         font = current[0] / 'FiraCode/font.ttf'; font.write_bytes(b'user-data')
         with self.assertRaises(ValueError): self.m.publish(self.home, source, self.policy)
-        self.assertEqual(font.read_bytes(), b'user-data')
+        self.assertEqual(payload_read_bytes(font), b'user-data')
 
     def test_unmanaged_config_is_not_replaced(self):
         config = self.home / '.config/fontconfig/conf.d/60-labwc-terminal-fonts.conf'
@@ -203,7 +205,7 @@ class FontInstallTests(unittest.TestCase):
         currents, changed = self.m.publish(self.home, self.generation(), self.policy)
         self.assertTrue(changed)
         self.assertTrue(all(p.is_dir() for p in currents))
-        self.assertEqual(config.read_bytes(), b'admin-config')
+        self.assertEqual(payload_read_bytes(config), b'admin-config')
 
     def test_symlink_home_component_refused(self):
         other = self.root / 'elsewhere'; other.mkdir()
@@ -237,9 +239,9 @@ class FontInstallTests(unittest.TestCase):
         share = self.home / '.local/share'; share.mkdir(parents=True)
         unrelated = share / 'unrelated'; unrelated.write_bytes(b'unchanged')
         self.m.prepare_user_parents(account)
-        self.assertEqual((self.home / '.local').stat().st_uid, account.pw_uid)
-        self.assertEqual(share.stat().st_uid, account.pw_uid)
-        self.assertEqual(unrelated.stat().st_uid, 0)
+        self.assertEqual(payload_source_stat(self.home / '.local').st_uid, account.pw_uid)
+        self.assertEqual(payload_source_stat(share).st_uid, account.pw_uid)
+        self.assertEqual(payload_source_stat(unrelated).st_uid, 0)
         self.m.prepare_user_parents(account)
 
     @unittest.skipUnless(os.geteuid() == 0, 'requires root ownership fixture')
@@ -250,7 +252,7 @@ class FontInstallTests(unittest.TestCase):
         other = self.root / 'outside'; other.mkdir()
         (self.home / '.local').symlink_to(other)
         with self.assertRaises(OSError): self.m.prepare_user_parents(account)
-        self.assertEqual(other.stat().st_uid, 0)
+        self.assertEqual(payload_source_stat(other).st_uid, 0)
         self.assertEqual(list(other.iterdir()), [])
 
     @unittest.skipUnless(os.geteuid() == 0 and shutil.which('fc-cache') and shutil.which('fc-list'), 'requires root privilege-drop fixture and real fontconfig')
@@ -258,7 +260,7 @@ class FontInstallTests(unittest.TestCase):
         candidates = sorted(Path('/usr/share/fonts').rglob('*.ttf'))
         if not candidates: self.skipTest('no system font available for a temporary fixture')
         # This file is used only in TemporaryDirectory, never in the source tree.
-        data = candidates[0].read_bytes()
+        data = payload_read_bytes(candidates[0])
         for item in self.policy:
             self.archives[item['name']] = self.archive(item['name'] + '.tar.xz', [('fixture.ttf', data, tarfile.REGTYPE)])
             item['sha256'] = self.m.digest(self.archives[item['name']])
@@ -269,7 +271,7 @@ class FontInstallTests(unittest.TestCase):
         config = self.home / '.config/fontconfig/conf.d'
         config.mkdir(parents=True)
         for path in (FORKY / 'hooks/target/etc/skel-desktop/.config/fontconfig/conf.d').iterdir():
-            shutil.copyfile(path, config / path.name)
+            payload_copyfile(path, config / path.name)
             (config / path.name).chmod(0o600)
         for path in self.home.rglob('*'):
             os.chown(path, account.pw_uid, account.pw_gid)
@@ -278,7 +280,7 @@ class FontInstallTests(unittest.TestCase):
         self.assertEqual(current.lstat().st_uid, account.pw_uid)
         for path in self.home.rglob('*'):
             self.assertEqual(path.lstat().st_uid, account.pw_uid)
-        result = subprocess.run(['/usr/bin/fc-list', '-f', '%{file}\n'],
+        result = subprocess.run(payload_installed_argv(['/usr/bin/fc-list', '-f', '%{file}\n']),
             env={'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home / '.local/share'),
                  'XDG_CONFIG_HOME': str(self.home / '.config'), 'XDG_CACHE_HOME': str(self.home / '.cache'),
                  'LC_ALL': 'C.UTF-8', 'PATH': '/usr/bin:/bin'},
@@ -292,14 +294,14 @@ class FontInstallTests(unittest.TestCase):
         self.assertEqual(len(profiles), 10)
         keys = ('FIRACODE', 'SYMBOLS', 'PROFONT', 'APTOS', 'MICROSOFT')
         for profile in profiles:
-            text = profile.read_text()
+            text = payload_read_text(profile)
             for key in keys:
                 self.assertEqual(text.count('LABWC_FONT_' + key + '_URL='), 1)
                 self.assertEqual(text.count('LABWC_FONT_' + key + '_SHA256='), 1)
-        self.assertIn('desktop_install_fonts', (FORKY / 'scripts/desktop/labwc.sh').read_text())
-        self.assertIn('fonts.sh', (FORKY / 'scripts/late/desktop.sh').read_text())
-        self.assertIn('fonts-install.py', (FORKY / 'scripts/desktop/fonts.sh').read_text())
-        self.assertIn('fonts.d/labwc-terminal-fonts', (FORKY / 'scripts/late/security.sh').read_text())
+        self.assertIn('desktop_install_fonts', payload_read_text(FORKY / 'scripts/desktop/labwc.sh'))
+        self.assertIn('fonts.sh', payload_read_text(FORKY / 'scripts/late/desktop.sh'))
+        self.assertIn('fonts-install.py', payload_read_text(FORKY / 'scripts/desktop/fonts.sh'))
+        self.assertIn('fonts.d/labwc-terminal-fonts', payload_read_text(FORKY / 'scripts/late/security.sh'))
 
     def test_closed_names_basename_and_hash_requirements(self):
         self.assertEqual(set(self.m.NAMES), {'FiraCode', 'NerdFontsSymbolsOnly', 'ProFont', 'MicrosoftAptosFonts', 'MicrosoftLocalFonts'})
@@ -316,8 +318,8 @@ class FontInstallTests(unittest.TestCase):
 
     def test_static_fontconfig_is_only_configuration_source(self):
         import xml.etree.ElementTree as ET
-        source = SOURCE.read_text()
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        source = payload_read_text(SOURCE)
+        components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         for name, directory in (('60-labwc-terminal-fonts.conf', 'icons/terminal-fonts/current'),
                                 ('61-microsoft-fonts.conf', 'fonts/microsoft-fonts/current')):
             path = FORKY / 'hooks/target/etc/skel-desktop/.config/fontconfig/conf.d' / name
@@ -385,11 +387,11 @@ class FontInstallTests(unittest.TestCase):
             destination = home / '.config/fontconfig/conf.d'
             destination.mkdir(parents=True, mode=0o700)
             for config in config_source.glob('*.conf'):
-                shutil.copyfile(config, destination / config.name)
+                payload_copyfile(config, destination / config.name)
                 (destination / config.name).chmod(0o644 if home == skel else 0o600)
         for path in (self.home, *self.home.rglob('*')):
             os.chown(path, account.pw_uid, account.pw_gid, follow_symlinks=False)
-        source = (FORKY / 'scripts/desktop/verify.sh').read_text().split('desktop_verify_font_publications() {', 1)[1]
+        source = payload_read_text(FORKY / 'scripts/desktop/verify.sh').split('desktop_verify_font_publications() {', 1)[1]
         code = source.split("/usr/bin/python3 -I -c '\n", 1)[1].split("\n' \"${ACCOUNT_HOME", 1)[0]
         rows = {row['name']: row for row in self.policy}
         argv = ['desktop-font-verifier', str(self.home), 'fixture-user', str(skel), str(self.cache)]
@@ -425,14 +427,14 @@ class FontInstallTests(unittest.TestCase):
     def test_desktop_verifier_rejects_wrong_fontconfig_and_unsafe_modes(self):
         verify = self.verification_fixture()
         config = self.home / '.config/fontconfig/conf.d/61-microsoft-fonts.conf'
-        original = config.read_bytes()
+        original = payload_read_bytes(config)
         config.write_bytes(original.replace(b'fonts/microsoft-fonts/current', b'icons/terminal-fonts/current'))
         with self.assertRaises(ValueError): verify()
         config.write_bytes(original); config.chmod(0o666)
         with self.assertRaises(ValueError): verify()
 
     def test_requested_debian_packages_present(self):
-        packages = (FORKY / 'classes/class-select/role/desktop.cfg').read_text().split()
+        packages = payload_read_text(FORKY / 'classes/class-select/role/desktop.cfg').split()
         for name in 'wtype fonts-liberation2 fonts-crosextra-carlito fonts-crosextra-caladea fonts-noto fonts-noto-cjk fonts-dejavu fonts-dejavu-extra fonts-noto-ui-core fonts-noto-ui-extra fonts-texgyre'.split():
             self.assertIn(name, packages)
 

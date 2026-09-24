@@ -1,5 +1,0 @@
-Command: python -B tools/build.py --check
-Browser artifacts current
-snapshot, pins and preseed are current
-
-The packaging generator was run to update payload.tar.gz, payload.manifest and preseed hash pins (1290 payload files). No native software was compiled.

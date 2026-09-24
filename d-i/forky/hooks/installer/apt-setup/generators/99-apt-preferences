@@ -200,6 +200,7 @@ target_is_mounted || fatal "target is not mounted during apt setup: $TARGET"
 install -d -m 0700 "$FETCH_DIR"
 install -d -m 0755 "$TARGET_DIR" "$TARGET_APT_CONF_DIR"
 stage_no_recommends_policy
+fetch_and_install_pref 00-excluded-desktop-apps.pref
 stage_configured_preferences
 stage_nvidia_opt_in_policy
 purge_target_cdrom_apt_sources

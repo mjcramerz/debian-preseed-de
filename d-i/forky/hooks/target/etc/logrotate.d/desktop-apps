@@ -1,0 +1,1 @@
+# Component lifecycle logs are rotated by /etc/logrotate.d/rsyslog.

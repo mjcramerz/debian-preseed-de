@@ -1,0 +1,19 @@
+# Operational messages from the managed AppArmor mode reconciler are distinct
+# from audit events so aa-logprof continues to consume only AppArmor records.
+
+if ($programname == "apparmor-modes") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_apparmor_modes_log"
+    type="omfile"
+    file="__INSTALLER_LOG_APPARMOR_MODES_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}

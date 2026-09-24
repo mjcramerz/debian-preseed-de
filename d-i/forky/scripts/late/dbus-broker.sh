@@ -517,7 +517,7 @@ configure_target_dbus_broker() {
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/dbus-broker-check)" /usr/local/libexec/dbus-broker-check 0755
   stage_target_dbus_session_service_aliases
   # Install the hook only AFTER the initial successful configuration.
-  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dpkg/dpkg.cfg.d/90-managed-dbus-broker)" /etc/dpkg/dpkg.cfg.d/90-managed-dbus-broker 0644
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dpkg/dpkg.cfg.d/90-dbus-broker)" /etc/dpkg/dpkg.cfg.d/90-dbus-broker 0644
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/dbus-1/system-local.conf.tmpl)" "${FILE_DBUS_SYSTEM_LOCAL_CONF}" 0644
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/dbus-broker.service.d/10-broker-hardening.conf.tmpl)" "${FILE_DBUS_SYSTEM_BROKER_SERVICE_OVERRIDE}" 0644
   render_dbus_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/user/dbus-broker.service.d/10-broker-hardening.conf.tmpl)" "${FILE_DBUS_USER_BROKER_SERVICE_OVERRIDE}" 0644

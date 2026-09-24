@@ -215,7 +215,7 @@ sub download {
         $manifest{"${manifest_key}_sha256"} = $self->storage->file_sha256($path);
     }
     $self->manifest->write(
-        File::Spec->catfile($partial_path, '.managed-firmware'),
+        File::Spec->catfile($partial_path, '.firmware'),
         \%manifest,
     );
 
@@ -337,7 +337,7 @@ sub load_managed_firmware {
         "Samsung firmware must be selected from the managed firmware root: $firmware_root",
     );
 
-    my $manifest_path = File::Spec->catfile($directory, '.managed-firmware');
+    my $manifest_path = File::Spec->catfile($directory, '.firmware');
     my $manifest = $self->manifest->read($manifest_path);
     require_value(
         $self->manifest->value($manifest, 'format')

@@ -9,7 +9,7 @@ Host gitlab.com github.com
   IdentitiesOnly yes
   BatchMode yes
   StrictHostKeyChecking yes
-  UserKnownHostsFile /etc/ssh/managed_git_known_hosts
+  UserKnownHostsFile /etc/ssh/git_known_hosts
   GlobalKnownHostsFile /dev/null
   UpdateHostKeys no
   ForwardAgent no

@@ -4,6 +4,8 @@ Broker fragments below are reduced fixtures for documented upstream ordering,
 not a claim to have run the target's dbus-broker or systemd 261.2 binaries.
 """
 from __future__ import annotations
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 import os
 from pathlib import Path
@@ -47,9 +49,9 @@ class BrokerStopPolicyTests(unittest.TestCase):
                                override='SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE=' + io)
                     for rel in DESTS:
                         p = target / rel
-                        self.assertEqual(active(p.read_text()), ['[Service]', 'TimeoutStopSec=30s'])
-                        self.assertEqual(p.stat().st_mode & 0o777, 0o644)
-                        self.assertEqual(p.parent.stat().st_mode & 0o777, 0o755)
+                        self.assertEqual(active(payload_read_text(p)), ['[Service]', 'TimeoutStopSec=30s'])
+                        self.assertEqual(payload_source_stat(p).st_mode & 0o777, 0o644)
+                        self.assertEqual(payload_source_stat(p.parent).st_mode & 0o777, 0o755)
                     self.assertFalse(list(target.rglob('.installer-asset.*')))
                     self.assertFalse(list(target.rglob('*.wants')))
 
@@ -60,7 +62,7 @@ class BrokerStopPolicyTests(unittest.TestCase):
                 self.shell('stage_target_dbus_broker_stop_policy', tmp=tmp,
                            override=f'DBUS_BROKER_TIMEOUT_STOP_SEC={seconds}')
                 for rel in DESTS:
-                    self.assertEqual(active((target / rel).read_text()),
+                    self.assertEqual(active(payload_read_text(target / rel)),
                                      ['[Service]', f'TimeoutStopSec={seconds}s'])
             self.assertFalse(list(target.rglob('.installer-asset.*')))
 
@@ -70,14 +72,14 @@ class BrokerStopPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'target'; target.mkdir()
             self.shell('stage_target_dbus_broker_stop_policy', tmp=tmp)
-            before = {rel: (target / rel).read_bytes() for rel in DESTS}
+            before = {rel: payload_read_bytes(target / rel) for rel in DESTS}
             for value in invalid:
                 with self.subTest(value=value):
                     result = self.shell('stage_target_dbus_broker_stop_policy', tmp=tmp,
                         override='DBUS_BROKER_TIMEOUT_STOP_SEC=' + shlex.quote(value), check=False)
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn('canonical seconds in 5..120', result.stderr)
-                    self.assertEqual({rel: (target / rel).read_bytes() for rel in DESTS}, before)
+                    self.assertEqual({rel: payload_read_bytes(target / rel) for rel in DESTS}, before)
                     self.assertFalse(list(target.rglob('.installer-asset.*')))
 
     def test_broker_publisher_uses_policy_before_offline_enablement(self):
@@ -95,40 +97,40 @@ enable_target_dbus_broker_units() {
 configure_target_dbus_broker
 ''', tmp=tmp)
             for rel in DESTS:
-                self.assertEqual(active((target / rel).read_text()), ['[Service]', 'TimeoutStopSec=30s'])
-            self.assertTrue((target / 'etc/dbus-1/system-local.conf').exists())
+                self.assertEqual(active(payload_read_text(target / rel)), ['[Service]', 'TimeoutStopSec=30s'])
+            self.assertTrue(payload_source_exists(target / 'etc/dbus-1/system-local.conf'))
             for scope in ('system', 'user'):
                 hardening = target / f'etc/systemd/{scope}/dbus-broker.service.d/10-broker-hardening.conf'
-                self.assertNotIn('__INSTALLER_', hardening.read_text())
+                self.assertNotIn('__INSTALLER_', payload_read_text(hardening))
 
     def test_failed_fetch_does_not_overwrite_existing_broker_dropin(self):
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'target'; target.mkdir()
             self.shell('stage_target_dbus_broker_stop_policy', tmp=tmp)
-            before = {rel: (target / rel).read_bytes() for rel in DESTS}
+            before = {rel: payload_read_bytes(target / rel) for rel in DESTS}
             result = self.shell('fetch_hook() { return 1; }\nstage_target_dbus_broker_stop_policy',
                                 tmp=tmp, override='DBUS_BROKER_TIMEOUT_STOP_SEC=45', check=False)
             self.assertNotEqual(result.returncode, 0)
-            self.assertEqual({rel: (target / rel).read_bytes() for rel in DESTS}, before)
+            self.assertEqual({rel: payload_read_bytes(target / rel) for rel in DESTS}, before)
             self.assertFalse(list(target.rglob('.installer-asset.*')))
 
     def test_no_global_watchdog_or_user_manager_timeout_overrides(self):
         # Those policies need host evidence, not process-name-based guesses.
         for directory in ('etc/systemd/system.conf.d', 'etc/systemd/user.conf.d',
                           'etc/systemd/system/user@.service.d'):
-            for p in (base.TARGET / directory).glob('*.conf'):
-                self.assertNotRegex('\n'.join(active(p.read_text())),
+            for p in (base.TARGET / directory).glob('*.conf*'):
+                self.assertNotRegex('\n'.join(active(payload_read_text(p))),
                     r'(?m)^(?:RuntimeWatchdogSec|RebootWatchdogSec|KExecWatchdogSec|'
                     r'DefaultTimeoutStopSec|TimeoutStopSec|JobTimeoutSec|JobTimeoutAction)=')
         for rel in DESTS:
             source = base.TARGET / (rel + '.tmpl')
-            self.assertEqual(active(source.read_text()),
+            self.assertEqual(active(payload_read_text(source)),
                 ['[Service]', 'TimeoutStopSec=__INSTALLER_DBUS_BROKER_TIMEOUT_STOP_SEC__s'])
         self.assertFalse(list(base.TARGET.rglob('dbus-broker-lau.service*')))
 
     def test_offline_effective_broker_timeout_kill_mode_and_ordering(self):
         binary = Path('/usr/lib/systemd/systemd')
-        if not binary.is_file() or os.geteuid() != 0:
+        if not payload_source_is_file(binary) or os.geteuid() != 0:
             self.skipTest('offline manager fixture requires systemd and root to drop privileges')
         for scope in ('system', 'user'):
             with self.subTest(scope=scope), tempfile.TemporaryDirectory() as tmp:
@@ -137,7 +139,7 @@ configure_target_dbus_broker
                 self.shell('stage_target_dbus_broker_stop_policy', tmp=tmp)
                 units = root / 'units'; units.mkdir()
                 drop = units / 'dbus-broker.service.d'; drop.mkdir()
-                shutil.copyfile(target / f'etc/systemd/{scope}/dbus-broker.service.d/60-stop-timeout.conf',
+                payload_copyfile(target / f'etc/systemd/{scope}/dbus-broker.service.d/60-stop-timeout.conf',
                                 drop / '60-stop-timeout.conf')
                 # Upstream broker ordering + a harmless executable substitute.
                 (units / 'dbus-broker.service').write_text('''[Unit]
@@ -175,7 +177,7 @@ ExecStart=/usr/bin/true
                     SYSTEMD_LOG_LEVEL='warning', SYSTEMD_LOG_TARGET='console')
                 def drop_privileges():
                     os.setgroups([]); os.setgid(65534); os.setuid(65534)
-                result=subprocess.run([str(binary), '--user', '--test', '--unit=r5-test.target'],
+                result=subprocess.run(payload_installed_argv([str(binary), '--user', '--test', '--unit=r5-test.target']),
                     env=env, preexec_fn=drop_privileges, text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertNotRegex(result.stderr, r'Unknown (key|section)|Failed to parse|ordering cycle')
@@ -193,7 +195,7 @@ ExecStart=/usr/bin/true
                     self.assertRegex(broker, r'(?m)^\s*Slice: session.slice$')
 
     def test_target_verifier_requires_new_files_in_skeleton_and_home(self):
-        source=(base.SEED/'scripts/desktop/verify.sh').read_text()
+        source=payload_read_text(base.SEED/'scripts/desktop/verify.sh')
         for name in ('app-.scope', 'waybar.service', 'crystal-dock.service'):
             leaf=name+'.d/60-resource-class.conf'
             self.assertIn('/etc/skel-desktop/.config/systemd/user/'+leaf, source)

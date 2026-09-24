@@ -1,4 +1,8 @@
 """Categorization/selection unit tests and real unprivileged GIO XDG probes."""
+from payload_fixture import waybar_config_text
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_path as payload_source_path, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes
 import ctypes
 import json
 import os
@@ -22,7 +26,7 @@ PROBE = Path(__file__).with_name('gio_desktop_fixture.py')
 
 def load(path):
     module = types.ModuleType('tested_menu'); module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -78,7 +82,7 @@ class MenuUnitTests(unittest.TestCase):
         with mock.patch.object(self.menu.subprocess, 'run', return_value=result) as run:
             self.assertEqual(self.menu.choose({'Allowed': 'id'}, 'Main Menu'), 'Allowed')
         args, kw = run.call_args
-        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'main-menu', '--dmenu'])
+        self.assertEqual(args[0][:3], ['/usr/local/bin/labwc-fuzzel', 'menu', '--dmenu'])
         self.assertEqual(kw['input'], 'Allowed\0icon\x1fapplication-x-executable\n')
         self.assertEqual(kw['env']['LABWC_FUZZEL_MANAGED_ICONS'], '0')
         self.assertNotIn('shell', kw)
@@ -148,15 +152,15 @@ class IntegrationContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); binary = root / 'labwc-fuzzel'
             binary.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n'); binary.chmod(0o755)
-            source = (TARGET / 'usr/local/bin/labwc-run').read_text()
-            source = source.replace('/etc/default/labwc-desktop', str(root / 'absent-defaults'))
-            result = subprocess.run(['/bin/sh', '-c', source], env={'PATH': str(root) + ':/usr/bin:/bin'},
+            source = render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-run'))
+            source = source.replace('/etc/labwc/desktop.conf', str(root / 'absent-defaults'))
+            result = subprocess.run(payload_installed_argv(['/bin/sh', '-c', source]), env={'PATH': str(root) + ':/usr/bin:/bin'},
                                     text=True, capture_output=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, 'launcher\n')
 
     def test_waybar_menu_keeps_transient_service_contract_and_search_keys_stay_search(self):
-        text = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        text = render_theme_defaults(waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar'))
         clicks = re.findall(r'"on-click": "([^"]* -- labwc-main-menu)"', text)
         self.assertEqual(len(clicks), 2)
         for click in clicks:
@@ -166,7 +170,7 @@ class IntegrationContractTests(unittest.TestCase):
                              '--property=KillMode=control-group', '--property=TimeoutStopSec=20s',
                              '--setenv=WAYBAR_OUTPUT_NAME'):
                 self.assertIn(argument, click)
-        rc = (TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl').read_text()
+        rc = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/labwc/rc.xml.tmpl'))
         self.assertIn('labwc-run', rc)
         import xml.etree.ElementTree as ET
         bindings = {item.get('key'): item for item in ET.fromstring(rc).findall('keyboard/keybind')}
@@ -176,45 +180,45 @@ class IntegrationContractTests(unittest.TestCase):
             self.assertEqual(bindings[key].find('action').get('command'), 'labwc-run')
 
     def test_root_user_watchers_and_shared_thin_dpkg_engine_are_separate(self):
-        root = (TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.path').read_text()
+        root = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.path'))
         self.assertIn('PathChanged=/usr/share/applications', root)
         self.assertNotIn('/usr/local/share/applications', root); self.assertNotIn('/home', root)
-        service = (TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.service').read_text()
+        service = render_theme_defaults(payload_read_text(TARGET / 'etc/systemd/system/labwc-system-desktop-overrides.service'))
         self.assertIn('Type=oneshot', service); self.assertIn('ExecStart=/usr/local/libexec/labwc-wrap-desktop-files', service)
         for directive in ('NoNewPrivileges=yes', 'ProtectHome=yes', 'ProtectSystem=strict', 'CapabilityBoundingSet='):
             self.assertIn(directive, service)
-        user = (TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path').read_text()
+        user = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-sync-application-launchers.path'))
         self.assertNotIn('.local/share/applications', user)
-        hook = (TARGET / 'etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps').read_text()
+        hook = render_theme_defaults(payload_read_text(TARGET / 'etc/dpkg/dpkg.cfg.d/95-labwc-desktop-apps'))
         self.assertIn('labwc-wrap-desktop-files --post-invoke', hook)
         self.assertNotIn('systemctl', hook)
 
     def test_actual_installation_staging_enablement_initial_run_and_dependency(self):
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        components = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
         self.assertIn('usr/local/bin/labwc-main-menu /usr/local/bin/labwc-main-menu 0755', components)
         for name in ('labwc-system-desktop-overrides.service', 'labwc-system-desktop-overrides.path'):
             self.assertIn(f'etc/systemd/system/{name} /etc/systemd/system/{name} 0644', components)
             self.assertIn(f'desktop_enable_unit_if_available {name} system', components)
-        late = (FORKY / 'scripts/desktop/labwc.sh').read_text()
+        late = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/labwc.sh'))
         self.assertIn('run_in_target "wrap installed desktop package launchers" /usr/local/libexec/labwc-wrap-desktop-files', late)
         self.assertIn('gi.require_version("GioUnix", "2.0")', late)
-        packages = '\n'.join(path.read_text(errors='replace') for path in (FORKY / 'classes').rglob('*') if path.is_file())
+        packages = '\n'.join(render_theme_defaults(payload_read_text(path, errors='replace')) for path in (FORKY / 'classes').rglob('*') if payload_source_is_file(path))
         self.assertIn('python3-gi', packages); self.assertIn('desktop-file-utils', packages)
 
     def test_waypaper_profile_rendering_isolation_persistence_and_native_xml(self):
-        template = (TARGET / 'etc/skel-desktop/.local/share/applications/waypaper.desktop.tmpl').read_text()
+        template = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.local/share/applications/waypaper.desktop.tmpl'))
         self.assertIn('\nExec=__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__ -- /usr/local/bin/waypaper\n', template)
         for mode in ('intel', 'nvidia', 'launch'):
             rendered = template.replace('__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__', '/usr/local/bin/labwc-wayland-app ' + mode)
             self.assertIn(f'Exec=/usr/local/bin/labwc-wayland-app {mode} -- /usr/local/bin/waypaper', rendered)
         for source in ('components.sh', 'waypaper.sh'):
             self.assertIn('LABWC_WAYLAND_APP_DEFAULT_EXEC "$LABWC_WAYLAND_APP_DEFAULT_EXEC"',
-                          (FORKY / 'scripts/desktop' / source).read_text())
-        config = (TARGET / 'etc/skel-desktop/.config/waypaper/config.ini').read_text()
+                          render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop' / source)))
+        config = render_theme_defaults(payload_read_text(TARGET / 'etc/skel-desktop/.config/waypaper/config.ini'))
         self.assertIn('labwc-wallpaper-save --apply', config)
-        self.assertIn('labwc-wallpaper-control save', (TARGET / 'usr/local/bin/labwc-wallpaper-save').read_text())
-        self.assertIn('swaybg.service', (TARGET / 'usr/local/libexec/labwc-wallpaper-control').read_text())
-        tree = ET.parse(TARGET / 'etc/skel-desktop/.config/labwc/menu.xml')
+        self.assertIn('labwc-wallpaper-control save', render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-wallpaper-save')))
+        self.assertIn('swaybg.service', render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-wallpaper-control')))
+        tree = ET.parse(payload_source_path(TARGET / 'etc/skel-desktop/.config/labwc/menu.xml'))
         self.assertEqual(tree.getroot().tag, 'openbox_menu')
         self.assertTrue(any('labwc-wayland-app auto -- /usr/local/bin/waypaper' in item.attrib.get('command', '')
                             for item in tree.iter('action')))
@@ -230,10 +234,10 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertEqual(sync.SYSTEM_APPLICATION_DIR, '/usr/share/applications')
 
     def test_menu_apparmor_is_readonly_for_xdg_data_and_uses_existing_launch_domain(self):
-        profiles = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        menu = profiles.split('profile managed-labwc-main-menu ', 1)[1]
-        self.assertIn('gio-launch-desktop rPx -> managed-desktop-launcher', menu)
-        self.assertIn('managed-labwc-fuzzel', menu)
+        profiles = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers'))
+        menu = profiles.split('profile labwc-main-menu ', 1)[1]
+        self.assertIn('gio-launch-desktop rPx -> desktop-launcher', menu)
+        self.assertIn('labwc-fuzzel', menu)
         self.assertNotIn(' Ux', menu); self.assertNotIn(' ux', menu)
         for line in menu.splitlines():
             if 'applications/' in line: self.assertTrue(line.rstrip().endswith(' r,'), line)
@@ -242,12 +246,12 @@ class IntegrationContractTests(unittest.TestCase):
     def test_all_project_desktop_entries_validate_after_template_rendering(self):
         with tempfile.TemporaryDirectory() as directory:
             for index, source in enumerate(sorted(TARGET.rglob('*.desktop')) + sorted(TARGET.rglob('*.desktop.tmpl'))):
-                text = source.read_text()
+                text = render_theme_defaults(payload_read_text(source))
                 text = text.replace('__INSTALLER_LABWC_WAYLAND_APP_DEFAULT_EXEC__', '/usr/local/bin/labwc-wayland-app intel')
-                text = text.replace('__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__', '/usr/local/bin/labwc-managed-app intel')
+                text = text.replace('__INSTALLER_LABWC_MANAGED_APP_DEFAULT_EXEC__', '/usr/local/bin/labwc-app intel')
                 if '__INSTALLER_' in text: continue  # non-application session templates are checked by the installer
                 target = Path(directory) / f'{index}.desktop'; target.write_text(text)
-                result = subprocess.run(['desktop-file-validate', str(target)], text=True, capture_output=True, timeout=5)
+                result = subprocess.run(payload_installed_argv(['desktop-file-validate', str(target)]), text=True, capture_output=True, timeout=5)
                 self.assertEqual(result.returncode, 0, f'{source}: {result.stdout} {result.stderr}')
 
 
@@ -262,7 +266,7 @@ class UserSyncXdgTests(unittest.TestCase):
         self.home = self.root / 'home'; self.home.mkdir(mode=0o755)
         if os.geteuid() == 0: os.chown(self.home, self.uid, self.gid)
         self.source = self.root / 'sync'
-        self.source.write_bytes((TARGET / 'usr/local/bin/labwc-sync-application-launchers').read_bytes())
+        self.source.write_bytes(render_theme_bytes(payload_read_bytes(TARGET / 'usr/local/bin/labwc-sync-application-launchers')))
         self.source.chmod(0o644)
 
     def invoke(self, data_home):
@@ -274,7 +278,7 @@ path = module.ensure_application_directory(sys.argv[2], os.getuid(), os.getgid()
 print(json.dumps({'path': path, 'uid': os.geteuid(), 'mode': os.stat(path).st_mode & 0o777}))
 """
         options = {'user': self.uid, 'group': self.gid, 'extra_groups': []} if os.geteuid() == 0 else {}
-        return subprocess.run(['/usr/bin/python3', '-I', '-c', code, str(self.source), str(self.home)],
+        return subprocess.run(payload_installed_argv(['/usr/bin/python3', '-I', '-c', code, str(self.source), str(self.home)]),
             env=dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=data_home),
             capture_output=True, text=True, timeout=5, **options)
 
@@ -283,25 +287,25 @@ print(json.dumps({'path': path, 'uid': os.geteuid(), 'mode': os.stat(path).st_mo
         result = self.invoke(str(data)); self.assertEqual(result.returncode, 0, result.stderr)
         actual = json.loads(result.stdout)
         self.assertEqual(actual, {'path': str(data / 'applications'), 'uid': self.uid, 'mode': 0o700})
-        self.assertFalse((self.home / '.local/share/applications').exists())
+        self.assertFalse(payload_source_exists(self.home / '.local/share/applications'))
         self.assertEqual(self.invoke(str(data)).returncode, 0)
 
     def test_existing_custom_parent_permissions_are_not_relaxed_or_rewritten(self):
         data = self.home / 'data'; data.mkdir(mode=0o750)
         if os.geteuid() == 0: os.chown(data, self.uid, self.gid)
-        before = (data.stat().st_mode, self.home.stat().st_mode)
+        before = (payload_source_stat(data).st_mode, payload_source_stat(self.home).st_mode)
         result = self.invoke(str(data)); self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((data.stat().st_mode, self.home.stat().st_mode), before)
+        self.assertEqual((payload_source_stat(data).st_mode, payload_source_stat(self.home).st_mode), before)
 
     def test_symlink_and_shared_writable_data_roots_are_rejected(self):
         data = self.home / 'data'; data.mkdir(mode=0o755)
         if os.geteuid() == 0: os.chown(data, self.uid, self.gid)
         link = self.home / 'link'; link.symlink_to(data, target_is_directory=True)
         self.assertNotEqual(self.invoke(str(link)).returncode, 0)
-        self.assertFalse((data / 'applications').exists())
+        self.assertFalse(payload_source_exists(data / 'applications'))
         data.chmod(0o777)
         self.assertNotEqual(self.invoke(str(data)).returncode, 0)
-        self.assertFalse((data / 'applications').exists())
+        self.assertFalse(payload_source_exists(data / 'applications'))
 
     def test_relative_data_home_uses_standard_default(self):
         result = self.invoke('relative/path'); self.assertEqual(result.returncode, 0, result.stderr)
@@ -320,7 +324,7 @@ class RealGioSemanticTests(unittest.TestCase):
         self.menu_source = self.root / 'labwc-main-menu'
         self.probe_source = self.root / 'gio_desktop_fixture.py'
         for source, destination in ((MENU, self.menu_source), (PROBE, self.probe_source)):
-            destination.write_bytes(source.read_bytes()); destination.chmod(0o644)
+            destination.write_bytes(render_theme_bytes(payload_read_bytes(source))); destination.chmod(0o644)
         self.home = self.root / 'home'; self.home.mkdir(mode=0o755)
         self.data = self.root / 'user-data'; self.local = self.root / 'system-local'; self.vendor = self.root / 'system-vendor'
         for directory in (self.data, self.local, self.vendor): (directory / 'applications').mkdir(parents=True)
@@ -330,7 +334,7 @@ class RealGioSemanticTests(unittest.TestCase):
                         DBUS_SESSION_BUS_ADDRESS='unix:path=/nonexistent')
         self.identity = dict(user=65534, group=65534, extra_groups=[]) if os.geteuid() == 0 else {}
         try:
-            result = subprocess.run(['/usr/bin/id', '-u'], capture_output=True, text=True, timeout=5, **self.identity)
+            result = subprocess.run(payload_installed_argv(['/usr/bin/id', '-u']), capture_output=True, text=True, timeout=5, **self.identity)
         except OSError as exc: self.skipTest(f'unprivileged fixture unavailable: {exc}')
         self.uid = int(result.stdout)
         self.assertNotEqual(self.uid, 0)
@@ -342,7 +346,7 @@ class RealGioSemanticTests(unittest.TestCase):
         return path
 
     def probe(self, command='--list', pygi=False):
-        result = subprocess.run(['/usr/bin/python3', '-B', str(self.probe_source), str(self.menu_source), command] + ([] if pygi else ['--ctypes']),
+        result = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-B', str(self.probe_source), str(self.menu_source), command] + ([] if pygi else ['--ctypes'])),
                                 text=True, capture_output=True, env=self.env, timeout=10, **self.identity)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout) if command == '--list' else result
@@ -408,7 +412,7 @@ class RealGioSemanticTests(unittest.TestCase):
 
     def test_missing_categories_and_unknown_categories_are_other(self):
         self.write(name='unknown.desktop', categories='X-Something;')
-        path = self.write(name='absent.desktop'); path.write_text(path.read_text().replace('Categories=Utility;\n', ''))
+        path = self.write(name='absent.desktop'); path.write_text(render_theme_defaults(payload_read_text(path)).replace('Categories=Utility;\n', ''))
         self.assertEqual({app['category'] for app in self.probe()}, {'Other'})
 
     def test_all_display_categories_and_single_assignment_using_fixture_applications(self):
@@ -458,15 +462,15 @@ class RealGioSemanticTests(unittest.TestCase):
         self.write(self.data, title=title, exec_value=f'"{executable}" %c %% %F %u')
         self.probe('--launch=app.desktop')
         deadline = time.monotonic() + 3
-        while not result_path.exists() and time.monotonic() < deadline: time.sleep(0.01)
-        self.assertTrue(result_path.exists())
-        launched = json.loads(result_path.read_text())
+        while not payload_source_exists(result_path) and time.monotonic() < deadline: time.sleep(0.01)
+        self.assertTrue(payload_source_exists(result_path))
+        launched = json.loads(render_theme_defaults(payload_read_text(result_path)))
         self.assertEqual(launched['uid'], self.uid); self.assertEqual(launched['args'], [title, '%'])
-        self.assertFalse(marker.exists())
+        self.assertFalse(payload_source_exists(marker))
 
     def test_pygi_binding_runs_the_same_production_discovery_when_available(self):
-        check = subprocess.run(['/usr/bin/python3', '-I', '-c',
-                                'import gi; gi.require_version("GioUnix", "2.0"); from gi.repository import GioUnix'],
+        check = subprocess.run(payload_installed_argv(['/usr/bin/python3', '-I', '-c',
+                                'import gi; gi.require_version("GioUnix", "2.0"); from gi.repository import GioUnix']),
                                capture_output=True, text=True, timeout=5)
         if check.returncode: self.skipTest('python3-gi/GioUnix typelib unavailable on test host')
         self.write(); self.assertEqual(self.probe(pygi=True), self.probe())

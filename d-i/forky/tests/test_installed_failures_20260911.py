@@ -4,6 +4,9 @@ Audit coverage checks the scoped source rules and masks, not kernel enforcement.
 No test starts host services, rewrites installed applications or loads policy.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import python_library
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 from collections import Counter
 from contextlib import ExitStack
@@ -22,7 +25,7 @@ from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
-PACKAGE = TARGET / 'usr/local/lib/python3.14/dist-packages'
+PACKAGE = python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 sys.path.insert(0, str(PACKAGE))
 from labwc_managed_app import runtime, session
 
@@ -31,7 +34,7 @@ def load_sync():
     path = TARGET / 'usr/local/bin/labwc-sync-application-launchers'
     module = types.ModuleType('installed_failure_sync')
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -55,14 +58,14 @@ class AutostartPermissionTests(unittest.TestCase):
 
     def test_private_owner_created_0660_is_adopted_as_0600(self):
         self.assertTrue(self.adopt())
-        self.assertEqual(stat.S_IMODE(self.file.stat().st_mode), 0o600)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.file).st_mode), 0o600)
         self.assertFalse(self.adopt())
 
     def test_hardlink_is_not_adopted(self):
         os.link(self.file, self.parent / 'other')
         with self.assertRaises(RuntimeError):
             self.adopt()
-        self.assertEqual(stat.S_IMODE(self.file.stat().st_mode), 0o660)
+        self.assertEqual(stat.S_IMODE(payload_source_stat(self.file).st_mode), 0o660)
 
     def test_group_accessible_parent_is_not_adopted(self):
         self.parent.chmod(0o770)
@@ -133,15 +136,15 @@ class SessionOwnershipTests(unittest.TestCase):
         self.assertEqual(command, [session.CHATGPT_SESSION_PATH, 'intel', 'a b', '$HOME'])
         self.assertIn('--pipe', argv)
         self.assertIn('--wait', argv)
-        policy = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        block = policy.split('profile managed-labwc-chatgpt-session ', 1)[1].split('\nprofile ', 1)[0]
-        self.assertIn('/usr/local/bin/labwc-managed-app rPx -> managed-labwc-chatgpt,', block)
-        stub = (TARGET / 'usr/local/libexec/labwc-chatgpt-session').read_text()
-        self.assertIn('exec /usr/local/bin/labwc-managed-app "$mode" chatgpt "$@"', stub)
+        policy = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        block = policy.split('profile labwc-chatgpt-session ', 1)[1].split('\nprofile ', 1)[0]
+        self.assertIn('/usr/local/bin/labwc-app rPx -> labwc-chatgpt,', block)
+        stub = payload_read_text(TARGET / 'usr/local/libexec/labwc-chatgpt-session')
+        self.assertIn('exec /usr/local/bin/labwc-app "$mode" chatgpt "$@"', stub)
         self.assertNotIn('log-runner', stub)
         self.assertNotIn('/dev/null', stub)
         self.assertIn('usr/local/libexec/labwc-chatgpt-session /usr/local/libexec/labwc-chatgpt-session 0755',
-                      (FORKY / 'scripts/desktop/components.sh').read_text())
+                      payload_read_text(FORKY / 'scripts/desktop/components.sh'))
 
     def test_host_namespace_also_isolates_normal_apps(self):
         call = self.launch(owner=0)
@@ -204,34 +207,34 @@ ensure_target_asset_parent /usr/local/share/icons/test.png
 ensure_target_asset_parent /private/subdir/data
 [ "$(umask)" = 0077 ]
 '''
-            result = subprocess.run([busybox, 'ash', '-c', script, 'test', str(root),
-                                     str(FORKY / 'scripts/late/target-assets.sh')],
+            result = subprocess.run(payload_installed_argv([busybox, 'ash', '-c', script, 'test', str(root),
+                                     str(FORKY / 'scripts/late/target-assets.sh')]),
                                     env={**os.environ, 'BUSYBOX': busybox}, capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             for relative in ('usr', 'usr/local', 'usr/local/share', 'usr/local/share/icons'):
-                self.assertEqual(stat.S_IMODE((root / relative).stat().st_mode), 0o755)
-            self.assertEqual(stat.S_IMODE(private.stat().st_mode), 0o700)
+                self.assertEqual(stat.S_IMODE(payload_source_stat(root / relative).st_mode), 0o755)
+            self.assertEqual(stat.S_IMODE(payload_source_stat(private).st_mode), 0o700)
 
     def test_global_portals_do_not_require_account_local_compositor(self):
         for name in ('xdg-desktop-portal', 'xdg-desktop-portal-gtk', 'xdg-desktop-portal-wlr', 'xdg-desktop-portal-lxqt'):
-            text = (TARGET / f'etc/systemd/user/{name}.service.d/10-labwc-session.conf').read_text()
+            text = payload_read_text(TARGET / f'etc/systemd/user/{name}.service.d/10-labwc-session.conf')
             self.assertNotIn('BindsTo=labwc-compositor.service', text)
             self.assertIn('ConditionEnvironment=LABWC_SESSION_OWNER=desktop', text)
             self.assertIn('PartOf=labwc-session.target', text)
-        self.assertIn('GDK_DEBUG=no-portals', (TARGET / 'usr/local/bin/labwc-greeter-session.tmpl').read_text())
+        self.assertIn('GDK_DEBUG=no-portals', payload_read_text(TARGET / 'usr/local/bin/labwc-greeter-session.tmpl'))
 
     def test_bitwarden_managed_policy_is_wired_without_transformer(self):
-        software = (FORKY / 'scripts/late/software.sh').read_text()
-        cli = (TARGET / 'usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/CLI.pm').read_text()
-        bitwarden_path = TARGET / 'usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Bitwarden.pm'
-        self.assertTrue(bitwarden_path.is_file())
-        bitwarden = bitwarden_path.read_text()
-        self.assertNotIn('managed-bitwarden-package', software)
-        self.assertIn('ExternalSoftware/Servicing/Bitwarden.pm', software)
-        self.assertIn('use ExternalSoftware::Servicing::Bitwarden;', cli)
+        software = payload_read_text(FORKY / 'scripts/late/software.sh')
+        cli = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/CLI.pm')
+        bitwarden_path = TARGET / 'usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Bitwarden.pm'
+        self.assertTrue(payload_source_is_file(bitwarden_path))
+        bitwarden = payload_read_text(bitwarden_path)
+        self.assertNotIn('x-bitwarden-package', software)
+        self.assertIn('APTRepoLocal/Servicing/Bitwarden.pm', software)
+        self.assertIn('use APTRepoLocal::Servicing::Bitwarden;', cli)
         self.assertRegex(
             cli,
-            r'return ExternalSoftware::Servicing::Bitwarden->new\(\)->policy_valid\(\)\s+'
+            r'return APTRepoLocal::Servicing::Bitwarden->new\(\)->policy_valid\(\)\s+'
             r"if \$app->\{name\} eq 'bitwarden';",
         )
         self.assertIn('sub policy_valid', bitwarden)
@@ -244,46 +247,46 @@ ensure_target_asset_parent /private/subdir/data
             'labwc-kwallet-portal.service',
             'org.freedesktop.secrets',
             '/etc/apparmor.d/opt.Bitwarden.bitwarden',
-            'profile managed-ksecretd',
+            'profile ksecretd',
         ):
             self.assertIn(fragment, bitwarden)
         self.assertRegex(software, r'software_install_deb\s+\\\n\s*"Bitwarden Desktop"\s+\\\n\s*"\$bitwarden_deb"')
-        self.assertFalse((TARGET / 'usr/local/libexec/managed-bitwarden-package').exists())
-        self.assertNotIn('managed-bitwarden-package',
-                         (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text())
+        self.assertFalse(payload_source_exists(TARGET / 'usr/local/libexec/x-bitwarden-package'))
+        self.assertNotIn('x-bitwarden-package',
+                         payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers'))
         self.assertIn('vendor_sha256', cli)
         self.assertIn('$vendor_installed &&', cli)
-        repository = (TARGET / 'usr/local/lib/perl5/site_perl/external-managed-software/ExternalSoftware/Servicing/Repository.pm').read_text()
+        repository = payload_read_text(TARGET / 'usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Repository.pm')
         self.assertIn('next if !$self->bitwarden_vendor_digest_matches(', repository)
-        engine = (TARGET / 'usr/local/libexec/local-apt-repository').read_text()
+        engine = payload_read_text(TARGET / 'usr/local/libexec/apt-repo-local')
         self.assertIn('payload_path == path', engine)
         self.assertIn('.vendor-sha256', engine)
         self.assertIn('immutable pool object failed its digest check', engine)
 
     def test_misc_failure_contracts(self):
         templates = TARGET / 'data/config/podman/templates/devops'
-        reboot = (templates / 'podman-devops-restart.service.tmpl').read_text()
+        reboot = payload_read_text(templates / 'podman-devops-restart.service.tmpl')
         self.assertIn('stop --all --ignore --time 20', reboot)
         self.assertNotIn('stop --service', reboot)
-        self.assertIn('podman --remote=false', (templates / 'podman-devops.service.tmpl').read_text())
-        self.assertIn('--skip-read-cache --write-cache', (TARGET / 'etc/systemd/system/mullvad-apparmor.service').read_text())
-        network = (FORKY / 'scripts/late/managed-network-generate.pl').read_text()
+        self.assertIn('podman --remote=false', payload_read_text(templates / 'podman-devops.service.tmpl'))
+        self.assertIn('--skip-read-cache --write-cache', payload_read_text(TARGET / 'etc/systemd/system/mullvad-apparmor.service'))
+        network = payload_read_text(FORKY / 'scripts/late/templates/network/inet6.tmpl')
         self.assertIn('keep_addr_on_down=1', network)
-        components = (FORKY / 'scripts/desktop/components.sh').read_text()
+        components = payload_read_text(FORKY / 'scripts/desktop/components.sh')
         self.assertIn('find "$account_home/.config/systemd/user" -xdev -type f -exec chmod 0600 {} +', components)
         for app in ('labwc-tweaks', 'hyprpolkitagent'):
-            text = (TARGET / f'usr/local/share/applications/{app}.desktop').read_text()
+            text = payload_read_text(TARGET / f'usr/local/share/applications/{app}.desktop')
             self.assertIn(f'StartupWMClass={app}', text)
 
 
 class RecordedAppArmorCoverageTests(unittest.TestCase):
     """A finite regression of observed masks against explicit scoped grants."""
     def test_fixture_exactly_matches_the_supplied_raw_audit_events(self):
-        data = json.loads((FORKY / 'tests/fixtures/installed-apparmor-20260911.json').read_text())
+        data = json.loads(payload_read_text(FORKY / 'tests/fixtures/installed-apparmor-20260911.json'))
         raw_path = FORKY.parents[1] / 'todo/managed/apparmor/apparmor.log'
-        if not raw_path.is_file():
+        if not payload_source_is_file(raw_path):
             self.skipTest('original managed/apparmor/apparmor.log not supplied; parsed fixture checks remain enabled')
-        raw_text = raw_path.read_text()
+        raw_text = payload_read_text(raw_path)
         raw_lines = [
             line for line in raw_text.splitlines()
             if 'apparmor="ALLOWED"' in line
@@ -325,14 +328,15 @@ class RecordedAppArmorCoverageTests(unittest.TestCase):
         self.assertNotIn('apparmor="DENIED"', raw_text)
 
     def test_all_592_records_have_scoped_grants(self):
-        data = json.loads((FORKY / 'tests/fixtures/installed-apparmor-20260911.json').read_text())
+        data = json.loads(payload_read_text(FORKY / 'tests/fixtures/installed-apparmor-20260911.json'))
         self.assertEqual(data['events'], 592)
         self.assertEqual(sum(row['count'] for row in data['records']), 592)
-        policies = '\n'.join((TARGET / f'etc/apparmor.d/{name}').read_text() for name in
-                             ('managed-labwc-session', 'managed-desktop-utilities', 'managed-desktop-wrappers'))
+        policies = '\n'.join(payload_read_text(TARGET / f'etc/apparmor.d/{name}') for name in
+                             ('labwc-session', 'desktop-utilities', 'desktop-wrappers'))
         for row in data['records']:
             with self.subTest(profile=row['profile'], operation=row['operation'], name=row.get('name')):
-                name = row['profile'].split('//')[0]
+                # Preserve the supplied audit evidence; translate only its old profile identity.
+                name = row['profile'].split('//')[0].removeprefix('x-')
                 start = policies.index(f'profile {name} ')
                 end = policies.find('\nprofile ', start + 1)
                 block = policies[start:] if end < 0 else policies[start:end]
@@ -346,7 +350,7 @@ class RecordedAppArmorCoverageTests(unittest.TestCase):
                     self.assertEqual((row['family'], row['sock_type']), ('inet6', 'dgram'))
                     self.assertIn('network inet6 dgram,', block)
                 elif row['class'] == 'signal':
-                    self.assertIn(f"signal ({row['denied_mask']}) set=(kill term) peer={row['peer']},", block)
+                    self.assertIn(f"signal ({row['denied_mask']}) set=(kill term) peer={row['peer'].removeprefix('x-')},", block)
                 else:
                     # Exec target is a complain-mode null profile, not a path.
                     for path in (row['name'], row.get('target') if row['operation'] == 'link' else None):
@@ -360,18 +364,18 @@ class RecordedAppArmorCoverageTests(unittest.TestCase):
 
     @staticmethod
     def file_grant(profile, path):
-        if profile == 'managed-session-glycin-bwrap':
+        if profile == 'session-glycin-bwrap':
             if path.startswith('/usr/share/backgrounds/'):
                 return '/usr/share/backgrounds/** r,', 'r'
             if path.startswith('/usr/share/icons/'):
                 return '/usr/{,local/}share/icons/** r,', 'r'
-        if profile == 'managed-crystal-dock' and path.startswith('/home/ACCOUNT/.config/crystal-dock/'):
+        if profile == 'crystal-dock' and path.startswith('/home/ACCOUNT/.config/crystal-dock/'):
             return 'owner @{HOME}/.config/crystal-dock/** rwkl,', 'rwkl'
-        if profile == 'managed-labwc-chatgpt' and re.fullmatch(r'/run/user/\d+/python/pycache/', path):
+        if profile == 'labwc-chatgpt' and re.fullmatch(r'/run/user/\d+/python/pycache/', path):
             return 'owner /run/user/[0-9]*/python/pycache/ rw,', 'rw'
-        if profile == 'managed-desktop-launcher' and path == '/run/mount/utab':
+        if profile == 'desktop-launcher' and path == '/run/mount/utab':
             return '/run/mount/utab r,', 'r'
-        if profile == 'managed-desktop-media':
+        if profile == 'desktop-media':
             rules = (
                 (r'/usr/lib/qt6/libexec/QtWebEngineProcess', '/usr/lib/qt6/libexec/QtWebEngineProcess rix,', 'rx'),
                 (r'/proc/', '@{PROC}/ r,', 'r'),

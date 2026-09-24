@@ -17,9 +17,10 @@ import sys
 
 # Exact known managed assets; no regex/content-marker ownership guesses.
 KNOWN = {
-    'kanshi.service': {'4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b'},
+    'kanshi.service': {'4e8bc3c6657947ed78eb850f517bcbf6aef3196b37cd6a1e360509b8f6f7b88b',
+                       'b7016c56cf1977ae6c631c6bee4e0986e52b46812390c2fe5506322f06b75fec'},
     '60-resource-class.conf': {'72f14f2f8d8f2ca33c751eedc1631c3d9013c52a4f3156424e0559b260efeee8'},
-    'labwc-kanshi': {'58e9109521808650b8fc896a69f2ec783ae11f84db7cd3ca62b2cf5265a210f8',
+    'labwc-kanshi': {'68a2d0f7f62ca1108b2765c67cee0dd2e4f3caf4093a6d808771584cc41fbe80', '58e9109521808650b8fc896a69f2ec783ae11f84db7cd3ca62b2cf5265a210f8',
                     '264939767fa436eef61ad5f8c2f822fca19fef5ca89dcff74ee47055da371e3b'},
 }
 WRAPPER = Path('/usr/local/libexec/labwc-kanshi')

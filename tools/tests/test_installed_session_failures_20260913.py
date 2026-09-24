@@ -23,6 +23,10 @@ from types import SimpleNamespace
 import unittest
 from unittest import mock
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "d-i/forky/tests"))
+from payload_fixture import waybar_config_text
+from payload_fixture import read_text as payload_read_text, installed_script as payload_installed_script, python_library as payload_python_library
+
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / 'd-i/forky/hooks/target'
 LIBEXEC = TARGET / 'usr/local/libexec'
@@ -30,7 +34,7 @@ USER_UNITS = TARGET / 'etc/skel-desktop/.config/systemd/user'
 
 
 def load(leaf):
-    loader = importlib.machinery.SourceFileLoader('regression_' + leaf.replace('-', '_'), str(LIBEXEC / leaf))
+    loader = importlib.machinery.SourceFileLoader('regression_' + leaf.replace('-', '_'), str(payload_installed_script(LIBEXEC / leaf)))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
@@ -42,7 +46,7 @@ class NvidiaLinkTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.dev = Path(self.temporary.name)
-        self.helper = load('managed-nvidia-char-links')
+        self.helper = load('nvidia-char-links')
         self.real_stat = os.stat
         self.metadata = {}
         self.stack = contextlib.ExitStack()
@@ -96,7 +100,7 @@ class NvidiaLinkTests(unittest.TestCase):
         self.assertEqual(self.helper.reconcile(self.dev), 0)
         link.unlink(); link.write_text('do not overwrite')
         self.assertEqual(self.helper.reconcile(self.dev), 1)
-        self.assertEqual(link.read_text(), 'do not overwrite')
+        self.assertEqual(payload_read_text(link), 'do not overwrite')
 
     def test_reconciles_late_nodes_and_dynamic_major(self):
         self.device(); self.helper.reconcile(self.dev)
@@ -122,7 +126,7 @@ class NvidiaLinkTests(unittest.TestCase):
     def test_no_devices_and_unrelated_files_are_untouched(self):
         (self.dev / 'unrelated').write_text('preserve')
         self.assertEqual(self.helper.reconcile(self.dev), 0)
-        self.assertEqual((self.dev / 'unrelated').read_text(), 'preserve')
+        self.assertEqual(payload_read_text(self.dev / 'unrelated'), 'preserve')
         self.assertFalse((self.dev / 'char').exists())
 
     def test_cli_rejects_nonroot_and_caller_supplied_paths(self):
@@ -179,14 +183,14 @@ class UserStateTests(unittest.TestCase):
 
     def test_state_and_restore_are_explicitly_user_units(self):
         for name in ('labwc-session-state@.service', 'labwc-session-restore.service'):
-            content = (USER_UNITS / name).read_text()
+            content = payload_read_text(USER_UNITS / name)
             for required in ('Environment=XDG_RUNTIME_DIR=%t',
                              'Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus',
                              'PartOf=labwc-session.target', 'KillMode=control-group'):
                 self.assertIn(required, content)
             self.assertNotIn('User=', content)
             self.assertFalse((TARGET / 'etc/systemd/system' / name).exists())
-        source = (LIBEXEC / 'labwc-admin-action-worker').read_text()
+        source = payload_read_text(LIBEXEC / 'labwc-admin-action-worker')
         self.assertIn('"start", "labwc-session-state@" + action + ".service"', source)
         self.assertNotIn('self.machine', source)
         self.assertIn('account=account', source)
@@ -196,14 +200,14 @@ class RendererValidationTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(); self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        for path in ('etc/default', 'etc/environment.d', 'usr/local/bin', 'etc/skel-desktop/.config/labwc/environment.d'):
+        for path in ('etc/labwc', 'etc/environment.d', 'usr/local/bin', 'etc/skel-desktop/.config/labwc/environment.d'):
             (self.root / path).mkdir(parents=True, exist_ok=True)
         policy = {'LABWC_WLR_RENDERER':'gles2', 'LABWC_GSK_RENDERER':'opengl',
                   'LABWC_GDK_DISABLE':'vulkan', 'LABWC_WLR_NO_HARDWARE_CURSORS':'1',
                   'LABWC_WLR_SCENE_DISABLE_DIRECT_SCANOUT':'1', 'LABWC_GREETER_WLR_RENDERER':'gles2',
                   'LABWC_GREETER_GSK_RENDERER':'opengl', 'LABWC_GREETER_GDK_DISABLE':'vulkan',
                   'LABWC_GREETER_WLR_NO_HARDWARE_CURSORS':'1'}
-        self.defaults = self.root / 'etc/default/labwc-desktop'
+        self.defaults = self.root / 'etc/labwc/desktop.conf'
         self.defaults.write_text('\n'.join(f'{k}={v}' for k,v in policy.items()) + '\n')
         for leaf in ('labwc-session', 'labwc-greeter-session', 'labwc-autostart'):
             source = TARGET / 'usr/local/bin' / leaf
@@ -211,7 +215,7 @@ class RendererValidationTests(unittest.TestCase):
             (self.root / 'usr/local/bin' / leaf).write_bytes(source.read_bytes())
         env = Path('etc/skel-desktop/.config/labwc/environment.d/10-wayland.env')
         (self.root / env).write_bytes((TARGET / (str(env) + ".tmpl")).read_bytes())
-        content = (ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh').read_text()
+        content = payload_read_text(ROOT / 'd-i/forky/scripts/firstboot/04-validation.sh')
         self.function = content.split('desktop_renderer_policy_matches() {',1)[1].split('\n}\n',1)[0]
         for prefix in ('/usr/local/bin/', '/etc/'):
             self.function = self.function.replace(prefix, str(self.root) + prefix)
@@ -223,23 +227,23 @@ class RendererValidationTests(unittest.TestCase):
         result = self.check(); self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_bad_policy_is_not_hidden(self):
-        self.defaults.write_text(self.defaults.read_text().replace('LABWC_WLR_RENDERER=gles2', 'LABWC_WLR_RENDERER=pixman'))
+        self.defaults.write_text(payload_read_text(self.defaults).replace('LABWC_WLR_RENDERER=gles2', 'LABWC_WLR_RENDERER=pixman'))
         self.assertNotEqual(self.check().returncode, 0)
 
     def test_missing_cleanup_membership_is_not_hidden(self):
         session = self.root / 'usr/local/bin/labwc-session'
-        session.write_text(session.read_text().replace('${labwc_x11_environment_names}', ''))
+        session.write_text(payload_read_text(session).replace('${labwc_x11_environment_names}', ''))
         self.assertNotEqual(self.check().returncode, 0)
 
     def test_missing_export_is_not_hidden(self):
         session = self.root / 'usr/local/bin/labwc-session'
-        session.write_text(session.read_text().replace('export WLR_RENDERER=', 'WLR_RENDERER='))
+        session.write_text(payload_read_text(session).replace('export WLR_RENDERER=', 'WLR_RENDERER='))
         self.assertNotEqual(self.check().returncode, 0)
 
 
 class PanelAndWiringTests(unittest.TestCase):
     def test_wrapper_preserves_child_signals_and_real_exit_failures(self):
-        source = (LIBEXEC / 'labwc-panel-run').read_text()
+        source = payload_read_text(LIBEXEC / 'labwc-panel-run')
         for exit_code, number in ((7, None), (143, None), (None, signal.SIGTERM), (None, signal.SIGABRT)):
             child = f'import sys; sys.exit({exit_code})' if number is None else f'import os; os.kill(os.getpid(), {int(number)})'
             command = "supervise([sys.executable, '-c', " + repr(child) + "], set())"
@@ -251,7 +255,7 @@ class PanelAndWiringTests(unittest.TestCase):
             self.assertEqual(result.returncode, expected, result.stderr)
 
     def test_all_panel_click_commands_use_session_bound_user_services(self):
-        content = (TARGET / 'etc/skel-desktop/.config/waybar/config.tmpl').read_text()
+        content = waybar_config_text(TARGET / 'etc/skel-desktop/.config/waybar')
         entries = re.findall(r'"(on-(?:click(?:-middle|-right)?|scroll-up|scroll-down))"\s*:\s*("(?:[^"\\]|\\.)*")', content)
         count = 0
         for key, literal in entries:
@@ -278,35 +282,35 @@ class PanelAndWiringTests(unittest.TestCase):
             r'"on-click-right"\s*:\s*"[^"\n]*/labwc-calendar menu"')
 
     def test_user_bus_helpers_inherit_bounded_apparmor_profile(self):
-        text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        profile = text.split('profile managed-labwc-session-state ',1)[1].split('\n}\n',1)[0]
+        text = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        profile = text.split('profile labwc-session-state ',1)[1].split('\n}\n',1)[0]
         self.assertIn('/usr/bin/{systemctl,systemd-run,wlrctl,wl-copy,cliphist,notify-send} rix,', profile)
         self.assertIn('owner /run/user/[0-9]*/{bus,systemd/private} rw,', profile)
         self.assertNotIn('/dev/rfkill', profile)
         for line in profile.splitlines():
             if not line.lstrip().startswith('#'):
                 self.assertNotRegex(line, r'\b(?:PUx|pux|Ux|ux),')
-        panel = (TARGET / 'etc/apparmor.d/managed-labwc-session').read_text()
-        self.assertIn('signal (send, receive) peer=managed-labwc-panel-run,', panel)
+        panel = payload_read_text(TARGET / 'etc/apparmor.d/labwc-session')
+        self.assertIn('signal (send, receive) peer=labwc-panel-run,', panel)
 
     def test_nvidia_udev_reconciliation_is_bounded_without_path_watcher(self):
         units = TARGET / 'etc/systemd/system'
-        self.assertFalse((units / 'managed-nvidia-char-links.path').exists())
-        service = (units / 'managed-nvidia-char-links.service').read_text()
-        rules = (TARGET / 'etc/udev/rules.d/71-managed-nvidia-char-links.rules').read_text()
+        self.assertFalse((units / 'nvidia-char-links.path').exists())
+        service = payload_read_text(units / 'nvidia-char-links.service')
+        rules = payload_read_text(TARGET / 'etc/udev/rules.d/71-nvidia-char-links.rules')
         active_rules = [line for line in rules.splitlines() if line and not line.startswith('#')]
         self.assertEqual(len(active_rules), 2)
         for rule in active_rules:
             self.assertIn('ACTION=="add|change"', rule)
             self.assertIn('KERNEL=="nvidia', rule)
             self.assertIn('TAG+="systemd"', rule)
-            self.assertIn('ENV{SYSTEMD_WANTS}+="managed-nvidia-char-links.service"', rule)
+            self.assertIn('ENV{SYSTEMD_WANTS}+="nvidia-char-links.service"', rule)
         self.assertIn('StartLimitIntervalSec=30s', service)
         self.assertIn('StartLimitBurst=5', service)
         self.assertNotIn('RemainAfterExit=yes', service)
         self.assertIn('Before=greetd.service firstboot.service', service)
         self.assertIn('CapabilityBoundingSet=\n', service)
-        source = (LIBEXEC / 'managed-nvidia-char-links').read_text()
+        source = payload_read_text(LIBEXEC / 'nvidia-char-links')
         ast.parse(source)
         self.assertNotIn('os.mknod', source)
         self.assertNotIn('subprocess', source)
@@ -314,7 +318,7 @@ class PanelAndWiringTests(unittest.TestCase):
 
 class SecondaryDiagnosticTests(unittest.TestCase):
     def test_networkd_disabled_is_distinct_from_failed_or_expected_backend(self):
-        text = (ROOT / 'd-i/forky/scripts/firstboot/03-network.sh').read_text()
+        text = payload_read_text(ROOT / 'd-i/forky/scripts/firstboot/03-network.sh')
         body = 'capture_networkctl_status() {' + text.split('capture_networkctl_status() {', 1)[1].split('\n}\n', 1)[0] + '\n}\n'
         for active, enabled, skip in [('inactive','disabled',True), ('inactive','masked',True),
                                       ('active','enabled',False), ('failed','disabled',False),
@@ -330,7 +334,7 @@ class SecondaryDiagnosticTests(unittest.TestCase):
             self.assertEqual('networkctl status --no-pager' in result.stdout, not skip)
 
     def test_bouncer_package_operation_overrides_only_child_locale(self):
-        line = next(line for line in (ROOT / 'd-i/forky/scripts/late/crowdsec.sh').read_text().splitlines()
+        line = next(line for line in payload_read_text(ROOT / 'd-i/forky/scripts/late/crowdsec.sh').splitlines()
                     if line.startswith('run_in_target "install CrowdSec bouncer after engine configuration"'))
         args = shlex.split(line)
         boundary = args.index('apt-get')

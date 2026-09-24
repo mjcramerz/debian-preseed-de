@@ -1,0 +1,11 @@
+[Unit]
+After=systemd-tmpfiles-setup.service
+RequiresMountsFor=__INSTALLER_LOG_CLAMAV_DIR__
+
+[Service]
+LogsDirectory=
+ReadWritePaths=__INSTALLER_LOG_CLAMAV_DIR__
+UMask=0027
+StandardOutput=journal
+StandardError=journal
+ExecStartPre=+/usr/local/libexec/native-logging --check clamd

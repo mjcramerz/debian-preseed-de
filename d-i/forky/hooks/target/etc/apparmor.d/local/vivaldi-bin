@@ -3,8 +3,8 @@
 # Direct Vivaldi binary attachment. Keep this aligned with vivaldi-stable so a
 # direct vivaldi-bin invocation has the same bounded browser contract.
 
-#include <abstractions/managed-electron-application>
-#include <abstractions/managed-pipewire-audio>
+#include <abstractions/electron-application>
+#include <abstractions/pipewire-audio>
 include if exists <abstractions/user-tmp>
 include if exists <abstractions/xdg-open>
 
@@ -94,8 +94,8 @@ owner @{HOME}/.local/state/browser-devtools/vivaldi/ rw,
 owner @{HOME}/.local/state/browser-devtools/vivaldi/** rwkl,
 
 profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
-  #include <abstractions/managed-bwrap-common>
-  #include <abstractions/managed-electron-runtime>
+  #include <abstractions/bwrap-common>
+  #include <abstractions/electron-runtime>
 
   signal (receive) set=(kill) peer=vivaldi-bin,
 
@@ -119,4 +119,4 @@ profile vivaldi-bwrap flags=(attach_disconnected, mediate_deleted) {
 }
 
 # Read-only btop monitoring from the managed terminal.
-ptrace (readby) peer=managed-desktop-launcher,
+ptrace (readby) peer=desktop-launcher,

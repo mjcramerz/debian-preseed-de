@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -I
 """Close Waybar-owned FDs before entering a narrower status-helper profile.
 
-This executable shares managed-waybar's AppArmor attachment. It does not
+This executable shares waybar's AppArmor attachment. It does not
 widen the destination helper profiles to accept inherited rfkill, procfs or
 menu-file descriptors. Only the six configured read-only status calls exist.
 """

@@ -24,10 +24,13 @@ import types
 import unittest
 from unittest import mock
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "d-i/forky/tests"))
+from payload_fixture import read_text as payload_read_text, installed_script as payload_installed_script, python_library as payload_python_library
+
 ROOT = Path(__file__).resolve().parents[2]
 TARGET = ROOT / 'd-i/forky/hooks/target'
 LIB = TARGET / 'usr/local/lib/perl5/site_perl'
-PYLIB = TARGET / 'usr/local/lib/python3.14/dist-packages'
+PYLIB = payload_python_library(TARGET / 'usr/local/lib/python3.14/dist-packages')
 sys.path.insert(0, str(PYLIB))
 from labwc_managed_app import dbus_proxy, generic, integrity, session
 from labwc_firewall import files as firewall_files, nftables
@@ -43,7 +46,7 @@ def load_script(name: str):
     return module
 
 
-normalizer = load_script('local-apt-normalize-sources')
+normalizer = load_script('apt-repo-local-normalize-sources')
 desktops = load_script('labwc-wrap-desktop-files')
 KEY = '/usr/share/keyrings/debian-archive-keyring.gpg'
 PGP = KEY[:-4] + '.pgp'
@@ -94,7 +97,7 @@ class KeyringRegressionTests(unittest.TestCase):
         self.source()
         normalizer.normalize(self.root)
         output = self.parts / 'debian.sources'
-        records = normalizer.deb822(output.read_text())
+        records = normalizer.deb822(payload_read_text(output))
         backports = [r for r in records if r['suites'] == 'forky-backports']
         self.assertEqual({r['types'] for r in backports}, {'deb', 'deb-src'})
         self.assertTrue(all(r['signed-by'] == KEY for r in backports))
@@ -106,14 +109,14 @@ class KeyringRegressionTests(unittest.TestCase):
     def test_equivalent_pgp_spelling_becomes_requested_gpg_alias(self):
         self.source(signed_by=PGP)
         normalizer.normalize(self.root)
-        records = normalizer.deb822((self.parts / 'debian.sources').read_text())
+        records = normalizer.deb822(payload_read_text(self.parts / 'debian.sources'))
         self.assertTrue(all(r['signed-by'] == KEY for r in records))
 
     def test_custom_key_and_fingerprint_restriction_are_preserved(self):
         value = KEY + ' ' + 'A' * 40 + '!'
         self.source(signed_by=value)
         normalizer.normalize(self.root)
-        records = normalizer.deb822((self.parts / 'debian.sources').read_text())
+        records = normalizer.deb822(payload_read_text(self.parts / 'debian.sources'))
         self.assertTrue(all(r['signed-by'] == value for r in records))
 
     def test_gpg_reads_validated_bytes_not_reopened_link(self):
@@ -194,7 +197,7 @@ class DesktopIsolationTests(unittest.TestCase):
         self.assertIn('Exec=' + self.prefix + ' -- /usr/bin/viewer %f\n', result)
 
     def test_managed_path_in_arguments_does_not_bypass_wrapping(self):
-        self.assertFalse(desktops.managed_exec('/usr/bin/viewer /usr/local/bin/labwc-managed-app'))
+        self.assertFalse(desktops.managed_exec('/usr/bin/viewer /usr/local/bin/labwc-app'))
         self.assertFalse(desktops.managed_exec('/usr/bin/echo "hello /usr/local/bin/chatgpt"'))
         self.assertTrue(desktops.managed_exec('/usr/bin/env VAR=value /usr/local/bin/chatgpt auto'))
 
@@ -235,8 +238,8 @@ class DesktopIsolationTests(unittest.TestCase):
             recorder.chmod(0o755)
             for executable in ('foot', 'kitty'):
                 path = root / executable; path.write_text('#!/bin/sh\nexit 99\n'); path.chmod(0o755)
-            source = (TARGET / 'usr/local/bin/labwc-terminal').read_text()
-            source = source.replace('/etc/default/labwc-desktop', str(root / 'no-defaults'))
+            source = payload_read_text(TARGET / 'usr/local/bin/labwc-terminal')
+            source = source.replace('/etc/labwc/desktop.conf', str(root / 'no-defaults'))
             source = source.replace('/usr/local/bin/labwc-wayland-app', str(recorder))
             script = root / 'terminal'; script.write_text(source)
             for terminal, expected in [('footclient', ['foot', '-e']), ('kitty', ['kitty']),
@@ -317,7 +320,7 @@ class PythonLifecycleTests(unittest.TestCase):
             lock = root / 'lock'; lock.symlink_to(target)
             with self.assertRaises(FirewallError), firewall_files.locked(lock, exclusive=True):
                 self.fail('symlink lock accepted')
-            self.assertEqual(target.read_text(), 'untouched')
+            self.assertEqual(payload_read_text(target), 'untouched')
             lock.unlink(); os.mkfifo(lock)
             with self.assertRaises(FirewallError), firewall_files.locked(lock, exclusive=True):
                 self.fail('FIFO lock accepted')
@@ -402,13 +405,13 @@ class PerlLifecycleTests(unittest.TestCase):
     def runner(self, source: str, invocation: str, argv: list[str]):
         code = ('use strict; use warnings; use Managed::Process qw(capture_command); '
                 'use JSON::PP qw(encode_json);\n' + source + '\n' + invocation)
-        return subprocess.run(['/usr/bin/perl', '-I', str(LIB / 'managed-runtime'), '-e', code, *argv],
+        return subprocess.run(['/usr/bin/perl', '-I', str(LIB / 'runtime'), '-e', code, *argv],
                               capture_output=True, text=True, timeout=8)
 
     def test_all_capture_adapters_preserve_status_streams_and_handle_auto_reaper(self):
         for path in self.paths:
             with self.subTest(path=path.name):
-                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', path.read_text()).group()
+                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', payload_read_text(path)).group()
                 result = self.runner(body, 'local $SIG{CHLD} = "IGNORE"; print encode_json(run_command(2, 100000, @ARGV));',
                                      ['/bin/sh', '-c', 'printf out; printf err >&2; exit 7'])
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -417,7 +420,7 @@ class PerlLifecycleTests(unittest.TestCase):
     def test_capture_adapters_bound_descendants_holding_pipes(self):
         for path in self.paths:
             with self.subTest(path=path.name):
-                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', path.read_text()).group()
+                body = re.search(r'(?ms)^sub run_command \{\n.*?^\}', payload_read_text(path)).group()
                 result = self.runner(body, 'print encode_json(run_command(0.2, 100000, @ARGV));',
                     ['/usr/bin/python3', '-c', 'import os,time; child=os.fork(); os._exit(0) if child else time.sleep(30)'])
                 self.assertEqual(result.returncode, 0, result.stderr)
@@ -425,7 +428,7 @@ class PerlLifecycleTests(unittest.TestCase):
 
     def test_mapper_preserves_signal_failure_and_drains_both_streams(self):
         path = LIB / 'zram-writeback/Zram/Setup/Mapper.pm'
-        body = re.search(r'(?ms)^sub _capture \{\n.*?^\}', path.read_text()).group()
+        body = re.search(r'(?ms)^sub _capture \{\n.*?^\}', payload_read_text(path)).group()
         result = self.runner(body, 'print encode_json([_capture(undef, @ARGV)]);', ['/bin/sh', '-c', 'kill -TERM $$'])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)[0], 128 + signal.SIGTERM)
@@ -438,7 +441,7 @@ class PerlLifecycleTests(unittest.TestCase):
 
 class WiringTests(unittest.TestCase):
     def test_python_staging_manifests_cover_every_module(self):
-        source = (ROOT / 'd-i/forky/scripts/desktop/components.sh').read_text()
+        source = payload_read_text(ROOT / 'd-i/forky/scripts/desktop/components.sh')
         for function, package in [('desktop_ai_copilots_python_modules', 'labwc_ai_copilots'),
                                   ('desktop_labwc_managed_app_python_modules', 'labwc_managed_app'),
                                   ('desktop_labwc_firewall_python_modules', 'labwc_firewall')]:
@@ -448,19 +451,19 @@ class WiringTests(unittest.TestCase):
         self.assertEqual(set(integrity.ALL_MODULES), {p.name for p in (PYLIB / 'labwc_managed_app').glob('*.py')})
 
     def test_apparmor_allows_new_imports_without_broadening_package_read(self):
-        text = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        for profile in ('managed-labwc-chatgpt', 'managed-labwc-managed-app'):
+        text = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        for profile in ('labwc-chatgpt', 'labwc-app'):
             block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]
             self.assertIn('network_namespace,profiles,recovery,runtime', block)
-        for profile in ('managed-labwc-adb-action', 'managed-labwc-output-watch',
-                        'managed-labwc-mute-default-microphone', 'managed-whisper-record-toggle'):
+        for profile in ('labwc-adb-action', 'labwc-output-watch',
+                        'labwc-mute-default-microphone', 'whisper-record-toggle'):
             block = text.split('profile ' + profile + ' ', 1)[1].split('\nprofile ', 1)[0]
-            self.assertIn('/managed-runtime/Managed/Process.pm r,', block)
-        block = text.split('profile managed-labwc-terminal ', 1)[1].split('\nprofile ', 1)[0]
-        self.assertIn('/usr/local/bin/labwc-wayland-app rPx -> managed-labwc-generic-app,', block)
+            self.assertIn('/runtime/Managed/Process.pm r,', block)
+        block = text.split('profile labwc-terminal ', 1)[1].split('\nprofile ', 1)[0]
+        self.assertIn('/usr/local/bin/labwc-wayland-app rPx -> labwc-generic-app,', block)
 
     def test_ai_bootstrap_has_explicit_isolated_versioned_package_path(self):
-        source = (TARGET / 'usr/local/libexec/labwc-ai-model-info').read_text()
+        source = payload_read_text(TARGET / 'usr/local/libexec/labwc-ai-model-info')
         self.assertTrue(source.startswith('#!/usr/bin/python3 -I\n'))
         self.assertIn('sys.dont_write_bytecode = True', source)
         self.assertLess(source.index('require_managed_path(PACKAGE_DIRECTORY / name'), source.index('sys.path.insert'))

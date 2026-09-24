@@ -1,7 +1,7 @@
 [Unit]
 Description=Authorized AppArmor policy change (%i)
 Documentation=man:apparmor(7) man:systemd.service(5)
-After=apparmor.service apparmor-managed-modes.service labwc-apparmor-boot-recover.service
+After=apparmor.service apparmor-modes.service labwc-apparmor-boot-recover.service
 RequiresMountsFor=/etc/apparmor /etc/apparmor.d /etc/default/grub.d /boot/grub
 
 [Service]
@@ -10,7 +10,7 @@ User=root
 Group=root
 UMask=0077
 ExecStart=/usr/local/libexec/labwc-apparmor-policy-worker %i
-AppArmorProfile=managed-labwc-apparmor-policy-worker
+AppArmorProfile=labwc-apparmor-policy-worker
 # Create the protected backup leaf before applying the read-only mount view.
 StateDirectory=labwc-apparmor-policy apparmor/backup
 StateDirectoryMode=0700

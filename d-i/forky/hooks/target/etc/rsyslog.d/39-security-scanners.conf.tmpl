@@ -1,0 +1,155 @@
+# Scanner output enters rsyslog through a dedicated Unix socket rather than
+# /dev/log. The socket is bound to a private ruleset so unrecognized input
+# cannot fall through to general system logs. Its protected parent directory
+# is created before rsyslog starts.
+
+ruleset(name="managed_security_scanner_input" queue.type="LinkedList") {
+if ($programname == "lynis-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_lynis_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_LYNIS_SCAN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "rkhunter-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_rkhunter_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_RKHUNTER_SCAN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "chkrootkit-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_chkrootkit_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_CHKROOTKIT_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "debsecan-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_debsecan_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_DEBSECAN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "debsums-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_debsums_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_DEBSUMS_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "spectre-meltdown-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_spectre_meltdown_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_SPECTRE_MELTDOWN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "fwupd-security-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_fwupd_security_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_FWUPD_SCAN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+if ($programname == "clamav-scan") then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_clamav_scan_log"
+    type="omfile"
+    file="__INSTALLER_LOG_CLAMAV_SCAN_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+}
+
+  stop
+}
+
+input(
+  type="imuxsock"
+  Socket="__INSTALLER_LOG_SCANNER_SOCKET__"
+  CreatePath="off"
+  Ruleset="managed_security_scanner_input"
+  FlowControl="off"
+  RateLimit.Interval="__INSTALLER_LOG_SCANNER_RATE_INTERVAL__"
+  RateLimit.Burst="__INSTALLER_LOG_SCANNER_RATE_BURST__"
+  RateLimit.Severity="7"
+)

@@ -1,0 +1,9 @@
+# Native logging only; engine, credentials and acquisition remain intact.
+common:
+  log_media: file
+  log_dir: __INSTALLER_LOG_CROWDSEC_DIR__
+  log_level: __INSTALLER_LOG_CROWDSEC_LEVEL__
+  log_max_size: __INSTALLER_LOG_ROTATE_MAXSIZE_MIB__
+  log_max_age: __INSTALLER_LOG_ROTATE_MAXAGE_DAYS__
+  log_max_files: __INSTALLER_LOG_ROTATE_COUNT__
+  compress_logs: true

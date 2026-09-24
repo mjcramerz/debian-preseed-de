@@ -25,12 +25,12 @@ log_line() {
     "$(timestamp)" "$stage" "$level" "$component" "$*" >>"$FIRSTBOOT_LOG_FILE"
 }
 
-if [ -r /usr/local/lib/firstboot.d/logging.sh ]; then
+if [ -r /var/lib/firstboot/lib/logging.sh ]; then
   # shellcheck disable=SC1091
-  . /usr/local/lib/firstboot.d/logging.sh
+  . /var/lib/firstboot/lib/logging.sh
 fi
 
-desktop_defaults=/etc/default/labwc-desktop
+desktop_defaults=/etc/labwc/desktop.conf
 if [ -e "$desktop_defaults" ] || [ -L "$desktop_defaults" ]; then
   if [ ! -f "$desktop_defaults" ] || [ -L "$desktop_defaults" ]; then
     log_line early error desktop-defaults "unsafe_path=${desktop_defaults}"

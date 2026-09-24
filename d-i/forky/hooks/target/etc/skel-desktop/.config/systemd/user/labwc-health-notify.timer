@@ -4,7 +4,6 @@
 DefaultDependencies=no
 Conflicts=shutdown.target
 Before=shutdown.target
-BindsTo=labwc-compositor.service
 Description=Periodic Labwc desktop health notifications
 Requisite=labwc-session.target
 After=labwc-session.target

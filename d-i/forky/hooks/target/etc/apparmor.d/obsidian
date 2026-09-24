@@ -5,8 +5,8 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile obsidian /{usr/bin/obsidian,opt/Obsidian/obsidian} flags=(attach_disconnected) {
-  #include <abstractions/managed-electron-application>
-  #include <abstractions/managed-user-documents>
+  #include <abstractions/electron-application>
+  #include <abstractions/user-documents>
   include if exists <abstractions/user-tmp>
 
   network inet stream,

@@ -5,7 +5,7 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile aa-status-reader /usr/{bin,sbin}/aa-status flags=(attach_disconnected) {
-  #include <abstractions/managed-wrapper-base>
+  #include <abstractions/wrapper-base>
 
   /usr/{bin,sbin}/aa-status mr,
   /dev/pts/[0-9]* r,

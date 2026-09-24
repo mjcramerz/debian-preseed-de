@@ -59,13 +59,5 @@ installer_apt_bootstrap_source() (
     "$protocol" "$host" "$directory" "$suite" >"$tmp"
   chmod 0644 "$tmp"
   mv -f "$tmp" "$target/etc/apt/sources.list"
-  tmp=$(mktemp "$target/etc/apt/apt.conf.d/.installer-network.XXXXXX")
-  cat >"$tmp" <<'EOF'
-Acquire::Retries "3";
-Acquire::http::Timeout "45";
-Acquire::https::Timeout "45";
-APT::Update::Error-Mode "any";
-EOF
-  chmod 0644 "$tmp"
-  mv -f "$tmp" "$target/etc/apt/apt.conf.d/99installer-network"
+  # Bootstrap retries/timeouts are command options, never permanent target policy.
 )

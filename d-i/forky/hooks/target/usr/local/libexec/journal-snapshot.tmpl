@@ -1,0 +1,196 @@
+#!/usr/bin/python3 -I
+"""Bounded boot journal snapshots; filenames are the sequence state.
+
+Root-only, no shell, no symlink traversal, single-writer directory lock, atomic
+publication. Boot snapshots live directly in persistent /var/lib/journal/boot.
+An interrupted compaction can leave gaps, repaired from filenames on next run.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import fcntl
+import grp
+import os
+from pathlib import Path
+import re
+import resource
+import secrets
+import stat
+import subprocess
+import sys
+
+DIRECTORY = Path('__INSTALLER_LOG_BOOT_DIR__')
+PREFIX = 'boot'
+KEEP = int('__INSTALLER_LOG_BOOT_COUNT__')
+MAX_BYTES = int('__INSTALLER_LOG_BOOT_MAXSIZE_MIB__') * 1024 * 1024
+GROUP = '__INSTALLER_LOG_GROUP__'
+FILE_MODE = int('__INSTALLER_LOG_FILE_MODE__', 8)
+DIR_MODE = int('__INSTALLER_LOG_DIRECTORY_MODE__', 8)
+NAME = re.compile(r'boot-([1-9][0-9]{0,8})-([0-9]{4}(?:-[0-9]{2}){4}-([a-f0-9]{32})[.]log)')
+TEMP = re.compile(r'[.]boot-log-[a-f0-9]{32}[.]tmp')
+
+
+class BootLogError(RuntimeError):
+    pass
+
+
+def directory_fd(path: Path, *, create: bool = False, group: int) -> int:
+    """Walk each absolute component with O_NOFOLLOW; never adopt writable trees."""
+    if not path.is_absolute() or '..' in path.parts:
+        raise BootLogError('invalid absolute directory')
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for index, part in enumerate(path.parts[1:]):
+            final = index == len(path.parts) - 2
+            made = False
+            if create:
+                try:
+                    os.mkdir(part, DIR_MODE if final else 0o755, dir_fd=fd)
+                    made = True
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = child
+            info = os.fstat(fd)
+            if info.st_uid != 0 or info.st_mode & 0o022:
+                raise BootLogError(f'unsafe directory: {path}')
+            if final:
+                if made:
+                    os.fchown(fd, 0, group)
+                    os.fchmod(fd, DIR_MODE)
+                elif info.st_gid != group or stat.S_IMODE(info.st_mode) != DIR_MODE:
+                    raise BootLogError(f'incorrect directory ownership or mode: {path}')
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def file_info(fd: int, name: str, group: int) -> os.stat_result:
+    info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+    if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or
+            info.st_uid != 0 or info.st_gid != group or stat.S_IMODE(info.st_mode) != FILE_MODE):
+        raise BootLogError(f'unsafe snapshot entry: {name}')
+    return info
+
+
+def capture(fd: int, boot_id: str) -> None:
+    """Bound output in the kernel, not by loading a journal into Python memory."""
+    env = {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'TZ': 'UTC'}
+    subprocess.run(['/usr/bin/journalctl', '--sync'], check=True, timeout=10, env=env,
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    previous = resource.getrlimit(resource.RLIMIT_FSIZE)
+    limit = MAX_BYTES if previous[0] == resource.RLIM_INFINITY else min(MAX_BYTES, previous[0])
+    resource.setrlimit(resource.RLIMIT_FSIZE, (limit, previous[1]))
+    try:
+        argv = ['/usr/bin/journalctl', '--boot=' + boot_id, '--no-pager', '--all',
+                '--utc', '--output=short-iso-precise']
+        subprocess.run(argv, check=True, timeout=60,
+                       env=env, stdin=subprocess.DEVNULL, stdout=fd)
+    finally:
+        resource.setrlimit(resource.RLIMIT_FSIZE, previous)
+    size = os.fstat(fd).st_size
+    if not 0 < size <= MAX_BYTES:
+        raise BootLogError('journal snapshot is empty or exceeds its byte budget')
+
+
+def snapshot(fd: int, boot_id: str, timestamp: str, group: int) -> bool:
+    """Caller holds a directory fd; lock covers discovery, capture and retention."""
+    if not re.fullmatch(r'[a-f0-9]{32}', boot_id):
+        raise BootLogError('invalid kernel boot ID')
+    if not re.fullmatch(r'[0-9]{4}(?:-[0-9]{2}){4}', timestamp):
+        raise BootLogError('invalid timestamp')
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return False  # A live writer owns this boot; systemd serializes normal runs.
+    pending = None
+    try:
+        entries = []
+        stale = []
+        seen = set()
+        for name in os.listdir(fd):
+            match = NAME.fullmatch(name)
+            if not match and not TEMP.fullmatch(name):
+                raise BootLogError(f'unrecognized file in snapshot directory: {name}')
+            file_info(fd, name, group)
+            if not match:
+                stale.append(name)
+                continue
+            if match[3] in seen:
+                raise BootLogError('duplicate boot ID in snapshot directory')
+            seen.add(match[3])
+            entries.append((int(match[1]), match[2], name))
+        # Only our validated, uncommitted scratch files may be removed.
+        for name in stale:
+            os.unlink(name, dir_fd=fd)
+        created = boot_id not in seen
+        if created:
+            number = max((entry[0] for entry in entries), default=0) + 1
+            if number > 999999999:
+                raise BootLogError('snapshot sequence exceeds supported range')
+            pending = '.' + PREFIX + '-log-' + secrets.token_hex(16) + '.tmp'
+            out = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                          FILE_MODE, dir_fd=fd)
+            try:
+                os.fchown(out, 0, group)
+                os.fchmod(out, FILE_MODE)
+                capture(out, boot_id)
+                os.fsync(out)
+            finally:
+                os.close(out)
+            suffix = timestamp + '-' + boot_id + '.log'
+            name = f'{PREFIX}-{number}-{suffix}'
+            os.rename(pending, name, src_dir_fd=fd, dst_dir_fd=fd)
+            pending = None
+            os.fsync(fd)  # Publish the complete new boot BEFORE retiring any history.
+            entries.append((number, suffix, name))
+        entries.sort()
+        for _, _, name in entries[:-KEEP]:
+            os.unlink(name, dir_fd=fd)
+        for number, (_, suffix, name) in enumerate(entries[-KEEP:], 1):
+            desired = f'{PREFIX}-{number}-{suffix}'
+            if name != desired:
+                # Boot IDs are unique, so compaction cannot overwrite another boot.
+                os.rename(name, desired, src_dir_fd=fd, dst_dir_fd=fd)
+        os.fsync(fd)
+        return created
+    finally:
+        if pending is not None:
+            try:
+                os.unlink(pending, dir_fd=fd)
+            except FileNotFoundError:
+                pass
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if args not in ([], ['boot'], ['--prepare']):
+        raise BootLogError('usage: journal-snapshot [boot|--prepare]')
+    if os.geteuid() != 0:
+        raise BootLogError('must run as root')
+    group = grp.getgrnam(GROUP).gr_gid
+    if args == ['--prepare']:
+        fd = directory_fd(DIRECTORY, create=True, group=group)
+        os.close(fd)
+        return 0
+    fd = directory_fd(DIRECTORY, group=group)
+    try:
+        boot_id = Path('/proc/sys/kernel/random/boot_id').read_text(encoding='ascii').strip().replace('-', '')
+        timestamp = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d-%H-%M')
+        created = snapshot(fd, boot_id, timestamp, group)
+        print('journal-snapshot: snapshot committed' if created else
+              'journal-snapshot: already recorded or writer active')
+    finally:
+        os.close(fd)
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError, KeyError, BootLogError, subprocess.SubprocessError) as exc:
+        print(f'journal-snapshot: {exc}', file=sys.stderr)
+        raise SystemExit(1)

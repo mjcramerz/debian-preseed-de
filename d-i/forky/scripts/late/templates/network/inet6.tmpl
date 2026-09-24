@@ -1,0 +1,8 @@
+
+iface __INSTALLER_IFACE__ inet6 static
+    pre-up /usr/sbin/sysctl -q -w net/ipv6/conf/__INSTALLER_IFACE__/keep_addr_on_down=1
+    address __INSTALLER_ADDRESS__
+    netmask __INSTALLER_NETMASK__
+    gateway __INSTALLER_GATEWAY__
+    dns-nameservers __INSTALLER_DNS__
+__INSTALLER_PERFORMANCE__

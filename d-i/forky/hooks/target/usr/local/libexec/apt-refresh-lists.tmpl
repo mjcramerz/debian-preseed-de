@@ -11,9 +11,9 @@ CONNECTIVITY_MAX_ATTEMPTS=3
 LOG_TAG="apt-refresh-lists"
 LOG_HELPER="/usr/libexec/install-tools/system-log.sh"
 
-if [ -r /etc/default/system-runtime ]; then
+if [ -r /etc/system-runtime.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/system-runtime
+  . /etc/system-runtime.conf
 fi
 
 CONNECTIVITY_HOST=

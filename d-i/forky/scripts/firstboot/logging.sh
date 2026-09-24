@@ -1,9 +1,9 @@
 #!/bin/sh
 # Shared first-boot logging filter. This file is sourced.
 
-if [ -r /etc/default/system-runtime ]; then
+if [ -r /etc/system-runtime.conf ]; then
   # shellcheck disable=SC1091
-  . /etc/default/system-runtime
+  . /etc/system-runtime.conf
 fi
 
 firstboot_log_level_canonical() {

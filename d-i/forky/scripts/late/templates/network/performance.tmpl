@@ -1,0 +1,5 @@
+    metric __INSTALLER_METRIC__
+    mtu 1500
+    pre-up /sbin/ip link set dev "$IFACE" txqueuelen 1000 2>/dev/null || true
+    post-up /sbin/ip link set dev "$IFACE" txqueuelen 1000 2>/dev/null || true
+    post-up /usr/sbin/ethtool -K "$IFACE" rx on tx on sg on tso on gso on gro on 2>/dev/null || true

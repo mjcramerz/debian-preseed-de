@@ -58,7 +58,7 @@ MENUS = {
 
 
 def choose(labels: list[str], prompt: str) -> str | None:
-    result = subprocess.run([PICKER, 'menu', '--dmenu', '--prompt', prompt],
+    result = subprocess.run([PICKER, 'computer-management', '--dmenu', '--prompt', prompt],
                             input=''.join(label + '\n' for label in labels), text=True,
                             stdout=subprocess.PIPE, check=False,
                             env={**os.environ, 'LABWC_MENU_INPUT_MODE': 'choice',
@@ -78,7 +78,7 @@ def run_action(arguments: tuple[str, ...]) -> int:
         executable = '/usr/local/bin/' + executable
     command = (executable, *arguments[1:])
     # Only the explicit terminal UI already owns a tty. Graphical invocation
-    # uses the AI launcher's normal managed-terminal entry point instead.
+    # uses the AI launcher's normal terminal entry point instead.
     if executable == '/usr/local/bin/labwc-ai-copilots' and os.environ.get('LABWC_MENU_BACKEND') == 'fzf':
         command += ('--terminal',)
     try:
@@ -131,7 +131,7 @@ def main(argv: list[str]) -> int:
     os.environ.update(LABWC_MENU_BACKEND=backend, LABWC_MENU_ACTION_WAIT='1',
                       LABWC_FUZZEL_MANAGED_ICONS='1', LABWC_FUZZEL_ROOT_MENU='0',
                       LABWC_FUZZEL_LOG_SCOPE='computer-management',
-                      LABWC_FUZZEL_GEOMETRY='computer-management')
+                      LABWC_FUZZEL_PALETTE='computer-management')
     return run_menu()
 
 

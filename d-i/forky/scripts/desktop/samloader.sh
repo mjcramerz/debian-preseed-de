@@ -238,13 +238,13 @@ desktop_install_samloader() {
   install -d -m 0755 "$samloader_install_parent_host" /target/usr/local/bin
   install -d -m 0755 "$samloader_staged_host"
   install -m 0755 "$samloader_binary_host" "${samloader_staged_host}/samloader"
-  cat >"${samloader_staged_host}/.managed-release" <<EOF
+  cat >"${samloader_staged_host}/.release" <<EOF
 version=${SAMLOADER_VERSION}
 url=${SAMLOADER_URL}
 archive_sha256=${SAMLOADER_SHA256}
 architecture=${SAMLOADER_TARGET_ARCHITECTURE}
 EOF
-  chmod 0644 "${samloader_staged_host}/.managed-release"
+  chmod 0644 "${samloader_staged_host}/.release"
   chown -R root:root "$samloader_staged_host"
 
   [ ! -L "$samloader_install_host" ] ||

@@ -4,6 +4,10 @@ Shell fixtures retain the actual chooser/dispatcher functions and replace only
 external UI/action endpoints. Offline policy parsing does not claim kernel
 mediation or a live Wayland session.
 """
+from payload_fixture import installed_argv as payload_installed_argv, source_exists as payload_source_exists, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from fuzzel_fixture import geometry_environment, wrapper_script
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import io
 import json
 import os
@@ -16,6 +20,7 @@ import tempfile
 import time
 import types
 import unittest
+from theme_fixture import render_theme_tree
 from unittest import mock
 
 FORKY = Path(__file__).resolve().parents[1]
@@ -28,12 +33,12 @@ def load(name):
     path = BIN / name
     module = types.ModuleType('menu_fixture_' + name.replace('-', '_'))
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(render_theme_bytes(payload_read_bytes(path)), str(path), 'exec'), module.__dict__)
     return module
 
 
 def function(name, script):
-    source = (BIN / script).read_text()
+    source = render_theme_defaults(payload_read_text(BIN / script))
     found = re.search(r'^' + re.escape(name) + r'\(\) \{\n.*?^\}', source, re.M | re.S)
     if not found:
         raise AssertionError('missing fixture function: ' + script + ':' + name)
@@ -41,7 +46,7 @@ def function(name, script):
 
 
 def shell(script, *, env=None, data='', args=()):
-    return subprocess.run(['/bin/sh', '-eu', '-c', script, 'fixture', *args],
+    return subprocess.run(payload_installed_argv(['/bin/sh', '-eu', '-c', script, 'fixture', *args]),
                           input=data, text=True, capture_output=True, timeout=10,
                           env={**os.environ, **(env or {})})
 
@@ -50,7 +55,7 @@ def profile(source, name):
     # Top-level policy boundaries only; braces in AppArmor path globs do not
     # affect the source-file convention of closing a top-level block at col 0.
     found = re.search(r'^profile ' + re.escape(name) + r' .*?^\}',
-                      source.read_text(), re.M | re.S)
+                      render_theme_defaults(payload_read_text(source)), re.M | re.S)
     if not found:
         raise AssertionError('missing profile: ' + name)
     return found.group(0)
@@ -149,8 +154,8 @@ class ActionContractTests(unittest.TestCase):
     def test_main_menu_has_fixed_management_route_with_strict_profile_transition(self):
         menu = load('labwc-main-menu')
         self.assertEqual(menu.ACTIONS['Computer Management'], ('/usr/local/bin/labwc-computer-management',))
-        policy = profile(AA / 'managed-desktop-wrappers', 'managed-labwc-main-menu')
-        self.assertIn('/usr/local/bin/labwc-computer-management rPx -> managed-labwc-computer-management,', policy)
+        policy = profile(AA / 'desktop-wrappers', 'labwc-main-menu')
+        self.assertIn('/usr/local/bin/labwc-computer-management rPx -> labwc-computer-management,', policy)
 
     def test_all_twenty_four_management_routes_execute_only_their_fixed_argv(self):
         menu = load('labwc-computer-management')
@@ -167,15 +172,15 @@ class ActionContractTests(unittest.TestCase):
 
     def test_every_management_local_executable_exists_and_is_staged(self):
         menu = load('labwc-computer-management')
-        staging = ((FORKY / 'scripts/desktop/components.sh').read_text()
-                   + (FORKY / 'scripts/desktop/hardware-tuning.sh').read_text())
+        staging = (render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
+                   + render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/hardware-tuning.sh')))
         for entries in menu.MENUS.values():
             for route in entries.values():
                 command = route[0]
                 path = command if command.startswith('/') else '/usr/local/bin/' + command
                 if path.startswith('/usr/local/'):
                     with self.subTest(path=path):
-                        self.assertTrue((TARGET / path.lstrip('/')).is_file())
+                        self.assertTrue(payload_source_is_file(TARGET / path.lstrip('/')))
                         self.assertIn(Path(path).name, staging)
 
     def test_wan_prompts_allow_text_only_after_explicit_authorization(self):
@@ -244,7 +249,7 @@ run_network_action() { printf '%s\n' "$@"; }
                     self.assertEqual(result.stdout, 'accepted' if data == good else '')
 
     def test_power_profile_is_an_exact_closed_choice(self):
-        source = (BIN / 'labwc-power-settings').read_text()
+        source = render_theme_defaults(payload_read_text(BIN / 'labwc-power-settings'))
         case = source[source.index('case "$selection" in'):source.index('[ "$selected_profile"')]
         for value in ('performance', 'balanced', 'power-saver', 'balanced (current)',
                       'performance arbitrary', 'balanced; touch /not-run', 'power-saver-extra'):
@@ -255,7 +260,7 @@ run_network_action() { printf '%s\n' "$@"; }
 
 
     def test_all_maintenance_and_recovery_actions_dispatch_validated_requests(self):
-        source = (BIN / 'labwc-maintenance-menu').read_text()
+        source = render_theme_defaults(payload_read_text(BIN / 'labwc-maintenance-menu'))
         definitions, main = source.split('requested_category=${1:-}', 1)
         # Keep the real nested menu and action dispatch. Replace the preflight
         # and physical discovery/action endpoints; no root operation can run.
@@ -306,7 +311,7 @@ run_network_action() { printf '%s\n' "$@"; }
                                    env={'FIXTURE_QUEUE': str(queue_path), 'FIXTURE_PICKER': str(picker)},
                                    args=(category,))
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertEqual(json.loads(queue_path.read_text()), [])
+                    self.assertEqual(json.loads(render_theme_defaults(payload_read_text(queue_path))), [])
                     request = result.stdout.splitlines()
                     self.assertTrue(request, label)
                     if label == 'Manage External Drives':
@@ -401,7 +406,7 @@ run_network_action() { printf 'UNEXPECTED ACTION\n'; }
         # tree into the shared unittest interpreter.
         import ast
         path = TARGET / 'usr/local/lib/hardware_tuning/client.py'
-        chooser = next(node for node in ast.parse(path.read_text()).body
+        chooser = next(node for node in ast.parse(render_theme_defaults(payload_read_text(path))).body
                        if isinstance(node, ast.FunctionDef) and node.name == 'choose')
         namespace = {'subprocess': subprocess, 'os': os, 'TuningError': ValueError}
         exec(compile(ast.Module(body=[chooser], type_ignores=[]), str(path), 'exec'), namespace)
@@ -417,62 +422,79 @@ run_network_action() { printf 'UNEXPECTED ACTION\n'; }
 
 class AppArmorIntegrationTests(unittest.TestCase):
     def test_all_named_transitions_resolve_to_managed_or_declared_vendor_profiles(self):
-        files = [p for p in AA.rglob('*') if p.is_file()]
-        sources = '\n'.join(p.read_text() for p in files)
+        files = [p for p in AA.rglob('*') if payload_source_is_file(p)]
+        sources = '\n'.join(render_theme_defaults(payload_read_text(p)) for p in files)
         names = set(re.findall(r'^\s*profile\s+([^\s{]+)', sources, re.M))
         targets = set(re.findall(r'\b[rcw]*[pPcCiIuUxX]+\s+->\s+([^,\s]+)', sources))
         # Chromium-family attachments are owned by vendor packages and adapted
         # by security.sh; nested // transitions are relative to their parent.
         missing = {name for name in targets if name not in names and '//' not in name}
         self.assertEqual(missing, {'chromium', 'microsoft-edge-stable', 'mullvad-browser'})
-        security = (FORKY / 'scripts/late/security.sh').read_text()
+        security = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/security.sh'))
         for name in missing: self.assertIn(name, security)
 
     def test_required_managed_includes_exist_and_have_installer_staging_references(self):
-        security = (FORKY / 'scripts/late/security.sh').read_text()
-        hardware = (FORKY / 'scripts/desktop/hardware-tuning.sh').read_text()
+        security = render_theme_defaults(payload_read_text(FORKY / 'scripts/late/security.sh'))
+        hardware = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/hardware-tuning.sh'))
         expanded = hardware
+        # These native local includes are staged from literal here-document
+        # inventories, not hard-coded per-file calls. Expand only those two
+        # explicitly invoked inventory functions, not every available file.
+        for inventory in ('apparmor_managed_local_include_files', 'apparmor_support_local_include_files'):
+            self.assertIn('for apparmor_local_include in $(' + inventory + '); do', security)
+            match = re.search(r'^' + inventory + r"\(\) \{\n  cat <<'EOF'\n(.*?)\nEOF\n\}", security, re.M | re.S)
+            self.assertIsNotNone(match, inventory)
+            for name in match.group(1).splitlines():
+                self.assertRegex(name, r'^[a-z0-9][a-z0-9._-]*$')
+                expanded += security.replace('${apparmor_local_include}', name)
         for variable, values in (('hardware_bridge', ('desktop-parent', 'fuzzel-parent', 'management-parent')),
                                  ('hardware_vendor', ('intel', 'nvidia'))):
             self.assertIn('${' + variable + '}', hardware)
             for value in values:
                 expanded += hardware.replace('${' + variable + '}', value)
         for path in AA.rglob('*'):
-            if not path.is_file(): continue
-            for optional, include in re.findall(r'^\s*#?include\s+(if exists\s+)?<([^>]+)>', path.read_text(), re.M):
-                if not include.startswith(('abstractions/managed-', 'local/managed-')): continue
+            if not payload_source_is_file(path): continue
+            for optional, include in re.findall(r'^\s*#?include\s+(if exists\s+)?<([^>]+)>', render_theme_defaults(payload_read_text(path)), re.M):
+                if not include.startswith(('abstractions/', 'local/')): continue
+                # Check every project-owned include, regardless of its name.
+                # Distribution-owned abstractions are checked by the native parser.
+                if not payload_source_exists(AA / include):
+                    if optional: continue
+                    self.assertTrue((Path('/etc/apparmor.d') / include).is_file(), include)
+                    continue
                 with self.subTest(source=path.name, include=include):
                     destination = AA / include
-                    if optional and not destination.exists(): continue
-                    self.assertTrue(destination.is_file(), include)
+                    if optional and not payload_source_exists(destination): continue
+                    self.assertTrue(payload_source_is_file(destination), include)
                     self.assertIn(include, security + expanded)
 
     def test_fuzzel_cleanup_signal_has_both_confined_endpoints(self):
-        sender = profile(AA / 'managed-desktop-wrappers', 'managed-labwc-fuzzel')
-        recipient = profile(AA / 'managed-desktop-utilities', 'managed-desktop-launcher')
-        self.assertIn('signal (send) set=(term) peer=managed-desktop-launcher,', sender)
-        self.assertIn('signal (receive) set=(term) peer=managed-labwc-fuzzel,', recipient)
+        sender = profile(AA / 'desktop-wrappers', 'labwc-fuzzel')
+        recipient = profile(AA / 'desktop-utilities', 'desktop-launcher')
+        self.assertIn('signal (send) set=(term) peer=desktop-launcher,', sender)
+        self.assertIn('signal (receive) set=(term) peer=labwc-fuzzel,', recipient)
         self.assertIn('/usr/bin/fuzzel rPx,', sender)
 
     def test_ai_fzf_has_read_only_terminal_database_access(self):
-        policy = profile(AA / 'managed-desktop-wrappers', 'managed-labwc-ai-copilots')
+        policy = profile(AA / 'desktop-wrappers', 'labwc-ai-copilots')
         for path in ('/etc/terminfo/{,**}', '/{,usr/}lib/terminfo/{,**}', '/usr/share/terminfo/{,**}'):
             self.assertIn(path + ' r,', policy)
         self.assertIn('/usr/bin/{find,fzf,id,sed,sort} rix,', policy)
         self.assertNotIn('flags=(unconfined', policy)
 
-    @unittest.skipUnless(shutil.which('apparmor_parser') and Path('/etc/apparmor.d/abstractions/base').is_file(),
+    @unittest.skipUnless(shutil.which('apparmor_parser') and payload_source_is_file(Path('/etc/apparmor.d/abstractions/base')),
                          'AppArmor parser/system abstractions unavailable; source contracts still tested')
     def test_every_managed_top_level_policy_compiles_offline(self):
         with tempfile.TemporaryDirectory(prefix='menu-apparmor-') as temporary:
             base = Path(temporary) / 'apparmor.d'
             shutil.copytree('/etc/apparmor.d', base, symlinks=True)
             shutil.copytree(AA, base, dirs_exist_ok=True, symlinks=True)
+            render_theme_tree(base)
             for path in sorted(AA.iterdir()):
-                if not path.is_file(): continue
+                if not payload_source_is_file(path): continue
                 with self.subTest(policy=path.name):
-                    result = subprocess.run(['apparmor_parser', '-Q', '-K', '-T',
-                        '--base', str(base), '-I', str(base), str(base / path.name)],
+                    result = subprocess.run(payload_installed_argv(['apparmor_parser', '-Q', '-K', '-T',
+                        '--base', str(base), '-I', str(base), str(base / path.name.removesuffix('.tmpl'))]),
                         text=True, capture_output=True, timeout=60)
                     self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -495,28 +517,29 @@ class FuzzelLifecycleTests(unittest.TestCase):
             environment = {**os.environ, 'PATH': str(root/'bin') + ':/usr/bin:/bin',
                 'HOME': str(root), 'XDG_CONFIG_HOME': str(root/'config'), 'XDG_RUNTIME_DIR': str(root),
                 'LABWC_FUZZEL_MANAGED_ICONS': '0', 'LABWC_MENU_BACKEND': 'fuzzel',
+                **geometry_environment(),
                 'FIXTURE_PID': str(root/'child.pid')}
-            process = subprocess.Popen(['/bin/sh', str(BIN/'labwc-fuzzel'), 'menu', '--dmenu'],
+            process = subprocess.Popen(payload_installed_argv(['/bin/sh', str(wrapper_script(root, child)), 'menu', '--dmenu']),
                 env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:
                 deadline = time.monotonic() + 5
-                while not (root/'child.pid').exists() and process.poll() is None and time.monotonic() < deadline:
+                while not payload_source_exists(root/'child.pid') and process.poll() is None and time.monotonic() < deadline:
                     time.sleep(.02)
-                if not (root/'child.pid').exists():
+                if not payload_source_exists(root/'child.pid'):
                     output, errors = process.communicate(timeout=2)
                     self.fail('fixture child did not start: ' + errors.decode())
-                child_pid = int((root/'child.pid').read_text())
+                child_pid = int(render_theme_defaults(payload_read_text(root/'child.pid')))
                 process.send_signal(signal.SIGTERM)
                 output, errors = process.communicate(timeout=5)
                 self.assertEqual(process.returncode, 143, errors.decode())
-                self.assertFalse((root/'labwc-fuzzel.pid').exists())
+                self.assertFalse(payload_source_exists(root/'labwc-fuzzel.pid'))
                 with self.assertRaises(ProcessLookupError): os.kill(child_pid, 0)
             finally:
                 if process.poll() is None:
                     process.kill()
                     process.communicate(timeout=2)
-                if (root/'child.pid').exists():
-                    try: os.kill(int((root/'child.pid').read_text()), signal.SIGTERM)
+                if payload_source_exists(root/'child.pid'):
+                    try: os.kill(int(render_theme_defaults(payload_read_text(root/'child.pid'))), signal.SIGTERM)
                     except ProcessLookupError: pass
 
 

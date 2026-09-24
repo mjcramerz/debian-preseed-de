@@ -21,7 +21,7 @@ if __name__ == "__main__":
         recovery = sys.argv[1:] == ["recover-all"] or (len(sys.argv) == 3 and sys.argv[2] == "reset")
         if not recovery:
             label = Path("/proc/self/attr/current").read_text(encoding="ascii").strip()
-            if label != "managed-hardware-tuning-worker (enforce)":
+            if label != "hardware-tuning-worker (enforce)":
                 raise TuningError("an enforced hardware worker AppArmor profile is required")
         libc = ctypes.CDLL(None, use_errno=True)
         if libc.prctl(38, 1, 0, 0, 0) != 0:

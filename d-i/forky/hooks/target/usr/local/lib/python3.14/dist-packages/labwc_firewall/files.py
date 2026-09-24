@@ -1,4 +1,4 @@
-"""Locked, atomic managed-file transactions for firewall policy changes."""
+"""Locked, atomic file transactions for firewall policy changes."""
 
 from __future__ import annotations
 

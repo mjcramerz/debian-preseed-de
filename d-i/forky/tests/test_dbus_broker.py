@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Broker policy, diversion and install-graph tests without a running bus."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file, source_stat as payload_source_stat
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 
 from contextlib import ExitStack
 import os
@@ -22,7 +24,7 @@ def load_helper() -> types.ModuleType:
     path = SHARED / 'usr/local/libexec/dbus-broker-maintain'
     module = types.ModuleType('tested_broker_maintenance')
     module.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), module.__dict__)
     return module
 
 
@@ -78,17 +80,17 @@ class BrokerPolicyTests(unittest.TestCase):
                 self.helper.diverted_source(Path('/usr/share/dbus-1/session.conf'))
 
     def test_local_activation_directory_mode_is_normalized_after_private_umask(self) -> None:
-        source = Path(self.helper.__file__).read_text()
+        source = payload_read_text(Path(self.helper.__file__))
         self.assertIn('os.fchmod(fd, mode)', source)
         self.assertIn('stat.S_IMODE(os.fstat(fd).st_mode) != mode', source)
         self.assertIn('trusted_directory(LOCAL_SERVICES)', source)
 
     def test_runtime_maintenance_never_restarts_message_bus(self) -> None:
-        source = Path(self.helper.__file__).read_text()
+        source = payload_read_text(Path(self.helper.__file__))
         self.assertIn("'ReloadConfig'", source)
         self.assertNotIn("'restart'", source)
         self.assertNotIn("'try-reload-or-restart'", source)
-        hook = (SHARED / 'etc/dpkg/dpkg.cfg.d/90-managed-dbus-broker').read_text()
+        hook = payload_read_text(SHARED / 'etc/dpkg/dpkg.cfg.d/90-dbus-broker')
         self.assertIn('post-invoke=/usr/local/libexec/dbus-broker-maintain --refresh', hook)
 
     @unittest.skipUnless(os.geteuid() == 0, 'checks actual root-owned files in an isolated temporary directory')
@@ -123,16 +125,16 @@ class BrokerPolicyTests(unittest.TestCase):
             stack.enter_context(mock.patch.multiple(h, SESSION=session, SERVICES=services, LOCAL_SERVICES=local))
             stack.enter_context(mock.patch.object(h, 'command', side_effect=dpkg))
             h.refresh_files()
-            self.assertNotIn('eavesdrop=', session.read_text())
+            self.assertNotIn('eavesdrop=', payload_read_text(session))
             alias = local / 'org.freedesktop.Notifications.service'
             self.assertEqual(alias.resolve(), Path(str(original) + '.distrib'))
             vendor = Path(str(session) + '.distrib')
             vendor.write_text('<busconfig><policy><allow eavesdrop="true"/><allow own="org.example.New"/></policy></busconfig>')
             h.refresh_files()
-            self.assertIn('org.example.New', session.read_text())
-            before = session.stat().st_mtime_ns
+            self.assertIn('org.example.New', payload_read_text(session))
+            before = payload_source_stat(session).st_mtime_ns
             h.refresh_files()
-            self.assertEqual(session.stat().st_mtime_ns, before)
+            self.assertEqual(payload_source_stat(session).st_mtime_ns, before)
 
     @unittest.skipUnless(os.geteuid() == 0, 'checks actual root-owned files in an isolated temporary directory')
     def test_atomic_write_failure_preserves_previous_configuration(self) -> None:
@@ -143,24 +145,24 @@ class BrokerPolicyTests(unittest.TestCase):
             with mock.patch.object(self.helper.os, 'replace', side_effect=OSError('injected failure')):
                 with self.assertRaises(OSError):
                     self.helper.atomic_write(path, b'new')
-            self.assertEqual(path.read_bytes(), b'previous')
+            self.assertEqual(payload_read_bytes(path), b'previous')
             self.assertEqual([p.name for p in path.parent.iterdir()], ['config'])
 
 
 class BrokerInstallTests(unittest.TestCase):
     def test_package_repair_cannot_remove_unrelated_apps(self) -> None:
-        source = (FORKY / 'scripts/late/dbus-broker.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/late/dbus-broker.sh')
         self.assertIn('--no-remove install', source)
         self.assertIn('dpkg --purge dbus dbus-daemon dbus-x11', source)
         self.assertNotIn('-y purge', source)
 
     def test_helper_hook_and_login_probe_are_staged(self) -> None:
-        source = (FORKY / 'scripts/late/dbus-broker.sh').read_text()
+        source = payload_read_text(FORKY / 'scripts/late/dbus-broker.sh')
         for path in ['usr/local/libexec/dbus-broker-maintain', 'usr/local/libexec/dbus-broker-check',
-                     'etc/dpkg/dpkg.cfg.d/90-managed-dbus-broker']:
+                     'etc/dpkg/dpkg.cfg.d/90-dbus-broker']:
             self.assertIn(path, source)
-            self.assertTrue((SHARED / path).is_file())
-        login = (FORKY / 'hooks/target/usr/local/bin/labwc-session.tmpl').read_text()
+            self.assertTrue(payload_source_is_file(SHARED / path))
+        login = payload_read_text(FORKY / 'hooks/target/usr/local/bin/labwc-session.tmpl')
         self.assertIn('/usr/local/libexec/dbus-broker-check --user', login)
 
     def test_cyclic_also_units_fail_with_diagnostic(self) -> None:
@@ -177,7 +179,7 @@ target_systemd_install_values() {{
 }}
 stage_target_systemd_unit_enabled one.service system
 '''
-        result = subprocess.run(['/bin/sh'], input=script, text=True, capture_output=True, timeout=3)
+        result = subprocess.run(payload_installed_argv(['/bin/sh']), input=script, text=True, capture_output=True, timeout=3)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('cyclic systemd Also=', result.stderr)
 

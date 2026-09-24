@@ -3,7 +3,6 @@ Description=Synchronize Fruux calendar and task collections
 ConditionEnvironment=LABWC_SESSION_OWNER=desktop
 ConditionEnvironment=WAYLAND_DISPLAY
 ConditionEnvironment=XDG_SESSION_TYPE=wayland
-BindsTo=labwc-compositor.service
 After=labwc-compositor.service labwc-session.target
 ConditionPathExists=%h/.config/vdirsyncer/config
 ConditionPathExists=%h/.config/khal/config

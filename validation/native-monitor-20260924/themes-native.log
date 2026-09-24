@@ -1,0 +1,26 @@
+test_changed_palette_reaches_every_group_through_production_fetch (test_themes.ThemeInstallationTests.test_changed_palette_reaches_every_group_through_production_fetch) ... ok
+test_copied_application_tree_is_rendered_before_publication (test_themes.ThemeInstallationTests.test_copied_application_tree_is_rendered_before_publication) ... ok
+test_custom_wallpaper_is_public_readable_and_binary_identical (test_themes.ThemeInstallationTests.test_custom_wallpaper_is_public_readable_and_binary_identical) ... ok
+test_custom_wallpaper_paths_are_derived_not_evaluated (test_themes.ThemeInstallationTests.test_custom_wallpaper_paths_are_derived_not_evaluated) ... ok
+test_every_profile_renders_geometry_and_native_theme_settings (test_themes.ThemeInstallationTests.test_every_profile_renders_geometry_and_native_theme_settings) ... ok
+test_failed_render_preserves_original_file_mode_and_bytes (test_themes.ThemeInstallationTests.test_failed_render_preserves_original_file_mode_and_bytes) ... ok
+test_foot_parser_failure_is_not_converted_to_success (test_themes.ThemeInstallationTests.test_foot_parser_failure_is_not_converted_to_success) ... ok
+test_individual_fetch_and_plain_asset_are_rendered (test_themes.ThemeInstallationTests.test_individual_fetch_and_plain_asset_are_rendered) ... ok
+test_selected_waybar_icons_are_staged_not_the_default_names (test_themes.ThemeInstallationTests.test_selected_waybar_icons_are_staged_not_the_default_names) ... ok
+test_symlink_is_not_rendered_and_binary_artwork_remains_identical (test_themes.ThemeInstallationTests.test_symlink_is_not_rendered_and_binary_artwork_remains_identical) ... ok
+test_foot_result_helper_does_not_remap_or_execute_status_values (test_themes.ThemeRuntimeContractTests.test_foot_result_helper_does_not_remap_or_execute_status_values) ... ok
+test_native_submenus_accept_independent_backgrounds (test_themes.ThemeRuntimeContractTests.test_native_submenus_accept_independent_backgrounds) ... ok
+test_no_gtk_debug_override_export_is_left (test_themes.ThemeRuntimeContractTests.test_no_gtk_debug_override_export_is_left) ... ok
+test_rendered_native_app_configs_parse (test_themes.ThemeRuntimeContractTests.test_rendered_native_app_configs_parse) ... ok
+test_wpa_preserves_protection_with_only_interface_tree_exceptions (test_themes.ThemeRuntimeContractTests.test_wpa_preserves_protection_with_only_interface_tree_exceptions) ... ok
+test_actual_catalog_and_consumers (test_themes.ThemeValidationTests.test_actual_catalog_and_consumers) ... ok
+test_all_tokenized_sources_match_production_awk_rendering (test_themes.ThemeValidationTests.test_all_tokenized_sources_match_production_awk_rendering) ... ok
+test_duplicate_unknown_missing_and_wrong_group_fail_closed (test_themes.ThemeValidationTests.test_duplicate_unknown_missing_and_wrong_group_fail_closed) ... ok
+test_installer_and_busybox_awk_accept_identical_values (test_themes.ThemeValidationTests.test_installer_and_busybox_awk_accept_identical_values) ... ok
+test_invalid_paths_and_colors_are_rejected (test_themes.ThemeValidationTests.test_invalid_paths_and_colors_are_rejected) ... ok
+test_shell_and_config_injection_is_rejected_without_partial_map (test_themes.ThemeValidationTests.test_shell_and_config_injection_is_rejected_without_partial_map) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 88.665s
+
+OK

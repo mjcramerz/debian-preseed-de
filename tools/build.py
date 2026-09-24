@@ -82,7 +82,17 @@ def payload_files() -> list[Path]:
         raise ValueError('empty repository')
     return paths
 
+def payload_source(path: Path) -> Path:
+    template = path.with_name(path.name + '.tmpl')
+    if path.exists() and template.exists():
+        raise ValueError(f'ambiguous plain/template payload: {path}')
+    return template if template.is_file() else path
+
 def validate(paths: list[Path]) -> None:
+    logging_checker = runpy.run_path(str(ROOT / 'tools/check_logging.py'))
+    logging_checker['check'](SEED)
+    theme_checker = runpy.run_path(str(ROOT / 'tools/check_themes.py'))
+    theme_checker['check'](SEED)
     metadata_checker = runpy.run_path(str(ROOT / 'tools/check_shells.py'))
     forbidden = metadata_checker['external_metadata_dependencies'](ROOT)
     if forbidden:
@@ -110,11 +120,11 @@ def validate(paths: list[Path]) -> None:
                 if variable not in directories:
                     raise ValueError(f'undeclared path variable {variable} in {script.relative_to(SEED)}')
             for variable, leaf in reference.findall(text):
-                if variable not in directories or not (SEED / directories[variable] / leaf).exists():
+                if variable not in directories or not payload_source(SEED / directories[variable] / leaf).exists():
                     raise ValueError(f'missing literal payload {variable}/{leaf} in {script.relative_to(SEED)}')
     for p in paths:
         rel = p.relative_to(SEED).as_posix()
-        if rel.startswith('scripts/') and p.suffix == '.sh' or p.suffix == '.env':
+        if (rel.startswith('scripts/') and (p.name.endswith('.sh') or p.name.endswith('.sh.tmpl'))) or p.suffix == '.env':
             q = subprocess.run(['/bin/sh', '-n', str(p)], capture_output=True, text=True)
             if q.returncode:
                 raise ValueError(f'shell syntax error in {rel}: {q.stderr.strip()}')
@@ -162,7 +172,7 @@ def validate(paths: list[Path]) -> None:
         if not path.is_file():
             raise ValueError(f'class metadata has no fragment: {path.relative_to(SEED)}')
         helper = fields.get('LateHelper')
-        if helper and not (SEED / 'scripts/late' / (helper + '.sh')).is_file():
+        if helper and not payload_source(SEED / 'scripts/late' / (helper + '.sh')).is_file():
             raise ValueError(f'class helper missing: {helper}')
         if group == 'profile':
             if not (SEED / 'hosts/profiles' / f'{name}.env').is_file():
@@ -342,6 +352,25 @@ def validate_iocost_profiles() -> None:
         if result.returncode or set(values) != {line.split('=', 1)[0] for line in result.stdout.splitlines()}:
             raise ValueError(f'{profile.name}: invalid IOCost policy: {result.stderr.strip()}')
 
+def validate_systemd_profiles() -> None:
+    helper = SEED / 'scripts/late/templates.sh'
+    for profile in sorted((SEED / 'hosts/profiles').glob('*.env')):
+        values = {}
+        for line in profile.read_text().splitlines():
+            if not line.startswith('SYSTEMD_'):
+                continue
+            match = re.fullmatch(r'([A-Z0-9_]+)="([^"\\$`\x00-\x1f\x7f]*)"', line)
+            if not match or match[1] in values:
+                raise ValueError(f'{profile.name}: malformed or duplicate systemd policy')
+            values[match[1]] = match[2]
+        result = subprocess.run(['/bin/sh', '-eu', '-c',
+            'installer_fatal() { printf "%s\\n" "$*" >&2; return 1; }; . "$1"; systemd_resource_placeholder_map',
+            'systemd-profile-check', str(helper)],
+            env={'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LC_ALL': 'C', **values},
+            text=True, capture_output=True, timeout=15)
+        if result.returncode:
+            raise ValueError(f'{profile.name}: invalid systemd policy: {result.stderr.strip()}')
+
 def validate_tomat_profiles() -> None:
     """Reject absent/unsafe bootstrap pins before publishing any installer files."""
     required = {"SOFTWARE_TOMAT_TAG", "SOFTWARE_TOMAT_URL", "SOFTWARE_TOMAT_SHA256"}
@@ -381,6 +410,7 @@ def main() -> int:
         subprocess.run([resolve_python_interpreter(), '-I', '-B',
                         str(ROOT / 'tools/check_resctl_bench.py')], check=True)
         validate_iocost_profiles()
+        validate_systemd_profiles()
         validate_tomat_profiles()
         subprocess.run([resolve_python_interpreter(), '-B', str(ROOT / 'tools/build_browser_config.py')] +
                        (['--check'] if args.check else []), check=True)

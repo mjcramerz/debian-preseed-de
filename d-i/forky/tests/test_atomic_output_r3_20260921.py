@@ -3,6 +3,8 @@
 No compositor, DRM device, power action, or real service is accessed. The lock
 contention test uses real flock/fork on a private temporary directory.
 """
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import os
 import re
@@ -17,12 +19,12 @@ TARGET = FORKY/'hooks/target'
 class OutputReconcileTests(unittest.TestCase):
     def perl(self, script):
         source = Path(os.environ.get('LABWC_OUTPUT_TEST_SOURCE', str(TARGET/'usr/local/libexec/labwc-output-watch')))
-        main = source.read_text().split('package main;', 1)[1].split('unless (caller) {', 1)[0]
+        main = payload_read_text(source).split('package main;', 1)[1].split('unless (caller) {', 1)[0]
         code = 'use strict; use warnings; package main;\n'+main
         code += '\nsub test_defaults { %defaults = @_; }\nno warnings "redefine";\n'+script
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'test.pl'; path.write_text(code)
-            result = subprocess.run(['perl', '-I'+str(TARGET/'usr/local/lib/perl5/site_perl/managed-runtime'), str(path)],
+            result = subprocess.run(payload_installed_argv(['perl', '-I'+str(TARGET/'usr/local/lib/perl5/site_perl/runtime'), str(path)]),
                                     capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
         return result

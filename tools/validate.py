@@ -47,7 +47,7 @@ def unittest_counts(text: str) -> tuple[int | None, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output-dir', type=Path, default=ROOT/'validation')
+    parser.add_argument('--output-dir', type=Path, default=ROOT/'.build/validation')
     parser.add_argument('--test-timeout', type=int, default=900,
                         help='positive per-suite timeout in seconds (default: 900)')
     args = parser.parse_args()

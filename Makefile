@@ -15,6 +15,6 @@ test-debconf:
 test-cuda:
 	$(PYTHON) -B -m unittest discover -s d-i/forky/tests -p "test_cuda_legacy_apt.py" -v
 audit:
-	$(PYTHON) -B d-i/forky/tests/audit_codebase.py --output validation/audit.json
+	$(PYTHON) -B d-i/forky/tests/audit_codebase.py --output .build/validation/audit.json
 validate:
 	$(PYTHON) -B tools/validate.py

@@ -13,7 +13,7 @@ import urllib.parse
 import uuid
 
 
-DEFAULTS_PATH = pathlib.Path("/etc/default/labwc-desktop")
+DEFAULTS_PATH = pathlib.Path("/etc/labwc/desktop.conf")
 MAX_DEFAULTS_BYTES = 65536
 MAX_LAUNCH_ARGUMENTS = 64
 MAX_LAUNCH_ARGUMENT_BYTES = 8192
@@ -28,7 +28,7 @@ DEFAULT_KEYS = {
     "LABWC_QBITTORRENT_ROOT",
     "LABWC_QBITTORRENT_USER",
 }
-ACCELERATION_OPTION_PREFIX = "--managed-acceleration="
+ACCELERATION_OPTION_PREFIX = "--acceleration="
 
 
 def fail(message: str) -> None:

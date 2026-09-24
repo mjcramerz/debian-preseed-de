@@ -1,0 +1,62 @@
+# Route kernel and udev USB/hotplug records to a dedicated hardware log. The
+# desktop signal contains only a category marker, never raw device metadata.
+
+template(
+  name="ManagedUsbDesktopSignal"
+  type="string"
+  string="usb\n"
+)
+
+if (
+  (
+    $syslogfacility-text == "kern" or
+    $programname == "systemd-udevd" or
+    $programname == "udisksd"
+  ) and (
+    $msg contains "usb" or
+    $msg contains "USB" or
+    $msg contains "usbcore" or
+    $msg contains "usb-storage" or
+    $msg contains "usbhid" or
+    $msg contains "hid-generic" or
+    $msg contains "xhci" or
+    $msg contains "ehci" or
+    $msg contains "ohci" or
+    $msg contains "uhci" or
+    $msg contains "cdc_acm" or
+    $msg contains "cdc_ether" or
+    $msg contains "rndis_host" or
+    $msg contains "thunderbolt" or
+    $msg contains "Thunderbolt" or
+    $msg contains "typec" or
+    $msg contains "Type-C"
+  )
+) then {
+  set $.managed_security_routed = "on";
+  action(
+    name="managed_usb_log"
+    type="omfile"
+    file="__INSTALLER_LOG_USB_FILE__"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="__INSTALLER_LOG_GROUP__"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="__INSTALLER_LOG_GROUP__"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="RSYSLOG_TraditionalFileFormat"
+  )
+  action(
+    name="managed_usb_desktop_signal"
+    type="omfile"
+    file="/var/lib/labwc-notifications/security/usb.signal"
+    fileOwner="__INSTALLER_LOG_OWNER__"
+    fileGroup="logreader"
+    fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+    dirOwner="__INSTALLER_LOG_OWNER__"
+    dirGroup="logreader"
+    dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
+    createDirs="on"
+    template="ManagedUsbDesktopSignal"
+  )
+}

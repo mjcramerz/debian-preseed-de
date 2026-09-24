@@ -6,6 +6,10 @@ TOML validator and every Python assertion run unchanged. Real GTK widget tests
 remain in test_native_menu_hover_20260920; this is not a boot qualification.
 """
 from __future__ import annotations
+from payload_fixture import waybar_config_text
+from payload_fixture import copyfile as payload_copyfile, installed_argv as payload_installed_argv, installed_script as payload_installed_script
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 
 import contextlib
 import copy
@@ -50,23 +54,19 @@ desktop_verify_native_drawer_icons() { :; }
 run_in_target() { shift; printf '%s\0' "$@"; }
 desktop_verify_native_menus
 '''
+    from waybar_fixture import rendered_assets
+    assets = rendered_assets(profile, count)
+    # Render above using the real renderer. Capture only the native verification
+    # handoff below, so its code runs on the exact installed output-class files.
+    script = script.replace("desktop_render_waybar_config\nprintf '\\0'", "")
     response = subprocess.run(
-        ['/bin/sh', '-eu', '-c', script, 'native-menu-verifier', str(profile),
-         str(FORKY / 'scripts/desktop'), 'profile' if count is None else str(count)],
+        payload_installed_argv(['/bin/sh', '-eu', '-c', script, 'native-menu-verifier', str(profile),
+         str(FORKY / 'scripts/desktop'), 'profile' if count is None else str(count)]),
         env={'PATH': '/usr/bin:/bin'}, capture_output=True, check=True, timeout=10)
-    substitutions, command = response.stdout.decode().split('\0\0', 1)
-    fields = substitutions.split('\0')
-    if len(fields) % 2:
-        raise AssertionError('incomplete renderer substitution pair')
-    text = (SKEL / 'waybar/config.tmpl').read_text()
-    for key, value in zip(fields[::2], fields[1::2]):
-        text = text.replace('__INSTALLER_' + key + '__', value)
-    if '__INSTALLER_' in text:
-        raise AssertionError('unresolved Waybar template')
-    argv = command.split('\0')[:-1]
+    argv = response.stdout.decode().split('\0')[:-1]
     if argv[:4] != ['/usr/bin/python3', '-I', '-B', '-c']:
         raise AssertionError('unexpected target verifier interpreter')
-    return json.loads(text), argv
+    return json.loads(assets['config']), argv
 
 
 class TargetFixture:
@@ -78,11 +78,11 @@ class TargetFixture:
         self.arch = 'amd64'
         self.mako_version = '1.11.0-1'
         self.probes = []
-        self.controller = runpy.run_path(str(LIBEXEC / 'labwc-tomat'))
+        self.controller = runpy.run_path(str(payload_installed_script(LIBEXEC / 'labwc-tomat')))
         for name in HELPERS:
             destination = self.path('/usr/local/libexec/' + name)
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(LIBEXEC / name, destination)
+            payload_copyfile(LIBEXEC / name, destination)
             destination.chmod(0o755)
             self.owners[destination] = 0
         for base, uid in (('/etc/skel-desktop', 0), (HOME, 1000)):
@@ -91,11 +91,12 @@ class TargetFixture:
             (config / 'tomat').mkdir()
             for name in MENUS:
                 destination = config / 'waybar' / (name + '-menu.xml')
-                shutil.copyfile(SKEL / 'waybar' / destination.name, destination)
+                from waybar_fixture import rendered_assets
+                destination.write_text(rendered_assets(FORKY/'hosts/profiles/btrfs-de.env')[destination.name])
                 destination.chmod(0o644)
                 self.owners[destination] = uid
             toml = config / 'tomat/config.toml'
-            shutil.copyfile(SKEL / 'tomat/config.toml', toml)
+            payload_copyfile(SKEL / 'tomat/config.toml', toml)
             toml.chmod(0o600)
             self.owners[toml] = uid
             (config / 'waybar/config').write_text(json.dumps(bars))
@@ -105,7 +106,7 @@ class TargetFixture:
                 unit.write_text('[Service]\nExecStart=/usr/bin/true\n')
             # Execute the real install-time optional-menu transformation for
             # BOTH copies, rather than manufacturing the XML state in the test.
-            source = (FORKY / 'scripts/desktop/components.sh').read_text()
+            source = render_theme_defaults(payload_read_text(FORKY / 'scripts/desktop/components.sh'))
             code = source.split('run_in_target "configure optional native audio menu" '
                                 '/usr/bin/python3 -I -c \'\n', 1)[1].split(
                                     '\n\' "$native_menu_whisper"', 1)[0]
@@ -129,7 +130,7 @@ class TargetFixture:
 
     def rewrite_bar(self, base: str, layout: int, change):
         path = self.path(base) / '.config/waybar/config'
-        bars = json.loads(path.read_text())
+        bars = json.loads(payload_read_text(path))
         change(bars[layout])
         path.write_text(json.dumps(bars))
 
@@ -192,7 +193,7 @@ class NativeMenuVerifierTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.profiles = sorted(path for path in (FORKY / 'hosts/profiles').glob('*.env')
-                              if 'LABWC_WAYBAR_FONT_SIZE=' in path.read_text())
+                              if 'LABWC_WAYBAR_EXTERNAL_FONT_SIZE=' in render_theme_defaults(payload_read_text(path)))
         cls.rendered = {path.name: rendered_verifier(path) for path in cls.profiles}
 
     def fixture(self, root, *, bars=None, command=None, whisper=False):
@@ -215,7 +216,8 @@ class NativeMenuVerifierTests(unittest.TestCase):
             with self.subTest(workspaces=count), tempfile.TemporaryDirectory() as work:
                 bars, command = rendered_verifier(self.profiles[0], count)
                 self.assertEqual(command[5:7], [HOME, USERNAME])
-                self.assertEqual(len(command), 8)
+                self.assertEqual(len(command), 11)
+                self.assertEqual(command[8:], ['8', '18', '20'])
                 expected = ['custom/launcher', 'ext/workspaces', 'custom/tomat', 'custom/wayscriber',
                             'custom/window-switcher', 'group/apps']
                 if count == 1:
@@ -237,8 +239,8 @@ desktop_verify_native_menus
         for shell in (['/bin/sh'], ['busybox', 'sh']):
             with self.subTest(shell=shell):
                 result = subprocess.run(
-                    [*shell, '-eu', '-c', script, 'native-menu-fail-closed',
-                     str(FORKY / 'scripts/desktop/verify.sh')],
+                    payload_installed_argv([*shell, '-eu', '-c', script, 'native-menu-fail-closed',
+                     str(FORKY / 'scripts/desktop/verify.sh')]),
                     text=True, capture_output=True, timeout=5)
                 self.assertEqual(result.returncode, 41, result.stderr)
                 self.assertEqual(result.stdout, '')

@@ -1,0 +1,153 @@
+#!/usr/bin/python3
+"""Import the first initramfs diagnostics after the real log filesystem is mounted.
+
+Only the seven known root-owned logs are accepted. The source is temporary /run
+state; publication is atomic on the final filesystem, with bounded reads and no
+symlink traversal. This helper is removed with the other firstboot artifacts.
+"""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import stat
+import sys
+import uuid
+
+DESTINATION = Path("__INSTALLER_LOG_INITRAMFS_DIR__")
+MAX_BYTES = __INSTALLER_LOG_INITRAMFS_MAXSIZE_BYTES__
+SOURCES = (Path("/run/initramfs-health"), Path("/run/initramfs/initramfs-health"))
+NAMES = (
+    "01-init-top.log", "02-init-premount.log", "03-local-top.log",
+    "04-local-block.log", "05-local-premount.log", "06-local-bottom.log",
+    "07-init-bottom.log",
+)
+DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+
+
+def check_directory(fd: int) -> None:
+    info = os.fstat(fd)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise PermissionError("initramfs log path has a non-root or writable directory")
+
+
+def open_directory(path: Path, *, create: bool = False) -> int:
+    if not path.is_absolute() or any(part in (".", "..") for part in path.parts):
+        raise ValueError("initramfs log path must be absolute and normalized")
+    fd = os.open("/", DIR_FLAGS)
+    try:
+        check_directory(fd)
+        for component in path.parts[1:]:
+            if create:
+                try:
+                    os.mkdir(component, 0o700, dir_fd=fd)
+                except FileExistsError:
+                    pass
+            child = os.open(component, DIR_FLAGS, dir_fd=fd)
+            try:
+                check_directory(child)
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def check_file(info: os.stat_result) -> None:
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != 0
+            or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600):
+        raise PermissionError("initramfs log must be a private, singly-linked root file")
+    if info.st_size < 1 or info.st_size > MAX_BYTES:
+        raise ValueError("initramfs log is empty or exceeds the configured size limit")
+
+
+def import_file(source: int, destination: int, name: str) -> None:
+    if name not in NAMES:
+        raise ValueError("unexpected initramfs log filename")
+    input_fd = os.open(name, FILE_FLAGS, dir_fd=source)
+    temporary = "." + name + "." + uuid.uuid4().hex + ".tmp"
+    output_fd = None
+    created = False
+    try:
+        before = os.fstat(input_fd)
+        check_file(before)
+        try:
+            existing = os.stat(name, dir_fd=destination, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            check_file(existing)
+        output_fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                            | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=destination)
+        created = True
+        count = 0
+        while True:
+            chunk = os.read(input_fd, min(65536, MAX_BYTES - count + 1))
+            if not chunk:
+                break
+            count += len(chunk)
+            if count > MAX_BYTES:
+                raise ValueError("initramfs log grew beyond its size limit")
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(output_fd, remaining)
+                if written <= 0:
+                    raise OSError("short write while importing initramfs log")
+                remaining = remaining[written:]
+        after = os.fstat(input_fd)
+        if (count != before.st_size or after.st_size != before.st_size
+                or after.st_mtime_ns != before.st_mtime_ns
+                or after.st_ctime_ns != before.st_ctime_ns):
+            raise OSError("initramfs log changed during import")
+        os.fsync(output_fd)
+        os.close(output_fd)
+        output_fd = None
+        os.replace(temporary, name, src_dir_fd=destination, dst_dir_fd=destination)
+        created = False
+        os.fsync(destination)
+    finally:
+        os.close(input_fd)
+        if output_fd is not None:
+            os.close(output_fd)
+        if created:
+            os.unlink(temporary, dir_fd=destination)
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        raise PermissionError("initramfs import requires root")
+    os.umask(0o077)
+    sources = []
+    destination = None
+    try:
+        for path in SOURCES:
+            try:
+                sources.append(open_directory(path))
+            except FileNotFoundError:
+                continue
+        if len(sources) != 1:
+            raise FileNotFoundError("expected exactly one preserved initramfs log spool")
+        destination = open_directory(DESTINATION, create=True)
+        if stat.S_IMODE(os.fstat(destination).st_mode) != 0o700:
+            raise PermissionError("initramfs destination must have mode 0700")
+        for name in NAMES:
+            import_file(sources[0], destination, name)
+        print("initramfs: imported 7 stage logs into " + str(DESTINATION))
+        return 0
+    finally:
+        for fd in sources:
+            os.close(fd)
+        if destination is not None:
+            os.close(destination)
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, ValueError) as error:
+        print("initramfs: " + str(error), file=sys.stderr)
+        raise SystemExit(1)

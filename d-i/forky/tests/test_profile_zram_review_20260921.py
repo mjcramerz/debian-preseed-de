@@ -5,6 +5,8 @@ logger, sysfs, budget and maintenance code runs; this is not a Moo integration
 or a booted systemd/kernel acceptance test.
 """
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
 import json
 import os
 from pathlib import Path
@@ -31,9 +33,9 @@ BEGIN {
 
 
 def perl(body, *, fixture=True, args=()):
-    result = subprocess.run(['perl', '-I', str(PERL_LIB), '-e',
+    result = subprocess.run(payload_installed_argv(['perl', '-I', str(PERL_LIB), '-e',
                              'use strict; use warnings;\n' + (CONFIG_FIXTURE if fixture else '') + body,
-                             *map(str, args)], capture_output=True, text=True, timeout=15)
+                             *map(str, args)]), capture_output=True, text=True, timeout=15)
     if result.returncode:
         raise AssertionError(result.stdout + result.stderr)
     return result
@@ -45,18 +47,19 @@ class ProfileWiringReviewTests(unittest.TestCase):
                     'f2fs-de-x360', 'f2fs-de-hp14') for suffix in ('', '-duo')}
         self.assertEqual({p.stem for p in (FORKY/'hosts/profiles').glob('*.env')}, expected)
         self.assertEqual({p.stem for p in (FORKY/'classes/class-profile').glob('*.cfg')}, expected)
-        blocks = (FORKY/'classes/configs/profile.cfg').read_text().strip().split('\n\n')
+        blocks = payload_read_text(FORKY/'classes/configs/profile.cfg').strip().split('\n\n')
         for block in blocks:
             fields = dict(line.split(': ', 1) for line in block.splitlines())
             name = fields['Name']
             self.assertEqual('addon/dualboot' in fields['RequiresClasses'].split(), name.endswith('-duo'))
             self.assertIn(name, expected)
 
-    def test_model_match_only_p15s(self):
+    def test_shared_iocost_calibration_never_targets_the_unmeasured_p15s_wdc(self):
         for profile in ('btrfs-de-p15s', 'btrfs-de-p15s-duo'):
-            self.assertEqual(profile_values(profile)['IOCOST_DEVICE_MODEL_MATCH'],
-                             'WDC PC SN730 SDBQNTY-512G-1001*')
-            self.assertIn('NOT measured calibration', (FORKY/'hosts/profiles'/f'{profile}.env').read_text())
+            values = profile_values(profile)
+            self.assertEqual(values['IOCOST_DEVICE_MODEL_MATCH'], 'KXG6AZNV512G TOSHIBA')
+            self.assertEqual(values['IOCOST_DEVICE_FWREV_MATCH'], '*')
+            self.assertEqual(values['IOCOST_CALIBRATE_ENABLE'], 'false')
 
     def test_p15s_disk_capacity_matrix(self):
         for profile in ('btrfs-de-p15s', 'btrfs-de-p15s-duo'):
@@ -90,7 +93,7 @@ DUALBOOT_ENABLED=true
 raw_storage_partition_size_is_acceptable 17180 {17180000000+delta} {shlex.quote(target)}
 '''
         cmd = ['busybox', 'sh'] if shell == 'busybox' else [shell]
-        return subprocess.run([*cmd, '-c', code], capture_output=True, text=True, timeout=5)
+        return subprocess.run(payload_installed_argv([*cmd, '-c', code]), capture_output=True, text=True, timeout=5)
 
     def test_reported_17177_mb_failure_and_4k_alignment_are_accepted(self):
         for shell in ('dash', 'bash', 'busybox'):
@@ -158,7 +161,7 @@ log_msg('info', 'literal %s message');
         self.assertEqual(result.stderr, '')
 
     def test_poll_uses_seconds_and_actual_short_deadline(self):
-        source = (P/'Daemon.pm').read_text()
+        source = payload_read_text(P/'Daemon.pm')
         function = source.split('sub _poll_triggers {',1)[1].split('\nsub _run_pressure_pass',1)[0]
         result = perl(r'''
 use IO::Poll qw(POLLERR POLLHUP POLLNVAL POLLPRI POLLIN);
@@ -181,7 +184,7 @@ print 'ok';
         self.assertIn('run_maintenance(state => $state, reasons => $reasons)', source)
 
     def test_pressure_bypasses_idle_fill_gate_and_avoids_second_full_scan(self):
-        source = (P/'Policy.pm').read_text()
+        source = payload_read_text(P/'Policy.pm')
         # Execute exact production methods without loading unused Moo-backed
         # hardware readers. All invoked boundary functions are supplied below.
         fill = source.split('sub _fill_gate_met {', 1)[1].split('\nsub policy_plan', 1)[0]
@@ -225,10 +228,10 @@ print 'ok';
         self.assertEqual(result.stdout, 'ok')
 
     def test_info_defaults_and_managed_log_route(self):
-        self.assertIn('ZRAM_LOG_LEVEL="info"', (FORKY/'hosts/installer/runtime.env').read_text())
-        self.assertIn("log_level => 'info'", (P/'Config/Schema.pm').read_text())
-        route = (TARGET/'etc/rsyslog.d/36-zram.conf').read_text()
-        self.assertIn('/var/log/managed/zram/zram.log', route)
+        self.assertIn('ZRAM_LOG_LEVEL="info"', payload_read_text(FORKY/'hosts/installer/runtime.env'))
+        self.assertIn("log_level => 'info'", payload_read_text(P/'Config/Schema.pm'))
+        route = payload_read_text(TARGET/'etc/rsyslog.d/36-zram.conf')
+        self.assertIn('/var/log/managed/system/zram/zram.log', route)
         for text in ('zram-writeback', 'zram-device-setup', '0640', '0750'):
             self.assertIn(text, route)
 
@@ -282,7 +285,7 @@ Zram::Budget::refresh_daily_writeback_budget();
 die 'dry-run published budget' if -e Zram::Budget::budget_state_file();
 ''', args=(tmp,))
             for name in ('writeback', 'writeback_limit', 'writeback_limit_enable'):
-                self.assertEqual((Path(tmp)/name).read_text(), 'original')
+                self.assertEqual(payload_read_text(Path(tmp)/name), 'original')
             self.assertIn('result=dry-run', result.stdout)
             self.assertIn('pages_4k=10', result.stdout)
 
@@ -297,14 +300,14 @@ for my $bad ('12oops','-1','123456789012345678901') {
  die 'accepted invalid counter' if defined Zram::Sysfs::read_uint_attr($p);
 }
 ''', args=(tmp,))
-        compact = (P/'Sysfs.pm').read_text().split('sub compact_device {',1)[1]
+        compact = payload_read_text(P/'Sysfs.pm').split('sub compact_device {',1)[1]
         self.assertNotIn('"$sysfs/mem_used_max"', compact)
 
 
 class MaintenanceIsolationReviewTests(unittest.TestCase):
     def test_maintenance_units_are_bounded_and_follow_setup_lifetime(self):
         for name in ('zram-writeback.service.tmpl', 'zram-writebackd.service.tmpl'):
-            text = (TARGET/'etc/systemd/system'/name).read_text()
+            text = payload_read_text(TARGET/'etc/systemd/system'/name)
             for required in ('PrivatePIDs=yes', 'PrivateUsers=no', 'ProcSubset=all',
                              'KillMode=control-group', 'TimeoutStopSec=20s', 'TasksMax=16',
                              'NoNewPrivileges=yes', 'RestrictAddressFamilies=AF_UNIX',
@@ -315,8 +318,8 @@ class MaintenanceIsolationReviewTests(unittest.TestCase):
             self.assertNotIn('ProtectKernelTunables=yes', text)  # would hide required writable controls
 
     def test_apparmor_maintenance_has_no_blanket_privilege_or_block_write(self):
-        text = (TARGET/'etc/apparmor.d/managed-system-wrappers').read_text()
-        block = text.split('profile managed-zram-writeback ',1)[1].split('\nprofile managed-luks-mok-open ',1)[0]
+        text = payload_read_text(TARGET/'etc/apparmor.d/system-wrappers')
+        block = text.split('profile zram-writeback ',1)[1].split('\nprofile luks-mok-open ',1)[0]
         for forbidden in ('  capability,', '  network,', '  mount,', '  userns,',
                           '/dev/mapper/zram-writeback rw', '/dev/zram[0-9]* rw', '/sys/block/** rw'):
             self.assertNotIn(forbidden, block)
@@ -327,13 +330,13 @@ class MaintenanceIsolationReviewTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which('apparmor_parser'), 'AppArmor parser unavailable')
     def test_apparmor_profile_parses_without_loading_kernel_policy(self):
-        text = (TARGET/'etc/apparmor.d/managed-system-wrappers').read_text()
-        block = text.split('profile managed-zram-writeback ',1)[1].split('\nprofile managed-luks-mok-open ',1)[0]
+        text = payload_read_text(TARGET/'etc/apparmor.d/system-wrappers')
+        block = text.split('profile zram-writeback ',1)[1].split('\nprofile luks-mok-open ',1)[0]
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'zram-profile'
-            path.write_text('#include <tunables/global>\nprofile managed-zram-writeback '+block)
-            result = subprocess.run(['apparmor_parser', '--skip-kernel-load', '--skip-read-cache',
-                                     '-I', str(TARGET/'etc/apparmor.d'), '-I', '/etc/apparmor.d', str(path)],
+            path.write_text('#include <tunables/global>\nprofile zram-writeback '+block)
+            result = subprocess.run(payload_installed_argv(['apparmor_parser', '--skip-kernel-load', '--skip-read-cache',
+                                     '-I', str(TARGET/'etc/apparmor.d'), '-I', '/etc/apparmor.d', str(path)]),
                                     text=True, capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr)
 

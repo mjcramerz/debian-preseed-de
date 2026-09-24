@@ -1,199 +1,281 @@
-@define-color panel rgba(8, 17, 31, 0.94);
-@define-color panel_alt rgba(16, 29, 51, 0.92);
-@define-color panel_hover rgba(28, 44, 70, 0.96);
-@define-color border rgba(236, 184, 96, 0.24);
-@define-color border_strong rgba(236, 184, 96, 0.74);
-@define-color text #f5efe3;
-@define-color muted #aeb7c6;
-@define-color amber #ecb860;
-@define-color royalpurple #c4a4ef;
-@define-color marineblue #4166F5;
-@define-color emeraldgreen #50C878;
-@define-color cinnamon #D2691E;
-@define-color tutamagenta #e56b8f;
-@define-color notescyan #22D3EE;
-@define-color amber_soft rgba(236, 184, 96, 0.18);
-@define-color mint #9fd2bf;
-@define-color rose #f6a09a;
-@define-color red #f87171;
-
+/* Shared visual rules. Output geometry and typography follow below. */
 * {
-  border: none;
-  border-radius: 0;
-  font-family: "Noto Sans", "Noto Color Emoji", "Symbola", "Font Awesome 6 Free";
-  font-size: __INSTALLER_LABWC_WAYBAR_FONT_SIZE__px;
-  min-height: 0;
+  border-style: __THEME_WAYBAR_RESET_BORDER_STYLE__;
+  font-family: "__THEME_WAYBAR_TEXT_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_ICON_FONT_FAMILY__";
   font-feature-settings: "tnum";
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_NORMAL__;
 }
 
 window#waybar {
-  background: @panel;
-  border: 1px solid @border;
-  border-radius: 18px;
-  color: @text;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
-}
-
-window#waybar.internal,
-window#waybar.internal * {
-  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+  background: __THEME_WAYBAR_PANEL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_PANEL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_PANEL_TEXT_COLOR__;
 }
 
 tooltip {
-  background: rgba(8, 17, 31, 0.98);
-  border: 1px solid @border_strong;
-  border-radius: 14px;
-  color: @text;
-  padding: __INSTALLER_LABWC_WAYBAR_TOOLTIP_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_TOOLTIP_PADDING_X__px;
+  background: __THEME_WAYBAR_TOOLTIP_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_TOOLTIP_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_TOOLTIP_NORMAL_TEXT_COLOR__;
 }
 
 tooltip label {
-  font-size: __INSTALLER_LABWC_WAYBAR_TOOLTIP_FONT_SIZE__px;
-  font-family: "Noto Sans Mono", "Noto Color Emoji", "Symbola";
+  font-family: "__THEME_WAYBAR_MONOSPACE_FONT_FAMILY__", "__THEME_WAYBAR_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__";
 }
 
 #workspaces {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-}
-
-#custom-launcher,
-#custom-window-switcher,
-#custom-wayscriber,
-#custom-tomat,
-#custom-apps,
-#custom-app-terminal,
-#custom-app-files,
-#custom-app-tuta,
-#custom-app-notes,
-#custom-app-sleek,
-#taskbar button,
-#workspaces button,
-#clock,
-#pulseaudio,
-#custom-backlight,
-#battery,
-#disk,
-#cpu,
-#memory,
-#tray,
-#custom-notifications,
-#custom-lock,
-#custom-power {
-  margin: 5px 3px;
-  padding: 0 14px;
-  border-radius: 999px;
-  background: @panel_alt;
-  border: 1px solid @border;
-  color: @text;
-}
-
-#workspaces button {
-  min-width: __INSTALLER_LABWC_WAYBAR_WORKSPACE_BUTTON_MIN_WIDTH__px;
-  padding: 0 __INSTALLER_LABWC_WAYBAR_WORKSPACE_BUTTON_PADDING_X__px;
-  font-weight: 700;
-}
-
-/* Idle workspaces remain navy; pointer feedback must not imitate active. */
-#workspaces button:hover:not(.active):not(.urgent) {
-  background: @panel_hover;
-  border-color: rgba(236, 184, 96, 0.34);
-  color: @text;
-  box-shadow: 0 0 7px rgba(236, 184, 96, 0.14);
-}
-
-#workspaces button.active,
-#workspaces button.active:hover,
-#taskbar button.active,
-#taskbar button:hover,
-#custom-power:hover {
-  background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92));
-  border-color: @border_strong;
-  color: #08111f;
-  box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
-}
-
-#workspaces button.urgent {
-  background: rgba(68, 25, 33, 0.78);
-  border-color: rgba(246, 173, 173, 0.34);
-  color: @rose;
-}
-
-#workspaces button.hidden {
-  color: @muted;
+  background: __THEME_WAYBAR_WORKSPACES_CONTAINER_NORMAL_BACKGROUND_COLOR__;
 }
 
 #custom-launcher {
-  min-width: __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_MIN_WIDTH__px;
-  padding: 0 __INSTALLER_LABWC_WAYBAR_MENU_BUTTON_PADDING_X__px;
-  background: @panel_alt;
-  color: @amber;
-  font-weight: 700;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_MENU_NORMAL_OUTLINE_COLOR__;
 }
 
-#apps {
-  background: transparent;
-}
-
-#custom-apps {
-  min-width: 28px;
-  padding: 0 7px;
-  color: @royalpurple;
-  background-image: -gtk-recolor(url("icons/apps-symbolic.svg"));
+#custom-window-switcher {
+  background: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_OUTLINE_COLOR__;
 }
 
 #custom-wayscriber {
-  min-width: 28px;
-  padding: 0 7px;
-  color: @marineblue;
-  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg"));
+  background: __THEME_WAYBAR_BUTTON_WAYSCRIBER_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_WAYSCRIBER_NORMAL_OUTLINE_COLOR__;
 }
 
+#custom-tomat {
+  background: __THEME_WAYBAR_BUTTON_TOMAT_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TOMAT_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TOMAT_NORMAL_TEXT_COLOR__;
+}
 
-/* Center the painted icon, not a font glyph's baseline or side bearings.
- * The single-space labels retain tooltips, click targets and the apps drawer.
- * Explicit hover layers preserve each button's tint and foreground color. */
+#custom-apps {
+  background: __THEME_WAYBAR_BUTTON_APPS_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_APPS_NORMAL_OUTLINE_COLOR__;
+}
+
+#custom-app-terminal {
+  background: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_TEXT_COLOR__;
+}
+
+#custom-app-files {
+  background: __THEME_WAYBAR_BUTTON_FILES_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_FILES_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_FILES_NORMAL_TEXT_COLOR__;
+}
+
+#custom-app-tuta {
+  background: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_TEXT_COLOR__;
+}
+
+#custom-app-notes {
+  background: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_NOTES_NORMAL_TEXT_COLOR__;
+}
+
+#custom-app-sleek {
+  background: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_SLEEK_NORMAL_TEXT_COLOR__;
+}
+
+#taskbar button {
+  background: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_NORMAL_TEXT_COLOR__;
+}
+
+#workspaces button {
+  background: __THEME_WAYBAR_BUTTON_WORKSPACES_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_WORKSPACES_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_NORMAL_TEXT_COLOR__;
+}
+
+#clock {
+  background: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_OUTLINE_COLOR__;
+}
+
+#pulseaudio {
+  background: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_AUDIO_NORMAL_TEXT_COLOR__;
+}
+
+#custom-backlight {
+  background: __THEME_WAYBAR_BUTTON_BACKLIGHT_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_BACKLIGHT_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_BACKLIGHT_NORMAL_TEXT_COLOR__;
+}
+
+#battery {
+  background: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_BATTERY_NORMAL_TEXT_COLOR__;
+}
+
+#disk {
+  background: __THEME_WAYBAR_BUTTON_DISK_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_DISK_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_DISK_NORMAL_TEXT_COLOR__;
+}
+
+#cpu {
+  background: __THEME_WAYBAR_BUTTON_CPU_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_CPU_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_CPU_NORMAL_TEXT_COLOR__;
+}
+
+#memory {
+  background: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_MEMORY_NORMAL_TEXT_COLOR__;
+}
+
+#tray {
+  background: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_TEXT_COLOR__;
+}
+
+#custom-notifications {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_OUTLINE_COLOR__;
+}
+
+#custom-lock {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_LOCK_NORMAL_OUTLINE_COLOR__;
+}
+
+#custom-power {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_POWER_NORMAL_OUTLINE_COLOR__;
+}
+
+#workspaces button {
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+}
+
+#workspaces button:hover:not(.active):not(.urgent) {
+  background: __THEME_WAYBAR_BUTTON_WORKSPACES_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_WORKSPACES_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_HOVER_TEXT_COLOR__;
+}
+
+#workspaces button.active {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_TEXT_COLOR__;
+}
+
+#workspaces button.active:hover {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_TEXT_COLOR__;
+}
+
+#taskbar button.active {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_TEXT_COLOR__;
+}
+
+#taskbar button:hover {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_TEXT_COLOR__;
+}
+
+#workspaces button.urgent {
+  background: __THEME_WAYBAR_BUTTON_WORKSPACES_URGENT_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_WORKSPACES_URGENT_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_URGENT_TEXT_COLOR__;
+}
+
+#workspaces button.hidden {
+  color: __THEME_WAYBAR_BUTTON_WORKSPACES_HIDDEN_TEXT_COLOR__;
+}
+
+#custom-launcher {
+  background: __THEME_WAYBAR_BUTTON_MENU_NORMAL_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_MENU_NORMAL_TEXT_COLOR__;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+}
+
+#apps {
+  background: __THEME_WAYBAR_APPS_CONTAINER_NORMAL_BACKGROUND_COLOR__;
+}
+
+#custom-apps {
+  color: __THEME_WAYBAR_BUTTON_APPS_NORMAL_ICON_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_APPS_NORMAL_ICON_PATH__"));
+}
+
+#custom-wayscriber {
+  color: __THEME_WAYBAR_BUTTON_WAYSCRIBER_NORMAL_ICON_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_WAYSCRIBER_NORMAL_ICON_PATH__"));
+}
+
 #custom-apps,
 #custom-wayscriber,
 #custom-apps:hover,
 #custom-wayscriber:hover {
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 18px 18px, 100% 100%;
 }
 
 #custom-apps:hover {
-  background-color: rgba(64, 44, 86, 0.82);
-  background-image: -gtk-recolor(url("icons/apps-symbolic.svg"));
-  border-color: #b596db;
-  box-shadow: 0 0 9px rgba(181, 150, 219, 0.28);
+  color: __THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_COLOR__;
+  background-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_BACKGROUND_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_APPS_HOVER_ICON_PATH__"));
+  border-color: __THEME_WAYBAR_BUTTON_APPS_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-wayscriber:hover {
-  background-color: rgba(20, 39, 83, 0.86);
-  background-image: -gtk-recolor(url("icons/wayscriber-symbolic.svg"));
-  border-color: #6387ff;
-  box-shadow: 0 0 9px rgba(65, 102, 245, 0.32);
+  color: __THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_ICON_COLOR__;
+  background-color: __THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_BACKGROUND_COLOR__;
+  background-image: -gtk-recolor(url("__THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_ICON_PATH__"));
+  border-color: __THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-launcher:hover {
-  background: rgba(69, 46, 13, 0.84);
-  border-color: @amber;
-  box-shadow: 0 0 9px rgba(236, 184, 96, 0.30);
+  background: __THEME_WAYBAR_BUTTON_MENU_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_MENU_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-tomat:hover {
-  background: rgba(64, 20, 34, 0.86);
-  border-color: #a85a6c;
-  box-shadow: 0 0 7px rgba(168, 90, 108, 0.22);
-  /* No color override: preserve work/break/paused/error state foreground. */
+  background: __THEME_WAYBAR_BUTTON_TOMAT_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TOMAT_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-window-switcher:hover {
-  background: rgba(15, 56, 39, 0.86);
-  border-color: @emeraldgreen;
-  box-shadow: 0 0 9px rgba(80, 200, 120, 0.28);
+  background: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_OUTLINE_COLOR__;
 }
 
 #custom-app-terminal,
@@ -206,150 +288,642 @@ tooltip label {
 #custom-app-tuta:hover,
 #custom-app-notes:hover,
 #custom-app-sleek:hover {
-  min-width: 28px;
-  padding: 0 7px;
-  /* Read package artwork directly: Papirus-Dark shares app SVGs with
-   * Papirus; Tuta/Sleek supply their own logos. CSS URL images respect this
-   * 18px bound, unlike GTK3's CSS icon-theme bitmap lookup. No cache/helper.
-   * Forky's Waybar 0.15.0 custom module does not implement image-path yet. */
-  -gtk-icon-theme: "Papirus-Dark";
+  -gtk-icon-theme: "__THEME_WAYBAR_GTK_ICON_THEME__";
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 18px 18px, 100% 100%;
 }
 
 #custom-app-terminal {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/foot.svg");
+  background-image: url("__THEME_WAYBAR_BUTTON_TERMINAL_NORMAL_ICON_PATH__");
 }
 
 #custom-app-files {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/org.xfce.thunar.svg");
+  background-image: url("__THEME_WAYBAR_BUTTON_FILES_NORMAL_ICON_PATH__");
 }
 
 #custom-app-tuta {
-  background-image: url("/usr/share/icons/hicolor/512x512/apps/tuta-mail.png");
+  background-image: url("__THEME_WAYBAR_BUTTON_TUTANOTA_NORMAL_ICON_PATH__");
 }
 
 #custom-app-notes {
-  background-image: url("/usr/share/icons/Papirus/24x24/apps/featherpad.svg");
+  background-image: url("__THEME_WAYBAR_BUTTON_NOTES_NORMAL_ICON_PATH__");
 }
 
 #custom-app-sleek {
-  background-image: url("/usr/share/icons/hicolor/512x512/apps/sleek.png");
+  background-image: url("__THEME_WAYBAR_BUTTON_SLEEK_NORMAL_ICON_PATH__");
 }
 
-/* Change only the color layer: retain each application's bounded artwork. */
-#custom-app-terminal:hover,
-#custom-app-files:hover,
-#custom-app-tuta:hover,
-#custom-app-notes:hover,
+#custom-app-terminal:hover {
+  background-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_OUTLINE_COLOR__;
+}
+
+#custom-app-files:hover {
+  background-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_FILES_HOVER_OUTLINE_COLOR__;
+}
+
+#custom-app-tuta:hover {
+  background-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_OUTLINE_COLOR__;
+}
+
+#custom-app-notes:hover {
+  background-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTES_HOVER_OUTLINE_COLOR__;
+}
+
 #custom-app-sleek:hover {
-  background-color: rgba(44, 39, 62, 0.96);
-  border-color: rgba(196, 164, 239, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(196, 164, 239, 0.20);
-}
-
-#taskbar {
-  min-width: 0;
-}
-
-#taskbar button {
-  min-width: __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_MIN_WIDTH__px;
-  padding: 0 __INSTALLER_LABWC_WAYBAR_TASKBAR_BUTTON_PADDING_X__px;
-}
-
-#taskbar button image {
-  margin: 0;
+  background-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SLEEK_HOVER_OUTLINE_COLOR__;
 }
 
 #taskbar button.minimized {
-  color: @muted;
+  color: __THEME_WAYBAR_BUTTON_TASKBAR_MINIMIZED_TEXT_COLOR__;
 }
 
-#quick-controls,
-#quick-controls-internal {
-  margin: 5px 1px;
-  padding: 0;
-  border-radius: 999px;
-  background: @panel_alt;
-  border: 1px solid @border;
-  color: @text;
+#quick-controls {
+  background: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_BACKGROUND_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_QUICK_CONTROLS_CONTAINER_NORMAL_TEXT_COLOR__;
 }
 
-#quick-controls > *,
-#quick-controls-internal > * {
-  margin: 0;
-  padding: 0;
+#quick-controls #custom-system {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_BACKGROUND_COLOR__;
 }
 
-#quick-controls #custom-system,
-#quick-controls #network,
-#quick-controls #custom-bluetooth,
-#quick-controls #custom-keyboard,
-#quick-controls #custom-screenshot,
-#quick-controls-internal #custom-system,
-#quick-controls-internal #network,
-#quick-controls-internal #custom-bluetooth,
-#quick-controls-internal #custom-keyboard,
-#quick-controls-internal #custom-screenshot {
-  margin: 0;
-  padding: 0 8px;
-  min-width: 28px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  font-size: __INSTALLER_LABWC_WAYBAR_FONT_SIZE__px;
+#quick-controls #network {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;
 }
 
-#quick-controls #custom-system:hover,
-#quick-controls #network:hover,
-#quick-controls #custom-bluetooth:hover,
-#quick-controls #custom-keyboard:hover,
-#quick-controls #custom-screenshot:hover,
-#quick-controls-internal #custom-system:hover,
-#quick-controls-internal #network:hover,
-#quick-controls-internal #custom-bluetooth:hover,
-#quick-controls-internal #custom-keyboard:hover,
-#quick-controls-internal #custom-screenshot:hover {
-  background: @panel_hover;
-  border-color: @border;
+#quick-controls #custom-bluetooth {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_BACKGROUND_COLOR__;
 }
 
-#pulseaudio,
-#custom-backlight,
-#battery,
-#disk,
-#cpu,
-#memory,
-#tray,
+#quick-controls #custom-keyboard {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-screenshot {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-system {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #network {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_NETWORK_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-bluetooth {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_BLUETOOTH_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-keyboard {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_KEYBOARD_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-screenshot {
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_OUTLINE_COLOR__;
+  background: __THEME_WAYBAR_BUTTON_SCREENSHOT_NORMAL_BACKGROUND_COLOR__;
+}
+
+#quick-controls #custom-system:hover {
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #network:hover {
+  background: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-bluetooth:hover {
+  background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-keyboard:hover {
+  background: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-screenshot:hover {
+  background: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-system:hover {
+  background: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SYSTEM_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #network:hover {
+  background: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NETWORK_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-bluetooth:hover {
+  background: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_BLUETOOTH_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-keyboard:hover {
+  background: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_KEYBOARD_HOVER_OUTLINE_COLOR__;
+}
+
+#quick-controls #custom-screenshot:hover {
+  background: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_SCREENSHOT_HOVER_OUTLINE_COLOR__;
+}
+
 #custom-notifications,
 #custom-lock,
 #custom-power {
-  margin-left: 1px;
-  margin-right: 1px;
-  padding-left: 6px;
-  padding-right: 6px;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
 }
 
-#pulseaudio,
-#custom-backlight,
-#battery,
-#disk,
-#cpu,
-#memory {
-  min-width: 56px;
+#custom-keyboard {
+  color: __THEME_WAYBAR_BUTTON_KEYBOARD_US_ENGLISH_ICON_COLOR__;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
 }
 
-/* Session buttons share geometry and icon sizing on both output layouts. */
-#custom-notifications,
-#custom-lock,
+#custom-keyboard.se {
+  color: __THEME_WAYBAR_BUTTON_KEYBOARD_SWEDISH_ICON_COLOR__;
+}
+
+#custom-system {
+  color: __THEME_WAYBAR_BUTTON_SYSTEM_NORMAL_ICON_COLOR__;
+  font-family: "__THEME_WAYBAR_ICON_FONT_FAMILY__", "__THEME_WAYBAR_LEGACY_ICON_FONT_FAMILY__", "__THEME_WAYBAR_FALLBACK_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_SYMBOL_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_HEAVY__;
+}
+
+#custom-screenshot {
+  color: __THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_ICON_COLOR__;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+}
+
+#custom-screenshot.recording {
+  color: __THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_ICON_COLOR__;
+}
+
+#custom-bluetooth {
+  color: __THEME_WAYBAR_BUTTON_BLUETOOTH_ENABLED_ICON_COLOR__;
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+}
+
+#custom-bluetooth.disabled {
+  color: __THEME_WAYBAR_BUTTON_BLUETOOTH_DISABLED_ICON_COLOR__;
+}
+
+#custom-bluetooth.unavailable {
+  color: __THEME_WAYBAR_BUTTON_BLUETOOTH_UNAVAILABLE_ICON_COLOR__;
+}
+
+#custom-backlight.unavailable {
+  color: __THEME_WAYBAR_BUTTON_BACKLIGHT_UNAVAILABLE_TEXT_COLOR__;
+}
+
+#custom-bluetooth.connected {
+  color: __THEME_WAYBAR_BUTTON_BLUETOOTH_CONNECTED_ICON_COLOR__;
+}
+
+#custom-backlight.available {
+  color: __THEME_WAYBAR_BUTTON_BACKLIGHT_AVAILABLE_TEXT_COLOR__;
+}
+
+#custom-notifications {
+  background: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_NORMAL_ICON_COLOR__;
+}
+
+#custom-lock {
+  background: __THEME_WAYBAR_BUTTON_LOCK_NORMAL_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_LOCK_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_LOCK_NORMAL_ICON_COLOR__;
+}
+
+#custom-lock:hover {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_LOCK_HOVER_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_LOCK_HOVER_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_LOCK_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_LOCK_HOVER_ICON_COLOR__;
+}
+
 #custom-power {
-  min-width: 28px;
-  font-weight: 700;
-  padding-left: 8px;
-  padding-right: 8px;
+  background: __THEME_WAYBAR_BUTTON_POWER_NORMAL_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_POWER_NORMAL_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_POWER_NORMAL_ICON_COLOR__;
 }
 
+#custom-power:hover {
+  background: linear-gradient(__THEME_WAYBAR_GRADIENT_ANGLE__deg, __THEME_WAYBAR_BUTTON_POWER_HOVER_BACKGROUND_START_COLOR__, __THEME_WAYBAR_BUTTON_POWER_HOVER_BACKGROUND_MIDDLE_COLOR__, __THEME_WAYBAR_BUTTON_POWER_HOVER_BACKGROUND_END_COLOR__);
+  border-color: __THEME_WAYBAR_BUTTON_POWER_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_POWER_HOVER_ICON_COLOR__;
+}
+
+#network.disconnected {
+  color: __THEME_WAYBAR_BUTTON_NETWORK_DISCONNECTED_ICON_COLOR__;
+}
+
+#network.disabled {
+  color: __THEME_WAYBAR_BUTTON_NETWORK_DISABLED_ICON_COLOR__;
+}
+
+#pulseaudio.muted {
+  color: __THEME_WAYBAR_BUTTON_AUDIO_MUTED_TEXT_COLOR__;
+}
+
+#clock {
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+  color: __THEME_WAYBAR_BUTTON_CLOCK_NORMAL_TEXT_COLOR__;
+}
+
+#battery.charging {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_CHARGING_TEXT_COLOR__;
+}
+
+#battery.full {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_FULL_TEXT_COLOR__;
+}
+
+#battery.warning {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_WARNING_TEXT_COLOR__;
+}
+
+#battery.critical {
+  color: __THEME_WAYBAR_BUTTON_BATTERY_CRITICAL_TEXT_COLOR__;
+}
+
+#disk.critical {
+  color: __THEME_WAYBAR_BUTTON_DISK_CRITICAL_TEXT_COLOR__;
+}
+
+#cpu.critical {
+  color: __THEME_WAYBAR_BUTTON_CPU_CRITICAL_TEXT_COLOR__;
+}
+
+#memory.critical {
+  color: __THEME_WAYBAR_BUTTON_MEMORY_CRITICAL_TEXT_COLOR__;
+}
+
+#disk.warning {
+  color: __THEME_WAYBAR_BUTTON_DISK_WARNING_TEXT_COLOR__;
+}
+
+#cpu.warning {
+  color: __THEME_WAYBAR_BUTTON_CPU_WARNING_TEXT_COLOR__;
+}
+
+#memory.warning {
+  color: __THEME_WAYBAR_BUTTON_MEMORY_WARNING_TEXT_COLOR__;
+}
+
+#custom-window-switcher {
+  color: __THEME_WAYBAR_BUTTON_TASKVIEW_NORMAL_ICON_COLOR__;
+  font-family: "__THEME_WAYBAR_ICON_FONT_FAMILY__", "__THEME_WAYBAR_NERD_FONT_FAMILY__", "__THEME_WAYBAR_TEXT_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_EMPHASIS__;
+}
+
+#clock:hover {
+  background: __THEME_WAYBAR_BUTTON_CLOCK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_CLOCK_HOVER_OUTLINE_COLOR__;
+}
+
+#pulseaudio:hover {
+  background: __THEME_WAYBAR_BUTTON_AUDIO_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_AUDIO_HOVER_OUTLINE_COLOR__;
+}
+
+#custom-backlight:hover {
+  background: __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_OUTLINE_COLOR__;
+}
+
+#battery:hover {
+  background: __THEME_WAYBAR_BUTTON_BATTERY_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_BATTERY_HOVER_OUTLINE_COLOR__;
+}
+
+#disk:hover {
+  background: __THEME_WAYBAR_BUTTON_DISK_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_DISK_HOVER_OUTLINE_COLOR__;
+}
+
+#cpu:hover {
+  background: __THEME_WAYBAR_BUTTON_CPU_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_CPU_HOVER_OUTLINE_COLOR__;
+}
+
+#memory:hover {
+  background: __THEME_WAYBAR_BUTTON_MEMORY_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_MEMORY_HOVER_OUTLINE_COLOR__;
+}
+
+#custom-tomat.work-paused {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_WORK_PAUSED_TEXT_COLOR__;
+}
+
+#custom-tomat.break-paused {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_BREAK_PAUSED_TEXT_COLOR__;
+}
+
+#custom-tomat.long-break-paused {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_LONG_BREAK_PAUSED_TEXT_COLOR__;
+}
+
+#custom-tomat.break {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_BREAK_TEXT_COLOR__;
+}
+
+#custom-tomat.long-break {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_LONG_BREAK_TEXT_COLOR__;
+}
+
+#custom-tomat.error {
+  color: __THEME_WAYBAR_BUTTON_TOMAT_ERROR_TEXT_COLOR__;
+}
+
+#custom-notifications.dnd {
+  color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_DND_ICON_COLOR__;
+}
+
+#custom-notifications:hover {
+  background: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_BACKGROUND_COLOR__;
+  border-color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_OUTLINE_COLOR__;
+  color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_ICON_COLOR__;
+}
+
+menu {
+  background: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_TEXT_COLOR__;
+  border-style: __THEME_WAYBAR_BORDER_STYLE__;
+  border-color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_OUTLINE_COLOR__;
+  -gtk-icon-theme: "__THEME_WAYBAR_DROPDOWN_GTK_ICON_THEME__";
+}
+
+menuitem {
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_NORMAL__;
+}
+
+menuitem label {
+  font-weight: __THEME_WAYBAR_FONT_WEIGHT_NORMAL__;
+  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_TEXT_COLOR__;
+}
+
+menuitem image {
+  color: __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_ICON_COLOR__;
+}
+
+menuitem:hover:not(:disabled),
+menuitem:selected:not(:disabled) {
+  background: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;
+}
+
+menuitem:hover:not(:disabled) label,
+menuitem:selected:not(:disabled) label {
+  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_TEXT_COLOR__;
+}
+
+menuitem:hover:not(:disabled) image,
+menuitem:selected:not(:disabled) image {
+  color: __THEME_WAYBAR_DROPDOWN_MENU_HOVER_ICON_COLOR__;
+}
+
+menuitem arrow {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_NORMAL_ICON_COLOR__;
+}
+
+menuitem arrow.right {
+  -gtk-icon-source: -gtk-icontheme("__THEME_WAYBAR_DROPDOWN_SUBMENU_RIGHT_ICON_NAME__");
+}
+
+menuitem arrow.left {
+  -gtk-icon-source: -gtk-icontheme("__THEME_WAYBAR_DROPDOWN_SUBMENU_LEFT_ICON_NAME__");
+}
+
+menuitem:hover:not(:disabled) arrow,
+menuitem:selected:not(:disabled) arrow {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_HOVER_ICON_COLOR__;
+}
+
+menuitem:disabled {
+  background: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;
+  box-shadow: none;
+}
+
+menuitem:disabled label {
+  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_TEXT_COLOR__;
+}
+
+menuitem:disabled image {
+  color: __THEME_WAYBAR_DROPDOWN_MENU_DISABLED_ICON_COLOR__;
+}
+
+menuitem:disabled arrow {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ARROW_DISABLED_ICON_COLOR__;
+}
+
+menu separator {
+  background: __THEME_WAYBAR_DROPDOWN_MENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;
+}
+
+menu.submenu {
+  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;
+  border-color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_OUTLINE_COLOR__;
+}
+
+menu.submenu > menuitem label {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem image {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_NORMAL_ICON_COLOR__;
+}
+
+menu.submenu > menuitem:hover:not(:disabled) {
+  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:hover:not(:disabled) label {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:hover:not(:disabled) image {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;
+}
+
+menu.submenu > menuitem:selected:not(:disabled) {
+  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:selected:not(:disabled) label {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:selected:not(:disabled) image {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_HOVER_ICON_COLOR__;
+}
+
+menu.submenu > menuitem:disabled {
+  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_BACKGROUND_COLOR__;
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:disabled label {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_DISABLED_TEXT_COLOR__;
+}
+
+menu.submenu > menuitem:disabled image {
+  color: __THEME_WAYBAR_DROPDOWN_SUBMENU_ITEM_DISABLED_ICON_COLOR__;
+}
+
+menu.submenu separator {
+  background: __THEME_WAYBAR_DROPDOWN_SUBMENU_SEPARATOR_NORMAL_BACKGROUND_COLOR__;
+}
+
+#network.wifi {
+  color: __THEME_WAYBAR_BUTTON_NETWORK_WIFI_ICON_COLOR__;
+}
+
+#network.ethernet {
+  color: __THEME_WAYBAR_BUTTON_NETWORK_ETHERNET_ICON_COLOR__;
+}
+
+#network.linked {
+  color: __THEME_WAYBAR_BUTTON_NETWORK_LINKED_ICON_COLOR__;
+}
+
+#custom-screenshot:not(.recording):hover {
+  color: __THEME_WAYBAR_BUTTON_SCREENSHOT_IDLE_HOVER_ICON_COLOR__;
+}
+
+#custom-screenshot.recording:hover {
+  color: __THEME_WAYBAR_BUTTON_SCREENSHOT_RECORDING_HOVER_ICON_COLOR__;
+}
+
+#tray > widget {
+  color: __THEME_WAYBAR_BUTTON_TRAY_NORMAL_ICON_COLOR__;
+}
+
+#custom-notifications.error:not(:hover) {
+  color: __THEME_WAYBAR_BUTTON_NOTIFICATIONS_ERROR_ICON_COLOR__;
+}
+
+/* Native GTK popup windows have no bar ancestor. The installer requires
+ * equal INTERNAL/EXTERNAL popup values; scoped bar geometry is independent. */
+tooltip,
+tooltip *,
+menu,
+menu * {
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_POPUP_RESET_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_POPUP_RESET_SIZE__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_FONT_SIZE__px;
+}
+
+tooltip {
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOOLTIP_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOOLTIP_RADIUS__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOOLTIP_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_TOOLTIP_PADDING_X__px;
+}
+
+tooltip label {
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOOLTIP_FONT_SIZE__px;
+}
+
+menu {
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BORDER_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_PADDING__px;
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_NORMAL_SHADOW_COLOR__;
+}
+
+menuitem {
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ITEM_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ITEM_PADDING_X__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ITEM_RADIUS__px;
+}
+
+menuitem label {
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_FONT_SIZE__px;
+}
+
+menuitem image {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_WIDTH__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ICON_HEIGHT__px;
+}
+
+menuitem:hover:not(:disabled),
+menuitem:selected:not(:disabled) {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_MENU_HOVER_SHADOW_COLOR__;
+}
+
+menuitem arrow {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ARROW_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ARROW_SIZE__px;
+  margin-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_ARROW_MARGIN_X__px;
+}
+
+menu separator {
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_SEPARATOR_HEIGHT__px;
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_SEPARATOR_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_SEPARATOR_MARGIN_X__px;
+}
+
+menu.submenu {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_NORMAL_SHADOW_COLOR__;
+}
+
+menu.submenu > menuitem:hover:not(:disabled),
+menu.submenu > menuitem:selected:not(:disabled) {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_HOVER_SHADOW__ __THEME_WAYBAR_DROPDOWN_SUBMENU_HOVER_SHADOW_COLOR__;
+}
+
+/* Internal bar: all geometry is owned by this output class. */
+window#waybar.internal,
+window#waybar.internal * {
+  font-family: "__THEME_WAYBAR_INTERNAL_TEXT_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_ICON_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_NORMAL__;
+}
+
+window#waybar.internal,
+window#waybar.internal #custom-launcher,
+window#waybar.internal #custom-window-switcher,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-tomat,
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek,
+window#waybar.internal #taskbar button,
+window#waybar.internal #workspaces button,
+window#waybar.internal #clock,
 window#waybar.internal #pulseaudio,
 window#waybar.internal #custom-backlight,
 window#waybar.internal #battery,
@@ -360,10 +934,249 @@ window#waybar.internal #tray,
 window#waybar.internal #custom-notifications,
 window#waybar.internal #custom-lock,
 window#waybar.internal #custom-power {
-  margin-left: 0;
-  margin-right: 0;
+  border-style: __THEME_WAYBAR_INTERNAL_BORDER_STYLE__;
+}
+
+window#waybar.internal #workspaces button,
+window#waybar.internal #custom-launcher {
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__;
+}
+
+window#waybar.internal #quick-controls,
+window#waybar.internal #quick-controls #custom-system,
+window#waybar.internal #quick-controls #network,
+window#waybar.internal #quick-controls #custom-bluetooth,
+window#waybar.internal #quick-controls #custom-keyboard,
+window#waybar.internal #quick-controls #custom-screenshot {
+  border-style: __THEME_WAYBAR_INTERNAL_BORDER_STYLE__;
+}
+
+window#waybar.internal #custom-notifications,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power,
+window#waybar.internal #custom-keyboard {
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__;
+}
+
+window#waybar.internal #custom-system {
+  font-family: "__THEME_WAYBAR_INTERNAL_ICON_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_LEGACY_ICON_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_FALLBACK_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_SYMBOL_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_HEAVY__;
+}
+
+window#waybar.internal #custom-screenshot,
+window#waybar.internal #custom-bluetooth,
+window#waybar.internal #clock {
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__;
+}
+
+window#waybar.internal #custom-window-switcher {
+  font-family: "__THEME_WAYBAR_INTERNAL_ICON_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_NERD_FONT_FAMILY__", "__THEME_WAYBAR_INTERNAL_TEXT_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_INTERNAL_FONT_WEIGHT_EMPHASIS__;
+}
+
+window#waybar.internal,
+window#waybar.internal * {
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal {
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_RADIUS__px;
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
+}
+
+window#waybar.internal #workspaces {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal #custom-launcher,
+window#waybar.internal #custom-window-switcher,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-tomat,
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek,
+window#waybar.internal #taskbar button,
+window#waybar.internal #workspaces button,
+window#waybar.internal #clock,
+window#waybar.internal #pulseaudio,
+window#waybar.internal #custom-backlight,
+window#waybar.internal #battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory,
+window#waybar.internal #tray,
+window#waybar.internal #custom-notifications,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_MARGIN_X__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_X__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+}
+
+window#waybar.internal #workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #workspaces button:hover:not(.active):not(.urgent) {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_SMALL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #workspaces button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_SHADOW_COLOR__;
+}
+
+window#waybar.internal #workspaces button.active:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #taskbar button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_SHADOW_COLOR__;
+}
+
+window#waybar.internal #taskbar button:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-wayscriber {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #custom-apps,
+window#waybar.internal #custom-wayscriber,
+window#waybar.internal #custom-apps:hover,
+window#waybar.internal #custom-wayscriber:hover {
+  background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.internal #custom-apps:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-wayscriber:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-launcher:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_MENU_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-tomat:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_SMALL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_TOMAT_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-window-switcher:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-app-terminal,
+window#waybar.internal #custom-app-files,
+window#waybar.internal #custom-app-tuta,
+window#waybar.internal #custom-app-notes,
+window#waybar.internal #custom-app-sleek,
+window#waybar.internal #custom-app-terminal:hover,
+window#waybar.internal #custom-app-files:hover,
+window#waybar.internal #custom-app-tuta:hover,
+window#waybar.internal #custom-app-notes:hover,
+window#waybar.internal #custom-app-sleek:hover {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+  background-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_INTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.internal #custom-app-terminal:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-app-files:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-app-tuta:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-app-notes:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #custom-app-sleek:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.internal #taskbar {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+window#waybar.internal #taskbar button image {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal #quick-controls {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_MARGIN_X__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+}
+
+window#waybar.internal #quick-controls > * {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.internal #quick-controls #custom-system,
+window#waybar.internal #quick-controls #network,
+window#waybar.internal #quick-controls #custom-bluetooth,
+window#waybar.internal #quick-controls #custom-keyboard,
+window#waybar.internal #quick-controls #custom-screenshot {
+  margin: __INSTALLER_LABWC_WAYBAR_INTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_RADIUS__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
+}
+
+window#waybar.internal #pulseaudio,
+window#waybar.internal #custom-backlight,
+window#waybar.internal #battery,
+window#waybar.internal #disk,
+window#waybar.internal #cpu,
+window#waybar.internal #memory,
+window#waybar.internal #tray {
+  margin-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
   padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
   padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+window#waybar.internal #custom-notifications,
+window#waybar.internal #custom-lock,
+window#waybar.internal #custom-power {
+  margin-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MARGIN_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
 }
 
 window#waybar.internal #pulseaudio,
@@ -375,22 +1188,6 @@ window#waybar.internal #memory {
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_STATUS_MODULE_MIN_WIDTH__px;
 }
 
-window#waybar.internal #quick-controls-internal {
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
-}
-
-window#waybar.internal #quick-controls-internal #custom-system,
-window#waybar.internal #quick-controls-internal #network,
-window#waybar.internal #quick-controls-internal #custom-bluetooth,
-window#waybar.internal #quick-controls-internal #custom-keyboard,
-window#waybar.internal #quick-controls-internal #custom-screenshot {
-  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
-  font-size: __INSTALLER_LABWC_WAYBAR_INTERNAL_FONT_SIZE__px;
-}
-
 window#waybar.internal #custom-notifications,
 window#waybar.internal #custom-lock,
 window#waybar.internal #custom-power {
@@ -399,219 +1196,407 @@ window#waybar.internal #custom-power {
   padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_SESSION_BUTTON_PADDING_X__px;
 }
 
-window#waybar.internal #custom-launcher {
-  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_MENU_BUTTON_PADDING_X__px;
+window#waybar.internal #custom-lock:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
 }
 
-window#waybar.internal #workspaces button {
-  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
+window#waybar.internal #custom-power:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
 }
 
-window#waybar.internal #taskbar button {
-  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_TASKBAR_BUTTON_PADDING_X__px;
-}
-
-window#waybar.internal #custom-apps,
-window#waybar.internal #custom-window-switcher,
-window#waybar.internal #custom-wayscriber,
-window#waybar.internal #custom-tomat,
-window#waybar.internal #custom-app-terminal,
-window#waybar.internal #custom-app-files,
-window#waybar.internal #custom-app-tuta,
-window#waybar.internal #custom-app-notes,
-window#waybar.internal #custom-app-sleek {
+window#waybar.internal #custom-window-switcher {
   min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_MIN_WIDTH__px;
-  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
-  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
+  padding: __INSTALLER_LABWC_WAYBAR_INTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_INTERNAL_APP_BUTTON_PADDING_X__px;
 }
 
-#custom-keyboard {
-  color: @mint;
-  font-weight: 700;
+window#waybar.internal #clock:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CLOCK_HOVER_SHADOW_COLOR__;
 }
 
-#custom-system {
-  color: @amber;
-  font-family: "Font Awesome 6 Free", "Font Awesome 5 Free", "Noto Sans Symbols 2", "Symbola";
-  font-weight: 900;
+window#waybar.internal #pulseaudio:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
 }
 
-#custom-screenshot {
-  color: @text;
-  font-weight: 700;
+window#waybar.internal #custom-backlight:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_SHADOW_COLOR__;
 }
 
-#custom-screenshot.recording {
-  color: @red;
+window#waybar.internal #battery:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BATTERY_HOVER_SHADOW_COLOR__;
 }
 
-#custom-bluetooth {
-  color: #60a5fa;
-  font-weight: 700;
+window#waybar.internal #disk:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_DISK_HOVER_SHADOW_COLOR__;
 }
 
-#custom-bluetooth.disabled,
-#custom-bluetooth.unavailable,
-#custom-backlight.unavailable {
-  color: @amber;
+window#waybar.internal #cpu:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CPU_HOVER_SHADOW_COLOR__;
 }
 
-#custom-bluetooth.connected,
-#custom-backlight.available {
-  color: @mint;
+window#waybar.internal #memory:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_INTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_MEMORY_HOVER_SHADOW_COLOR__;
 }
 
-/* Notifications, lock and power share the same tinted session-chip language. */
-#custom-notifications {
-  background: rgba(236, 184, 96, 0.14);
-  border-color: rgba(236, 184, 96, 0.46);
-  color: @amber;
+window#waybar.internal #custom-tomat {
+  min-width: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOMAT_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOMAT_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_TOMAT_PADDING_X__px;
 }
 
-#custom-lock {
-  background: rgba(203, 213, 225, 0.14);
-  border-color: rgba(203, 213, 225, 0.46);
-  color: #d8dee9;
+window#waybar.internal #custom-notifications:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_INTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
 }
 
-#custom-lock:hover {
-  background: linear-gradient(135deg, rgba(226, 232, 240, 0.84), rgba(148, 163, 184, 0.84));
-  border-color: rgba(226, 232, 240, 0.78);
-  color: #08111f;
-  box-shadow: 0 10px 26px rgba(203, 213, 225, 0.18);
+window#waybar.internal #quick-controls {
+  padding-left: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_INTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
 }
 
-#custom-power {
-  background: rgba(248, 113, 113, 0.16);
-  border-color: rgba(248, 113, 113, 0.66);
-  color: @red;
+/* External bar: all geometry is owned by this output class. */
+window#waybar.external,
+window#waybar.external * {
+  font-family: "__THEME_WAYBAR_EXTERNAL_TEXT_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_EMOJI_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_ICON_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_NORMAL__;
 }
 
-#custom-power:hover {
-  background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92), rgba(248, 113, 113, 0.92));
-  border-color: rgba(248, 113, 113, 0.86);
-  color: #08111f;
-  box-shadow: 0 10px 26px rgba(248, 113, 113, 0.22);
+window#waybar.external,
+window#waybar.external #custom-launcher,
+window#waybar.external #custom-window-switcher,
+window#waybar.external #custom-wayscriber,
+window#waybar.external #custom-tomat,
+window#waybar.external #custom-apps,
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek,
+window#waybar.external #taskbar button,
+window#waybar.external #workspaces button,
+window#waybar.external #clock,
+window#waybar.external #pulseaudio,
+window#waybar.external #custom-backlight,
+window#waybar.external #battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory,
+window#waybar.external #tray,
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  border-style: __THEME_WAYBAR_EXTERNAL_BORDER_STYLE__;
 }
 
-#network.disconnected,
-#network.disabled,
-#pulseaudio.muted {
-  color: @amber;
+window#waybar.external #workspaces button,
+window#waybar.external #custom-launcher {
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
 
-#clock {
-  font-weight: 700;
-  color: @amber;
+window#waybar.external #quick-controls,
+window#waybar.external #quick-controls #custom-system,
+window#waybar.external #quick-controls #network,
+window#waybar.external #quick-controls #custom-bluetooth,
+window#waybar.external #quick-controls #custom-keyboard,
+window#waybar.external #quick-controls #custom-screenshot {
+  border-style: __THEME_WAYBAR_EXTERNAL_BORDER_STYLE__;
 }
 
-#battery.charging,
-#battery.full {
-  color: @mint;
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power,
+window#waybar.external #custom-keyboard {
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
 
-#battery.warning {
-  color: @amber;
+window#waybar.external #custom-system {
+  font-family: "__THEME_WAYBAR_EXTERNAL_ICON_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_LEGACY_ICON_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_FALLBACK_SYMBOL_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_SYMBOL_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_HEAVY__;
 }
 
-#battery.critical,
-#disk.critical,
-#cpu.critical,
-#memory.critical {
-  color: @red;
+window#waybar.external #custom-screenshot,
+window#waybar.external #custom-bluetooth,
+window#waybar.external #clock {
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
 
-#disk.warning,
-#cpu.warning,
-#memory.warning {
-  color: @amber;
+window#waybar.external #custom-window-switcher {
+  font-family: "__THEME_WAYBAR_EXTERNAL_ICON_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_NERD_FONT_FAMILY__", "__THEME_WAYBAR_EXTERNAL_TEXT_FONT_FAMILY__";
+  font-weight: __THEME_WAYBAR_EXTERNAL_FONT_WEIGHT_EMPHASIS__;
 }
 
-/* Native Labwc cycle entry point, distinct from the blue annotation tool. */
-#custom-window-switcher {
-  min-width: 28px;
-  padding: 0 7px;
-  color: @emeraldgreen;
-  font-family: "Font Awesome 6 Free", "Symbols Nerd Font Mono", "Noto Sans";
-  font-weight: 700;
+window#waybar.external,
+window#waybar.external * {
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_FONT_SIZE__px;
+  min-height: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
 }
 
-/* Clickable status chips need hover feedback just like launcher buttons. */
-#clock:hover,
-#pulseaudio:hover,
-#custom-backlight:hover,
-#battery:hover,
-#disk:hover,
-#cpu:hover,
-#memory:hover {
-  background: @panel_hover;
-  border-color: @border_strong;
-  box-shadow: inset 0 0 0 1px @border_strong;
+window#waybar.external {
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_RADIUS__px;
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_PANEL_SHADOW__ __THEME_WAYBAR_PANEL_SHADOW_COLOR__;
 }
 
-/* Native menu affordances, without changing the existing panel layout/theme. */
-#custom-tomat { min-width: 24px; padding-left: 8px; padding-right: 8px; }
-#custom-tomat.work-paused, #custom-tomat.break-paused, #custom-tomat.long-break-paused { color: @amber; }
-#custom-tomat.break, #custom-tomat.long-break { color: @mint; }
-#custom-tomat.error { color: @red; }
-#custom-notifications.dnd { color: @muted; }
-/* Warm gold also wins over the DND text color while hovered. */
-#custom-notifications:hover {
-  background: @amber;
-  border-color: @border_strong;
-  color: #08111f;
-  box-shadow: 0 10px 26px rgba(236, 184, 96, 0.22);
+window#waybar.external #workspaces {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
 }
-/* Native GTK popups are separate windows, not window#waybar descendants.
- * Keep pointer and keyboard selection identical. Text is deliberately normal
- * weight; symbolic images and submenu arrows have independent foregrounds. */
-menu {
-  background: rgba(8, 17, 31, 0.985);
-  color: #f5efe3;
-  border: 1px solid rgba(236, 184, 96, 0.34);
-  padding: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
-  -gtk-icon-theme: "Papirus-Dark";
+
+window#waybar.external #custom-launcher,
+window#waybar.external #custom-window-switcher,
+window#waybar.external #custom-wayscriber,
+window#waybar.external #custom-tomat,
+window#waybar.external #custom-apps,
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek,
+window#waybar.external #taskbar button,
+window#waybar.external #workspaces button,
+window#waybar.external #clock,
+window#waybar.external #pulseaudio,
+window#waybar.external #custom-backlight,
+window#waybar.external #battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory,
+window#waybar.external #tray,
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_MARGIN_X__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_X__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
 }
-menuitem { padding: 8px 14px; border-radius: 6px; font-weight: 400; }
-menuitem label { font-size: 16px; font-weight: 400; color: #f5efe3; }
-menuitem image { min-width: 20px; min-height: 18px; color: #dfe6ef; }
-menuitem:hover:not(:disabled),
-menuitem:selected:not(:disabled) {
-  background: rgba(236, 184, 96, 0.16);
-  color: #fff7e9;
-  box-shadow: inset 0 0 0 1px rgba(236, 184, 96, 0.42);
+
+window#waybar.external #workspaces button {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_WORKSPACE_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_WORKSPACE_BUTTON_PADDING_X__px;
 }
-menuitem:hover:not(:disabled) label,
-menuitem:selected:not(:disabled) label { color: #fff7e9; }
-menuitem:hover:not(:disabled) image,
-menuitem:selected:not(:disabled) image { color: #ecb860; }
-menuitem arrow {
-  min-width: 16px;
-  min-height: 16px;
-  margin-left: 12px;
-  color: #ecb860;
+
+window#waybar.external #workspaces button:hover:not(.active):not(.urgent) {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SMALL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_HOVER_SHADOW_COLOR__;
 }
-menuitem arrow.right { -gtk-icon-source: -gtk-icontheme("pan-end-symbolic"); }
-menuitem arrow.left { -gtk-icon-source: -gtk-icontheme("pan-start-symbolic"); }
-menuitem:hover:not(:disabled) arrow,
-menuitem:selected:not(:disabled) arrow { color: #ecb860; }
-menuitem:disabled {
-  background: transparent;
-  color: #7f8999;
-  box-shadow: none;
+
+window#waybar.external #workspaces button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_SHADOW_COLOR__;
 }
-menuitem:disabled label,
-menuitem:disabled image,
-menuitem:disabled arrow { color: #7f8999; }
-menu separator {
-  min-height: 1px;
-  margin: 4px 8px;
-  background: rgba(174, 183, 198, 0.18);
+
+window#waybar.external #workspaces button.active:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_WORKSPACES_ACTIVE_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #taskbar button.active {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_ACTIVE_SHADOW_COLOR__;
+}
+
+window#waybar.external #taskbar button:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_TASKBAR_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-launcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_MENU_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_MENU_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #custom-apps,
+window#waybar.external #custom-wayscriber {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #custom-apps,
+window#waybar.external #custom-wayscriber,
+window#waybar.external #custom-apps:hover,
+window#waybar.external #custom-wayscriber:hover {
+  background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.external #custom-apps:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_APPS_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-wayscriber:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_WAYSCRIBER_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-launcher:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_MENU_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-tomat:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SMALL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_TOMAT_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-window-switcher:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_HOVER_SHADOW__ __THEME_WAYBAR_BUTTON_TASKVIEW_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-terminal,
+window#waybar.external #custom-app-files,
+window#waybar.external #custom-app-tuta,
+window#waybar.external #custom-app-notes,
+window#waybar.external #custom-app-sleek,
+window#waybar.external #custom-app-terminal:hover,
+window#waybar.external #custom-app-files:hover,
+window#waybar.external #custom-app-tuta:hover,
+window#waybar.external #custom-app-notes:hover,
+window#waybar.external #custom-app-sleek:hover {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+  background-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_ICON_SIZE__px, __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__% __INSTALLER_LABWC_WAYBAR_EXTERNAL_BACKGROUND_FILL_PERCENT__%;
+}
+
+window#waybar.external #custom-app-terminal:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TERMINAL_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-files:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_FILES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-tuta:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_TUTANOTA_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-notes:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_NOTES_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-app-sleek:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_SLEEK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #taskbar {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external #taskbar button {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_TASKBAR_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #taskbar button image {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external #quick-controls {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_MARGIN_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_GROUP_MARGIN_X__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+}
+
+window#waybar.external #quick-controls > * {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+}
+
+window#waybar.external #quick-controls #custom-system,
+window#waybar.external #quick-controls #network,
+window#waybar.external #quick-controls #custom-bluetooth,
+window#waybar.external #quick-controls #custom-keyboard,
+window#waybar.external #quick-controls #custom-screenshot {
+  margin: __INSTALLER_LABWC_WAYBAR_EXTERNAL_RESET_SIZE__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_PADDING_X__px;
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_BUTTON_MIN_WIDTH__px;
+  border-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_BORDER_WIDTH__px;
+  border-radius: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_RADIUS__px;
+  font-size: __INSTALLER_LABWC_WAYBAR_EXTERNAL_FONT_SIZE__px;
+}
+
+window#waybar.external #pulseaudio,
+window#waybar.external #custom-backlight,
+window#waybar.external #battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory,
+window#waybar.external #tray {
+  margin-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_PADDING_X__px;
+}
+
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  margin-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  margin-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MARGIN_X__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #pulseaudio,
+window#waybar.external #custom-backlight,
+window#waybar.external #battery,
+window#waybar.external #disk,
+window#waybar.external #cpu,
+window#waybar.external #memory {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_STATUS_MODULE_MIN_WIDTH__px;
+}
+
+window#waybar.external #custom-notifications,
+window#waybar.external #custom-lock,
+window#waybar.external #custom-power {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_SESSION_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #custom-lock:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_LOCK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-power:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_POWER_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-window-switcher {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_MIN_WIDTH__px;
+  padding: __INSTALLER_LABWC_WAYBAR_EXTERNAL_CONTROL_PADDING_Y__px __INSTALLER_LABWC_WAYBAR_EXTERNAL_APP_BUTTON_PADDING_X__px;
+}
+
+window#waybar.external #clock:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CLOCK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #pulseaudio:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_AUDIO_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-backlight:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BACKLIGHT_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #battery:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_BATTERY_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #disk:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_DISK_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #cpu:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_CPU_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #memory:hover {
+  box-shadow: inset __INSTALLER_LABWC_WAYBAR_EXTERNAL_INSET_SHADOW__ __THEME_WAYBAR_BUTTON_MEMORY_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #custom-tomat {
+  min-width: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TOMAT_MIN_WIDTH__px;
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TOMAT_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_TOMAT_PADDING_X__px;
+}
+
+window#waybar.external #custom-notifications:hover {
+  box-shadow: __INSTALLER_LABWC_WAYBAR_EXTERNAL_ACTIVE_SHADOW__ __THEME_WAYBAR_BUTTON_NOTIFICATIONS_HOVER_SHADOW_COLOR__;
+}
+
+window#waybar.external #quick-controls {
+  padding-left: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
+  padding-right: __INSTALLER_LABWC_WAYBAR_EXTERNAL_QUICK_CONTROL_GROUP_PADDING_X__px;
 }

@@ -25,9 +25,9 @@ log_line() {
     "$(timestamp)" "$stage" "$level" "$component" "$*" >>"$FIRSTBOOT_LOG_FILE"
 }
 
-if [ -r /usr/local/lib/firstboot.d/logging.sh ]; then
+if [ -r /var/lib/firstboot/lib/logging.sh ]; then
   # shellcheck disable=SC1091
-  . /usr/local/lib/firstboot.d/logging.sh
+  . /var/lib/firstboot/lib/logging.sh
 fi
 
 capture() {
@@ -108,12 +108,12 @@ if command -v ss >/dev/null 2>&1; then
   capture sockets-listening.txt ss -ltnup
 fi
 if command -v systemctl >/dev/null 2>&1; then
-  capture network-targets.txt systemctl status network-online.target networking.service managed-network.service wpa_supplicant.service systemd-networkd.service NetworkManager.service NetworkManager-dispatcher.service --no-pager --lines=40
+  capture network-targets.txt systemctl status network-online.target networking.service network.service wpa_supplicant.service systemd-networkd.service NetworkManager.service NetworkManager-dispatcher.service --no-pager --lines=40
 fi
 capture_file resolv.conf.txt /etc/resolv.conf
 capture_file network-interfaces.txt /etc/network/interfaces
-capture_redacted_file network-managed-network.txt /etc/network/interfaces.d/50-managed-network
-capture_redacted_file network-managed-network-default.txt /etc/default/managed-network
+capture_redacted_file network-network.txt /etc/network/interfaces.d/50-network
+capture_redacted_file network-network-default.txt /etc/network/host.conf
 
 log_line network-online info network "network_collection_complete=true"
 exit 0

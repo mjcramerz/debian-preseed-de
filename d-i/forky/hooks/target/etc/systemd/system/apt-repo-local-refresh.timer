@@ -1,0 +1,13 @@
+[Unit]
+Description=Weekly metadata-first refresh of the local APT repository
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=6h
+FixedRandomDelay=true
+AccuracySec=1min
+Unit=apt-repo-local-refresh.service
+
+[Install]
+WantedBy=timers.target

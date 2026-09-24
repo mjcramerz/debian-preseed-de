@@ -5,8 +5,8 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile Discord /opt/discord/Discord flags=(attach_disconnected) {
-  #include <abstractions/managed-electron-application>
-  #include <abstractions/managed-pipewire-audio>
+  #include <abstractions/electron-application>
+  #include <abstractions/pipewire-audio>
   include if exists <abstractions/user-tmp>
 
   network inet stream,

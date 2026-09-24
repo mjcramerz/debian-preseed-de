@@ -1,4 +1,0 @@
-W: Failed to fetch http://deb.debian.org/debian/dists/trixie/InRelease  Temporary failure resolving 'deb.debian.org'
-W: Failed to fetch http://deb.debian.org/debian/dists/trixie-updates/InRelease  Temporary failure resolving 'deb.debian.org'
-W: Failed to fetch http://deb.debian.org/debian-security/dists/trixie-security/InRelease  Temporary failure resolving 'deb.debian.org'
-W: Some index files failed to download. They have been ignored, or old ones used instead.

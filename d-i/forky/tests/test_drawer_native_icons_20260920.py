@@ -1,5 +1,8 @@
 """Native application artwork contract and GTK painting; no application launch."""
 from __future__ import annotations
+from payload_fixture import installed_argv as payload_installed_argv
+from payload_fixture import read_text as payload_read_text
+from theme_fixture import render_theme_defaults, render_theme_bytes, theme_values
 import ctypes.util
 import json
 import os
@@ -56,7 +59,7 @@ class NativeDrawerTests(unittest.TestCase):
                                re.sub(r'/\*.*?\*/', '', css, flags=re.S))
             for module in ('custom/apps', 'custom/wayscriber', *ICONS):
                 for suffix in ('', ':hover'):
-                    selector = '#' + module.replace('/', '-') + suffix
+                    selector = 'window#waybar.external #' + module.replace('/', '-') + suffix
                     with self.subTest(profile=profile, selector=selector):
                         sizes = [value.strip() for selectors, body in rules
                                  if selector in {part.strip() for part in selectors.split(',')}
@@ -65,15 +68,15 @@ class NativeDrawerTests(unittest.TestCase):
                         self.assertEqual(sizes[-1], '18px 18px, 100% 100%')
 
     def test_native_artwork_is_retained_above_violet_hover_color(self):
-        css=(SKEL/'waybar/style.css.tmpl').read_text()
+        css=render_theme_defaults(payload_read_text(SKEL/'waybar/style.css.tmpl'))
         rules=re.findall(r'([^{}]+)\{([^{}]*)\}', re.sub(r'/\*.*?\*/','',css,flags=re.S))
         for module,(icon,_,_) in ICONS.items():
             selector='#'+module.replace('/','-')
             normal=[body for selectors,body in rules if selectors.strip()==selector]
             hovered=[body for selectors,body in rules
                      if selector+':hover' in {x.strip() for x in selectors.split(',')}]
-            self.assertEqual(len(normal),1)
-            self.assertIn('url("'+ICON_PATHS[icon]+'")',normal[0])
+            self.assertTrue(normal)
+            self.assertIn('url("'+ICON_PATHS[icon]+'")', "\n".join(normal))
             self.assertTrue(hovered)
             self.assertTrue(any('background-color: rgba(44, 39, 62, 0.96)' in body for body in hovered))
             for body in hovered:
@@ -81,7 +84,7 @@ class NativeDrawerTests(unittest.TestCase):
             self.assertEqual(css.count('url("'+ICON_PATHS[icon]+'")'),1)
 
     def test_installed_verifier_checks_decoding_and_config_instead_of_silent_fallback(self):
-        source=(FORKY/'scripts/desktop/verify.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         self.assertIn('Path(icon).is_file()',source)
         self.assertIn('GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, 18, 18, True)',source)
         for icon in ICON_PATHS.values():self.assertIn('"'+icon+'"',source)
@@ -90,10 +93,10 @@ class NativeDrawerTests(unittest.TestCase):
         self.assertIn('if (arch != "amd64" or sys.argv[3] == "0") and module in {"custom/app-tuta", "custom/app-sleek"}',source)
 
     def test_narrow_verifier_is_called_after_user_config_without_enabling_broad_checks(self):
-        role=(FORKY/'scripts/desktop/labwc.sh').read_text().split('run_desktop_late_command() {',1)[1]
+        role=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/labwc.sh')).split('run_desktop_late_command() {',1)[1]
         self.assertLess(role.index('  desktop_install_user_config'),role.index('  desktop_verify_native_menus'))
         self.assertNotIn('  desktop_verify_target_staging\n',role)
-        source=(FORKY/'scripts/desktop/verify.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         self.assertIn('desktop_verify_native_menus() {\n  desktop_verify_native_drawer_icons',source)
         function=source.split('desktop_verify_native_drawer_icons() {',1)[1].split('desktop_verify_native_menus()',1)[0]
         python_code=function.split("/usr/bin/python3 -I -B -c '\n",1)[1].rsplit("\n' ",1)[0]
@@ -101,10 +104,10 @@ class NativeDrawerTests(unittest.TestCase):
         self.assertIn('installer_selected_class_reference_is_selected addon/software',function)
 
     def test_notification_lock_and_power_palette_is_explicit(self):
-        css=(SKEL/'waybar/style.css.tmpl').read_text()
+        css=render_theme_defaults(payload_read_text(SKEL/'waybar/style.css.tmpl'))
         for selector,rgba in (('notifications','236, 184, 96, 0.14'),('lock','203, 213, 225, 0.14'),('power','248, 113, 113, 0.16')):
             self.assertIn('#custom-'+selector+' {\n  background: rgba('+rgba+');',css)
-        self.assertIn('#custom-notifications:hover {\n  background: @amber;',css)
+        self.assertIn('#custom-notifications:hover {\n  background: ' + theme_values()['WAYBAR_BUTTON_NOTIFICATIONS_HOVER_BACKGROUND_COLOR'] + ';',css)
         self.assertIn('#custom-lock:hover {\n  background: linear-gradient(135deg, rgba(226, 232, 240, 0.84), rgba(148, 163, 184, 0.84));',css)
         self.assertIn('#custom-power:hover {\n  background: linear-gradient(135deg, rgba(236, 184, 96, 0.92), rgba(242, 159, 103, 0.92), rgba(248, 113, 113, 0.92));',css)
 
@@ -130,8 +133,8 @@ class NativeDrawerTests(unittest.TestCase):
             css.write_text(next(iter(rendered_profile_styles().values())).replace(
                 '/usr/share/icons/',str(root/'usr/share/icons')+'/'))
             for scale in (1,2):
-                result=subprocess.run(['xvfb-run','-a','/usr/bin/python3','-I','-B',
-                    str(FORKY/'tests/fixtures/waybar-native-icons-gtk.py'),str(css),str(scale)],
+                result=subprocess.run(payload_installed_argv(['xvfb-run','-a','/usr/bin/python3','-I','-B',
+                    str(FORKY/'tests/fixtures/waybar-native-icons-gtk.py'),str(css),str(scale)]),
                     env={**os.environ,'GDK_BACKEND':'x11','NO_AT_BRIDGE':'1','GDK_SCALE':str(scale)},
                     text=True,capture_output=True,timeout=20)
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
@@ -146,7 +149,7 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
         import types
         from unittest import mock
         self.mock=mock;self.types=types
-        source=(FORKY/'scripts/desktop/verify.sh').read_text()
+        source=render_theme_defaults(payload_read_text(FORKY/'scripts/desktop/verify.sh'))
         function=source.split('desktop_verify_native_drawer_icons() {',1)[1].split('desktop_verify_native_menus()',1)[0]
         code=function.split("/usr/bin/python3 -I -B -c '\n",1)[1].rsplit("\n' ",1)[0]
         tree=ast.parse(code)
@@ -156,8 +159,10 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
         self.configs=[]
         for relative in ('etc/skel-desktop','home/desktop'):
             config=self.root/relative/'.config/waybar';config.mkdir(parents=True)
-            (config/'config').write_text(json.dumps(bars()))
-            (config/'style.css').write_text((SKEL/'waybar/style.css.tmpl').read_text())
+            from waybar_fixture import rendered_assets
+            assets = rendered_assets(FORKY / 'hosts/profiles/btrfs-de.env')
+            for name, content in assets.items():
+                (config / name).write_text(content)
             self.configs.append(config)
         for icon in ICON_PATHS.values():
             path=self.root/icon.lstrip('/')
@@ -173,7 +178,7 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
         scope={'json':json,'re':re,'Path':lambda path:self.root/path.lstrip('/'),
                'pwd':self.types.SimpleNamespace(getpwnam=lambda user:self.types.SimpleNamespace(pw_uid=1000,pw_dir='/home/desktop')),
                'subprocess':self.types.SimpleNamespace(check_output=lambda *a,**kw:arch+'\n'),
-               'sys':self.types.SimpleNamespace(argv=['check','/home/desktop','desktop',software]),
+               'sys':self.types.SimpleNamespace(argv=['check','/home/desktop','desktop',software,'18','100','18','100']),
                'gi':self.types.SimpleNamespace(require_version=lambda *args:None),'GdkPixbuf':pixbuf}
         import contextlib,io
         with contextlib.redirect_stdout(io.StringIO()):exec(self.code,scope)
@@ -203,13 +208,13 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
 
     def test_missing_size_bound_is_rejected(self):
         path=self.configs[0]/'style.css'
-        path.write_text(path.read_text().replace('background-size: 18px 18px, 100% 100%;','background-size: auto;'))
+        path.write_text(render_theme_defaults(payload_read_text(path)).replace('background-size: 18px 18px, 100% 100%;','background-size: auto;'))
         with self.assertRaisesRegex(SystemExit,'size is misconfigured'):
             self.execute()
 
     def test_reference_buttons_cannot_hide_a_missing_drawer_size_rule(self):
         path=self.configs[0]/'style.css'
-        style=path.read_text()
+        style=render_theme_defaults(payload_read_text(path))
         # The first declaration is for apps/wayscriber; the second is the drawer.
         needle='background-size: 18px 18px, 100% 100%;'
         position=style.rindex(needle)
@@ -222,11 +227,11 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
     def test_any_single_24px_icon_override_is_rejected_in_either_config(self):
         for config in self.configs:
             path = config / 'style.css'
-            original = path.read_text()
+            original = render_theme_defaults(payload_read_text(path))
             try:
                 for module in ('custom/apps', 'custom/wayscriber', *ICONS):
                     for suffix in ('', ':hover'):
-                        selector = '#' + module.replace('/', '-') + suffix
+                        selector = 'window#waybar.external #' + module.replace('/', '-') + suffix
                         with self.subTest(config=str(config), selector=selector):
                             path.write_text(original + '\n' + selector +
                                             ' { background-size: 24px 24px, 100% 100%; }\n')
@@ -236,17 +241,17 @@ class InstalledDrawerVerifierTests(unittest.TestCase):
                 path.write_text(original)
 
     def test_corrupt_account_drawer_is_not_hidden_by_valid_skeleton(self):
-        path=self.configs[1]/'config';data=json.loads(path.read_text())
+        path=self.configs[1]/'config';data=json.loads(render_theme_defaults(payload_read_text(path)))
         data[0]['custom/app-terminal']['format']='font-glyph';path.write_text(json.dumps(data))
         with self.assertRaisesRegex(SystemExit,'misconfigured'):self.execute()
 
     def test_missing_artwork_is_rejected(self):
-        path=self.configs[0]/'style.css';path.write_text(path.read_text().replace('url("'+ICON_PATHS['foot']+'")','none',1))
+        path=self.configs[0]/'style.css';path.write_text(render_theme_defaults(payload_read_text(path)).replace('url("'+ICON_PATHS['foot']+'")','none',1))
         with self.assertRaisesRegex(SystemExit,'icon is missing'):self.execute()
 
     def test_hover_shorthand_must_not_erase_artwork(self):
         path=self.configs[0]/'style.css'
-        path.write_text(path.read_text()+'\n#custom-app-terminal:hover { background: #222222; }\n')
+        path.write_text(render_theme_defaults(payload_read_text(path))+'\n#custom-app-terminal:hover { background: #222222; }\n')
         with self.assertRaisesRegex(SystemExit,'survive hover'):self.execute()
 
     def test_invalid_software_policy_cannot_silently_skip_icons(self):

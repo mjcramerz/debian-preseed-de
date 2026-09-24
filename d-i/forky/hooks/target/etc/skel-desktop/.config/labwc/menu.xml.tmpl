@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<openbox_menu>
+  <menu id="root-menu" label="Labwc">
+    <item label="Terminal" icon="__THEME_LABWC_MENU_TERMINAL_ICON_NAME__">
+      <action name="Execute" command="labwc-terminal" />
+    </item>
+    <item label="Applications" icon="__THEME_LABWC_MENU_APPLICATIONS_ICON_NAME__">
+      <action name="Execute" command="labwc-run" />
+    </item>
+    <item label="Files" icon="__THEME_LABWC_MENU_FILES_ICON_NAME__">
+      <action name="Execute" command="thunar" />
+    </item>
+    <separator />
+    <menu id="productivity-menu" label="Productivity" icon="__THEME_LABWC_MENU_PRODUCTIVITY_ICON_NAME__">
+      <item label="Writing" icon="__THEME_FOCUSWRITER_MENU_ICON_NAME__">
+        <action name="Execute" command="focuswriter" />
+      </item>
+      <item label="Text Editor" icon="__THEME_FEATHERPAD_MENU_ICON_NAME__">
+        <action name="Execute" command="featherpad" />
+      </item>
+      <item label="Notes" icon="__THEME_GNOTE_MENU_ICON_NAME__">
+        <action name="Execute" command="gnote" />
+      </item>
+      <item label="Screen Annotation" icon="__THEME_LABWC_MENU_SCREEN_ANNOTATION_ICON_NAME__">
+        <action name="Execute" command="labwc-wayscriber-toggle" />
+      </item>
+      <item label="Handwritten Notes" icon="__THEME_XOURNALPP_MENU_ICON_NAME__">
+        <action name="Execute" command="xournalpp" />
+      </item>
+      <item label="Spreadsheet" icon="__THEME_GNUMERIC_MENU_ICON_NAME__">
+        <action name="Execute" command="gnumeric" />
+      </item>
+      <item label="Calculator" icon="__THEME_QALCULATE_MENU_ICON_NAME__">
+        <action name="Execute" command="qalculate-qt" />
+      </item>
+      <item label="Diff / Merge Tool" icon="__THEME_KDIFF3_MENU_ICON_NAME__">
+        <action name="Execute" command="kdiff3" />
+      </item>
+      <item label="PDF Viewer" icon="__THEME_ZATHURA_MENU_ICON_NAME__">
+        <action name="Execute" command="zathura" />
+      </item>
+      <item label="Feed Reader" icon="__THEME_LIFEREA_MENU_ICON_NAME__">
+        <action name="Execute" command="liferea" />
+      </item>
+    </menu>
+    <menu id="organizer-menu" label="Calendar &amp; Tasks" icon="__THEME_LABWC_MENU_CALENDAR_AND_TASKS_ICON_NAME__">
+      <item label="Calendar" icon="__THEME_LABWC_MENU_CALENDAR_ICON_NAME__">
+        <action name="Execute" command="labwc-calendar" />
+      </item>
+      <item label="Tasks" icon="__THEME_LABWC_MENU_TASKS_ICON_NAME__">
+        <action name="Execute" command="labwc-calendar tasks" />
+      </item>
+      <item label="Calendar Actions" icon="__THEME_LABWC_MENU_CALENDAR_ACTIONS_ICON_NAME__">
+        <action name="Execute" command="labwc-calendar menu" />
+      </item>
+    </menu>
+    <menu id="utilities-menu" label="Media &amp; Utilities" icon="__THEME_LABWC_MENU_MEDIA_AND_UTILITIES_ICON_NAME__">
+      <item label="Image Viewer" icon="__THEME_LABWC_MENU_IMAGE_VIEWER_ICON_NAME__">
+        <action name="Execute" command="qimgv" />
+      </item>
+      <item label="Archive Manager" icon="__THEME_LABWC_MENU_ARCHIVE_MANAGER_ICON_NAME__">
+        <action name="Execute" command="xarchiver" />
+      </item>
+      <item label="Terminal File Browser" icon="__THEME_LABWC_MENU_TERMINAL_FILE_BROWSER_ICON_NAME__">
+        <action name="Execute" command="labwc-terminal sh -lc nnn" />
+      </item>
+      <item label="System Monitor" icon="__THEME_LABWC_MENU_SYSTEM_MONITOR_ICON_NAME__">
+        <action name="Execute" command="labwc-terminal sh -lc btop" />
+      </item>
+      <item label="Computer Management" icon="__THEME_LABWC_MENU_COMPUTER_MANAGEMENT_ICON_NAME__">
+        <action name="Execute" command="labwc-computer-management" />
+      </item>
+      <item label="RetroArch" icon="__THEME_LABWC_MENU_RETROARCH_ICON_NAME__">
+        <action name="Execute" command="retroarch" />
+      </item>
+    </menu>
+    <menu id="desktop-settings-menu" label="Desktop Settings" icon="__THEME_LABWC_MENU_DESKTOP_SETTINGS_ICON_NAME__">
+      <item label="Display" icon="__THEME_LABWC_MENU_DISPLAY_ICON_NAME__">
+        <action name="Execute" command="wdisplays" />
+      </item>
+      <item label="Audio" icon="__THEME_LABWC_MENU_AUDIO_ICON_NAME__">
+        <action name="Execute" command="pavucontrol" />
+      </item>
+      <item label="Appearance" icon="__THEME_LABWC_MENU_APPEARANCE_ICON_NAME__">
+        <action name="Execute" command="nwg-look" />
+      </item>
+      <item label="Wallpaper" icon="__THEME_LABWC_MENU_WALLPAPER_ICON_NAME__">
+        <action name="Execute" command="/usr/local/bin/labwc-wayland-app auto -- /usr/local/bin/waypaper" />
+      </item>
+      <item label="Labwc Tweaks" icon="__THEME_LABWC_MENU_LABWC_TWEAKS_ICON_NAME__">
+        <action name="Execute" command="labwc-tweaks" />
+      </item>
+      <item label="Qt6 Settings" icon="__THEME_LABWC_MENU_QT6_SETTINGS_ICON_NAME__">
+        <action name="Execute" command="qt6ct" />
+      </item>
+      <separator />
+      <item label="Refresh Outputs" icon="__THEME_LABWC_MENU_REFRESH_OUTPUTS_ICON_NAME__">
+        <action name="Execute" command="/usr/local/libexec/labwc-output-watch --refresh" />
+      </item>
+      <item label="Restart Dock" icon="__THEME_LABWC_MENU_RESTART_DOCK_ICON_NAME__">
+        <action name="Execute" command="/usr/bin/systemctl --user --no-block restart crystal-dock.service" />
+      </item>
+    </menu>
+    <separator />
+    <item label="Lock" icon="__THEME_LABWC_MENU_LOCK_ICON_NAME__">
+      <action name="Execute" command="labwc-lock" />
+    </item>
+    <item label="Power" icon="__THEME_LABWC_MENU_POWER_ICON_NAME__">
+      <action name="Execute" command="labwc-power-menu" />
+    </item>
+    <separator />
+    <item label="Reconfigure" icon="__THEME_LABWC_MENU_RECONFIGURE_ICON_NAME__">
+      <action name="Reconfigure" />
+    </item>
+    <item label="Close Window" icon="__THEME_LABWC_MENU_CLOSE_WINDOW_ICON_NAME__">
+      <action name="Close" />
+    </item>
+    <item label="Logout" icon="__THEME_LABWC_MENU_LOGOUT_ICON_NAME__">
+      <action name="Execute" command="labwc-logout" />
+    </item>
+  </menu>
+</openbox_menu>

@@ -1,0 +1,78 @@
+# Managed fresh-install defaults. See zathurarc(5).
+# Drag with the left mouse button to select text; paste with Ctrl+V.
+# Use the toolkit's Wayland clipboard, not a shell or a clipboard-history daemon.
+# Shift+drag highlighting is distinct from selecting/copying text.
+set selection-clipboard clipboard
+set selection-notification true
+
+# Preserve the PDF's real colors by default. Ctrl+R toggles readable night mode
+# while retaining image colors. Never recolor a document's saved content.
+set recolor __THEME_ZATHURA_RECOLOR_ENABLED__
+set recolor-darkcolor "__THEME_ZATHURA_RECOLOR_DARK_COLOR__"
+set recolor-lightcolor "__THEME_ZATHURA_RECOLOR_LIGHT_COLOR__"
+set recolor-keephue __THEME_ZATHURA_RECOLOR_PRESERVE_HUE__
+set recolor-reverse-video __THEME_ZATHURA_RECOLOR_REVERSE_VIDEO__
+set default-bg "__THEME_ZATHURA_DEFAULT_BACKGROUND_COLOR__"
+set default-fg "__THEME_ZATHURA_DEFAULT_FOREGROUND_COLOR__"
+set statusbar-bg "__THEME_ZATHURA_STATUSBAR_BACKGROUND_COLOR__"
+set statusbar-fg "__THEME_ZATHURA_STATUSBAR_FOREGROUND_COLOR__"
+set inputbar-bg "__THEME_ZATHURA_INPUTBAR_BACKGROUND_COLOR__"
+set inputbar-fg "__THEME_ZATHURA_INPUTBAR_FOREGROUND_COLOR__"
+set completion-bg "__THEME_ZATHURA_COMPLETION_BACKGROUND_COLOR__"
+set completion-fg "__THEME_ZATHURA_COMPLETION_FOREGROUND_COLOR__"
+set completion-group-bg "__THEME_ZATHURA_COMPLETION_GROUP_BACKGROUND_COLOR__"
+set completion-group-fg "__THEME_ZATHURA_COMPLETION_GROUP_FOREGROUND_COLOR__"
+set completion-highlight-bg "__THEME_ZATHURA_COMPLETION_HIGHLIGHT_BACKGROUND_COLOR__"
+set completion-highlight-fg "__THEME_ZATHURA_COMPLETION_HIGHLIGHT_FOREGROUND_COLOR__"
+set index-bg "__THEME_ZATHURA_INDEX_BACKGROUND_COLOR__"
+set index-fg "__THEME_ZATHURA_INDEX_FOREGROUND_COLOR__"
+set index-active-bg "__THEME_ZATHURA_INDEX_ACTIVE_BACKGROUND_COLOR__"
+set index-active-fg "__THEME_ZATHURA_INDEX_ACTIVE_FOREGROUND_COLOR__"
+set highlight-color "__THEME_ZATHURA_HIGHLIGHT_COLOR__"
+set highlight-active-color "__THEME_ZATHURA_HIGHLIGHT_ACTIVE_COLOR__"
+set highlight-fg "__THEME_ZATHURA_HIGHLIGHT_FOREGROUND_COLOR__"
+set notification-bg "__THEME_ZATHURA_NOTIFICATION_BACKGROUND_COLOR__"
+set notification-fg "__THEME_ZATHURA_NOTIFICATION_FOREGROUND_COLOR__"
+set notification-error-bg "__THEME_ZATHURA_NOTIFICATION_ERROR_BACKGROUND_COLOR__"
+set notification-error-fg "__THEME_ZATHURA_NOTIFICATION_ERROR_FOREGROUND_COLOR__"
+set notification-warning-bg "__THEME_ZATHURA_NOTIFICATION_WARNING_BACKGROUND_COLOR__"
+set notification-warning-fg "__THEME_ZATHURA_NOTIFICATION_WARNING_FOREGROUND_COLOR__"
+set render-loading-bg "__THEME_ZATHURA_RENDER_LOADING_BACKGROUND_COLOR__"
+set render-loading-fg "__THEME_ZATHURA_RENDER_LOADING_FOREGROUND_COLOR__"
+
+# Bounded rendering memory; thumbnail size is pixels, not bytes.
+set page-cache-size 10
+set page-thumbnail-size 1048576
+set adjust-open width
+set pages-per-row 1
+set first-page-column "1:2"
+set page-v-padding 8
+set page-h-padding 8
+set zoom-min 10
+set zoom-max 800
+set zoom-step 10
+set zoom-center true
+set scroll-step 40
+set scroll-full-overlap 0.1
+set scroll-wrap false
+set incremental-search true
+set link-zoom true
+set double-click-follow true
+
+# Persistent positions/bookmarks, without a database write on every page turn.
+set database sqlite
+set continuous-hist-save false
+set open-first-page false
+set filemonitor glib
+set show-hidden false
+set show-recent 10
+set statusbar-home-tilde true
+set window-title-basename true
+set window-title-page true
+set window-icon-document false
+
+# Forward SyncTeX remains available. No implicit external shell/editor command.
+set dbus-service true
+set synctex true
+set synctex-editor-command ""
+# Standard mouse bindings remain intact (selection and wheel scrolling).

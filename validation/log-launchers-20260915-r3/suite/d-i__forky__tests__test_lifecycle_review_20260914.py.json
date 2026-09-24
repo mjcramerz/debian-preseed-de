@@ -1,9 +1,0 @@
-{
-  "path": "d-i/forky/tests/test_lifecycle_review_20260914.py",
-  "status": 0,
-  "seconds": 4.69,
-  "timeout": false,
-  "tests": 30,
-  "skips": 0,
-  "failures": []
-}

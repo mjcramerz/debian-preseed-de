@@ -1,8 +1,0 @@
-test_every_real_profile_fetches_and_sources_in_fresh_strict_shells (test_env_publication_20260919.RealProfileEnvironmentTests.test_every_real_profile_fetches_and_sources_in_fresh_strict_shells) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 2.927s
-
-OK
-Actual composition shell: ['/usr/bin/busybox', 'sh', '-eu']
-All 13 real profiles composed with BusyBox ash and sourced in fresh dash and BusyBox shells.

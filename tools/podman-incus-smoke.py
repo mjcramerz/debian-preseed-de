@@ -179,11 +179,11 @@ def readonly(require_incus: bool) -> None:
 
 def exercise(image: str) -> None:
     token = uuid.uuid4().hex[:20]
-    name, tag = 'managed-smoke-' + token, 'localhost/managed-smoke:' + token
+    name, tag = 'x-smoke-' + token, 'localhost/x-smoke:' + token
     created = []
     cleanup_errors = []
     compose = None
-    scratch = tempfile.TemporaryDirectory(prefix='managed-container-smoke-')
+    scratch = tempfile.TemporaryDirectory(prefix='x-container-smoke-')
     base = Path(scratch.name)
     try:
         run([PODMAN, 'pull', image], 900)
@@ -197,10 +197,10 @@ def exercise(image: str) -> None:
         require(run([DOCKER, 'exec', name, '/bin/sh', '-c', 'cat /smoke-data/probe']) == 'acceptance',
                 'Podman and Docker operate on the same container and named volume')
         run([PODMAN, 'stop', '--time', '5', name]); run([DOCKER, 'start', name])
-        (base / 'Containerfile').write_text('FROM ' + image + '\nRUN printf built > /managed-smoke\n')
+        (base / 'Containerfile').write_text('FROM ' + image + '\nRUN printf built > /x-smoke\n')
         run([PODMAN, 'build', '--label', LABEL + '=' + token, '--tag', tag, str(base)], 900)
         created.append(('image', tag))
-        require(run([DOCKER, 'run', '--rm', tag, '/bin/sh', '-c', 'cat /managed-smoke']) == 'built',
+        require(run([DOCKER, 'run', '--rm', tag, '/bin/sh', '-c', 'cat /x-smoke']) == 'built',
                 'remote Podman build uploads a local context and Docker runs its result')
         document = {'services': {'probe': {'image': tag, 'labels': {LABEL: token},
                     'command': ['/bin/sh', '-c', 'while :; do sleep 60; done']}}}

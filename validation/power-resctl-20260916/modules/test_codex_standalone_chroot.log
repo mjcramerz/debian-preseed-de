@@ -1,8 +1,0 @@
-test_download_failure_cleans_scratch_without_publish (test_codex_standalone_chroot.CodexFreshInstallTests.test_download_failure_cleans_scratch_without_publish) ... ok
-test_failed_payload_does_not_publish_partial_package (test_codex_standalone_chroot.CodexFreshInstallTests.test_failed_payload_does_not_publish_partial_package) ... ok
-test_fresh_install_then_repeat_with_no_run_user_tree (test_codex_standalone_chroot.CodexFreshInstallTests.test_fresh_install_then_repeat_with_no_run_user_tree) ... ok
-
-----------------------------------------------------------------------
-Ran 3 tests in 0.488s
-
-OK

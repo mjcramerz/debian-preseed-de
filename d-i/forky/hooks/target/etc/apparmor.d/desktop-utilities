@@ -1,0 +1,325 @@
+# Managed by unattended-installer.
+abi "/usr/share/apparmor-features/features",
+#include <tunables/global>
+
+profile desktop-editors /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} flags=(attach_disconnected, mediate_deleted) {
+  # September 20 audit: Qt atomic saves require both the published file and
+  # the temporary inode, with mediate_deleted on this profile (not a home wildcard).
+  owner @{HOME}/.{profile,bash_profile,bashrc,bash_aliases,zshenv,zprofile,zshrc,zlogout,zsh_aliases,dircolors,vimrc,sudo_as_admin_successful} r,
+  owner @{HOME}/.config/QtProject.conf{,.lock,.*} rwkl,
+  owner "@{HOME}/.config/#[0-9]*" rwkl,
+  owner @{HOME}/.local/state/kdiff3staterc{,.lock,.*} rwkl,
+  owner "@{HOME}/.local/state/#[0-9]*" rwkl,
+  /etc/alsa/conf.d/ r,
+  /etc/pipewire/client.conf.d/{,20-volume-ceiling.conf} r,
+  @{sys}/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  @{PROC}/sys/kernel/core_pattern r,
+  @{PROC}/sys/vm/nr_hugepages r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  #include <abstractions/document-runtime>
+  /usr/bin/{featherpad,qimgv,kdiff3,gnumeric,xournalpp,gnote,qalculate-qt} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/ rw,
+  owner @{HOME}/.config/{featherpad,FeatherPad,kdiff3*,gnumeric,xournalpp,gnote,qalculate,qimgv}/** rwklm,
+  owner @{HOME}/.config/{kdiff3rc,qalculaterc}* rwkl,
+  # Tomat menu opens only this application-specific configuration directory.
+  owner @{HOME}/.config/tomat/ rw,
+  owner @{HOME}/.config/tomat/** rwkl,
+  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/ rw,
+  owner @{HOME}/.local/share/{featherpad,gnumeric,xournalpp,gnote,qalculate}/** rwklm,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/ rw,
+  owner @{HOME}/.cache/{featherpad,gnumeric,xournalpp,gnote,qalculate,qimgv,thumbnails}/** rwklm,
+  /usr/bin/{diff,git,lp,lpr,pdftoppm,pdftotext} rix,
+  # GLib/glycin CPU quota probes and its separately confined image decoder.
+  owner @{PROC}/[0-9]*/cgroup r,
+  # Toolkit process checks need same-owner statistics and command lines only.
+  owner @{PROC}/[0-9]*/{stat,cmdline} r,
+  # Editors may save extensionless non-hidden documents directly in HOME.
+  # One filename component only: no dotfiles, subtrees or executable mapping.
+  owner @{HOME}/[^.]* rwk,
+  @{sys}/fs/cgroup/**/cpu.max r,
+  signal (send) set=(kill term) peer=desktop-editors//editor-glycin-bwrap,
+  /usr/bin/bwrap rCx -> editor-glycin-bwrap,
+  profile editor-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/bwrap-common>
+    include if exists <abstractions/fonts>
+    signal (receive) set=(kill term) peer=desktop-editors,
+    /usr/bin/true rix,
+    # bwrap sets NNP before executing the loader: inherit, do not transition.
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/lib/** mr,
+    /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+    /usr/share/mime/mime.cache r,
+    /usr/{,local/}share/icons/{,**} r,
+    /usr/share/backgrounds/{,**} r,
+    /usr/share/xournalpp/ui/pixmaps/com.github.xournalpp.xournalpp.svg r,
+    owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+    owner @{HOME}/.cache/fontconfig/{,**} r,
+    owner @{HOME}/.cache/glycin/{,**} rwkl,
+  }
+  include if exists <local/desktop-editors>
+}
+
+profile desktop-media /usr/bin/{mpv,recoll,recollindex,recollq,liferea} flags=(attach_disconnected, mediate_deleted) {
+  # Missing exec transitions created thousands of null learning descendants.
+  # Keep WebKit in the application domain; isolate glycin's namespace builder.
+  #include <abstractions/webkit-runtime>
+  /usr/bin/iconv rix,
+  network inet dgram,
+  /usr/local/lib/python3.[0-9]*/dist-packages/ r,
+  /dev/tty rw,
+  owner @{HOME}/.local/share/net.sourceforge.liferea/{,**} rwkl,
+  owner @{HOME}/.cache/net.sourceforge.liferea/{,**} rwkl,
+  signal (send) set=(kill term) peer=desktop-media//media-glycin-bwrap,
+  /usr/bin/bwrap rCx -> media-glycin-bwrap,
+  profile media-glycin-bwrap flags=(attach_disconnected, mediate_deleted) {
+    #include <abstractions/base>
+    #include <abstractions/bwrap-common>
+    include if exists <abstractions/fonts>
+    signal (receive) set=(kill term) peer=desktop-media,
+    ptrace (read, readby) peer=desktop-media//media-glycin-bwrap,
+    /usr/bin/true rix,
+    /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
+    /usr/lib/** mr,
+    /usr/share/glycin-loaders/2+/conf.d/{,**} r,
+    /usr/share/mime/mime.cache r,
+    /usr/{,local/}share/icons/{,**} r,
+    /usr/share/liferea/{,**} r,
+    owner /tmp/gdk-pixbuf-glycin-tmp.* rwk,
+    owner @{HOME}/.cache/fontconfig/{,**} r,
+    owner @{HOME}/.cache/glycin/{,**} rwkl,
+    owner @{HOME}/.local/share/{liferea,net.sourceforge.liferea}/{,**} r,
+  }
+  #include <abstractions/document-runtime>
+  #include <abstractions/pipewire-audio>
+  /usr/bin/{mpv,recoll,recollindex,recollq,liferea} mrix,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /usr/share/recoll/filters/** rix,
+  /usr/bin/{cat,file,ffmpeg,ffprobe,gzip,unzip,pdftotext,python3,python3.[0-9]*,perl} rix,
+  /usr/lib/python3*/** mr,
+  /usr/lib/@{multiarch}/perl*/** mr,
+  /usr/share/perl*/** r,
+  owner @{HOME}/.recoll/ rw,
+  owner @{HOME}/.recoll/** rwklm,
+  owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/ rw,
+  owner @{HOME}/.{config,cache}/{mpv,recoll,liferea}/** rwklm,
+  owner @{HOME}/.local/share/{mpv,recoll,liferea}/ rw,
+  owner @{HOME}/.local/share/{mpv,recoll,liferea}/** rwklm,
+  # Recoll's QtWebEngine viewer creates a Chromium user namespace. These
+  # permissions do not grant capabilities in the initial (host) namespace.
+  userns,
+  capability sys_admin,
+  capability sys_chroot,
+  capability sys_ptrace,
+  network inet6 dgram,
+  ptrace (read, trace) peer=@{profile_name},
+  /usr/lib/qt6/libexec/QtWebEngineProcess rix,
+  @{PROC}/ r,
+  @{PROC}/sys/fs/inotify/max_user_watches r,
+  @{PROC}/sys/kernel/yama/ptrace_scope r,
+  owner @{PROC}/[0-9]*/{cmdline,stat,statm,fd/} r,
+  owner @{PROC}/[0-9]*/task/ r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/status r,
+  owner @{PROC}/[0-9]*/{setgroups,gid_map,uid_map,oom_score_adj} rw,
+  # Qt probes this package-owned directory with mkdir. Directory-only access;
+  # DAC still prevents ordinary users changing system data or creating files.
+  /usr/share/qt6/resources/locales/ rw,
+  owner @{HOME}/.config/Recoll.org/ rw,
+  owner @{HOME}/.config/Recoll.org/** rwkl,
+  owner @{HOME}/.cache/Recoll.org/ rw,
+  owner @{HOME}/.cache/Recoll.org/** rwkl,
+  owner @{HOME}/.cache/qtshadercache-*/ rw,
+  owner @{HOME}/.cache/qtshadercache-*/** rwkl,
+  owner /run/user/[0-9]*/recoll-*-index.pid rwk,
+  include if exists <local/desktop-media>
+}
+
+# These are intentional user-command launchers/file managers, not document
+# parsers. An existing narrower profile wins; otherwise children stay in this
+# developer domain. There is no general unconfined execution fallback.
+profile desktop-launcher /usr/bin/{foot,footclient,kitty,fuzzel,xdg-terminal-exec,thunar,Thunar,xarchiver,nnn} flags=(attach_disconnected, mediate_deleted) {
+  # btop reads statistics; this does not authorize ptrace attachment/writes.
+  ptrace (read) peer=hardware-tuning-client,
+  signal (send) set=(hup) peer=session-controls,
+  # Embedded Python may ignore the caller environment. Failed optional bytecode
+  # cache writes are harmless: never grant writes to the packaged interpreter.
+  deny /usr/lib/python3{,.[0-9]*}/{,**/}__pycache__/*.pyc* w,
+  deny /usr/lib/kitty/{,**/}__pycache__/*.pyc* w,
+  include if exists <abstractions/hardware-tuning-desktop-parent>
+  # The tracked Fuzzel child must accept its wrapper's cancellation cleanup.
+  signal (receive) set=(term) peer=labwc-fuzzel,
+  # General-purpose file managers and ncdu must enumerate the filesystem.
+  # Trailing slash restricts this to directories; file data, writes and exec
+  # retain their existing policy, and ordinary DAC permissions still apply.
+  /**/ r,
+  #include <abstractions/devops-toolchain-data>
+  #include <abstractions/desktop-runtime>
+  #include <abstractions/user-documents>
+  #include <abstractions/pipewire-audio>
+  capability sys_ptrace,
+  ptrace (read) peer=unconfined,
+  # btop: exact additional peers observed in the installed-session audit.
+  ptrace (read) peer=labwc-chatgpt//chatgpt-bwrap,
+  ptrace (read) peer=labwc-panel-run,
+  ptrace (read) peer=labwc-chatgpt//chatgpt-dbus-proxy,
+  ptrace (read) peer=labwc-chatgpt-log-runner,
+  ptrace (read) peer=labwc-chatgpt,
+  ptrace (read) peer=chatgpt-slirp4netns,
+  ptrace (read) peer=desktop-launcher//application-bwrap,
+  # btop in the terminal needs read-only process statistics, not ptrace writes.
+  ptrace (read) peer=bitwarden,
+  ptrace (read) peer=filen,
+  ptrace (read) peer=vivaldi-bin,
+  ptrace (read) peer=vivaldi-stable,
+  ptrace (read) peer=codex-slirp4netns,
+  ptrace (read) peer=codex-wrapper,
+  ptrace (read) peer=codex-wrapper//codex-bwrap,
+  ptrace (read) peer=crystal-dock,
+  ptrace (read) peer=ksecretd,
+  ptrace (read) peer=labwc-bluetooth,
+  ptrace (read) peer=labwc-calendar,
+  ptrace (read) peer=labwc-compositor,
+  ptrace (read) peer=labwc-fuzzel,
+  ptrace (read) peer=labwc-health-notify,
+  ptrace (read) peer=labwc-app,
+  ptrace (read) peer=labwc-app//app-bwrap,
+  ptrace (read) peer=labwc-output-watch,
+  # Observed btop proc-stat reads; never authorize trace/attach/write here.
+  ptrace (read) peer=labwc-swaybg,
+  ptrace (read) peer=tomat,
+  ptrace (read) peer=labwc-notifications,
+  ptrace (read) peer=labwc-plans,
+  ptrace (read) peer=labwc-session,
+  ptrace (read) peer=session-controls,
+  ptrace (read) peer=session-glycin-bwrap,
+  ptrace (read) peer=waybar,
+  ptrace (read) peer=whisper-record-toggle,
+  # Additional read-only status peers observed in the September 16 audit.
+  # read/ readby mediate proc metadata; do not grant trace or wildcard peers.
+  ptrace (read) peer=code,
+  ptrace (read) peer=microsoft-edge-stable,
+  ptrace (read) peer=labwc-microsoft-edge-launcher,
+  ptrace (read) peer=mullvad-browser,
+  ptrace (read) peer=labwc-mullvad-browser-launcher,
+  ptrace (read) peer=mullvad,
+  ptrace (read) peer=obsidian,
+  ptrace (read) peer=desktop-editors,
+  /usr/bin/** rPix,
+  /usr/local/{bin,sbin,libexec}/** rPix,
+  /usr/libexec/** rPix,
+  /usr/lib/chromium/** rPix,
+  /opt/** rPix,
+  /usr/ r,
+  /srv/ r,
+  /data/bin/ r,
+  /data/codex/lib/ r,
+  /data/llama/{bin,lib}/ r,
+  /var/ r,
+  /var/log/ r,
+  /run/log/journal/ r,
+  /var/log/journal/ r,
+  /var/log/journal/*/ r,
+  /var/log/journal/*/user-[0-9]*.journal r,
+  /var/lib/systemd/catalog/database r,
+  /data/codex/lib/codex rPx -> codex-wrapper,
+  /usr/lib/thunar/** rix,
+  # Thunar's archive helper is a sibling directory, not thunar/**. Without
+  # this exec rule, complain mode creates null learning profiles for the
+  # helper, xarchiver and every subsequent compression/glycin subprocess.
+  /usr/lib/thunar-archive-plugin/xarchiver.tap rix,
+  # Terminal package queries are read-only; no apt/dpkg database writes.
+  /var/lib/dpkg/{status,triggers/File,triggers/Unincorp} r,
+  /var/lib/apt/extended_states r,
+  /var/lib/apt/lists/** r,
+  /var/cache/apt/{pkgcache,srcpkgcache}.bin r,
+  # Git invokes package-owned helpers below its exec-path, not only git itself.
+  # Inherit the terminal domain; never create complain-mode null descendants.
+  /usr/lib/git-core/git rix,
+  /usr/lib/git-core/git-* rix,
+  # GLib's desktop-entry trampoline retains this domain until the selected
+  # executable attaches to its existing profile through the rules above.
+  /usr/lib/@{multiarch}/glib-2.0/gio-launch-desktop rix,
+  # udevadm queries device metadata, not block/USB device contents.
+  /run/udev/data/{b[0-9]*:[0-9]*,c189:[0-9]*,+usb:*} r,
+  # The managed configuration repository is intentionally browsable from the
+  # user's terminal. Only Git metadata and the recorded account-edit files
+  # gain writes; the Codex .system subtree receives no write/execute grant.
+  /data/codex/usr/** r,
+  owner /data/codex/usr/.git/** rwkl,
+  owner /data/codex/usr/home/{auth.json,config.toml,.config.toml.swp} rw,
+
+  # A terminal's mail check may read its user's traditional mail spool.
+  owner /var/mail/* r,
+  /usr/share/** r,
+  # Authentication boundary: Polkit/sudo retain their own authorization checks;
+  # privileged repository helpers attach to their existing dedicated profiles.
+  /usr/bin/{pkexec,sudo,sudoedit} rPUx,
+  /run/mount/utab r,
+  signal (send) set=(kill term) peer=desktop-launcher//application-bwrap,
+  /usr/bin/bwrap rCx -> application-bwrap,
+  profile application-bwrap flags=(attach_disconnected) {
+    signal (receive) set=(kill term) peer=desktop-launcher,
+    #include <abstractions/bwrap-common>
+    #include <abstractions/bwrap-desktop-runtime>
+    #include <abstractions/devops-toolchain-runtime>
+  }
+  include if exists <local/desktop-launcher>
+}
+
+# FreeRDP's file clipboard uses libfuse. Its privileged fallback is isolated
+# from the terminal/file-manager domain and may mount only cliprdr directories.
+profile freerdp-client /usr/bin/{sdl-freerdp,sdl-freerdp3} flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/document-runtime>
+  #include <abstractions/pipewire-audio>
+  include if exists <abstractions/nameservice-strict>
+  network inet dgram,
+  network inet6 dgram,
+  unix,
+  /usr/bin/{sdl-freerdp,sdl-freerdp3} mr,
+  /usr/lib/** mr,
+  /usr/share/** r,
+  /etc/{freerdp,ssl}/** r,
+  /etc/krb5.conf r,
+  /etc/krb5.conf.d/{,**} r,
+  /dev/tty rw,
+  owner /dev/pts/[0-9]* rw,
+  /dev/fuse rw,
+  /proc/filesystems r,
+  owner @{PROC}/[0-9]*/{mountinfo,mounts,cgroup,stat,status} r,
+  owner @{PROC}/[0-9]*/task/[0-9]*/comm rw,
+  /sys/devices/virtual/dmi/id/{bios_vendor,board_vendor} r,
+  owner @{HOME}/.config/freerdp/{,**} rwkl,
+  owner @{HOME}/.local/share/freerdp/{,**} rwkl,
+  owner @{HOME}/.cache/freerdp/{,**} rwkl,
+  owner /tmp/com.freerdp.client.cliprdr.[0-9]*/{,**} rwkl,
+  # libfuse first tries an unprivileged mount, then the setuid package helper.
+  # Do not grant sys_admin to the network client merely to satisfy that probe.
+  deny mount fstype=fuse /dev/fuse -> /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+  /usr/bin/fusermount3 rCx -> clipboard-fuse,
+  /usr/bin/umount rCx -> clipboard-fuse,
+  /usr/local/bin/labwc-freerdp-askpass rPx -> labwc-freerdp-askpass,
+  /{,usr/}bin/{sh,dash} rix,
+  signal (send, receive) peer=freerdp-client//clipboard-fuse,
+  profile clipboard-fuse flags=(attach_disconnected) {
+    #include <abstractions/base>
+    include if exists <abstractions/nameservice-strict>
+    capability sys_admin,
+    capability dac_override,
+    capability dac_read_search,
+    capability setuid,
+    /usr/bin/{fusermount3,umount} rix,
+    /dev/fuse rw,
+    /etc/{fuse.conf,mtab} r,
+    /proc/filesystems r,
+    owner @{PROC}/[0-9]*/{mountinfo,mounts,status} r,
+    /run/mount/{utab,utab.lock,utab.act,utab.event} rwk,
+    owner /tmp/com.freerdp.client.cliprdr.[0-9]*/{,**} rwkl,
+    mount fstype=fuse options=(rw,nosuid,nodev) /dev/fuse -> /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+    umount /tmp/com.freerdp.client.cliprdr.[0-9]*/,
+    signal (send, receive) peer=freerdp-client,
+  }
+  include if exists <local/freerdp-client>
+}

@@ -1,6 +1,0 @@
-{
-  "revision": "r4",
-  "case": "two independently valid profiles with different SHA256 values",
-  "failure_reproduced": true,
-  "error": "b.env: resctl-bench pins differ from a.env: RESCTL_BENCH_SHA256; update all profiles together"
-}

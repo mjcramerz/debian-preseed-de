@@ -4,6 +4,8 @@ Only external policy tools, object construction/accessors and the kernel load
 boundary are doubles. This does NOT emulate Moo or count as loading the full
 Moo/MooX application. Full application tests remain a separate dependency gate.
 """
+from payload_fixture import installed_argv as payload_installed_argv, source_is_file as payload_source_is_file
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 from pathlib import Path
 import json
 import os
@@ -18,7 +20,7 @@ APPARMOR = TARGET / 'usr/local/lib/perl5/site_perl/labwc-security-action/LabwcSe
 
 
 def method(name):
-    match = re.search(r'^sub ' + re.escape(name) + r' \{.*?^\}', APPARMOR.read_text(), re.M | re.S)
+    match = re.search(r'^sub ' + re.escape(name) + r' \{.*?^\}', payload_read_text(APPARMOR), re.M | re.S)
     if not match:
         raise AssertionError('method not found: ' + name)
     return match.group()
@@ -35,7 +37,7 @@ class PerlPolicyMethodTests(unittest.TestCase):
             (root / 'drafts').mkdir()
             for name in ('abi', 'abstractions', 'tunables', 'local'):
                 (root / 'profiles' / name).mkdir()
-            (root / 'mode').write_text('enforce required managed-desktop-wrappers -\n')
+            (root / 'mode').write_text('enforce required desktop-wrappers -\n')
             (root / 'enabled').write_text('Y\n')
             (root / 'helper').write_text('#!/bin/sh\nexit 0\n'); (root / 'helper').chmod(0o755)
             (root / 'profiles/vivaldi-stable').write_text('original audit policy\n')
@@ -97,7 +99,7 @@ sub _publish_generated_drafts { $self->{last_workspace} = $_[1]; }
             code += '\n' + '\n'.join(method(name) for name in methods) + r'''
 my $result = eval {
     if ($o->{kind} eq 'mode') {
-        $self->_update_modes(['managed-desktop-wrappers'], $o->{mode} // 'complain', 'fixture');
+        $self->_update_modes(['desktop-wrappers'], $o->{mode} // 'complain', 'fixture');
     } elsif ($o->{kind} eq 'audit') {
         $self->_update_application_audit('vivaldi', $o->{mode} // 'enable');
     } elsif ($o->{kind} eq 'activate') {
@@ -113,11 +115,11 @@ print "\nRESULT=" . encode_json({ok => $result ? 1 : 0, error => $error, calls =
 '''
             payload = dict(kind=kind, statuses=list(statuses), reload_statuses=[])
             payload.update(options)
-            result = subprocess.run(['perl', '-e', code, json.dumps(payload), str(root)],
+            result = subprocess.run(payload_installed_argv(['perl', '-e', code, json.dumps(payload), str(root)]),
                                     text=True, capture_output=True, timeout=15)
             self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
             metadata = json.loads(result.stdout.rsplit('RESULT=', 1)[1])
-            files = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            files = {str(p.relative_to(root)): payload_read_bytes(p) for p in root.rglob('*') if payload_source_is_file(p)}
             metadata['files'] = files
             metadata['directories'] = [p.name for p in (root / 'drafts').iterdir() if p.is_dir()]
             return metadata
@@ -125,22 +127,22 @@ print "\nRESULT=" . encode_json({ok => $result ? 1 : 0, error => $error, calls =
     def test_mode_commit(self):
         result = self.run_case('mode')
         self.assertEqual(result['ok'], 1)
-        self.assertEqual(result['files']['mode'], b'complain required managed-desktop-wrappers -\n')
+        self.assertEqual(result['files']['mode'], b'complain required desktop-wrappers -\n')
         self.assertEqual(result['calls'], 1)
-        self.assertFalse(any(name.startswith('.managed-modes') for name in result['files']))
+        self.assertFalse(any(name.startswith('.modes') for name in result['files']))
 
     def test_failed_mode_reconcile_restores_and_reconciles(self):
         result = self.run_case('mode', [1, 0])
         self.assertEqual(result['ok'], 0)
         self.assertIn('restored and reconciled', result['error'])
-        self.assertEqual(result['files']['mode'], b'enforce required managed-desktop-wrappers -\n')
+        self.assertEqual(result['files']['mode'], b'enforce required desktop-wrappers -\n')
         self.assertEqual(result['calls'], 2)
 
     def test_failed_mode_rollback_retains_backup(self):
         result = self.run_case('mode', [1, 2])
         self.assertEqual(result['ok'], 0)
         self.assertIn('ALSO FAILED', result['error'])
-        self.assertTrue(any(name.startswith('.managed-modes.backup.') for name in result['files']))
+        self.assertTrue(any(name.startswith('.modes.backup.') for name in result['files']))
 
     def test_external_mode_change_is_preserved(self):
         result = self.run_case('mode', [1], external_change=True)
@@ -152,7 +154,7 @@ print "\nRESULT=" . encode_json({ok => $result ? 1 : 0, error => $error, calls =
         self.assertEqual(result['ok'], 0)
         self.assertIn('live profile unloading is not supported', result['error'])
         self.assertEqual(result['calls'], 0)
-        self.assertEqual(result['files']['mode'], b'enforce required managed-desktop-wrappers -\n')
+        self.assertEqual(result['files']['mode'], b'enforce required desktop-wrappers -\n')
 
     def test_autodep_success_still_cleans_workspace(self):
         result = self.run_case('autodep')

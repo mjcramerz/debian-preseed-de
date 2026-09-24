@@ -11,7 +11,7 @@ import sys
 import syslog
 
 
-IDENTIFIER = "labwc-managed-app"
+IDENTIFIER = "labwc-app"
 MAX_FIELD_BYTES = 240
 MAX_MESSAGE_BYTES = 1800
 _FIELD_NAME = re.compile(r"[a-z][a-z0-9_]{0,31}")

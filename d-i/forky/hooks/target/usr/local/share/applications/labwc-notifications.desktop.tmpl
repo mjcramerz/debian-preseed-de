@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Notifications
+Comment=View the managed Mako notification history
+TryExec=/usr/local/libexec/labwc-notifications
+Exec=/usr/bin/systemd-run --user --collect --quiet --expand-environment=no --property=Type=exec --property=ExitType=cgroup --property=KillMode=control-group --property=PartOf=labwc-session.target --property=Requisite=labwc-session.target --property=After=labwc-session.target -- /usr/local/libexec/labwc-notifications center
+Icon=__THEME_LABWC_NOTIFICATIONS_LAUNCHER_ICON_NAME__
+Terminal=false
+NoDisplay=true
+Categories=Utility;
+StartupNotify=true

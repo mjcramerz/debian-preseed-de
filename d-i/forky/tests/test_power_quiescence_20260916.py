@@ -1,5 +1,6 @@
 """Power lifecycle regressions. All manager/power calls are mocked."""
 from __future__ import annotations
+from payload_fixture import read_bytes as payload_read_bytes, read_text as payload_read_text
 import contextlib
 import io
 from pathlib import Path
@@ -16,7 +17,7 @@ BARRIERS = {'shutdown.target', 'umount.target', 'final.target', 'reboot.target',
 def module():
     path = TARGET / 'usr/local/libexec/labwc-admin-action-worker'
     result = types.ModuleType('quiescence_worker'); result.__file__ = str(path)
-    exec(compile(path.read_bytes(), str(path), 'exec'), result.__dict__)
+    exec(compile(payload_read_bytes(path), str(path), 'exec'), result.__dict__)
     return result
 
 
@@ -173,30 +174,30 @@ class LaunchGraphTests(unittest.TestCase):
         managed = TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app'
         for path, count in ((managed/'generic.py', 1), (managed/'session.py', 3),
                             (TARGET/'usr/local/bin/labwc-qbittorrent', 1), (TARGET/'usr/local/bin/labwc-capture', 1)):
-            text = path.read_text()
+            text = payload_read_text(path)
             self.assertEqual(text.count('ConditionPathExists='), count, str(path))
             # Transient D-Bus properties do not expand unit-file specifiers.
             self.assertNotIn('ConditionPathExists=!%t/', text)
             self.assertIn('PartOf=labwc-session.target', text)
-        text = (managed / 'session.py').read_text()
+        text = payload_read_text(managed / 'session.py')
         self.assertNotIn('Requires=labwc-session.target', text)
         self.assertNotIn('Requires={startup_dependencies}', text)
 
     def test_existing_graph_orders_compositor_last_and_retains_bus(self):
         directory = TARGET / 'etc/skel-desktop/.config/systemd/user'
-        target = (directory/'labwc-session.target').read_text()
+        target = payload_read_text(directory/'labwc-session.target')
         self.assertIn('After=dbus.service dbus.socket labwc-compositor.service', target)
         self.assertIn('Requires=dbus.service dbus.socket', target)
         for name in ('waybar', 'crystal-dock', 'labwc-kwallet-portal'):
-            text = (directory / (name + '.service')).read_text()
+            text = payload_read_text(directory / (name + '.service'))
             self.assertIn('PartOf=labwc-session.target', text)
             self.assertRegex(text, r'(?m)^After=.*labwc-session.target')
-        worker = (TARGET/'usr/local/libexec/labwc-admin-action-worker').read_text()
+        worker = payload_read_text(TARGET/'usr/local/libexec/labwc-admin-action-worker')
         for barrier in BARRIERS:
             self.assertNotIn('"' + barrier + '"', worker)
 
     def test_recorder_gets_sigint_with_cgroup_lifecycle_and_existing_timeout(self):
-        text = (TARGET / 'usr/local/bin/labwc-capture').read_text()
+        text = payload_read_text(TARGET / 'usr/local/bin/labwc-capture')
         for prop in ('Requisite=labwc-session.target', 'After=labwc-session.target', 'PartOf=labwc-session.target',
                      'KillMode=control-group', 'ExitType=cgroup', 'KillSignal=SIGINT', 'TimeoutStopSec=20s'):
             self.assertIn('--property=' + prop, text)

@@ -5,9 +5,9 @@ abi "/usr/share/apparmor-features/features",
 #include <tunables/global>
 
 profile qoredb /usr/bin/qoredb flags=(attach_disconnected, mediate_deleted) {
-  #include <abstractions/managed-desktop-application>
-  #include <abstractions/managed-user-documents>
-  #include <abstractions/managed-webkit-runtime>
+  #include <abstractions/desktop-application>
+  #include <abstractions/user-documents>
+  #include <abstractions/webkit-runtime>
   include if exists <abstractions/user-tmp>
 
   unix,

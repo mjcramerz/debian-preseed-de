@@ -88,7 +88,7 @@ sub screenrecord {
     validate_serial($serial);
     my $directory = $self->storage->prepare_output_directory('recordings');
     my $timestamp = $self->storage->output_timestamp;
-    my $remote_path = "/sdcard/Movies/managed-screenrecord-$timestamp.mp4";
+    my $remote_path = "/sdcard/Movies/screenrecord-$timestamp.mp4";
     my $local_path = File::Spec->catfile(
         $directory,
         "$timestamp-$serial-screenrecord.mp4",

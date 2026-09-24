@@ -7,6 +7,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'd-i/forky/tests'))
+from payload_fixture import read_text as payload_read_text, installed_script as payload_installed_script, python_library as payload_python_library
+from theme_fixture import render_theme_defaults
 import stat
 import subprocess
 import tempfile
@@ -18,10 +22,12 @@ TARGET = Path(__file__).resolve().parents[2] / 'd-i/forky/hooks/target'
 
 
 def load_module(name, leaf):
-    loader = importlib.machinery.SourceFileLoader(name, str(TARGET / 'usr/local/libexec' / leaf))
+    loader = importlib.machinery.SourceFileLoader(name, str(payload_installed_script(TARGET / 'usr/local/libexec' / leaf)))
     spec = importlib.util.spec_from_loader(loader.name, loader)
     module = importlib.util.module_from_spec(spec)
-    loader.exec_module(module)
+    # Exercise installed default values, not unresolved appearance tokens.
+    source = render_theme_defaults(Path(loader.path).read_text())
+    exec(compile(source, loader.path, "exec"), module.__dict__)
     return module
 
 
@@ -254,7 +260,7 @@ class SessionStateTests(unittest.TestCase):
 class WiringTests(unittest.TestCase):
     def test_launch_barrier_blocks_existing_file_or_dangling_symlink(self):
         import sys
-        modules = str(TARGET / 'usr/local/lib/python3.14/dist-packages')
+        modules = str(payload_python_library(TARGET / 'usr/local/lib/python3.14/dist-packages'))
         with mock.patch.object(sys, 'path', [modules, *sys.path]):
             from labwc_managed_app import recovery
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(
@@ -270,33 +276,33 @@ class WiringTests(unittest.TestCase):
                 recovery.assert_launch_allowed()
 
     def test_force_is_single_and_only_in_authorized_worker(self):
-        text = (TARGET / 'usr/local/libexec/labwc-admin-action-worker').read_text()
+        text = payload_read_text(TARGET / 'usr/local/libexec/labwc-admin-action-worker')
         self.assertNotIn('"--force", "--force"', text)
         self.assertNotIn('/sys/power/state",', text)
         for name in ('labwc-power-menu', 'labwc-power-settings', 'labwc-admin-action', 'labwc-logout'):
-            self.assertNotIn('systemctl --force', (TARGET / 'usr/local/bin' / name).read_text())
+            self.assertNotIn('systemctl --force', payload_read_text(TARGET / 'usr/local/bin' / name))
 
     def test_root_worker_keeps_nnp_with_inherited_command_confinement(self):
-        unit = (TARGET / 'etc/systemd/system/labwc-admin-action@.service').read_text()
+        unit = payload_read_text(TARGET / 'etc/systemd/system/labwc-admin-action@.service')
         self.assertIn('NoNewPrivileges=yes', unit)
         self.assertIn('CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL\n', unit)
-        profiles = (TARGET / 'etc/apparmor.d/managed-desktop-wrappers').read_text()
-        worker = profiles.split('profile managed-labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
+        profiles = payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers')
+        worker = profiles.split('profile labwc-admin-action-worker ', 1)[1].split('\n}', 1)[0]
         self.assertIn('/usr/bin/{systemctl,systemd-run,loginctl,busctl,sync} rix,', worker)
         self.assertIn('/var/lib/dpkg/{lock,lock-frontend} rk,', worker)
         self.assertNotIn('} PUx,', worker)
         self.assertIn('/run/systemd/private rw,', worker)
         self.assertIn('peer=(name=org.freedesktop.login1)', worker)
-        repository = profiles.split('profile managed-local-apt-repository ', 1)[1].split('\n}', 1)[0]
-        self.assertIn('/usr/local/libexec/local-apt-vendor rix,', repository)
-        self.assertIn('/usr/local/libexec/managed-discord-distro rix,', repository)
-        self.assertIn('/etc/apt/keyrings/{local-apt-repository.gpg,.local-apt-repository.gpg.*} rw,', repository)
-        self.assertIn('local-apt-repository.sources,.local-apt-repository.sources.*', repository)
-        self.assertIn('/etc/apt/keyrings/local-apt-repository.gpg{,.tmp.*} rw,', profiles)
+        repository = profiles.split('profile apt-repo-local ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('/usr/local/libexec/apt-repo-local-vendor rix,', repository)
+        self.assertIn('/usr/local/libexec/discord-distro rix,', repository)
+        self.assertIn('/etc/apt/keyrings/{apt-repo-local.gpg,.apt-repo-local.gpg.*} rw,', repository)
+        self.assertIn('apt-repo-local.sources,.apt-repo-local.sources.*', repository)
+        self.assertIn('/etc/apt/keyrings/apt-repo-local.gpg{,.tmp.*} rw,', profiles)
         self.assertNotIn('rPx', repository)
 
     def test_polkit_uses_exact_helpers_and_non_cached_admin_auth(self):
-        text = (TARGET / 'etc/polkit-1/rules.d/03-labwc-power.rules').read_text()
+        text = payload_read_text(TARGET / 'etc/polkit-1/rules.d/03-labwc-power.rules')
         self.assertIn('org.freedesktop.policykit.exec', text)
         self.assertIn('/usr/local/libexec/labwc-admin-action-root', text)
         self.assertIn('/usr/local/libexec/labwc-logout-root', text)
@@ -307,19 +313,19 @@ class WiringTests(unittest.TestCase):
     def test_all_modified_launchers_have_cgroup_exit_and_session_ownership(self):
         module = TARGET / 'usr/local/lib/python3.14/dist-packages/labwc_managed_app'
         for path in (module / 'generic.py', module / 'session.py', TARGET / 'usr/local/bin/labwc-qbittorrent'):
-            text = path.read_text()
+            text = payload_read_text(path)
             self.assertIn('ExitType=cgroup', text)
             self.assertTrue('KillMode=control-group' in text or 'KillMode=" + ("mixed" if is_foot else "control-group")' in text)
             self.assertIn('PartOf=', text)
             self.assertIn('LABWC_SESSION_APP', text)
-        self.assertIn('recovery.py', (module / 'integrity.py').read_text())
+        self.assertIn('recovery.py', payload_read_text(module / 'integrity.py'))
 
     def test_restore_service_is_explicitly_staged_and_started_after_session(self):
         unit = TARGET / 'etc/skel-desktop/.config/systemd/user/labwc-session-restore.service'
-        self.assertIn('After=labwc-session.target', unit.read_text())
+        self.assertIn('After=labwc-session.target', payload_read_text(unit))
         scripts = TARGET.parents[1] / 'scripts/desktop/components.sh'
-        self.assertIn('labwc-session-restore.service', scripts.read_text())
-        self.assertIn('labwc-session-restore.service', (TARGET / 'usr/local/bin/labwc-autostart').read_text())
+        self.assertIn('labwc-session-restore.service', payload_read_text(scripts))
+        self.assertIn('labwc-session-restore.service', payload_read_text(TARGET / 'usr/local/bin/labwc-autostart'))
 
 
 if __name__ == '__main__':

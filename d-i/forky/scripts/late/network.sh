@@ -431,19 +431,19 @@ normalize_network_address_list() {
 }
 
 target_managed_network_state_env() {
-  printf '%s\n' "${TMP_ENV_DIR:-/tmp}/managed-network-state.env"
+  printf '%s\n' "${TMP_ENV_DIR:-/tmp}/network-state.env"
 }
 
 target_managed_network_generator_target_path() {
-  printf '%s\n' /tmp/managed-network-generate.pl
+  printf '%s\n' /run/network-install/network-generate.pl
 }
 
 target_managed_network_input_target_path() {
-  printf '%s\n' /tmp/managed-network-input.env
+  printf '%s\n' /run/network-install/network-input.env
 }
 
 target_managed_network_state_target_path() {
-  printf '%s\n' /tmp/managed-network-state.env
+  printf '%s\n' /run/network-install/network-state.env
 }
 
 validate_network_wifi_psk_security() {
@@ -454,6 +454,38 @@ validate_network_wifi_psk_security() {
     open|wep|open/wep|wpa|sae) ;;
     *) installer_fatal "${label} must be open, wep, open/wep, wpa, or sae" ;;
   esac
+}
+
+network_input_placeholder_map() {
+  write_shell_config_var MANAGED_NETWORK_WAIT_SECONDS 8
+  write_shell_config_var MANAGED_NETWORK_MODE "$network_mode"
+  write_shell_config_var MANAGED_NETWORK_LINK_TYPES "$link_types"
+  write_shell_config_var MANAGED_NETWORK_TARGET_ROOT /
+  write_shell_config_var MANAGED_NETWORK_SYS_CLASS_NET /sys/class/net
+  write_shell_config_var MANAGED_NETWORK_STATE_ENV "$(target_managed_network_state_target_path)"
+  write_shell_config_var MANAGED_NETWORK_HOSTNAME "${SYSTEM_HOSTNAME:-host}"
+  write_shell_config_var MANAGED_NETWORK_DOMAIN "$static_domain"
+  write_shell_config_var MANAGED_NETWORK_HOST_VARIANT "${MANAGED_NETWORK_HOST_VARIANT:-$(target_host_variant_class)}"
+  write_shell_config_var MANAGED_NETWORK_CLASSES_RAW "${INSTALLER_CLASSES_RAW:-}"
+  write_shell_config_var MANAGED_NETWORK_SELECTED_CLASS_REFS "${INSTALLER_SELECTED_CLASS_REFS:-}"
+  write_shell_config_var MANAGED_NETWORK_INSTALLER_MAC "$installer_mac"
+  write_shell_config_var MANAGED_NETWORK_ETHERNET_MAC "$ethernet_mac"
+  write_shell_config_var MANAGED_NETWORK_ETHERNET_IFACE "$target_ethernet_iface"
+  write_shell_config_var MANAGED_NETWORK_WIFI_MAC "$wifi_mac"
+  write_shell_config_var MANAGED_NETWORK_WIFI_IFACE "$target_wifi_iface"
+  write_shell_config_var MANAGED_NETWORK_WIFI_ESSID "$wifi_essid"
+  write_shell_config_var MANAGED_NETWORK_WIFI_ESSID_AGAIN "$wifi_essid_again"
+  write_shell_config_var MANAGED_NETWORK_WIFI_PSK_SECURITY "${wifi_security:-wpa}"
+  write_shell_config_var MANAGED_NETWORK_WIFI_WPA "$wifi_wpa"
+  write_shell_config_var MANAGED_NETWORK_WIFI_WEP "$wifi_wep"
+  write_shell_config_var MANAGED_NETWORK_IPV4_ADDRESS "$static_ip"
+  write_shell_config_var MANAGED_NETWORK_IPV4_NETMASK "$static_netmask"
+  write_shell_config_var MANAGED_NETWORK_IPV4_GATEWAY "$static_gateway"
+  write_shell_config_var MANAGED_NETWORK_IPV4_DNS "$ipv4_dns"
+  write_shell_config_var MANAGED_NETWORK_IPV6_ENABLED "$ipv6_enabled"
+  write_shell_config_var MANAGED_NETWORK_IPV6_ADDRESS "$ipv6_address"
+  write_shell_config_var MANAGED_NETWORK_IPV6_GATEWAY "$ipv6_gateway"
+  write_shell_config_var MANAGED_NETWORK_IPV6_DNS "$ipv6_dns"
 }
 
 write_target_managed_network_input() {
@@ -584,65 +616,25 @@ write_target_managed_network_input() {
     fi
   fi
 
-  target_ethernet_iface=${MANAGED_NETWORK_ETHERNET_IFACE:-managed-eth0}
-  target_wifi_iface=${MANAGED_NETWORK_WIFI_IFACE:-managed-wifi0}
+  target_ethernet_iface=${MANAGED_NETWORK_ETHERNET_IFACE:-eth0}
+  target_wifi_iface=${MANAGED_NETWORK_WIFI_IFACE:-wifi0}
   validate_network_iface_name MANAGED_NETWORK_ETHERNET_IFACE "$target_ethernet_iface"
   validate_network_iface_name MANAGED_NETWORK_WIFI_IFACE "$target_wifi_iface"
   [ "$target_ethernet_iface" != "$target_wifi_iface" ] ||
     installer_fatal "MANAGED_NETWORK_ETHERNET_IFACE and MANAGED_NETWORK_WIFI_IFACE must differ"
 
-  {
-    printf '# Managed by unattended-installer.\n'
-    printf '# Temporary input for late-command static target network generation.\n'
-    write_shell_config_var MANAGED_NETWORK_WAIT_SECONDS 8
-    write_shell_config_var MANAGED_NETWORK_MODE "$network_mode"
-    write_shell_config_var MANAGED_NETWORK_LINK_TYPES "$link_types"
-    write_shell_config_var MANAGED_NETWORK_TARGET_ROOT /
-    write_shell_config_var MANAGED_NETWORK_SYS_CLASS_NET /sys/class/net
-    write_shell_config_var MANAGED_NETWORK_STATE_ENV "$(target_managed_network_state_target_path)"
-    write_shell_config_var MANAGED_NETWORK_HOSTNAME "${SYSTEM_HOSTNAME:-managed-host}"
-    write_shell_config_var MANAGED_NETWORK_DOMAIN "$static_domain"
-    write_shell_config_var MANAGED_NETWORK_HOST_VARIANT "${MANAGED_NETWORK_HOST_VARIANT:-$(target_host_variant_class)}"
-    write_shell_config_var MANAGED_NETWORK_CLASSES_RAW "${INSTALLER_CLASSES_RAW:-}"
-    write_shell_config_var MANAGED_NETWORK_SELECTED_CLASS_REFS "${INSTALLER_SELECTED_CLASS_REFS:-}"
-    if [ -n "$installer_mac" ]; then
-      write_shell_config_var MANAGED_NETWORK_INSTALLER_MAC "$installer_mac"
-    fi
-    if [ -n "$ethernet_mac" ]; then
-      write_shell_config_var MANAGED_NETWORK_ETHERNET_MAC "$ethernet_mac"
-    fi
-    write_shell_config_var MANAGED_NETWORK_ETHERNET_IFACE "$target_ethernet_iface"
-    if [ -n "$wifi_mac" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_MAC "$wifi_mac"
-    fi
-    write_shell_config_var MANAGED_NETWORK_WIFI_IFACE "$target_wifi_iface"
-    if [ -n "$wifi_essid" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_ESSID "$wifi_essid"
-    fi
-    if [ -n "$wifi_essid_again" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_ESSID_AGAIN "$wifi_essid_again"
-    fi
-    if [ -n "$wifi_security" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_PSK_SECURITY "$wifi_security"
-    fi
-    if [ -n "$wifi_wpa" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_WPA "$wifi_wpa"
-    fi
-    if [ -n "$wifi_wep" ]; then
-      write_shell_config_var MANAGED_NETWORK_WIFI_WEP "$wifi_wep"
-    fi
-    write_shell_config_var MANAGED_NETWORK_IPV4_ADDRESS "$static_ip"
-    write_shell_config_var MANAGED_NETWORK_IPV4_NETMASK "$static_netmask"
-    write_shell_config_var MANAGED_NETWORK_IPV4_GATEWAY "$static_gateway"
-    write_shell_config_var MANAGED_NETWORK_IPV4_DNS "$ipv4_dns"
-    write_shell_config_var MANAGED_NETWORK_IPV6_ENABLED "$ipv6_enabled"
-    write_shell_config_var MANAGED_NETWORK_IPV6_ADDRESS "$ipv6_address"
-    write_shell_config_var MANAGED_NETWORK_IPV6_GATEWAY "$ipv6_gateway"
-    write_shell_config_var MANAGED_NETWORK_IPV6_DNS "$ipv6_dns"
-  } | write_target_file "$(target_managed_network_input_target_path)" 0600
+  render_target_asset_with_placeholder_map     "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-input.env.tmpl)"     "$(target_managed_network_input_target_path)" 0600 network_input_placeholder_map
 }
 
-generate_target_managed_network_config() {
+stage_target_managed_network_config() (
+  set -eu
+  network_stage=/target/run/network-install
+  [ -d /target/run ] && [ ! -L /target/run ] || installer_fatal "unsafe target run directory"
+  (umask 077; mkdir "$network_stage") || installer_fatal "network staging directory already exists or cannot be created"
+  trap 'rm -rf -- "$network_stage"' 0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
   network_mode=$1
   link_types=$2
   generator_target=$(target_managed_network_generator_target_path)
@@ -650,11 +642,24 @@ generate_target_managed_network_config() {
   state_target=$(target_managed_network_state_target_path)
   state_env=$(target_managed_network_state_env)
 
-  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE managed-network-generate.pl)" "$generator_target" 0700
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE network-generate.pl)" "$generator_target" 0700
+  fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-assets.list)" "$network_stage/assets.list"
+  while IFS=' ' read -r network_kind network_asset; do
+    case "$network_asset" in ''|*..*|*//*|*[!A-Za-z0-9_./-]*) installer_fatal "invalid network template path" ;; esac
+    case "$network_kind" in
+      target) network_source="$(installer_repo_join_var DIR_HOOKS_TARGET "$network_asset")" ;;
+      fragments) network_source="$(installer_repo_join_var DIR_SCRIPTS_LATE "templates/network/$network_asset")" ;;
+      *) installer_fatal "invalid network template class" ;;
+    esac
+    case "$network_asset" in */*) mkdir -p "$network_stage/$network_kind/${network_asset%/*}" ;; *) mkdir -p "$network_stage/$network_kind" ;; esac
+    fetch_hook "$network_source" "$network_stage/$network_kind/$network_asset"
+    chmod 0600 "$network_stage/$network_kind/$network_asset"
+  done < "$network_stage/assets.list"
   write_target_managed_network_input "$network_mode" "$link_types"
   if ! attempt_in_target "generate managed static target network config" \
     /usr/bin/env "SYSTEMD_LOG_LEVEL=${SYSTEMD_LOG_LEVEL:-error}" \
-    /usr/bin/perl "$generator_target" --input "$input_target" --state-env "$state_target"; then
+    /usr/bin/perl "$generator_target" --input "$input_target" --state-env "$state_target" \
+      --target-templates /run/network-install/target --fragments /run/network-install/fragments; then
     remove_target_asset "$generator_target"
     remove_target_asset "$input_target"
     remove_target_asset "$state_target"
@@ -664,25 +669,29 @@ generate_target_managed_network_config() {
     remove_target_asset "$generator_target"
     remove_target_asset "$input_target"
     remove_target_asset "$state_target"
-    installer_fatal "managed-network generator did not produce ${state_target}"
+    installer_fatal "network generator did not produce ${state_target}"
   fi
   if ! cp "/target${state_target}" "$state_env"; then
     remove_target_asset "$generator_target"
     remove_target_asset "$input_target"
     remove_target_asset "$state_target"
-    installer_fatal "failed to copy managed-network generator state"
+    installer_fatal "failed to copy network generator state"
   fi
   if ! chmod 0600 "$state_env"; then
     remove_target_asset "$generator_target"
     remove_target_asset "$input_target"
     remove_target_asset "$state_target"
-    installer_fatal "failed to protect managed-network generator state"
+    installer_fatal "failed to protect network generator state"
   fi
   remove_target_asset "$generator_target"
   remove_target_asset "$input_target"
   remove_target_asset "$state_target"
+)
+
+generate_target_managed_network_config() {
+  stage_target_managed_network_config "$@" || return $?
   # shellcheck disable=SC1090
-  . "$state_env"
+  . "$(target_managed_network_state_env)"
 }
 
 enable_target_networking_service_if_available() {
@@ -833,12 +842,12 @@ stage_target_networkmanager_dispatcher_activation_if_available() {
   rm -f -- "$networkmanager_override_tmp"
 
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/NetworkManager.service.d/20-managed-dispatcher.conf)" \
-    /etc/systemd/system/NetworkManager.service.d/20-managed-dispatcher.conf \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf)" \
+    /etc/systemd/system/NetworkManager.service.d/20-dispatcher.conf \
     0644
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/NetworkManager-dispatcher.service.d/20-managed-persistent.conf)" \
-    /etc/systemd/system/NetworkManager-dispatcher.service.d/20-managed-persistent.conf \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf)" \
+    /etc/systemd/system/NetworkManager-dispatcher.service.d/20-persistent.conf \
     0644
   stage_target_systemd_unit_alias_to_path \
     dbus-org.freedesktop.nm-dispatcher.service \
@@ -848,19 +857,19 @@ stage_target_networkmanager_dispatcher_activation_if_available() {
 }
 
 remove_target_managed_network_handoff() {
-  remove_target_asset "${FILE_MANAGED_NETWORK_INTERFACES:-/etc/network/interfaces.d/50-managed-network}"
-  remove_target_asset "${FILE_MANAGED_NETWORK_DEFAULT:-/etc/default/managed-network}"
-  remove_target_asset "${FILE_MANAGED_NETWORK_HELPER:-/usr/local/libexec/managed-network-run}"
+  remove_target_asset "${FILE_MANAGED_NETWORK_INTERFACES:-/etc/network/interfaces.d/50-network}"
+  remove_target_asset "${FILE_MANAGED_NETWORK_DEFAULT:-/etc/network/host.conf}"
+  remove_target_asset "${FILE_MANAGED_NETWORK_HELPER:-/usr/local/libexec/network-run}"
   managed_network_perl_modules |
     while IFS= read -r managed_network_module; do
       [ -n "$managed_network_module" ] || continue
-      remove_target_asset "/usr/local/lib/perl5/site_perl/managed-network/${managed_network_module}"
+      remove_target_asset "/usr/local/lib/perl5/site_perl/network/${managed_network_module}"
     done
-  remove_target_asset "${FILE_MANAGED_NETWORK_SERVICE:-/etc/systemd/system/managed-network.service}"
-  remove_target_asset "${FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF:-/etc/NetworkManager/conf.d/90-managed-network-unmanaged.conf}"
-  remove_target_asset "/etc/systemd/system/sysinit.target.wants/managed-network.service"
-  remove_target_asset "/etc/systemd/network/10-managed-ethernet.link"
-  remove_target_asset "/etc/systemd/network/11-managed-wifi.link"
+  remove_target_asset "${FILE_MANAGED_NETWORK_SERVICE:-/etc/systemd/system/network.service}"
+  remove_target_asset "${FILE_NETWORKMANAGER_MANAGED_UNMANAGED_CONF:-/etc/NetworkManager/conf.d/90-network-unmanaged.conf}"
+  remove_target_asset "/etc/systemd/system/sysinit.target.wants/network.service"
+  remove_target_asset "/etc/systemd/network/10-ethernet.link"
+  remove_target_asset "/etc/systemd/network/11-wifi.link"
 }
 
 managed_network_perl_modules() {
@@ -877,8 +886,8 @@ stage_target_managed_network_perl_modules() {
     while IFS= read -r managed_network_module; do
       [ -n "$managed_network_module" ] || continue
       stage_target_asset \
-        "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/lib/perl5/site_perl/managed-network/${managed_network_module}")" \
-        "/usr/local/lib/perl5/site_perl/managed-network/${managed_network_module}" \
+        "$(installer_repo_join_var DIR_HOOKS_TARGET "usr/local/lib/perl5/site_perl/network/${managed_network_module}")" \
+        "/usr/local/lib/perl5/site_perl/network/${managed_network_module}" \
         0644
     done
 }
@@ -918,14 +927,14 @@ install_target_managed_network_handoff() {
   generate_target_managed_network_config "$network_mode" "$link_types"
   stage_target_managed_network_perl_modules
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/managed-network-run)" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/libexec/network-run)" \
     "${FILE_MANAGED_NETWORK_HELPER}" \
     0755
   stage_target_asset \
-    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/managed-network.service)" \
+    "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/network.service)" \
     "${FILE_MANAGED_NETWORK_SERVICE}" \
     0644
-  stage_target_systemd_unit_enabled managed-network.service system
+  stage_target_systemd_unit_enabled network.service system
   enable_target_networking_service_if_available
   installer_append_log_category late target_customization info network \
     "staged managed network handoff mode=${network_mode} link_types=${link_types} ipv6=${MANAGED_NETWORK_IPV6_CIDR:-none} helper=${FILE_MANAGED_NETWORK_HELPER} service=${FILE_MANAGED_NETWORK_SERVICE}" || true

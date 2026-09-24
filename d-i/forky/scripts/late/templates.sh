@@ -397,6 +397,12 @@ render_target_template() (
 # Values are data: indirect variable names below are literal, never user input.
 systemd_resource_placeholder_map() (
   set -eu
+  case "${SYSTEMD_JOURNAL_VOLATILE_ENABLE-}" in
+    true) journal_storage=volatile ;;
+    false) journal_storage=persistent ;;
+    *) installer_fatal "SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false"; exit 1 ;;
+  esac
+  printf 'SYSTEMD_JOURNAL_STORAGE=%s\n' "$journal_storage"
   case "${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}" in
     true) io_accounting=yes ;;
     false) io_accounting=no ;;
@@ -434,20 +440,37 @@ systemd_resource_placeholder_map() (
     [ "$SYSTEMD_IOWEIGHT_ENABLE" = true ] || value=
     printf '%s=%s\n' "$name" "$value"
   done
-  # CPU preferences are independent of I/O accounting and always rendered.
+  # CPU preference is independent of both I/O accounting and I/O weighting.
+  case "${SYSTEMD_CPUWEIGHT_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "SYSTEMD_CPUWEIGHT_ENABLE must be true or false"; exit 1 ;;
+  esac
   for name in \
+    SYSTEMD_CPUWEIGHT_HOME_USER_SESSION_SLICE_D \
+    SYSTEMD_CPUWEIGHT_HOME_USER_APP_SLICE_D \
+    SYSTEMD_CPUWEIGHT_HOME_USER_BACKGROUND_SLICE_D \
     SYSTEMD_CPUWEIGHT_HOME_USER_LABWC_COMPOSITOR_SERVICE_D \
     SYSTEMD_CPUWEIGHT_USER_AUDIO_SERVICE_D \
     SYSTEMD_CPUWEIGHT_SYSTEM_MAINTENANCE_SLICE_D \
     SYSTEMD_CPUWEIGHT_SYSTEM_BACKGROUND_SLICE_D
   do
+    eval 'present=${'"$name"'+yes}'
+    [ "$present" = yes ] || { installer_fatal "$name must be defined (empty is allowed)"; exit 1; }
     eval 'value=${'"$name"'-}'
-    case "$value" in ''|*[!0-9]*|0*)
-      installer_fatal "$name must be an integer from 1 to 10000"; exit 1 ;;
+    case "$value" in
+      '') ;;
+      CPUWeight=*)
+        number=${value#CPUWeight=}
+        case "$number" in ''|*[!0-9]*|0*)
+          installer_fatal "$name must be empty or CPUWeight=1..10000"; exit 1 ;;
+        esac
+        [ "${#number}" -le 5 ] && [ "$number" -le 10000 ] || {
+          installer_fatal "$name must be empty or CPUWeight=1..10000"; exit 1;
+        }
+        ;;
+      *) installer_fatal "$name must be empty or CPUWeight=1..10000"; exit 1 ;;
     esac
-    [ "${#value}" -le 5 ] && [ "$value" -le 10000 ] || {
-      installer_fatal "$name must be an integer from 1 to 10000"; exit 1;
-    }
+    [ "$SYSTEMD_CPUWEIGHT_ENABLE" = true ] || value=
     printf '%s=%s\n' "$name" "$value"
   done
   for name in \
@@ -520,6 +543,10 @@ apply_systemd_resource_placeholders() (
     true|false) ;;
     *) installer_fatal "SYSTEMD_IOWEIGHT_ENABLE must be true or false"; exit 1 ;;
   esac
+  case "${SYSTEMD_CPUWEIGHT_ENABLE-}" in
+    true|false) ;;
+    *) installer_fatal "SYSTEMD_CPUWEIGHT_ENABLE must be true or false"; exit 1 ;;
+  esac
   case "${SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE-}" in
     true|false) ;;
     *) installer_fatal "SYSTEMD_DEFAULT_IOACCOUNTING_ENABLE must be true or false"; exit 1 ;;
@@ -527,8 +554,10 @@ apply_systemd_resource_placeholders() (
   resource_has_tokens=false
   if grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file"; then
     resource_has_tokens=true
-  elif [ "$SYSTEMD_IOWEIGHT_ENABLE" = true ] ||
-       ! grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
+  elif { [ "$SYSTEMD_IOWEIGHT_ENABLE" = true ] ||
+         ! grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; } &&
+       { [ "$SYSTEMD_CPUWEIGHT_ENABLE" = true ] ||
+         ! grep -Eq '^[[:space:]]*(Startup)?CPUWeight[[:space:]]*=' "$resource_file"; }; then
     # Class-only/security files need no map or rewrite after switch validation.
     exit 0
   fi
@@ -544,15 +573,20 @@ apply_systemd_resource_placeholders() (
   if grep -Eq '__(INSTALLER_)?SYSTEMD_[A-Z0-9_]+__' "$resource_file"; then
     installer_fatal "unresolved systemd resource placeholder in $resource_file"; exit 1
   fi
-  if [ "$SYSTEMD_IOWEIGHT_ENABLE" = false ]; then
-    # Strip whole directives, never emit IOWeight=0 or an empty assignment.
-    # Work inside the publisher's private directory before its atomic rename.
-    LC_ALL=C awk '!/^[[:space:]]*(Startup)?IOWeight[[:space:]]*=/' \
-      "$resource_file" >"${resource_map}.filtered" || exit 1
+  for controller in IO CPU; do
+    case "$controller" in
+      IO) weight_enabled=$SYSTEMD_IOWEIGHT_ENABLE ;;
+      CPU) weight_enabled=$SYSTEMD_CPUWEIGHT_ENABLE ;;
+    esac
+    [ "$weight_enabled" = false ] || continue
+    # Omit complete directives. Never emit an empty assignment or weight zero.
+    LC_ALL=C awk -v controller="$controller" '
+      $0 !~ ("^[[:space:]]*(Startup)?" controller "Weight[[:space:]]*=")
+    ' "$resource_file" >"${resource_map}.filtered" || exit 1
     cat "${resource_map}.filtered" >"$resource_file" || exit 1
     rm -f -- "${resource_map}.filtered"
-    if grep -Eq '^[[:space:]]*(Startup)?IOWeight[[:space:]]*=' "$resource_file"; then
-      installer_fatal "disabled I/O weight policy left a weight in $resource_file"; exit 1
+    if grep -Eq "^[[:space:]]*(Startup)?${controller}Weight[[:space:]]*=" "$resource_file"; then
+      installer_fatal "disabled $controller weight policy left a directive in $resource_file"; exit 1
     fi
-  fi
+  done
 )

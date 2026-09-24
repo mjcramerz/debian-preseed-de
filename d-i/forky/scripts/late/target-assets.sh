@@ -306,3 +306,23 @@ apply_sysctl_profile_placeholders() {
   target_path=$1
   apply_placeholder_map_to_target "$target_path" sysctl_profile_placeholder_map
 }
+
+# Layout code supplies validated records; native file structure lives in target/.
+write_target_fstab_records() (
+  set -eu
+  fstab_work=$(mktemp -d /target/etc/.fstab.XXXXXX) || exit 1
+  trap 'rm -rf -- "$fstab_work"' 0
+  trap 'exit 1' HUP INT TERM
+  cat >"$fstab_work/records" || exit 1
+  [ -s "$fstab_work/records" ] || { installer_fatal "empty filesystem table"; exit 1; }
+  fetch_hook "$(installer_repo_join_var DIR_HOOKS_TARGET etc/fstab.tmpl)" "$fstab_work/template" || exit 1
+  awk '
+    FILENAME == ARGV[1] { records = records $0 "\n"; next }
+    $0 == ("__INSTALLER_" "FSTAB_RECORDS__") { printf "%s", records; next }
+    { print }
+  ' "$fstab_work/records" "$fstab_work/template" >"$fstab_work/rendered" || exit 1
+  installer_assert_no_unresolved_installer_placeholders "$fstab_work/rendered" fstab || exit 1
+  [ ! -L /target/etc/fstab ] || { installer_fatal "refusing a symlinked fstab"; exit 1; }
+  chmod 0644 "$fstab_work/rendered" || exit 1
+  mv -fT -- "$fstab_work/rendered" /target/etc/fstab || exit 1
+)

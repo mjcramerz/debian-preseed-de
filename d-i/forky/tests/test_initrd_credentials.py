@@ -3,6 +3,8 @@
 Tests model the busybox-udeb applet set (not a full GNU/desktop PATH). The
 real-kernel/real-USB installation remains a separate acceptance test.
 """
+from payload_fixture import installed_argv as payload_installed_argv, source_stat as payload_source_stat
+from payload_fixture import read_text as payload_read_text
 from pathlib import Path
 import os
 import shlex
@@ -77,7 +79,7 @@ class CredentialFixture(unittest.TestCase):
         e = {**self.env, 'INSTALLER_CMDLINE': cmdline}
         if env:
             e.update(env)
-        return subprocess.run((shell or ['/bin/sh']) + ['-c', script], cwd=self.dir,
+        return subprocess.run(payload_installed_argv((shell or ['/bin/sh']) + ['-c', script]), cwd=self.dir,
                               env=e, text=True, capture_output=True, timeout=10)
 
     def assert_safe_failure(self, result, reason):
@@ -89,9 +91,9 @@ class CredentialFixture(unittest.TestCase):
 class InitrdCredentialTests(CredentialFixture):
     def test_both_embedded_readers_are_identical_to_canonical_source(self):
         for lib,_ in LIBS:
-            text = lib.read_text().split('# BEGIN EMBEDDED INITRD CREDENTIALS\n',1)[1]
+            text = payload_read_text(lib).split('# BEGIN EMBEDDED INITRD CREDENTIALS\n',1)[1]
             embedded = text.split('# END EMBEDDED INITRD CREDENTIALS\n',1)[0]
-            self.assertEqual(embedded, CANONICAL.read_text())
+            self.assertEqual(embedded, payload_read_text(CANONICAL))
 
     @skip_unless_trusted_credential_ancestry
     def test_full_supplied_env_format_all_mappings_all_shells(self):
@@ -139,7 +141,7 @@ class InitrdCredentialTests(CredentialFixture):
                     self.file.chmod(mode)
                     result=self.run_lookup(prefix)
                     self.assertEqual(result.returncode,0,result.stderr)
-                    self.assertIn(self.file.stat().st_mode & 0o777,(0o400,0o600))
+                    self.assertIn(payload_source_stat(self.file).st_mode & 0o777,(0o400,0o600))
 
     def test_unsafe_modes_fail_closed(self):
         for mode in (0o000,0o200,0o660,0o664,0o666,0o755,0o777,0o4600):
@@ -243,7 +245,7 @@ class InitrdCredentialTests(CredentialFixture):
             self.assertEqual(result.stdout,'file-override-fixture\n')
 
     def test_root_account_validation_precedes_disk_discovery(self):
-        text=(SEED/'hooks/installer/d-i/early.sh').read_text()
+        text=payload_read_text(SEED/'hooks/installer/d-i/early.sh')
         self.assertLess(text.index('runtime_validate_account_settings'),text.index('  hook_resolve_install_disk'))
 
     def test_known_alias_does_not_reenable_fallback_of_another_alias(self):
@@ -263,9 +265,9 @@ class UserHashPrecedenceTests(CredentialFixture):
         for path in (SEED/'scripts/runtime/common.sh',SEED/'scripts/runtime/account.sh',SEED/'hosts/installer/account.env'):
             script+='. '+shlex.quote(str(path))+'\n'
         script+='runtime_write_account_answers '+shlex.quote(str(out))+'\n'
-        result=subprocess.run(['/bin/sh','-c',script],env=self.env,text=True,capture_output=True,timeout=10)
+        result=subprocess.run(payload_installed_argv(['/bin/sh','-c',script]),env=self.env,text=True,capture_output=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stderr)
-        text=out.read_text()
+        text=payload_read_text(out)
         self.assertIn('d-i passwd/user-password-crypted password\n',text)
         self.assertIn('d-i passwd/root-login boolean true\n',text)
         self.assertIn('d-i passwd/username string fixtureuser\n',text)

@@ -1,0 +1,48 @@
+test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply) ... FAIL
+test_full_debian_preseed_include_and_run_local_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_local_apply) ... ok
+test_full_debian_preseed_vm_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_vm_apply) ... ok
+
+======================================================================
+FAIL: test_full_debian_preseed_include_and_run_http_apply (test_debconf_protocol.DebconfProtocolTests.test_full_debian_preseed_include_and_run_http_apply)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 276, in test_full_debian_preseed_include_and_run_http_apply
+    self.bootstrap(f'url={web.url}/short classes=prod;desktop;standard;dhcp;ssh')
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 252, in bootstrap
+    result, session = self.run_code(code, env={'INSTALLER_CMDLINE': cmdline}, timeout=70)
+                      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/work/debian-preseed-de/d-i/forky/tests/test_debconf_protocol.py", line 35, in run_code
+    self.assertFalse(timed_out, 'protocol deadlock or fatal hold: ' + result.stderr +
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     self.failure_details())
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false : protocol deadlock or fatal hold:      BIOS
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto [AUTO CLASSES]
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto   arch/amd64
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto   cpu/intel
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto   gpu/generic
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto   disk/nvme
+2026-09-24T02:20:29Z stage=boot level=info component=class-auto === end ===
+2026-09-24T02:20:39Z stage=preseed_loaded level=info component=preseed-answers selected installer classes raw: prod,desktop,standard,dhcp,ssh,arch/amd64,cpu/intel,gpu/generic,disk/nvme
+2026-09-24T02:20:39Z stage=preseed_loaded level=info component=preseed-answers selected installer class refs: site/prod role/desktop arch/amd64 cpu/intel gpu/generic security/standard network/dhcp disk/nvme addon/ssh
+2026-09-24T02:20:39Z stage=preseed_loaded level=info component=preseed-answers selected installer host profile: override-btrfs-de
+2026-09-24T02:20:39Z stage=boot level=info component=boot kernel_cmdline=url=http://127.0.0.1:33313/short classes=prod;desktop;standard;dhcp;ssh
+2026-09-24T02:20:39Z stage=boot level=info component=boot kernel_release=6.18.44
+2026-09-24T02:20:39Z stage=boot level=info component=boot machine=x86_64
+2026-09-24T02:20:39Z stage=boot level=info component=boot boot_mode=BIOS
+2026-09-24T02:20:39Z stage=boot level=info component=classes selected=site/prod role/desktop arch/amd64 cpu/intel gpu/generic security/standard network/dhcp disk/nvme addon/ssh
+2026-09-24T02:20:39Z stage=boot level=info component=classes host_profile=override-btrfs-de host_family=btrfs hook_family=btrfs
+2026-09-24T02:20:41Z stage=preseed_loaded level=info component=preseed-answers fetched host env /tmp/install-runtime/state/selected-host.env from: hosts/profiles/btrfs-de.env hosts/installer/identity.env hosts/installer/runtime.env hosts/logging/observability.env hosts/installer/layout.env hosts/installer/btrfs.env hosts/installer/boot.env
+2026-09-24T02:20:41Z stage=preseed_loaded level=info component=preseed-answers completed preseed answers (prepare-context) duration_seconds=12
+[preseed-bootstrap] info: starting apply
+[preseed-bootstrap] info: common bootstrap helper cache hit for http://127.0.0.1:33313/owner/repository/refs/heads/mcr/main/d-i/forky
+[bootstrap] info: invoking preseed phase apply
+2026-09-24T02:20:48Z stage=preseed_loaded level=info component=preseed-answers starting preseed answers (apply)
+
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 191.460s
+
+FAILED (failures=1)

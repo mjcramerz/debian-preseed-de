@@ -1,9 +1,0 @@
-The supplied target audits explicitly show /var/tmp mounted noexec.
-This build container has executable /var/tmp and /dev/shm (statvfs f_flag 4096; ST_NOEXEC is 8).
-An isolated mount-namespace capability probe failed:
-  unshare --mount --propagation private /usr/bin/true
-  unshare: unshare failed: Operation not permitted
-No mount or AppArmor policy was modified. The real-noexec regression is therefore skipped here.
-Real unprivileged ELF execution, private archive traversal isolation, staged-copy execution,
-credential/supplementary-group assertions, publication, cleanup and injected noexec/EACCES
-failure paths run separately; none is represented as a real noexec-mount test.

@@ -405,6 +405,18 @@ apparmor_parser --skip-kernel-load --skip-cache "$profile"
     /etc/systemd/system/mullvad-apparmor.service 0644 || return $?
   stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf)" \
     /etc/systemd/system/mullvad-daemon.service.d/10-apparmor.conf 0644 || return $?
+  # The logging-only override must never discard new vendor launch options.
+  # Fail closed if a future package changes its ExecStart contract or flags.
+  run_in_target_quiet "validate Mullvad native journal logging contract" /bin/sh -eu -c '
+unit=/usr/lib/systemd/system/mullvad-daemon.service
+[ -f "$unit" ] || unit=/lib/systemd/system/mullvad-daemon.service
+[ "$(grep -E "^[[:space:]]*ExecStart=" "$unit")" = "ExecStart=/usr/bin/mullvad-daemon -vv --disable-stdout-timestamps" ]
+help=$(/usr/bin/mullvad-daemon --help)
+printf "%s\n" "$help" | grep -F -q -- --disable-log-to-file
+printf "%s\n" "$help" | grep -F -q -- --disable-stdout-timestamps
+' sh || return $?
+  stage_target_asset "$(installer_repo_join_var DIR_HOOKS_TARGET etc/systemd/system/mullvad-daemon.service.d/40-logging.conf)" \
+    /etc/systemd/system/mullvad-daemon.service.d/40-logging.conf 0644 || return $?
   run_in_target_quiet "enable checked Mullvad AppArmor activation at first boot" \
     systemctl --root=/ enable mullvad-apparmor.service || return $?
   installer_info "Mullvad AppArmor policy compiled; kernel activation deferred to mullvad-apparmor.service"

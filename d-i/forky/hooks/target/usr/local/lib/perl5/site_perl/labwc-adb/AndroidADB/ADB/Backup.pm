@@ -167,7 +167,7 @@ README
         File::Spec->catfile($partial_path, 'backup-status.txt'),
         join(
             q{},
-            "format=managed-adb-backup-v1\n",
+            "format=adb-backup-v1\n",
             "serial=$serial\n",
             "completed_at=$timestamp\n",
             "shared_storage=created\n",

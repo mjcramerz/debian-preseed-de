@@ -1,0 +1,30 @@
+[Unit]
+After=systemd-tmpfiles-setup.service
+RequiresMountsFor=__INSTALLER_LOG_DEBUGSYS_DIR__
+Description=Consolidate explicitly enabled debugsys early-boot evidence
+After=local-fs.target systemd-journald.service
+ConditionPathExists=/var/lib/debugsys/armed
+ConditionPathIsDirectory=/run/initramfs/debugsys
+
+[Service]
+# Collect host processes, mounts and namespace metadata, not a sandbox snapshot.
+PrivatePIDs=no
+PrivateUsers=no
+Type=oneshot
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/debugsys.py boot-finalize
+TimeoutStartSec=300
+KillMode=control-group
+UMask=0077
+LimitCORE=0
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+StateDirectory=debugsys
+StateDirectoryMode=0700
+ReadWritePaths=__INSTALLER_LOG_DEBUGSYS_DIR__ /var/lib/debugsys
+
+[Install]
+WantedBy=multi-user.target
