@@ -125,7 +125,7 @@ sub parse_args {
 }
 
 # Template paths are fixed by the renderer, never supplied by configuration values.
-# The installer stages them below a private, short-lived directory under /run.
+# The installer stages them below a private, short-lived directory outside /run.
 sub render_native {
     my ($root, $relative, %values) = @_;
     fatal("invalid template name") if $relative !~ m{\A[A-Za-z0-9_./-]+\z}
@@ -138,7 +138,8 @@ sub render_native {
     local $/;
     my $text = <$fh>;
     close $fh or fatal("cannot close template $relative: $!");
-    $text =~ s{__INSTALLER_([A-Z0-9_]+)__}{
+    # Non-greedy matching keeps adjacent optional fragments independent.
+    $text =~ s{__INSTALLER_([A-Z0-9_]+?)__}{
         exists($values{$1}) ? $values{$1} : fatal("missing $1 in template $relative")
     }ge;
     fatal("unresolved template marker in $relative") if $text =~ /__INSTALLER_[A-Z0-9_]+__/;

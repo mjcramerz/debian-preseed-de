@@ -435,15 +435,15 @@ target_managed_network_state_env() {
 }
 
 target_managed_network_generator_target_path() {
-  printf '%s\n' /run/network-install/network-generate.pl
+  printf '%s/network-generate.pl\n' "${network_stage_target:?network staging is not initialized}"
 }
 
 target_managed_network_input_target_path() {
-  printf '%s\n' /run/network-install/network-input.env
+  printf '%s/network-input.env\n' "${network_stage_target:?network staging is not initialized}"
 }
 
 target_managed_network_state_target_path() {
-  printf '%s\n' /run/network-install/network-state.env
+  printf '%s/network-state.env\n' "${network_stage_target:?network staging is not initialized}"
 }
 
 validate_network_wifi_psk_security() {
@@ -623,14 +623,16 @@ write_target_managed_network_input() {
   [ "$target_ethernet_iface" != "$target_wifi_iface" ] ||
     installer_fatal "MANAGED_NETWORK_ETHERNET_IFACE and MANAGED_NETWORK_WIFI_IFACE must differ"
 
-  render_target_asset_with_placeholder_map     "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-input.env.tmpl)"     "$(target_managed_network_input_target_path)" 0600 network_input_placeholder_map
+  render_target_asset_with_placeholder_map \
+    "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-input.env.tmpl)" \
+    "$(target_managed_network_input_target_path)" 0600 network_input_placeholder_map
 }
 
 stage_target_managed_network_config() (
   set -eu
-  network_stage=/target/run/network-install
-  [ -d /target/run ] && [ ! -L /target/run ] || installer_fatal "unsafe target run directory"
-  (umask 077; mkdir "$network_stage") || installer_fatal "network staging directory already exists or cannot be created"
+  umask 077
+  network_stage_target=$(target_private_stage_dir network) || exit 1
+  network_stage=$(target_asset_host_path "$network_stage_target") || exit 1
   trap 'rm -rf -- "$network_stage"' 0
   trap 'exit 129' HUP
   trap 'exit 130' INT
@@ -642,50 +644,44 @@ stage_target_managed_network_config() (
   state_target=$(target_managed_network_state_target_path)
   state_env=$(target_managed_network_state_env)
 
-  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE network-generate.pl)" "$generator_target" 0700
-  fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-assets.list)" "$network_stage/assets.list"
+  # Explicit failure guards are required: this subshell is also called from
+  # an || list, where POSIX shells suppress errexit even after set -e.
+  stage_target_asset "$(installer_repo_join_var DIR_SCRIPTS_LATE network-generate.pl)" "$generator_target" 0700 || exit 1
+  fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_LATE templates/network-assets.list)" "$network_stage/assets.list" || exit 1
   while IFS=' ' read -r network_kind network_asset; do
-    case "$network_asset" in ''|*..*|*//*|*[!A-Za-z0-9_./-]*) installer_fatal "invalid network template path" ;; esac
+    case "$network_asset" in ''|*..*|*//*|*[!A-Za-z0-9_./-]*) installer_fatal "invalid network template path"; exit 1 ;; esac
     case "$network_kind" in
       target) network_source="$(installer_repo_join_var DIR_HOOKS_TARGET "$network_asset")" ;;
       fragments) network_source="$(installer_repo_join_var DIR_SCRIPTS_LATE "templates/network/$network_asset")" ;;
-      *) installer_fatal "invalid network template class" ;;
+      *) installer_fatal "invalid network template class"; exit 1 ;;
     esac
-    case "$network_asset" in */*) mkdir -p "$network_stage/$network_kind/${network_asset%/*}" ;; *) mkdir -p "$network_stage/$network_kind" ;; esac
-    fetch_hook "$network_source" "$network_stage/$network_kind/$network_asset"
-    chmod 0600 "$network_stage/$network_kind/$network_asset"
-  done < "$network_stage/assets.list"
-  write_target_managed_network_input "$network_mode" "$link_types"
+    case "$network_asset" in
+      */*) mkdir -p "$network_stage/$network_kind/${network_asset%/*}" || exit 1 ;;
+      *) mkdir -p "$network_stage/$network_kind" || exit 1 ;;
+    esac
+    fetch_hook "$network_source" "$network_stage/$network_kind/$network_asset" || exit 1
+    chmod 0600 "$network_stage/$network_kind/$network_asset" || exit 1
+  done < "$network_stage/assets.list" || exit 1
+  write_target_managed_network_input "$network_mode" "$link_types" || exit 1
   if ! attempt_in_target "generate managed static target network config" \
     /usr/bin/env "SYSTEMD_LOG_LEVEL=${SYSTEMD_LOG_LEVEL:-error}" \
     /usr/bin/perl "$generator_target" --input "$input_target" --state-env "$state_target" \
-      --target-templates /run/network-install/target --fragments /run/network-install/fragments; then
-    remove_target_asset "$generator_target"
-    remove_target_asset "$input_target"
-    remove_target_asset "$state_target"
+      --target-templates "$network_stage_target/target" --fragments "$network_stage_target/fragments"; then
     installer_fatal "failed to generate managed static target network config"
+    exit 1
   fi
-  if [ ! -r "/target${state_target}" ]; then
-    remove_target_asset "$generator_target"
-    remove_target_asset "$input_target"
-    remove_target_asset "$state_target"
-    installer_fatal "network generator did not produce ${state_target}"
+  if [ ! -f "$network_stage/network-state.env" ] || [ -L "$network_stage/network-state.env" ]; then
+    installer_fatal "network generator did not produce a regular state file"
+    exit 1
   fi
-  if ! cp "/target${state_target}" "$state_env"; then
-    remove_target_asset "$generator_target"
-    remove_target_asset "$input_target"
-    remove_target_asset "$state_target"
+  if ! cp "$network_stage/network-state.env" "$state_env"; then
     installer_fatal "failed to copy network generator state"
+    exit 1
   fi
   if ! chmod 0600 "$state_env"; then
-    remove_target_asset "$generator_target"
-    remove_target_asset "$input_target"
-    remove_target_asset "$state_target"
     installer_fatal "failed to protect network generator state"
+    exit 1
   fi
-  remove_target_asset "$generator_target"
-  remove_target_asset "$input_target"
-  remove_target_asset "$state_target"
 )
 
 generate_target_managed_network_config() {

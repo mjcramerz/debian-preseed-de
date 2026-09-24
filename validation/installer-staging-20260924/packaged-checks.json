@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "source": "freshly extracted complete release archive",
+  "checks": [
+    {
+      "check": "packaged-staging-tests",
+      "returncode": 0,
+      "log": "packaged-staging-tests.log"
+    },
+    {
+      "check": "packaged-build-check",
+      "returncode": 0,
+      "log": "packaged-build-check.log"
+    }
+  ],
+  "limits": [
+    "The final archive is repacked only to include this evidence and its report; executable source remains identical."
+  ]
+}

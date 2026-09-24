@@ -1,0 +1,15 @@
+test_no_archived_reports_or_wildcard_dropin_directories (test_repository_cleanup.SourceContracts.test_no_archived_reports_or_wildcard_dropin_directories) ... FAIL
+
+======================================================================
+FAIL: test_no_archived_reports_or_wildcard_dropin_directories (test_repository_cleanup.SourceContracts.test_no_archived_reports_or_wildcard_dropin_directories)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/mnt/data/repair-work/baseline-verification/debian-preseed-de/d-i/forky/tests/test_repository_cleanup.py", line 34, in test_no_archived_reports_or_wildcard_dropin_directories
+    self.assertFalse(any(ROOT.glob('validation*')))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: True is not false
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

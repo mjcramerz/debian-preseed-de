@@ -186,10 +186,11 @@ class InstallerTests(unittest.TestCase):
         for intelflag, intelcpu, nvflag, nvclass, nvgpu in itertools.product((False, True), repeat=5):
             with self.subTest(flags=(intelflag, intelcpu, nvflag, nvclass, nvgpu)), private_temp() as temporary:
                 root = Path(temporary)
-                (root / "target/run").mkdir(parents=True)
+                (root / "target/tmp").mkdir(parents=True)
                 profile = root / "profile.env"
                 profile.write_text("HARDWARE_TUNING_POLL_SECONDS=\"5\"\n")
                 script = f'''
+. {shlex.quote(str(FORKY / "scripts/late/target-assets.sh"))}
 . {shlex.quote(str(source))}
 desktop_hardware_intel_detected() {{ return {0 if intelcpu else 1}; }}
 installer_nvidia_addon_selected() {{ return {0 if nvclass else 1}; }}
@@ -219,7 +220,7 @@ desktop_install_hardware_tuning
                 self.assertEqual("etc/apparmor.d/abstractions/hardware-tuning-intel" in assets, wanted_intel)
                 self.assertEqual("etc/apparmor.d/abstractions/hardware-tuning-nvidia" in assets, wanted_nv)
                 self.assertEqual(bool(assets), wanted_intel or wanted_nv)
-                self.assertEqual(list((root / "target/run").glob("hardware-tuning.*")), [])
+                self.assertEqual(list((root / "target/tmp").glob("installer-hardware-tuning.*")), [])
 
     @unittest.skipUnless(os.geteuid() == 0, "installer fixture requires root ownership")
     def test_generation_vendor_matrix_and_preserved_left_click(self):

@@ -1,0 +1,8 @@
+=== Original network installer: status 1 ===
+Can't open perl script "/run/network-install/network-generate.pl": No such file or directory
+fatal: failed to generate managed static target network config
+
+=== Original hardware installer: status 2 ===
+/usr/bin/python3: can't open file '/run/hardware-tuning.Adh0VY/config.py': [Errno 2] No such file or directory
+
+Both original /run staging failures reproduced; no mounts or hardware touched.

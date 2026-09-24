@@ -31,6 +31,29 @@ target_asset_host_path() (
   esac
 )
 
+# Temporary inputs staged BEFORE in-target must not live below /run: d-i's
+# chroot-setup bind-mounts the installer's /run over /target/run. Return a target
+# path, not a host path; the caller owns its lifetime and must install an EXIT
+# trap immediately. mktemp avoids stale-name collisions and never reuses a path.
+target_private_stage_dir() (
+  set -eu
+  stage_name=${1:-}
+  case "$stage_name" in
+    ''|*[!a-z0-9-]*) installer_fatal "invalid target staging name"; exit 1 ;;
+  esac
+  [ "${#stage_name}" -le 32 ] || { installer_fatal "target staging name is too long"; exit 1; }
+  stage_parent=$(target_asset_host_path /tmp) || exit 1
+  [ -d "$stage_parent" ] && [ ! -L "$stage_parent" ] || {
+    installer_fatal "target /tmp must be an existing real directory for private staging"
+    exit 1
+  }
+  stage_host=$(umask 077; mktemp -d "$stage_parent/installer-${stage_name}.XXXXXX") || {
+    installer_fatal "cannot create private target staging directory"
+    exit 1
+  }
+  printf '/tmp/%s\n' "${stage_host##*/}"
+)
+
 ensure_target_asset_parent() (
   target_path=$1
   target_root=${INSTALLER_TARGET_DIR:-/target}

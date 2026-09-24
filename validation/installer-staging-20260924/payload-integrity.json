@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "payload_file_count": 1523,
+  "hashes_and_contents_match": true,
+  "modes_match_existing_builder_policy": "0755 for executable files; 0644 otherwise",
+  "payload_sha256": "566117bd2ec306d49894fbdda2d1ca88e7800a9db58958b8fcb1824fd4228228",
+  "manifest_sha256": "50fb310d76ead6d66a2d7ff8f6eddcc17c57179305456f24b19b6648166888b7"
+}
