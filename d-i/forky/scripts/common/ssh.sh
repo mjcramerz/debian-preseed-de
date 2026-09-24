@@ -242,8 +242,7 @@ set -eu
 account_user=$1
 account_home=$2
 authorized_keys_target=$3
-user_config_target=$4
-stage=$5
+stage=$4
 
 uid=$(id -u "$account_user")
 gid=$(id -g "$account_user")
@@ -313,11 +312,28 @@ managed_git_ssh_target_action() (
   set +v
   set -eu
   umask 077
+  [ "$#" -ge 1 ] || exit 64
   action=$1
   shift
   case "$action" in provision|seal|clone-codex) ;; *) exit 64 ;; esac
   target=${INSTALLER_TARGET_DIR:-/target}
-  validate_target_ssh_user
+  # This common helper also runs from standalone add-on hooks. It must not
+  # depend on late/core.sh's theme-aware fetch_hook wrapper.
+  command -v fetch_hook_file >/dev/null 2>&1 ||
+    installer_fatal "shared SSH asset fetch helper is unavailable"
+  case "$target" in
+    /*) ;;
+    *) installer_fatal "private SSH target must be an absolute directory" ;;
+  esac
+  case "$target" in
+    /|*//*|*/../*|*/..|*/./*|*/.)
+      installer_fatal "private SSH target must be a normalized non-root directory" ;;
+  esac
+  target=${target%/}
+  [ -d "$target" ] && [ ! -L "$target" ] &&
+    [ -d "$target/tmp" ] && [ ! -L "$target/tmp" ] ||
+    installer_fatal "private SSH target and its /tmp must be real directories"
+  validate_target_ssh_user || exit 1
   # Fixed source contract: do not permit a seed URL or target-side substitute.
   [ "${GIT_SSH_PRIVATE_KEY_INITRD:-/git_ed25519}" = /git_ed25519 ] &&
     [ "${GIT_SSH_PUBLIC_KEY_INITRD:-/git_ed25519.pub}" = /git_ed25519.pub ] ||
@@ -326,17 +342,15 @@ managed_git_ssh_target_action() (
   preseed_env_check_file /git_ed25519.pub || installer_fatal "missing/unsafe private initrd Git SSH public key"
   [ "$(wc -c </git_ed25519)" -le 16384 ] || installer_fatal "Git SSH private key exceeds size limit"
   [ "$(wc -c </git_ed25519.pub)" -le 4096 ] || installer_fatal "Git SSH public key exceeds size limit"
-  validate_ssh_public_key_file /git_ed25519.pub
-  secret=$(preseed_env_read_value git_ssh_passphrase) || installer_fatal "PRESEED_GIT_SSH_PASSPHRASE is required in the private initrd"
-  case "$secret" in ''|*[![:print:]]*) installer_fatal "Git SSH passphrase must be nonempty printable single-line text" ;; esac
-  [ "${#secret}" -le 4096 ] || installer_fatal "Git SSH passphrase exceeds size limit"
-  stage=$(mktemp -d "${target}/tmp/git-ssh.XXXXXX") || exit 1
+  validate_ssh_public_key_file /git_ed25519.pub || exit 1
+  stage=$(mktemp -d "${target}/tmp/git-ssh.XXXXXX") ||
+    installer_fatal "cannot allocate private Git SSH staging directory"
   own_proc=0
   own_dev=0
   managed_ssh_cleanup() {
     saved_status=$?
     trap - 0
-    rm -rf -- "$stage"
+    rm -rf -- "$stage" || { [ "$saved_status" -ne 0 ] || saved_status=1; }
     unset secret
     if [ "$own_proc" -eq 1 ]; then
       umount "${target}/proc" || { [ "$saved_status" -ne 0 ] || saved_status=1; }
@@ -350,12 +364,46 @@ managed_git_ssh_target_action() (
   trap 'exit 129' 1
   trap 'exit 130' 2
   trap 'exit 143' 15
+  # Clear inherited special bits as well as ordinary permissions. Python
+  # requires an exact root-owned 0700 stage, including on a setgid /tmp.
+  chmod 0700 "$stage" && chmod a-s "$stage" ||
+    installer_fatal "cannot secure private Git SSH staging directory"
+  stage_metadata=$(installer_metadata_value "$stage" uid_gid_mode) ||
+    installer_fatal "cannot inspect private Git SSH staging directory"
+  # A setgid parent may contribute a non-root group; 0700 excludes that group.
+  case "$stage_metadata" in
+    0:*:700) ;;
+    *) installer_fatal "private Git SSH staging directory must be root-owned mode 0700" ;;
+  esac
+  # Fetch and verify ALL inputs before mounting or executing anything in the
+  # target. Explicit guards are essential: callers use this function in ||
+  # lists, where POSIX shells ignore errexit even after a local set -e.
+  for ssh_install_asset in ssh-install.py ssh-install-askpass clone.conf.tmpl; do
+    ssh_install_source=$(installer_repo_join_var DIR_SCRIPTS_LATE "ssh/$ssh_install_asset") ||
+      installer_fatal "cannot resolve private SSH asset: $ssh_install_asset"
+    (fetch_hook_file "$ssh_install_source" "$stage/$ssh_install_asset") ||
+      installer_fatal "cannot fetch private SSH asset: $ssh_install_asset"
+    [ -f "$stage/$ssh_install_asset" ] && [ -s "$stage/$ssh_install_asset" ] &&
+      [ ! -L "$stage/$ssh_install_asset" ] ||
+      installer_fatal "missing or unsafe private SSH asset: $ssh_install_asset"
+    case "$ssh_install_asset" in *.tmpl) ssh_install_mode=0600 ;; *) ssh_install_mode=0700 ;; esac
+    chmod "$ssh_install_mode" "$stage/$ssh_install_asset" ||
+      installer_fatal "cannot secure private SSH asset: $ssh_install_asset"
+  done
+  install -m 0600 /git_ed25519 "$stage/private" &&
+    install -m 0600 /git_ed25519.pub "$stage/public" ||
+    installer_fatal "cannot stage the private initrd Git SSH identity"
+  secret=$(preseed_env_read_value git_ssh_passphrase) ||
+    installer_fatal "PRESEED_GIT_SSH_PASSPHRASE is required in the private initrd"
+  case "$secret" in ''|*[![:print:]]*) installer_fatal "Git SSH passphrase must be nonempty printable single-line text" ;; esac
+  [ "${#secret}" -le 4096 ] || installer_fatal "Git SSH passphrase exceeds size limit"
   # in-target normally manages these mounts, but its debconf/logging bridge is
   # deliberately bypassed for the private stdin pipe. Mount only missing paths
   # and remove only mounts owned by this action; preserve installer mounts.
   for mount_dir in proc dev; do
     [ ! -L "${target}/${mount_dir}" ] || installer_fatal "unsafe target runtime mountpoint"
-    install -d -m 0755 "${target}/${mount_dir}"
+    install -d -m 0755 "${target}/${mount_dir}" ||
+      installer_fatal "cannot prepare target runtime mountpoint"
   done
   if ! installer_mounts_has_mountpoint "${target}/proc" /proc/mounts; then
     mount -t proc proc "${target}/proc" || installer_fatal "cannot mount target proc for private askpass"
@@ -365,12 +413,6 @@ managed_git_ssh_target_action() (
     mount --bind /dev "${target}/dev" || installer_fatal "cannot bind target devices for SSH/GPG"
     own_dev=1
   fi
-  for ssh_install_asset in ssh-install.py ssh-install-askpass clone.conf.tmpl; do
-    fetch_hook "$(installer_repo_join_var DIR_SCRIPTS_LATE "ssh/$ssh_install_asset")" "$stage/$ssh_install_asset"
-    case "$ssh_install_asset" in *.tmpl) chmod 0600 "$stage/$ssh_install_asset" ;; *) chmod 0700 "$stage/$ssh_install_asset" ;; esac
-  done
-  install -m 0600 /git_ed25519 "$stage/private"
-  install -m 0600 /git_ed25519.pub "$stage/public"
   # These files are encrypted key material only. The passphrase goes through
   # stdin, then a sealed Linux memfd used by SSH_ASKPASS, never a disk file.
   printf '%s' "$secret" | chroot "$target" /usr/bin/env -i \

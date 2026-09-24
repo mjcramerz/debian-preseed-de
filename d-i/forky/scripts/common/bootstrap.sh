@@ -101,14 +101,14 @@ bootstrap_ensure_repo_env() {
     return 0
   fi
 
-  bootstrap_repo_seed_base=$(bootstrap_require_seed_base "$bootstrap_repo_seed_base")
-  bootstrap_repo_env_file=$(bootstrap_repo_env_path)
+  bootstrap_repo_seed_base=$(bootstrap_require_seed_base "$bootstrap_repo_seed_base") || return $?
+  bootstrap_repo_env_file=$(bootstrap_repo_env_path) || return $?
   if [ ! -s "$bootstrap_repo_env_file" ]; then
-    bootstrap_fetch_seed_file "$bootstrap_repo_seed_base" "$(bootstrap_repo_env_relpath)" "$bootstrap_repo_env_file" 0600 "repository path environment"
+    bootstrap_fetch_seed_file "$bootstrap_repo_seed_base" "$(bootstrap_repo_env_relpath)" "$bootstrap_repo_env_file" 0600 "repository path environment" || return $?
   fi
   # shellcheck disable=SC1090
-  . "$bootstrap_repo_env_file"
-  bootstrap_validate_repo_env
+  . "$bootstrap_repo_env_file" || return $?
+  bootstrap_validate_repo_env || return $?
   BOOTSTRAP_REPO_ENV_READY=1
 }
 
@@ -133,7 +133,7 @@ bootstrap_repo_dir_value() {
 bootstrap_repo_join_var() {
   bootstrap_repo_join_dir=$1
   bootstrap_repo_join_leaf=${2:-}
-  bootstrap_repo_join_base=$(bootstrap_repo_dir_value "$bootstrap_repo_join_dir")
+  bootstrap_repo_join_base=$(bootstrap_repo_dir_value "$bootstrap_repo_join_dir") || return $?
 
   # Systemd template-unit paths legitimately contain "@", for example
   # etc/systemd/system/user@.service.d/50-oom-score.conf.
@@ -506,14 +506,15 @@ bootstrap_fetch_seed_file() (
 
 bootstrap_source_common_lib() {
   requested_seed_base=${1:-}
-  common_lib_path=${2:-$(bootstrap_phase_runner_path common-lib.sh)}
-  seed_base=$(bootstrap_require_seed_base "$requested_seed_base")
-  bootstrap_persist_seed_source "$seed_base"
-  bootstrap_ensure_repo_env "$seed_base"
+  common_lib_path=${2:-$(bootstrap_phase_runner_path common-lib.sh)} || return $?
+  seed_base=$(bootstrap_require_seed_base "$requested_seed_base") || return $?
+  bootstrap_persist_seed_source "$seed_base" || return $?
+  bootstrap_ensure_repo_env "$seed_base" || return $?
 
-  bootstrap_fetch_seed_file "$seed_base" "$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON lib.sh)" "$common_lib_path" 0600 "common library"
+  common_lib_source=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON lib.sh) || return $?
+  bootstrap_fetch_seed_file "$seed_base" "$common_lib_source" "$common_lib_path" 0600 "common library" || return $?
   # shellcheck disable=SC1090,SC1091
-  . "$common_lib_path"
+  . "$common_lib_path" || return $?
 }
 
 bootstrap_source_common_support_libs() {
@@ -521,36 +522,36 @@ bootstrap_source_common_support_libs() {
   tmp_env_dir=$2
   shift 2
 
-  seed_base=$(bootstrap_require_seed_base "$requested_seed_base")
-  bootstrap_persist_seed_source "$seed_base"
-  bootstrap_ensure_repo_env "$seed_base"
-  install -d -m 0700 "$tmp_env_dir"
+  seed_base=$(bootstrap_require_seed_base "$requested_seed_base") || return $?
+  bootstrap_persist_seed_source "$seed_base" || return $?
+  bootstrap_ensure_repo_env "$seed_base" || return $?
+  install -d -m 0700 "$tmp_env_dir" || return $?
 
   for lib_name in "$@"; do
     case "$lib_name" in
       fetch)
-        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON fetch.sh)
+        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON fetch.sh) || return $?
         dest="${tmp_env_dir}/fetch.sh"
         ;;
       hook)
-        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON hook.sh)
+        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON hook.sh) || return $?
         dest="${tmp_env_dir}/hook.sh"
         ;;
       target)
-        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON target.sh)
+        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON target.sh) || return $?
         dest="${tmp_env_dir}/target-common.sh"
         ;;
       ssh)
-        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON ssh.sh)
+        src=$(bootstrap_repo_join_var DIR_SCRIPTS_COMMON ssh.sh) || return $?
         dest="${tmp_env_dir}/ssh.sh"
         ;;
       *)
         bootstrap_fatal "unsupported installer support library: ${lib_name}"
         ;;
     esac
-    bootstrap_fetch_seed_file "$seed_base" "$src" "$dest" 0600 "shared helper"
+    bootstrap_fetch_seed_file "$seed_base" "$src" "$dest" 0600 "shared helper" || return $?
     # shellcheck disable=SC1090,SC1091
-    . "$dest"
+    . "$dest" || return $?
   done
 }
 
@@ -601,7 +602,8 @@ bootstrap_load_source_library() {
       "${1:-/nonexistent}/scripts/common/source.sh"; do
     [ -n "$source_library" ] && [ -s "$source_library" ] || continue
     # shellcheck disable=SC1090
-    . "$source_library"
+    . "$source_library" || return $?
+    command -v source_fetch >/dev/null 2>&1 || return 1
     return 0
   done
   bootstrap_fatal 'repository transport is missing; start with the generated preseed.cfg'

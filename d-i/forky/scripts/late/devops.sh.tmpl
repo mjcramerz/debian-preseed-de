@@ -3581,7 +3581,7 @@ devops_install_pinned_codex() (
     0:*:700) ;;
     *) devops_fatal "private Codex clone staging directory must be root-owned mode 0700" ;;
   esac
-  managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||
+  INSTALLER_TARGET_DIR="$target_root" managed_git_ssh_target_action clone-codex "${clone_parent#"$target_root"}/repository" ||
     devops_fatal "failed to clone codex-home over the private installer SSH identity"
   devops_install_codex_from_clone "${clone_parent#"$target_root"}/repository"
 )

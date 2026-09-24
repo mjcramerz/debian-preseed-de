@@ -14,7 +14,7 @@ fetch_seed_file() {
   dest=$2
   mode=$3
   label=$4
-  fetch_resolve_seed_base
+  fetch_resolve_seed_base || return $?
   if ! installer_fetch_seed_path "$FETCH_SEED_BASE" "$src" "$dest" "$mode"; then
     installer_error "failed to fetch ${label}: ${src}"
     return 1
@@ -24,14 +24,14 @@ fetch_seed_file() {
 fetch_env_file() {
   src=$1
   dest=$2
-  fetch_resolve_seed_base
+  fetch_resolve_seed_base || return $?
   installer_fetch_file "$FETCH_SEED_BASE" "$src" "$dest" 0600
 }
 
 fetch_hook_file() {
   src=$1
   dest=$2
-  fetch_resolve_seed_base
+  fetch_resolve_seed_base || return $?
   installer_fetch_file "$FETCH_SEED_BASE" "$src" "$dest" 0755 || return $?
   case "$dest" in
     /usr/lib/base-installer.d/*) installer_guard_hook "$dest" base ;;
@@ -69,7 +69,7 @@ fetch_ssh_asset() {
     installer_fatal "SSH asset byte limit is too large for ${src}: ${max_bytes}"
   fi
 
-  fetch_resolve_seed_base
+  fetch_resolve_seed_base || return $?
   if ! installer_fetch_seed_path "$FETCH_SEED_BASE" "$src" "$dest" 0600; then
     installer_fatal "failed to fetch $src"
   fi

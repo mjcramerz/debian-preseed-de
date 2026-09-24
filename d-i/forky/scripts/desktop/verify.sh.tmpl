@@ -549,10 +549,10 @@ require_mode /etc/systemd/system/labwc-admin-action@.service 644
 require_mode /etc/systemd/system/labwc-package-sleep-guard.service 644
 require_mode /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf 644
 require_mode /usr/local/libexec/greetd-power-action-root 755
-grep -qx 'Requires=labwc-package-sleep-guard.service' /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf ||
-  fatal 'sleep.target does not require the package lock guard'
-grep -qx 'Before=sleep.target' /etc/systemd/system/labwc-package-sleep-guard.service ||
-  fatal 'package lock guard is not ordered before sleep.target'
+grep -qx '\''Requires=labwc-package-sleep-guard.service'\'' /etc/systemd/system/sleep.target.d/50-package-lock-guard.conf ||
+  fatal '\''sleep.target does not require the package lock guard'\''
+grep -qx '\''Before=sleep.target'\'' /etc/systemd/system/labwc-package-sleep-guard.service ||
+  fatal '\''package lock guard is not ordered before sleep.target'\''
 for power_action in reboot poweroff; do
   for power_kind in service target; do
     legacy_power_unit="/etc/systemd/system/labwc-power-${power_action}.${power_kind}"
@@ -561,7 +561,7 @@ for power_action in reboot poweroff; do
   done
 done
 require_mode /etc/systemd/user/wireplumber.service.d/60-resource-class.conf 644
-grep -Fxq 'Slice=session.slice' /etc/systemd/user/wireplumber.service.d/60-resource-class.conf ||
+grep -Fxq '\''Slice=session.slice'\'' /etc/systemd/user/wireplumber.service.d/60-resource-class.conf ||
   fatal "WirePlumber session class is missing"
 for background_directory in \
   /usr/share/backgrounds \
@@ -828,8 +828,8 @@ done
 
 require_absent __THEME_TARGET_PATH_LABWC_WALLPAPER_ARCHIVE__
 require_absent /usr/bin/Xwayland
-if [ "$(dpkg-query -W -f='${Status}' xwayland 2>/dev/null || true)" = "install ok installed" ]; then
-  printf '%s\n' 'fatal: public xwayland package must not be installed' >&2
+if [ "$(dpkg-query -W -f='\''${Status}'\'' xwayland 2>/dev/null || true)" = "install ok installed" ]; then
+  printf '\''%s\n'\'' '\''fatal: public xwayland package must not be installed'\'' >&2
   exit 1
 fi
 require_absent /etc/environment.d/90-labwc-session.conf
@@ -1643,7 +1643,7 @@ wireplumber_dropin=/etc/systemd/user/wireplumber.service.d/20-no-root.conf
   printf "fatal: WirePlumber user-condition drop-in is missing or unsafe: %s\n" "$wireplumber_dropin" >&2
   exit 1
 }
-grep -Fxq 'ConditionUser=!root' "$wireplumber_dropin" &&
+grep -Fxq '\''ConditionUser=!root'\'' "$wireplumber_dropin" &&
   grep -Fxq "ConditionUser=!${greeter_user}" "$wireplumber_dropin" || {
     printf "fatal: WirePlumber is not excluded from the greeter user manager: %s\n" "$greeter_user" >&2
     exit 1

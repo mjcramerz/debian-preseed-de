@@ -1,4 +1,0 @@
-Original renderer with corrected staging: status 1
-error: missing SEARCH____INSTALLER_WIFI____INSTALLER_PERFORMANCE in template inet4.tmpl
-fatal: failed to generate managed static target network config
-Adjacent optional tokens reproduced as one greedy match; strict non-greedy replacement is required.

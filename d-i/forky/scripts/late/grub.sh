@@ -413,44 +413,44 @@ if [ -f "$file" ]; then
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       GRUB_DEFAULT=*)
-        [ "$default_updated" -eq 0 ] && printf 'GRUB_DEFAULT="%s"\n' "$grub_default"
+        [ "$default_updated" -eq 0 ] && printf '\''GRUB_DEFAULT="%s"\n'\'' "$grub_default"
         default_updated=1
         continue
         ;;
       GRUB_TIMEOUT_STYLE=*)
-        [ "$timeout_style_updated" -eq 0 ] && printf 'GRUB_TIMEOUT_STYLE=menu\n'
+        [ "$timeout_style_updated" -eq 0 ] && printf '\''GRUB_TIMEOUT_STYLE=menu\n'\''
         timeout_style_updated=1
         continue
         ;;
       GRUB_TIMEOUT=*)
-        [ "$timeout_updated" -eq 0 ] && printf 'GRUB_TIMEOUT=-1\n'
+        [ "$timeout_updated" -eq 0 ] && printf '\''GRUB_TIMEOUT=-1\n'\''
         timeout_updated=1
         continue
         ;;
       GRUB_RECORDFAIL_TIMEOUT=*)
-        [ "$recordfail_timeout_updated" -eq 0 ] && printf 'GRUB_RECORDFAIL_TIMEOUT=500\n'
+        [ "$recordfail_timeout_updated" -eq 0 ] && printf '\''GRUB_RECORDFAIL_TIMEOUT=500\n'\''
         recordfail_timeout_updated=1
         continue
         ;;
       GRUB_DISABLE_RECOVERY=*)
-        [ "$disable_recovery_updated" -eq 0 ] && printf 'GRUB_DISABLE_RECOVERY=true\n'
+        [ "$disable_recovery_updated" -eq 0 ] && printf '\''GRUB_DISABLE_RECOVERY=true\n'\''
         disable_recovery_updated=1
         continue
         ;;
       GRUB_DISABLE_SUBMENU=*)
-        [ "$disable_submenu_updated" -eq 0 ] && printf 'GRUB_DISABLE_SUBMENU=y\n'
+        [ "$disable_submenu_updated" -eq 0 ] && printf '\''GRUB_DISABLE_SUBMENU=y\n'\''
         disable_submenu_updated=1
         continue
         ;;
     esac
-    printf '%s\n' "$line"
+    printf '\''%s\n'\'' "$line"
   done <"$file" >"$tmp"
-  [ "$default_updated" -eq 1 ] || printf 'GRUB_DEFAULT="%s"\n' "$grub_default" >>"$tmp"
-  [ "$timeout_style_updated" -eq 1 ] || printf 'GRUB_TIMEOUT_STYLE=menu\n' >>"$tmp"
-  [ "$timeout_updated" -eq 1 ] || printf 'GRUB_TIMEOUT=-1\n' >>"$tmp"
-  [ "$recordfail_timeout_updated" -eq 1 ] || printf 'GRUB_RECORDFAIL_TIMEOUT=500\n' >>"$tmp"
-  [ "$disable_recovery_updated" -eq 1 ] || printf 'GRUB_DISABLE_RECOVERY=true\n' >>"$tmp"
-  [ "$disable_submenu_updated" -eq 1 ] || printf 'GRUB_DISABLE_SUBMENU=y\n' >>"$tmp"
+  [ "$default_updated" -eq 1 ] || printf '\''GRUB_DEFAULT="%s"\n'\'' "$grub_default" >>"$tmp"
+  [ "$timeout_style_updated" -eq 1 ] || printf '\''GRUB_TIMEOUT_STYLE=menu\n'\'' >>"$tmp"
+  [ "$timeout_updated" -eq 1 ] || printf '\''GRUB_TIMEOUT=-1\n'\'' >>"$tmp"
+  [ "$recordfail_timeout_updated" -eq 1 ] || printf '\''GRUB_RECORDFAIL_TIMEOUT=500\n'\'' >>"$tmp"
+  [ "$disable_recovery_updated" -eq 1 ] || printf '\''GRUB_DISABLE_RECOVERY=true\n'\'' >>"$tmp"
+  [ "$disable_submenu_updated" -eq 1 ] || printf '\''GRUB_DISABLE_SUBMENU=y\n'\'' >>"$tmp"
 else
   {
     printf "GRUB_DEFAULT=\"%s\"\n" "$grub_default"
@@ -885,7 +885,7 @@ grep -qs " /sys/firmware/efi/efivars " /proc/mounts || {
   exit 1
 }
 
-part_num=$(lsblk -n -o PARTN -- "$efi_part" 2>/dev/null | sed -n '/./{p;q;}')
+part_num=$(lsblk -n -o PARTN -- "$efi_part" 2>/dev/null | sed -n "/./{p;q;}")
 [ -n "$part_num" ] || {
   printf "unable to resolve EFI partition number for %s\n" "$efi_part" >&2
   exit 1
