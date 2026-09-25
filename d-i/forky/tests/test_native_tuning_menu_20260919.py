@@ -58,7 +58,7 @@ class NativeTuningIconTests(unittest.TestCase):
         self.assertEqual(len(rows), len(icons) + 1)
         for (label, icon), row in zip(icons.items(), rows):
             self.assertEqual(row, (label + '\0icon\x1f' + icon).encode())
-        self.assertEqual(rows[-1], '\u2190 Back\0icon\x1fgo-previous'.encode())
+        self.assertEqual(rows[-1], b'Back\0icon\x1fgo-previous')
 
     def test_each_tuning_label_roundtrips_to_unchanged_dispatch_value(self):
         labels = TOP + ['Reset Profiles [All]'] + [f'Set {p.title()} Profile [{v}]' for v in ('Intel', 'Nvidia') for p in PROFILES]

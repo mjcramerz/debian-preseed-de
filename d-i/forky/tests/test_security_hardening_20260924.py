@@ -300,7 +300,10 @@ class SudoAndFirewall(unittest.TestCase):
                   {'nftables':{'filter_table':'crowdsec'}}, {'nftables':{'nat_table':'tailscale'}}):
             with self.assertRaises(m.PolicyError): m.render_nftables_conf(p, paths)
         self.assertIn('include "/etc/nftables.local.d/*.nft"', m.render_local({}))
-        self.assertNotIn('flush ruleset', (SEED/'hooks/target/etc/systemd/system/nftables.service.d/override.conf').read_text())
+        unit = (SEED/'hooks/target/etc/systemd/system/nftables.service.d/override.conf').read_text()
+        self.assertNotIn('flush ruleset', unit)
+        self.assertEqual(re.findall(r'^ExecStop=/usr/sbin/nft (.*)$', unit, re.M),
+                         ['destroy table inet labwc_filter', 'destroy table ip labwc_nat'])
 
     @unittest.skipUnless(shutil.which('nft') and shutil.which('unshare'), 'nft/unshare are unavailable')
     def test_nft_foreign_table_survives_real_transaction(self):

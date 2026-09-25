@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+import os,sys
+from pathlib import Path
+data=sys.stdin.buffer.read();Path(os.environ['CAPTURE']).write_bytes(data)
+rows=data.split(b'\n')
+if os.environ.get('OUTPUT_HEX'):
+ sys.stdout.buffer.write(bytes.fromhex(os.environ['OUTPUT_HEX']))
+else:
+ sys.stdout.buffer.write(rows[int(os.environ['INDEX'])].split(b'\0',1)[0]+b'\n')
+sys.exit(int(os.environ['STATUS']))

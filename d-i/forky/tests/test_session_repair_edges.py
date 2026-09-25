@@ -87,13 +87,15 @@ class MenuIdentityTests(unittest.TestCase):
             def get_string(self, key): return 'Application' if key=='Type' else 'application-x-executable'
         apps = [App('qoredb.desktop','Database;'), App('qalculate-qt.desktop','Utility;Calculator;'),
                 App('org.libretro.RetroArch.desktop','System;Emulator;'),
+                App('com.libretro.RetroArch.desktop','System;Emulator;'),
                 App('labwc-tweaks.desktop','Settings;'),App('labwc-tweaks-gtk.desktop','Settings;'),
                 App('unrelated-settings.desktop','Settings;')]
         gio = types.SimpleNamespace(AppInfo=types.SimpleNamespace(get_all=lambda: apps))
         with mock.patch.object(menu, 'gio_api', return_value=(gio, App)):
             found={a['id']:a['category'] for a in menu.enumerate_apps()}
         self.assertEqual(found, {'qoredb.desktop':'Development','qalculate-qt.desktop':'Office & Productivity',
-                                'org.libretro.RetroArch.desktop':'Games','unrelated-settings.desktop':'Settings'})
+                                'org.libretro.RetroArch.desktop':'Games',
+                                'com.libretro.RetroArch.desktop':'Games','unrelated-settings.desktop':'Settings'})
 
 
 @unittest.skipUnless(os.getuid()==0, 'root-owned PAM fixture requires root; does not touch /etc')

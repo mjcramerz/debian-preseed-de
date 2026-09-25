@@ -78,6 +78,12 @@ for syntax checks, and some installer/chroot contexts do not expose that kernel
 protocol. The staged `nftables.service` override performs `nft -c -f
 /etc/nftables.conf` on first boot before loading the ruleset.
 
+Stopping `nftables.service` removes the installer-owned `inet labwc_filter`
+and `ip labwc_nat` tables. CrowdSec and other independent tables remain under
+their own services. While nftables is active, Computer Management → Protection
+& Firewall → Allow Incoming Port from LAN opens a chosen TCP port for a local
+web server; the server must listen on the host's LAN address.
+
 Profiles are full base policies only. They generate default-deny inbound and
 forwarding rules, state handling, loopback, DHCP client exceptions, separated
 martian/bogon source drops, ICMP/ICMPv6 handling, optional bounded packet

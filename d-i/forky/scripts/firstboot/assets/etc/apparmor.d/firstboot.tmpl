@@ -75,6 +75,9 @@ profile firstboot /var/lib/firstboot/bin/firstboot.sh flags=(attach_disconnected
   /usr/lib/** mr,
   /usr/share/ r,
   /usr/share/** r,
+  # The initramfs importer opens every ancestor with O_DIRECTORY/O_NOFOLLOW.
+  /var/ r,
+  /var/lib/ r,
   /var/lib/dpkg/ r,
   /var/lib/dpkg/** r,
   /var/lib/firstboot/ r,

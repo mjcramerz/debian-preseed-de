@@ -148,6 +148,7 @@ postman_verbose_list="${work_dir}/postman-members.verbose.txt"
 postman_install_dir=/opt/postman
 postman_desktop_file=/usr/local/share/applications/postman.desktop
 postman_icon_file="${postman_install_dir}/app/resources/app/assets/icon.png"
+menu_icon_dir=/usr/share/icons/hicolor/512x512/apps
 sleek_version=2.0.26
 sleek_url="https://github.com/ransome1/sleek/releases/download/v${sleek_version}/sleek-${sleek_version}-linux-amd64.deb"
 sleek_sha256=f2531c41b70c04bbafc27af83e195aa9268845a58d3ead4b58fa58b301223fcb
@@ -406,6 +407,24 @@ software_render_seed_asset() {
   install -m "$mode" "$tmp_rendered" "$target_host_path"
   chmod "$mode" "$target_host_path"
   rm -f "$tmp_asset" "$tmp_rendered"
+}
+
+software_stage_menu_icon() {
+  menu_icon_source=$1
+  menu_icon_name=$2
+  menu_icon_destination="${menu_icon_dir}/${menu_icon_name}.png"
+  case "$menu_icon_name" in
+    chatgpt|postman|discord|sleek) ;;
+    *) software_fatal "unsupported managed menu icon: $menu_icon_name" ;;
+  esac
+  [ -f "${target_root}${menu_icon_source}" ] &&
+    [ ! -L "${target_root}${menu_icon_source}" ] &&
+    [ -r "${target_root}${menu_icon_source}" ] &&
+    [ "$(chroot "$target_root" /usr/bin/file --brief --mime-type "$menu_icon_source")" = image/png ] ||
+    software_fatal "managed menu icon is missing or invalid: $menu_icon_source"
+  if [ "$menu_icon_source" != "$menu_icon_destination" ]; then
+    install -D -m 0644 "${target_root}${menu_icon_source}" "${target_root}${menu_icon_destination}"
+  fi
 }
 
 software_managed_external_cpu_quota() {
@@ -717,6 +736,7 @@ chatgpt_verify_stat "0:${adm_gid}:640" __INSTALLER_LOG_CHATGPT_FILE__
   done
   unset chatgpt_forbidden_path
   chroot "$target_root" /usr/bin/desktop-file-validate "$chatgpt_desktop"
+  software_stage_menu_icon "$chatgpt_icon" chatgpt
   software_info "installed managed ChatGPT/Codex desktop through the signed local repository"
 }
 
@@ -1492,6 +1512,7 @@ POSTMAN_INSTALL_SH
     0644 \
     LABWC_MANAGED_APP_DEFAULT_EXEC "$LABWC_MANAGED_APP_DEFAULT_EXEC"
   chroot "$target_root" /usr/bin/desktop-file-validate "$postman_desktop_file"
+  software_stage_menu_icon "$postman_icon_file" postman
   chroot "$target_root" /usr/bin/update-desktop-database /usr/local/share/applications
 
   software_info "installed verified Postman archive version=${postman_version} sha256=${postman_sha256}"
@@ -1886,6 +1907,13 @@ sleek_installed_version=$(
 )
 [ "$sleek_installed_version" = "$sleek_version" ] ||
   software_fatal "Sleek installed version does not match the pinned release: ${sleek_installed_version:-missing}"
+sleek_icon_source=$(
+  chroot "$target_root" /usr/bin/dpkg-query -L sleek |
+    awk '/^\/usr\/share\/icons\/hicolor\/[0-9]+x[0-9]+\/apps\/sleek\.png$/ { print }' |
+    sort -V | tail -n 1
+)
+[ -n "$sleek_icon_source" ] || software_fatal "Sleek package has no themed PNG icon"
+software_stage_menu_icon "$sleek_icon_source" sleek
 software_render_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/applications/sleek.desktop)" \
   /usr/local/share/applications/sleek.desktop \
@@ -1951,6 +1979,7 @@ chroot "$target_root" /usr/bin/test -x "${discord_install_dir}/Discord" &&
   chroot "$target_root" /usr/bin/test -u "${discord_install_dir}/chrome-sandbox" &&
   chroot "$target_root" /usr/bin/test -x "${discord_install_dir}/chrome-sandbox" ||
   software_fatal "managed Discord runtime executables are invalid after bootstrap"
+software_stage_menu_icon "${discord_install_dir}/discord.png" discord
 
 software_install_ledger
 

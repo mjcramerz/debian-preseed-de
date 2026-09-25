@@ -22,7 +22,8 @@ swww_transition_duration = 2
 swww_transition_fps = 60
 mpvpaper_sound = False
 mpvpaper_options =
-post_command = /usr/local/bin/labwc-wallpaper-save --apply "$wallpaper"
+# Waypaper supplies a shell-escaped path; quoting it again passes literal quotes.
+post_command = /usr/local/bin/labwc-wallpaper-save --apply $wallpaper
 stylesheet = ~/.config/waypaper/style.css
 keybindings = ~/.config/waypaper/keybindings.ini
 wallpaperengine_folder = ~/.steam/root/steamapps/workshop/content/431960

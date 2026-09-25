@@ -95,6 +95,8 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   owner @{HOME}/.config/waybar/** r,
   owner @{HOME}/.cache/waybar/ rw,
   owner @{HOME}/.cache/waybar/** rwkl,
+  owner @{HOME}/.cache/glycin/ rw,
+  owner @{HOME}/.cache/glycin/** rwkl,
   # Waybar's network module reads counters through its own procfs view.
   /proc/[0-9]*/net/dev r,
   owner /proc/[0-9]*/task/[0-9]*/comm rw,
@@ -291,6 +293,7 @@ profile labwc-wlsunset /usr/local/bin/labwc-wlsunset flags=(attach_disconnected)
   /usr/local/bin/labwc-wlsunset rix,
   / r,
   /etc/ r,
+  /etc/labwc/ r,
   /usr/bin/{systemctl,systemd-run} rix,
   /etc/default/ r,
   /etc/labwc/wlsunset.conf r,

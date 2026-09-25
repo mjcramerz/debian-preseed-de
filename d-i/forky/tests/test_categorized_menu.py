@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,17 @@ def load(path):
 
 class MenuUnitTests(unittest.TestCase):
     def setUp(self): self.menu = load(MENU)
+
+    def test_waypaper_passes_one_escaped_path_to_persistent_state_helper(self):
+        config = render_theme_defaults(payload_read_text(
+            TARGET/'etc/skel-desktop/.config/waypaper/config.ini'))
+        command = next(line.split(' = ', 1)[1] for line in config.splitlines()
+                       if line.startswith('post_command = '))
+        wallpaper = "/usr/share/backgrounds/desktop/a's picture.png"
+        received = command.replace('/usr/local/bin/labwc-wallpaper-save', '/usr/bin/printf "%s\\n"')
+        result = subprocess.run(['/bin/sh', '-c', received.replace('$wallpaper', shlex.quote(wallpaper))],
+                                check=True, text=True, capture_output=True)
+        self.assertEqual(result.stdout, '--apply\n' + wallpaper + '\n')
 
     def test_every_main_and_additional_category_has_one_destination(self):
         for label, main, additional in self.menu.CATEGORY_RULES:

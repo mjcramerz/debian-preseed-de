@@ -598,9 +598,10 @@ function icon_for(label) {
   # Legacy section markers are presentation only, never an app icon.
   sub(/^(⮞||★)[[:space:]]+/, "", icon_label)
   shown = icon_label
+  if (shown == "← Back") shown = "Back"
   if (root_menu != "1" &&
       (label == "Exit" || label == "Close" || label == "Cancel" ||
-       label ~ /^[0-9]+[[:space:]]+Close$/)) shown = "← Back"
+       label ~ /^[0-9]+[[:space:]]+Close$/)) shown = "Back"
   # Distinct raw rows may have identical text after removing legacy markers.
   # Keep every presented choice unambiguous without changing its raw action.
   unique = shown
@@ -624,7 +625,7 @@ if [ "$managed_root_menu" != 1 ] &&
      END { exit found ? 0 : 1 }
    ' "$raw_choices"; then
   printf '\n' >>"$raw_choices"
-  printf '← Back\000icon\037go-previous\n' >>"$display_choices"
+  printf 'Back\000icon\037go-previous\n' >>"$display_choices"
 fi
 
 log_fuzzel_lifecycle menu opened 0

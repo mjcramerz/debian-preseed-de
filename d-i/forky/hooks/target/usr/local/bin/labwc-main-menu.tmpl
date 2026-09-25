@@ -21,7 +21,7 @@ import unicodedata
 sys.dont_write_bytecode = True
 SELF = '/usr/local/bin/labwc-main-menu'
 FUZZEL = '/usr/local/bin/labwc-fuzzel'
-BACK = '\u2190 Back'
+BACK = 'Back'
 
 # Priority order, display label, main tokens, specific additional tokens.
 # Specific tokens refine broad main tokens; Settings always takes precedence.
@@ -137,6 +137,7 @@ CATEGORY_OVERRIDES = {
     'qalculate-gtk.desktop': 'Office & Productivity',
     'retroarch.desktop': 'Games',
     'org.libretro.RetroArch.desktop': 'Games',
+    'com.libretro.RetroArch.desktop': 'Games',
 }
 # The fixed Desktop Settings action already represents this executable.
 # Filter desktop IDs, never arbitrary localized display names.

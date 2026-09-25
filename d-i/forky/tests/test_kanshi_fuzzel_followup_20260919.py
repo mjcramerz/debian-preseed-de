@@ -415,7 +415,7 @@ sys.exit(int(os.environ['STATUS']))
 
     def test_close_returns_original_and_root_exit_is_not_back(self):
         result,payload=self.pick(['Close'])
-        self.assertEqual(result.stdout,b'Close\n');self.assertEqual(payload,'\u2190 Back\0icon\x1fgo-previous\n'.encode())
+        self.assertEqual(result.stdout,b'Close\n');self.assertEqual(payload,b'Back\0icon\x1fgo-previous\n')
         result,payload=self.pick(['Exit'],root=True)
         self.assertEqual(result.stdout,b'Exit\n');self.assertIn(b'Exit\0icon\x1fsystem-log-out\n',payload)
 
@@ -424,6 +424,9 @@ sys.exit(int(os.environ['STATUS']))
         self.assertEqual(result.stdout,b'Back\n');self.assertEqual(len(payload.splitlines()),2)
         result,payload=self.pick(['Action'],index=1)
         self.assertEqual(result.stdout,b'\n')
+        result,payload=self.pick(['\u2190 Back'])
+        self.assertEqual(result.stdout,'\u2190 Back\n'.encode())
+        self.assertEqual(payload,b'Back\0icon\x1fgo-previous\n')
 
     def test_collision_suffix_preserves_distinct_raw_rows(self):
         labels=['Same','\u2b9e Same','Same [2:1]']
