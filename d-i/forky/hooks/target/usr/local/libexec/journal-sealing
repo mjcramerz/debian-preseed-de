@@ -7,6 +7,7 @@ until explicitly exported off-host and acknowledged by its SHA-256.
 """
 from __future__ import annotations
 import fcntl
+import grp
 import hashlib
 import json
 import os
@@ -56,11 +57,32 @@ def private_bytes(path: Path, limit: int = 65536) -> bytes:
         info = os.fstat(stream.fileno())
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
                 or stat.S_IMODE(info.st_mode) not in (0o400, 0o600) or info.st_size > limit):
-            raise ValueError('unsafe journal provisioning file')
+            raise ValueError(f'unsafe private journal provisioning file: {path}')
         result = stream.read(limit + 1)
         if len(result) > limit:
             raise ValueError('oversized journal provisioning file')
         return result
+
+
+def sealing_file(path: Path) -> None:
+    """Check systemd's FSS file, which may be group-readable (0640).
+
+    Keep the exported verification key and our own records strictly private.
+    systemd creates fss with mode 0640 under a setgid systemd-journal
+    directory; that package-owned sealing key is not our verification seed.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        mode = stat.S_IMODE(info.st_mode)
+        journal_gid = grp.getgrnam('systemd-journal').gr_gid
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1
+                or mode not in (0o400, 0o600, 0o640) or info.st_size == 0
+                or info.st_size > 1_048_576
+                or (mode == 0o640 and info.st_gid not in (0, journal_gid))):
+            raise ValueError(f'unsafe systemd FSS sealing file: {path}')
+    finally:
+        os.close(fd)
 
 
 def sync_directory(path: Path) -> None:
@@ -138,7 +160,7 @@ def setup(machine: str, fss: Path) -> dict:
             os.fsync(stream.fileno())
         if result.returncode:
             raise ValueError('journalctl key setup failed; generation left intact for recovery')
-    private_bytes(fss, 1_048_576)
+    sealing_file(fss)
     if RECORD.exists() or RECORD.is_symlink():
         record = read_record(machine)
     else:
@@ -192,7 +214,7 @@ def main(argv: list[str]) -> int:
         if action == '--setup':
             record = setup(machine, fss)
         else:
-            private_bytes(fss, 1_048_576)
+            sealing_file(fss)
             record = read_record(machine)
         if action == '--show-verification-key':
             seed = verification_key()

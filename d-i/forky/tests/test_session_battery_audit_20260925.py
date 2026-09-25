@@ -84,6 +84,19 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('File="__INSTALLER_LOG_AUDIT_FILE__"', rsyslog)
         self.assertIn('Ruleset="managed_apparmor_from_audit"', rsyslog)
         self.assertIn('string="%msg%\\n"', rsyslog)
+        self.assertIn('ruleset(name="managed_apparmor_from_audit" queue.type="LinkedList"', rsyslog)
+        self.assertEqual(rsyslog.count('name="managed_apparmor_log"'), 1)
+        self.assertEqual(rsyslog.count('name="managed_apparmor_desktop_signal"'), 1)
+        self.assertNotIn('$inputname == "imklog"', rsyslog)
+
+    def test_battery_probe_has_a_named_read_only_profile(self):
+        profile = source('etc/apparmor.d/labwc-session')
+        self.assertIn('/usr/local/libexec/labwc-waybar-battery rPx -> labwc-waybar-battery,', profile)
+        battery = profile.split('profile labwc-waybar-battery ', 1)[1].split('\n}', 1)[0]
+        self.assertIn('#include <abstractions/wrapper-python>', battery)
+        self.assertIn('/sys/devices/**/power_supply/', battery)
+        self.assertNotIn('network inet', battery)
+        self.assertNotIn('/sys/devices/** rw', battery)
 
     def test_firstboot_requires_sealing_provisioning(self):
         unit = (ROOT / 'scripts/firstboot/assets/etc/systemd/system/firstboot.service').read_text()
@@ -91,6 +104,10 @@ class IntegrationContracts(unittest.TestCase):
         self.assertIn('After=local-fs.target systemd-tmpfiles-setup.service systemd-journald.socket journal-sealing.service', unit)
         firstboot = (ROOT / 'scripts/firstboot/04-validation.sh.tmpl').read_text()
         self.assertIn('check_command journal-sealing-status /usr/local/libexec/journal-sealing --status', firstboot)
+
+    def test_secret_service_readiness_does_not_dump_bus_introspection(self):
+        checker = source('usr/local/libexec/labwc-session-check')
+        self.assertIn('stdout=subprocess.DEVNULL', checker)
 
 
 if __name__ == '__main__':

@@ -30,53 +30,28 @@ ruleset(name="managed_apparmor_log_writer") {
     rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
     rotation.sizeLimitCommandPassFileName="on"
   )
+  if ($msg contains 'apparmor="DENIED"' or $msg contains "type=APPARMOR_DENIED") then {
+    action(name="managed_apparmor_desktop_signal" type="omfile"
+           file="/var/lib/labwc-notifications/security/apparmor.signal"
+           fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="logreader"
+           fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+           dirOwner="__INSTALLER_LOG_OWNER__" dirGroup="logreader"
+           dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__" createDirs="on"
+           template="ManagedAppArmorDesktopSignal"
+           rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+           rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+           rotation.sizeLimitCommandPassFileName="on")
+  }
 }
 
-ruleset(name="managed_apparmor_from_audit") {
+ruleset(name="managed_apparmor_from_audit" queue.type="LinkedList"
+        queue.size="__INSTALLER_LOG_RSYSLOG_QUEUE_MESSAGES__" queue.workerThreads="1") {
   if ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR") then {
     call managed_apparmor_log_writer
-    if ($msg contains 'apparmor="DENIED"' or $msg contains "type=APPARMOR_DENIED") then {
-      action(type="omfile" file="/var/lib/labwc-notifications/security/apparmor.signal"
-             fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="logreader"
-             fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
-             dirOwner="__INSTALLER_LOG_OWNER__" dirGroup="logreader"
-             dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__" createDirs="on"
-             template="ManagedAppArmorDesktopSignal"
-             rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
-             rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
-             rotation.sizeLimitCommandPassFileName="on")
-    }
   }
 }
 
 input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__" Tag="managed-audit:"
       Ruleset="managed_apparmor_from_audit" PersistStateInterval="1")
-
-if (
-  $inputname == "imklog" and
-  ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR")
-) then {
-  set $.managed_security_routed = "on";
-  call managed_apparmor_log_writer
-  if (
-    $msg contains 'apparmor="DENIED"' or
-    $msg contains "type=APPARMOR_DENIED"
-  ) then {
-    action(
-      name="managed_apparmor_desktop_signal"
-      type="omfile"
-      file="/var/lib/labwc-notifications/security/apparmor.signal"
-      fileOwner="__INSTALLER_LOG_OWNER__"
-      fileGroup="logreader"
-      fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
-      dirOwner="__INSTALLER_LOG_OWNER__"
-      dirGroup="logreader"
-      dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__"
-      createDirs="on"
-      template="ManagedAppArmorDesktopSignal"
-      rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
-      rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
-      rotation.sizeLimitCommandPassFileName="on"
-    )
-  }
-}
+# Kernel copies remain in the managed kernel log. Auditd's file is the sole
+# input to this AppArmor mirror, so one action/worker owns size rotation.

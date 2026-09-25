@@ -83,6 +83,9 @@ profile labwc-compositor /usr/bin/labwc flags=(attach_disconnected, mediate_dele
 # inherited FDs; only its final exec enters the destination helper profile.
 profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_disconnected) {
   #include <abstractions/session-client>
+  # The custom battery probe runs every five seconds. A generic rPx fallback
+  # creates a null child and audits every Python import in complain mode.
+  /usr/local/libexec/labwc-waybar-battery rPx -> labwc-waybar-battery,
   # The Python status trampoline probes this root-owned import directory.
   # Directory metadata only: no new recursive read or write permission.
   /usr/local/lib/python3.14/dist-packages/ r,
@@ -116,6 +119,17 @@ profile waybar /usr/{bin/waybar,local/libexec/labwc-waybar-exec} flags=(attach_d
   signal (receive) set=(rtmin+9, rtmin+10, rtmin+11) peer=unconfined,
   signal (send) set=(chld) peer=unconfined,
   include if exists <local/usr.bin.waybar>
+}
+
+profile labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery flags=(attach_disconnected) {
+  #include <abstractions/wrapper-python>
+  /usr/local/libexec/labwc-waybar-battery r,
+  /sys/class/power_supply/ r,
+  /sys/devices/**/power_supply/ r,
+  /sys/devices/**/power_supply/{type,online,capacity,status,energy_now,energy_full,energy_full_design,charge_full,charge_full_design,cycle_count} r,
+  /proc/sys/vm/overcommit_memory r,
+  owner /proc/[0-9]*/maps r,
+  include if exists <local/usr.local.libexec.labwc-waybar-battery>
 }
 
 profile crystal-dock /usr/bin/crystal-dock flags=(attach_disconnected, mediate_deleted) {

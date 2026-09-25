@@ -61,7 +61,9 @@ def main(args: list[str]) -> int:
             os.close(fd)
     else:
         return 2
-    result = subprocess.run(command, stdin=subprocess.DEVNULL, timeout=timeout, check=False)
+    # The busctl introspection table is readiness data, not a journal message.
+    result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            timeout=timeout, check=False)
     return 0 if result.returncode == 0 else 1
 
 

@@ -587,7 +587,7 @@ class JournalSealing(unittest.TestCase):
 
     def fake_setup(self,argv,**kwargs):
         self.assertIn('--setup-keys',argv);self.assertNotIn('--force',argv)
-        kwargs['stdout'].write(self.key);self.fss.write_bytes(b'fixture-fss');self.fss.chmod(0o600)
+        kwargs['stdout'].write(self.key);self.fss.write_bytes(b'fixture-fss');self.fss.chmod(0o640)
         return types.SimpleNamespace(returncode=0)
 
     def test_explicit_key_setup_and_rotation_not_repeated(self):
@@ -612,6 +612,20 @@ class JournalSealing(unittest.TestCase):
         with mock.patch.object(self.m.subprocess,'run') as setup:
             with self.assertRaises(OSError):self.m.setup('machine',self.fss)
             setup.assert_not_called()
+
+    def test_fss_may_be_group_readable_only_to_systemd_journal(self):
+        self.fss.write_bytes(b'fixture-fss')
+        self.fss.chmod(0o640)
+        self.m.sealing_file(self.fss)
+        self.fss.chmod(0o644)
+        with self.assertRaisesRegex(ValueError,'unsafe systemd FSS'):
+            self.m.sealing_file(self.fss)
+
+    def test_verification_seed_remains_private_when_fss_is_group_readable(self):
+        self.m.KEY.write_bytes(self.key)
+        self.m.KEY.chmod(0o640)
+        with self.assertRaisesRegex(ValueError,'unsafe private journal provisioning file'):
+            self.m.verification_key()
 
 
 if __name__=='__main__':unittest.main()
