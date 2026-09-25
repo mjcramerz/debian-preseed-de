@@ -586,6 +586,14 @@ normalize_enabled_tmpfs_dir() {
 managed_tmpfs_mount_mode() {
   rel_dir=$1
 
+  if [ "$rel_dir" = "$DIR_VAR_SPOOL_RSYSLOG" ]; then
+    bool_is_true "$TMPFS_VAR_SPOOL_RSYSLOG" || {
+      log "fatal: rsyslog spool tmpfs is disabled but declared in target fstab"
+      exit 1
+    }
+    printf '0700\n'
+    return 0
+  fi
   if [ "$rel_dir" = "$DIR_TMP" ] ||
      { [ -n "${DIR_DEV_SHM:-}" ] && [ "$rel_dir" = "$DIR_DEV_SHM" ]; }; then
     printf '1777\n'
@@ -612,6 +620,7 @@ normalize_target_fstab_tmpfs_dirs() {
   }
 
   tmpfs_mount_count=0
+  rsyslog_spool_mount_count=0
   while read -r mount_source mount_path mount_type mount_options mount_dump mount_pass mount_extra ||
         [ -n "${mount_source:-}${mount_path:-}${mount_type:-}${mount_options:-}${mount_dump:-}${mount_pass:-}${mount_extra:-}" ]; do
     case "${mount_source:-}" in
@@ -631,11 +640,29 @@ normalize_target_fstab_tmpfs_dirs() {
     esac
 
     mount_mode=$(managed_tmpfs_mount_mode "$mount_path")
+    if [ "$mount_path" = "$DIR_VAR_SPOOL_RSYSLOG" ]; then
+      [ "$mount_source" = tmpfs ] &&
+        [ "$mount_options" = "$MNT_VAR_SPOOL_RSYSLOG_TMPFS_OPTS" ] || {
+        log "fatal: target rsyslog spool tmpfs options differ from selected policy"
+        exit 1
+      }
+      rsyslog_spool_mount_count=$((rsyslog_spool_mount_count + 1))
+      [ "$rsyslog_spool_mount_count" -eq 1 ] || {
+        log "fatal: target fstab declares duplicate rsyslog spool tmpfs mounts"
+        exit 1
+      }
+    fi
     target_mount=$(target_path_for "$mount_path" "target fstab tmpfs mountpoint")
     ensure_empty_dir_mode "$target_mount" "target fstab tmpfs mountpoint ${mount_path}" "$mount_mode"
     tmpfs_mount_count=$((tmpfs_mount_count + 1))
   done <"$target_fstab"
 
+  if bool_is_true "$TMPFS_VAR_SPOOL_RSYSLOG"; then
+    [ "$rsyslog_spool_mount_count" -eq 1 ] || {
+      log "fatal: enabled rsyslog spool tmpfs is missing from target fstab"
+      exit 1
+    }
+  fi
   [ "$tmpfs_mount_count" -gt 0 ] || {
     log "fatal: target fstab declares no tmpfs mountpoints"
     exit 1
@@ -652,6 +679,7 @@ umount_mounts_at_or_below "${TARGET}/sys"
 
 for tmpfs_var in \
   TMPFS_VAR_LOG \
+  TMPFS_VAR_SPOOL_RSYSLOG \
   TMPFS_VAR_CACHE \
   TMPFS_VAR_LIB_APT_LISTS \
   TMPFS_DEV_SHM \
@@ -666,6 +694,11 @@ do
   require_bool "$tmpfs_var" "$tmpfs_value"
 done
 
+[ "${DIR_VAR_SPOOL:-}" = /var/spool ] &&
+  [ "${DIR_VAR_SPOOL_RSYSLOG:-}" = /var/spool/rsyslog ] || {
+  log "fatal: rsyslog spool path must be /var/spool/rsyslog"
+  exit 1
+}
 normalize_enabled_tmpfs_dir TMPFS_VAR_LOG DIR_VAR_LOG 0755
 normalize_enabled_tmpfs_dir TMPFS_VAR_CACHE DIR_VAR_CACHE 0755
 normalize_enabled_tmpfs_dir TMPFS_VAR_LIB_APT_LISTS DIR_APT_LISTS 0755

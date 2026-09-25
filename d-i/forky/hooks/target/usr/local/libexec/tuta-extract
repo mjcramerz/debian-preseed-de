@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import pwd
 import resource
+import selectors
 import signal
 import stat
 import struct
@@ -25,6 +26,8 @@ import time
 MAX_IMAGE = 536_870_912
 MAX_TREE = 2_147_483_648
 MAX_ENTRIES = 100_000
+MAX_RUNTIME_TRAILER = 16 * 1024 * 1024
+MAX_DIAGNOSTIC = 8192
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"}
 
 
@@ -40,38 +43,53 @@ def trusted_directory(path: Path) -> None:
 
 
 def squashfs_offset(stream) -> int:
-    """Read bounded ELF metadata; never run --appimage-offset/--appimage-extract."""
+    """Find a bounded Type-2 payload without executing the AppImage runtime."""
     header = stream.read(64)
     if (len(header) != 64 or header[:6] != b"\x7fELF\x02\x01" or header[8:11] != b"AI\x02"
             or struct.unpack_from("<H", header, 18)[0] != 62):
         raise ValueError("expected an x86-64 Type-2 AppImage")
     section_offset = struct.unpack_from("<Q", header, 40)[0]
     section_size, section_count = struct.unpack_from("<HH", header, 58)
-    if section_size != 64 or not 1 <= section_count <= 8192:
-        raise ValueError("unsupported ELF section table")
-    end = section_offset + section_size * section_count
     length = os.fstat(stream.fileno()).st_size
-    if section_offset < 64 or end > length - 96:
-        raise ValueError("ELF section table outside artifact")
-    for index in range(section_count):
-        stream.seek(section_offset + index * section_size)
-        section = stream.read(section_size)
-        section_type = struct.unpack_from("<I", section, 4)[0]
-        offset, size = struct.unpack_from("<QQ", section, 24)
-        if section_type != 8:  # SHT_NOBITS occupies no bytes in the ELF file.
-            if offset + size > length:
-                raise ValueError("ELF section outside artifact")
+    if section_offset or section_count:
+        if (section_offset < 64 or section_size != 64 or not 1 <= section_count <= 8192
+                or section_offset + section_size * section_count > length - 96):
+            raise ValueError("unsupported ELF section table")
+        # The AppImage runtime uses the end of the section table as its ELF
+        # size; section data may be described after that point in the overlay.
+        end = section_offset + section_size * section_count
+    else:
+        # Some stripped runtimes omit section headers. Bound the executable
+        # region by its program headers before looking for the payload.
+        program_offset = struct.unpack_from("<Q", header, 32)[0]
+        program_size, program_count = struct.unpack_from("<HH", header, 54)
+        if (program_offset < 64 or program_size != 56 or not 1 <= program_count <= 1024
+                or program_offset + program_size * program_count > length - 96):
+            raise ValueError("unsupported ELF program table")
+        end = program_offset + program_size * program_count
+        for index in range(program_count):
+            stream.seek(program_offset + index * program_size)
+            program = stream.read(program_size)
+            offset = struct.unpack_from("<Q", program, 8)[0]
+            size = struct.unpack_from("<Q", program, 32)[0]
+            if offset + size > length - 96:
+                raise ValueError("ELF segment outside artifact")
             end = max(end, offset + size)
     stream.seek(end)
-    superblock = stream.read(96)
-    if len(superblock) != 96 or superblock[:4] != b"hsqs":
-        raise ValueError("Type-2 image has no SquashFS at the ELF boundary")
-    inodes = struct.unpack_from("<I", superblock, 4)[0]
-    major, minor = struct.unpack_from("<HH", superblock, 28)
-    used = struct.unpack_from("<Q", superblock, 40)[0]
-    if (major, minor) != (4, 0) or not 1 <= inodes <= MAX_ENTRIES or not 96 <= used <= length - end:
-        raise ValueError("unsupported or oversized SquashFS metadata")
-    return end
+    trailer = stream.read(min(length - end, MAX_RUNTIME_TRAILER + 96))
+    candidate = trailer.find(b"hsqs")
+    while candidate >= 0 and candidate <= MAX_RUNTIME_TRAILER:
+        offset = end + candidate
+        superblock = trailer[candidate:candidate + 96]
+        if len(superblock) == 96:
+            inodes = struct.unpack_from("<I", superblock, 4)[0]
+            major, minor = struct.unpack_from("<HH", superblock, 28)
+            used = struct.unpack_from("<Q", superblock, 40)[0]
+            if ((major, minor) == (4, 0) and 1 <= inodes <= MAX_ENTRIES
+                    and 96 <= used <= length - offset):
+                return offset
+        candidate = trailer.find(b"hsqs", candidate + 1)
+    raise ValueError("no supported SquashFS payload in the bounded ELF trailer")
 
 
 def parser_limits() -> None:
@@ -94,7 +112,7 @@ def sandbox_command(artifact: Path, output: Path, offset: int, uid: int, gid: in
             argv += ["--ro-bind", directory, directory]
     argv += ["--dir", "/etc", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
              "--ro-bind", str(artifact), "/artifact", "--bind", str(output), "/output",
-             "--chdir", "/output", "--cap-drop", "ALL",
+             "--chdir", "/", "--cap-drop", "ALL",
              "--cap-add", "CAP_SETUID", "--cap-add", "CAP_SETGID", "--cap-add", "CAP_SETPCAP",
              "/usr/bin/setpriv", f"--reuid={uid}", f"--regid={gid}", "--clear-groups",
              "--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all", "--no-new-privs",
@@ -139,9 +157,59 @@ def normalize_tree(root: Path) -> None:
     os.chown(root, 0, 0)
     os.chmod(root, 0o755)
     app = root / "AppRun"
-    info = app.lstat()
+    # A Type-2 AppDir can use a relative AppRun link. Every extracted link
+    # above is confined to this tree; require its final target to be executable.
+    target = app.resolve(strict=True)
+    if not target.is_relative_to(root):
+        raise ValueError("AppRun must resolve inside the application tree")
+    info = target.lstat()
     if not stat.S_ISREG(info.st_mode) or not info.st_mode & 0o111:
-        raise ValueError("AppRun must be a regular executable, not a link")
+        raise ValueError("AppRun must resolve to an executable inside the application tree")
+
+
+def run_parser(argv: list[str], output: Path) -> None:
+    # Drain both streams while waiting: a full pipe must not stall extraction.
+    # Retain only a bounded tail for unattended-install failure diagnostics.
+    process = subprocess.Popen(argv, env=ENV, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               start_new_session=True, preexec_fn=parser_limits)
+    diagnostic = bytearray()
+    deadline = time.monotonic() + 180
+    try:
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ValueError("isolated extractor exceeded time limit")
+                for key, _ in selector.select(min(0.5, remaining)):
+                    block = os.read(key.fd, 65536)
+                    if block:
+                        diagnostic.extend(block)
+                        del diagnostic[:-MAX_DIAGNOSTIC]
+                    else:
+                        selector.unregister(key.fileobj)
+                status = process.poll()
+                if status is not None and not selector.get_map():
+                    break
+                if status is None:
+                    # This is a watchdog, not a filesystem quota.
+                    tree_budget(output)
+    except BaseException:
+        if process.poll() is None:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        process.wait()
+        raise
+    finally:
+        process.stdout.close()
+    if status != 0:
+        printable = "".join(c if c.isprintable() else " "
+                            for c in diagnostic.decode("utf-8", "replace"))
+        detail = " ".join(printable.split())[-2048:]
+        raise ValueError(f"isolated packaged extractor exited {status}: {detail or 'no diagnostic output'}")
 
 
 def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) -> None:
@@ -178,28 +246,7 @@ def extract(source: Path, destination: Path, expected: str, uid: int, gid: int) 
         os.chown(output, uid, gid)
         # Its root-owned 0700 ancestor prevents other host processes with uid
         # the parser identity reaching the output. Only the bound sandbox path is accessible.
-        process = subprocess.Popen(sandbox_command(artifact, output, offset, uid, gid), env=ENV,
-                                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                   stderr=subprocess.DEVNULL, start_new_session=True,
-                                   preexec_fn=parser_limits)
-        try:
-            deadline = time.monotonic() + 180
-            while True:
-                try:
-                    status = process.wait(timeout=0.5)
-                    break
-                except subprocess.TimeoutExpired:
-                    if time.monotonic() >= deadline:
-                        raise ValueError("isolated extractor exceeded time limit")
-                    # Best-effort expansion watchdog in addition to kernel
-                    # per-file/CPU/AS limits. This is not a filesystem quota.
-                    tree_budget(output)
-        except BaseException:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            raise
-        if status != 0:
-            raise ValueError("isolated packaged extractor failed")
+        run_parser(sandbox_command(artifact, output, offset, uid, gid), output)
         tree = output / "tree"
         normalize_tree(tree)
         os.rename(tree, destination)
@@ -224,6 +271,15 @@ def tree_budget(root: Path) -> None:
 
 
 def extractor_identity() -> tuple[int, int]:
+    # A plain installer chroot may lack procfs. Without it we cannot prove
+    # this dedicated uid has no existing processes, and bwrap cannot set up
+    # its namespaces reliably. The caller must use d-i's target executor.
+    try:
+        status = Path(f'/proc/{os.getpid()}/status').read_text()
+    except OSError as error:
+        raise ValueError("procfs is required for isolated extraction") from error
+    if not any(line.startswith('Uid:') for line in status.splitlines()):
+        raise ValueError("procfs is required for isolated extraction")
     account = pwd.getpwnam('tuta-extract')
     group = grp.getgrnam('tuta-extract')
     if (account.pw_uid <= 0 or account.pw_gid <= 0 or account.pw_gid != group.gr_gid
@@ -278,6 +334,9 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except (OSError, KeyError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+    except ValueError as error:
+        print("fatal: verified Tuta extraction failed (ValueError: " + str(error) + ")", file=sys.stderr)
+        sys.exit(1)
+    except (OSError, KeyError, RuntimeError, subprocess.SubprocessError) as error:
         print("fatal: verified Tuta extraction failed (" + type(error).__name__ + ")", file=sys.stderr)
         sys.exit(1)

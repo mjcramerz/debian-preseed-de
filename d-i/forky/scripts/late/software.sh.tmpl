@@ -2007,8 +2007,9 @@ chroot "$target_root" /usr/bin/systemd-sysusers /usr/lib/sysusers.d/tuta-extract
 
 tuta_verified_sha256=$(chroot "$target_root" /usr/bin/sha256sum "$tuta_appimage" | awk '{print $1}')
 
+# d-i's target executor mounts /proc for bwrap and the dedicated-uid check.
 # shellcheck disable=SC2016
-chroot "$target_root" /bin/sh -eu -c '
+INSTALLER_TARGET_DIR="$target_root" target_exec /bin/sh -eu -c '
 work_dir=$1
 appimage=$2
 install_dir=$3
@@ -2026,13 +2027,13 @@ trap rollback EXIT HUP INT TERM
 
 rm -rf "$work_dir/squashfs-root" "$new_dir" "$backup_dir"
 /usr/local/libexec/tuta-extract "$appimage" "$work_dir/squashfs-root" "$4"
-[ -x "$work_dir/squashfs-root/AppRun" ]
+[ -f "$work_dir/squashfs-root/AppRun" ] && [ -x "$work_dir/squashfs-root/AppRun" ]
 
 cp -a "$work_dir/squashfs-root" "$new_dir"
 chown -R root:root "$new_dir"
 /usr/bin/find "$new_dir" -xdev -type d -exec /bin/chmod 0755 {} +
 /usr/bin/find "$new_dir" -xdev -type f -exec /bin/chmod a-s,go-w {} +
-[ -f "$new_dir/AppRun" ] && [ ! -L "$new_dir/AppRun" ]
+[ -f "$new_dir/AppRun" ] && [ -x "$new_dir/AppRun" ]
 /bin/chmod 0755 "$new_dir/AppRun"
 
 if [ -e "$install_dir" ]; then

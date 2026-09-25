@@ -171,7 +171,7 @@ sub apply {
     my $extracted = "$work/squashfs-root";
     system('/usr/local/libexec/tuta-extract', $image, $extracted, $hash) == 0
         or return (1, 'extract');
-    -d $extracted && !-l $extracted && -x "$extracted/AppRun"
+    -d $extracted && !-l $extracted && -f "$extracted/AppRun" && -x "$extracted/AppRun"
         or return (1, 'extract');
 
     my $staged = "/opt/.tuta-mail.new.$$";
@@ -186,7 +186,7 @@ sub apply {
         && system('/usr/bin/find', $staged, '-xdev', '-type', 'f', '-exec', '/bin/chmod', 'a-s,go-w', '{}', '+') == 0
         && system('/bin/chmod', '0755', "$staged/AppRun") == 0
         or return (1, 'publish');
-    -f "$staged/AppRun" && !-l "$staged/AppRun" && -x "$staged/AppRun"
+    -f "$staged/AppRun" && -x "$staged/AppRun"
         or return (1, 'publish');
 
     rename $install, $backup
@@ -199,7 +199,7 @@ sub apply {
         $self->state()->write_state('tuta.installed.sha256', "$hash\n");
         system('/usr/bin/desktop-file-validate', '/etc/skel-desktop/.local/share/applications/tutanota-desktop.desktop') == 0
             or die "Tuta desktop entry validation failed\n";
-        -x "$install/AppRun" && !-l "$install/AppRun"
+        -f "$install/AppRun" && -x "$install/AppRun"
             or die "Tuta post-install payload validation failed\n";
         1;
     };

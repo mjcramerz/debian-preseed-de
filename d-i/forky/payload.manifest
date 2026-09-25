@@ -75,7 +75,7 @@ bbfe769d8616a4a062895aa59d3804c1d2cf2fc6aff48f2b33efbb3dce703e31  hooks/installe
 12c46783e382fd838b8bd1f70097a6aa27d03c5f07acfbc4ee4f923b18477e04  hooks/installer/finish-install.d/00-installer-guard
 9bdd79965ab3cab5897ab6bc76a00ce2290c1666e1538a0c4da7de8b14824c3c  hooks/installer/finish-install.d/94zz-99-validate-target
 9cc5b75e1c6b5f44fda6a4fa5e017cecb5719b0fd83d1da0f336c4a32c4ed285  hooks/installer/finish-install.d/95-normalize-apt
-f7953aebebfe03392df4d69e88a9be2cd3376b7558ad8d059b34ff77ec6bd6d3  hooks/installer/finish-install.d/99-normalize-finish
+9bfef351d102d5c199fc535b79cfd68753b28f963401fcfeb6314f01d34f1576  hooks/installer/finish-install.d/99-normalize-finish
 f8f91f936e463045b46c467b93a785fdd90923b26d855e6e19fa5b80e81cec3c  hooks/installer/late_command.sh
 cf70b71de892b461174a8d08cd8ba41bde4589b0ce8abecd9b2053328fc40112  hooks/installer/partman/btrfs-early.sh
 61afe5497809b0052c4c144f6b5f4cd76b35c2c4ba8cff1c5ab484e56a42780f  hooks/installer/partman/early.sh
@@ -87,7 +87,7 @@ c83b82fb8e10d9bbbaae08512960a667f302a3e21a5708ee464e2147463b51e4  hooks/installe
 16da70acb8c57592e3a735d0bd3b8a74091fe009a2569a21efbd7e59af403f82  hooks/installer/partman/f2fs-backend/mountoptions/f2fs
 4b395eb780ea43c5a41afcbdc06a76e17844cbd0840eea23e160646bd38836b7  hooks/installer/partman/f2fs-backend/valid_filesystems/f2fs
 103409e5d7a4c9248e29aa9d7fa9574259632ff9f35a40692ab7d10c95c042b4  hooks/installer/partman/f2fs-early.sh
-a12a7ab40a0665fe016b3670fbed81fd6820230c3ddb469fc6720d652bf92da4  hooks/installer/partman/finish.d/99-storage-layout.sh
+c7c5d257232f7a8a7cd946a5e424f4c2209f43cb2b552497efec9210d1068bb0  hooks/installer/partman/finish.d/99-storage-layout.sh
 3d9e900fba32e6c5a55bf6f9cb4520ad62db6fdde7ca3e1b73e9493ad97f6f4e  hooks/installer/pre-pkgsel.d/49nvidia-opt-in-firmware.sh
 873ad8a26db3333747b882eb9f6a385cb7f9c05d95ef26a3beb9ec130cb24d6d  hooks/installer/pre-pkgsel.d/88temporary-os-prober.sh
 fde996e76845076f996a29a564a6ea31061a98966c9ef0c718bca6497bf5a704  hooks/installer/pre-pkgsel.d/89temporary-unshare.sh
@@ -150,7 +150,7 @@ ca90aaa595a1a5c4da9321facd921c9d817b902f2ca5143f651529e8a0a6ed7b  hooks/target/e
 edbdf14c3009aa22e3c38d7502342bbaf1c560354cc0caba51f0b77f62276502  hooks/target/etc/apparmor.d/chatgpt
 a8e8fba190c12bd77dfaef16ea28dd52824bf899a7a695535b925e6ad9e51174  hooks/target/etc/apparmor.d/crun
 ee1e91c7a83bf06af1f57b474c2f36fdbb20d8931b01b423a347418f028eaf5b  hooks/target/etc/apparmor.d/desktop-utilities
-e56029b76e4f22bc92397dd2400271c4969019b2c9b19e2310fd318c8462423f  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
+8bc6462bf9886638a6d99d9668fe7823ccd0d737168e1fa284301b0e2043377e  hooks/target/etc/apparmor.d/desktop-wrappers.tmpl
 693dfdea71e1964fa9e701f11588d2c3a7e53af4297bda99facf207313f21a20  hooks/target/etc/apparmor.d/document-applications
 97c8db71a2720a7f8417500bfa373b429c14a8b41b3b4d4097d31fa13df6d006  hooks/target/etc/apparmor.d/hardware-tuning
 c9f847647672b94ec217c90960e7da41463be3d3e8eb3f1a87ab5e4942c42600  hooks/target/etc/apparmor.d/labwc-session
@@ -1026,7 +1026,7 @@ cb226b8879459786069cbe2b5589146b5e4ff9ca77fcde5a5f6d761974c0fd45  hooks/target/u
 7b5ee63ef6e135290cd5a3c534f7070b22e132fcc462dd3e1a786d8acde94925  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Sleek.pm
 1d1f25875570092a3c487831f33d7c16a5b24e83ac6de2e1d7083ca2fc206cc5  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/State.pm
 011198a24e3df9d2b531096dd4ac14fc33a76c9c1dfcb84f16078ca6c288a3b2  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Tomat.pm
-8d52a437f282fb987df5b5b14ab8ba2e802bc147405a156e0158ac1649e0ed92  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Tuta.pm
+43589ac121f53bd86b127d18007606411ec48f8cab526993ce2c7c098689e990  hooks/target/usr/local/lib/perl5/site_perl/apt-repo-local/APTRepoLocal/Servicing/Tuta.pm
 aa843a0ff5952b37fe32ed42aab49d05cd0e41195a6c2a63707dc44ede5ea681  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Actions.pm
 d0ebf567dc318741446cdf6fff2c50e848d71479690887946701f6515f80b7a6  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/CLI.pm
 3886ccec95bf95a0aaa8aaa8145ccb8dd6a0e04d5ba1813b6e5ae435254e65dc  hooks/target/usr/local/lib/perl5/site_perl/digital-assets/DigitalAssets/Catalog.pm
@@ -1268,7 +1268,7 @@ c1b851375c0b003c7be09296d47f8d5eeedfb741f1342a558bd82941a0094bb6  hooks/target/u
 162316c49cfa3c959726d4c4e2077bbf93156faa13305fc07bf140047affef0b  hooks/target/usr/local/libexec/timeshift-snapshot
 2757fa022fc69e2d3e859076fac7685584bcd6753ea43e2cb284222101bbb5f8  hooks/target/usr/local/libexec/tmpfs-pre-clean.tmpl
 92257c15f9ba615b685d23aeeda68845cf04a8e16bc28089db860df931a1fffe  hooks/target/usr/local/libexec/tpm2-policy-check
-b1477197b723078c18bb4bff2ec8d865c77b7c79c8a817be02255f4f9c842bce  hooks/target/usr/local/libexec/tuta-extract
+374ac0e1a7016c580b34cf0ef3a0b077ec9b6a3a1267aa314c08f66bd896714e  hooks/target/usr/local/libexec/tuta-extract
 525d329abf18eb2325756af616d6248e4bc26e250a0895226e1a244df51240b2  hooks/target/usr/local/libexec/unattended-upgrades-notify
 b2c07351f530cb2b89662fa80a4234685e4809c918715a2f0365ced88dd8a35b  hooks/target/usr/local/libexec/whisper-cli-default-model
 fab3b55e8b74e2fd4636007c9595a8cc2c2343a5b7d0d7721e3d2a5b3cd0c2c3  hooks/target/usr/local/libexec/whisper-record-timed
@@ -1511,7 +1511,7 @@ e9ba40e90bee8a14c4f3f88e61be76b6aa3df7d8b4a677032564fea9a7353b9c  scripts/late/n
 64f865a0608a76533711ffe5dd7d468dca318bfbbe1bdd370311dada2ce5a4b4  scripts/late/podman.sh
 ec6bce801d96852c308e35a177fc439f80b5a70db021d150b8cc8c44ed183ab3  scripts/late/qemu.sh
 c841f396af0913db51a481900a97b92ebedc9f17e11680cf6b2941237cdf3a25  scripts/late/security.sh
-4a29607a01e9c00a81cc47775d237b8ec69600679532e0e886ce9da914eeeeb9  scripts/late/software.sh.tmpl
+db03a6e10d027fb6a18faa2fd2ba262eaf2e68b16e82c671026766770d9c2d16  scripts/late/software.sh.tmpl
 f101b124fe56049a61822263fd64c4c74efbc181de8a2900b2e32748925adf64  scripts/late/ssh/clone.conf.tmpl
 faa9af215ec6cf661dec19aa3915e2e821c1f3993a184fdd582eb03ac207d340  scripts/late/ssh/ssh-install-askpass
 0c42f27d4a5a3f46282f228f3ea9a5ba6db8321530ee29a46fd0056718ec72cd  scripts/late/ssh/ssh-install.py

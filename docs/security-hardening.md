@@ -150,6 +150,9 @@ Both Tuta installer and updater use `/usr/local/libexec/tuta-extract`. A verifie
 AppImage is **never executed as root to extract itself**. The helper snapshots the
 artifact, verifies SHA-256, bounds/parses Type-2 ELF/SquashFS metadata, and runs the
 packaged `unsquashfs` inside private filesystem/PID/network/IPC/UTS namespaces.
+The installer invokes this step through the shared target executor so d-i mounts
+`/proc` before bubblewrap starts. The helper requires procfs for its dedicated-uid
+process check and reports bounded child output on extraction failure.
 Its dedicated locked `tuta-extract` identity is provisioned by packaged
 `systemd-sysusers`; it is not the shared `nobody` principal. Extraction is serialized,
 preexisting processes under that identity are rejected, and inherited groups,
@@ -157,8 +160,9 @@ capabilities, privilege gains and host credential/home access are removed.
 
 Limits cover input/output sizes, entry counts, CPU, address space, file size,
 descriptors and wall-clock execution. The output expansion watchdog is not a hard
-filesystem quota. Escaping links, hardlinks, special files, unexpected AppRun
-metadata and hash mismatches fail before publication. Files become root-owned with
+filesystem quota. Escaping links, hardlinks, special files, invalid AppRun targets
+and hash mismatches fail before publication. Relative AppRun links must resolve to
+a regular executable within the extracted tree. Files become root-owned with
 set-id/write bits removed. Existing caller generation backup/rollback remains in
 place. Parser namespace/tool failure is fatal, not permission to run the AppImage.
 The updater makes a mandatory transition into a dedicated extractor policy, with

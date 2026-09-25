@@ -4378,6 +4378,7 @@ profile tuta-extract /usr/local/libexec/tuta-extract flags=(attach_disconnected)
     #include <abstractions/bwrap-common>
 
     signal (receive) peer=tuta-extract,
+    / r,
     /usr/bin/{bwrap,setpriv,unsquashfs} rix,
     /{bin,sbin,lib,lib64,usr}/ r,
     /etc/ r,

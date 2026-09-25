@@ -69,7 +69,12 @@ write_rsyslog_spool_fstab
                     if enabled == 'false':
                         self.assertEqual(result.stdout, '')
                     else:
-                        self.assertEqual(result.stdout, 'tmpfs /var/spool/rsyslog tmpfs rw,nodev,nosuid,noexec,mode=0700,huge=within_size,size=256M,x-systemd.requires-mounts-for=/var/spool 0 0\n')
+                        size = re.search(r'^SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB="(\d+)"$',
+                                         profile.read_text(), re.M).group(1)
+                        self.assertEqual(result.stdout,
+                                         'tmpfs /var/spool/rsyslog tmpfs rw,nodev,nosuid,noexec,'
+                                         f'mode=0700,huge=within_size,size={size}M,'
+                                         'x-systemd.requires-mounts-for=/var/spool 0 0\n')
         for family in ('btrfs', 'f2fs'):
             self.assertIn('write_rsyslog_spool_fstab', (SEED/f'scripts/late/{family}-family.sh').read_text())
 
@@ -84,6 +89,128 @@ SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB='{size}'
 validate_tmpfs_policy_env
 ''')
             self.assertNotEqual(result.returncode, 0, size)
+
+    def test_partman_fstab_uses_selected_spool_policy_for_both_families(self):
+        source = (SEED/'hooks/installer/partman/finish.d/99-storage-layout.sh').read_text()
+        def definitions(name):
+            blocks = []
+            offset = 0
+            while f'{name}() {{' in source[offset:]:
+                start = source.index(f'{name}() {{', offset)
+                offset = source.index('\n}\n', start) + 3
+                blocks.append(source[start:offset])
+            self.assertEqual(len(blocks), 2)
+            return blocks
+
+        emitters = definitions('emit_fstab_entries')
+        filters = definitions('emit_fstab_entries_without_tmpfs')
+        writers = definitions('write_fstab_file')
+
+        for profile in sorted((SEED/'hosts/profiles').glob('*.env')):
+            family = profile.name.split('-', 1)[0]
+            emitter = emitters[0 if family == 'btrfs' else 1]
+            for enabled in ('true', 'false'):
+                with self.subTest(profile=profile.name, enabled=enabled):
+                    with tempfile.TemporaryDirectory() as directory:
+                        target_fstab = Path(directory)/'fstab'
+                        partman_cache = Path(directory)/'partman-fstab'
+                        result = self.shell(f'''
+. '{profile}'
+. '{SEED}/hosts/installer/runtime.env'
+. '{SEED}/hosts/installer/layout.env'
+. '{SEED}/hosts/installer/{family}.env'
+set -e
+TMPFS_VAR_SPOOL_RSYSLOG={enabled}
+layout_bool_is_true() {{ case "$1" in true) return 0;; *) return 1;; esac; }}
+layout_syncthing_home_enabled() {{ return 1; }}
+device_source() {{ printf '/dev/test\\n'; }}
+fstab_entry() {{ printf '%s %s %s %s %s %s\\n' "$@"; }}
+prep_dir() {{ mkdir -p "$1"; }}
+{emitter}
+{filters[0 if family == 'btrfs' else 1]}
+{writers[0 if family == 'btrfs' else 1]}
+write_fstab_file '{target_fstab}' 1 1
+write_fstab_file '{partman_cache}' 0 0
+''')
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        fstab_text = target_fstab.read_text()
+                        cache_text = partman_cache.read_text()
+                    rows = [line.split() for line in fstab_text.splitlines()
+                            if line and not line.startswith('#')]
+                    spool = [row for row in rows if len(row) >= 3 and row[1] == '/var/spool/rsyslog']
+                    self.assertEqual(len(spool), int(enabled == 'true'))
+                    if spool:
+                        self.assertEqual(spool[0][0:3], ['tmpfs', '/var/spool/rsyslog', 'tmpfs'])
+                        self.assertIn('mode=0700', spool[0][3])
+                        self.assertIn('x-systemd.requires-mounts-for=/var/spool', spool[0][3])
+                    backing = '/var/spool' if family == 'btrfs' else '/'
+                    self.assertEqual(len([row for row in rows if len(row) >= 3
+                                          and row[1] == backing and row[2] == family]), 1)
+                    self.assertNotIn('/var/spool/rsyslog', cache_text)
+                    self.assertIn(f'/dev/test {backing} {family} ', cache_text)
+
+    def test_partman_validates_spool_policy_before_writing_fstab(self):
+        source = SEED/'hooks/installer/partman/finish.d/99-storage-layout.sh'
+        functions = '\n'.join(shell_function(source, name) for name in
+                              ('layout_bool_is_true', 'layout_bool_is_false',
+                               'require_layout_bool', 'validate_tmpfs_policy_config'))
+        profile = SEED/'hosts/profiles/btrfs-de.env'
+        for override, accepted in (('', True),
+                                   ('TMPFS_VAR_SPOOL_RSYSLOG=false', True),
+                                   ('TMPFS_VAR_SPOOL_RSYSLOG=invalid', False),
+                                   ('SIZE_TMPFS_VAR_SPOOL_RSYSLOG_MIB=01', False),
+                                   ('DIR_VAR_SPOOL_RSYSLOG=/unmanaged', False)):
+            with self.subTest(override=override):
+                result = self.shell(f'''
+. '{profile}'
+. '{SEED}/hosts/installer/runtime.env'
+. '{SEED}/hosts/installer/layout.env'
+{override}
+fatal() {{ printf '%s\\n' "$*" >&2; exit 91; }}
+{functions}
+validate_tmpfs_policy_config
+''')
+                self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+    def test_finish_normalizer_accepts_only_the_selected_spool_mount(self):
+        source = SEED/'hooks/installer/finish-install.d/99-normalize-finish'
+        functions = '\n'.join(shell_function(source, name) for name in
+                              ('managed_tmpfs_mount_mode', 'normalize_target_fstab_tmpfs_dirs'))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root/'etc').mkdir()
+            options = ('rw,nodev,nosuid,noexec,mode=0700,huge=within_size,'
+                       'size=256M,x-systemd.requires-mounts-for=/var/spool')
+            spool = f'tmpfs /var/spool/rsyslog tmpfs {options} 0 0\n'
+            cases = ((True, spool, True), (False, '', True),
+                     (True, '', False), (False, spool, False),
+                     (True, spool + spool, False),
+                     (True, spool.replace('mode=0700', 'mode=0755'), False),
+                     (True, 'tmpfs /unmanaged tmpfs defaults 0 0\n', False))
+            for enabled, extra, accepted in cases:
+                with self.subTest(enabled=enabled, extra=extra, accepted=accepted):
+                    (root/'etc/fstab').write_text('tmpfs /tmp tmpfs defaults 0 0\n' + extra)
+                    result = self.shell(f'''
+. '{SEED}/hosts/profiles/btrfs-de.env'
+. '{SEED}/hosts/installer/runtime.env'
+. '{SEED}/hosts/installer/layout.env'
+set -eu
+TARGET='{root}'
+TMPFS_VAR_SPOOL_RSYSLOG={'true' if enabled else 'false'}
+log() {{ printf '%s\\n' "$*" >&2; }}
+bool_is_true() {{ [ "$1" = true ]; }}
+require_absolute_path() {{ case "$1" in /*) :;; *) exit 90;; esac; }}
+target_path_for() {{ printf '%s%s\\n' "$TARGET" "$1"; }}
+ensure_empty_dir_mode() {{ printf '%s %s\\n' "$2" "$3"; }}
+{functions}
+normalize_target_fstab_tmpfs_dirs
+''')
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+                    if accepted and enabled:
+                        self.assertIn('target fstab tmpfs mountpoint /var/spool/rsyslog 0700',
+                                      result.stdout)
+                    if accepted and not enabled:
+                        self.assertNotIn('/var/spool/rsyslog 0700', result.stdout)
 
     def test_actual_initramfs_function_rejects_current_and_obsolete_secret(self):
         function = shell_function(SEED/'scripts/late/crypto.sh', 'crypto_verify_initramfs')
@@ -259,6 +386,27 @@ class TutaExtraction(unittest.TestCase):
         with tempfile.TemporaryFile() as stream:
             stream.write(self.image()); stream.seek(0)
             self.assertEqual(self.m.squashfs_offset(stream),128)
+        # A padded runtime is still a Type-2 AppImage; do not execute it to
+        # discover the payload offset or mistake a magic string for a superblock.
+        padded = self.image()[:128] + b'hsqs' + bytes(124) + self.image()[128:]
+        with tempfile.TemporaryFile() as stream:
+            stream.write(padded); stream.seek(0)
+            self.assertEqual(self.m.squashfs_offset(stream),256)
+        stripped = bytearray(64)
+        stripped[:6]=b'\x7fELF\x02\x01'; stripped[8:11]=b'AI\x02'
+        struct.pack_into('<H',stripped,18,62)
+        struct.pack_into('<Q',stripped,32,64)
+        struct.pack_into('<HH',stripped,54,56,1)
+        program = bytearray(56)
+        struct.pack_into('<Q',program,8,64)
+        struct.pack_into('<Q',program,32,56)
+        with tempfile.TemporaryFile() as stream:
+            stream.write(stripped + program + self.image()[128:]); stream.seek(0)
+            self.assertEqual(self.m.squashfs_offset(stream),120)
+        with mock.patch.object(self.m, 'MAX_RUNTIME_TRAILER', 64):
+            with tempfile.TemporaryFile() as stream:
+                stream.write(padded); stream.seek(0)
+                with self.assertRaises(ValueError): self.m.squashfs_offset(stream)
         for bad in (b'#!/bin/sh\n', self.image()[:100], self.image().replace(b'hsqs',b'bad!')):
             with tempfile.TemporaryFile() as stream:
                 stream.write(bad); stream.seek(0)
@@ -268,20 +416,64 @@ class TutaExtraction(unittest.TestCase):
         argv=self.m.sandbox_command(Path('/private/image'),Path('/private/output'),128,123,124)
         for value in ('--unshare-pid','--unshare-net','--unshare-ipc','--no-new-privs','--bounding-set=-all','--reuid=123','--regid=124','/usr/bin/unsquashfs'):
             self.assertIn(value,argv)
+        # bwrap changes directory before setpriv changes uid. The private
+        # /output mount must only be entered by the parser after that switch.
+        self.assertEqual(argv[argv.index('--chdir') + 1], '/')
+        self.assertEqual(argv[argv.index('--bind') + 1:argv.index('--bind') + 3],
+                         ['/private/output', '/output'])
+        self.assertEqual(argv[argv.index('-dest') + 1], '/output/tree')
         self.assertNotIn('--appimage-extract',argv);self.assertNotIn('/root',argv);self.assertNotIn('/home',argv)
         self.assertIn('tuta-extract', (SEED/'hooks/target/usr/lib/sysusers.d/tuta-extract.conf').read_text())
 
+    def test_failure_reports_the_rejected_condition(self):
+        result=subprocess.run([sys.executable,'-I',str(LIBEXEC/'tuta-extract')],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('ValueError: usage: tuta-extract ARTIFACT NEW_DESTINATION SHA256',result.stderr)
+
+    def test_parser_reports_child_failure_without_blocking_on_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            command = [
+                sys.executable, '-I', '-c',
+                'import os,sys; os.write(1,b"x"*131072); '
+                'os.write(2,b"bwrap: failed to open /proc\\n"); sys.exit(42)',
+            ]
+            failure = r'isolated packaged extractor exited 42: .*bwrap: failed to open /proc'
+            with self.assertRaisesRegex(ValueError, failure):
+                self.m.run_parser(command, Path(directory))
+
+    def test_extraction_requires_procfs_and_the_installer_target_executor(self):
+        with mock.patch.object(self.m.Path,'read_text',side_effect=FileNotFoundError):
+            with self.assertRaisesRegex(ValueError,'procfs is required'):
+                self.m.extractor_identity()
+        source = (SEED/'scripts/late/software.sh.tmpl').read_text()
+        begin = source.index("# d-i's target executor mounts /proc")
+        tuta = source[begin:source.index('tuta_icon_source=', begin)]
+        self.assertIn('INSTALLER_TARGET_DIR="$target_root" target_exec /bin/sh -eu -c',tuta)
+        self.assertNotIn('chroot "$target_root" /bin/sh -eu -c',tuta)
+
     @unittest.skipUnless(os.geteuid()==0,'root publication metadata fixture')
     def test_tree_modes_and_escape_special_hardlink_rejection(self):
-        for attack in ('none','escape','fifo','hardlink'):
+        for attack in ('none','internal-apprun-link','escape','fifo','hardlink','escape-apprun'):
             with tempfile.TemporaryDirectory() as directory:
-                root=Path(directory);app=root/'AppRun';app.write_bytes(b'fixture');app.chmod(0o6755)
+                root=Path(directory)/'extracted';root.mkdir()
+                app=root/'AppRun';app.write_bytes(b'fixture');app.chmod(0o6755)
                 if attack=='escape':(root/'bad').symlink_to('/etc/shadow')
                 if attack=='fifo':os.mkfifo(root/'bad')
                 if attack=='hardlink':os.link(app,root/'bad')
-                if attack=='none':
+                if attack=='internal-apprun-link':
+                    (root/'bin').mkdir()
+                    app.rename(root/'bin/tuta')
+                    app.symlink_to('bin/tuta')
+                if attack=='escape-apprun':
+                    app.unlink();app.symlink_to('/etc/shadow')
+                if attack in ('none','internal-apprun-link'):
                     self.m.normalize_tree(root)
                     self.assertEqual(stat.S_IMODE(app.stat().st_mode),0o755)
+                    if attack=='internal-apprun-link':
+                        published=Path(directory)/'published'
+                        shutil.copytree(root,published,symlinks=True)
+                        self.assertTrue((published/'AppRun').is_file())
+                        self.assertTrue(os.access(published/'AppRun',os.X_OK))
                 else:
                     with self.assertRaises(ValueError):self.m.normalize_tree(root)
 
@@ -318,7 +510,8 @@ class TutaExtraction(unittest.TestCase):
         self.assertIn('owner /**.ovpn r,',reader)
         self.assertIn('/run/network-openvpn-*/*.ovpn rw,',reader)
         self.assertIn('/usr/bin/bwrap rCx -> unpack,',extract)
-        self.assertIn('/usr/bin/{bwrap,setpriv,unsquashfs} rix,',extract)
+        self.assertIn('  profile unpack flags=(attach_disconnected, mediate_deleted) {',extract)
+        self.assertIn('    / r,\n    /usr/bin/{bwrap,setpriv,unsquashfs} rix,',extract)
         self.assertIn('/output/{,**} rwkl,',extract)
         self.assertNotRegex(extract,r'AppImage.*[puPU]?[ix],')
         self.assertNotIn('flags=(unconfined',extract)
