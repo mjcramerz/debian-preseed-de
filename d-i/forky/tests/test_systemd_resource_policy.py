@@ -467,7 +467,7 @@ render_target_resource_asset unused /{relative} 0644
                     actual = payload_read_text(target / 'etc/systemd/journald.conf.d/10-storage.conf')
                     self.assertIn('SystemMaxUse=512M' if values else 'SystemMaxUse=1G', actual)
                     self.assertFalse(TOKEN.search(actual))
-                    self.assertIn('Seal='+('no' if tmpfs == 'true' else 'yes'), actual)
+                    self.assertIn('Seal=yes', actual)
                     if not values:
                         fixture = SEED / 'tests/fixtures/journal-storage-original.conf'
                         def settings(text):
@@ -475,7 +475,7 @@ render_target_resource_asset unused /{relative} 0644
                                         if '=' in line and not line.lstrip().startswith('#'))
                         expected = settings(payload_read_text(fixture))
                         expected['ForwardToSyslog'] = 'yes'  # single native imuxsock transport
-                        expected['Seal'] = 'no' if tmpfs == 'true' else 'yes'
+                        expected['Seal'] = 'yes'
                         self.assertEqual(settings(actual), expected)
 
     def test_deployment_order_and_scope_lifecycle_are_preserved(self):

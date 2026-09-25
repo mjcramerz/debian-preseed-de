@@ -360,15 +360,15 @@ DEVOPS_CODEX_REPOSITORY_BRANCH=mcr/main
 There is no `DEVOPS_CODEX_REPOSITORY_COMMIT` input. The private installer agent
 performs a full-history, single-branch SSH clone and proves the symbolic branch
 is `mcr/main` tracking `origin/mcr/main`. The main `.git/HEAD`, repository history
-and branch tracking are retained in `/data/codex/home`; no detached checkout or
-SHA pin is used. The pre-existing isolated `memories/.git` guard is unrelated to
-the main repository's `.git/HEAD` and remains in place.
+and branch tracking are retained in `/data/codex/usr`; no detached checkout or
+SHA pin is used. `home/memories` is account-owned runtime state; its `.git`
+metadata, if any, is neither synthesized nor required by the wrapper.
 
 The existing Codex binary/version/archive verification, publication checks,
 ownership and runtime sandbox layout remain. Moving-branch deployment is
 intentionally not byte-for-byte reproducible across different upstream commits.
-The existing-state validator still refuses unexpected immutable home content
-rather than silently destroying a used Codex home during an installer rerun.
+The existing-state validator still refuses unexpected immutable home content,
+while allowing account-owned `home/config.toml` to change after login.
 No automatic login-time pull/reset is introduced.
 
 The host can use SSH for provisioning and GitOps, but the Codex wrapper continues

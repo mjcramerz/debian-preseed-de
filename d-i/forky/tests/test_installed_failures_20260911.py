@@ -22,6 +22,7 @@ import tempfile
 import types
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 FORKY = Path(__file__).resolve().parents[1]
 TARGET = FORKY / 'hooks/target'
@@ -222,6 +223,30 @@ ensure_target_asset_parent /private/subdir/data
             self.assertIn('ConditionEnvironment=LABWC_SESSION_OWNER=desktop', text)
             self.assertIn('PartOf=labwc-session.target', text)
         self.assertIn('GDK_DEBUG=no-portals', payload_read_text(TARGET / 'usr/local/bin/labwc-greeter-session.tmpl'))
+
+    def test_greeter_bus_policy_blocks_portal_activation_without_affecting_desktop_user(self):
+        template = payload_read_text(
+            TARGET / 'etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf.tmpl')
+        self.assertEqual(template.count('__INSTALLER_LABWC_GREETER_USER__'), 1)
+        root = ET.fromstring(template.replace('__INSTALLER_LABWC_GREETER_USER__', '_greetd'))
+        self.assertEqual(root.tag, 'busconfig')
+        self.assertEqual(len(root), 1)
+        policy = root[0]
+        self.assertEqual(policy.tag, 'policy')
+        self.assertEqual(policy.attrib, {'user': '_greetd'})
+        self.assertIn({'send_destination': 'org.freedesktop.portal.Desktop'},
+                      [rule.attrib for rule in policy.findall('deny')])
+        # Unowned names cannot satisfy send_destination. The path and interface
+        # rules match the outgoing request before activation of the service.
+        self.assertIn({'send_path': '/org/freedesktop/portal/desktop'},
+                      [rule.attrib for rule in policy.findall('deny')])
+        self.assertIn({'send_interface': 'org.freedesktop.portal.Settings'},
+                      [rule.attrib for rule in policy.findall('deny')])
+        staging = payload_read_text(FORKY / 'scripts/desktop/components/target-assets.sh')
+        self.assertIn('/etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf 0644', staging)
+        validation = payload_read_text(FORKY / 'scripts/firstboot/04-validation.sh.tmpl')
+        self.assertIn('desktop-greeter-portal-bus-policy', validation)
+        self.assertIn('send_path=\\\"/org/freedesktop/portal/desktop\\\"', validation)
 
     def test_bitwarden_managed_policy_is_wired_without_transformer(self):
         software = payload_read_text(FORKY / 'scripts/late/software.sh')

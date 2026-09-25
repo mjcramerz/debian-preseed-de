@@ -256,6 +256,26 @@ class CodexTests(unittest.TestCase):
     def setUp(self):
         self.codex = load_script(SHARED / 'data/codex/lib/codex', 'tested_codex')
 
+    def test_memories_git_metadata_is_not_a_wrapper_precondition(self):
+        c = self.codex
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'usr'
+            root.mkdir(mode=0o750)
+            home = root / 'home'
+            memories = home / 'memories'
+            memories.mkdir(parents=True)
+            home.chmod(0o2770)
+            memories.chmod(0o2770)
+            with mock.patch.object(c, 'CODEX_USER_ROOT', str(root)), \
+                 mock.patch.object(c, 'CODEX_RUNTIME_HOME', str(home)), \
+                 mock.patch.object(c, '_group_name', return_value='devops'):
+                c.codex_prepare_memory_area()
+                (memories / '.git').mkdir()
+                c.codex_prepare_memory_area()
+                memories.chmod(0o777)
+                with self.assertRaises(c.CodexError):
+                    c.codex_prepare_memory_area()
+
     def test_internal_function_references_resolve(self):
         tree = ast.parse(render_theme_defaults(payload_read_text(Path(self.codex.__file__))))
         defined = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.ClassDef))}

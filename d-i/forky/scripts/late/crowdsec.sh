@@ -255,6 +255,10 @@ crowdsec_stage_target_asset \
   /etc/crowdsec/acquis.d/21-auditd.yaml \
   0644
 crowdsec_remove_target_asset /etc/crowdsec/acquis.d/22-server-syslog.yaml
+# The packaged setup acquisitions target files this managed layout does not
+# create; retain only the explicit SSH and auditd sources above.
+crowdsec_remove_target_asset /etc/crowdsec/acquis.d/setup.auditd.yaml
+crowdsec_remove_target_asset /etc/crowdsec/acquis.d/setup.linux.yaml
 crowdsec_stage_logging_overlay \
   "$(installer_repo_join_var DIR_HOOKS_TARGET etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local)" \
   /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local bouncer

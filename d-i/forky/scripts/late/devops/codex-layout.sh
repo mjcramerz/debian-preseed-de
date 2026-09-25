@@ -113,7 +113,7 @@ devops_apply_codex_tmpfiles() {
       "$codex_tmpfiles_policy" || return $?
 
   # Verify the sticky shared root, account-owned state, directly installed
-  # root-owned executable assets, and writable account-owned memories marker.
+  # root-owned executable assets and writable account-owned memory directory.
   # shellcheck disable=SC2016
   run_in_target "verify persistent Codex ownership policy" /bin/sh -eu -c '
 codex_fatal() {
@@ -211,7 +211,6 @@ unset misconfigured_repository_git_entry
 codex_verify_stat "0:0:755" "$user_root/etc"
 codex_verify_stat "${account_uid}:${devops_gid}:2770" "$home_path"
 codex_verify_stat "${account_uid}:${devops_gid}:2770" "$home_path/memories"
-codex_verify_stat "${account_uid}:${devops_gid}:660" "$home_path/memories/.git"
 for shared_home_path in sessions shell_snapshots archived_sessions; do
   codex_verify_stat \
     "${account_uid}:${devops_gid}:2770" \
@@ -264,7 +263,6 @@ for writable_path in \
   "$repository_git_path" \
   "$home_path" \
   "$home_path/memories" \
-  "$home_path/memories/.git" \
   "$log_dir" \
   "$host_log_dir" \
   "$sqlite_home" \
@@ -305,4 +303,3 @@ fi
     "$DEVOPS_CODEX_HOME" \
     "$devops_codex_host_log_dir"
 }
-

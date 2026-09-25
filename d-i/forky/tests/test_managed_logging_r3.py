@@ -307,12 +307,16 @@ class RoutingContractTests(unittest.TestCase):
             if path.is_file():
                 text = logging_text(path.read_text())
                 active = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
-                self.assertNotRegex(active, r'\bimfile\b|/(?:vendor|runtime)\.log')
+                if path.name == '30-apparmor.conf.tmpl':
+                    self.assertIn('File="/var/log/managed/security/audit/auditd.log"', active)
+                    self.assertEqual(active.count('module(load="imfile")'), 1)
+                else:
+                    self.assertNotRegex(active, r'\bimfile\b|/(?:vendor|runtime)\.log')
         for path in TARGET.glob('etc/audit/*/auditd.conf.tmpl'):
             text = logging_text(path.read_text())
-            self.assertIn('log_file = /var/log/managed/system/audit/auditd.log', text)
+            self.assertIn('log_file = /var/log/managed/security/audit/auditd.log', text)
         plugin = payload_read_text(TARGET/'etc/audit/plugins.d/syslog.conf')
-        self.assertIn('active = yes',plugin)
+        self.assertIn('active = no',plugin)
 
     def test_protected_outputs_have_one_rotation_owner(self):
         configs = ''.join(logging_text(p.read_text()) for p in (TARGET/'etc/tmpfiles.d').glob('*') if p.is_file())

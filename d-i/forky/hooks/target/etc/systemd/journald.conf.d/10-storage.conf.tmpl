@@ -9,8 +9,8 @@
 [Journal]
 Storage=__SYSTEMD_JOURNAL_STORAGE__
 Compress=yes
-# RAM/volatile logs do not claim durable forward-secure sealing. Disk-backed
-# journals require journal-sealing.service and off-host verification-key export.
+# The dedicated /var/log/journal partition is persistent even if /var/log is
+# tmpfs. Volatile journal files cannot be sealed by systemd.
 Seal=__SYSTEMD_JOURNAL_SEAL__
 SplitMode=uid
 SyncIntervalSec=5m

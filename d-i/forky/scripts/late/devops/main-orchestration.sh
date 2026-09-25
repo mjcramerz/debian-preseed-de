@@ -387,9 +387,6 @@ unset codex_binary_dir_host codex_first_binary codex_unsafe_binary
   devops_fatal "Codex ownership tmpfiles policy is missing after installation"
 [ -r "${target_root}/etc/logrotate.d/codex" ] ||
   devops_fatal "Codex log rotation policy is missing after installation"
-[ -f "${target_root}${DEVOPS_CODEX_HOME}/memories/.git" ] &&
-  [ ! -L "${target_root}${DEVOPS_CODEX_HOME}/memories/.git" ] ||
-  devops_fatal "Codex memories .git guard is missing after installation"
 [ -x "${target_root}${DEVOPS_RUSTUP_BINARY_PATH}" ] ||
   devops_fatal "Rustup bootstrap is missing after installation"
 [ -x "${target_root}${DEVOPS_BAZELISK_BINARY_PATH}" ] ||

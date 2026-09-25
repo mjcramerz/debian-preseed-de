@@ -16,6 +16,7 @@ desktop_stage_session_repairs() {
   desktop_stage_role_asset usr/local/libexec/labwc-notification-send /usr/local/libexec/labwc-notification-send 0755
   desktop_stage_role_asset usr/local/libexec/labwc-configure-session-repairs /usr/local/libexec/labwc-configure-session-repairs 0755
   desktop_stage_role_asset etc/security/sudo-i.conf /etc/security/sudo-i.conf 0644
+  desktop_stage_role_asset etc/security/cron-session.conf /etc/security/cron-session.conf 0644
   desktop_stage_role_asset etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml /etc/skel-desktop/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml 0644
   run_in_target "build target keyboard hardware database" /usr/bin/systemd-hwdb --strict update
   run_in_target "configure managed session repairs" /usr/local/libexec/labwc-configure-session-repairs \
@@ -90,6 +91,7 @@ desktop_stage_target_assets() {
   desktop_render_labwc_environment_assets
   desktop_stage_role_asset etc/pam.d/greetd /etc/pam.d/greetd 0644
   desktop_stage_role_asset etc/pam.d/greetd-greeter /etc/pam.d/greetd-greeter 0644
+  desktop_stage_role_asset etc/security/greetd-greeter.conf /etc/security/greetd-greeter.conf 0644
   desktop_render_role_target_template \
     etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf.tmpl \
     /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf 0644 \
@@ -206,6 +208,7 @@ desktop_stage_target_assets() {
   fi
   desktop_stage_role_asset usr/local/libexec/labwc-session-check /usr/local/libexec/labwc-session-check 0755
   desktop_stage_role_asset usr/local/libexec/labwc-waybar-exec /usr/local/libexec/labwc-waybar-exec 0755
+  desktop_stage_role_asset usr/local/libexec/labwc-waybar-battery /usr/local/libexec/labwc-waybar-battery 0755
   desktop_stage_role_asset usr/local/libexec/labwc-panel-run /usr/local/libexec/labwc-panel-run 0755
   desktop_stage_role_asset usr/local/libexec/whisper-record-timed /usr/local/libexec/whisper-record-timed 0755
   desktop_stage_role_asset usr/local/libexec/labwc-swaybg /usr/local/libexec/labwc-swaybg 0755

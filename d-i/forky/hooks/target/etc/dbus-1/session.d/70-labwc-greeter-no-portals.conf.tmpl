@@ -1,9 +1,12 @@
 <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-BUS Bus Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
 <busconfig>
-  <!-- The login greeter has no desktop portal. Prevent GTK from activating
-       the desktop-only service on _greetd's bus; real users retain portals. -->
+  <!-- The login greeter has no desktop portal. Destination rules only match
+       an owned name; block requests to the portal object and Settings
+       interface before an unowned name can activate the desktop service. -->
   <policy user="__INSTALLER_LABWC_GREETER_USER__">
     <deny send_destination="org.freedesktop.portal.Desktop"/>
+    <deny send_path="/org/freedesktop/portal/desktop"/>
+    <deny send_interface="org.freedesktop.portal.Settings"/>
   </policy>
 </busconfig>

@@ -29,6 +29,9 @@ MUTABLE_FILES = frozenset({
 })
 # Codex creates this opaque state after user login; a fresh publication omits it.
 OPTIONAL_PRIVATE_FILES = {'home/auth.json': 0o600}
+# Codex can edit its own configuration after login. Its presence and contents
+# are account state, while its type, owner and permissions remain constrained.
+OPTIONAL_CONFIG_FILES = {'home/config.toml': frozenset({0o600, 0o640, 0o660})}
 
 
 class StateError(ValueError):
@@ -87,7 +90,7 @@ def snapshot(root: Path) -> dict[str, Entry]:
                     before = os.fstat(child)
                     if (info.st_dev, info.st_ino, info.st_nlink) != (before.st_dev, before.st_ino, before.st_nlink):
                         raise StateError('managed file changed during verification')
-                    if rel in OPTIONAL_PRIVATE_FILES:
+                    if rel in OPTIONAL_PRIVATE_FILES or rel in OPTIONAL_CONFIG_FILES:
                         initial_metadata = (
                             info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_gid,
                             info.st_nlink, info.st_size, info.st_mtime_ns, info.st_ctime_ns,
@@ -244,6 +247,11 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, branch: str,
                     (uid, gid, OPTIONAL_PRIVATE_FILES[name])):
                 raise StateError('optional authentication state has unsafe metadata')
             continue
+        if name in OPTIONAL_CONFIG_FILES:
+            if (entry.kind != 'file' or (entry.uid, entry.gid) != (uid, gid)
+                    or entry.mode not in OPTIONAL_CONFIG_FILES[name]):
+                raise StateError('Codex configuration has unsafe metadata')
+            continue
         if runtime_tree(name):
             if (entry.uid, entry.gid) != (uid, gid):
                 raise StateError('mutable state is owned by an unexpected account')
@@ -253,10 +261,8 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, branch: str,
                 pass
             else:
                 raise StateError('unsafe mutable state type or permissions')
-            if name == 'home/memories/.git' and entry.digest != hashlib.sha256(b'').hexdigest():
-                raise StateError('memories Git boundary marker was altered')
-            # Named root directories and boundary marker retain their exact policy.
-            if name in wanted and name in MUTABLE_TREES | {'home/memories/.git'}:
+            # Named runtime root directories retain their exact policy.
+            if name in wanted and name in MUTABLE_TREES:
                 if entry != wanted[name]:
                     raise StateError('mutable state root differs from policy')
             continue
@@ -269,7 +275,7 @@ def compare_trees(expected: Path, actual: Path, uid: int, gid: int, branch: str,
         elif entry != wanted[name]:
             raise StateError('immutable repository content or metadata differs from its verified checkout')
     for name in wanted:
-        if name == '.git' or name.startswith('.git/'):
+        if name == '.git' or name.startswith('.git/') or name in OPTIONAL_CONFIG_FILES:
             continue
         if name not in found:
             raise StateError('required repository or runtime path is missing')

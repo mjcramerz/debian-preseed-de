@@ -87,7 +87,7 @@ desktop_waybar_modules_left_json() {
 }
 
 desktop_waybar_modules_right_json() {
-  printf '"pulseaudio", "custom/backlight", "battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
+  printf '"pulseaudio", "custom/backlight", "custom/battery", "disk", "cpu", "memory", "tray", "group/quick-controls", "custom/notifications", "custom/lock", "custom/power"'
 }
 
 desktop_waybar_output_selectors_json() {
@@ -348,4 +348,3 @@ desktop_install_primary_account_calendar_stack() {
     "/target${vdirsyncer_state_root}"
   desktop_log "rendered_calendar_stack user=${ACCOUNT_USERNAME} vdirsyncer=${vdirsyncer_config} khal=${khal_config} todoman=${todoman_config}"
 }
-

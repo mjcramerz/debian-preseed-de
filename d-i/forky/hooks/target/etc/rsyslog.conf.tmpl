@@ -5,7 +5,8 @@
 # Socket forwarding has no replay after collector downtime. The host-selected
 # journal storage policy remains independent and retains structured records.
 
-global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k")
+global(maxMessageSize="__INSTALLER_LOG_RSYSLOG_MESSAGE_KIB__k"
+       compatibility.defaults.secure="strict")
 $WorkDirectory __INSTALLER_LOG_RSYSLOG_SPOOL_DIR__
 module(load="imuxsock" SysSock.Use="on"
        SysSock.Annotate="on" SysSock.ParseTrusted="on"

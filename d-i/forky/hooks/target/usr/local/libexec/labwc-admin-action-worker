@@ -506,9 +506,9 @@ class Worker:
                     props[key] = value
                 if set(props) != keys:
                     raise Error("incomplete greeter session properties")
-                if props["Class"] in interactive:
-                    raise Error("a greeter power request cannot bypass an interactive desktop")
-                if props["Class"] != "greeter":
+                if props["Class"] != "user-light":
+                    if props["Class"] in interactive:
+                        raise Error("a greeter power request cannot bypass an interactive desktop")
                     continue  # A user-manager/background session is not the greeter.
                 expected = {"User": str(self.uid), "Name": self.user, "Active": "yes",
                             "Remote": "no", "Service": "greetd-greeter"}

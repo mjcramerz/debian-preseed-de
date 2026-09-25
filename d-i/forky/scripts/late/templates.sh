@@ -403,9 +403,10 @@ systemd_journal_policy_map() (
     *) installer_fatal "SYSTEMD_JOURNAL_VOLATILE_ENABLE must be true or false"; exit 1 ;;
   esac
   printf 'SYSTEMD_JOURNAL_STORAGE=%s\n' "$journal_storage"
+  # /var/log/journal is a separate disk-backed ext4 mount even when its
+  # parent /var/log is tmpfs. Seal the actual persistent journal backend.
   case "${TMPFS_VAR_LOG-}" in
-    true) journal_seal=no ;;
-    false) [ "$journal_storage" = persistent ] && journal_seal=yes || journal_seal=no ;;
+    true|false) [ "$journal_storage" = persistent ] && journal_seal=yes || journal_seal=no ;;
     *) installer_fatal "TMPFS_VAR_LOG must be true or false"; exit 1 ;;
   esac
   printf 'SYSTEMD_JOURNAL_SEAL=%s\n' "$journal_seal"

@@ -402,7 +402,8 @@ class CodexStateTests(unittest.TestCase):
         for path, content, mode in [('.git/HEAD', 'ref: refs/heads/mcr/main\n', 0o640),
                 ('.git/config', '[core]\n bare = false\n[remote "origin"]\n url = '+self.url+'\n[branch "mcr/main"]\n remote = origin\n merge = refs/heads/mcr/main\n', 0o640),
                 ('home/config.toml', 'policy = "pinned"\n', 0o640),
-                ('home/history.jsonl', '', 0o660), ('home/memories/.git', '', 0o660)]:
+                ('home/README', 'versioned home file\n', 0o640),
+                ('home/history.jsonl', '', 0o660)]:
             p = self.expected / path; p.parent.mkdir(parents=True, exist_ok=True); p.write_text(content); p.chmod(mode)
         for p in [self.expected, *self.expected.rglob('*')]:
             if p.is_dir(): p.chmod(0o750)
@@ -424,6 +425,37 @@ class CodexStateTests(unittest.TestCase):
         session = self.actual / 'home/sessions/new.jsonl'; session.write_text('runtime'); session.chmod(0o660)
         self.compare(); self.compare()
 
+    def test_memories_do_not_require_a_git_marker_or_discard_a_real_repository(self):
+        self.compare()
+        nested = self.actual / 'home/memories/.git'
+        nested.mkdir(mode=0o2770)
+        nested.chmod(0o2770)
+        head = nested / 'HEAD'
+        head.write_text('ref: refs/heads/main\n')
+        head.chmod(0o660)
+        self.compare()
+
+    def test_codex_configuration_is_mutable_account_state(self):
+        config = self.actual / 'home/config.toml'
+        config.write_text('model = "configured after login"\n')
+        for mode in (0o600, 0o640, 0o660):
+            config.chmod(mode)
+            self.compare()
+        config.unlink()
+        self.compare()
+        config.write_text('model = "created by Codex"\n')
+        config.chmod(0o600)
+        (self.expected / 'home/config.toml').unlink()
+        self.compare()
+
+    def test_unsafe_codex_configuration_remains_rejected(self):
+        config = self.actual / 'home/config.toml'
+        config.chmod(0o666)
+        with self.assertRaises(self.mod.StateError): self.compare()
+        config.unlink()
+        config.symlink_to('/etc/shadow')
+        with self.assertRaises(self.mod.StateError): self.compare()
+
     def test_optional_auth_contents_are_opaque(self):
         auth = self.actual / 'home/auth.json'
         auth.write_bytes(b'\xffnot-installer-configuration\x00')
@@ -438,7 +470,7 @@ class CodexStateTests(unittest.TestCase):
         with self.assertRaises(self.mod.StateError): self.compare()
 
     def test_immutable_conflict_fails(self):
-        (self.actual / 'home/config.toml').write_text('tampered')
+        (self.actual / 'home/README').write_text('tampered')
         with self.assertRaises(self.mod.StateError): self.compare()
 
     def test_partial_unpublished_tree_fails_without_touching_existing(self):
@@ -493,6 +525,14 @@ class CodexStateTests(unittest.TestCase):
             devops,
         )
         self.assertNotIn('does not bind its auth credential over CODEX_HOME/auth.json', devops)
+
+    def test_installation_does_not_replace_or_require_memories_git_metadata(self):
+        tmpfiles = payload_read_text(ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl')
+        release = payload_read_text(ROOT / 'scripts/late/devops/codex-release.sh')
+        layout = payload_read_text(ROOT / 'scripts/late/devops/codex-layout.sh')
+        checks = payload_read_text(ROOT / 'scripts/late/devops/main-orchestration.sh')
+        for text in (tmpfiles, release, layout, checks):
+            self.assertNotIn('memories/.git', text)
 
     def test_missing_packages_tmpfiles_rule_regression(self):
         text = payload_read_text(ROOT / 'hooks/target/etc/tmpfiles.d/80-codex-storage.conf.tmpl')

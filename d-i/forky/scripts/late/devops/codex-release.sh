@@ -534,7 +534,6 @@ if [ ! -e "$candidate_memories_path" ]; then
 fi
 [ -d "$candidate_memories_path" ] && [ ! -L "$candidate_memories_path" ] ||
   codex_fatal "staged Codex memories path is missing or indirect"
-rm -rf -- "$candidate_memories_path/.git"
 chown -R "$account_user:devops" "$candidate_memories_path"
 find "$candidate_home_path" -xdev -type d -exec chmod a-s,g=u,o=,g+s -- {} +
 find "$candidate_home_path" -xdev -type f -exec chmod a-s,g=u,o= -- {} +
@@ -543,11 +542,6 @@ chown "$account_user:devops" \
   "$repository_staging" "$candidate_home_path" "$candidate_memories_path"
 codex_chmod_without_special_bits 0750 "$repository_staging"
 codex_chmod_group_shared "$candidate_home_path" "$candidate_memories_path"
-install -m 0660 -o "$account_user" -g devops /dev/null \
-  "$candidate_memories_path/.git"
-[ -f "$candidate_memories_path/.git" ] && \
-  [ ! -L "$candidate_memories_path/.git" ] ||
-  codex_fatal "staged Codex memories .git marker is not a direct regular file"
 
 # Stage the same policy that tmpfiles applies after publication. Previously the
 # publication omitted runtime links and changed modes only AFTER the commit.
@@ -722,4 +716,3 @@ printf "installed managed Codex %s at %s with wrapper %s\n" \
     "$devops_codex_archive_helper_path" \
     "$ACCOUNT_USERNAME"
 }
-

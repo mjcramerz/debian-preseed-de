@@ -32,7 +32,7 @@ def module():
 
 
 def session(**overrides):
-    values = dict(User='109', Name='greeter', Class='greeter', Active='yes',
+    values = dict(User='109', Name='greeter', Class='user-light', Active='yes',
                   Remote='no', Service='greetd-greeter', Leader='321')
     values.update(overrides)
     return '\n'.join(f'{key}={value}' for key, value in values.items()) + '\n'
@@ -71,7 +71,7 @@ class GreeterIdentityTests(unittest.TestCase):
 
     def test_remote_inactive_wrong_account_class_and_service_are_rejected(self):
         for changes in (dict(Remote='yes'), dict(Active='no'), dict(User='1000'),
-                        dict(Name='desktop'), dict(Class='user'), dict(Service='sshd'),
+                        dict(Name='desktop'), dict(Class='user'), dict(Class='greeter'), dict(Service='sshd'),
                         dict(Leader='0'), dict(Leader='-1'), dict(Leader='1;id')):
             with self.subTest(changes=changes):
                 self.properties = session(**changes)

@@ -208,9 +208,12 @@ def install(root: Path, uid: int, gid: int, environment: dict, vendors: list[str
             or [bar.get("name") for bar in data] != ["internal", "external"]):
         raise ValueError("Waybar configuration must contain the internal/external bars")
     for bar in data:
-        if not isinstance(bar.get("battery"), dict):
+        # New installs use the sysfs reader; preserve existing native modules
+        # when reconfiguring an older installation.
+        key = "custom/battery" if "custom/battery" in bar else "battery"
+        if not isinstance(bar.get(key), dict):
             raise ValueError("Waybar bar has no battery module")
-        bar["battery"]["on-click-right"] = CLICK
+        bar[key]["on-click-right"] = CLICK
     put(relative, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
     ensure_directory(root / "etc/systemd/system/multi-user.target.wants", root)
     enable(root, "sockets.target.wants", "hardware-tuning.socket")

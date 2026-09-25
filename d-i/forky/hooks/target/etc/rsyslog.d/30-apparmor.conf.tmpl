@@ -1,8 +1,10 @@
-# Native audit dispatch and early kernel events only. Preserve libapparmor text.
+# Consume only AppArmor records from auditd's authoritative file. The audit
+# syslog plugin is disabled so the full audit stream never enters journald.
+module(load="imfile")
 template(
   name="ManagedAppArmorAuditLine"
   type="string"
-  string="%msg:R,ERE,1,FIELD:^node=[^ ]+ (.*)$--end%\n"
+  string="%msg%\n"
 )
 
 template(
@@ -30,8 +32,28 @@ ruleset(name="managed_apparmor_log_writer") {
   )
 }
 
+ruleset(name="managed_apparmor_from_audit") {
+  if ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR") then {
+    call managed_apparmor_log_writer
+    if ($msg contains 'apparmor="DENIED"' or $msg contains "type=APPARMOR_DENIED") then {
+      action(type="omfile" file="/var/lib/labwc-notifications/security/apparmor.signal"
+             fileOwner="__INSTALLER_LOG_OWNER__" fileGroup="logreader"
+             fileCreateMode="__INSTALLER_LOG_FILE_MODE__"
+             dirOwner="__INSTALLER_LOG_OWNER__" dirGroup="logreader"
+             dirCreateMode="__INSTALLER_LOG_DIRECTORY_MODE__" createDirs="on"
+             template="ManagedAppArmorDesktopSignal"
+             rotation.sizeLimit="__INSTALLER_LOG_RSYSLOG_ROTATE_BYTES__"
+             rotation.sizeLimitCommand="/usr/local/libexec/rsyslog-size-rotate"
+             rotation.sizeLimitCommandPassFileName="on")
+    }
+  }
+}
+
+input(type="imfile" File="__INSTALLER_LOG_AUDIT_FILE__" Tag="managed-audit:"
+      Ruleset="managed_apparmor_from_audit" PersistStateInterval="1")
+
 if (
-  ($.managed_audit_dispatch == "on" or $inputname == "imklog") and
+  $inputname == "imklog" and
   ($msg contains "apparmor=" or $msg contains "type=1400" or $msg contains "type=APPARMOR")
 ) then {
   set $.managed_security_routed = "on";

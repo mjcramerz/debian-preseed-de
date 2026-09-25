@@ -366,10 +366,6 @@ def codex_memory_root() -> str:
     return f"{CODEX_RUNTIME_HOME}/memories"
 
 
-def codex_memory_git_guard() -> str:
-    return f"{codex_memory_root()}/.git"
-
-
 def _path_components_are_safe(value: str) -> bool:
     if not value.startswith("/") or value == "/":
         return False
@@ -1196,32 +1192,10 @@ def codex_prepare_repository_metadata() -> None:
     )
 
 
-def codex_prepare_memory_guard() -> None:
-    memory_root = codex_memory_root()
-    guard = codex_memory_git_guard()
+def codex_prepare_memory_area() -> None:
     codex_require_account_owned_directory("Codex repository root", CODEX_USER_ROOT)
     codex_require_devops_shared_account_directory("Codex home", CODEX_RUNTIME_HOME)
-    codex_require_devops_shared_account_directory("Codex memory directory", memory_root)
-    if os.path.islink(guard) or not os.path.isfile(guard):
-        codex_die("the account-owned memories .git marker is missing or indirect")
-    if os.path.realpath(guard) != guard:
-        codex_die("the memories .git marker must not traverse symlinks")
-    metadata = os.stat(guard, follow_symlinks=False)
-    actual_group = _group_name(metadata.st_gid)
-    actual_mode = stat.S_IMODE(metadata.st_mode)
-    if (
-        metadata.st_uid != os.getuid()
-        or actual_group != CODEX_DEVOPS_GROUP
-        or actual_mode != 0o660
-        or metadata.st_nlink != 1
-    ):
-        codex_die(
-            "the memories .git marker must remain a single-link regular file "
-            f"owned by the invoking account and group {CODEX_DEVOPS_GROUP} "
-            "with mode 0660"
-        )
-    if not _access(guard, os.R_OK | os.W_OK):
-        codex_die("the memories .git marker must remain readable and writable")
+    codex_require_devops_shared_account_directory("Codex memory directory", codex_memory_root())
 
 
 def codex_prepare_control_state() -> None:
@@ -2161,7 +2135,7 @@ def main(arguments: Sequence[str]) -> int:
     codex_require_devops_shared_account_directory("Codex log directory", CODEX_LOG_ROOT)
     codex_require_devops_shared_account_directory("Codex SQLite directory", CODEX_SQLITE_ROOT)
     codex_prepare_repository_metadata()
-    codex_prepare_memory_guard()
+    codex_prepare_memory_area()
     if not CODEX_USE_BWRAP:
         codex_warn("--no-bwrap explicitly disables host-identity and runtime mount isolation")
         _exec_raw_codex()

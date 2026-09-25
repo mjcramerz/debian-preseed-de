@@ -2,8 +2,7 @@
 # Managed by installer late_command.
 #
 # auditd is the authoritative audit-netlink consumer and native file writer.
-# audisp-syslog forwards live events; AppArmor tooling retains its relevant records.
-# There are no file-tail or copied-log inputs.
+# AppArmor tooling consumes selected events from the native auditd file.
 #
 local_events = yes
 write_logs = yes

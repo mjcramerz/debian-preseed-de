@@ -83,7 +83,7 @@ devops_stage_codex_app_server() {
     devops_fatal "Codex app-server backend does not wait for its private socket"
   grep -Fqx 'SuccessExitStatus=143 SIGTERM' "$service_tmp" ||
     devops_fatal "Codex app-server backend does not treat managed idle shutdown as successful"
-  grep -Fqx 'EnvironmentFile=/etc/codex/app-server.env' "$service_tmp" ||
+  grep -Fqx 'EnvironmentFile=-/etc/codex/app-server.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its non-secret environment policy"
   grep -Fqx 'LoadCredential=codex-mcp.env:/data/codex/credentials/mcp.env' "$service_tmp" ||
     devops_fatal "Codex app-server unit is missing its MCP credential environment"
@@ -254,4 +254,3 @@ devops_stage_codex_app_server() {
 
   rm -f -- "$environment_tmp" "$service_tmp" "$proxy_tmp" "$socket_tmp"
 }
-

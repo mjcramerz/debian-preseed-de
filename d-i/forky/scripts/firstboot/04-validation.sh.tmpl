@@ -91,6 +91,10 @@ check_command() {
   fi
 }
 
+# The required one-shot has already provisioned the on-disk FSS generation.
+# This also checks its state without exposing the off-host verification key.
+check_command journal-sealing-status /usr/local/libexec/journal-sealing --status
+
 bool_is_true() {
   case "${1:-}" in
     1|true|TRUE|yes|YES|on|ON) return 0 ;;
@@ -297,6 +301,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/systemd/user/pipewire-pulse.service.d/20-no-greeter.conf \
     /etc/pam.d/greetd \
     /etc/pam.d/greetd-greeter \
+    /etc/security/greetd-greeter.conf \
     /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf \
     /etc/pam.d/swaylock \
     /etc/greetd/config.toml \
@@ -483,6 +488,8 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
       [ -f "$file" ] && [ ! -L "$file" ]
       grep -Fqx "  <policy user=\"${LABWC_GREETER_USER}\">" "$file"
       grep -Fqx "    <deny send_destination=\"org.freedesktop.portal.Desktop\"/>" "$file"
+      grep -Fqx "    <deny send_path=\"/org/freedesktop/portal/desktop\"/>" "$file"
+      grep -Fqx "    <deny send_interface=\"org.freedesktop.portal.Settings\"/>" "$file"
     ' sh
   check_command desktop-wireplumber-user-conditions \
     /bin/sh -eu -c '
@@ -1005,8 +1012,9 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
   if grep -Eq '^auth[[:space:]]+required[[:space:]]+pam_permit\.so$' /etc/pam.d/greetd-greeter 2>/dev/null &&
      grep -Eq '^account[[:space:]]+required[[:space:]]+pam_permit\.so$' /etc/pam.d/greetd-greeter 2>/dev/null &&
      grep -q '^account  sufficient pam_usertype\.so issystem$' /etc/pam.d/systemd-user 2>/dev/null &&
-     grep -q 'pam_systemd\.so class=greeter type=wayland desktop=labwc' /etc/pam.d/greetd-greeter 2>/dev/null &&
-     ! grep -q 'pam_systemd\.so class=user-light' /etc/pam.d/greetd-greeter 2>/dev/null &&
+     grep -q 'pam_systemd\.so class=user-light type=wayland desktop=labwc' /etc/pam.d/greetd-greeter 2>/dev/null &&
+     grep -Fxq 'XDG_SESSION_CLASS DEFAULT=user-light OVERRIDE=user-light' /etc/security/greetd-greeter.conf 2>/dev/null &&
+     grep -Fq 'conffile=/etc/security/greetd-greeter.conf' /etc/pam.d/greetd-greeter 2>/dev/null &&
      ! grep -Eq '^@include common-(auth|account)$|pam_nologin\.so' /etc/pam.d/greetd-greeter 2>/dev/null; then
     record "PASS desktop-greeter-pam-session"
   else
@@ -1055,6 +1063,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
      grep -q '^export LABWC_UPDATE_ACTIVATION_ENV=0$' /usr/local/bin/labwc-greeter-session 2>/dev/null &&
      grep -q '^export GTK_USE_PORTAL=0$' /usr/local/bin/labwc-greeter-session 2>/dev/null &&
      grep -q '^export GIO_USE_PORTALS=0$' /usr/local/bin/labwc-greeter-session 2>/dev/null &&
+     grep -Fq 'export DBUS_SESSION_BUS_ADDRESS="unix:path=${greeter_session_root}/no-session-bus"' /usr/local/bin/labwc-greeter-session 2>/dev/null &&
      grep -q '^unset WAYLAND_DISPLAY SWAYSOCK LABWC_PID$' /usr/local/bin/labwc-greeter-session 2>/dev/null &&
      grep -q "^labwc_x11_environment_names='DISPLAY XAUTHORITY WLR_XWAYLAND XWAYLAND XWAYLAND_PATH XWAYLAND_NO_GLAMOR XWAYLAND_FORCE_SCALE XWAYLAND_RESTART_DELAY _XWAYLAND_GLOBAL_OUTPUT_SCALE WINDOWID SESSION_MANAGER DESKTOP_STARTUP_ID'$" /usr/local/bin/labwc-greeter-session 2>/dev/null &&
      grep -q 'unset \$labwc_x11_environment_names' /usr/local/bin/labwc-greeter-session 2>/dev/null &&

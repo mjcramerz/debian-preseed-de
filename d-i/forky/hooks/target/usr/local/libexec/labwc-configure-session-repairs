@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 
-def replace(path, data):
+def replace(path, data, metadata):
     if path.is_symlink():
         raise RuntimeError(f'refusing symlink: {path}')
     fd, name = tempfile.mkstemp(prefix='.' + path.name + '.', dir=path.parent)
@@ -17,8 +17,13 @@ def replace(path, data):
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(data)
             stream.flush()
-            os.fchmod(stream.fileno(), 0o644)
+            os.fchown(stream.fileno(), metadata.st_uid, metadata.st_gid)
+            os.fchmod(stream.fileno(), stat.S_IMODE(metadata.st_mode))
             os.fsync(stream.fileno())
+        current = path.stat(follow_symlinks=False)
+        if (current.st_dev, current.st_ino, current.st_mtime_ns, current.st_ctime_ns) != (
+                metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns, metadata.st_ctime_ns):
+            raise RuntimeError(f'PAM configuration changed before replacement: {path}')
         os.replace(name, path)
         dfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
         try:
@@ -202,7 +207,8 @@ def main():
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     with os.fdopen(fd, 'r', encoding='utf-8') as stream:
         meta = os.fstat(stream.fileno())
-        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1
+                or meta.st_mode & 0o022):
             raise RuntimeError('unsafe sudo-i PAM configuration')
         text = stream.read(65537)
     if len(text) > 65536:
@@ -212,8 +218,26 @@ def main():
         pattern = r'(?m)^(@include[ \t]+common-session[ \t]*)$'
         if len(re.findall(pattern, text)) != 1:
             raise RuntimeError('unexpected sudo-i session stack; refusing to change PAM')
-        text = re.sub(pattern, '# Managed: sudo-i retains the caller session (systemd >=258).\n' + line + '\n' + r'\1', text)
-        replace(path, text)
+        text = re.sub(pattern, '# Managed: root shell uses user-early-light (systemd >=258).\n' + line + '\n' + r'\1', text)
+        replace(path, text, meta)
+    cron = Path('/etc/pam.d/cron')
+    if cron.exists() or cron.is_symlink():
+        fd = os.open(cron, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        with os.fdopen(fd, 'r', encoding='utf-8') as stream:
+            meta = os.fstat(stream.fileno())
+            if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1
+                    or meta.st_mode & 0o022):
+                raise RuntimeError('unsafe cron PAM configuration')
+            cron_text = stream.read(65537)
+        if len(cron_text) > 65536:
+            raise RuntimeError('oversized cron PAM configuration')
+        cron_line = 'session optional pam_env.so conffile=/etc/security/cron-session.conf readenv=0 user_readenv=0'
+        if cron_line not in cron_text.splitlines():
+            pattern = r'(?m)^(@include[ \t]+common-session-noninteractive[ \t]*)$'
+            if len(re.findall(pattern, cron_text)) != 1:
+                raise RuntimeError('unexpected cron session stack; refusing to change PAM')
+            cron_text = re.sub(pattern, cron_line + '\n' + r'\1', cron_text)
+            replace(cron, cron_text, meta)
 
 
 if __name__ == '__main__':

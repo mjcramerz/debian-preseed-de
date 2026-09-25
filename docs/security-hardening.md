@@ -205,11 +205,12 @@ physical-security assurance.
 
 ## A08: sealing keys and truthful logging policy
 
-The supplied profiles keep `/var/log` on tmpfs. They now render **Seal=no**, even
-when journal Storage is named persistent: that directory is still volatile in
-these profiles. Disk-backed persistent journaling (`TMPFS_VAR_LOG=false` and the
-nonvolatile journal policy) renders Seal=yes and enables the oneshot
-`journal-sealing.service`. Effective logging configuration is checked for drift.
+The supplied profiles keep `/var/log` on tmpfs but mount `/var/log/journal`
+separately on ext4. Their persistent journal policy renders **Seal=yes** and the
+required `journal-sealing.service` provisions a disk-backed FSS generation before
+first-boot validation. A profile explicitly selecting volatile journal storage
+renders Seal=no because RAM-only journal files cannot provide durable FSS.
+Effective logging configuration is checked for drift.
 
 The helper verifies a disk-backed journal and RAM-backed `/run`, provisions keys
 only when absent, never forces replacement, rotates to begin a sealed generation,
