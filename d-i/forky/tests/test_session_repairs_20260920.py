@@ -58,7 +58,7 @@ class WallpaperStateTests(unittest.TestCase):
         self.addCleanup(self.state.close)
 
     def test_atomic_save_and_private_modes(self):
-        with mock.patch.object(WALL, 'image_path', side_effect=lambda value: value):
+        with mock.patch.object(WALL, 'image_path', side_effect=lambda value, home: value):
             self.state.save('/fixture/one.png')
             self.state.save('/fixture/two.png')
             self.assertEqual(self.state.current(), '/fixture/two.png')
@@ -98,16 +98,43 @@ class WallpaperStateTests(unittest.TestCase):
     def test_interspersed_save_options(self):
         with mock.patch.object(sys, 'argv', ['helper', 'save', '--quiet', '/fixture/a.png']), \
              mock.patch.dict(os.environ, HOME=str(self.root)), \
-             mock.patch.object(WALL, 'image_path', side_effect=lambda value: value):
+             mock.patch.object(WALL, 'image_path', side_effect=lambda value, home: value):
             self.assertEqual(WALL.main(), 0)
 
     def test_apply_is_start_not_restart(self):
         with mock.patch.object(sys, 'argv', ['helper', 'save', '--apply', '/fixture/a.png']), \
              mock.patch.dict(os.environ, HOME=str(self.root), LABWC_SESSION_OWNER='desktop'), \
-             mock.patch.object(WALL, 'image_path', side_effect=lambda value: value), \
+             mock.patch.object(WALL, 'image_path', side_effect=lambda value, home: value), \
              mock.patch.object(WALL.subprocess, 'run') as run:
             self.assertEqual(WALL.main(), 0)
             self.assertEqual(run.call_args.args[0], ['/usr/bin/systemctl', '--user', '--no-block', 'start', 'swaybg.service'])
+
+    def test_personal_pictures_and_gallery_are_persistent_but_other_paths_are_rejected(self):
+        gallery = self.root / 'gallery'
+        gallery.mkdir()
+        stock = gallery / 'stock.png'
+        stock.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
+        pictures = self.root / 'Pictures'
+        (pictures / 'Holiday').mkdir(parents=True)
+        personal = pictures / 'Holiday' / "my 'photo'.png"
+        personal.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
+        private = self.root / 'private.png'
+        private.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
+        with mock.patch.object(WALL, 'ROOT', gallery):
+            self.state.save(str(stock))
+            self.assertEqual(self.state.current(), str(stock))
+            self.state.save(str(personal))
+            self.assertEqual(self.state.current(), str(personal))
+            with self.assertRaisesRegex(ValueError, 'managed gallery or your Pictures'):
+                self.state.save(str(private))
+            self.assertEqual(self.state.current(), str(personal))
+            personal.chmod(0o666)
+            with self.assertRaisesRegex(ValueError, 'non-executable image'):
+                self.state.save(str(personal))
+            personal.chmod(0o600)
+            (pictures / 'Holiday').chmod(0o777)
+            with self.assertRaisesRegex(ValueError, 'unsafe Pictures directory'):
+                self.state.save(str(personal))
 
 
 @unittest.skipUnless(os.getuid() == 0, 'root-owned fixture images require root; no target mutation')
@@ -201,6 +228,36 @@ finally: state.close()
         self.wait_for(lambda rows: any(r[0]=='stop' and r[2].endswith('/default.png') for r in rows))
         self.finish()
         self.assertIn('retaining previous background',self.output[1])
+
+    def test_personal_selection_applies_and_restores_after_supervisor_restart(self):
+        pictures = self.root / 'Pictures'
+        pictures.mkdir()
+        personal = pictures / 'selected.png'
+        personal.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
+        state = WALL.State(str(self.root))
+        try:
+            state.save(str(personal))
+            self.assertEqual(state.current(), str(personal))
+        finally:
+            state.close()
+        self.wait_for(lambda rows: any(row[0] == 'start' and row[2] == str(personal) for row in rows))
+        self.finish()
+        replacement = subprocess.Popen(payload_installed_argv(self.command), env=self.env,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                if sum(row[0] == 'start' and row[2] == str(personal) for row in self.rows()) == 2:
+                    break
+                if replacement.poll() is not None:
+                    self.fail(replacement.communicate()[1])
+                time.sleep(0.025)
+            else:
+                self.fail('restarted supervisor did not restore the personal wallpaper')
+        finally:
+            replacement.terminate()
+            _, stderr = replacement.communicate(timeout=5)
+        self.assertEqual(replacement.returncode, 0, stderr)
 
     def test_second_supervisor_is_rejected(self):
         second = subprocess.run(payload_installed_argv(self.command), env=self.env, capture_output=True, text=True, timeout=3)

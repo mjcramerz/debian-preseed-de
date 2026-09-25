@@ -27,19 +27,51 @@ PROBE = 0.5
 DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
 
 
-def image_path(value: str) -> str:
+def image_path(value: str, home: Path | None = None) -> str:
     if not value or any(c in value for c in '\x00\r\n') or len(os.fsencode(value)) >= LIMIT:
         raise ValueError('invalid wallpaper path')
     candidate = Path(value)
     if not candidate.is_absolute():
         raise ValueError('wallpaper path must be absolute')
     candidate = candidate.resolve(strict=True)
-    candidate.relative_to(ROOT)
-    fd = os.open(candidate, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        candidate.relative_to(ROOT)
+    except ValueError:
+        # Waypaper can select a personal folder. Keep that access limited to
+        # Pictures and pin each directory while opening the selected image.
+        if home is None:
+            raise ValueError('wallpaper is outside the managed gallery') from None
+        try:
+            components = candidate.relative_to(home / 'Pictures').parts
+        except ValueError:
+            raise ValueError('wallpaper must be in the managed gallery or your Pictures directory') from None
+        if not components:
+            raise ValueError('wallpaper must be an image file')
+        directory = os.open(home / 'Pictures', DIRECTORY_FLAGS)
+        try:
+            for component in components[:-1]:
+                meta = os.fstat(directory)
+                if meta.st_uid != os.getuid() or meta.st_mode & 0o022:
+                    raise ValueError('unsafe Pictures directory')
+                child = os.open(component, DIRECTORY_FLAGS, dir_fd=directory)
+                os.close(directory)
+                directory = child
+            meta = os.fstat(directory)
+            if meta.st_uid != os.getuid() or meta.st_mode & 0o022:
+                raise ValueError('unsafe Pictures directory')
+            fd = os.open(components[-1], os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                         dir_fd=directory)
+        finally:
+            os.close(directory)
+        expected_owner = os.getuid()
+    else:
+        fd = os.open(candidate, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        expected_owner = 0
     try:
         meta = os.fstat(fd)
-        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o133:
-            raise ValueError('wallpaper must be a non-executable, root-owned, immutable-to-users regular file')
+        if (not stat.S_ISREG(meta.st_mode) or meta.st_uid != expected_owner
+                or meta.st_nlink != 1 or meta.st_mode & 0o133):
+            raise ValueError('wallpaper must be a non-executable image owned by its trusted directory')
         signature = os.read(fd, 8)
         if not (signature == b'\x89PNG\r\n\x1a\n' or signature.startswith(b'\xff\xd8\xff')):
             raise ValueError('wallpaper must be PNG or JPEG')
@@ -56,6 +88,7 @@ class State:
             raise ValueError('invalid HOME')
         if '..' in p.parts:
             raise ValueError('non-canonical HOME')
+        self.home = p
         self.path = p / '.local/state/labwc'
         fd = os.open('/', DIRECTORY_FLAGS)
         try:
@@ -97,10 +130,10 @@ class State:
             value = os.read(fd, LIMIT + 1).decode('utf-8').removesuffix('\n')
         finally:
             os.close(fd)
-        return image_path(value)
+        return image_path(value, self.home)
 
     def save(self, value: str) -> None:
-        value = image_path(value)
+        value = image_path(value, self.home)
         lock = os.open('.wallpaper.lock', os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
                        0o600, dir_fd=self.fd)
         temporary = '.wallpaper.' + uuid.uuid4().hex
@@ -178,7 +211,7 @@ def supervise(state: State, default: str) -> int:
 
 
 def supervise_locked(state: State, default: str) -> int:
-    default = image_path(default)
+    default = image_path(default, state.home)
     libc = ctypes.CDLL(None, use_errno=True)
     libc.inotify_init1.argtypes = [ctypes.c_int]
     libc.inotify_init1.restype = ctypes.c_int

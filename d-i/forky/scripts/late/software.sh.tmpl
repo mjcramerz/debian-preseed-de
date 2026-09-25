@@ -425,6 +425,49 @@ software_stage_menu_icon() {
   if [ "$menu_icon_source" != "$menu_icon_destination" ]; then
     install -D -m 0644 "${target_root}${menu_icon_source}" "${target_root}${menu_icon_destination}"
   fi
+  chown root:root "${target_root}${menu_icon_destination}"
+  chmod 0644 "${target_root}${menu_icon_destination}"
+}
+
+software_verify_menu_icons() {
+  # Validate the actual rendered desktop entries and decoded artwork inside
+  # the target. A themed name alone cannot establish that Fuzzel can open an
+  # icon; the fixed absolute paths also bypass icon-theme cache precedence.
+  chroot "$target_root" /usr/bin/python3 -I -B -c '
+import configparser
+from pathlib import Path
+import stat
+
+import gi
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+
+for desktop_id, icon_name in (
+    ("chatgpt", "chatgpt"),
+    ("postman", "postman"),
+    ("discord", "discord"),
+    ("ledger-live", "ledger-live-desktop"),
+    ("sleek", "sleek"),
+):
+    entry = Path("/usr/local/share/applications") / (desktop_id + ".desktop")
+    parser = configparser.ConfigParser(interpolation=None)
+    parser.optionxform = str
+    if not parser.read(entry, encoding="utf-8"):
+        raise SystemExit("missing managed desktop entry: " + str(entry))
+    icon = Path("/usr/share/icons/hicolor/512x512/apps") / (icon_name + ".png")
+    if parser.get("Desktop Entry", "Icon", fallback="") != str(icon):
+        raise SystemExit("managed desktop entry has wrong icon: " + str(entry))
+    info = icon.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o644:
+        raise SystemExit("unsafe managed menu icon: " + str(icon))
+    if any(not parent.is_dir() or parent.is_symlink() or not parent.stat().st_mode & stat.S_IXOTH
+           for parent in list(icon.parents)[:-1]):
+        raise SystemExit("managed menu icon directory is not publicly searchable: " + str(icon))
+    pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(icon), 32, 32, True)
+    if pixbuf.get_width() < 1 or pixbuf.get_height() < 1:
+        raise SystemExit("managed menu icon cannot be decoded: " + str(icon))
+print("managed Fuzzel launcher icons verified: 5")
+' || software_fatal "installed Fuzzel launcher artwork or desktop icon path is invalid"
 }
 
 software_managed_external_cpu_quota() {
@@ -1982,6 +2025,7 @@ chroot "$target_root" /usr/bin/test -x "${discord_install_dir}/Discord" &&
 software_stage_menu_icon "${discord_install_dir}/discord.png" discord
 
 software_install_ledger
+software_verify_menu_icons
 
 software_stage_seed_asset \
   "$(installer_repo_join_var DIR_HOOKS_TARGET usr/local/share/software/tuta/tutao-pub.pem)" \

@@ -90,6 +90,10 @@ desktop_stage_target_assets() {
   desktop_render_labwc_environment_assets
   desktop_stage_role_asset etc/pam.d/greetd /etc/pam.d/greetd 0644
   desktop_stage_role_asset etc/pam.d/greetd-greeter /etc/pam.d/greetd-greeter 0644
+  desktop_render_role_target_template \
+    etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf.tmpl \
+    /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf 0644 \
+    LABWC_GREETER_USER "$LABWC_GREETER_USER"
   desktop_stage_role_asset etc/pam.d/swaylock /etc/pam.d/swaylock 0644
   desktop_stage_role_asset usr/share/pam-configs/wtmpdb /usr/share/pam-configs/wtmpdb 0644
   desktop_reconcile_wtmpdb_common_session /target
@@ -526,4 +530,3 @@ test -x /usr/bin/update-mime-database
   desktop_stage_role_asset etc/skel-desktop/.config/user-dirs.dirs /etc/skel-desktop/.config/user-dirs.dirs 0644
   desktop_render_chromium_flags
 }
-

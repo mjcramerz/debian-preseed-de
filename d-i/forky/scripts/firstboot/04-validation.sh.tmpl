@@ -297,6 +297,7 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
     /etc/systemd/user/pipewire-pulse.service.d/20-no-greeter.conf \
     /etc/pam.d/greetd \
     /etc/pam.d/greetd-greeter \
+    /etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf \
     /etc/pam.d/swaylock \
     /etc/greetd/config.toml \
     /etc/greetd/gtkgreet.css \
@@ -473,6 +474,15 @@ printf "desktop_kanshi_verification enabled=%s\n" "$enabled"
         [ ! -L "$path" ]
         [ "$(find -P "$path" -maxdepth 0 -printf "%U:%G:%m")" = "0:0:755" ]
       done
+    ' sh
+  check_command desktop-greeter-portal-bus-policy \
+    /bin/sh -eu -c '
+      . /etc/labwc/desktop.conf
+      [ -n "${LABWC_GREETER_USER:-}" ]
+      file=/etc/dbus-1/session.d/70-labwc-greeter-no-portals.conf
+      [ -f "$file" ] && [ ! -L "$file" ]
+      grep -Fqx "  <policy user=\"${LABWC_GREETER_USER}\">" "$file"
+      grep -Fqx "    <deny send_destination=\"org.freedesktop.portal.Desktop\"/>" "$file"
     ' sh
   check_command desktop-wireplumber-user-conditions \
     /bin/sh -eu -c '

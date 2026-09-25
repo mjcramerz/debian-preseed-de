@@ -230,6 +230,12 @@ class IntegrationContractTests(unittest.TestCase):
         self.assertIn('labwc-wallpaper-save --apply', config)
         self.assertIn('labwc-wallpaper-control save', render_theme_defaults(payload_read_text(TARGET / 'usr/local/bin/labwc-wallpaper-save')))
         self.assertIn('swaybg.service', render_theme_defaults(payload_read_text(TARGET / 'usr/local/libexec/labwc-wallpaper-control')))
+        policy = render_theme_defaults(payload_read_text(TARGET / 'etc/apparmor.d/desktop-wrappers'))
+        for profile in ('waypaper', 'waypaper-glycin-loader', 'labwc-swaybg', 'labwc-wallpaper-save'):
+            section = policy.split(f'profile {profile} ', 1)[1].split('\nprofile ', 1)[0]
+            self.assertIn('owner @{HOME}/Pictures/** r,', section, profile)
+        waypaper = policy.split('profile waypaper ', 1)[1].split('\nprofile ', 1)[0]
+        self.assertIn('owner @{HOME}/Pictures/** r,', waypaper.split('profile waypaper-bwrap ', 1)[1])
         tree = ET.parse(payload_source_path(TARGET / 'etc/skel-desktop/.config/labwc/menu.xml'))
         self.assertEqual(tree.getroot().tag, 'openbox_menu')
         self.assertTrue(any('labwc-wayland-app auto -- /usr/local/bin/waypaper' in item.attrib.get('command', '')

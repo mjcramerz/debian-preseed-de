@@ -128,6 +128,8 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
   /dev/dri/card[0-9]* r,
   /usr/share/backgrounds/ r,
   /usr/share/backgrounds/** r,
+  owner @{HOME}/Pictures/ r,
+  owner @{HOME}/Pictures/** r,
   /usr/share/glycin-loaders/2+/conf.d/ r,
   /usr/share/glycin-loaders/2+/conf.d/** r,
   /usr/share/mime/mime.cache r,
@@ -159,6 +161,8 @@ profile waypaper /{usr/local/bin/waypaper,opt/waypaper/bin/waypaper,opt/waypaper
     /usr/libexec/glycin-loaders/2+/{glycin-image-rs,glycin-svg} rix,
     /usr/share/backgrounds/ r,
     /usr/share/backgrounds/** r,
+    owner @{HOME}/Pictures/ r,
+    owner @{HOME}/Pictures/** r,
     /usr/share/glycin-loaders/2+/conf.d/ r,
     /usr/share/glycin-loaders/2+/conf.d/** r,
 
@@ -223,6 +227,8 @@ profile waypaper-glycin-loader flags=(attach_disconnected, mediate_deleted) {
   /usr/libexec/glycin-loaders/2+/glycin-svg mrix,
   /usr/share/backgrounds/ r,
   /usr/share/backgrounds/** r,
+  owner @{HOME}/Pictures/ r,
+  owner @{HOME}/Pictures/** r,
   /usr/share/glycin-loaders/2+/conf.d/ r,
   /usr/share/glycin-loaders/2+/conf.d/** r,
 
@@ -3184,6 +3190,8 @@ profile labwc-swaybg /usr/local/libexec/labwc-swaybg flags=(attach_disconnected)
   /etc/labwc/desktop.conf r,
   /usr/share/backgrounds/desktop/ r,
   /usr/share/backgrounds/desktop/** r,
+  owner @{HOME}/Pictures/ r,
+  owner @{HOME}/Pictures/** r,
 
   include if exists <local/usr.local.libexec.labwc-swaybg>
 }
