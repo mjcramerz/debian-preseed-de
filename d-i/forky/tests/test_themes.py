@@ -173,6 +173,48 @@ class ThemeInstallationTests(unittest.TestCase):
     def ok(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_managed_software_desktop_icons_render_before_publication(self):
+        source = (SEED / 'scripts/late/software.sh.tmpl').read_text()
+        functions = source[source.index('software_render_theme_asset() {'):
+                           source.index('software_stage_menu_icon() {')]
+        self.assertIn('software_render_theme_asset "$tmp_asset" "$repo_path"', functions)
+        software_functions = self.root / 'software-functions.sh'
+        software_functions.write_text(functions)
+        preamble = SHELL_PREAMBLE.removesuffix('late_command_load_themes\n')
+        code = '\n'.join((
+            '. "$INSTALLER_SOURCE_ROOT/scripts/common/bootstrap.sh"',
+            'seed_base=$INSTALLER_SOURCE_ROOT',
+            'target_root=$INSTALLER_TARGET_DIR',
+            'tmp_env_dir=$TMP_ENV_DIR',
+            'software_fatal() { printf "fatal: %s\\n" "$*" >&2; exit 1; }',
+            'software_validate_abs_path() { case "$2" in /*) : ;; *) exit 1 ;; esac; }',
+            f'. {shlex.quote(str(software_functions))}',
+            'software_stage_seed_asset hooks/target/usr/local/share/applications/chatgpt.desktop '
+            ' /usr/local/share/applications/chatgpt.desktop 0644',
+            'software_stage_seed_asset hooks/target/usr/local/share/applications/discord.desktop '
+            ' /usr/local/share/applications/discord.desktop 0644',
+            *(f'software_render_seed_asset hooks/target/usr/local/share/applications/{name}.desktop '
+              f'/usr/local/share/applications/{name}.desktop 0644 '
+              'LABWC_MANAGED_APP_DEFAULT_EXEC "/usr/local/bin/labwc-app launch"'
+              for name in ('postman', 'ledger-live', 'sleek')),
+        ))
+        self.ok(self.shell(code, preamble=preamble))
+        values = CHECKER['load_themes'](SEED)
+        for desktop_id, icon_id in (
+            ('chatgpt', 'chatgpt'), ('postman', 'postman'),
+            ('discord', 'discord'), ('ledger-live', 'ledger-live-desktop'),
+            ('sleek', 'sleek'),
+        ):
+            with self.subTest(desktop_id=desktop_id):
+                entry = self.target / f'usr/local/share/applications/{desktop_id}.desktop'
+                parser = configparser.ConfigParser(interpolation=None)
+                parser.optionxform = str
+                self.assertTrue(parser.read(entry, encoding='utf-8'))
+                self.assertEqual(parser['Desktop Entry']['Icon'],
+                                 f'/usr/share/icons/hicolor/512x512/apps/{icon_id}.png')
+                self.assertNotIn('__THEME_', entry.read_text())
+                self.assertEqual(entry.stat().st_mode & 0o777, 0o644)
+
     def test_individual_fetch_and_plain_asset_are_rendered(self):
         self.ok(self.shell(r'''
 fetch_hook hooks/target/etc/skel-desktop/.config/swaylock/config "$TMP_ENV_DIR/lock"
