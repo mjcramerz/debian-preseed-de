@@ -933,7 +933,7 @@ a70519451b427a250152c76ba5ca5cfec9e1044a4a78a676e19da6def019f5db  hooks/target/u
 1111bb730b92851f74a992cddba6cbf6b3bd72c253cd5f882c5164076a27fdd8  hooks/target/usr/local/bin/labwc-brightness-control.tmpl
 bdb1de8cd5b6f2fa5f07ac31eb08ae1fb0b4dd5a7da34ae74217ec42df356548  hooks/target/usr/local/bin/labwc-calendar
 1db9d71699c0d1f28eb82cc073cb2996b50110f9dcf0df234deebd97ba0c3da6  hooks/target/usr/local/bin/labwc-capture.tmpl
-03234ccd005c0302897337360f22a57368a4c0a36b271f39789387fe48a9bf45  hooks/target/usr/local/bin/labwc-computer-management
+c6890c79f6fc43302a06438e97fb887cbaabbb188c1abaf463687c6b653f75e9  hooks/target/usr/local/bin/labwc-computer-management
 2e79916ac5c3f3cfd8848f46cd6a681501d2b0c71d0048a45f3ce4c27d4c5a66  hooks/target/usr/local/bin/labwc-digital-assets
 76620d2901333bd5da723ad648fcecc3597c7c662c10d0c03c912e40c3ea1d04  hooks/target/usr/local/bin/labwc-digital-assets-action
 d60b78c9b3254883392ac6aa9f18f0b99af5ed468f4e8401bd5a302b8cd1b1e1  hooks/target/usr/local/bin/labwc-display-configuration
@@ -989,7 +989,7 @@ c8dc73c69b85facd3ef2675b9db9346535f77598a593d4bee42019d98fa30ec9  hooks/target/u
 6e926bffd2a5917fe4e302bcfab7f490d834894f6abf10aa0c2af31af98ec1ea  hooks/target/usr/local/bin/xssh-send
 2aeee4f0ebf2e26a17491600ed98c3e3fadaab3f0ad8e1e2c9d52b75ad4c551a  hooks/target/usr/local/bin/zoom
 6f9505edb9ee3ad3d84b1595967caf8ebd2c5b8f565b9a0fae85685861a7385b  hooks/target/usr/local/lib/hardware_tuning/broker.py
-e2af5b78e554344d1f73a0ce191ae16902a51437465fb2ef0f660264b28feeb0  hooks/target/usr/local/lib/hardware_tuning/client.py
+6d5c0e29601bad0f5f1f253a0a06827a606d40d854ec44b187898382a2522512  hooks/target/usr/local/lib/hardware_tuning/client.py
 6997a39a8d92fc84f465e5bad5a243225fb67e306ea07b4cdda0c10fae6e91ad  hooks/target/usr/local/lib/hardware_tuning/common.py
 e877033bd376d20e1c652b07e80f2b3ab4ff2ebde85727e787f2d3d1d9a595ee  hooks/target/usr/local/lib/hardware_tuning/engine.py
 2609ced4b28f26e6f2f75dfed58cdc93de9070c45b017a893aad2a62c0de7c8f  hooks/target/usr/local/lib/hardware_tuning/intel.py
@@ -1211,7 +1211,7 @@ ae51af52a98a0a5a78880fa68a874ff67cedb0e25feec18f1193dd439bef68f0  hooks/target/u
 eb4d4df76ff1e476ca1f8205dccccf4b348703e5d00e8b9810ddadd04aee4873  hooks/target/usr/local/libexec/dbus-broker-check
 68f98a711eed229a39654f9128514229f0554f2e8e8beda0803cc5cb539d3280  hooks/target/usr/local/libexec/dbus-broker-maintain
 c4ab2b9ea52e0cd2306fcd3f4c79643fbc65c74d4a6d159d93185fde31d32a3d  hooks/target/usr/local/libexec/debugsys-initramfs
-f2e7f17b2da1e59b99bc1a409e7944d3df279bf9b5bacb8011168cbf6a504d2a  hooks/target/usr/local/libexec/debugsys.py.tmpl
+7165cf77958450e2af0b2ccebef92c01b65ad7f9583b80f82ac2978b8ae227ae  hooks/target/usr/local/libexec/debugsys.py.tmpl
 6620cf57b8c3f6abc5b24ff04e684c91a67e3a3c490a237358132718af609d29  hooks/target/usr/local/libexec/discord-distro
 9d22ecdf5efa4616e6b7043880838fa9837c81c1b37e635c1d0a90c402f99ebf  hooks/target/usr/local/libexec/greetd-power-action-root
 a12060f1f857d50f113e605c64a6f845b7ae415d023f4aab14b04881b872c0a3  hooks/target/usr/local/libexec/grub-btrfs-refresh

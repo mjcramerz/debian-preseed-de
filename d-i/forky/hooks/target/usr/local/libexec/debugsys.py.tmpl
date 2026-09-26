@@ -1,9 +1,9 @@
 #!/usr/bin/python3 -I
-"""Root-only, bounded, read-only diagnostics and reversible initramfs capture.
+"""Bounded system/user diagnostics and reversible initramfs capture.
 
 The public wrapper enters `sudo -i`. Only explicit hook actions write boot
-configuration. No command strings, user plugins, shell evaluation, downloads,
-benchmarks, driver reloads, firmware writes or automatic tuning are executed.
+configuration. No root shell evaluation, downloads, benchmarks, driver reloads, firmware
+writes or automatic tuning are executed. App probes use the desktop identity.
 """
 from __future__ import annotations
 import argparse
@@ -12,6 +12,8 @@ import contextlib
 import datetime as dt
 import fcntl
 import glob
+import gzip
+import itertools
 import hashlib
 import json
 import os
@@ -28,13 +30,16 @@ import sys
 import tempfile
 import time
 import uuid
+import unicodedata
+import zlib
 
 sys.dont_write_bytecode = True
 LOGROOT = Path('__INSTALLER_LOG_DEBUGSYS_DIR__')
 STATE = Path('/var/lib/debugsys')
 TEMPLATES = Path('/usr/local/share/debugsys/initramfs')
 PHASES = ('init-top', 'init-premount', 'local-top', 'local-premount', 'local-bottom', 'init-bottom')
-CATEGORIES = ('hardware', 'system', 'boot', 'desktop', 'security', 'storage', 'network', 'credentials')
+CATEGORIES = ('hardware', 'cpu', 'pci', 'gpu', 'system', 'units', 'boot', 'desktop',
+              'codex', 'chatgpt', 'security', 'journal', 'storage', 'network', 'credentials')
 MAX_OUTPUT = 2 * 1024 * 1024
 MAX_FILE = 256 * 1024
 MAX_TOTAL = 96 * 1024 * 1024
@@ -43,6 +48,52 @@ ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root', 'USER': 'root',
        'LOGNAME': 'root', 'LANG': 'C.UTF-8', 'LC_ALL': 'C.UTF-8',
        'SYSTEMD_PAGER': '', 'SYSTEMD_COLORS': '0', 'PAGER': 'cat', 'TERM': 'dumb'}
 MARKER = '# Managed by debugsys; do not edit.'
+SELF = '/usr/local/libexec/debugsys.py'
+MAX_LOG = 1024 * 1024
+MAX_ROTATIONS = 5
+MAX_LOG_DIRECTORY = 512
+MAX_RECORDS = 12000
+MAX_FAILED_UNITS = 64
+BOOT_LOGS = Path('__INSTALLER_LOG_BOOT_DIR__')
+BOOT_LOG_NAME = re.compile(r'boot-([1-9][0-9]{0,8})-[0-9]{4}(?:-[0-9]{2}){4}-[a-f0-9]{32}[.]log')
+MAX_USER_LOG_OUTPUT = (MAX_ROTATIONS+1)*(MAX_LOG+8192)
+CODEX = '/data/codex/lib/codex'
+CODEX_UNITS = ('codex-app-server.service', 'codex-app-server-proxy.service', 'codex-app-server.socket')
+APP_UNITS = {
+    'codex': (*CODEX_UNITS, '*codex*.service', 'labwc-devops-*.service'),
+    'chatgpt': ('*chatgpt*.service', '*ChatGPT*.service', *CODEX_UNITS),
+}
+UNIT_PROPERTIES = ('Id,LoadState,ActiveState,SubState,Result,MainPID,ControlGroup,Slice,'
+    'InvocationID,NRestarts,ExecMainCode,ExecMainStatus,ExecMainStartTimestamp,ExecMainExitTimestamp,'
+    'ActiveEnterTimestamp,InactiveEnterTimestamp,ConditionResult,AssertResult,UnitFileState,'
+    'Requires,Wants,After,Before,PartOf,BindsTo,Requisite,TriggeredBy,Triggers,Listen,'
+    'FragmentPath,DropInPaths,KillMode,KillSignal,SendSIGKILL,TimeoutStartUSec,TimeoutStopUSec,'
+    'PrivatePIDs,PrivateUsers,ProtectProc,ProcSubset,NoNewPrivileges,AppArmorProfile,'
+    'MemoryCurrent,MemoryPeak,TasksCurrent,TasksMax,CPUUsageNSec,OOMPolicy,OOMKilled')
+GPU_PATTERN = '(?i)drm|atomic.*(fail|error|timeout)|page.?flip|vblank|GPU.*(hang|reset|fault)|NVRM|Xid|i915|amdgpu|nouveau|nvidia|\\bxe\\b'
+
+# Root reads only root-owned logs. Application-writable logs are opened AFTER
+# dropping privileges, even when they live below /var/log/managed.
+MANAGED_LOGS = {
+    'system': ('__INSTALLER_LOG_SYSTEM_SERVICES_FILE__',),
+    'hardware': ('__INSTALLER_LOG_KERNEL_FILE__', '__INSTALLER_LOG_USB_FILE__'),
+    'cpu': ('__INSTALLER_LOG_KERNEL_FILE__',),
+    'pci': ('__INSTALLER_LOG_KERNEL_FILE__',),
+    'gpu': ('__INSTALLER_LOG_KERNEL_FILE__', '__INSTALLER_LOG_APPLICATIONS_FILE__'),
+    'desktop': ('__INSTALLER_LOG_APPLICATIONS_FILE__',),
+    'journal': ('__INSTALLER_LOG_SYSTEM_SERVICES_FILE__',),
+    'boot': ('__INSTALLER_LOG_KERNEL_FILE__',),
+    'chatgpt': ('__INSTALLER_LOG_CHATGPT_FILE__',),
+    'security': ('__INSTALLER_LOG_APPARMOR_FILE__', '__INSTALLER_LOG_AUDIT_FILE__',
+                 '__INSTALLER_LOG_AUTH_FILE__', '__INSTALLER_LOG_NFTABLES_FILE__'),
+    'storage': ('__INSTALLER_LOG_STORAGE_FILE__', '__INSTALLER_LOG_ZRAM_FILE__'),
+}
+USER_LOGS = {
+    'codex': ('__INSTALLER_LOG_CODEX_LOGIN_FILE__', '__INSTALLER_LOG_CODEX_TUI_FILE__',
+              '/data/codex/log/codex-tui.log', '/data/codex/usr/home/log/codex-tui.log'),
+    'chatgpt': ('__INSTALLER_LOG_CHATGPT_RUNTIME_LOGIN_FILE__', '__INSTALLER_LOG_CHATGPT_RUNTIME_TUI_FILE__'),
+}
+
 
 ISOLATION_UNITS = (
     'bluetooth-controller-init.service', 'nvidia-char-links.service',
@@ -162,6 +213,52 @@ FILES = {
  'credentials': ['/etc/ssh/git_known_hosts'],
 }
 
+# Inventory commands never set a mode, start an application, activate an app socket,
+# load a driver, mount debugfs, or enable DRM tracing.
+PROBES.update({
+ 'cpu': [probe for probe in PROBES['hardware'] if probe[0].startswith('cpu') or probe[0] == 'sensors'] + [
+    ('cpu-pressure', ['cat', '/proc/pressure/cpu']),
+    ('cpu-errors', ['journalctl', '-k', '-b', '--no-pager', '-n', '2000', '--grep=(?i)microcode|mce|machine check|thermal|throttl|hardware error'])],
+ 'pci': [probe for probe in PROBES['hardware'] if probe[0].startswith('pci')] + [
+    ('pci-errors', ['journalctl', '-k', '-b', '--no-pager', '-n', '2000', '--grep=(?i)pcie|pci |aer:|dmar|iommu|smmu'])],
+ 'gpu': [
+    ('gpu-drivers', ['lspci', '-nnk']), ('gpu-nvidia', ['nvidia-smi', '-q', '-x']),
+    ('gpu-device-nodes', ['ls', '-l', '/dev/dri']),
+    ('gpu-kernel-errors', ['journalctl', '-k', '-b', '--no-pager', '-n', '4000', '-o', 'short-iso-precise', '--grep='+GPU_PATTERN]),
+    ('gpu-previous-boot', ['journalctl', '-k', '-b', '-1', '--no-pager', '-n', '2000', '--grep='+GPU_PATTERN]),
+    # The managed policy has ReadKMsg=no: journal -k alone is insufficient.
+    ('kernel-ring-buffer', ['dmesg', '--color=never', '--time-format=iso'])],
+ 'units': [
+    ('system-unit-states', ['systemctl', 'list-units', '--all', '--no-pager', '--plain']),
+    ('system-jobs', ['systemctl', 'list-jobs', '--no-pager']),
+    ('system-sockets', ['systemctl', 'list-sockets', '--all', '--no-pager']),
+    ('system-lifecycle', ['systemctl', 'show', *ISOLATION_UNITS, 'hardware-tuning.service', 'hardware-tuning.socket', '--property='+UNIT_PROPERTIES])],
+ 'journal': [
+    ('journal-policy', ['systemd-analyze', 'cat-config', 'systemd/journald.conf']),
+    ('journal-policy-check', ['/usr/local/libexec/journal-check']),
+    ('journal-files', ['journalctl', '--header', '--no-pager']),
+    ('journal-integrity', ['journalctl', '--verify', '--no-pager']),
+    ('journal-storage', ['findmnt', '--target', '/var/log/journal']),
+    ('journal-usage', ['journalctl', '--disk-usage']),
+    ('journal-boots', ['journalctl', '--list-boots', '--no-pager']),
+    ('journal-units', ['systemctl', 'show', 'systemd-journald.service', 'systemd-journal-flush.service', 'journal-sealing.service', 'rsyslog.service', '--property='+UNIT_PROPERTIES]),
+    ('journal-service-errors', ['journalctl', '-b', '--no-pager', '-n', '2000', '-u', 'systemd-journald.service', '-u', 'journal-sealing.service', '-u', 'rsyslog.service'])],
+ 'codex': [], 'chatgpt': [],
+})
+FILES.update({
+ 'cpu': [pattern for pattern in FILES['hardware'] if '/cpu/' in pattern or '/thermal/' in pattern],
+ 'pci': [pattern for pattern in FILES['hardware'] if '/pci/' in pattern] + [
+    '/sys/kernel/iommu_groups/*/type', '/sys/module/pcie_aspm/parameters/policy'],
+ 'gpu': FILES['desktop'][:2] + [
+    '/sys/module/{drm,xe,nvidia,nouveau}/parameters/*',
+    '/sys/class/drm/card*/device/{vendor,device,subsystem_vendor,subsystem_device,revision,boot_vga,gpu_busy_percent,mem_info_vram_total,mem_info_vram_used}',
+    '/sys/class/drm/card*/{gt_cur_freq_mhz,gt_min_freq_mhz,gt_max_freq_mhz,gt_RP0_freq_mhz,gt_RPn_freq_mhz}',
+    '/sys/kernel/debug/dri/[0-9]*/{name,state,clients,i915_display_info,i915_frequency_info,i915_engine_info,amdgpu_pm_info}'],
+ 'units': ['/sys/fs/cgroup/{cgroup.controllers,cgroup.stat,memory.events}'],
+ 'journal': ['/var/lib/journal-sealing/status.json'],
+ 'codex': [], 'chatgpt': [],
+})
+
 class DebugError(ValueError):
     pass
 
@@ -169,12 +266,20 @@ def stamp() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 
 def redact(text: str) -> str:
-    text = re.sub(r'(?is)-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----', '[PRIVATE KEY REDACTED]', text)
-    text = re.sub(r'(?im)(\b(?:[\w.-]*(?:password|passphrase|secret|token|api[_-]?key|authkey)[\w.-]*|authorization)\s*[:=]\s*)("[^"\n]*"|\x27[^\x27\n]*\x27|[^\s,;]+)', r'\1[REDACTED]', text)
+    text = re.sub(r'(?is)-----BEGIN [^-]*PRIVATE KEY-----.*?(?:-----END [^-]*PRIVATE KEY-----|\Z)', '[PRIVATE KEY REDACTED]', text)
     text = re.sub(r'(?i)\b(Bearer|Basic)\s+[A-Za-z0-9+/._=-]+', r'\1 [REDACTED]', text)
-    text = re.sub(r'(https?://)[^/@\s]+:[^/@\s]+@', r'\1[REDACTED]@', text)
-    # Escape terminal control bytes in evidence, including ESC/OSC sequences.
-    return ''.join(c if c in '\n\t' or ord(c) >= 32 and ord(c) != 127 else f'\\x{ord(c):02x}' for c in text)
+    sensitive = r'(?:[A-Za-z0-9_.-]{0,96}(?:password|passphrase|secret|token|api[_-]?key|authkey)[A-Za-z0-9_.-]{0,96}|authorization|cookie|set-cookie)'
+    text = re.sub(r'(?im)(?<![A-Za-z0-9_.-])(["\']?' + sensitive + r'["\']?\s*[:=]\s*)("(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\'|[^\s,;]+)', r'\1[REDACTED]', text)
+    text = re.sub(r'(?im)^((?:set-)?cookie\s*:)[^\n]*', r'\1 [REDACTED]', text)
+    text = re.sub(r'\b(?:sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{20,})\b', '[TOKEN REDACTED]', text)
+    # Match a URL authority once, rather than quadratically backtracking over
+    # adversarial colon runs while searching for a missing credentials '@'.
+    text = re.sub(r'(?i)(https?://)([^/\s?#]+)',
+                  lambda m: m[1]+'[REDACTED]@'+m[2].rsplit('@', 1)[1]
+                  if '@' in m[2] and ':' in m[2].split('@', 1)[0] else m[0], text)
+    # Escape C0/C1, OSC/ESC and Unicode bidi/format controls before rendering.
+    return ''.join(c if c in '\n\t' or (ord(c) >= 32 and not 127 <= ord(c) <= 159
+                   and unicodedata.category(c) != 'Cf') else f'\\u{ord(c):04x}' for c in text)
 
 def safe_directory(path: Path, mode: int = 0o700) -> None:
     if path == Path('/'):
@@ -234,7 +339,7 @@ def run(argv: list[str], timeout: int = 30, cap: int = MAX_OUTPUT) -> tuple[str,
     out = bytearray()
     status = 'ok'
     proc = subprocess.Popen([executable, *argv[1:]], env=ENV, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True, cwd='/')
     try:
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
@@ -264,7 +369,10 @@ def run(argv: list[str], timeout: int = 30, cap: int = MAX_OUTPUT) -> tuple[str,
             os.killpg(proc.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        proc.wait()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            status = 'cleanup-timeout'
         proc.stdout.close()
     return redact(out.decode(errors='replace')), {'status':status, 'returncode':proc.returncode,
                                                  'seconds':round(time.monotonic()-start,3)}
@@ -296,12 +404,20 @@ def direct_text(path: Path, limit: int = MAX_FILE, sysfs: bool = False) -> tuple
     except OSError as exc:
         return '', {'status':'unavailable', 'errno':exc.errno, 'path':str(original)}
 
-def desktop_account():
+def desktop_account(name: str | None = None):
+    if name is not None:
+        try:
+            user = pwd.getpwnam(name)
+        except KeyError as exc:
+            raise DebugError('unknown desktop account') from exc
+        if not 1000 <= user.pw_uid < 65534 or not Path(user.pw_dir).is_absolute():
+            raise DebugError('desktop account must be a non-root login account')
+        return user
     name = os.environ.get('SUDO_USER', '')
     if name and name != 'root':
         try:
             user = pwd.getpwnam(name)
-            if user.pw_uid >= 1000:
+            if 1000 <= user.pw_uid < 65534:
                 return user
         except KeyError:
             pass
@@ -310,31 +426,177 @@ def desktop_account():
                   and Path(f'/run/user/{u.pw_uid}/bus').exists()]
     return candidates[0] if len(candidates) == 1 else None
 
-def user_command(user, argv: list[str], wayland: bool = False) -> list[str] | None:
+def user_command(user, argv: list[str], wayland: bool = False, *, bus_required: bool = True) -> list[str] | None:
+    if not user or not 1000 <= user.pw_uid < 65534:
+        return None
     runtime = Path(f'/run/user/{user.pw_uid}')
+    safe_runtime = False
+    safe_bus = False
     try:
         st = runtime.lstat()
+        safe_runtime = (stat.S_ISDIR(st.st_mode) and st.st_uid == user.pw_uid
+                        and stat.S_IMODE(st.st_mode) == 0o700)
         bus = (runtime/'bus').lstat()
-        if (not stat.S_ISDIR(st.st_mode) or st.st_uid != user.pw_uid
-                or stat.S_IMODE(st.st_mode) != 0o700 or not stat.S_ISSOCK(bus.st_mode)
-                or bus.st_uid != user.pw_uid):
-            return None
+        safe_bus = safe_runtime and stat.S_ISSOCK(bus.st_mode) and bus.st_uid == user.pw_uid
     except OSError:
+        pass
+    if bus_required and not safe_bus or wayland and not safe_runtime:
         return None
     env = [f'HOME={user.pw_dir}', f'USER={user.pw_name}', f'LOGNAME={user.pw_name}',
-           f'XDG_RUNTIME_DIR={runtime}', f'DBUS_SESSION_BUS_ADDRESS=unix:path={runtime}/bus',
-           f'SSH_AUTH_SOCK={runtime}/openssh_agent', 'PATH=/usr/bin:/bin', 'LC_ALL=C.UTF-8',
-           'SYSTEMD_PAGER=', 'SYSTEMD_COLORS=0']
+           'PATH=/usr/local/bin:/usr/bin:/bin', 'LANG=C.UTF-8', 'LC_ALL=C.UTF-8',
+           'SYSTEMD_PAGER=', 'SYSTEMD_COLORS=0', 'PAGER=cat', 'TERM=dumb',
+           f'XDG_CONFIG_HOME={user.pw_dir}/.config', f'XDG_STATE_HOME={user.pw_dir}/.local/state',
+           f'XDG_CACHE_HOME={user.pw_dir}/.cache', f'XDG_DATA_HOME={user.pw_dir}/.local/share']
+    if safe_runtime:
+        env += [f'XDG_RUNTIME_DIR={runtime}', f'SSH_AUTH_SOCK={runtime}/openssh_agent']
+    if safe_bus:
+        env += [f'DBUS_SESSION_BUS_ADDRESS=unix:path={runtime}/bus']
     if wayland:
-        sockets = [p for p in runtime.glob('wayland-*') if re.fullmatch(r'wayland-[0-9]+',p.name)
-                   and stat.S_ISSOCK(p.lstat().st_mode) and p.lstat().st_uid == user.pw_uid]
+        sockets = []
+        try:
+            for p in itertools.islice(runtime.glob('wayland-*'), 128):
+                st = p.lstat()
+                if re.fullmatch(r'wayland-[0-9]+', p.name) and stat.S_ISSOCK(st.st_mode) and st.st_uid == user.pw_uid:
+                    sockets.append(p)
+        except OSError:
+            return None
         if len(sockets) != 1:
             return None
         env += [f'WAYLAND_DISPLAY={sockets[0].name}', 'XDG_SESSION_TYPE=wayland']
-    return ['/usr/sbin/runuser','-u',user.pw_name,'--','/usr/bin/env','-i',*env,*argv]
+    # chdir happens AFTER dropping privileges. No shell/profile is run by root;
+    # the managed Codex wrapper may load its own user profile as that user.
+    return ['/usr/sbin/runuser', '-u', user.pw_name, '--', '/usr/bin/env', '-i',
+            '--chdir='+user.pw_dir, *env, *argv]
+
+
+@contextlib.contextmanager
+def input_directory(path: Path, *, trusted: bool = False):
+    """Pin every component; O_NOFOLLOW on the leaf alone is not sufficient."""
+    if not path.is_absolute() or '..' in path.parts:
+        raise DebugError('input path must be absolute without parent traversal')
+    fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in path.parts[1:]:
+            new = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=fd)
+            os.close(fd)
+            fd = new
+            st = os.fstat(fd)
+            if trusted and (st.st_uid != 0 or st.st_mode & 0o022):
+                raise DebugError('root log path is not exclusively administrator-controlled')
+        yield fd
+    finally:
+        os.close(fd)
+
+
+def log_text(path: Path, *, trusted: bool = False) -> tuple[str, dict]:
+    """Bounded current-log tail or compressed-rotation prefix; never follow links."""
+    try:
+        with input_directory(path.parent, trusted=trusted) as directory:
+            fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+        with os.fdopen(fd, 'rb') as stream:
+            st = os.fstat(stream.fileno())
+            if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or (trusted and (st.st_uid != 0 or st.st_mode & 0o022)):
+                return '', {'status': 'unsafe-log', 'path': str(path)}
+            compressed = path.suffix == '.gz'
+            if compressed and st.st_size > 8*MAX_LOG:
+                return '', {'status': 'compressed-input-limit', 'path': str(path), 'source_bytes': st.st_size}
+            if compressed:
+                with gzip.GzipFile(fileobj=stream) as archive:
+                    data = archive.read(MAX_LOG+1)
+                limited = len(data) > MAX_LOG
+            else:
+                stream.seek(max(0, st.st_size-MAX_LOG))
+                data = stream.read(MAX_LOG+1)
+                limited = st.st_size > MAX_LOG or len(data) > MAX_LOG
+            return redact(data[:MAX_LOG].decode(errors='replace')), {
+                'status': 'output-limit' if limited else 'ok', 'path': str(path),
+                'uid': st.st_uid, 'mode': oct(stat.S_IMODE(st.st_mode)), 'source_bytes': st.st_size,
+                'capture': 'decompressed-prefix' if compressed else 'tail'}
+    except (OSError, EOFError, zlib.error, DebugError) as exc:
+        return '', {'status': 'unavailable', 'path': str(path), 'error': type(exc).__name__}
+
+
+def log_paths(path: Path, *, trusted: bool = False) -> tuple[list[Path], bool]:
+    """Fixed basename and numeric/date rotations, never a recursive log sweep."""
+    matches = []
+    limited = False
+    try:
+        with input_directory(path.parent, trusted=trusted) as directory:
+            with os.scandir(directory) as entries:
+                for index, entry in enumerate(entries):
+                    if index >= MAX_LOG_DIRECTORY:
+                        limited = True
+                        break
+                    if re.fullmatch(re.escape(path.name)+r'(?:\.[0-9]{1,6}|-[0-9]{8}(?:[0-9]{6})?)(?:\.gz)?', entry.name):
+                        st = entry.stat(follow_symlinks=False)
+                        if stat.S_ISREG(st.st_mode):
+                            matches.append((st.st_mtime_ns, entry.name))
+    except (OSError, DebugError):
+        return [path], False
+    matches.sort(reverse=True)
+    return [path, *(path.parent/name for _, name in matches[:MAX_ROTATIONS])], limited or len(matches) > MAX_ROTATIONS
+
+
+def user_evidence(application: str) -> int:
+    """Internal fixed-scope reader: it is forbidden to run with root privileges."""
+    if os.geteuid() == 0 or os.getuid() != os.geteuid() or application not in USER_LOGS:
+        raise DebugError('application evidence must run as the desktop user')
+    uid = os.getuid()
+    home = Path(pwd.getpwuid(uid).pw_dir)
+    records = []
+    paths = [Path('/data/codex/sockets'), Path('/data/codex/sockets/app-server-control.sock'),
+             Path('/data/codex/sockets/app-server-backend.sock'), Path('/data/codex/usr/home'),
+             Path('/data/codex/usr/home/auth.json'), Path('/data/codex/credentials/mcp.env'),
+             home/'.config/systemd/user', Path(f'/run/user/{uid}/bus'),
+             home/'.config/ChatGPT', home/'.config/chatgpt', Path('/run/rsyslog/openai/chatgpt.sock')]
+    for path in paths:
+        try:
+            with input_directory(path.parent) as directory:
+                st = os.stat(path.name, dir_fd=directory, follow_symlinks=False)
+            records.append({'path': str(path), 'uid': st.st_uid, 'gid': st.st_gid,
+                            'mode': oct(stat.S_IMODE(st.st_mode)), 'bytes': st.st_size,
+                            'socket': stat.S_ISSOCK(st.st_mode), 'symlink': stat.S_ISLNK(st.st_mode)})
+        except (OSError, DebugError) as exc:
+            records.append({'path': str(path), 'status': 'unavailable', 'error': type(exc).__name__})
+    print(json.dumps({'uid': uid, 'metadata_only': records}, ensure_ascii=True), flush=True)
+    # Process argv, environments, auth/config contents and session history are
+    # deliberately not evidence. cgroups and LSM labels are safe lifecycle data.
+    for path in itertools.islice(Path('/proc').glob('[0-9]*'), 4096):
+        try:
+            if path.stat().st_uid != uid:
+                continue
+            comm = (path/'comm').read_text().strip()
+            if not re.search(r'(?i)codex|chatgpt|bwrap|slirp4netns', comm):
+                continue
+            print(json.dumps({'pid': path.name, 'comm': comm}), flush=True)
+            for suffix in ('status', 'cgroup', 'attr/current', 'uid_map', 'gid_map'):
+                text, meta = direct_text(path/suffix, 16384)
+                print(json.dumps(meta), '\n'+text, flush=True)
+        except OSError:
+            continue
+    return 0
+
+
+def user_log(application: str, index: int) -> int:
+    if os.geteuid() == 0 or os.getuid() != os.geteuid() or application not in USER_LOGS:
+        raise DebugError('application logs must be read as the desktop user')
+    if not 0 <= index < len(USER_LOGS[application]):
+        raise DebugError('invalid fixed log selection')
+    complete = True
+    for name in (USER_LOGS[application][index],):
+        paths, limited = log_paths(Path(name))
+        if limited:
+            complete = False
+            print(json.dumps({'path': name, 'status': 'rotation-count-limit'}), flush=True)
+        for path in paths:
+            text, meta = log_text(path)
+            complete = complete and meta['status'] == 'ok'
+            print(json.dumps(meta), '\n'+text, flush=True)
+    return 0 if complete else 1
 
 class Report:
-    def __init__(self, categories: list[str], prefix: str = 'report'):
+    def __init__(self, categories: list[str], prefix: str = 'report', user_name: str | None = None):
+        self.user = desktop_account(user_name)
         safe_directory(LOGROOT)
         if shutil.disk_usage(LOGROOT).free < MAX_TOTAL + 128 * 1024 * 1024:
             raise DebugError('not enough free report space (224 MiB required); archive old reports explicitly')
@@ -345,11 +607,14 @@ class Report:
         self.records: list[dict] = []
         self.total = 0
         self.contents: dict[str,str] = {}
+        self.log_evidence: dict[str, tuple[dict, str]] = {}
         self.started = dt.datetime.now(dt.timezone.utc).isoformat()
-        self.user = desktop_account()
         self.deadline = time.monotonic()+900
 
     def add(self, category: str, label: str, text: str, metadata: dict, source=None):
+        if len(self.records) >= MAX_RECORDS:
+            raise DebugError('report evidence-record limit reached')
+        text = redact(text)
         if self.total >= MAX_TOTAL:
             text = ''; metadata = dict(metadata, status='report-byte-limit')
         encoded = text.encode()
@@ -366,24 +631,25 @@ class Report:
         # Only short excerpts kept for overview/rule evaluation, not entire logs.
         self.contents[label] = encoded[:24000].decode(errors='replace')
 
-    def command(self, category: str, label: str, argv: list[str], timeout: int = 30):
+    def command(self, category: str, label: str, argv: list[str], timeout: int = 30, cap: int = MAX_OUTPUT):
         if self.total >= MAX_TOTAL:
             self.add(category,label,'',{'status':'report-byte-limit'},argv); return
         remaining = self.deadline-time.monotonic()
         if remaining <= 0:
             self.add(category,label,'',{'status':'report-time-limit'},argv); return
         try:
-            text, meta = run(argv, min(timeout, max(.1,remaining)))
+            text, meta = run(argv, min(timeout, max(.1,remaining)), cap=min(cap, MAX_TOTAL-self.total))
         except OSError as exc:
             text, meta = '', {'status':'unavailable','errno':exc.errno}
         self.add(category,label,text,meta,argv)
+        return text, meta
 
     def gather(self):
         self.command('system','collector-context',['id'])
         for category in self.categories:
             print(f'Gathering {category} evidence...', flush=True)
             for label, argv in PROBES[category]:
-                self.command(category,label,argv,60 if label in ('unit-hardening','hardware-tree') else 30)
+                self.command(category,label,argv,60 if label in ('unit-hardening','hardware-tree','journal-integrity') else 30)
             seen = set()
             for pattern in FILES[category]:
                 matched = False
@@ -395,8 +661,7 @@ class Report:
                         matched = True; seen.add(name)
                         if len(seen) > MAX_FILES or self.total >= MAX_TOTAL or time.monotonic() > self.deadline:
                             break
-                        text, meta = direct_text(Path(name), sysfs=name.startswith('/sys/'))
-                        self.add(category,name,text,meta,name)
+                        self.file_evidence(category, name)
                     if len(seen) > MAX_FILES or self.total >= MAX_TOTAL or time.monotonic() > self.deadline:
                         break
                 if len(seen) > MAX_FILES or self.total >= MAX_TOTAL or time.monotonic() > self.deadline:
@@ -404,8 +669,218 @@ class Report:
                 if not matched:
                     self.add(category,'no-matching-files','',{'status':'no-match'},pattern)
             self.dynamic(category)
+            self.managed_logs(category)
+
+    def file_evidence(self, category: str, name: str):
+        if name.startswith('/sys/kernel/debug/'):
+            # DRM state reads can wait inside a hung driver. Never block the
+            # collector itself on debugfs; use the bounded process-group reader.
+            try:
+                path = Path(name).resolve()
+                if not path.is_relative_to('/sys/kernel/debug') or not path.is_file():
+                    self.add(category, name, '', {'status': 'unsafe-debugfs-path'}, name)
+                    return
+            except OSError as exc:
+                self.add(category, name, '', {'status': 'unavailable', 'errno': exc.errno}, name)
+                return
+            self.command(category, name, ['cat', '--', str(path)], timeout=5, cap=MAX_FILE)
+            return
+        text, meta = direct_text(Path(name), sysfs=name.startswith('/sys/'))
+        self.add(category, name, text, meta, name)
+
+    def user_probe(self, category: str, label: str, argv: list[str], *, wayland: bool = False,
+                   bus_required: bool = True, timeout: int = 30, cap: int = MAX_OUTPUT):
+        command = user_command(self.user, argv, wayland, bus_required=bus_required)
+        if command is None:
+            self.add(category, label, 'No selected account or safe user session; no root fallback was attempted.',
+                     {'status': 'no-session'}, argv)
+            return None
+        result = self.command(category, label, command, timeout, cap)
+        self.records[-1]['run_as_uid'] = self.user.pw_uid
+        return result
+
+    def root_log(self, category: str, path: Path, label: str):
+        # Repeated kernel/application logs must not consume the report budget
+        # once per category. Keep an explicit reference with the original
+        # coverage status; only the first read opens the protected source.
+        previous = self.log_evidence.get(str(path))
+        if previous is not None:
+            meta, evidence = previous
+            self.add(category, label, 'Collected earlier in this report: '+evidence+'\n',
+                     dict(meta, reference_evidence=evidence), str(path))
+            return
+        text, meta = log_text(path, trusted=True)
+        self.add(category, label, text, meta, str(path))
+        self.log_evidence[str(path)] = (dict(meta, status=self.records[-1]['status']), self.records[-1]['evidence'])
+
+    def managed_logs(self, category: str):
+        for name in MANAGED_LOGS.get(category, ()):
+            paths, limited = log_paths(Path(name), trusted=True)
+            if limited:
+                self.add(category, 'log-rotation-coverage', '', {'status': 'rotation-count-limit'}, name)
+            for path in paths:
+                if self.total >= MAX_TOTAL or time.monotonic() >= self.deadline:
+                    self.add(category, 'managed-log-limit', '', {'status': 'collection-limit'}, str(path))
+                    return
+                self.root_log(category, path, 'managed-'+path.name)
+
+    def boot_logs(self, category: str):
+        # Persistent snapshots complement volatile per-boot journals. Never
+        # recurse, read secret sealing state, or follow a snapshot symlink.
+        matches = []
+        limited = False
+        try:
+            with input_directory(BOOT_LOGS, trusted=True) as directory:
+                with os.scandir(directory) as entries:
+                    for index, entry in enumerate(entries):
+                        if index >= MAX_LOG_DIRECTORY:
+                            limited = True
+                            break
+                        match = BOOT_LOG_NAME.fullmatch(entry.name)
+                        if match:
+                            matches.append((int(match[1]), entry.name))
+        except (OSError, DebugError) as exc:
+            self.add(category, 'boot-snapshots', '', {'status': 'unavailable', 'error': type(exc).__name__}, str(BOOT_LOGS))
+            return
+        if limited or len(matches) > 3:
+            self.add(category, 'boot-snapshot-coverage', 'Only the three newest snapshots are collected.',
+                     {'status': 'snapshot-count-limit'}, str(BOOT_LOGS))
+        if not matches:
+            self.add(category, 'boot-snapshots', '', {'status': 'no-match'}, str(BOOT_LOGS))
+        for _, name in sorted(matches, reverse=True)[:3]:
+            if self.total >= MAX_TOTAL or time.monotonic() >= self.deadline:
+                self.add(category, 'boot-snapshot-limit', '', {'status': 'collection-limit'}, str(BOOT_LOGS))
+                return
+            path = BOOT_LOGS/name
+            self.root_log(category, path, 'boot-snapshot-'+name)
+
+    def failed_units(self, *, user: bool = False):
+        # `show --state=failed` without unit names describes the manager, not
+        # each failed unit. Enumerate first, then request only safe properties.
+        prefix = 'user' if user else 'system'
+        command = ['systemctl', *(['--user'] if user else [])]
+        invoke = self.user_probe if user else self.command
+        result = invoke('units', prefix+'-failed-units', command+[
+            'list-units', '--all', '--state=failed', '--plain', '--no-legend', '--no-pager'])
+        if not result or result[1]['status'] != 'ok':
+            return
+        names = []
+        for line in result[0].splitlines():
+            fields = line.split()
+            if fields and re.fullmatch(r'[A-Za-z0-9_.:@\\-]{1,240}\.(?:service|socket|target|mount|automount|swap|timer|path|scope|slice|device)', fields[0]):
+                names.append(fields[0])
+        names = list(dict.fromkeys(names))
+        if len(names) > MAX_FAILED_UNITS:
+            self.add('units', prefix+'-failed-coverage', '', {'status': 'unit-count-limit'})
+        if names:
+            invoke('units', prefix+'-failed-details', command+[
+                'show', '--property='+UNIT_PROPERTIES, '--', *names[:MAX_FAILED_UNITS]])
+
+    def codex_probe(self, label: str, arguments: list[str], timeout: int = 30):
+        # The managed wrapper may spawn new sessions/namespaces. A user-manager
+        # cgroup provides a lifetime bound beyond a POSIX process group.
+        if user_command(self.user, ['true']) is None:
+            self.add('codex', label, 'A safe active user manager is required; no root or unsupervised fallback.',
+                     {'status': 'no-session'})
+            return None
+        unit = 'debugsys-codex-'+uuid.uuid4().hex+'.service'
+        command = ['systemd-run', '--user', '--quiet', '--wait', '--pipe', '--collect',
+                   '--unit='+unit, '--service-type=exec',
+                   '--property=RuntimeMaxSec='+str(timeout)+'s', '--property=TimeoutStopSec=5s',
+                   '--property=KillMode=control-group', '--property=SendSIGKILL=yes',
+                   '--property=UMask=0077', '--property=LimitCORE=0',
+                   '--property=WorkingDirectory='+self.user.pw_dir,
+                   '--setenv=HOME='+self.user.pw_dir, '--setenv=USER='+self.user.pw_name,
+                   '--setenv=LOGNAME='+self.user.pw_name, '--', CODEX, *arguments]
+        try:
+            return self.user_probe('codex', label, command, timeout=timeout+8)
+        finally:
+            # Also clean up on output truncation, Ctrl-C and collector signals.
+            # RuntimeMaxSec remains the backstop if the manager is unreachable.
+            cleanup = user_command(self.user, ['systemctl', '--user', '--no-block', 'stop', unit])
+            if cleanup:
+                try:
+                    run(cleanup, timeout=5, cap=16384)
+                except OSError:
+                    pass
+
+    def application(self, category: str):
+        units = APP_UNITS[category]
+        for label, argv in (
+            ('unit-state', ['systemctl', '--user', 'show', *units, '--property='+UNIT_PROPERTIES]),
+            ('unit-files', ['systemctl', '--user', 'list-unit-files', '*codex*', '*chatgpt*', '*ChatGPT*', '--no-pager']),
+            ('sockets', ['systemctl', '--user', 'list-sockets', '--all', '--no-pager']),
+            ('unix-listeners', ['ss', '-lxnp']),
+        ):
+            self.user_probe(category, category+'-'+label, argv)
+        for boot in ('0', '-1'):
+            self.user_probe(category, category+'-journal-boot'+boot,
+                ['journalctl', '--user', '-b', boot, '--no-pager', '-n', '4000', '-o', 'short-iso-precise',
+                 *(arg for unit in units for arg in ('-u', unit))], bus_required=False)
+        # A separate UID-constrained query can expose logs readable by this user
+        # under volatile journal policy; it never grants root journal access.
+        if self.user:
+            self.user_probe(category, category+'-readable-journal',
+                ['journalctl', '-b', f'_UID={self.user.pw_uid}', '--no-pager', '-n', '3000',
+                 '--grep=(?i)codex|chatgpt|app-server|bwrap|slirp4netns'], bus_required=False)
+        if category == 'codex':
+            self.codex_probe('codex-version', ['--version'])
+            result = self.codex_probe('codex-help', ['--help'])
+            # Unknown bare words can become a model prompt. Never invoke doctor
+            # unless THIS installed CLI advertises the literal subcommand.
+            if result and result[1]['status'] == 'ok' and re.search(r'^\s+doctor(?:\s|$)', result[0], re.M):
+                self.codex_probe('codex-doctor', ['doctor'], timeout=60)
+            else:
+                self.add(category, 'codex-doctor',
+                    'The installed CLI did not advertise doctor; no prompt, repair, login or model request was substituted.',
+                    {'status': 'unsupported-or-unavailable'})
+        self.user_probe(category, category+'-user-evidence',
+                        ['/usr/bin/python3', '-I', '-B', SELF, 'user-evidence', category],
+                        bus_required=False, timeout=45)
+        for index, name in enumerate(USER_LOGS[category]):
+            result = self.user_probe(category, category+'-log-'+str(index),
+                ['/usr/bin/python3', '-I', '-B', SELF, 'user-log', category, str(index)],
+                bus_required=False, timeout=30, cap=MAX_USER_LOG_OUTPUT)
+            # Some deployments retain administrator-owned managed app logs.
+            # Only the two fixed managed paths qualify for a root fallback,
+            # after the normal user read. Every directory AND file must be
+            # root-owned, non-writable by others, regular and not hardlinked.
+            if index < 2 and (not result or result[1]['status'] != 'ok'):
+                paths, limited = log_paths(Path(name), trusted=True)
+                if limited:
+                    self.add(category, 'protected-app-rotation-coverage', '', {'status': 'rotation-count-limit'}, name)
+                for path in paths:
+                    if self.total >= MAX_TOTAL or time.monotonic() >= self.deadline:
+                        self.add(category, 'protected-app-log-limit', '', {'status': 'collection-limit'}, str(path))
+                        break
+                    self.root_log(category, path, 'protected-'+path.name)
 
     def dynamic(self, category: str):
+        if category in APP_UNITS:
+            self.application(category)
+        if category == 'gpu':
+            for label, argv in (('gpu-outputs', ['wlr-randr']), ('gpu-wayland-protocols', ['wayland-info'])):
+                self.user_probe(category, label, argv, wayland=True)
+            self.user_probe(category, 'gpu-compositor-journal',
+                ['journalctl', '--user', '-b', '--no-pager', '-n', '4000', '--grep='+GPU_PATTERN], bus_required=False)
+        if category in ('boot', 'journal'):
+            self.boot_logs(category)
+        if category == 'units':
+            self.failed_units()
+            self.failed_units(user=True)
+            for label, argv in (
+                ('user-units', ['systemctl', '--user', 'list-units', '--all', '--no-pager']),
+                ('user-jobs', ['systemctl', '--user', 'list-jobs', '--no-pager']),
+                ('user-sockets', ['systemctl', '--user', 'list-sockets', '--all', '--no-pager']),
+                ('user-lifecycle', ['systemctl', '--user', 'show', 'labwc-session.target', 'labwc-compositor.service',
+                    'waybar.service', 'crystal-dock.service', *CODEX_UNITS, 'hardware-tuning-*.service', '--property='+UNIT_PROPERTIES]),
+            ):
+                self.user_probe(category, label, argv)
+        if category == 'journal':
+            self.add(category, 'sealing-assurance',
+                'journalctl --verify checks journal structure without an externally held verification key. '
+                'A successful check is NOT authenticated FSS verification. Neither FSS state nor verification '
+                'seeds are collected; sealing is not enabled, rotated or repaired by this report.', {'status': 'information'})
         if category == 'storage':
             for path in sorted(Path('/sys/block').glob('*')):
                 if re.fullmatch(r'(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)',path.name):
@@ -445,7 +920,7 @@ class Report:
                     self.command(category,label,command)
                 else:
                     self.add(category,label,'',{'status':'no-session'})
-            self.command(category,'desktop-journal',['journalctl','-b',f'_UID={self.user.pw_uid}','--no-pager','-n','2000'])
+            self.user_probe(category,'desktop-journal',['journalctl','--user','-b','--no-pager','-n','3000','-o','short-iso-precise'], bus_required=False)
         if category == 'credentials':
             if not self.user:
                 self.add(category,'identity-metadata','No unique active desktop account.',{'status':'no-session'}); return
@@ -485,7 +960,7 @@ class Report:
     def initramfs_evidence(self):
         source=Path('/run/initramfs/debugsys')
         if not source.exists():
-            self.add('boot','early-capture','No early-boot capture available. Use menu option 3, then reboot.',{'status':'not-armed'})
+            self.add('boot','early-capture','No early-boot capture available. Use Boot capture / Prepare next-boot capture, then reboot.',{'status':'not-armed'})
             return
         st=source.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or stat.S_IMODE(st.st_mode)!=0o700:
@@ -503,7 +978,7 @@ class Report:
         summary={'created_utc':self.started,'completed_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
                  'categories':self.categories,'effective_uid':os.geteuid(),'desktop_account':self.user.pw_name if self.user else None,
                  'interrupted':interrupted,'evidence_count':len(self.records),'bytes':self.total,'outcomes':dict(counts),
-                 'coverage':coverage,'limits':{'probe_bytes':MAX_OUTPUT,'file_bytes':MAX_FILE,'report_bytes':MAX_TOTAL,'files_per_category':MAX_FILES},
+                 'coverage':coverage,'limits':{'probe_bytes':MAX_OUTPUT,'file_bytes':MAX_FILE,'report_bytes':MAX_TOTAL,'files_per_category':MAX_FILES,'log_bytes':MAX_LOG,'rotations_per_log':MAX_ROTATIONS,'records':MAX_RECORDS,'user_log_probe_bytes':MAX_USER_LOG_OUTPUT},
                  'privacy':'Root-only; redaction is best-effort. Inspect before sharing. No private key contents or process environments were collected.'}
         atomic_write(self.path/'manifest.json',json.dumps(self.records,indent=2).encode())
         atomic_write(self.path/'summary.json',json.dumps(summary,indent=2).encode())
@@ -511,10 +986,10 @@ class Report:
                   f'Evidence records: {len(self.records)}; outcomes: {dict(counts)}','',
                   '**Privacy:** This report is root-only. Logs, addresses, serial numbers and usernames can be sensitive. Redaction is best-effort; review before sharing.',
                   '**Coverage:** Missing tools, unreadable interfaces, timeouts, output limits and no active desktop are recorded below. They are not evidence of health or hardware absence.',
-                  '**Safety:** Collection is read-only. No tuning, network scan, benchmark, firmware update or key decryption was performed.','', '## Coverage by area','']
+                  '**Safety:** No tuning, network scan, benchmark, firmware update or key decryption was performed. Application diagnostic commands run as the selected user in bounded transient services and may produce their normal logs/cache data.','', '## Coverage by area','']
         overview += [f'- **{c}:** {coverage[c]}' for c in self.categories]
         highlights=('kernel','cpu','firmware-memory','failed-units','package-audit','memory','swap','filesystem-space',
-                    'boot-times','boot-chain','desktop-units','outputs','audio','apparmor','secure-boot','addresses','dns','identity-metadata','agent-units','service-isolation')
+                    'boot-times','boot-chain','desktop-units','outputs','audio','apparmor','secure-boot','addresses','dns','identity-metadata','agent-units','service-isolation','gpu-kernel-errors','codex-doctor','codex-unit-state','chatgpt-unit-state','journal-integrity','sealing-assurance')
         for label in highlights:
             matches=[x for x in self.records if x['label']==label]
             if not matches: continue
@@ -685,8 +1160,8 @@ def change_hooks(enabled: bool):
            else 'Managed hooks removed; all initramfs images rebuilt and verified. Existing reports retained.'),flush=True)
     print(f'Operation record: {journal}',flush=True)
 
-def collect(categories: list[str], prefix: str = 'report', budget: int = 900):
-    report = Report(categories,prefix)
+def collect(categories: list[str], prefix: str = 'report', budget: int = 900, user_name: str | None = None):
+    report = Report(categories,prefix,user_name)
     report.deadline = time.monotonic()+budget
     interrupted = False
     try:
@@ -756,57 +1231,182 @@ def confirm(enabled: bool, yes: bool):
     if not sys.stdin.isatty() or input(f'Type {action} to proceed: ').strip() != action:
         raise DebugError('boot configuration change cancelled; nothing changed')
 
-def menu():
-    while True:
-        print('\nDEBUGSYS | System evidence and early-boot diagnostics\n')
-        for number,(label,_) in MENU.items():
-            print(f' [{number:2d}] {label}')
-        print(' [ 0] Exit\nSelect multiple entries: 1,6-9. Entry 11 never changes boot configuration.')
+# Boot-changing actions live in a separate screen and still require typed
+# confirmation. Choosing the comprehensive report cannot arm/remove hooks.
+SCREENS = {
+    'Hardware': [
+        ('Hardware inventory', ('hardware',)), ('CPU, thermals and pressure', ('cpu',)),
+        ('PCI, PCIe errors and IOMMU', ('pci',)), ('GPU, DRM and atomic commits', ('gpu',)),
+        ('Storage, memory and device health', ('storage',))],
+    'Desktop and applications': [
+        ('Labwc, Waybar, Crystal Dock and audio', ('desktop', 'gpu')),
+        ('Codex: user services, doctor, sockets and logs', ('codex',)),
+        ('ChatGPT: user services, sockets and logs', ('chatgpt', 'codex')),
+        ('Git / SSH / GPG metadata (no private keys)', ('credentials',))],
+    'System and security': [
+        ('System health and boot timeline', ('system', 'boot')),
+        ('System and user service lifecycle', ('units',)),
+        ('AppArmor, isolation and security', ('security',)),
+        ('Journal policy, integrity and sealing', ('journal',)),
+        ('Network and connectivity state', ('network',))],
+    'Boot capture': [
+        ('Boot timeline and captured evidence', ('boot',)),
+        ('Capture status and saved reports', 'status'),
+        ('Prepare next-boot capture [changes initramfs]', 'arm'),
+        ('Remove capture hooks [changes initramfs]', 'remove')],
+}
+
+
+def terminal_choice(title: str, labels: list[str], *, plain: bool = False) -> int | None:
+    """Arrow-key picker with a numbered fallback; restores the tty on all exits."""
+    if not plain and os.environ.get('TERM', '') not in ('', 'dumb') and sys.stdout.isatty():
+        import importlib
         try:
-            chosen=selections(input('Selection: '))
-            if chosen == [0]:
+            curses = importlib.import_module('curses')
+        except ImportError:
+            return terminal_choice(title, labels, plain=True)
+        try:
+            def draw(window):
+                position = 0
+                window.keypad(True)
+                try:
+                    curses.curs_set(0)
+                except curses.error:
+                    pass
+                if hasattr(curses, 'set_escdelay'):
+                    curses.set_escdelay(40)
+                while True:
+                    height, width = window.getmaxyx()
+                    window.erase()
+                    def line(y, value, attribute=0):
+                        if 0 <= y < height and width > 1:
+                            try:
+                                window.addnstr(y, 0, value, width-1, attribute)
+                            except curses.error:
+                                pass  # Includes a resize during repaint.
+                    line(0, 'DEBUGSYS | '+title, curses.A_BOLD)
+                    line(1, 'Up/Down: move   Enter/Right: select   Esc/Left/Q: back')
+                    visible = max(1, height-5)
+                    start = max(0, min(position-visible+1, len(labels)-visible))
+                    for row, index in enumerate(range(start, min(len(labels), start+visible)), 3):
+                        line(row, ('> ' if index == position else '  ')+labels[index],
+                             curses.A_REVERSE if index == position else 0)
+                    line(height-1, f'{position+1}/{len(labels)} | No action runs until selected')
+                    window.refresh()
+                    key = window.getch()
+                    if key in (27, ord('q'), ord('Q'), curses.KEY_LEFT):
+                        return None
+                    if key in (10, 13, curses.KEY_ENTER, curses.KEY_RIGHT):
+                        return position
+                    if key in (curses.KEY_UP, ord('k')):
+                        position = (position-1) % len(labels)
+                    elif key in (curses.KEY_DOWN, ord('j')):
+                        position = (position+1) % len(labels)
+                    elif key == curses.KEY_HOME:
+                        position = 0
+                    elif key == curses.KEY_END:
+                        position = len(labels)-1
+                    elif key == curses.KEY_PPAGE:
+                        position = max(0, position-visible)
+                    elif key == curses.KEY_NPAGE:
+                        position = min(len(labels)-1, position+visible)
+            return curses.wrapper(draw)
+        except curses.error:
+            # A serial console/minimal TERM still has a complete usable menu.
+            pass
+    while True:
+        print('\nDEBUGSYS | '+title)
+        for index, label in enumerate(labels, 1):
+            print(f' {index:2d}. {label}')
+        print('  0. Back / Exit')
+        value = input('Selection: ').strip()
+        if value in ('0', 'q', 'Q', ''):
+            return None
+        if len(value) <= 3 and value.isascii() and value.isdigit() and 1 <= int(value) <= len(labels):
+            return int(value)-1
+        print('Choose one of the displayed numbers.')
+
+
+def menu(user_name: str | None = None, plain: bool = False):
+    user = desktop_account(user_name)
+    context = user.pw_name if user else 'no unique desktop user; use --user NAME'
+    screen = None
+    while True:
+        try:
+            if screen is None:
+                labels = ['Comprehensive diagnostic report (all areas)', *SCREENS,
+                          'Capture status and saved reports', 'Exit']
+                selected = terminal_choice('Main menu | user: '+context, labels, plain=plain)
+                if selected is None or selected == len(labels)-1:
+                    return
+                label = labels[selected]
+                if label in SCREENS:
+                    screen = label
+                    continue
+                action = tuple(CATEGORIES) if selected == 0 else 'status'
+            else:
+                entries = SCREENS[screen]
+                selected = terminal_choice(screen, [label for label, _ in entries]+['Back'], plain=plain)
+                if selected is None or selected == len(entries):
+                    screen = None
+                    continue
+                action = entries[selected][1]
+            if action == 'status':
+                status()
+            else:
+                if action in ('arm', 'remove'):
+                    confirm(action == 'arm', False)
+                with lock():
+                    if isinstance(action, tuple):
+                        collect(list(action), user_name=user.pw_name if user else None)
+                    else:
+                        change_hooks(action == 'arm')
+            input('Press Enter to return to the menu: ')
+        except (DebugError, OSError) as exc:
+            print(f'debugsys: {exc}', file=sys.stderr)
+            try:
+                input('Press Enter to return to the menu: ')
+            except (EOFError, KeyboardInterrupt):
                 return
-            print('\nSelected: '+ '; '.join(MENU[n][0] for n in chosen))
-            if 3 in chosen or 5 in chosen:
-                confirm(3 in chosen,False)
-            with lock():
-                if 3 in chosen or 5 in chosen:
-                    change_hooks(3 in chosen)
-                categories=[c for c in CATEGORIES if any(c in MENU[n][1] for n in chosen)]
-                if categories:
-                    collect(categories)
-                if 12 in chosen:
-                    status()
-        except (DebugError,OSError) as exc:
-            print(f'debugsys: {exc}',file=sys.stderr)
-        except (EOFError,KeyboardInterrupt):
+        except (EOFError, KeyboardInterrupt):
             print('\nLeaving debugsys. Completed and partial reports are retained.')
             return
 
 def main() -> int:
+    # Internal child readers have fixed schemas and must NEVER read as root.
+    if len(sys.argv) == 3 and sys.argv[1] == 'user-evidence':
+        return user_evidence(sys.argv[2])
+    if len(sys.argv) == 4 and sys.argv[1] == 'user-log' and re.fullmatch('[0-9]', sys.argv[3]):
+        return user_log(sys.argv[2], int(sys.argv[3]))
     if os.geteuid() != 0:
         raise DebugError('use /usr/local/bin/debugsys; collection must enter sudo -i')
     os.umask(0o077)
     import resource
     resource.setrlimit(resource.RLIMIT_CORE,(0,0))
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--user', dest='desktop_user', help='explicit non-root desktop account')
+    parser.add_argument('--plain-menu', action='store_true', help='numbered menu instead of terminal arrows')
     sub=parser.add_subparsers(dest='action')
     report=sub.add_parser('report',help='read-only report; no boot changes')
+    report.add_argument('--user', dest='report_user', help='explicit non-root desktop account')
     report.add_argument('--categories',nargs='+',choices=CATEGORIES,default=list(CATEGORIES))
     for action in ('boot-enable','boot-disable'):
         sub.add_parser(action).add_argument('--yes',action='store_true',help='explicitly authorize the initramfs rebuild')
     sub.add_parser('boot-finalize',help=argparse.SUPPRESS)
     sub.add_parser('status')
     args=parser.parse_args()
+    user_name = getattr(args, 'report_user', None) or args.desktop_user
+    if user_name is not None:
+        desktop_account(user_name)
     if args.action is None:
         if not sys.stdin.isatty():
             parser.error('interactive menu requires a terminal; use report or status')
-        menu(); return 0
+        menu(user_name, args.plain_menu); return 0
     if args.action == 'status':
         status(); return 0
     with lock():
         if args.action == 'report':
-            collect(list(dict.fromkeys(args.categories)))
+            collect(list(dict.fromkeys(args.categories)), user_name=user_name)
         elif args.action.startswith('boot-') and args.action != 'boot-finalize':
             enabled=args.action == 'boot-enable'
             confirm(enabled,args.yes); change_hooks(enabled)

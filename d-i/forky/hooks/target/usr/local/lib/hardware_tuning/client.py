@@ -10,6 +10,7 @@ import socket
 import stat
 import subprocess
 import sys
+import time
 import uuid
 from common import MAX_JSON, PROFILES, SOCKET, VENDORS, TuningError, decode
 
@@ -19,11 +20,20 @@ EXECUTABLE = "/usr/local/bin/labwc-hardware-tuning"
 def connect_request(request: dict) -> tuple[socket.socket, dict]:
     channel = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        channel.settimeout(360)
+        channel.settimeout(5)
         channel.connect(SOCKET)
+        # Status must not leave the menu hanging behind a stalled broker.
+        # Other operations retain the existing tuning transaction allowance,
+        # but a trickling response cannot renew it indefinitely.
+        deadline = time.monotonic() + (15 if request.get("action") == "status" else 360)
+        channel.settimeout(max(0.001, deadline - time.monotonic()))
         channel.sendall(json.dumps(request).encode() + b"\n")
         data = bytearray()
         while len(data) <= MAX_JSON:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("hardware tuning control response timed out")
+            channel.settimeout(remaining)
             chunk = channel.recv(min(65536, MAX_JSON + 1 - len(data)))
             if not chunk:
                 raise TuningError("control service closed without a complete response")
@@ -217,8 +227,11 @@ def menu() -> int:
     status = request("status")
     entries = ["Set Single Tuning Profile", "Generate Hardware Tuning Report", "Start Automatic Tuning", "Stop Automatic Tuning",
                "Enable Autostart Tuning at Boot", "Disable Autostart Tuning at Boot", "Reset Hardware Tuning"]
-    selected = choose(entries, "Hardware tuning> ")
-    if selected is None:
+    selected = choose([*entries, "Show Hardware Tuning Status", "Back"], "Hardware Tuning> ")
+    if selected is None or selected == "Back":
+        return 0
+    if selected == "Show Hardware Tuning Status":
+        notify(json.dumps(status, indent=2, allow_nan=False))
         return 0
     if selected == entries[0]:
         choices = {"Reset Profiles [All]": ("profiles-reset", None, None)}

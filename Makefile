@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: build check test test-bootstrap test-debconf test-cuda audit validate
+.PHONY: build check test test-bootstrap test-debconf test-cuda audit validate themes
 build:
 	$(PYTHON) -B tools/build.py
 check:
@@ -18,3 +18,6 @@ audit:
 	$(PYTHON) -B d-i/forky/tests/audit_codebase.py --output .build/validation/audit.json
 validate:
 	$(PYTHON) -B tools/validate.py
+
+themes:
+	$(PYTHON) -I -B tools/themes.py

@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Computer Management: six task-oriented groups, existing action boundaries.
+"""Computer Management: task groups and a discoverable Hardware Tuning entry.
 
 The no-argument entry point and child dmenu pickers use graphical Fuzzel.
 Explicit --terminal mode retains the terminal-only fzf adapter. Existing
@@ -15,6 +15,7 @@ SELF = '/usr/local/bin/labwc-computer-management'
 PICKER = '/usr/local/bin/labwc-fuzzel'
 TERMINAL = '/usr/local/bin/labwc-terminal'
 LOG = '/usr/local/bin/labwc-fuzzel-log'
+HARDWARE = '/usr/local/bin/labwc-hardware-tuning'
 
 # Labels are presentation. Only these fixed argv vectors can be launched.
 MENUS = {
@@ -93,23 +94,35 @@ def run_action(arguments: tuple[str, ...]) -> int:
     return status
 
 
+def open_hardware_tuning() -> int:
+    # Keep the route visible even on intentionally gated hosts. Do not enable
+    # unsupported vendors, install packages or bypass the AppArmor transition.
+    if not (Path(HARDWARE).is_file() and os.access(HARDWARE, os.X_OK)):
+        choose(['Back'], 'Hardware Tuning unavailable: not installed (host enable flags / hardware / addon gates)')
+        return 0
+    result = run_action(('labwc-hardware-tuning', 'menu'))
+    if result:
+        choose(['Back'], f'Hardware Tuning failed (status {result}): check its notification and hardware-tuning.service logs')
+    return result
+
+
 def run_menu() -> int:
     while True:
-        group = choose([*MENUS, 'Exit'], 'Computer Management')
+        group = choose(['Hardware Tuning', *MENUS, 'Exit'], 'Computer Management')
         if group is None or group == 'Exit':
             return 0
-        entries = dict(MENUS[group])
-        # The tuning installer is hardware/class gated. Do not offer a dead
-        # route on hosts on which its confined client was not installed.
-        if not (Path('/usr/local/bin/labwc-hardware-tuning').is_file()
-                and os.access('/usr/local/bin/labwc-hardware-tuning', os.X_OK)):
-            entries.pop('Hardware Tuning', None)
+        if group == 'Hardware Tuning':
+            open_hardware_tuning()
+            continue
+        entries = MENUS[group]
         while True:
             selected = choose([*entries, 'Back'], 'Computer Management / ' + group)
             if selected is None or selected == 'Back':
                 break
-            run_action(entries[selected])
-
+            if selected == 'Hardware Tuning':
+                open_hardware_tuning()
+            else:
+                run_action(entries[selected])
 
 def main(argv: list[str]) -> int:
     if argv == ['--catalog']:
